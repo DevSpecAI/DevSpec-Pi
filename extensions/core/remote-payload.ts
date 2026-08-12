@@ -94,5 +94,15 @@ export function parsePollPayload(payload: unknown, connectionId: string): PollPa
 /** Format an owner command as the user message injected into pi. */
 export function formatInboundMessage(cmd: OwnerCommand, codename: string): string {
 	const who = cmd.userName ?? "owner";
-	return `[DevSpec remote — message from ${who} to ${codename}]\n${cmd.text}`;
+	const header = `[DevSpec remote — message from ${who} to ${codename}]`;
+	const body = cmd.text;
+	// The TUI previews a queued follow-up by its FIRST line only — so line one
+	// must carry content, never a bare envelope (item 2b072496: header-only
+	// first lines made real queued messages indistinguishable from empty
+	// "phantom" envelopes). Single-line bodies ride the header directly;
+	// multiline messages lead with an excerpt of their first line.
+	if (!body.includes("\n")) return `${header} ${body}`;
+	const firstLine = body.split("\n", 1)[0] ?? "";
+	const excerpt = firstLine.length > 80 ? `${firstLine.slice(0, 77)}…` : `${firstLine} …`;
+	return `${header} — “${excerpt}”\n\n${body}`;
 }

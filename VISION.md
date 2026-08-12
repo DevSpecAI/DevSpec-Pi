@@ -182,16 +182,39 @@ The model still needs instructions; the delivery is native now:
 
 ### Memory: better here than anywhere else
 
-DevSpec memory is the memory system — Pi just lets it breathe:
+DevSpec memory is the memory system — Pi just lets it breathe. But the
+framing is bigger than memory: **the intelligence layer is ONE system** —
+memories, action items, artifacts, hybrid search across all three, and
+conflict detection/settling between them. What already lives server-side
+(build WITH it, never rebuild it):
 
-- **Recall:** `before_agent_start` injects the most task-relevant memories
-  automatically (semantic search per turn), instead of relying on the model
-  remembering to search.
-- **Capture:** the extension observes turns and suggests `record_memory` when
-  a durable decision/convention/risk appears (user-confirmed, not silent).
-- **Survival:** compaction preserves the active DevSpec context (claimed
-  items, bond state, recalled memories) across context windows.
-- **Freshness:** stale-memory detection prompts supersede/retract flows.
+- recall-gated `record_memory`/`supersede_memory` (hybrid recall on write)
+- `create_action_item` related_candidates + background conflict checks
+- review signals, `unresolved_conflicts`, queue holds,
+  `preview_conflict_resolution` (what a verdict WOULD do),
+  `resolve_action_item_conflict` with the supersedes-escalation rules
+- work items already carry `relevant_memories` + `relevant_artifacts`
+
+What Pi opens up (mechanical, zero-token, no model compliance):
+
+- **Recall before thought** (shipped): every substantive turn's prompt is
+  searched against project memory BEFORE the turn starts; new hits inject
+  into the system prompt with binding semantics marked; session-deduped.
+  The model no longer has to remember to remember.
+- **Conflict surfacing** (shipped): payload signals become structural flags
+  with a per-turn nudge while open + `/devspec.conflicts`. Never silent
+  settling — supersedes escalates per the server rules.
+- **Structured settling UI** (next): pi's custom overlays can walk the human
+  through a conflict pair (both items side by side, preview_conflict_resolution
+  consequence, verdict picker) — "user involvement when appropriate" with a
+  real interface, not a wall of JSON. Nothing like this is possible on other
+  hosts.
+- **Capture** (shipped: guidance + gates; next: proposals): the extension
+  observes turns and proposes record_memory at decision moments —
+  user-confirmed interactively, `in_discussion` when autonomous.
+- **Compaction survival** (next): the active DevSpec context (claimed items,
+  bond, recalled memories) is re-injected after compaction so long sessions
+  don't lose the plot.
 
 ### Remote control: native-runtime family, done right
 

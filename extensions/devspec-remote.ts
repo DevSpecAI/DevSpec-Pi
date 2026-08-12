@@ -32,6 +32,7 @@ import { callDevspec, DevspecAuthError } from "./core/client.ts";
 import { getBond, setBond, completeTurnPostedSince, type BondState } from "./core/bond-state.ts";
 import { formatInboundMessage, parsePollPayload } from "./core/remote-payload.ts";
 import { unwrapMcpResult } from "./core/result.ts";
+import { buildAttachBlock, shapeTranscript } from "./core/attach-context.ts";
 import { extractAssistantParts, extractText, TrailBuilder } from "./core/trail.ts";
 import { buildAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
 import { planSettle, TurnTracker } from "./core/turn-lifecycle.ts";
@@ -74,6 +75,10 @@ interface PumpState {
 	pushReconnectTimer?: ReturnType<typeof setTimeout>;
 	wakePending?: boolean;
 	wakeWaiter?: (() => void) | null;
+	/** Last attach-context/title fetch attempt — titles are job-generated, so a
+	 *  missing one is retried on a slow cadence, never hot-polled (Ali: a brand-new
+	 *  session may have no title at attach time; check again later). */
+	lastSessionEnrichAt?: number;
 }
 
 let pump: PumpState | null = null;
@@ -487,6 +492,21 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			active.bond = next;
 			setBond(next);
 			debug(`attachment adopted from server: ${serverSessionId ?? "sessionless"}`);
+			// Attach-time bond context (item 9dcbd157): one bounded fetch learns the
+			// room's identity — title, owner name, recent tail — so a fresh bond
+			// attached-then-messaged within seconds never starts blind.
+			if (serverSessionId) void enrichBondWithSession(serverSessionId, true);
+		}
+
+		// Titles are job-generated from the first substantial message: an attach
+		// that found none retries on a slow cadence (never hot-polled) until one
+		// lands — and a refresh never re-injects the attach block.
+		if (active.bond.sessionId && !active.bond.sessionTitle) {
+			const last = active.lastSessionEnrichAt ?? 0;
+			if (Date.now() - last > 60_000) {
+				active.lastSessionEnrichAt = Date.now();
+				void enrichBondWithSession(active.bond.sessionId, false);
+			}
 		}
 
 		const pkg = parsePollPayload(payload, active.bond.connectionId);
@@ -513,9 +533,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		for (const cmd of pkg.ownerCommands) {
 			try {
 				if (ctx.isIdle()) {
-					pi_send(formatInboundMessage(cmd, active.bond.codename ?? "this agent"));
+					pi_send(formatInboundMessage(cmd, active.bond.codename ?? "this agent", active.bond));
 				} else {
-					pi_send(formatInboundMessage(cmd, active.bond.codename ?? "this agent"), true);
+					pi_send(formatInboundMessage(cmd, active.bond.codename ?? "this agent", active.bond), true);
 				}
 				notify(ctx, `DevSpec remote: delivered owner message (${cmd.userName ?? "owner"}).`);
 			} catch (err) {
@@ -615,6 +635,45 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 
 // Late-bound so the loop can reference the ExtensionAPI closure.
 let pi_send: (message: string, followUp?: boolean) => void = () => {};
+
+/**
+ * Attach-time bond context (item 9dcbd157). One bounded transcript fetch
+ * learns the room's identity — title, owner name, recent tail — and caches it
+ * on the bond so the attach block and every owner envelope can carry it.
+ *
+ * withAttachContext is true only for a genuine attach transition: a title
+ * refresh (titles are job-generated, so an early fetch can find none) must
+ * never re-inject the context block.
+ */
+async function enrichBondWithSession(sessionId: string, withAttachContext: boolean): Promise<void> {
+	const resolved = await resolveToken();
+	if (!resolved) return;
+	try {
+		const raw = await callDevspec(resolved.token, "get_session_transcript", { session_id: sessionId });
+		const unwrapped = unwrapMcpResult(raw);
+		if (unwrapped.isError) {
+			debug(`session enrich fetch failed: ${unwrapped.text.slice(0, 120)}`);
+			return;
+		}
+		const shaped = shapeTranscript(sessionId, unwrapped.details);
+		const active = pump;
+		// The attachment may have moved on (or detached) while the fetch flew.
+		if (!active?.bond || active.bond.sessionId !== sessionId) return;
+		const next: BondState = {
+			...active.bond,
+			sessionTitle: shaped.title ?? active.bond.sessionTitle,
+			ownerName: shaped.ownerName ?? active.bond.ownerName,
+		};
+		if (withAttachContext) {
+			next.attachContext = buildAttachBlock(shaped, active.bond.codename ?? "this agent");
+		}
+		active.bond = next;
+		setBond(next);
+		debug(`session enriched: title=${shaped.title ? "yes" : "none yet"}, owner=${shaped.ownerName ?? "unknown"}, tail=${shaped.tail.length}, attachContext=${withAttachContext}`);
+	} catch (err) {
+		debug(`session enrich error: ${err instanceof Error ? err.message : err}`);
+	}
+}
 
 export default function (pi: ExtensionAPI) {
 	pi_send = (message, followUp) =>

@@ -11,8 +11,15 @@ export interface BondState {
 	codename?: string;
 	/** Attached DevSpec session, when attached (sessionless otherwise). */
 	sessionId?: string;
+	/** The attached session's title, learned by the attach-time context fetch. */
+	sessionTitle?: string;
+	/** The bond owner's display name (e.g. "Ali Price") — envelopes say names, not roles. */
+	ownerName?: string;
 	/** One-shot room orientation digest, captured at cold-start sync. */
 	roomDigest?: string;
+	/** One-shot attach-time context block (identity + recent tail), set when the
+	 *  adopted session changes — injected once per attach, never replayed. */
+	attachContext?: string;
 	/** Instruction tiers returned by register/attach — applied while bonded. */
 	instructions?: {
 		owner_custom_instructions?: string;

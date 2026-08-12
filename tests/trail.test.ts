@@ -56,8 +56,9 @@ test("TrailBuilder renders thinking, text, and tools with statuses", () => {
 
 test("TrailBuilder truncates very long trails from the head", () => {
 	const t = new TrailBuilder();
-	t.setText("x".repeat(8000));
+	t.setText("x".repeat(20_000));
 	const out = t.render();
-	assert.ok(out.length <= 6100);
+	// MAX_TRAIL_CHARS (12k) + the trim marker head.
+	assert.ok(out.length <= 12_100);
 	assert.ok(out.startsWith("…"));
 });

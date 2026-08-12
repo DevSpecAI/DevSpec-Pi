@@ -7,7 +7,14 @@
  * preserves it as the collapsed "Show work" under the final answer.
  */
 
-const MAX_TRAIL_CHARS = 6000;
+/**
+ * Render cap for one trail snapshot. The server folds sliding-window snapshots
+ * on a 24-char tail anchor (item 95db8479), so a head-trimmed window merges
+ * cleanly — UNLESS a single inter-post burst exceeds the whole window (the
+ * anchor scrolls out and one overlap region appends). 12k makes that burst
+ * rare while keeping each post cheap to carry.
+ */
+const MAX_TRAIL_CHARS = 12_000;
 
 interface ToolLine {
 	name: string;

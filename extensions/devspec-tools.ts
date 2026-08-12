@@ -23,12 +23,27 @@ import { connectionsUrl, TOKEN_ENV_VAR } from "./core/config.ts";
 import { callDevspec } from "./core/client.ts";
 import { toolErrorResult, toolTextResult, unwrapMcpResult } from "./core/result.ts";
 import { getBond } from "./core/bond-state.ts";
+import { addFlags, extractFlags } from "./core/conflict-watch.ts";
 
 /** Unwrap a DevSpec MCP result, converting isError payloads into thrown errors. */
 function unwrapOrThrow(name: string, raw: unknown) {
 	const { text, details, isError } = unwrapMcpResult(raw);
 	if (isError) throw new Error(text || `DevSpec tool ${name} failed.`);
 	return toolTextResult(text || "(empty response)", details ?? {});
+}
+
+/** Feed the conflict watch: signals in results become structural flags. */
+function watchForSignals(name: string, result: unknown): void {
+	try {
+		const details = (result as { details?: unknown }).details;
+		const added = addFlags(extractFlags(name, details));
+		// New flags surface via the before_agent_start nudge (devspec-memory).
+		if (added.length > 0) {
+			// best-effort debug only here; the nudge is the surfacing path
+		}
+	} catch {
+		/* never let the watch break a tool call */
+	}
 }
 
 const NOT_CONNECTED =
@@ -63,7 +78,9 @@ function registerDevspecTool(pi: ExtensionAPI, def: DevspecToolDef): void {
 				// Project scoping (git_remote retry on multi-project errors) is
 				// centralized in callDevspec.
 				const raw = await callDevspec(resolved.token, def.name, args, { cwd: ctx.cwd });
-				return unwrapOrThrow(def.name, raw);
+				const result = unwrapOrThrow(def.name, raw);
+				watchForSignals(def.name, result);
+				return result;
 			} catch (err) {
 				const message = err instanceof Error ? err.message : String(err);
 				return toolErrorResult(message);

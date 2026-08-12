@@ -276,6 +276,31 @@ deployment of existing pieces:
   (interactive OAuth). Never promise the latter silently.
 - **Same transport:** the worker speaks the identical MCP verb surface.
 
+## Distribution & release (when the time comes)
+
+The **real** distribution path is npm — `pi install npm:@devspec/pi-plugin` —
+with the `pi-package` keyword so it surfaces on the npmjs pi-package search
+and pi's package discovery. The settings-path loading we dogfood with is a
+development convenience, never the user story.
+
+Release gates (all must hold before publishing):
+
+1. **Prod domain healthy.** Today `devspec.ai` serves the Traefik default cert
+   from at least some networks (found during Phase 2 dogfooding) and
+   `staging.devspec.ai` carries the real service. Public install must default
+   to a working prod endpoint — the package's default is already prod
+   (`DEFAULT_MCP_URL`), with `DEVSPEC_ENV=staging` / `DEVSPEC_MCP_URL` as
+   dev-only overrides. Verify TLS + `/api/mcp` on prod before release.
+2. **Login guidance matches the domain.** `/devspec.login` already points at
+   the Connections page for the *effective* endpoint; OAuth device flow (when
+   it lands) must be per-environment too (dev Clerk on staging, prod Clerk on
+   prod).
+3. **Server knows pi.** `claim_work_item.provider` needs a `'pi'` enum value
+   (open question #8) so claims/UI attribute correctly.
+4. **Package hygiene:** versioned release from CI, `files` whitelist,
+   production-only deps (runtime deps in `dependencies` — pi installs with
+   `--omit=dev`), README with the two-command install.
+
 ## Relationship to other plugins
 
 - They stay. They work. They are the mainstream path today.

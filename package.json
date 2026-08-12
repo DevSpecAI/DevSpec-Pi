@@ -1,0 +1,21 @@
+{
+  "name": "@devspec/pi-plugin",
+  "version": "0.0.0",
+  "description": "DevSpec for Pi — native tools, auth, remote control, and memory for the Pi coding agent. One install, everything included.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": ["pi-package", "devspec", "coding-agent"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DevSpecAI/devspec-pi.git"
+  },
+  "pi": {
+    "extensions": ["./extensions"],
+    "skills": ["./skills"],
+    "prompts": ["./prompts"],
+    "themes": ["./themes"]
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

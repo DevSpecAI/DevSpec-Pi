@@ -415,6 +415,22 @@ current contract, adopted here first, migrated to other hosts only if proven.
 6. **Onboarding polish, theme, embedded user-MCP support.**
 7. **Headless worker CLI** (cloud primitive, dogfooded locally first).
 
+## Next-up queue (as of 2026-08-12 evening)
+
+Tracked as DevSpec items — this list is a pointer, the items are the truth:
+
+- `1906e21f` — agent control plane: per-turn telemetry (tokens/cost/context/
+  cache) reported mechanically + UI-driven control channel (set_model,
+  thinking level, compact — RPC already exposes them)
+- `4462d45d` — cloud auth strategy (secrets store, gateway key, device-code,
+  OAuth relay; subscription-token sync needs an explicit decision)
+- `3fde909b` — launch-on-send: attach-on-launch flag/env + UI composer targeting
+  (aligns with cloud agent-host decisions d61e47c9 / 4bd69fc9, plan f206a2ff)
+- `efa7f71b` — Pi provider/logo in devspecv2 (another agent)
+- `536f2417` — npm publish + prod domain readiness (release gates)
+- Not yet items: conflict-settling TUI overlay; compaction survival;
+  capture proposals at decision moments
+
 ## References (devspecv2)
 
 - `docs/REMOTE-CONTROL-DELIVERY-CONTRACT.md` — delivery contract (ADR `b98a39a9`)

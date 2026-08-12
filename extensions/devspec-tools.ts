@@ -23,6 +23,7 @@ import { connectionsUrl, TOKEN_ENV_VAR } from "./core/config.ts";
 import { callDevspec } from "./core/client.ts";
 import { toolErrorResult, toolTextResult, unwrapMcpResult } from "./core/result.ts";
 import { getBond, noteCompleteTurnPost } from "./core/bond-state.ts";
+import { repoResolver, validateCommitSha } from "./core/commit-ledger.ts";
 import { addFlags, extractFlags } from "./core/conflict-watch.ts";
 
 /** Unwrap a DevSpec MCP result, converting isError payloads into thrown errors. */
@@ -60,7 +61,7 @@ interface DevspecToolDef {
 	promptSnippet: string;
 	parameters: TSchema;
 	/** Per-call argument augmentation (e.g. stamping the pi session id on claims). */
-	augment?: (params: Record<string, unknown>, ctx: { sessionManager: { getSessionId(): string } }) => Record<string, unknown>;
+	augment?: (params: Record<string, unknown>, ctx: { sessionManager: { getSessionId(): string }; cwd: string }) => Record<string, unknown>;
 	/** Side effect after a SUCCESSFUL call (e.g. marking a complete_turn post). */
 	onSuccess?: (params: Record<string, unknown>) => void;
 }
@@ -391,7 +392,10 @@ export default function (pi: ExtensionAPI) {
 		promptSnippet: "Record an implemented DevSpec item (commit SHA, files, testing notes)",
 		parameters: Type.Object({
 			action_item_id: Type.String({ description: "Action item ID." }),
-			commit_sha: Type.String({ description: "Final commit SHA." }),
+			// Optional on purpose: the commit-ledger guard (item efe7e0a7) fills or
+			// validates it BEFORE the server call — a hand-transcribed SHA that
+			// resolves nowhere is refused with the observed candidates.
+			commit_sha: Type.Optional(Type.String({ description: "Final commit SHA. Optional: validated/filled from the session's mechanical commit ledger." })),
 			commit_message: Type.Optional(Type.String()),
 			agent_merged: Type.Optional(Type.Boolean({ description: "true = merged to target branch, false = push-only." })),
 			affected_files: Type.Optional(Type.Array(Type.String({ description: "From git diff --name-only." }))),
@@ -402,7 +406,14 @@ export default function (pi: ExtensionAPI) {
 			completion_summary: Type.Optional(Type.String({ description: "Changelog-style, 2-4 sentences, written for non-developers." })),
 			testing_notes: Type.Optional(Type.String({ description: "Numbered markdown steps to VERIFY the change." })),
 		}),
-		augment: (params, ctx) => ({ local_session_id: ctx.sessionManager.getSessionId(), ...params }),
+		augment: (params, ctx) => {
+			// The ledger guard (item efe7e0a7): never let a transcribed SHA reach
+			// the server unverified. Throws → the model gets the candidate list
+			// back as the tool error and corrects immediately.
+			const verdict = validateCommitSha(params.commit_sha as string | undefined, repoResolver(ctx.cwd));
+			if (!verdict.ok) throw new Error(verdict.error);
+			return { local_session_id: ctx.sessionManager.getSessionId(), ...params, commit_sha: verdict.sha };
+		},
 	});
 
 	registerDevspecTool(pi, {

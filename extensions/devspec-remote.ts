@@ -167,13 +167,42 @@ function trailTick(): void {
 	void postToSession(rendered, { phase: "trail" });
 }
 
-async function settleTurn(agentStats: AgentStatsReport | null): Promise<void> {
+/**
+ * Explicitly close this connection's activity attempt (item 2c20337a). The
+ * busy:false heartbeat is deliberately discarded server-side while the
+ * attempt's lease is fresh (anti-flap, 8792f549), so a turn that ends WITHOUT
+ * a complete_turn post — aborted, empty, or the answer post failed — would
+ * otherwise strand the Working indicator until lease expiry. report_complete
+ * is the explicit channel; idempotent when the attempt already closed.
+ */
+async function reportComplete(reason: string): Promise<void> {
+	const active = pump;
+	if (!active || active.stop) return;
+	const resolved = await resolveToken();
+	if (!resolved) return;
+	try {
+		await callDevspec(resolved.token, "report_complete", {
+			connection_id: active.bond.connectionId,
+			reason,
+		}, { timeoutMs: 10_000 });
+	} catch {
+		/* best-effort — lease expiry + the disconnect paths are the backstop */
+	}
+}
+
+/**
+ * Settle the turn. Returns true when a final answer post with complete_turn
+ * landed (that post closes the activity attempt itself); false means the turn
+ * ended silently (aborted/empty/failed post) and the caller must close the
+ * attempt explicitly via reportComplete.
+ */
+async function settleTurn(agentStats: AgentStatsReport | null): Promise<boolean> {
 	const t = turn;
 	turn = null;
-	if (!t) { debug("settleTurn: no turn state"); return; }
+	if (!t) { debug("settleTurn: no turn state"); return false; }
 	if (t.interval) clearInterval(t.interval);
 	const bond = getBond();
-	if (!bond?.sessionId) { debug("settleTurn: not attached"); return; }
+	if (!bond?.sessionId) { debug("settleTurn: not attached"); return false; }
 
 	// The final render rides the answer post (item 9b7455df): the server
 	// REPLACES the fold-merged accumulation with this canonical final render —
@@ -185,13 +214,15 @@ async function settleTurn(agentStats: AgentStatsReport | null): Promise<void> {
 	debug(`settleTurn: plan ${plan.kind}, final trail ${finalTrail.length} chars`);
 	if (plan.kind === "final") {
 		// phase 'answer' closes the trail bubble (preserved as "Show work").
-		await postToSession(plan.message, { phase: "answer", completeTurn: true, workTrail: finalTrail || undefined, agentStats: agentStats ?? undefined });
+		return await postToSession(plan.message, { phase: "answer", completeTurn: true, workTrail: finalTrail || undefined, agentStats: agentStats ?? undefined });
 	} else if (plan.kind === "local_mirror") {
 		await postToSession(plan.prompt, { turnKind: "local_prompt" });
-		await postToSession(plan.answer, { phase: "answer", completeTurn: true, workTrail: finalTrail || undefined, agentStats: agentStats ?? undefined });
-	} else if (t.dirty && finalTrail) {
+		return await postToSession(plan.answer, { phase: "answer", completeTurn: true, workTrail: finalTrail || undefined, agentStats: agentStats ?? undefined });
+	}
+	if (t.dirty && finalTrail) {
 		await postToSession(finalTrail, { phase: "trail" });
 	}
+	return false;
 }
 
 /**
@@ -595,7 +626,12 @@ export default function (pi: ExtensionAPI) {
 			pump.busy = false;
 			void beatBusy(false, agentStats);
 		}
-		void settleTurn(agentStats);
+		void (async () => {
+			const posted = await settleTurn(agentStats);
+			// No complete_turn post landed (aborted/empty turn, or the post
+			// failed) — close the working attempt explicitly (item 2c20337a).
+			if (!posted) await reportComplete("turn_end");
+		})();
 	});
 
 	// ---- Turn lifecycle events (mechanical trail + final answer) ------------

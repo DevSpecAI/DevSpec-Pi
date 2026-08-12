@@ -410,6 +410,22 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			return;
 		}
 
+		// Adopt the server's CURRENT attachment every lap (edea1a91: the server is
+		// the sole attachment authority — the client observes, never re-adopts from
+		// local state). Without this, an owner attaching the connection from the UI
+		// after a sessionless auto-bond never took effect locally: bond.sessionId
+		// stayed null, so the mechanical trail and the mechanical final answer
+		// skipped every turn ('not attached') and only deliberate tool-posts reached
+		// the UI — the bouncing-dots regression of item ce5a1432. Applies to detach
+		// too (server session_id null → posting stops).
+		const serverSessionId = (payload as { session_id?: string | null } | null)?.session_id ?? null;
+		if (serverSessionId !== (active.bond.sessionId ?? null)) {
+			const next = { ...active.bond, sessionId: serverSessionId ?? undefined };
+			active.bond = next;
+			setBond(next);
+			debug(`attachment adopted from server: ${serverSessionId ?? "sessionless"}`);
+		}
+
 		const pkg = parsePollPayload(payload, active.bond.connectionId);
 		if (pkg.cursor) active.cursor = pkg.cursor;
 		if (pkg.dispatchCursor) active.dispatchCursor = pkg.dispatchCursor;

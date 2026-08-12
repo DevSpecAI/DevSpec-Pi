@@ -102,3 +102,27 @@ test("empty commands never become turns (the extractor drops them)", () => {
 	const cmds = extractOwnerCommands(payload, "c1");
 	assert.deepEqual(cmds.map((c) => c.text), ["real"]);
 });
+
+test("the envelope stamps the session id and prefers real names (9dcbd157)", () => {
+	const bond = { sessionId: "d8883a49-5e1f-416f-8384-7fd65e2e016b", sessionTitle: "Test DevSpec UI message delivery", ownerName: "Ali Price" };
+	const msg = formatInboundMessage({ text: "do the thing" }, "Jolly Toucan", bond);
+	assert.equal(
+		msg.split("\n")[0],
+		"[DevSpec remote — message from Ali Price to Jolly Toucan · “Test DevSpec UI message d…” (d8883a49)] do the thing",
+	);
+	// Title unknown yet (job-generated) — the id still stamps, no dangling quotes.
+	const untitled = formatInboundMessage(
+		{ text: "hi" },
+		"Jolly Toucan",
+		{ sessionId: "d8883a49-5e1f-416f-8384-7fd65e2e016b", ownerName: "Ali Price" },
+	);
+	assert.equal(
+		untitled.split("\n")[0],
+		"[DevSpec remote — message from Ali Price to Jolly Toucan · (d8883a49)] hi",
+	);
+	// No bond context at all — unchanged legacy shape.
+	assert.equal(
+		formatInboundMessage({ text: "hi" }, "Jolly Toucan").split("\n")[0],
+		"[DevSpec remote — message from owner to Jolly Toucan] hi",
+	);
+});

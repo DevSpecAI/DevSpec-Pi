@@ -91,10 +91,26 @@ export function parsePollPayload(payload: unknown, connectionId: string): PollPa
 	};
 }
 
+/** Bond-derived identity the envelope stamps (item 9dcbd157). */
+export interface EnvelopeContext {
+	sessionId?: string;
+	sessionTitle?: string;
+	/** The bond owner's display name — used when the command itself carries none. */
+	ownerName?: string;
+}
+
 /** Format an owner command as the user message injected into pi. */
-export function formatInboundMessage(cmd: OwnerCommand, codename: string): string {
-	const who = cmd.userName ?? "owner";
-	const header = `[DevSpec remote — message from ${who} to ${codename}]`;
+export function formatInboundMessage(cmd: OwnerCommand, codename: string, bond?: EnvelopeContext): string {
+	// Names, not roles (9dcbd157 layer 4): the command's own sender name when
+	// the server provides one, else the bond owner's name learned at attach.
+	const who = cmd.userName ?? bond?.ownerName ?? "owner";
+	// Every envelope carries WHERE it belongs: the session id, plus the title
+	// when the attach-time fetch learned it. The model never discovers its own
+	// session id as a side effect again.
+	const sessionStamp = bond?.sessionId
+		? ` · ${bond.sessionTitle ? `“${bond.sessionTitle.length > 26 ? `${bond.sessionTitle.slice(0, 25)}…` : bond.sessionTitle}” ` : ""}(${bond.sessionId.slice(0, 8)})`
+		: "";
+	const header = `[DevSpec remote — message from ${who} to ${codename}${sessionStamp}]`;
 	const body = cmd.text;
 	// The TUI previews a queued follow-up by its FIRST line only — so line one
 	// must carry content, never a bare envelope (item 2b072496: header-only

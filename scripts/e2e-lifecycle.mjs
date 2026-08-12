@@ -39,7 +39,7 @@ if (sess.isError) fail(`create_session: ${sess.text.slice(0, 300)}`);
 const sessionId = sess.details?.session_id;
 console.log("session created:", sessionId);
 
-const pi = spawn("pi", ["--mode", "rpc", "--no-session", ...EXT.flatMap((e) => ["-e", e])], {
+const pi = spawn("pi", ["--mode", "rpc", "--no-session", "-ne", ...EXT.flatMap((e) => ["-e", e])], {
 	cwd,
 	stdio: ["pipe", "pipe", "inherit"],
 });
@@ -71,7 +71,10 @@ try {
 	send({
 		id: "turn",
 		type: "prompt",
-		message: `Reply with exactly this text and nothing else: "${marker}". Do NOT call any DevSpec tools — this tests mechanical posting.`,
+		// TWO rounds minimum: the bash call forces a tool round before the
+		// answer round, so this exercises the run-scoped trail + settle
+		// (cc9e8c43) — a per-round state reset would lose the bash line.
+		message: `First use the bash tool to run: echo hi. Then reply with exactly this text and nothing else: "${marker}". Do NOT call any DevSpec tools — this tests mechanical posting.`,
 	});
 	await waitFor(
 		(e) => e.type === "message_end" && e.message?.role === "assistant" && JSON.stringify(e.message).includes(marker),

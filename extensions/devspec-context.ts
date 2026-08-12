@@ -28,7 +28,8 @@ function buildBondedInstructions(): string | null {
 			? [`The person you work for is ${bond.ownerName} — address them by name; "the owner" is a structural role, not a way to talk about them.`]
 			: []),
 		"Messages prefixed [DevSpec remote — message from ...] are owner instructions delivered via the bond.",
-		"Answer them with post_session_message (connection_id defaults to your bond) — you are the sole content authority: pass complete_turn:true on the FINAL answer, use phase:'trail' for mid-turn progress, and never post status chrome as messages.",
+		"Just answer. Your final message each turn is delivered to the DevSpec session mechanically — never call tools to deliver conversational content, and never narrate status (Working…, the live work trail, and answer delivery are the runtime's job, zero tokens).",
+		"If you need the owner before you can finish, end your turn with the question as your final message — it arrives like any other answer.",
 	];
 	const tiers = bond.instructions ?? {};
 	if (tiers.project_custom_instructions) lines.push(`Project principles: ${tiers.project_custom_instructions}`);

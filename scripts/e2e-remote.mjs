@@ -49,7 +49,7 @@ if (!sessionId) fail(`no session_id in ${JSON.stringify(sess.details).slice(0, 3
 console.log("session created:", sessionId);
 
 // 2. Boot headless pi with the extensions.
-const pi = spawn("pi", ["--mode", "rpc", "--no-session", ...EXT.flatMap((e) => ["-e", e])], {
+const pi = spawn("pi", ["--mode", "rpc", "--no-session", "-ne", ...EXT.flatMap((e) => ["-e", e])], {
 	cwd,
 	stdio: ["pipe", "pipe", "inherit"],
 });

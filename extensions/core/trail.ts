@@ -16,6 +16,17 @@
  */
 const MAX_TRAIL_CHARS = 12_000;
 
+/** Cap for the FINAL render that rides the answer post (item 9b7455df). The
+ *  server REPLACES the folded accumulation with it, so capping at the live
+ *  12k would discard earlier rounds the fold had preserved — the trail is
+ *  run-scoped now (cc9e8c43) and a long run accumulates many rounds. */
+export const FINAL_TRAIL_CHARS = 48_000;
+
+type TrailEntry =
+	| { kind: "thinking"; text: string }
+	| { kind: "text"; text: string }
+	| { kind: "tool"; line: ToolLine };
+
 interface ToolLine {
 	name: string;
 	argsSummary?: string;
@@ -81,63 +92,102 @@ export function extractText(message: unknown): string {
 		.join("\n");
 }
 
+/**
+ * Run-scoped, CHRONOLOGICAL trail (item cc9e8c43). pi fires turn_start per
+ * LLM round, and each round is its own assistant message — so thinking/text
+ * accumulate as ordered entries, one pair per round, interleaved with the
+ * tool lines they produced. Within a round, message_update deltas are
+ * cumulative snapshots: they replace the round's OPEN entry in place, which
+ * keeps every render a strict prefix of the next (9b7455df).
+ */
 export class TrailBuilder {
-	private thinking = "";
-	private text = "";
-	private tools: ToolLine[] = [];
+	private entries: TrailEntry[] = [];
+	/** Indices of the in-flight round's thinking/text entries (-1 = none yet). */
+	private curThinking = -1;
+	private curText = -1;
 
-	/** Cumulative snapshots from message_update — replace, don't append. */
+	/**
+	 * A new assistant message begins (message_start) — or the current one is
+	 * final (message_end, after its content is applied). Either way the next
+	 * delta belongs to a NEW round: reset the open entries so they append
+	 * instead of replacing the previous round's. Wiring BOTH events means one
+	 * of them firing is sufficient; neither firing degrades to the old
+	 * replace-in-place behaviour (last round only), never a crash.
+	 */
+	beginAssistantMessage(): void {
+		this.curThinking = -1;
+		this.curText = -1;
+	}
+
+	/** Cumulative snapshots from message_update/message_end — replace the
+	 *  CURRENT round's entry, never append to it. */
 	setThinking(thinking: string): void {
-		this.thinking = thinking.trim();
+		const t = thinking.trim();
+		if (!t) return;
+		if (this.curThinking >= 0) {
+			(this.entries[this.curThinking] as { kind: "thinking"; text: string }).text = t;
+		} else {
+			this.curThinking = this.entries.push({ kind: "thinking", text: t }) - 1;
+		}
 	}
 
 	setText(text: string): void {
-		this.text = text.trim();
+		const t = text.trim();
+		if (!t) return;
+		if (this.curText >= 0) {
+			(this.entries[this.curText] as { kind: "text"; text: string }).text = t;
+		} else {
+			this.curText = this.entries.push({ kind: "text", text: t }) - 1;
+		}
 	}
 
 	toolStart(name: string, args?: unknown): void {
-		this.tools.push({ name, argsSummary: summarizeArgs(args), open: true });
+		this.entries.push({ kind: "tool", line: { name, argsSummary: summarizeArgs(args), open: true } });
 	}
 
 	toolEnd(name: string, ok: boolean, result?: unknown): void {
-		// Close the most recent open line with this name (parallel-safe enough).
-		for (let i = this.tools.length - 1; i >= 0; i--) {
-			const t = this.tools[i];
-			if (t.open && t.name === name) {
-				t.open = false;
-				t.ok = ok;
-				t.resultSummary = summarizeResult(result);
+		// Close the most recent open tool entry with this name (parallel-safe enough).
+		for (let i = this.entries.length - 1; i >= 0; i--) {
+			const e = this.entries[i];
+			if (e.kind !== "tool") continue;
+			if (e.line.open && e.line.name === name) {
+				e.line.open = false;
+				e.line.ok = ok;
+				e.line.resultSummary = summarizeResult(result);
 				return;
 			}
 		}
 	}
 
 	isEmpty(): boolean {
-		return !this.thinking && !this.text && this.tools.length === 0;
+		return this.entries.length === 0;
 	}
 
-	render(): string {
+	render(maxChars: number = MAX_TRAIL_CHARS): string {
 		const parts: string[] = [];
-		if (this.thinking) {
-			// Prefix-stable by construction (item 9b7455df): no emphasis markers —
-			// a closing '*' retracts on every thinking delta, which breaks the
-			// cumulative-prefix merge server-side and duplicated the whole block.
-			// The cap keeps the FIRST 800 chars with the ellipsis trailing, so a
-			// growing trace is always a strict prefix of its next snapshot.
-			const flat = this.thinking.replace(/\n/g, " ");
-			const t = flat.length > 800 ? `${flat.slice(0, 800)}…` : flat;
-			parts.push(`> 💭 ${t}`);
-		}
-		if (this.text) parts.push(this.text);
-		for (const t of this.tools) {
-			const status = t.open ? "…" : t.ok ? "✔" : "✖";
-			const args = t.argsSummary ? ` — \`${t.argsSummary}\`` : "";
-			const res = !t.open && t.resultSummary ? ` → ${t.resultSummary}` : "";
-			parts.push(`${status} \`${t.name}\`${args}${res}`);
+		for (const e of this.entries) {
+			if (e.kind === "thinking") {
+				// Prefix-stable by construction (item 9b7455df): no emphasis markers —
+				// a closing '*' retracts on every thinking delta, which breaks the
+				// cumulative-prefix merge server-side and duplicated the whole block.
+				// The cap keeps the FIRST 800 chars with the ellipsis trailing, so a
+				// growing trace is always a strict prefix of its next snapshot.
+				const flat = e.text.replace(/\n/g, " ");
+				const t = flat.length > 800 ? `${flat.slice(0, 800)}…` : flat;
+				parts.push(`> 💭 ${t}`);
+			} else if (e.kind === "text") {
+				parts.push(e.text);
+			} else {
+				const t = e.line;
+				const status = t.open ? "…" : t.ok ? "✔" : "✖";
+				const args = t.argsSummary ? ` — \`${t.argsSummary}\`` : "";
+				const res = !t.open && t.resultSummary ? ` → ${t.resultSummary}` : "";
+				parts.push(`${status} \`${t.name}\`${args}${res}`);
+			}
 		}
 		let out = parts.join("\n\n");
-		if (out.length > MAX_TRAIL_CHARS) {
-			out = `…\n\n${out.slice(-MAX_TRAIL_CHARS)}`;
+		if (out.length > maxChars) {
+			out = `…\n\n${out.slice(-maxChars)}`;
 		}
 		return out;
 	}

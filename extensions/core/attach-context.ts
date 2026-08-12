@@ -96,7 +96,7 @@ export function buildAttachBlock(shape: AttachContextShape, codename: string): s
 	const title = shape.title ? `“${shape.title}” ` : "";
 	const lines = [
 		`[DevSpec remote — bond context for ${codename}]`,
-		`You are attached to session ${title}— id ${shape.sessionId}. Cite the id when the room's identity matters (post_session_message defaults here; never discover it by side effect).`,
+		`You are attached to session ${title}— id ${shape.sessionId}. Cite the id when the room's identity matters (your answers land here mechanically; never discover it by side effect).`,
 	];
 	if (shape.ownerName) {
 		lines.push(

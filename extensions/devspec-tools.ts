@@ -7,9 +7,12 @@
  * devspecv2 apps/web/lib/mcp/tool-definitions.ts; descriptions are condensed
  * but keep the load-bearing rules.
  *
- * Phase 2 scope: read-only project/action-item/memory/search verbs plus the
- * memory write trio (record / supersede / retract). Claim/work/remote verbs
- * land with the workflow commands (Phase 3) and remote control (Phase 4).
+ * Scope: project/action-item/memory/search verbs, the memory write trio
+ * (record / supersede / retract), and the claim/work verbs. There is
+ * deliberately NO post_session_message tool (item cc9e8c43): conversational
+ * delivery is runtime-mechanical — the remote extension posts the run's
+ * final message itself. A model-facing content channel is the dual-writer
+ * failure class (857d984c).
  *
  * Headless: tools work in every mode — errors come back as text the model can
  * act on (e.g. "run /devspec.login"), never as UI-only state.
@@ -22,7 +25,6 @@ import { resolveToken } from "./core/auth-store.ts";
 import { connectionsUrl, TOKEN_ENV_VAR } from "./core/config.ts";
 import { callDevspec } from "./core/client.ts";
 import { toolErrorResult, toolTextResult, unwrapMcpResult } from "./core/result.ts";
-import { getBond, noteCompleteTurnPost } from "./core/bond-state.ts";
 import { repoResolver, validateCommitSha } from "./core/commit-ledger.ts";
 import { addFlags, extractFlags } from "./core/conflict-watch.ts";
 
@@ -62,8 +64,6 @@ interface DevspecToolDef {
 	parameters: TSchema;
 	/** Per-call argument augmentation (e.g. stamping the pi session id on claims). */
 	augment?: (params: Record<string, unknown>, ctx: { sessionManager: { getSessionId(): string }; cwd: string }) => Record<string, unknown>;
-	/** Side effect after a SUCCESSFUL call (e.g. marking a complete_turn post). */
-	onSuccess?: (params: Record<string, unknown>) => void;
 }
 
 function registerDevspecTool(pi: ExtensionAPI, def: DevspecToolDef): void {
@@ -83,7 +83,6 @@ function registerDevspecTool(pi: ExtensionAPI, def: DevspecToolDef): void {
 				const raw = await callDevspec(resolved.token, def.name, args, { cwd: ctx.cwd });
 				const result = unwrapOrThrow(def.name, raw);
 				watchForSignals(def.name, result);
-				def.onSuccess?.(args);
 				return result;
 			} catch (err) {
 				const message = err instanceof Error ? err.message : String(err);
@@ -493,38 +492,12 @@ export default function (pi: ExtensionAPI) {
 		}),
 	});
 
-	registerDevspecTool(pi, {
-		name: "post_session_message",
-		label: "DevSpec: Post Session Message",
-		description:
-			"Post a message into your bonded DevSpec session (you are the SOLE content authority when bonded — " +
-			"final answers go through this, never chrome/status). connection_id defaults to your active bond; " +
-			"pass complete_turn:true on the FINAL answer so Working… clears with the bubble. " +
-			"phase:'trail' grows one live work-trail bubble mid-turn (cumulative output, ~1 call/sec max).",
-		promptSnippet: "Post a message to the bonded DevSpec session",
-		parameters: Type.Object({
-			message: Type.String({ description: "Message content (markdown)." }),
-			connection_id: Type.Optional(Type.String({ description: "Defaults to your active bond when omitted." })),
-			session_id: Type.Optional(Type.String({ description: "Legacy/explicit room id; prefer connection_id." })),
-			turn_kind: Type.Optional(StringEnum(["agent", "local_prompt"] as const)),
-			complete_turn: Type.Optional(Type.Boolean({ description: "Set true on the FINAL answer." })),
-			phase: Type.Optional(StringEnum(["trail", "needs_input", "answer", "error"] as const)),
-		}),
-		augment: (params, _ctx) => {
-			const bond = getBond();
-			if (bond && !params.connection_id && !params.session_id) {
-				return { ...params, connection_id: bond.connectionId };
-			}
-			return params;
-		},
-		onSuccess: (params) => {
-			// The settle suppressor's backstop (item 857d984c): a complete_turn
-			// answer that landed must never be mirrored again at turn end. The
-			// mark lives on globalThis, so the remote extension sees it even
-			// though jiti loads this file with its own module graph.
-			if (params.complete_turn) noteCompleteTurnPost();
-		},
-	});
+	// NOTE: no post_session_message tool here, deliberately (item cc9e8c43).
+	// Conversational delivery is the runtime's job: the extension mechanically
+	// posts the run's final assistant message with complete_turn:true. A
+	// model-facing content channel only re-introduces the dual-writer failure
+	// class (857d984c). Work verbs above remain — they are tracking, not
+	// conversation.
 
 	registerDevspecTool(pi, {
 		name: "devspec_help_search",

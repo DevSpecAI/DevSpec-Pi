@@ -31,7 +31,7 @@ const sess = unwrapMcpResult(
 const sessionId = sess.details?.session_id;
 console.log("session:", sessionId);
 
-const pi = spawn("pi", ["--mode", "rpc", "--no-session", ...EXT.flatMap((e) => ["-e", e])], {
+const pi = spawn("pi", ["--mode", "rpc", "--no-session", "-ne", ...EXT.flatMap((e) => ["-e", e])], {
 	cwd,
 	stdio: ["pipe", "pipe", "inherit"],
 	env: { ...process.env, DEVSPEC_DEBUG_REMOTE: "1" },

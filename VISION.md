@@ -384,8 +384,8 @@ current contract, adopted here first, migrated to other hosts only if proven.
 4. **Remote control** — bond, pump, ingress/egress per contract. **Slice 1 ✅**
    (`/devspec.remote [--session id] | stop`; register/revive with local_id =
    pi session id; one held 25s `poll_connection` per bond; owner commands →
-   real user messages; agent-canonical egress via `post_session_message` with
-   bond-default connection_id; bonded-mode instruction block incl. the four
+   real user messages; mechanical egress — the extension delivers the run's
+   final assistant message; bonded-mode instruction block incl. the four
    instruction tiers; headless RPC e2e in `scripts/e2e-remote.mjs`.
    Remaining ingress leg — owner message from the web UI — is the human
    acceptance step.)
@@ -397,10 +397,15 @@ current contract, adopted here first, migrated to other hosts only if proven.
      modes emit no deltas (verified — RPC stdout carries none), so
      `message_end` also feeds the trail (cumulative snapshots, idempotent),
      keeping cloud/headless trails complete.
-   - **Mechanical final answer:** on `agent_settled`, posts the final
-     assistant message (`phase:'answer'` + `complete_turn:true`) UNLESS the
-     model already posted via the tool this turn (tool posts take precedence;
-     never dual writers). Local-terminal turns mirror the prompt as
+   - **Mechanical final answer — the ONLY writer (cc9e8c43):** on
+     `agent_settled`, posts the run's final assistant message
+     (`phase:'answer'` + `complete_turn:true`). The model has no content
+     channel at all — no tool post, no complete_turn discipline, no
+     precedence/suppression state. Turn state is RUN-scoped (agent_start →
+     agent_settled), never recreated per LLM round: per-round state was the
+     double-bubble root cause (857d984c's suppression marks died with each
+     round's fresh tracker) and truncated the preserved trail to the last
+     round. Local-terminal turns mirror the prompt as
      `turn_kind:'local_prompt'` first — two-sided transcript.
    - **Dispatches:** `dispatches[]` are injected as user messages driving the
      assignment protocol (get_assignment → acknowledge → claim → work →
@@ -439,8 +444,19 @@ Tracked as DevSpec items — this list is a pointer, the items are the truth:
 - Not yet items: conflict-settling TUI overlay; compaction survival;
   capture proposals at decision moments
 
-Shipped 2026-08-12 (Lively Panther):
-- `8b0c162b` — instant disconnect detection: SSE-close → grace-guarded (10s)
+Shipped 2026-08-12 late (Nimble Eagle):
+- `cc9e8c43` — mechanical-only answer delivery, owner-directed: the model's
+  final terminal message IS the DevSpec answer, delivered by the extension at
+  settle. Deleted the model-facing post_session_message tool, the toolPosted
+  event signal, the globalThis backstop, and the precedence rule — the
+  dual-writer failure class (857d984c, three patches, still leaking live)
+  is gone by construction. Turn state is run-scoped (agent_start →
+  agent_settled), fixing the per-round reset that defeated suppression AND
+  truncated the preserved trail to the final round. TrailBuilder is now
+  chronological per-round entries; the final render rides the answer at a
+  48k cap so the fold's earlier rounds survive the replace.
+
+Shipped 2026-08-12 (Lively Panther):- `8b0c162b` — instant disconnect detection: SSE-close → grace-guarded (10s)
   non-sticky liveness clear server-side; guarded going-away stamp on
   session_shutdown + push-channel reconnect backoff (1s/4s/10s) here.
 - `ce5a1432` — adopt server-side attachment every poll lap (the

@@ -8,9 +8,10 @@
  * the SHAs itself, and record_implementation is validated against that ledger
  * (plus the repo's own object store) before anything reaches the server.
  *
- * Same principle class as the complete_turn backstop (857d984c): the system
- * knows it, so the system says it. Like all cross-extension state, the ledger
- * lives on globalThis (jiti gives every extension file a fresh module graph).
+ * Same principle class as mechanical-only delivery (cc9e8c43): the system
+ * knows it, so the system says it — never the model's job to remember or
+ * transcribe. Like all cross-extension state, the ledger lives on globalThis
+ * (jiti gives every extension file a fresh module graph).
  */
 
 import { execSync } from "node:child_process";

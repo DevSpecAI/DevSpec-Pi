@@ -11,9 +11,10 @@
  * - ONE held poll_connection long-poll (25s) carries heartbeat + commands +
  *   advisory; owner commands arrive as REAL user messages (sendUserMessage,
  *   followUp while busy). Advisory tiers never wake the agent.
- * - Egress is agent-canonical: the model answers with the native
- *   post_session_message tool (complete_turn on the final answer). No
- *   mirror-as-primary.
+ * - Egress is runtime-mechanical (item cc9e8c43): the extension delivers the
+ *   run's final assistant message with complete_turn:true. The model never
+ *   posts conversational content — ONE writer, no suppression, no dual
+ *   writers, no mirror-as-primary.
  * - The pump asserts busy from pi's own turn events and reports
  *   listener_armed from the live loop — never from leftover state.
  * - Headless: works in -p/rpc/json; notifications degrade to no-ops.
@@ -29,11 +30,11 @@ function debug(line: string): void {
 	}
 }
 import { callDevspec, DevspecAuthError } from "./core/client.ts";
-import { getBond, setBond, completeTurnPostedSince, type BondState } from "./core/bond-state.ts";
+import { getBond, setBond, type BondState } from "./core/bond-state.ts";
 import { formatInboundMessage, parsePollPayload } from "./core/remote-payload.ts";
 import { unwrapMcpResult } from "./core/result.ts";
 import { buildAttachBlock, shapeTranscript } from "./core/attach-context.ts";
-import { extractAssistantParts, extractText, TrailBuilder } from "./core/trail.ts";
+import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { buildAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
 import { planSettle, TurnTracker } from "./core/turn-lifecycle.ts";
 import { formatDispatchMessage } from "./core/dispatch.ts";
@@ -91,11 +92,9 @@ interface TurnState {
 	trail: TrailBuilder;
 	dirty: boolean;
 	interval: ReturnType<typeof setInterval> | null;
-	/** Trail posts so far this turn — drives the adaptive cadence. */
+	/** Trail posts so far this run — drives the adaptive cadence. */
 	posts: number;
 	lastPostAt: number;
-	/** Turn wall-clock start — the backstop checks for posts at or after it. */
-	startedAt: number;
 }
 
 /**
@@ -115,6 +114,26 @@ let postWarnedThisTurn = false;
 let turn: TurnState | null = null;
 let lastCtx: ExtensionContext | null = null;
 const TRAIL_INTERVAL_MS = 1_000;
+
+/**
+ * Create the RUN-scoped turn state, once (item cc9e8c43). pi fires turn_start
+ * once per LLM round — "repeats while LLM calls tools" — so creating state
+ * there threw away every earlier round: that was the double-bubble root
+ * cause (suppression marks died with each round's fresh tracker) AND the
+ * reason preserved trails held only the final round. The state is born on
+ * agent_start (or the first attached turn_start after a mid-run attach) and
+ * lives until agent_settled — never recreated per round.
+ */
+function ensureTurn(): void {
+	if (turn) return;
+	if (!getBond()?.sessionId) { debug("ensureTurn: not attached"); return; }
+	turn = { tracker: new TurnTracker(), trail: new TrailBuilder(), dirty: false, interval: null, posts: 0, lastPostAt: 0 };
+	postWarnedThisTurn = false;
+	debug("ensureTurn: tracking (run-scoped)");
+	turn.interval = setInterval(trailTick, TRAIL_INTERVAL_MS);
+	// Don't hold the process open for the trail timer in headless runs.
+	if (typeof turn.interval.unref === "function") turn.interval.unref();
+}
 
 // Per-turn telemetry (item 1906e21f): mechanical, zero-token. Accumulates from
 // pi's own message_end usage; the report rides the settle answer post (when
@@ -213,19 +232,14 @@ async function settleTurn(agentStats: AgentStatsReport | null): Promise<boolean>
 
 	// The final render rides the answer post (item 9b7455df): the server
 	// REPLACES the fold-merged accumulation with this canonical final render —
-	// every tool closed, full thinking — so the preserved 'Show work' is exact,
-	// and one fewer post is spent. A turn with no answer still flushes its
-	// trail the old way so the work is visible.
-	const finalTrail = t.trail.render();
-	// The backstop (item 857d984c): the tool itself marks every successful
-	// complete_turn post on globalThis at the moment it lands, so a missed or
-	// mis-ordered tool_execution_end event can never re-mirror the answer.
-	const postedThisTurn = completeTurnPostedSince(t.startedAt);
-	const plan = planSettle(t.tracker, true, postedThisTurn);
-	debug(
-		`settleTurn: plan ${plan.kind} (toolPosted=${t.tracker.toolPosted}, backstop=${postedThisTurn}), ` +
-			`final trail ${finalTrail.length} chars`,
-	);
+	// every tool closed, the whole run's thinking — so the preserved 'Show
+	// work' is exact, and one fewer post is spent. It renders at the larger
+	// final cap: the trail is run-scoped (cc9e8c43), and the live-tick 12k
+	// window would discard earlier rounds the fold had preserved. A run with
+	// no answer still flushes its trail the old way so the work is visible.
+	const finalTrail = t.trail.render(FINAL_TRAIL_CHARS);
+	const plan = planSettle(t.tracker, true);
+	debug(`settleTurn: plan ${plan.kind}, final trail ${finalTrail.length} chars`);
 	if (plan.kind === "final") {
 		// phase 'answer' closes the trail bubble (preserved as "Show work").
 		return await postToSession(plan.message, { phase: "answer", completeTurn: true, workTrail: finalTrail || undefined, agentStats: agentStats ?? undefined });
@@ -684,6 +698,9 @@ export default function (pi: ExtensionAPI) {
 			pump.busy = true;
 			void beatBusy(true);
 		}
+		// The run begins — the delivery unit. Turn state is born here (or on
+		// the first attached turn_start after a mid-run attach), never per round.
+		ensureTurn();
 	});
 	pi.on("agent_settled", (_event, ctx) => {
 		lastCtx = ctx;
@@ -706,13 +723,9 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("turn_start", (_event, ctx) => {
 		lastCtx = ctx;
-		if (!getBond()?.sessionId) { debug("turn_start: not attached, skipping"); return; }
-		turn = { tracker: new TurnTracker(), trail: new TrailBuilder(), dirty: false, interval: null, posts: 0, lastPostAt: 0, startedAt: Date.now() };
-		postWarnedThisTurn = false;
-		debug("turn_start: tracking");
-		turn.interval = setInterval(trailTick, TRAIL_INTERVAL_MS);
-		// Don't hold the process open for the trail timer in headless runs.
-		if (typeof turn.interval.unref === "function") turn.interval.unref();
+		// Per-LLM-round event — the state must SURVIVE it, never be recreated
+		// (cc9e8c43). Lazily covers a mid-run attach too.
+		ensureTurn();
 	});
 
 	pi.on("message_start", (event, ctx) => {
@@ -720,6 +733,9 @@ export default function (pi: ExtensionAPI) {
 		if (!turn) return;
 		const msg = event.message as { role?: string } | undefined;
 		if (msg?.role === "user") turn.tracker.userMessage(extractText(event.message));
+		// A new assistant message = a new LLM round: its thinking/text open
+		// fresh trail entries instead of replacing the previous round's.
+		else if (msg?.role === "assistant") turn.trail.beginAssistantMessage();
 	});
 
 	pi.on("message_update", (event, ctx) => {
@@ -751,6 +767,8 @@ export default function (pi: ExtensionAPI) {
 			const { text, thinking } = extractAssistantParts(event.message);
 			turn.trail.setThinking(thinking);
 			turn.trail.setText(text);
+			// Round sealed: the next deltas open fresh entries (cc9e8c43).
+			turn.trail.beginAssistantMessage();
 			turn.dirty = true;
 			turn.tracker.assistantFinal(text);
 		}
@@ -767,7 +785,6 @@ export default function (pi: ExtensionAPI) {
 		lastCtx = ctx;
 		if (!turn) return;
 		turn.trail.toolEnd(event.toolName, !event.isError, event.result);
-		turn.tracker.toolEnd(event.toolName, event.isError ?? false);
 		turn.dirty = true;
 	});
 

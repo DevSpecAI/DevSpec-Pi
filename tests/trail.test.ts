@@ -81,3 +81,53 @@ test("TrailBuilder thinking renders prefix-stable as the trace grows (item 9b745
 	assert.ok(c2.startsWith(c1), `expected prefix-stable render across the cap`);
 	assert.ok(c2.endsWith("…"));
 });
+
+test("TrailBuilder accumulates EVERY round of a run in order (cc9e8c43)", () => {
+	// pi fires turn_start per LLM round, each round its own assistant message.
+	// beginAssistantMessage (wired to message_start AND message_end) opens fresh
+	// entries per round, so a long tool-looping run keeps its whole history.
+	const t = new TrailBuilder();
+	// Round 1
+	t.setThinking("first I search");
+	t.setText("looking into it");
+	t.toolStart("bash", { command: "rg foo" });
+	t.toolEnd("bash", true, { content: [{ type: "text", text: "3 hits" }] });
+	t.beginAssistantMessage(); // message_end / next message_start
+	// Round 2
+	t.setThinking("now I edit");
+	t.toolStart("edit", { path: "a.ts" });
+	t.toolEnd("edit", true, { content: [{ type: "text", text: "ok" }] });
+	t.beginAssistantMessage();
+	// Round 3 — the answer
+	t.setText("done — here is what changed");
+
+	const out = t.render();
+	const iThink1 = out.indexOf("first I search");
+	const iText1 = out.indexOf("looking into it");
+	const iBash = out.indexOf("✔ `bash`");
+	const iThink2 = out.indexOf("now I edit");
+	const iEdit = out.indexOf("✔ `edit`");
+	const iFinal = out.indexOf("done — here is what changed");
+	assert.ok(iThink1 !== -1 && iText1 !== -1 && iBash !== -1 && iThink2 !== -1 && iEdit !== -1 && iFinal !== -1, `all rounds present:\n${out}`);
+	assert.ok(iThink1 < iText1 && iText1 < iBash && iBash < iThink2 && iThink2 < iEdit && iEdit < iFinal, `chronological order:\n${out}`);
+});
+
+test("without a round boundary, snapshots still replace in place (no duplication)", () => {
+	// Defensive: if neither message_start nor message_end fires (an unforeseen
+	// mode), behaviour degrades to the old last-round-wins — never duplicated
+	// content.
+	const t = new TrailBuilder();
+	t.setThinking("round one");
+	t.setThinking("round two");
+	const out = t.render();
+	assert.ok(!out.includes("round one"));
+	assert.ok(out.includes("round two"));
+});
+
+test("the final render honours the larger cap (9b7455df + cc9e8c43)", () => {
+	const t = new TrailBuilder();
+	t.setText("x".repeat(20_000));
+	const out = t.render(48_000);
+	assert.ok(!out.startsWith("…"), "20k fits under the final cap — no head trim");
+	assert.equal(out.length, 20_000);
+});

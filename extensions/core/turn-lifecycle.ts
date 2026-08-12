@@ -1,23 +1,25 @@
 /**
  * DevSpec Pi — mechanical turn lifecycle (pure, unit-tested).
  *
- * Decides what the extension posts to DevSpec when a turn settles. The rules
- * (VISION.md, slice 2 — Pi-specific refinement of the delivery contract):
+ * Decides what the extension posts to DevSpec when an agent RUN settles
+ * (item cc9e8c43, owner direction 2026-08-12):
  *
- * - The model may post its own answer via the post_session_message tool; a
- *   successful tool post this turn takes precedence (never dual writers).
- *   Two signals say so: the tool_execution_end event (tracker.toolPosted)
- *   AND the backstop mark the tool itself leaves on success
- *   (completeTurnPostedSince — item 857d984c: the event signal alone leaked
- *   three times in one evening, so the source of truth now also speaks).
- * - Otherwise the extension posts the final assistant message mechanically
- *   with complete_turn:true — the UI shows the agent's real answer and never
- *   hangs on a forgotten tool call.
- * - Turns started by a LOCAL prompt (typed in the terminal while attached)
+ * - There is exactly ONE writer, and it is mechanical. The model never posts
+ *   conversational content: it thinks, tool-calls, and ends its run with a
+ *   final terminal message; the extension delivers that message as the
+ *   session answer with complete_turn:true. No complete_turn discipline, no
+ *   tool-post precedence, no suppression state — the dual-writer failure
+ *   class (857d984c, three patches, still leaking) is deleted, not fixed.
+ * - This state is RUN-scoped: pi fires turn_start once per LLM round
+ *   ("repeats while LLM calls tools"), so the tracker is created on
+ *   agent_start / first turn_start and lives until agent_settled — never
+ *   reset per round. Per-round state was the double-bubble root cause:
+ *   suppression marks landed on a tracker the next round threw away.
+ * - Runs started by a LOCAL prompt (typed in the terminal while attached)
  *   also mirror the prompt as turn_kind:'local_prompt' before the answer, so
  *   the DevSpec transcript is two-sided.
  * - Nothing posts when unattached (sessionless) or when there is no answer
- *   text (e.g. a turn that was pure tool calls with no closing message).
+ *   text (e.g. a run that was pure tool calls with no closing message).
  */
 
 export type UserKind = "remote" | "dispatch" | "local";
@@ -28,7 +30,6 @@ export const DISPATCH_PREFIX = "[DevSpec remote — work dispatch";
 export class TurnTracker {
 	userKind: UserKind | null = null;
 	userText = "";
-	toolPosted = false;
 	lastAssistantText = "";
 
 	userMessage(text: string): void {
@@ -36,10 +37,6 @@ export class TurnTracker {
 		if (text.startsWith(REMOTE_PREFIX)) this.userKind = "remote";
 		else if (text.startsWith(DISPATCH_PREFIX)) this.userKind = "dispatch";
 		else this.userKind = "local";
-	}
-
-	toolEnd(toolName: string, isError: boolean): void {
-		if (toolName === "post_session_message" && !isError) this.toolPosted = true;
 	}
 
 	assistantFinal(text: string): void {
@@ -55,13 +52,12 @@ export type SettlePlan =
 	| { kind: "final"; message: string }
 	| { kind: "local_mirror"; prompt: string; answer: string };
 
-export function planSettle(tracker: TurnTracker, attached: boolean, postedThisTurn = false): SettlePlan {
+export function planSettle(tracker: TurnTracker, attached: boolean): SettlePlan {
 	if (!attached) return { kind: "none" };
-	if (tracker.toolPosted || postedThisTurn) return { kind: "none" };
 	if (!tracker.lastAssistantText) return { kind: "none" };
 	if (tracker.userKind === "local") {
 		return { kind: "local_mirror", prompt: tracker.userText, answer: tracker.lastAssistantText };
 	}
-	// remote/dispatch turns (and unknowns with an answer): post the final.
+	// remote/dispatch runs (and unknowns with an answer): post the final.
 	return { kind: "final", message: tracker.lastAssistantText };
 }

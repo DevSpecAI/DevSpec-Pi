@@ -36,6 +36,8 @@ import { unwrapMcpResult } from "./core/result.ts";
 import { extractAssistantParts, extractText, TrailBuilder } from "./core/trail.ts";
 import { planSettle, TurnTracker } from "./core/turn-lifecycle.ts";
 import { formatDispatchMessage } from "./core/dispatch.ts";
+import { openPushChannel } from "./core/push-channel.ts";
+import { mcpUrl } from "./core/config.ts";
 
 const AGENT_NAME = "Pi";
 const POLL_WAIT_MS = 25_000;
@@ -51,6 +53,12 @@ interface PumpState {
 	busy: boolean;
 	stop: boolean;
 	errors: number;
+	// Push channel state (SSE wake mode; falls back to held long-poll).
+	pushAbort?: AbortController;
+	pushClosed?: boolean;
+	pushEnded?: string | null;
+	wakePending?: boolean;
+	wakeWaiter?: (() => void) | null;
 }
 
 let pump: PumpState | null = null;
@@ -161,13 +169,20 @@ function setRemoteStatus(ctx: ExtensionContext | null): void {
 	ctx.ui.setStatus("devspec-remote", bond ? `⛁ ${bond.codename ?? "bonded"}` : undefined);
 }
 
-async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "owner_gone"): Promise<void> {
+async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "owner_gone", serverAlreadyEnded = false): Promise<void> {
 	const active = pump;
 	if (!active) return;
 	active.stop = true;
+	active.pushAbort?.abort();
+	if (active.wakeWaiter) {
+		const w = active.wakeWaiter;
+		active.wakeWaiter = null;
+		w();
+	}
 	pump = null;
 	setBond(null);
 	setRemoteStatus(ctx);
+	if (serverAlreadyEnded) return;
 	const resolved = await resolveToken();
 	if (!resolved) return;
 	try {
@@ -181,6 +196,63 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	}
 }
 
+/** Wake the pump's SSE waiter (if any). */
+function signalWake(active: PumpState): void {
+	active.wakePending = true;
+	if (active.wakeWaiter) {
+		const w = active.wakeWaiter;
+		active.wakeWaiter = null;
+		w();
+	}
+}
+
+/** Wait for a wake frame (or the safety tick). Never rejects. */
+function waitForWake(active: PumpState, safetyMs: number): Promise<void> {
+	if (active.wakePending) {
+		active.wakePending = false;
+		return Promise.resolve();
+	}
+	return new Promise((resolve) => {
+		active.wakeWaiter = resolve;
+		const t = setTimeout(() => {
+			if (active.wakeWaiter === resolve) active.wakeWaiter = null;
+			resolve();
+		}, safetyMs);
+		if (typeof t.unref === "function") t.unref();
+	});
+}
+
+/** Try to open the SSE push channel. True = push mode active. */
+function startPushChannel(active: PumpState, token: string): boolean {
+	const controller = new AbortController();
+	active.pushAbort = controller;
+	void openPushChannel({
+		mcpUrl: mcpUrl(),
+		token,
+		connectionId: active.bond.connectionId,
+		signal: controller.signal,
+		handlers: {
+			onWake: () => signalWake(active),
+			onEnded: (reason) => {
+				active.pushEnded = reason;
+				signalWake(active);
+			},
+			onClose: (reason) => {
+				if (controller.signal.aborted) return;
+				active.pushClosed = true;
+				debug(`push channel closed: ${reason}`);
+				signalWake(active);
+			},
+		},
+	}).catch((err) => {
+		if (controller.signal.aborted) return;
+		active.pushClosed = true;
+		debug(`push channel connect failed: ${err instanceof Error ? err.message : err}`);
+		signalWake(active);
+	});
+	return true;
+}
+
 async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 	const active = pump;
 	if (!active) return;
@@ -188,7 +260,34 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 	if (!resolved) return;
 	const token = resolved.token;
 
+	// Push mode: SSE wakes us; we fetch the package with a no-hold poll.
+	// Falls back to the held long-poll if the channel is unavailable.
+	let pushMode = startPushChannel(active, token);
+	// The safety tick keeps presence fresh and catches anything the stream missed.
+	const PUSH_SAFETY_MS = 75_000;
+	let notifiedFallback = false;
+
 	while (pump === active && !active.stop) {
+		// Server told us the bond ended — tear down without re-ending it.
+		if (active.pushEnded !== undefined) {
+			notify(ctx, `DevSpec remote: connection ended${active.pushEnded ? ` (${active.pushEnded})` : ""}.`, "info");
+			await stopPump(ctx, "owner_gone", true);
+			return;
+		}
+		if (pushMode && active.pushClosed) {
+			pushMode = false;
+			if (!notifiedFallback) {
+				notifiedFallback = true;
+				debug("push unavailable — held long-poll fallback");
+			}
+		}
+		if (pushMode) {
+			await waitForWake(active, PUSH_SAFETY_MS);
+			if (active.stop || pump !== active) return;
+			if (active.pushEnded !== undefined) continue; // handled at the top
+			if (active.pushClosed) continue; // fall through to long-poll next lap
+		}
+
 		let payload: unknown;
 		try {
 			const raw = await callDevspec(
@@ -198,7 +297,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					connection_id: active.bond.connectionId,
 					cursor: active.cursor,
 					dispatch_cursor: active.dispatchCursor,
-					wait_ms: POLL_WAIT_MS,
+					wait_ms: pushMode ? 0 : POLL_WAIT_MS,
 					busy: active.busy,
 					listener_armed: true,
 					agent_name: AGENT_NAME,
@@ -226,6 +325,15 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		}
 
 		if (active.stop || pump !== active) return;
+
+		// The long-poll path also reports server-side ends (status: 'ended').
+		const status = (payload as { status?: string } | null)?.status;
+		if (status === "ended" || status === "not_found") {
+			const endReason = (payload as { end_reason?: string | null } | null)?.end_reason;
+			notify(ctx, `DevSpec remote: connection ended${endReason ? ` (${endReason})` : ""}.`, "info");
+			await stopPump(ctx, "owner_gone", true);
+			return;
+		}
 
 		const pkg = parsePollPayload(payload, active.bond.connectionId);
 		if (pkg.cursor) active.cursor = pkg.cursor;

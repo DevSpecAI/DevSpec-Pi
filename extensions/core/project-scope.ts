@@ -15,7 +15,7 @@ import { execFile } from "node:child_process";
 
 /** Does this server error mean "tell me which project this checkout is"? */
 export function needsProjectScope(message: string): boolean {
-	return /multiple (accessible )?projects|could not (resolve|determine).*project|unable to (resolve|determine).*project|no project.*(resolved|context)|project.*ambiguous/i.test(
+	return /multiple (accessible )?projects|could not (resolve|determine).*project|unable to (resolve|determine).*project|no project.*(resolved|context)|project.*ambiguous|needs a project|more than one|pass (project_id|git_remote)/i.test(
 		message,
 	);
 }

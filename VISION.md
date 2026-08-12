@@ -142,6 +142,13 @@ devspec-pi/                        ← this repo, published as one npm package
 └── themes/                        ← DevSpec brand theme (#0F766E)
 ```
 
+**Pi extension isolation (learned the hard way):** pi loads every extension
+FILE with a fresh jiti module graph (`moduleCache: false`). Module-level
+singletons are therefore per-file, not per-process. Any state shared between
+our extension files (bond state, the MCP client cache) lives on `globalThis`
+— see `core/bond-state.ts` and `core/client.ts`. Per-file state (the remote
+pump) is fine as module scope.
+
 ### Transport: the MCP contract, spoken natively
 
 The DevSpec MCP endpoint (`https://devspec.ai/api/mcp`) is a **stateless
@@ -318,7 +325,17 @@ current contract, adopted here first, migrated to other hosts only if proven.
    (`before_agent_start` workflow block; `/devspec.work` with live item
    completion; `/devspec.help`; +5 workflow verbs: create/claim/release/
    record/update; reactive git_remote project scoping)
-4. **Remote control** — bond, pump, ingress/egress per contract.
+4. **Remote control** — bond, pump, ingress/egress per contract. **Slice 1 ✅**
+   (`/devspec.remote [--session id] | stop`; register/revive with local_id =
+   pi session id; one held 25s `poll_connection` per bond; owner commands →
+   real user messages; agent-canonical egress via `post_session_message` with
+   bond-default connection_id; bonded-mode instruction block incl. the four
+   instruction tiers; headless RPC e2e in `scripts/e2e-remote.mjs`.
+   Remaining ingress leg — owner message from the web UI — is the human
+   acceptance step.)
+   **Slice 2 (next):** dispatches/assignments (`dispatches[]`,
+   acknowledge/resolve, report_progress, pickup lease), trail-phase live
+   progress, last-resort mirror, `pending_context_wipe` handling.
 5. **Memory recall/capture engine + compaction survival.**
 6. **Onboarding polish, theme, embedded user-MCP support.**
 7. **Headless worker CLI** (cloud primitive, dogfooded locally first).

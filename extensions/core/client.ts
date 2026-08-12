@@ -15,6 +15,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { resolveEndpoint } from "./auth-store.ts";
+import { needsProjectScope, resolveGitRemote } from "./project-scope.ts";
 
 const CLIENT_NAME = "devspec-pi";
 const CLIENT_VERSION = "0.1.0";
@@ -32,17 +33,26 @@ interface CacheEntry {
 	client: Client;
 }
 
-let cached: CacheEntry | null = null;
+// Cross-extension-file singleton: pi isolates each extension file's module
+// graph, so the cache lives on globalThis (one MCP client per process).
+const GLOBAL_KEY = "__devspecPiClientCache";
+
+function cacheStore(): { current: CacheEntry | null } {
+	const g = globalThis as unknown as Record<string, { current: CacheEntry | null } | undefined>;
+	if (!g[GLOBAL_KEY]) g[GLOBAL_KEY] = { current: null };
+	return g[GLOBAL_KEY] as { current: CacheEntry | null };
+}
 
 /** Drop the cached connection (logout, token change, after a transport error). */
 export function resetClientCache(): void {
-	const old = cached;
-	cached = null;
+	const old = cacheStore().current;
+	cacheStore().current = null;
 	if (old) void old.client.close().catch(() => {});
 }
 
 async function connect(token: string): Promise<Client> {
 	const url = await resolveEndpoint();
+	const cached = cacheStore().current;
 	if (cached && cached.token === token && cached.url === url) return cached.client;
 
 	resetClientCache();
@@ -51,7 +61,7 @@ async function connect(token: string): Promise<Client> {
 	});
 	const client = new Client({ name: CLIENT_NAME, version: CLIENT_VERSION }, { capabilities: {} });
 	await client.connect(transport);
-	cached = { token, url, client };
+	cacheStore().current = { token, url, client };
 	return client;
 }
 
@@ -71,6 +81,17 @@ export function mapClientError(err: unknown): Error {
 	return new DevspecApiError(message);
 }
 
+export interface CallOptions {
+	/** Request timeout (default 60s). Long-poll callers pass hold + margin. */
+	timeoutMs?: number;
+	/**
+	 * Working directory for reactive project scoping: when the server can't
+	 * resolve the project (multi-project token) and no git_remote was passed,
+	 * retry once with this checkout's origin remote attached.
+	 */
+	cwd?: string;
+}
+
 /**
  * Call a DevSpec MCP tool. Throws DevspecAuthError / DevspecApiError.
  * One transparent reconnect-retry on transport failure (the cached client may
@@ -80,18 +101,46 @@ export async function callDevspec(
 	token: string,
 	name: string,
 	args: Record<string, unknown>,
-	timeoutMs: number = DEFAULT_TIMEOUT_MS,
+	options: CallOptions = {},
 ): Promise<unknown> {
+	const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+	let callArgs = args;
+	let scopedRetryDone = false;
 	let lastError: unknown = null;
 	for (let attempt = 0; attempt < 2; attempt++) {
 		try {
 			const client = await connect(token);
-			return await client.callTool({ name, arguments: args }, undefined, { timeout: timeoutMs });
+			const raw = await client.callTool({ name, arguments: callArgs }, undefined, { timeout: timeoutMs });
+			// MCP-level errors arrive as results, not throws — surface them the
+			// same way so the scoping retry below can see them too.
+			const r = raw as { isError?: boolean; content?: Array<{ type?: string; text?: string }> };
+			if (r?.isError) {
+				const text = (r.content ?? []).filter((c) => c?.type === "text").map((c) => c.text).join(" ");
+				throw new DevspecApiError(text || `DevSpec tool ${name} failed.`);
+			}
+			return raw;
 		} catch (err) {
+			const mapped = mapClientError(err);
+			// Reactive project scoping: one retry with the checkout's remote.
+			if (
+				!scopedRetryDone &&
+				!(mapped instanceof DevspecAuthError) &&
+				!callArgs.git_remote &&
+				!callArgs.project_id &&
+				needsProjectScope(mapped.message)
+			) {
+				const remote = await resolveGitRemote(options.cwd ?? process.cwd());
+				if (remote) {
+					scopedRetryDone = true;
+					callArgs = { ...callArgs, git_remote: remote };
+					attempt--; // the scoping retry doesn't consume a transport attempt
+					continue;
+				}
+			}
 			lastError = err;
 			resetClientCache();
 			// Auth errors are terminal — retrying cannot help.
-			if (mapClientError(err) instanceof DevspecAuthError) break;
+			if (mapped instanceof DevspecAuthError) break;
 		}
 	}
 	throw mapClientError(lastError);

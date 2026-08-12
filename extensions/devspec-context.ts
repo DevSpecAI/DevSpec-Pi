@@ -8,12 +8,33 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { resolveToken } from "./core/auth-store.ts";
+import { getBond } from "./core/bond-state.ts";
 import { buildDevspecInstructions } from "./core/instructions.ts";
+
+/** Extra block while this session is bonded as remote capacity. */
+function buildBondedInstructions(): string | null {
+	const bond = getBond();
+	if (!bond) return null;
+	const lines = [
+		`You are bonded to DevSpec as remote capacity (${bond.codename ?? bond.connectionId})${bond.sessionId ? ", attached to a session" : ", sessionless"}.`,
+		"Messages prefixed [DevSpec remote — message from ...] are owner instructions delivered via the bond.",
+		"Answer them with post_session_message (connection_id defaults to your bond) — you are the sole content authority: pass complete_turn:true on the FINAL answer, use phase:'trail' for mid-turn progress, and never post status chrome as messages.",
+	];
+	const tiers = bond.instructions ?? {};
+	if (tiers.project_custom_instructions) lines.push(`Project principles: ${tiers.project_custom_instructions}`);
+	if (tiers.project_agent_rules) lines.push(`Project agent rules (mandatory): ${tiers.project_agent_rules}`);
+	if (tiers.owner_custom_instructions) lines.push(`Owner style: ${tiers.owner_custom_instructions}`);
+	if (tiers.owner_agent_rules) lines.push(`Owner machine rules: ${tiers.owner_agent_rules}`);
+	return lines.join("\n");
+}
 
 export default function (pi: ExtensionAPI) {
 	pi.on("before_agent_start", async (event, _ctx) => {
 		const resolved = await resolveToken();
 		if (!resolved) return undefined;
-		return { systemPrompt: `${event.systemPrompt}\n\n${buildDevspecInstructions()}` };
+		let prompt = `${event.systemPrompt}\n\n${buildDevspecInstructions()}`;
+		const bonded = buildBondedInstructions();
+		if (bonded) prompt += `\n\n### DevSpec remote (bonded)\n${bonded}`;
+		return { systemPrompt: prompt };
 	});
 }

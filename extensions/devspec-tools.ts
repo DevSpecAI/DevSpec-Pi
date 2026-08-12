@@ -22,7 +22,7 @@ import { resolveToken } from "./core/auth-store.ts";
 import { connectionsUrl, TOKEN_ENV_VAR } from "./core/config.ts";
 import { callDevspec } from "./core/client.ts";
 import { toolErrorResult, toolTextResult, unwrapMcpResult } from "./core/result.ts";
-import { needsProjectScope, resolveGitRemote } from "./core/project-scope.ts";
+import { getBond } from "./core/bond-state.ts";
 
 /** Unwrap a DevSpec MCP result, converting isError payloads into thrown errors. */
 function unwrapOrThrow(name: string, raw: unknown) {
@@ -59,21 +59,11 @@ function registerDevspecTool(pi: ExtensionAPI, def: DevspecToolDef): void {
 			const resolved = await resolveToken();
 			if (!resolved) return toolErrorResult(NOT_CONNECTED);
 			try {
-				let args = def.augment ? def.augment(params as Record<string, unknown>, ctx) : (params as Record<string, unknown>);
-				try {
-					const raw = await callDevspec(resolved.token, def.name, args);
-					return unwrapOrThrow(def.name, raw);
-				} catch (err) {
-					// Account-wide tokens: when the server can't tell which project
-					// this checkout belongs to, retry once with the git remote.
-					const message = err instanceof Error ? err.message : String(err);
-					if (!needsProjectScope(message) || args.git_remote) throw err;
-					const remote = await resolveGitRemote(ctx.cwd);
-					if (!remote) throw err;
-					args = { ...args, git_remote: remote };
-					const raw = await callDevspec(resolved.token, def.name, args);
-					return unwrapOrThrow(def.name, raw);
-				}
+				const args = def.augment ? def.augment(params as Record<string, unknown>, ctx) : (params as Record<string, unknown>);
+				// Project scoping (git_remote retry on multi-project errors) is
+				// centralized in callDevspec.
+				const raw = await callDevspec(resolved.token, def.name, args, { cwd: ctx.cwd });
+				return unwrapOrThrow(def.name, raw);
 			} catch (err) {
 				const message = err instanceof Error ? err.message : String(err);
 				return toolErrorResult(message);
@@ -414,6 +404,32 @@ export default function (pi: ExtensionAPI) {
 			usage_notes: Type.Optional(Type.String({ description: "Where users find the feature; empty string clears." })),
 			is_brief: Type.Optional(Type.Boolean({ description: "Make this item a grouping brief." })),
 		}),
+	});
+
+	registerDevspecTool(pi, {
+		name: "post_session_message",
+		label: "DevSpec: Post Session Message",
+		description:
+			"Post a message into your bonded DevSpec session (you are the SOLE content authority when bonded — " +
+			"final answers go through this, never chrome/status). connection_id defaults to your active bond; " +
+			"pass complete_turn:true on the FINAL answer so Working… clears with the bubble. " +
+			"phase:'trail' grows one live work-trail bubble mid-turn (cumulative output, ~1 call/sec max).",
+		promptSnippet: "Post a message to the bonded DevSpec session",
+		parameters: Type.Object({
+			message: Type.String({ description: "Message content (markdown)." }),
+			connection_id: Type.Optional(Type.String({ description: "Defaults to your active bond when omitted." })),
+			session_id: Type.Optional(Type.String({ description: "Legacy/explicit room id; prefer connection_id." })),
+			turn_kind: Type.Optional(StringEnum(["agent", "local_prompt"] as const)),
+			complete_turn: Type.Optional(Type.Boolean({ description: "Set true on the FINAL answer." })),
+			phase: Type.Optional(StringEnum(["trail", "needs_input", "answer", "error"] as const)),
+		}),
+		augment: (params, _ctx) => {
+			const bond = getBond();
+			if (bond && !params.connection_id && !params.session_id) {
+				return { ...params, connection_id: bond.connectionId };
+			}
+			return params;
+		},
 	});
 
 	registerDevspecTool(pi, {

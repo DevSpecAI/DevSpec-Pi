@@ -53,6 +53,15 @@ interface PumpState {
 	busy: boolean;
 	stop: boolean;
 	errors: number;
+	/**
+	 * False until the first package has been processed. The cold-start poll
+	 * has no cursor, so the server answers with the catch-up WINDOW — which
+	 * includes already-answered commands. Re-delivering those re-runs old
+	 * work (observed live: a replied-to UI message re-injected on rebond).
+	 * The first package is ORIENTATION ONLY: adopt its cursors, deliver
+	 * nothing. Only arrivals after that point are actionable.
+	 */
+	synced: boolean;
 	// Push channel state (SSE wake mode; falls back to held long-poll).
 	pushAbort?: AbortController;
 	pushClosed?: boolean;
@@ -342,6 +351,13 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		if (pkg.cursor) active.cursor = pkg.cursor;
 		if (pkg.dispatchCursor) active.dispatchCursor = pkg.dispatchCursor;
 
+		// Cold-start orientation: cursors adopted above, nothing delivered.
+		if (!active.synced) {
+			active.synced = true;
+			debug(`synced (cursor ${active.cursor ?? "none"}; ${pkg.ownerCommands.length} historical command(s) not replayed)`);
+			continue;
+		}
+
 		for (const cmd of pkg.ownerCommands) {
 			try {
 				if (ctx.isIdle()) {
@@ -538,7 +554,7 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			setBond(bond);
-			pump = { bond, busy: false, stop: false, errors: 0 };
+			pump = { bond, busy: false, stop: false, errors: 0, synced: false };
 			setRemoteStatus(ctx);
 			void pumpLoop(ctx);
 

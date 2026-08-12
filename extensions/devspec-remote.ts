@@ -80,7 +80,24 @@ interface TurnState {
 	trail: TrailBuilder;
 	dirty: boolean;
 	interval: ReturnType<typeof setInterval> | null;
+	/** Trail posts so far this turn — drives the adaptive cadence. */
+	posts: number;
+	lastPostAt: number;
 }
+
+/**
+ * Adaptive trail cadence (learned the hard way: 1/sec flat blew the 60
+ * req/min per-token budget on a multi-minute turn — every later tick then
+ * retried into the limiter). First post lands fast so the bubble opens;
+ * the gap then doubles to a 10s ceiling. ~20 posts for a 3-minute turn
+ * instead of ~180.
+ */
+export function nextTrailDelayMs(postsSoFar: number): number {
+	return Math.min(1_000 * 2 ** postsSoFar, 10_000);
+}
+
+/** One rate-limit/failure warning per turn is enough; the rest go to debug. */
+let postWarnedThisTurn = false;
 
 let turn: TurnState | null = null;
 let lastCtx: ExtensionContext | null = null;
@@ -103,16 +120,23 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 		return true;
 	} catch (err) {
 		debug(`postToSession failed: ${err instanceof Error ? err.message : err}`);
-		notify(lastCtx, `DevSpec remote: post failed (${err instanceof Error ? err.message.slice(0, 120) : err})`, "warning");
+		if (!postWarnedThisTurn) {
+			postWarnedThisTurn = true;
+			notify(lastCtx, `DevSpec remote: post failed (${err instanceof Error ? err.message.slice(0, 120) : err}) — further failures this turn logged to debug only.`, "warning");
+		}
 		return false;
 	}
 }
 
 function trailTick(): void {
 	if (!turn?.dirty) return;
+	const now = Date.now();
+	if (now - turn.lastPostAt < nextTrailDelayMs(turn.posts)) return;
 	const rendered = turn.trail.render();
 	if (!rendered) return;
 	turn.dirty = false;
+	turn.posts += 1;
+	turn.lastPostAt = now;
 	void postToSession(rendered, { phase: "trail" });
 }
 
@@ -410,7 +434,8 @@ export default function (pi: ExtensionAPI) {
 	pi.on("turn_start", (_event, ctx) => {
 		lastCtx = ctx;
 		if (!getBond()?.sessionId) { debug("turn_start: not attached, skipping"); return; }
-		turn = { tracker: new TurnTracker(), trail: new TrailBuilder(), dirty: false, interval: null };
+		turn = { tracker: new TurnTracker(), trail: new TrailBuilder(), dirty: false, interval: null, posts: 0, lastPostAt: 0 };
+		postWarnedThisTurn = false;
 		debug("turn_start: tracking");
 		turn.interval = setInterval(trailTick, TRAIL_INTERVAL_MS);
 		// Don't hold the process open for the trail timer in headless runs.

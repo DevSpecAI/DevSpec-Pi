@@ -27,6 +27,40 @@ export class DevspecAuthError extends Error {}
 /** Anything else: network, server 5xx, MCP protocol errors. */
 export class DevspecApiError extends Error {}
 
+/** The per-token request budget is exhausted; carries the server's retry hint. */
+export class DevspecRateLimitError extends DevspecApiError {
+	retryAfterMs: number;
+	constructor(message: string, retryAfterMs: number) {
+		super(message);
+		this.retryAfterMs = retryAfterMs;
+	}
+}
+
+/** Parse "Rate limit exceeded. Retry after N seconds." → ms, or null. */
+export function parseRateLimitRetryMs(message: string): number | null {
+	if (!/rate limit/i.test(message)) return null;
+	const m = message.match(/retry after (\d+)\s*seconds?/i);
+	return m ? Number.parseInt(m[1], 10) * 1000 : 5_000;
+}
+
+// Cross-extension-file rate-limit cooldown (globalThis — pi isolates module
+// graphs per extension file). While cooling down, calls WAIT rather than
+// hammering the limiter (failed attempts likely count against the budget).
+const RL_KEY = "__devspecPiRateLimit";
+
+function rateLimitStore(): { until: number } {
+	const g = globalThis as unknown as Record<string, { until: number } | undefined>;
+	if (!g[RL_KEY]) g[RL_KEY] = { until: 0 };
+	return g[RL_KEY] as { until: number };
+}
+
+const MAX_COOLDOWN_WAIT_MS = 30_000;
+
+async function waitOutCooldown(): Promise<void> {
+	const wait = rateLimitStore().until - Date.now();
+	if (wait > 0) await new Promise((r) => setTimeout(r, Math.min(wait, MAX_COOLDOWN_WAIT_MS)));
+}
+
 interface CacheEntry {
 	token: string;
 	url: string;
@@ -106,9 +140,11 @@ export async function callDevspec(
 	const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 	let callArgs = args;
 	let scopedRetryDone = false;
+	let rateLimitRetries = 0;
 	let lastError: unknown = null;
 	for (let attempt = 0; attempt < 2; attempt++) {
 		try {
+			await waitOutCooldown();
 			const client = await connect(token);
 			const raw = await client.callTool({ name, arguments: callArgs }, undefined, { timeout: timeoutMs });
 			// MCP-level errors arrive as results, not throws — surface them the
@@ -121,6 +157,17 @@ export async function callDevspec(
 			return raw;
 		} catch (err) {
 			const mapped = mapClientError(err);
+			// Rate limit: honor the server's hint, cool the whole process down,
+			// and retry ONCE after waiting — never hammer the window.
+			const retryMs = parseRateLimitRetryMs(mapped.message);
+			if (retryMs !== null) {
+				rateLimitStore().until = Date.now() + retryMs;
+				rateLimitRetries += 1;
+				if (rateLimitRetries > 1) throw new DevspecRateLimitError(mapped.message, retryMs);
+				await new Promise((r) => setTimeout(r, Math.min(retryMs, MAX_COOLDOWN_WAIT_MS)));
+				attempt--; // the rate-limit wait-retry doesn't consume a transport attempt
+				continue;
+			}
 			// Reactive project scoping: one retry with the checkout's remote.
 			if (
 				!scopedRetryDone &&

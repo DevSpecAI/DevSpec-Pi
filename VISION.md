@@ -415,13 +415,21 @@ current contract, adopted here first, migrated to other hosts only if proven.
 6. **Onboarding polish, theme, embedded user-MCP support.**
 7. **Headless worker CLI** (cloud primitive, dogfooded locally first).
 
-## Next-up queue (as of 2026-08-12 evening)
+## Next-up queue (as of 2026-08-12 late evening)
 
 Tracked as DevSpec items — this list is a pointer, the items are the truth:
 
-- `1906e21f` — agent control plane: per-turn telemetry (tokens/cost/context/
-  cache) reported mechanically + UI-driven control channel (set_model,
-  thinking level, compact — RPC already exposes them)
+- `1906e21f` — control plane TELEMETRY slice: per-turn usage (tokens/cost/
+  context%/cache) reported mechanically + rendered live in the UI (rescoped
+  2026-08-12; the control half split out)
+- `c2cc8679` — control channel: owner-authority CONTROL verbs executed
+  in-process (abort mid-turn, set model/thinking, compact, run slash command)
+- `2219b653` — greenfield STRUCTURED audit trail: typed turn events end-to-end
+  (thinking/tool_start/tool_end/diffs) → timeline UI. The string trail is a
+  stopgap; this is the owner's explicit direction ('a full audit trail').
+- `bb6a7135` — instruction-tier parity audit (project/personal/agent/style,
+  no CLAUDE.md reliance)
+- `477a3eae` — composed working+queued UI state (general, not Pi-specific)
 - `4462d45d` — cloud auth strategy (secrets store, gateway key, device-code,
   OAuth relay; subscription-token sync needs an explicit decision)
 - `3fde909b` — launch-on-send: attach-on-launch flag/env + UI composer targeting
@@ -430,6 +438,18 @@ Tracked as DevSpec items — this list is a pointer, the items are the truth:
 - `536f2417` — npm publish + prod domain readiness (release gates)
 - Not yet items: conflict-settling TUI overlay; compaction survival;
   capture proposals at decision moments
+
+Shipped 2026-08-12 (Lively Panther):
+- `8b0c162b` — instant disconnect detection: SSE-close → grace-guarded (10s)
+  non-sticky liveness clear server-side; guarded going-away stamp on
+  session_shutdown + push-channel reconnect backoff (1s/4s/10s) here.
+- `ce5a1432` — adopt server-side attachment every poll lap (the
+  bouncing-dots regression: UI-attach after sessionless auto-bond never
+  reached the extension, killing the mechanical trail).
+- `95db8479` + `9b7455df` — trail correctness: server folds sliding-window
+  snapshots on a tail anchor; prefix-stable thinking render; the canonical
+  final trail rides the answer post (replace-on-close, `work_trail` param).
+  Live-verified end-to-end on staging with headless probes.
 
 ## References (devspecv2)
 

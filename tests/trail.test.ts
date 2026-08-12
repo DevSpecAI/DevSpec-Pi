@@ -47,7 +47,7 @@ test("TrailBuilder renders thinking, text, and tools with statuses", () => {
 	t.toolEnd("bash", true, { content: [{ type: "text", text: "12 passing" }] });
 	t.toolStart("read", { path: "a.ts" }); // left open
 	const out = t.render();
-	assert.match(out, /💭 \*let me think\*/);
+	assert.match(out, /> 💭 let me think/);
 	assert.match(out, /working on it/);
 	assert.match(out, /✔ `bash` — `npm test` → 12 passing/);
 	assert.match(out, /… `read` — `a\.ts`/);
@@ -61,4 +61,23 @@ test("TrailBuilder truncates very long trails from the head", () => {
 	// MAX_TRAIL_CHARS (12k) + the trim marker head.
 	assert.ok(out.length <= 12_100);
 	assert.ok(out.startsWith("…"));
+});
+
+test("TrailBuilder thinking renders prefix-stable as the trace grows (item 9b7455df)", () => {
+	// The server merges cumulative snapshots by prefix-replace; that only works
+	// if a growing thinking trace is always a strict prefix of its next render.
+	const t = new TrailBuilder();
+	t.setThinking("the plan is");
+	const s1 = t.render();
+	t.setThinking("the plan is to refactor the pump");
+	const s2 = t.render();
+	assert.ok(s2.startsWith(s1), `expected prefix-stable render:\n${s1}\n---\n${s2}`);
+	// Across the 800-char cap boundary the ellipsis trails outside the variable
+	// region, so stability holds there too.
+	t.setThinking("x".repeat(799));
+	const c1 = t.render();
+	t.setThinking("x".repeat(801));
+	const c2 = t.render();
+	assert.ok(c2.startsWith(c1), `expected prefix-stable render across the cap`);
+	assert.ok(c2.endsWith("…"));
 });

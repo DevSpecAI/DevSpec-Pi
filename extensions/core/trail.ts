@@ -119,8 +119,14 @@ export class TrailBuilder {
 	render(): string {
 		const parts: string[] = [];
 		if (this.thinking) {
-			const t = this.thinking.length > 800 ? `…${this.thinking.slice(-800)}` : this.thinking;
-			parts.push(`> 💭 *${t.replace(/\n/g, " ")}*`);
+			// Prefix-stable by construction (item 9b7455df): no emphasis markers —
+			// a closing '*' retracts on every thinking delta, which breaks the
+			// cumulative-prefix merge server-side and duplicated the whole block.
+			// The cap keeps the FIRST 800 chars with the ellipsis trailing, so a
+			// growing trace is always a strict prefix of its next snapshot.
+			const flat = this.thinking.replace(/\n/g, " ");
+			const t = flat.length > 800 ? `${flat.slice(0, 800)}…` : flat;
+			parts.push(`> 💭 ${t}`);
 		}
 		if (this.text) parts.push(this.text);
 		for (const t of this.tools) {

@@ -108,7 +108,7 @@ let turn: TurnState | null = null;
 let lastCtx: ExtensionContext | null = null;
 const TRAIL_INTERVAL_MS = 1_000;
 
-async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string } = {}): Promise<boolean> {
+async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; workTrail?: string } = {}): Promise<boolean> {
 	const bond = getBond();
 	if (!bond?.sessionId) return false;
 	const resolved = await resolveToken();
@@ -121,6 +121,7 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 			...(opts.phase ? { phase: opts.phase } : {}),
 			...(opts.completeTurn ? { complete_turn: true } : {}),
 			...(opts.turnKind ? { turn_kind: opts.turnKind } : {}),
+			...(opts.workTrail ? { work_trail: opts.workTrail } : {}),
 		});
 		return true;
 	} catch (err) {
@@ -153,22 +154,22 @@ async function settleTurn(): Promise<void> {
 	const bond = getBond();
 	if (!bond?.sessionId) { debug("settleTurn: not attached"); return; }
 
-	// Final trail flush, then the settle plan.
-	if (t.dirty) {
-		const rendered = t.trail.render();
-		debug(`settleTurn: trail flush ${rendered.length} chars`);
-		if (rendered) await postToSession(rendered, { phase: "trail" });
-	} else {
-		debug("settleTurn: not dirty, no trail flush");
-	}
+	// The final render rides the answer post (item 9b7455df): the server
+	// REPLACES the fold-merged accumulation with this canonical final render —
+	// every tool closed, full thinking — so the preserved 'Show work' is exact,
+	// and one fewer post is spent. A turn with no answer still flushes its
+	// trail the old way so the work is visible.
+	const finalTrail = t.trail.render();
 	const plan = planSettle(t.tracker, true);
-	debug(`settleTurn: plan ${plan.kind}`);
+	debug(`settleTurn: plan ${plan.kind}, final trail ${finalTrail.length} chars`);
 	if (plan.kind === "final") {
 		// phase 'answer' closes the trail bubble (preserved as "Show work").
-		await postToSession(plan.message, { phase: "answer", completeTurn: true });
+		await postToSession(plan.message, { phase: "answer", completeTurn: true, workTrail: finalTrail || undefined });
 	} else if (plan.kind === "local_mirror") {
 		await postToSession(plan.prompt, { turnKind: "local_prompt" });
-		await postToSession(plan.answer, { phase: "answer", completeTurn: true });
+		await postToSession(plan.answer, { phase: "answer", completeTurn: true, workTrail: finalTrail || undefined });
+	} else if (t.dirty && finalTrail) {
+		await postToSession(finalTrail, { phase: "trail" });
 	}
 }
 

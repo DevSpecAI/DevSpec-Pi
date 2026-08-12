@@ -16,7 +16,25 @@ and binds all implementation decisions in this repo.
 
 ## Status
 
-Pre-implementation. See the phasing plan in VISION.md.
+**Phase 2 complete**: embedded MCP transport, `/devspec.login` / `/devspec.logout`
+/ `/devspec.status`, and 15 native tools (projects, action items, memory
+read/write, document search, product help). Remote control, proactive memory,
+and onboarding UI come next — see the phasing plan in VISION.md.
+
+## Development
+
+```bash
+npm install
+npm run typecheck
+npm test
+
+# Dogfood against staging (dev Clerk/Supabase) without installing:
+export DEVSPEC_ENV=staging                 # or DEVSPEC_MCP_URL=https://staging.devspec.ai/api/mcp
+export DEVSPEC_MCP_TOKEN=<from https://staging.devspec.ai/settings/connections>
+pi -e ./extensions/devspec-auth.ts -e ./extensions/devspec-tools.ts
+```
+
+Production (`devspec.ai`) is the default when no override is set.
 
 ## Relationship to other DevSpec plugins
 

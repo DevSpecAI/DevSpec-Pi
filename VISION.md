@@ -111,6 +111,18 @@ Stock Pi has real discoverability gaps (e.g. thinking level is Shift+Tab or
 owns onboarding: first-run login flow, `/devspec.help`, sensible defaults —
 so "install Pi, install package" feels like downloading a purpose-built app.
 
+The end-state is **zero commands**: launch Pi and you're connected capacity —
+logged in, bonded, reachable. Commands exist for control and debugging, never
+as a requirement to participate.
+
+### 7. Cross-platform parity
+
+Windows, Linux, and macOS are equally first-class. No unix-only assumptions:
+paths via `node:path`, file perms best-effort (0600 is meaningful on POSIX, a
+no-op on Windows), no shell-specific behavior in code or docs, no `sh`-isms in
+spawned processes. If a feature can't be parity, it gates cleanly per-OS — it
+never silently half-works.
+
 ## Architecture
 
 ```
@@ -176,6 +188,22 @@ DevSpec memory is the memory system — Pi just lets it breathe:
 
 ### Remote control: native-runtime family, done right
 
+**Context — autopilot is dead, capacity is the model.** The old Claude-Code-only
+"autopilot" (unattended work via special skills/commands) is being retired
+server-side in favor of the connection-native remote system: agents are simply
+*available capacity*, and interactive vs. unattended is an **instruction-tier**
+difference (agent_rules vs. custom_instructions), not a separate system with
+separate verbs. This package inherits none of the autopilot machinery — it is
+designed for the capacity model from the start, and is the place to push it
+further than the current contract does.
+
+**The zero-command target.** The ambient end-state: the user launches Pi and
+never types a command. On `session_start` the extension resolves the token,
+registers/revives the connection, and holds the channel open; dispatches and
+owner messages arrive as real user messages; replies post back. "Available"
+is the default state, not something you `/devspec.remote` into. (An explicit
+opt-out setting governs this; some sessions are deliberately private.)
+
 Pi sits in the contract's "native runtime" family (in-process, like OpenCode)
 but with better primitives. Binding rules from the delivery contract are
 honored, not ported around:
@@ -206,10 +234,23 @@ honored, not ported around:
 
 ### Auth
 
-`/devspec.login` → device-code/browser flow in a TUI overlay (headless: prints
-the URL, polls). Token stored in `~/.pi/agent/` with 0600 perms, env var
-override (`DEVSPEC_MCP_TOKEN`) honored for CI/cloud. Status surfaced in the
-footer. No env-var wrangling as the primary path.
+Today: `/devspec.login` accepts an account-wide token pasted from the DevSpec
+Connections page (`/settings/connections`), verified via
+`verify_agent_connection` and stored at `~/.pi/agent/devspec/auth.json`
+(0600, best-effort on Windows). `DEVSPEC_MCP_TOKEN` env wins for CI/cloud.
+No env-var wrangling as the primary path.
+
+Environments are first-class: development targets **staging.devspec.ai** (dev
+Clerk + Supabase), production is **devspec.ai**. `DEVSPEC_ENV=staging` or a
+full `DEVSPEC_MCP_URL` override selects the endpoint; login guidance points at
+the matching Connections page automatically.
+
+Later (DevSpec-side work): OAuth device-code flow so login is a browser
+confirmation, not a token paste — designed per-environment from the start.
+
+Tokens are account-wide; **project resolution is the server's job** (per-call
+project scope, git-remote matching). Our tools pass `git_remote` through where
+the verb accepts it and otherwise stay project-agnostic.
 
 ## Cloud future (door held open, not built now)
 
@@ -242,24 +283,34 @@ deployment of existing pieces:
 Each of these is a candidate **parallel-system** change: shipped alongside the
 current contract, adopted here first, migrated to other hosts only if proven.
 
-1. **Push channel:** should `poll_connection` long-poll evolve into SSE /
-   WebSocket for native-runtime hosts? Long-poll works, but a native host can
-   hold a socket; server holds the 60 req/min token budget either way.
+1. **Push channel:** the zero-command ambient model basically *answers* this —
+   long-poll works, but "launch Pi and you're reachable" wants a server-push
+   channel (SSE/WebSocket) that the extension holds open on `session_start`.
+   Design as a parallel-system v2: `poll_connection` stays for all current
+   hosts; the push channel ships alongside and this package adopts it first.
 2. **Rate limits:** the 60 req/min per-token budget shaped the OpenCode
    long-poll redesign. Confirm the budget still matches reality before this
-   package picks pump semantics.
+   package picks pump semantics (and note a push channel changes the math
+   entirely).
 3. **Bond revive window:** currently 24h (`BOND_REVIVE_WINDOW_MS`). Is that
    the intended product semantics (vs the historically-mentioned 72h)?
 4. **Proactive memory recall:** is per-turn semantic recall acceptable load on
    `search_memories`, or does it need a dedicated lightweight endpoint?
 5. **Embedded user MCP servers in cloud workers:** does the secrets store
    design cover MCP server credentials, or only env-var secrets?
+6. **OAuth device flow:** new endpoint family per environment (staging dev
+   Clerk vs prod). When scheduled, this package is the reference client.
+7. **Autopilot verb retirement:** which MCP verbs/settings die with the old
+   autopilot cutover, and what (if anything) replaces `stale_claim_timeout`
+   etc. for capacity-model unattended runs?
 
 ## Phasing
 
 1. **Scaffold + this document.** ✅
 2. **Core transport + auth + native tools** — usable interactive sessions:
-   login, action items, search, memory tools with real renderers.
+   login, action items, search, memory tools with real renderers. ✅
+   (embedded MCP client, `/devspec.login|logout|status`, 15 native tools,
+   staging/prod environments; custom TUI renderers still TODO)
 3. **System-prompt injection + slash commands** — workflows native.
 4. **Remote control** — bond, pump, ingress/egress per contract.
 5. **Memory recall/capture engine + compaction survival.**

@@ -67,9 +67,38 @@ test("parsePollPayload tolerates empty/garbage", () => {
 
 test("formatInboundMessage tags sender and codename", () => {
 	const msg = formatInboundMessage({ text: "do the thing", userName: "Ali" }, "Ivory Panda");
-	assert.equal(msg, "[DevSpec remote — message from Ali to Ivory Panda]\ndo the thing");
+	assert.equal(msg, "[DevSpec remote — message from Ali to Ivory Panda] do the thing");
 	assert.equal(
 		formatInboundMessage({ text: "hi" }, "Ivory Panda"),
-		"[DevSpec remote — message from owner to Ivory Panda]\nhi",
+		"[DevSpec remote — message from owner to Ivory Panda] hi",
 	);
+});
+
+test("the envelope's first line always carries content (2b072496 — the queued-follow-up preview)", () => {
+	// Single-line: body rides the header line, which is all the TUI preview shows.
+	const short = formatInboundMessage({ text: "looks good, ship it", userName: "Ali" }, "Jolly Toucan");
+	assert.equal(short.split("\n")[0], "[DevSpec remote — message from Ali to Jolly Toucan] looks good, ship it");
+
+	// Multiline: line one leads with an excerpt of the content.
+	const long = formatInboundMessage(
+		{ text: "first line of a long message\nsecond line\nthird", userName: "Ali" },
+		"Jolly Toucan",
+	);
+	const longFirstLine = long.split("\n")[0];
+	assert.match(longFirstLine, /^\[DevSpec remote — message from Ali to Jolly Toucan\] — “first line of a long message …”$/);
+	// The full body survives intact below the excerpt.
+	assert.ok(long.endsWith("first line of a long message\nsecond line\nthird"));
+});
+
+test("empty commands never become turns (the extractor drops them)", () => {
+	const payload = {
+		changed: true,
+		commands: [
+			{ id: "1", addressed_to: { connection_id: "c1" }, authority: { kind: "owner" }, content: "" },
+			{ id: "2", addressed_to: { connection_id: "c1" }, authority: { kind: "owner" }, content: "   " },
+			{ id: "3", addressed_to: { connection_id: "c1" }, authority: { kind: "owner" }, content: "real" },
+		],
+	};
+	const cmds = extractOwnerCommands(payload, "c1");
+	assert.deepEqual(cmds.map((c) => c.text), ["real"]);
 });

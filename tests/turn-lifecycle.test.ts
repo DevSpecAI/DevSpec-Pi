@@ -85,6 +85,12 @@ test("nothing posts when unattached, or when the turn had no answer text", () =>
 	assert.deepEqual(planSettle(silent, true), { kind: "none" });
 });
 
+test("the new single-line envelope still classifies as remote (2b072496)", () => {
+	const t = new TurnTracker();
+	t.userMessage("[DevSpec remote — message from Ali to Wary Wolf] do the thing");
+	assert.equal(t.userKind, "remote");
+});
+
 test("formatDispatchMessage carries the protocol steps and payload", () => {
 	const msg = formatDispatchMessage({ assignment_id: "as-1", title: "Fix flaky test" }, "Wary Wolf");
 	assert.match(msg, /^\[DevSpec remote — work dispatch to Wary Wolf\]/);

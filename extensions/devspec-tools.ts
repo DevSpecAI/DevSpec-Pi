@@ -22,7 +22,7 @@ import { resolveToken } from "./core/auth-store.ts";
 import { connectionsUrl, TOKEN_ENV_VAR } from "./core/config.ts";
 import { callDevspec } from "./core/client.ts";
 import { toolErrorResult, toolTextResult, unwrapMcpResult } from "./core/result.ts";
-import { getBond } from "./core/bond-state.ts";
+import { getBond, noteCompleteTurnPost } from "./core/bond-state.ts";
 import { addFlags, extractFlags } from "./core/conflict-watch.ts";
 
 /** Unwrap a DevSpec MCP result, converting isError payloads into thrown errors. */
@@ -61,6 +61,8 @@ interface DevspecToolDef {
 	parameters: TSchema;
 	/** Per-call argument augmentation (e.g. stamping the pi session id on claims). */
 	augment?: (params: Record<string, unknown>, ctx: { sessionManager: { getSessionId(): string } }) => Record<string, unknown>;
+	/** Side effect after a SUCCESSFUL call (e.g. marking a complete_turn post). */
+	onSuccess?: (params: Record<string, unknown>) => void;
 }
 
 function registerDevspecTool(pi: ExtensionAPI, def: DevspecToolDef): void {
@@ -80,6 +82,7 @@ function registerDevspecTool(pi: ExtensionAPI, def: DevspecToolDef): void {
 				const raw = await callDevspec(resolved.token, def.name, args, { cwd: ctx.cwd });
 				const result = unwrapOrThrow(def.name, raw);
 				watchForSignals(def.name, result);
+				def.onSuccess?.(args);
 				return result;
 			} catch (err) {
 				const message = err instanceof Error ? err.message : String(err);
@@ -502,6 +505,13 @@ export default function (pi: ExtensionAPI) {
 				return { ...params, connection_id: bond.connectionId };
 			}
 			return params;
+		},
+		onSuccess: (params) => {
+			// The settle suppressor's backstop (item 857d984c): a complete_turn
+			// answer that landed must never be mirrored again at turn end. The
+			// mark lives on globalThis, so the remote extension sees it even
+			// though jiti loads this file with its own module graph.
+			if (params.complete_turn) noteCompleteTurnPost();
 		},
 	});
 

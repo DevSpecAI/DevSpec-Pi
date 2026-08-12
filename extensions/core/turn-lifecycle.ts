@@ -6,6 +6,10 @@
  *
  * - The model may post its own answer via the post_session_message tool; a
  *   successful tool post this turn takes precedence (never dual writers).
+ *   Two signals say so: the tool_execution_end event (tracker.toolPosted)
+ *   AND the backstop mark the tool itself leaves on success
+ *   (completeTurnPostedSince — item 857d984c: the event signal alone leaked
+ *   three times in one evening, so the source of truth now also speaks).
  * - Otherwise the extension posts the final assistant message mechanically
  *   with complete_turn:true — the UI shows the agent's real answer and never
  *   hangs on a forgotten tool call.
@@ -39,7 +43,10 @@ export class TurnTracker {
 	}
 
 	assistantFinal(text: string): void {
-		if (text.trim()) this.lastAssistantText = text.trim();
+		// Zero-width/format characters are not text: a "​" final is not an
+		// answer and must never produce a bubble (857d984c, instance 4).
+		const cleaned = text.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+		if (cleaned) this.lastAssistantText = cleaned;
 	}
 }
 
@@ -48,9 +55,9 @@ export type SettlePlan =
 	| { kind: "final"; message: string }
 	| { kind: "local_mirror"; prompt: string; answer: string };
 
-export function planSettle(tracker: TurnTracker, attached: boolean): SettlePlan {
+export function planSettle(tracker: TurnTracker, attached: boolean, postedThisTurn = false): SettlePlan {
 	if (!attached) return { kind: "none" };
-	if (tracker.toolPosted) return { kind: "none" };
+	if (tracker.toolPosted || postedThisTurn) return { kind: "none" };
 	if (!tracker.lastAssistantText) return { kind: "none" };
 	if (tracker.userKind === "local") {
 		return { kind: "local_mirror", prompt: tracker.userText, answer: tracker.lastAssistantText };

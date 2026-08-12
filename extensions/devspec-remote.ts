@@ -29,7 +29,7 @@ function debug(line: string): void {
 	}
 }
 import { callDevspec, DevspecAuthError } from "./core/client.ts";
-import { getBond, setBond, type BondState } from "./core/bond-state.ts";
+import { getBond, setBond, completeTurnPostedSince, type BondState } from "./core/bond-state.ts";
 import { formatInboundMessage, parsePollPayload } from "./core/remote-payload.ts";
 import { unwrapMcpResult } from "./core/result.ts";
 import { extractAssistantParts, extractText, TrailBuilder } from "./core/trail.ts";
@@ -89,6 +89,8 @@ interface TurnState {
 	/** Trail posts so far this turn — drives the adaptive cadence. */
 	posts: number;
 	lastPostAt: number;
+	/** Turn wall-clock start — the backstop checks for posts at or after it. */
+	startedAt: number;
 }
 
 /**
@@ -210,8 +212,15 @@ async function settleTurn(agentStats: AgentStatsReport | null): Promise<boolean>
 	// and one fewer post is spent. A turn with no answer still flushes its
 	// trail the old way so the work is visible.
 	const finalTrail = t.trail.render();
-	const plan = planSettle(t.tracker, true);
-	debug(`settleTurn: plan ${plan.kind}, final trail ${finalTrail.length} chars`);
+	// The backstop (item 857d984c): the tool itself marks every successful
+	// complete_turn post on globalThis at the moment it lands, so a missed or
+	// mis-ordered tool_execution_end event can never re-mirror the answer.
+	const postedThisTurn = completeTurnPostedSince(t.startedAt);
+	const plan = planSettle(t.tracker, true, postedThisTurn);
+	debug(
+		`settleTurn: plan ${plan.kind} (toolPosted=${t.tracker.toolPosted}, backstop=${postedThisTurn}), ` +
+			`final trail ${finalTrail.length} chars`,
+	);
 	if (plan.kind === "final") {
 		// phase 'answer' closes the trail bubble (preserved as "Show work").
 		return await postToSession(plan.message, { phase: "answer", completeTurn: true, workTrail: finalTrail || undefined, agentStats: agentStats ?? undefined });
@@ -639,7 +648,7 @@ export default function (pi: ExtensionAPI) {
 	pi.on("turn_start", (_event, ctx) => {
 		lastCtx = ctx;
 		if (!getBond()?.sessionId) { debug("turn_start: not attached, skipping"); return; }
-		turn = { tracker: new TurnTracker(), trail: new TrailBuilder(), dirty: false, interval: null, posts: 0, lastPostAt: 0 };
+		turn = { tracker: new TurnTracker(), trail: new TrailBuilder(), dirty: false, interval: null, posts: 0, lastPostAt: 0, startedAt: Date.now() };
 		postWarnedThisTurn = false;
 		debug("turn_start: tracking");
 		turn.interval = setInterval(trailTick, TRAIL_INTERVAL_MS);

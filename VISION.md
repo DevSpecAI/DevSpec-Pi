@@ -50,7 +50,8 @@ product is a deployment concern later, not a re-architecture.
 ### 3. Contract, not code
 
 DevSpec's plugin-independence decision (ADR `b98a39a9`,
-`docs/REMOTE-CONTROL-DELIVERY-CONTRACT.md` in devspecv2) is binding here:
+`docs/REMOTE-CONTROL-DELIVERY-CONTRACT.md` in devspecv2) governs how this
+repo relates to the other plugins:
 
 > No plugin is canonical, and no file crosses a repo boundary. What binds the
 > plugins together is the contract and the MCP tool surface — never a shared
@@ -65,15 +66,45 @@ Consequences:
 - The MCP verbs (`register_connection`, `poll_connection`,
   `post_session_message`, `report_pickup/keepalive/complete`,
   `report_progress`, action-item/memory/search/artifact tools) are the
-  system of record. We implement against them, we don't route around them.
+  interop surface of record **today**. We implement against them — and per
+  principle 4, we may also prototype their successors here.
 
-### 4. Provider freedom is load-bearing
+### 4. Intent is fixed; mechanics are negotiable
+
+Only the **intent** of DevSpec is settled: multiple people and agents sharing
+one session, tools connected everywhere, all of it usable remotely, work
+tracked from conversation to verified code. Everything below that — the
+delivery contract's principles, long-poll transport, revive windows, even
+"agent is the sole content authority" — is a *current best answer*, invented
+under pressure while finding our feet. Some of those answers are deliberate
+and good; none are sacred.
+
+This repo treats every mechanism as re-derivable from intent. Where we find a
+strictly better answer, the strategy is **parallel systems, not breakage**:
+
+- The existing contract keeps working untouched for current hosts — those
+  plugins are fragile and hard-won; breaking them is the cardinal sin.
+- The better mechanism ships alongside (a v2 verb, a new channel, a changed
+  server behavior behind capability flags), this package adopts it first, and
+  less capable harnesses migrate only if/when it proves out.
+- DevSpec-side changes are explicitly in scope when justified. "The contract
+  says so" ends a discussion about *interop today*, never about *what to
+  build next*.
+
+Example of the distinction: "the agent is the sole content authority" serves
+a real intent — the DevSpec UI must never diverge from or invent what the
+agent is doing. We honor that intent absolutely. Whether "one
+`post_session_message` per turn" is the best *mechanism* for it (vs. streamed
+turns, structured progress events, richer transcript types) is an open
+design question this repo is allowed to ask.
+
+### 5. Provider freedom is load-bearing
 
 Users pick their own model provider and subscription. DevSpec never requires a
 specific model. Features must be model-agnostic (no provider-specific prompt
 tricks that silently break on other models).
 
-### 5. Own the first ten minutes
+### 6. Own the first ten minutes
 
 Stock Pi has real discoverability gaps (e.g. thinking level is Shift+Tab or
 `/settings`, not a slash command; no MCP or sub-agents built in). This package
@@ -160,11 +191,12 @@ honored, not ported around:
   `pi.sendUserMessage()` — with correct steer/followUp semantics while busy,
   appearing in the transcript as if typed. Slash-command text is never
   injected as a prompt.
-- **Egress:** the agent is the **sole content authority** — it answers via
-  `post_session_message({ connection_id })` like every other host. Turn
-  mirroring via extension events exists only as the contract's sanctioned
-  last-resort (attached + no direct post since last owner instruction),
-  never as the primary path. Chrome stays terminal-only.
+- **Egress:** the DevSpec UI must never diverge from or invent what the
+  agent is doing — that intent is non-negotiable. Today's mechanism: the
+  agent answers via `post_session_message({ connection_id })`, with turn
+  mirroring only as the contract's sanctioned last-resort. We ship that —
+  while treating richer egress (streaming, structured progress) as an
+  open design space per principle 4. Chrome stays terminal-only.
 - **Authority:** act only on `commands[]` addressed to this `connection_id`
   with owner authority; advisory/room context never wakes or executes.
 - **Permissions:** stock Pi has no permission popups, so the approval-hook
@@ -207,6 +239,9 @@ deployment of existing pieces:
 
 ## DevSpec-side open questions (for devspecv2, not blockers)
 
+Each of these is a candidate **parallel-system** change: shipped alongside the
+current contract, adopted here first, migrated to other hosts only if proven.
+
 1. **Push channel:** should `poll_connection` long-poll evolve into SSE /
    WebSocket for native-runtime hosts? Long-poll works, but a native host can
    hold a socket; server holds the 60 req/min token budget either way.
@@ -231,7 +266,7 @@ deployment of existing pieces:
 6. **Onboarding polish, theme, embedded user-MCP support.**
 7. **Headless worker CLI** (cloud primitive, dogfooded locally first).
 
-## References (devspecv2, binding)
+## References (devspecv2)
 
 - `docs/REMOTE-CONTROL-DELIVERY-CONTRACT.md` — delivery contract (ADR `b98a39a9`)
 - `docs/REMOTE-CONTROL-ACTIVITY-CONFORMANCE.md` — pickup lease / presence

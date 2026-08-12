@@ -36,7 +36,7 @@ import { extractAssistantParts, extractText, TrailBuilder } from "./core/trail.t
 import { planSettle, TurnTracker } from "./core/turn-lifecycle.ts";
 import { formatDispatchMessage } from "./core/dispatch.ts";
 import { buildRoomDigest } from "./core/orientation.ts";
-import { openPushChannel } from "./core/push-channel.ts";
+import { openPushChannel, nextPushReconnectDelayMs } from "./core/push-channel.ts";
 import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
 import { loadSettings, saveSettings } from "./core/settings.ts";
 
@@ -67,6 +67,10 @@ interface PumpState {
 	pushAbort?: AbortController;
 	pushClosed?: boolean;
 	pushEnded?: string | null;
+	/** Consecutive short-lived-stream drops — drives reconnect backoff. */
+	pushAttempts: number;
+	pushOpenedAt?: number;
+	pushReconnectTimer?: ReturnType<typeof setTimeout>;
 	wakePending?: boolean;
 	wakeWaiter?: (() => void) | null;
 }
@@ -208,6 +212,10 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	if (!active) return;
 	active.stop = true;
 	active.pushAbort?.abort();
+	if (active.pushReconnectTimer) {
+		clearTimeout(active.pushReconnectTimer);
+		active.pushReconnectTimer = undefined;
+	}
 	if (active.wakeWaiter) {
 		const w = active.wakeWaiter;
 		active.wakeWaiter = null;
@@ -256,10 +264,40 @@ function waitForWake(active: PumpState, safetyMs: number): Promise<void> {
 	});
 }
 
-/** Try to open the SSE push channel. True = push mode active. */
-function startPushChannel(active: PumpState, token: string, endpoint: string): boolean {
+/**
+ * The stream dropped unexpectedly (or failed to connect). Reconnect with
+ * bounded backoff (item 8b0c162b) — a proxy hiccup must not cost the bond its
+ * fast lane for the rest of its life. Only when quick retries are exhausted do
+ * we settle into the held long-poll fallback (pushClosed). The server's
+ * grace-guarded liveness clear (10s) gives these retries their window: a
+ * reconnect that lands in time re-stamps presence and defeats the clear.
+ */
+function schedulePushReconnect(active: PumpState, token: string, endpoint: string): void {
+	if (active.stop || active.pushEnded !== undefined) return;
+	const delay = nextPushReconnectDelayMs(active.pushAttempts, active.pushOpenedAt, Date.now());
+	if (delay === null) {
+		active.pushClosed = true;
+		debug("push reconnects exhausted — held long-poll fallback");
+		return;
+	}
+	active.pushAttempts += 1;
+	debug(`push reconnect attempt ${active.pushAttempts} in ${delay}ms`);
+	active.pushReconnectTimer = setTimeout(() => {
+		active.pushReconnectTimer = undefined;
+		if (active.stop || active.pushEnded !== undefined) return;
+		startPushChannel(active, token, endpoint);
+		// A re-opened stream's first marker read always wakes (fresh baseline),
+		// so nothing that moved during the outage is missed.
+		signalWake(active);
+	}, delay);
+	if (typeof active.pushReconnectTimer.unref === "function") active.pushReconnectTimer.unref();
+}
+
+/** Open the SSE push channel; drops route through schedulePushReconnect. */
+function startPushChannel(active: PumpState, token: string, endpoint: string): void {
 	const controller = new AbortController();
 	active.pushAbort = controller;
+	active.pushOpenedAt = Date.now();
 	void openPushChannel({
 		mcpUrl: endpoint,
 		token,
@@ -276,18 +314,17 @@ function startPushChannel(active: PumpState, token: string, endpoint: string): b
 			},
 			onClose: (reason) => {
 				if (controller.signal.aborted) return;
-				active.pushClosed = true;
 				debug(`push channel closed: ${reason}`);
+				schedulePushReconnect(active, token, endpoint);
 				signalWake(active);
 			},
 		},
 	}).catch((err) => {
 		if (controller.signal.aborted) return;
-		active.pushClosed = true;
 		debug(`push channel connect failed: ${err instanceof Error ? err.message : err}`);
+		schedulePushReconnect(active, token, endpoint);
 		signalWake(active);
 	});
-	return true;
 }
 
 async function pumpLoop(ctx: ExtensionContext): Promise<void> {
@@ -298,8 +335,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 	const token = resolved.token;
 
 	// Push mode: SSE wakes us; we fetch the package with a no-hold poll.
-	// Falls back to the held long-poll if the channel is unavailable.
-	let pushMode = startPushChannel(active, token, await resolveEndpoint());
+	// Falls back to the held long-poll if the channel stays unavailable.
+	startPushChannel(active, token, await resolveEndpoint());
+	let pushMode = true;
 	// The safety tick keeps presence fresh and catches anything the stream missed.
 	const PUSH_SAFETY_MS = 75_000;
 	let notifiedFallback = false;
@@ -490,7 +528,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 	}
 
 	setBond(bond);
-	pump = { bond, busy: false, stop: false, errors: 0, synced: false };
+	pump = { bond, busy: false, stop: false, errors: 0, synced: false, pushAttempts: 0 };
 	setRemoteStatus(ctx);
 	void pumpLoop(ctx);
 	return { ok: true, codename: bond.codename, attached };
@@ -584,10 +622,36 @@ export default function (pi: ExtensionAPI) {
 		// Extensions are rebound on session switch; the pump must not outlive it.
 		if (turn?.interval) clearInterval(turn.interval);
 		turn = null;
-		if (pump) {
-			pump.stop = true;
-			pump = null;
-			setBond(null);
+		const active = pump;
+		if (!active) return;
+		active.stop = true;
+		active.pushAbort?.abort();
+		if (active.pushReconnectTimer) clearTimeout(active.pushReconnectTimer);
+		if (active.wakeWaiter) {
+			const w = active.wakeWaiter;
+			active.wakeWaiter = null;
+			w();
+		}
+		pump = null;
+		setBond(null);
+
+		// Going-away stamp (item 8b0c162b): tell DevSpec immediately rather than
+		// leaving the UI to age the bond out of the 90s liveness window. NON-STICKY
+		// (no end_reason — this is a process exit, not a deliberate remote-stop; the
+		// bond revives on the next register) and GUARDED (observed_alive_until) so a
+		// same-bond rebond that already re-stamped presence is never clobbered.
+		// Best-effort: the server's socket-close clear is the guaranteed backstop.
+		const resolved = await resolveToken();
+		if (!resolved) return;
+		try {
+			await callDevspec(resolved.token, "heartbeat_connection", {
+				connection_id: active.bond.connectionId,
+				status: "offline",
+				agent_name: AGENT_NAME,
+				observed_alive_until: new Date().toISOString(),
+			}, { timeoutMs: 3_000 });
+		} catch {
+			/* process is going away — the SSE-close path covers it */
 		}
 	});
 

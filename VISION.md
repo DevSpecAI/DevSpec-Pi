@@ -205,11 +205,10 @@ designed for the capacity model from the start, and is the place to push it
 further than the current contract does.
 
 **The zero-command target.** The ambient end-state: the user launches Pi and
-never types a command. On `session_start` the extension resolves the token,
-registers/revives the connection, and holds the channel open; dispatches and
-owner messages arrive as real user messages; replies post back. "Available"
-is the default state, not something you `/devspec.remote` into. (An explicit
-opt-out setting governs this; some sessions are deliberately private.)
+never types a command. **Shipped (interactive sessions):** on `session_start`
+in TUI mode the extension resolves the token and bonds automatically
+(`/devspec.remote auto off` opts out persistently). Headless modes never
+auto-bond — scripts, one-shots, and cloud workers bond explicitly.
 
 Pi sits in the contract's "native runtime" family (in-process, like OpenCode)
 but with better primitives. Binding rules from the delivery contract are

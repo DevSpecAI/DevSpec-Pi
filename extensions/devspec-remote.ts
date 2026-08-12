@@ -35,6 +35,7 @@ import { unwrapMcpResult } from "./core/result.ts";
 import { extractAssistantParts, extractText, TrailBuilder } from "./core/trail.ts";
 import { planSettle, TurnTracker } from "./core/turn-lifecycle.ts";
 import { formatDispatchMessage } from "./core/dispatch.ts";
+import { buildRoomDigest } from "./core/orientation.ts";
 import { openPushChannel } from "./core/push-channel.ts";
 import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
 import { loadSettings, saveSettings } from "./core/settings.ts";
@@ -378,7 +379,17 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		// Cold-start orientation: cursors adopted above, nothing delivered.
 		if (!active.synced) {
 			active.synced = true;
-			debug(`synced (cursor ${active.cursor ?? "none"}; ${pkg.ownerCommands.length} historical command(s) not replayed)`);
+			// Room orientation: the catch-up window's ambient context becomes a
+			// one-shot digest (injected by devspec-context on the next turn) so
+			// the agent sees what it missed — including its own prior answers —
+			// without anything being replayed as an instruction.
+			const digest = buildRoomDigest(payload, active.bond.codename ?? "this agent");
+			if (digest) {
+				setBond({ ...active.bond, roomDigest: digest });
+				debug(`synced with room digest (${digest.length} chars)`);
+			} else {
+				debug(`synced (cursor ${active.cursor ?? "none"}; ${pkg.ownerCommands.length} historical command(s) not replayed)`);
+			}
 			continue;
 		}
 

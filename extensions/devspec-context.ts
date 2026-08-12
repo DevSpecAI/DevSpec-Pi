@@ -29,12 +29,29 @@ function buildBondedInstructions(): string | null {
 }
 
 export default function (pi: ExtensionAPI) {
+	// The room digest is a one-shot orientation message: injected once per
+	// session instance, the first turn after the pump's cold-start sync.
+	let digestInjected = false;
+
 	pi.on("before_agent_start", async (event, _ctx) => {
 		const resolved = await resolveToken();
 		if (!resolved) return undefined;
 		let prompt = `${event.systemPrompt}\n\n${buildDevspecInstructions()}`;
 		const bonded = buildBondedInstructions();
 		if (bonded) prompt += `\n\n### DevSpec remote (bonded)\n${bonded}`;
+
+		const bond = getBond();
+		if (bond?.roomDigest && !digestInjected) {
+			digestInjected = true;
+			return {
+				systemPrompt: prompt,
+				message: {
+					customType: "devspec-room-orientation",
+					content: bond.roomDigest,
+					display: false,
+				},
+			};
+		}
 		return { systemPrompt: prompt };
 	});
 }

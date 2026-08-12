@@ -11,6 +11,8 @@ export interface BondState {
 	codename?: string;
 	/** Attached DevSpec session, when attached (sessionless otherwise). */
 	sessionId?: string;
+	/** One-shot room orientation digest, captured at cold-start sync. */
+	roomDigest?: string;
 	/** Instruction tiers returned by register/attach — applied while bonded. */
 	instructions?: {
 		owner_custom_instructions?: string;

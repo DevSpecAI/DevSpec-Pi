@@ -26,7 +26,13 @@ const RESET = "\x1b[0m";
 /** Columns between the mark and the wordmark in the side-by-side lockup. */
 const GAP = "  ";
 
-const TAGLINE = "where conversations become shipped code";
+/**
+ * Trimmed from the canonical site title, "Your home for AI-native software
+ * development" — the marketing voice, shortened to keep the lockup reachable on
+ * a narrower terminal. Keep it short: its length sets the width at which the
+ * wordmark can sit beside the mark at all.
+ */
+export const TAGLINE = "Your home for AI-native development.";
 
 /**
  * Pick the first rendering whose plain text fits `available` columns, or "" if

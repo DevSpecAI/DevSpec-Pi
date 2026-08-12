@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { HEIGHT, renderDuck, visibleWidth, WIDTH } from "../extensions/core/duck.ts";
-import { renderHeader } from "../extensions/devspec-brand.ts";
+import { renderHeader, TAGLINE } from "../extensions/devspec-brand.ts";
 
 test("every rendered line of the mark is exactly WIDTH columns", () => {
 	const lines = renderDuck();
@@ -34,7 +34,7 @@ test("wide terminals get the side-by-side lockup", () => {
 	assert.equal(lines.length, HEIGHT + 1); // mark + trailing blank, text sits beside
 	const withText = lines.filter((l) => l.includes("DevSpec"));
 	assert.equal(withText.length, 1);
-	assert.ok(withText[0]!.includes("where conversations become shipped code"));
+	assert.ok(withText[0]!.includes(TAGLINE));
 });
 
 test("mid-width terminals stack the wordmark under the mark", () => {
@@ -48,7 +48,7 @@ test("terminals too narrow for the mark drop it rather than wrap it", () => {
 	assert.equal(lines.length, 3); // wordmark + subtitle + blank
 	assert.ok(lines[0]!.includes("DevSpec"));
 	// The tagline does not fit either, so it is dropped.
-	assert.ok(!lines[0]!.includes("where conversations"));
+	assert.ok(!lines[0]!.includes(TAGLINE));
 });
 
 test("no header line ever exceeds the terminal width", () => {

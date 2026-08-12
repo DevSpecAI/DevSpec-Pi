@@ -21,11 +21,21 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { hostname } from "node:os";
+import { appendFileSync } from "node:fs";
+
+function debug(line: string): void {
+	if (process.env.DEVSPEC_DEBUG_REMOTE) {
+		try { appendFileSync("/tmp/devspec-remote-debug.log", `${new Date().toISOString()} ${line}\n`); } catch { /* ignore */ }
+	}
+}
 import { resolveToken } from "./core/auth-store.ts";
 import { callDevspec, DevspecAuthError } from "./core/client.ts";
 import { getBond, setBond, type BondState } from "./core/bond-state.ts";
 import { formatInboundMessage, parsePollPayload } from "./core/remote-payload.ts";
 import { unwrapMcpResult } from "./core/result.ts";
+import { extractAssistantParts, extractText, TrailBuilder } from "./core/trail.ts";
+import { planSettle, TurnTracker } from "./core/turn-lifecycle.ts";
+import { formatDispatchMessage } from "./core/dispatch.ts";
 
 const AGENT_NAME = "Pi";
 const POLL_WAIT_MS = 25_000;
@@ -44,6 +54,77 @@ interface PumpState {
 }
 
 let pump: PumpState | null = null;
+
+// ---- Mechanical turn lifecycle (trail + final answer) ---------------------
+// All of this is extension-mechanical: zero tokens, no model compliance.
+
+interface TurnState {
+	tracker: TurnTracker;
+	trail: TrailBuilder;
+	dirty: boolean;
+	interval: ReturnType<typeof setInterval> | null;
+}
+
+let turn: TurnState | null = null;
+let lastCtx: ExtensionContext | null = null;
+const TRAIL_INTERVAL_MS = 1_000;
+
+async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string } = {}): Promise<boolean> {
+	const bond = getBond();
+	if (!bond?.sessionId) return false;
+	const resolved = await resolveToken();
+	if (!resolved) return false;
+	try {
+		await callDevspec(resolved.token, "post_session_message", {
+			connection_id: bond.connectionId,
+			message,
+			agent_name: AGENT_NAME,
+			...(opts.phase ? { phase: opts.phase } : {}),
+			...(opts.completeTurn ? { complete_turn: true } : {}),
+			...(opts.turnKind ? { turn_kind: opts.turnKind } : {}),
+		});
+		return true;
+	} catch (err) {
+		debug(`postToSession failed: ${err instanceof Error ? err.message : err}`);
+		notify(lastCtx, `DevSpec remote: post failed (${err instanceof Error ? err.message.slice(0, 120) : err})`, "warning");
+		return false;
+	}
+}
+
+function trailTick(): void {
+	if (!turn?.dirty) return;
+	const rendered = turn.trail.render();
+	if (!rendered) return;
+	turn.dirty = false;
+	void postToSession(rendered, { phase: "trail" });
+}
+
+async function settleTurn(): Promise<void> {
+	const t = turn;
+	turn = null;
+	if (!t) { debug("settleTurn: no turn state"); return; }
+	if (t.interval) clearInterval(t.interval);
+	const bond = getBond();
+	if (!bond?.sessionId) { debug("settleTurn: not attached"); return; }
+
+	// Final trail flush, then the settle plan.
+	if (t.dirty) {
+		const rendered = t.trail.render();
+		debug(`settleTurn: trail flush ${rendered.length} chars`);
+		if (rendered) await postToSession(rendered, { phase: "trail" });
+	} else {
+		debug("settleTurn: not dirty, no trail flush");
+	}
+	const plan = planSettle(t.tracker, true);
+	debug(`settleTurn: plan ${plan.kind}`);
+	if (plan.kind === "final") {
+		// phase 'answer' closes the trail bubble (preserved as "Show work").
+		await postToSession(plan.message, { phase: "answer", completeTurn: true });
+	} else if (plan.kind === "local_mirror") {
+		await postToSession(plan.prompt, { turnKind: "local_prompt" });
+		await postToSession(plan.answer, { phase: "answer", completeTurn: true });
+	}
+}
 
 /**
  * Assert busy presence IMMEDIATELY on turn transitions. The busy flag also
@@ -162,8 +243,16 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				notify(ctx, `DevSpec remote: failed to deliver owner message: ${err instanceof Error ? err.message : err}`, "warning");
 			}
 		}
-		if (pkg.dispatchCount > 0) {
-			notify(ctx, `DevSpec remote: ${pkg.dispatchCount} work dispatch(es) waiting (dispatch handling lands in slice 2).`);
+		const dispatches = (payload as { dispatches?: unknown[] } | null)?.dispatches ?? [];
+		for (const dispatch of dispatches) {
+			try {
+				const message = formatDispatchMessage(dispatch, active.bond.codename ?? "this agent");
+				if (ctx.isIdle()) pi_send(message);
+				else pi_send(message, true);
+				notify(ctx, "DevSpec remote: work dispatch delivered.");
+			} catch (err) {
+				notify(ctx, `DevSpec remote: failed to deliver dispatch: ${err instanceof Error ? err.message : err}`, "warning");
+			}
 		}
 	}
 }
@@ -186,10 +275,75 @@ export default function (pi: ExtensionAPI) {
 			pump.busy = false;
 			void beatBusy(false);
 		}
+		void settleTurn();
+	});
+
+	// ---- Turn lifecycle events (mechanical trail + final answer) ------------
+
+	pi.on("turn_start", (_event, ctx) => {
+		lastCtx = ctx;
+		if (!getBond()?.sessionId) { debug("turn_start: not attached, skipping"); return; }
+		turn = { tracker: new TurnTracker(), trail: new TrailBuilder(), dirty: false, interval: null };
+		debug("turn_start: tracking");
+		turn.interval = setInterval(trailTick, TRAIL_INTERVAL_MS);
+		// Don't hold the process open for the trail timer in headless runs.
+		if (typeof turn.interval.unref === "function") turn.interval.unref();
+	});
+
+	pi.on("message_start", (event, ctx) => {
+		lastCtx = ctx;
+		if (!turn) return;
+		const msg = event.message as { role?: string } | undefined;
+		if (msg?.role === "user") turn.tracker.userMessage(extractText(event.message));
+	});
+
+	pi.on("message_update", (event, ctx) => {
+		lastCtx = ctx;
+		if (!turn) return;
+		const msg = event.message as { role?: string } | undefined;
+		if (msg?.role !== "assistant") return;
+		const { text, thinking } = extractAssistantParts(event.message);
+		turn.trail.setThinking(thinking);
+		turn.trail.setText(text);
+		turn.dirty = true;
+	});
+
+	pi.on("message_end", (event, ctx) => {
+		lastCtx = ctx;
+		if (!turn) { debug("message_end: no turn"); return; }
+		const msg = event.message as { role?: string } | undefined;
+		if (msg?.role === "assistant") {
+			// Feed the trail from the finalized message too: message_update
+			// streams live in the TUI, but headless modes (RPC/print/SDK) emit
+			// no deltas — this keeps the trail complete there (flushed at
+			// settle) without double-posting in the TUI (cumulative snapshots).
+			const { text, thinking } = extractAssistantParts(event.message);
+			turn.trail.setThinking(thinking);
+			turn.trail.setText(text);
+			turn.dirty = true;
+			turn.tracker.assistantFinal(text);
+		}
+	});
+
+	pi.on("tool_execution_start", (event, ctx) => {
+		lastCtx = ctx;
+		if (!turn) return;
+		turn.trail.toolStart(event.toolName, event.args);
+		turn.dirty = true;
+	});
+
+	pi.on("tool_execution_end", (event, ctx) => {
+		lastCtx = ctx;
+		if (!turn) return;
+		turn.trail.toolEnd(event.toolName, !event.isError, event.result);
+		turn.tracker.toolEnd(event.toolName, event.isError ?? false);
+		turn.dirty = true;
 	});
 
 	pi.on("session_shutdown", async () => {
 		// Extensions are rebound on session switch; the pump must not outlive it.
+		if (turn?.interval) clearInterval(turn.interval);
+		turn = null;
 		if (pump) {
 			pump.stop = true;
 			pump = null;

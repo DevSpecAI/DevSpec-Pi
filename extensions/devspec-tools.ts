@@ -407,6 +407,62 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	registerDevspecTool(pi, {
+		name: "get_assignment",
+		label: "DevSpec: Get Assignment",
+		description:
+			"Fetch a work assignment dispatched to your connection: the batch + ordered members (each item's " +
+			"title/type/priority/lifecycle and member state). Pass assignment_id, or session_id, or neither to " +
+			"list active/pending. Protocol: fetch → acknowledge_assignment → claim members → work → " +
+			"record_implementation → resolve_assignment.",
+		promptSnippet: "Fetch a dispatched DevSpec work assignment",
+		parameters: Type.Object({
+			assignment_id: Type.Optional(Type.String({ description: "UUID from the dispatch message." })),
+			session_id: Type.Optional(Type.String({ description: "Fetch the assignment for this connection session." })),
+		}),
+	});
+
+	registerDevspecTool(pi, {
+		name: "acknowledge_assignment",
+		label: "DevSpec: Acknowledge Assignment",
+		description:
+			"Acknowledge a dispatched assignment (pending → acknowledged) — the durable server receipt. Call " +
+			"ONCE, right after get_assignment, before claiming members. Reading the dispatch message is NOT " +
+			"acknowledgement.",
+		promptSnippet: "Acknowledge a DevSpec work assignment",
+		parameters: Type.Object({
+			assignment_id: Type.String({ description: "UUID of the assignment to acknowledge." }),
+		}),
+	});
+
+	registerDevspecTool(pi, {
+		name: "resolve_assignment",
+		label: "DevSpec: Resolve Assignment",
+		description:
+			"Close the assignment batch when done. outcome completed = claimed members completed, unclaimed " +
+			"released back to the pool; released = hand the whole batch back unworked. Record actual work with " +
+			"record_implementation as usual — this only closes the batch envelope.",
+		promptSnippet: "Resolve a DevSpec work assignment batch",
+		parameters: Type.Object({
+			assignment_id: Type.String({ description: "UUID of the assignment to resolve." }),
+			outcome: StringEnum(["completed", "released"] as const),
+			reason: Type.Optional(Type.String()),
+		}),
+	});
+
+	registerDevspecTool(pi, {
+		name: "report_progress",
+		label: "DevSpec: Report Progress",
+		description:
+			"Add a progress update to a claimed action item without changing its status. Use on long-running " +
+			"items so incremental progress is visible.",
+		promptSnippet: "Report progress on a claimed DevSpec item",
+		parameters: Type.Object({
+			action_item_id: Type.String({ description: "Action item ID." }),
+			content: Type.String({ description: "Progress update (markdown)." }),
+		}),
+	});
+
+	registerDevspecTool(pi, {
 		name: "post_session_message",
 		label: "DevSpec: Post Session Message",
 		description:

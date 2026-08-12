@@ -363,21 +363,28 @@ current contract, adopted here first, migrated to other hosts only if proven.
    instruction tiers; headless RPC e2e in `scripts/e2e-remote.mjs`.
    Remaining ingress leg — owner message from the web UI — is the human
    acceptance step.)
-   **Slice 2 (next):** the MECHANICAL turn lifecycle — zero tokens, no model
-   compliance required (revised after live dogfooding, see below):
-   - **Trail streaming:** extension-driven `phase:'trail'` posts (~1/sec,
-     cumulative) built from pi's real streaming events (`message_update`
-     deltas + tool execution start/end) — the full terminal-style turn in the
-     UI, code formatting intact, culminating in the answer bubble.
-   - **Mechanical final answer:** on `agent_settled` the extension posts the
-     final assistant message with `complete_turn:true` — UNLESS the model
-     already posted via `post_session_message` this turn (tool posts take
-     precedence; never dual writers). This inverts the contract's
-     primary/mirror relationship FOR PI ONLY: the intent (UI shows the
-     agent's real answer) is preserved; the mechanism stops depending on the
-     model remembering. Parallel-system candidate per principle 4.
-   - dispatches/assignments (`dispatches[]`, acknowledge/resolve,
-     report_progress, pickup lease), `pending_context_wipe` handling.
+   **Slice 2 ✅** — the MECHANICAL turn lifecycle (zero tokens, no model
+   compliance required):
+   - **Trail streaming:** the extension renders a cumulative terminal-style
+     trail from pi's events and posts it as `phase:'trail'` (~1/sec throttle
+     + settle flush). `message_update` streams live in the TUI; headless
+     modes emit no deltas (verified — RPC stdout carries none), so
+     `message_end` also feeds the trail (cumulative snapshots, idempotent),
+     keeping cloud/headless trails complete.
+   - **Mechanical final answer:** on `agent_settled`, posts the final
+     assistant message (`phase:'answer'` + `complete_turn:true`) UNLESS the
+     model already posted via the tool this turn (tool posts take precedence;
+     never dual writers). Local-terminal turns mirror the prompt as
+     `turn_kind:'local_prompt'` first — two-sided transcript.
+   - **Dispatches:** `dispatches[]` are injected as user messages driving the
+     assignment protocol (get_assignment → acknowledge → claim → work →
+     record → resolve); the four assignment verbs are native tools.
+   - Verified: `scripts/e2e-lifecycle.mjs` — model told NOT to post, answer
+     still lands in the transcript (external_agent, correct attribution).
+     Trail storage is server-side (not exposed by get_session_transcript) —
+     the "Show work" bubble is verified in the web UI.
+   - `pending_context_wipe`: surfaced as a notification only (never
+     auto-wipes). Debug: DEVSPEC_DEBUG_REMOTE=1 → /tmp/devspec-remote-debug.log.
 5. **Memory recall/capture engine + compaction survival.**
 6. **Onboarding polish, theme, embedded user-MCP support.**
 7. **Headless worker CLI** (cloud primitive, dogfooded locally first).

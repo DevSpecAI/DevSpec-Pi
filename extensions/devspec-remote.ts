@@ -45,6 +45,31 @@ interface PumpState {
 
 let pump: PumpState | null = null;
 
+/**
+ * Assert busy presence IMMEDIATELY on turn transitions. The busy flag also
+ * rides each poll, but a held long-poll can be 25s old — without this, the
+ * Working… indicator lags the real turn by up to a full poll cycle in both
+ * directions (observed dogfooding: dots slow to appear, UI stuck on working
+ * after the answer). Mechanical heartbeats are contract-sanctioned presence,
+ * not prose. Best-effort: the pump remains the presence authority.
+ */
+async function beatBusy(busy: boolean): Promise<void> {
+	const active = pump;
+	if (!active || active.stop) return;
+	const resolved = await resolveToken();
+	if (!resolved) return;
+	try {
+		await callDevspec(resolved.token, "heartbeat_connection", {
+			connection_id: active.bond.connectionId,
+			status: "live",
+			busy,
+			agent_name: AGENT_NAME,
+		});
+	} catch {
+		/* presence is best-effort — the next poll re-asserts */
+	}
+}
+
 function notify(ctx: ExtensionContext | null, message: string, level: "info" | "warning" | "error" = "info"): void {
 	if (ctx?.hasUI) ctx.ui.notify(message, level);
 }
@@ -151,10 +176,16 @@ export default function (pi: ExtensionAPI) {
 		followUp ? pi.sendUserMessage(message, { deliverAs: "followUp" }) : pi.sendUserMessage(message);
 
 	pi.on("agent_start", () => {
-		if (pump) pump.busy = true;
+		if (pump) {
+			pump.busy = true;
+			void beatBusy(true);
+		}
 	});
 	pi.on("agent_settled", () => {
-		if (pump) pump.busy = false;
+		if (pump) {
+			pump.busy = false;
+			void beatBusy(false);
+		}
 	});
 
 	pi.on("session_shutdown", async () => {

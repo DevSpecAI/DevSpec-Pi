@@ -28,7 +28,6 @@ function debug(line: string): void {
 		try { appendFileSync("/tmp/devspec-remote-debug.log", `${new Date().toISOString()} ${line}\n`); } catch { /* ignore */ }
 	}
 }
-import { resolveToken } from "./core/auth-store.ts";
 import { callDevspec, DevspecAuthError } from "./core/client.ts";
 import { getBond, setBond, type BondState } from "./core/bond-state.ts";
 import { formatInboundMessage, parsePollPayload } from "./core/remote-payload.ts";
@@ -37,7 +36,8 @@ import { extractAssistantParts, extractText, TrailBuilder } from "./core/trail.t
 import { planSettle, TurnTracker } from "./core/turn-lifecycle.ts";
 import { formatDispatchMessage } from "./core/dispatch.ts";
 import { openPushChannel } from "./core/push-channel.ts";
-import { resolveEndpoint } from "./core/auth-store.ts";
+import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
+import { loadSettings, saveSettings } from "./core/settings.ts";
 
 const AGENT_NAME = "Pi";
 const POLL_WAIT_MS = 25_000;
@@ -408,6 +408,83 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 	}
 }
 
+interface BondOutcome {
+	ok: boolean;
+	error?: string;
+	errorKind?: "auth" | "api";
+	codename?: string;
+	attached?: boolean;
+}
+
+/**
+ * Register/revive the bond and start the pump. Shared by /devspec.remote and
+ * the auto-bond on session_start. Never throws.
+ */
+async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<BondOutcome> {
+	const resolved = await resolveToken();
+	if (!resolved) return { ok: false, error: "Not connected to DevSpec — /devspec.login first.", errorKind: "auth" };
+
+	// Bond key = this pi conversation's id (never cwd/shell). The server
+	// revives the same (owner, local_id) bond within its 24h window.
+	const localId = ctx.sessionManager.getSessionId();
+	let regText: string;
+	let d: Record<string, unknown>;
+	try {
+		const regRaw = await callDevspec(resolved.token, "register_connection", {
+			local_id: localId,
+			agent_name: AGENT_NAME,
+			machine_hostname: hostname(),
+			cwd: ctx.cwd,
+		}, { cwd: ctx.cwd });
+		const reg = unwrapMcpResult(regRaw);
+		if (reg.isError) return { ok: false, error: `register failed: ${reg.text}`, errorKind: "api" };
+		regText = reg.text;
+		d = (reg.details ?? {}) as Record<string, unknown>;
+	} catch (err) {
+		return { ok: false, error: err instanceof Error ? err.message : String(err), errorKind: "api" };
+	}
+	const connectionId = (d.connection_id ?? d.connectionId) as string | undefined;
+	if (!connectionId) return { ok: false, error: `register returned no connection id: ${regText.slice(0, 200)}`, errorKind: "api" };
+
+	const bond: BondState = {
+		connectionId,
+		codename: typeof d.codename === "string" ? d.codename : undefined,
+		sessionId: (d.session_id as string | undefined) ?? undefined,
+		instructions: {
+			owner_custom_instructions: d.owner_custom_instructions as string | undefined,
+			owner_agent_rules: d.owner_agent_rules as string | undefined,
+			project_custom_instructions: d.project_custom_instructions as string | undefined,
+			project_agent_rules: d.project_agent_rules as string | undefined,
+		},
+	};
+
+	let attached = false;
+	if (sessionArg) {
+		try {
+			const attRaw = await callDevspec(resolved.token, "attach_connection", {
+				connection_id: connectionId,
+				session_id: sessionArg,
+			}, { cwd: ctx.cwd });
+			const att = unwrapMcpResult(attRaw);
+			if (att.isError) {
+				notify(ctx, `DevSpec remote: bonded but attach failed: ${att.text}`, "warning");
+			} else {
+				const ad = (att.details ?? {}) as Record<string, unknown>;
+				bond.sessionId = (ad.session_id as string | undefined) ?? bond.sessionId;
+				attached = true;
+			}
+		} catch (err) {
+			notify(ctx, `DevSpec remote: bonded but attach failed: ${err instanceof Error ? err.message : err}`, "warning");
+		}
+	}
+
+	setBond(bond);
+	pump = { bond, busy: false, stop: false, errors: 0, synced: false };
+	setRemoteStatus(ctx);
+	void pumpLoop(ctx);
+	return { ok: true, codename: bond.codename, attached };
+}
+
 // Late-bound so the loop can reference the ExtensionAPI closure.
 let pi_send: (message: string, followUp?: boolean) => void = () => {};
 
@@ -503,8 +580,23 @@ export default function (pi: ExtensionAPI) {
 		}
 	});
 
+	pi.on("session_start", async (_event, ctx) => {
+		// Auto-bond: interactive sessions become DevSpec capacity on launch
+		// (zero-command). Headless modes never auto-bond — scripts, one-shots
+		// and cloud workers bond explicitly (RPC command / future flag).
+		if (ctx.mode !== "tui" || pump) return;
+		const settings = await loadSettings();
+		if (!settings.autoBond) return;
+		const resolved = await resolveToken();
+		if (!resolved) return;
+		const outcome = await bondNow(ctx);
+		if (outcome.ok) {
+			notify(ctx, `DevSpec remote: auto-bonded as ${outcome.codename ?? "agent"} — you're reachable from the Agents page. /devspec.remote stop to end.`);
+		}
+	});
+
 	pi.registerCommand("devspec.remote", {
-		description: "Bond this pi session as DevSpec capacity. Usage: /devspec.remote [--session <id>] | stop",
+		description: "Bond this pi session as DevSpec capacity. Usage: /devspec.remote [--session <id>] | stop | auto [on|off]",
 		handler: async (args, ctx) => {
 			const arg = args.trim();
 
@@ -515,7 +607,19 @@ export default function (pi: ExtensionAPI) {
 				}
 				const codename = pump.bond.codename;
 				await stopPump(ctx, "local_stop");
-				notify(ctx, `DevSpec remote: bond ended${codename ? ` (${codename})` : ""}.`);
+				notify(ctx, `DevSpec remote: bond ended${codename ? ` (${codename})` : ""}. Auto-bond stays ${(await loadSettings()).autoBond ? "on" : "off"} for new sessions.`);
+				return;
+			}
+
+			if (arg === "auto" || arg.startsWith("auto ")) {
+				const sub = arg.split(/\s+/)[1];
+				if (sub === "on" || sub === "off") {
+					const next = await saveSettings({ autoBond: sub === "on" });
+					notify(ctx, `DevSpec remote: auto-bond ${next.autoBond ? "ON — new interactive sessions bond on launch" : "OFF — bond manually with /devspec.remote"}.`);
+				} else {
+					const cur = await loadSettings();
+					notify(ctx, `DevSpec remote: auto-bond is ${cur.autoBond ? "on" : "off"} (interactive sessions only).`);
+				}
 				return;
 			}
 
@@ -524,69 +628,16 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
-			const resolved = await resolveToken();
-			if (!resolved) {
-				notify(ctx, "Not connected to DevSpec — /devspec.login first.", "warning");
-				return;
-			}
-
-			// Register/revive the bond. local_id = this pi conversation's id.
-			const localId = ctx.sessionManager.getSessionId();
-			const regRaw = await callDevspec(resolved.token, "register_connection", {
-				local_id: localId,
-				agent_name: AGENT_NAME,
-				machine_hostname: hostname(),
-				cwd: ctx.cwd,
-			}, { cwd: ctx.cwd });
-			const reg = unwrapMcpResult(regRaw);
-			if (reg.isError) {
-				notify(ctx, `DevSpec remote: register failed: ${reg.text}`, "error");
-				return;
-			}
-			const d = (reg.details ?? {}) as Record<string, unknown>;
-			const connectionId = (d.connection_id ?? d.connectionId) as string | undefined;
-			if (!connectionId) {
-				notify(ctx, `DevSpec remote: register returned no connection id: ${reg.text.slice(0, 200)}`, "error");
-				return;
-			}
-
-			const bond: BondState = {
-				connectionId,
-				codename: typeof d.codename === "string" ? d.codename : undefined,
-				sessionId: (d.session_id as string | undefined) ?? undefined,
-				instructions: {
-					owner_custom_instructions: d.owner_custom_instructions as string | undefined,
-					owner_agent_rules: d.owner_agent_rules as string | undefined,
-					project_custom_instructions: d.project_custom_instructions as string | undefined,
-					project_agent_rules: d.project_agent_rules as string | undefined,
-				},
-			};
-
-			// Optional attach.
 			const sessionMatch = arg.match(/^(?:--session|-s)\s+(\S+)$/);
-			if (sessionMatch) {
-				const attRaw = await callDevspec(resolved.token, "attach_connection", {
-					connection_id: connectionId,
-					session_id: sessionMatch[1],
-				}, { cwd: ctx.cwd });
-				const att = unwrapMcpResult(attRaw);
-				if (att.isError) {
-					notify(ctx, `DevSpec remote: bonded but attach failed: ${att.text}`, "warning");
-				} else {
-					const ad = (att.details ?? {}) as Record<string, unknown>;
-					bond.sessionId = (ad.session_id as string | undefined) ?? bond.sessionId;
-				}
+			const outcome = await bondNow(ctx, sessionMatch?.[1]);
+			if (!outcome.ok) {
+				notify(ctx, `DevSpec remote: ${outcome.error}`, outcome.errorKind === "auth" ? "warning" : "error");
+				return;
 			}
-
-			setBond(bond);
-			pump = { bond, busy: false, stop: false, errors: 0, synced: false };
-			setRemoteStatus(ctx);
-			void pumpLoop(ctx);
-
 			notify(
 				ctx,
-				`DevSpec remote: bonded as ${bond.codename ?? connectionId.slice(0, 8)}` +
-					`${bond.sessionId ? " · attached" : " · sessionless (available on the Agents page)"}. ` +
+				`DevSpec remote: bonded as ${outcome.codename ?? "agent"}` +
+					`${outcome.attached ? " · attached" : " · sessionless (available on the Agents page)"}. ` +
 					`Owner messages will arrive as user messages here.`,
 			);
 		},

@@ -165,12 +165,13 @@ export default function (pi: ExtensionAPI) {
 			const lines = [
 				"DevSpec commands:",
 				"  /devspec.work [item]  — work an action item (queue pick, or id/title)",
+				"  /devspec.remote       — bond as remote capacity (auto on launch; stop | auto on|off)",
 				"  /devspec.login        — connect (token from the DevSpec Connections page)",
 				"  /devspec.status       — connection state",
 				"  /devspec.logout       — remove the stored token",
 				"  /devspec.logo         — toggle the duck header",
 				"",
-				`DevSpec tools: 21 native tools (projects, action items incl. claim/record, memory, search).`,
+				`DevSpec tools: 26 native tools (projects, action items incl. claim/record, memory, search, assignments).`,
 				`Connection: ${resolved ? `token from ${resolved.source}` : "not connected — /devspec.login"}`,
 			];
 			ctx.ui.notify(lines.join("\n"), "info");

@@ -325,10 +325,14 @@ current contract, adopted here first, migrated to other hosts only if proven.
    with an agent-token-scoped channel. Instant ingress, presence rides the
    channel, the 25s holds and the 60 req/min budget math both disappear.
    Our pump is isolated behind one module; transport swap is contained.
-2. **Rate limits:** the 60 req/min per-token budget shaped the OpenCode
-   long-poll redesign. Confirm the budget still matches reality before this
-   package picks pump semantics (and note a push channel changes the math
-   entirely).
+2. **Rate limits:** the 60 req/min per-token budget is REAL and shared across
+   everything (polls, heartbeats, trail posts, tool calls). Measured live:
+   a 1/sec flat trail cadence blew the budget on a multi-minute turn, and
+   every later tick retried into the limiter. Mitigations shipped: adaptive
+   trail cadence (1s → 2s → 4s → 10s ceiling, ~20 posts/3min turn),
+   process-wide cooldown honoring the server's "retry after N" hint, one
+   rate-limit retry then fail, one warning per turn. Open: whether failed
+   (429) attempts count against the budget — assumed yes (worst case).
 3. **Bond revive window:** currently 24h (`BOND_REVIVE_WINDOW_MS`). Is that
    the intended product semantics (vs the historically-mentioned 72h)?
 4. **Proactive memory recall:** is per-turn semantic recall acceptable load on

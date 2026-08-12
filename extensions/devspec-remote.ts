@@ -33,6 +33,7 @@ import { getBond, setBond, type BondState } from "./core/bond-state.ts";
 import { formatInboundMessage, parsePollPayload } from "./core/remote-payload.ts";
 import { unwrapMcpResult } from "./core/result.ts";
 import { extractAssistantParts, extractText, TrailBuilder } from "./core/trail.ts";
+import { buildAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
 import { planSettle, TurnTracker } from "./core/turn-lifecycle.ts";
 import { formatDispatchMessage } from "./core/dispatch.ts";
 import { buildRoomDigest } from "./core/orientation.ts";
@@ -108,7 +109,26 @@ let turn: TurnState | null = null;
 let lastCtx: ExtensionContext | null = null;
 const TRAIL_INTERVAL_MS = 1_000;
 
-async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; workTrail?: string } = {}): Promise<boolean> {
+// Per-turn telemetry (item 1906e21f): mechanical, zero-token. Accumulates from
+// pi's own message_end usage; the report rides the settle answer post (when
+// attached) AND the idle heartbeat (always, so sessionless agents show too).
+const telemetry = new TelemetryCollector();
+
+/** Settle the turn's usage into a wire report from the current context. Null when nothing was tracked. */
+function settleTelemetry(): AgentStatsReport | null {
+	const settled = telemetry.settleTurn();
+	const ctx = lastCtx;
+	const model = ctx?.model as { provider?: string; id?: string } | undefined;
+	return buildAgentStatsReport({
+		turn: settled.turn,
+		session: settled.session,
+		model: model ?? null,
+		thinkingLevel: ctx?.thinkingLevel ?? null,
+		context: ctx?.getContextUsage?.() ?? null,
+	});
+}
+
+async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; workTrail?: string; agentStats?: AgentStatsReport } = {}): Promise<boolean> {
 	const bond = getBond();
 	if (!bond?.sessionId) return false;
 	const resolved = await resolveToken();
@@ -122,6 +142,7 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 			...(opts.completeTurn ? { complete_turn: true } : {}),
 			...(opts.turnKind ? { turn_kind: opts.turnKind } : {}),
 			...(opts.workTrail ? { work_trail: opts.workTrail } : {}),
+			...(opts.agentStats ? { agent_stats: opts.agentStats } : {}),
 		});
 		return true;
 	} catch (err) {
@@ -146,7 +167,7 @@ function trailTick(): void {
 	void postToSession(rendered, { phase: "trail" });
 }
 
-async function settleTurn(): Promise<void> {
+async function settleTurn(agentStats: AgentStatsReport | null): Promise<void> {
 	const t = turn;
 	turn = null;
 	if (!t) { debug("settleTurn: no turn state"); return; }
@@ -164,10 +185,10 @@ async function settleTurn(): Promise<void> {
 	debug(`settleTurn: plan ${plan.kind}, final trail ${finalTrail.length} chars`);
 	if (plan.kind === "final") {
 		// phase 'answer' closes the trail bubble (preserved as "Show work").
-		await postToSession(plan.message, { phase: "answer", completeTurn: true, workTrail: finalTrail || undefined });
+		await postToSession(plan.message, { phase: "answer", completeTurn: true, workTrail: finalTrail || undefined, agentStats: agentStats ?? undefined });
 	} else if (plan.kind === "local_mirror") {
 		await postToSession(plan.prompt, { turnKind: "local_prompt" });
-		await postToSession(plan.answer, { phase: "answer", completeTurn: true, workTrail: finalTrail || undefined });
+		await postToSession(plan.answer, { phase: "answer", completeTurn: true, workTrail: finalTrail || undefined, agentStats: agentStats ?? undefined });
 	} else if (t.dirty && finalTrail) {
 		await postToSession(finalTrail, { phase: "trail" });
 	}
@@ -181,7 +202,7 @@ async function settleTurn(): Promise<void> {
  * after the answer). Mechanical heartbeats are contract-sanctioned presence,
  * not prose. Best-effort: the pump remains the presence authority.
  */
-async function beatBusy(busy: boolean): Promise<void> {
+async function beatBusy(busy: boolean, agentStats?: AgentStatsReport | null): Promise<void> {
 	const active = pump;
 	if (!active || active.stop) return;
 	const resolved = await resolveToken();
@@ -190,8 +211,9 @@ async function beatBusy(busy: boolean): Promise<void> {
 		await callDevspec(resolved.token, "heartbeat_connection", {
 			connection_id: active.bond.connectionId,
 			status: "live",
-			busy,
+		busy,
 			agent_name: AGENT_NAME,
+			...(agentStats ? { agent_stats: agentStats } : {}),
 		});
 	} catch {
 		/* presence is best-effort — the next poll re-asserts */
@@ -564,12 +586,16 @@ export default function (pi: ExtensionAPI) {
 			void beatBusy(true);
 		}
 	});
-	pi.on("agent_settled", () => {
+	pi.on("agent_settled", (_event, ctx) => {
+		lastCtx = ctx;
+		// Settle telemetry FIRST (pure, instant) so the idle heartbeat and the
+		// answer post carry this turn's report, not the previous one's.
+		const agentStats = settleTelemetry();
 		if (pump) {
 			pump.busy = false;
-			void beatBusy(false);
+			void beatBusy(false, agentStats);
 		}
-		void settleTurn();
+		void settleTurn(agentStats);
 	});
 
 	// ---- Turn lifecycle events (mechanical trail + final answer) ------------
@@ -605,8 +631,14 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("message_end", (event, ctx) => {
 		lastCtx = ctx;
+		// Telemetry accumulates for EVERY assistant message while bonded —
+		// including turns the trail skips (unattached/local), so sessionless
+		// agents still report on the idle heartbeat.
+		const msg = event.message as { role?: string; usage?: MessageUsage } | undefined;
+		if (pump && msg?.role === "assistant") {
+			telemetry.addMessageUsage(msg.usage);
+		}
 		if (!turn) { debug("message_end: no turn"); return; }
-		const msg = event.message as { role?: string } | undefined;
 		if (msg?.role === "assistant") {
 			// Feed the trail from the finalized message too: message_update
 			// streams live in the TUI, but headless modes (RPC/print/SDK) emit

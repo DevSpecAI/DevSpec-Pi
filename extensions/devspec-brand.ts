@@ -5,9 +5,10 @@
  * render a header). Toggle with /devspec.logo — persisted in
  * <pi-agent-dir>/devspec/brand.json.
  *
- * The duck is the DevSpec mark (rubber-duck debugging). Colors are 24-bit
- * ANSI emitted directly: theme.fg() only exposes named palette slots, and
- * "duck yellow" is not a palette slot.
+ * The duck itself lives in core/duck.ts. This module only lays it out: the
+ * wordmark sits beside the mark when there is room for a lockup, drops below it
+ * when there isn't, and the mark is dropped entirely on a terminal too narrow
+ * to hold it — art that wraps looks worse than no art.
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -15,26 +16,73 @@ import { VERSION } from "@earendil-works/pi-coding-agent";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { devspecDir } from "./core/config.ts";
+import { HEIGHT, renderDuck, WIDTH } from "./core/duck.ts";
 
-const YELLOW = "\x1b[38;2;255;209;60m";
-const ORANGE = "\x1b[38;2;247;147;26m";
-const DARK = "\x1b[38;2;40;30;20m";
 const TEAL = "\x1b[38;2;45;212;191m"; // brightened #0F766E brand teal for terminal
 const DIM = "\x1b[38;2;130;130;130m";
 const BOLD = "\x1b[1m";
 const RESET = "\x1b[0m";
 
-function duckLines(): string[] {
-	return [
-		`${YELLOW}        ▄▄▄▄▄        ${RESET}`,
-		`${YELLOW}      ▄███████▄      ${RESET}`,
-		`${YELLOW}     ██${DARK}●${YELLOW}██████     ${RESET}`,
-		`${ORANGE}▄▄${YELLOW} ███████████▄▄  ${RESET}`,
-		`${ORANGE}██▄${YELLOW}▄█████████████▄ ${RESET}`,
-		`${ORANGE} ▀▀${YELLOW}███████████████ ${RESET}`,
-		`${YELLOW}      ▀█████████▀   ${RESET}`,
-		`${YELLOW}        ▀▀▀▀▀▀      ${RESET}`,
-	];
+/** Columns between the mark and the wordmark in the side-by-side lockup. */
+const GAP = "  ";
+
+const TAGLINE = "where conversations become shipped code";
+
+/**
+ * Pick the first rendering whose plain text fits `available` columns, or "" if
+ * none does. Each candidate is [rendered-with-colour, plain-for-measuring].
+ */
+function fit(candidates: readonly (readonly [string, string])[], available: number): string {
+	for (const [rendered, plain] of candidates) {
+		if (plain.length <= available) return rendered;
+	}
+	return "";
+}
+
+/**
+ * Wordmark + subtitle, each trimmed to what fits in `available` columns. Detail
+ * is shed longest-first — the tagline goes before the name, the pi version
+ * before the help hint — and a line that cannot fit at all comes back empty for
+ * the caller to drop.
+ */
+function textLines(available: number): [string, string] {
+	const wordmark = fit(
+		[
+			[`${TEAL}${BOLD}DevSpec${RESET}${DIM} · ${TAGLINE}${RESET}`, `DevSpec · ${TAGLINE}`],
+			[`${TEAL}${BOLD}DevSpec${RESET}`, "DevSpec"],
+		],
+		available,
+	);
+	const subtitle = fit(
+		[
+			[`${DIM}on pi v${VERSION} · /devspec.help${RESET}`, `on pi v${VERSION} · /devspec.help`],
+			[`${DIM}/devspec.help${RESET}`, "/devspec.help"],
+		],
+		available,
+	);
+	return [wordmark, subtitle];
+}
+
+/** Vertically centre the two text lines against the mark. */
+const TEXT_ROW = Math.max(0, Math.floor((HEIGHT - 2) / 2));
+
+export function renderHeader(width: number): string[] {
+	if (width < WIDTH) {
+		return [...textLines(width).filter(Boolean), ""];
+	}
+
+	const lines = renderDuck();
+	const beside = Math.max(0, width - WIDTH - GAP.length);
+	const [wordmark, subtitle] = textLines(beside);
+
+	// Lockup: wordmark beside the mark, but only if the name itself fits there.
+	if (wordmark) {
+		lines[TEXT_ROW] = `${lines[TEXT_ROW]}${GAP}${wordmark}`;
+		if (subtitle) lines[TEXT_ROW + 1] = `${lines[TEXT_ROW + 1]}${GAP}${subtitle}`;
+		return [...lines, ""];
+	}
+
+	return [...lines, ...textLines(width).filter(Boolean), ""];
 }
 
 function brandFilePath(): string {
@@ -63,10 +111,8 @@ function applyHeader(ctx: ExtensionContext, show: boolean): void {
 		return;
 	}
 	ctx.ui.setHeader((_tui, _theme) => ({
-		render(_width: number): string[] {
-			const wordmark = `${TEAL}${BOLD}DevSpec${RESET}${DIM} · where conversations become shipped code${RESET}`;
-			const subtitle = `${DIM}on pi v${VERSION} · /devspec.help${RESET}`;
-			return [...duckLines(), wordmark, subtitle, ""];
+		render(width: number): string[] {
+			return renderHeader(width);
 		},
 		invalidate() {},
 	}));

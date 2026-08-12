@@ -37,7 +37,7 @@ import { extractAssistantParts, extractText, TrailBuilder } from "./core/trail.t
 import { planSettle, TurnTracker } from "./core/turn-lifecycle.ts";
 import { formatDispatchMessage } from "./core/dispatch.ts";
 import { openPushChannel } from "./core/push-channel.ts";
-import { mcpUrl } from "./core/config.ts";
+import { resolveEndpoint } from "./core/auth-store.ts";
 
 const AGENT_NAME = "Pi";
 const POLL_WAIT_MS = 25_000;
@@ -223,16 +223,19 @@ function waitForWake(active: PumpState, safetyMs: number): Promise<void> {
 }
 
 /** Try to open the SSE push channel. True = push mode active. */
-function startPushChannel(active: PumpState, token: string): boolean {
+function startPushChannel(active: PumpState, token: string, endpoint: string): boolean {
 	const controller = new AbortController();
 	active.pushAbort = controller;
 	void openPushChannel({
-		mcpUrl: mcpUrl(),
+		mcpUrl: endpoint,
 		token,
 		connectionId: active.bond.connectionId,
 		signal: controller.signal,
 		handlers: {
-			onWake: () => signalWake(active),
+			onWake: () => {
+				debug("push wake");
+				signalWake(active);
+			},
 			onEnded: (reason) => {
 				active.pushEnded = reason;
 				signalWake(active);
@@ -262,7 +265,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 
 	// Push mode: SSE wakes us; we fetch the package with a no-hold poll.
 	// Falls back to the held long-poll if the channel is unavailable.
-	let pushMode = startPushChannel(active, token);
+	let pushMode = startPushChannel(active, token, await resolveEndpoint());
 	// The safety tick keeps presence fresh and catches anything the stream missed.
 	const PUSH_SAFETY_MS = 75_000;
 	let notifiedFallback = false;

@@ -14,7 +14,7 @@
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { mcpUrl } from "./config.ts";
+import { resolveEndpoint } from "./auth-store.ts";
 
 const CLIENT_NAME = "devspec-pi";
 const CLIENT_VERSION = "0.1.0";
@@ -42,7 +42,7 @@ export function resetClientCache(): void {
 }
 
 async function connect(token: string): Promise<Client> {
-	const url = mcpUrl();
+	const url = await resolveEndpoint();
 	if (cached && cached.token === token && cached.url === url) return cached.client;
 
 	resetClientCache();

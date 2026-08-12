@@ -15,8 +15,8 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { clearAuth, resolveToken, saveAuth } from "./core/auth-store.ts";
-import { connectionsUrl, TOKEN_ENV_VAR } from "./core/config.ts";
+import { clearAuth, resolveEndpoint, resolveToken, saveAuth } from "./core/auth-store.ts";
+import { connectionsUrl, mcpUrl, TOKEN_ENV_VAR } from "./core/config.ts";
 import { DevspecAuthError, resetClientCache, verifyToken } from "./core/client.ts";
 import { unwrapMcpResult } from "./core/result.ts";
 
@@ -59,7 +59,7 @@ async function doLogin(token: string, ctx: ExtensionContext): Promise<boolean> {
 		const principal = principalFrom(result);
 		verifiedPrincipal = principal;
 		verifyAttempted = true;
-		await saveAuth({ token, principal: principal ?? undefined, verifiedAt: new Date().toISOString() });
+		await saveAuth({ token, url: mcpUrl(), principal: principal ?? undefined, verifiedAt: new Date().toISOString() });
 		setStatus(ctx, `DevSpec: ${principal ?? "connected"}`);
 		ctx.ui.notify(`Connected to DevSpec${principal ? ` as ${principal}` : ""}.`, "info");
 		return true;
@@ -133,8 +133,9 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 			const who = verifiedPrincipal ?? "not verified this session";
+			const endpoint = await resolveEndpoint();
 			ctx.ui.notify(
-				`DevSpec: token from ${resolved.source === "env" ? TOKEN_ENV_VAR : "login store"} · ${who}`,
+				`DevSpec: token from ${resolved.source === "env" ? TOKEN_ENV_VAR : "login store"} · ${who} · ${endpoint}`,
 				"info",
 			);
 		},

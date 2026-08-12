@@ -22,6 +22,14 @@ import { resolveToken } from "./core/auth-store.ts";
 import { connectionsUrl, TOKEN_ENV_VAR } from "./core/config.ts";
 import { callDevspec } from "./core/client.ts";
 import { toolErrorResult, toolTextResult, unwrapMcpResult } from "./core/result.ts";
+import { needsProjectScope, resolveGitRemote } from "./core/project-scope.ts";
+
+/** Unwrap a DevSpec MCP result, converting isError payloads into thrown errors. */
+function unwrapOrThrow(name: string, raw: unknown) {
+	const { text, details, isError } = unwrapMcpResult(raw);
+	if (isError) throw new Error(text || `DevSpec tool ${name} failed.`);
+	return toolTextResult(text || "(empty response)", details ?? {});
+}
 
 const NOT_CONNECTED =
 	`Not connected to DevSpec. Run /devspec.login, or set ${TOKEN_ENV_VAR}. ` +
@@ -36,6 +44,8 @@ interface DevspecToolDef {
 	/** One-liner for the system prompt's Available tools section. */
 	promptSnippet: string;
 	parameters: TSchema;
+	/** Per-call argument augmentation (e.g. stamping the pi session id on claims). */
+	augment?: (params: Record<string, unknown>, ctx: { sessionManager: { getSessionId(): string } }) => Record<string, unknown>;
 }
 
 function registerDevspecTool(pi: ExtensionAPI, def: DevspecToolDef): void {
@@ -45,14 +55,25 @@ function registerDevspecTool(pi: ExtensionAPI, def: DevspecToolDef): void {
 		description: def.description,
 		promptSnippet: def.promptSnippet,
 		parameters: def.parameters,
-		async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			const resolved = await resolveToken();
 			if (!resolved) return toolErrorResult(NOT_CONNECTED);
 			try {
-				const raw = await callDevspec(resolved.token, def.name, params as Record<string, unknown>);
-				const { text, details, isError } = unwrapMcpResult(raw);
-				if (isError) return toolErrorResult(text || `DevSpec tool ${def.name} failed.`);
-				return toolTextResult(text || "(empty response)", details ?? {});
+				let args = def.augment ? def.augment(params as Record<string, unknown>, ctx) : (params as Record<string, unknown>);
+				try {
+					const raw = await callDevspec(resolved.token, def.name, args);
+					return unwrapOrThrow(def.name, raw);
+				} catch (err) {
+					// Account-wide tokens: when the server can't tell which project
+					// this checkout belongs to, retry once with the git remote.
+					const message = err instanceof Error ? err.message : String(err);
+					if (!needsProjectScope(message) || args.git_remote) throw err;
+					const remote = await resolveGitRemote(ctx.cwd);
+					if (!remote) throw err;
+					args = { ...args, git_remote: remote };
+					const raw = await callDevspec(resolved.token, def.name, args);
+					return unwrapOrThrow(def.name, raw);
+				}
 			} catch (err) {
 				const message = err instanceof Error ? err.message : String(err);
 				return toolErrorResult(message);
@@ -131,6 +152,20 @@ export default function (pi: ExtensionAPI) {
 		promptSnippet: "Read one DevSpec action item in full",
 		parameters: Type.Object({
 			action_item_id: Type.String({ description: "UUID of the action item." }),
+		}),
+	});
+
+	registerDevspecTool(pi, {
+		name: "search_action_items",
+		label: "DevSpec: Search Action Items",
+		description:
+			"Find action items by topic/keyword. Returns cards with a truncated preview — use get_action_item " +
+			"for the full text. Prefer this over paging get_action_items when you know what you're looking for.",
+		promptSnippet: "Search DevSpec action items by topic",
+		parameters: Type.Object({
+			query: Type.String({ description: "Keywords or natural language." }),
+			lifecycle: Type.Optional(StringEnum(["open", "in_progress", "done", "dismissed", "deferred", "blocked", "all"] as const)),
+			limit: Type.Optional(Type.Number()),
 		}),
 	});
 
@@ -276,6 +311,108 @@ export default function (pi: ExtensionAPI) {
 			source: Type.Optional(StringEnum(["uploaded", "ai_generated", "all"] as const)),
 			scope: Type.Optional(StringEnum(["all", "project", "session"] as const)),
 			limit: Type.Optional(Type.Number({ description: "Default 20, max 50." })),
+		}),
+	});
+
+	// ---- Workflow verbs (Phase 3) ------------------------------------------
+
+	registerDevspecTool(pi, {
+		name: "create_action_item",
+		label: "DevSpec: Create Action Item",
+		description:
+			"Create a tracked action item (optionally under a brief via parent_action_item_id). The response " +
+			"carries related_candidates — REVIEW IT: prefer updating an existing item over duplicating, and " +
+			"raise contradictions rather than proceeding silently. One unit of work = one item.",
+		promptSnippet: "Create a tracked DevSpec action item",
+		parameters: Type.Object({
+			title: Type.String({ description: "Action item title." }),
+			description: Type.Optional(Type.String({ description: "The WHAT and HOW. Keep the why in `intent`, the definition of done in `acceptance_criteria`." })),
+			intent: Type.Optional(Type.String({ description: "The WHY — the problem and desired outcome." })),
+			acceptance_criteria: Type.Optional(Type.String({ description: "Definition of done." })),
+			type: Type.Optional(StringEnum(["bug", "feature", "improvement", "task", "query"] as const)),
+			priority: Type.Optional(StringEnum(["low", "medium", "high", "critical"] as const)),
+			tags: Type.Optional(Type.Array(Type.String())),
+			parent_action_item_id: Type.Optional(Type.String({ description: "Attach under this brief/parent item." })),
+			due_date: Type.Optional(Type.String({ description: "ISO date (YYYY-MM-DD)." })),
+		}),
+	});
+
+	registerDevspecTool(pi, {
+		name: "claim_work_item",
+		label: "DevSpec: Claim Work Item",
+		description:
+			"Atomically claim a staged item (staged → in_progress). FAILS if another agent claimed it, and is " +
+			"REJECTED on unresolved possible_conflict — do not force past that; resolve the pair first " +
+			"(resolve_action_item_conflict) or surface it. The claim returns the project instruction tiers " +
+			"(custom_instructions = principles, agent_rules = execution mechanics) — both are MANDATORY while " +
+			"implementing. force:true (with reason) only for deliberate takeovers.",
+		promptSnippet: "Claim a DevSpec action item for implementation",
+		parameters: Type.Object({
+			action_item_id: Type.String({ description: "Action item ID to claim." }),
+			agent_branch: Type.String({ description: "Git branch created for this item (respect the project branch_prefix)." }),
+			force: Type.Optional(Type.Boolean({ description: "Deliberate takeover only. Requires reason." })),
+			reason: Type.Optional(Type.String({ description: "Required when force is true." })),
+		}),
+		augment: (params, ctx) => ({ local_session_id: ctx.sessionManager.getSessionId(), ...params }),
+	});
+
+	registerDevspecTool(pi, {
+		name: "release_work_item",
+		label: "DevSpec: Release Work Item",
+		description:
+			"Release your claim on an item without completing it (back to staged/idle). Only the current " +
+			"claimant can release; takeovers go through claim_work_item with force:true.",
+		promptSnippet: "Release a claimed DevSpec item",
+		parameters: Type.Object({
+			action_item_id: Type.String({ description: "Action item ID to release." }),
+			reason: Type.Optional(Type.String({ description: "Recorded on the released activity row." })),
+		}),
+	});
+
+	registerDevspecTool(pi, {
+		name: "record_implementation",
+		label: "DevSpec: Record Implementation",
+		description:
+			"Record that a claimed item is IMPLEMENTED (written + pushed). Lands at lifecycle 'implemented', " +
+			"NOT 'done' — a human verifies via verify_action_item. After recording, ACT ON " +
+			"own_criteria_follow_through / brief_follow_through in the response (check what you can with " +
+			"record_criterion_verdicts, naming what you ran and what came back), then report 'implemented' " +
+			"and STOP. Vocabulary: implemented → verified → done.",
+		promptSnippet: "Record an implemented DevSpec item (commit SHA, files, testing notes)",
+		parameters: Type.Object({
+			action_item_id: Type.String({ description: "Action item ID." }),
+			commit_sha: Type.String({ description: "Final commit SHA." }),
+			commit_message: Type.Optional(Type.String()),
+			agent_merged: Type.Optional(Type.Boolean({ description: "true = merged to target branch, false = push-only." })),
+			affected_files: Type.Optional(Type.Array(Type.String({ description: "From git diff --name-only." }))),
+			goal_ids: Type.Optional(Type.Array(Type.String({ description: "Goal UUIDs this work serves (full reconciled set)." }))),
+			completion_note: Type.Optional(Type.String({ description: "Summary of what was done." })),
+			completion_confidence: Type.Optional(Type.Number({ description: "0-100; lower signals uncertainty to the reviewer." })),
+			completion_disposition: Type.Optional(StringEnum(["implemented", "already_correct", "partial", "workaround"] as const)),
+			completion_summary: Type.Optional(Type.String({ description: "Changelog-style, 2-4 sentences, written for non-developers." })),
+			testing_notes: Type.Optional(Type.String({ description: "Numbered markdown steps to VERIFY the change." })),
+		}),
+		augment: (params, ctx) => ({ local_session_id: ctx.sessionManager.getSessionId(), ...params }),
+	});
+
+	registerDevspecTool(pi, {
+		name: "update_action_item",
+		label: "DevSpec: Update Action Item",
+		description:
+			"Refine an action item's fields (title, description, intent, acceptance, type, priority, due_date, " +
+			"testing_notes, usage_notes). Prefer careful rewrites over wholesale replacement when refining.",
+		promptSnippet: "Update a DevSpec action item's fields",
+		parameters: Type.Object({
+			action_item_id: Type.String({ description: "Action item ID." }),
+			title: Type.Optional(Type.String()),
+			description: Type.Optional(Type.String()),
+			intent: Type.Optional(Type.String()),
+			type: Type.Optional(StringEnum(["bug", "feature", "improvement", "task", "query"] as const)),
+			priority: Type.Optional(StringEnum(["low", "medium", "high", "critical"] as const)),
+			due_date: Type.Optional(Type.String({ description: "ISO date (YYYY-MM-DD), empty string clears." })),
+			testing_notes: Type.Optional(Type.String({ description: "Markdown verification steps; empty string clears." })),
+			usage_notes: Type.Optional(Type.String({ description: "Where users find the feature; empty string clears." })),
+			is_brief: Type.Optional(Type.Boolean({ description: "Make this item a grouping brief." })),
 		}),
 	});
 

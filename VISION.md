@@ -303,6 +303,9 @@ current contract, adopted here first, migrated to other hosts only if proven.
 7. **Autopilot verb retirement:** which MCP verbs/settings die with the old
    autopilot cutover, and what (if anything) replaces `stale_claim_timeout`
    etc. for capacity-model unattended runs?
+8. **`provider: 'pi'`:** `claim_work_item.provider` is an enum of known hosts
+   (claude_code … opencode) — pi isn't in it, so our claims stamp no provider
+   (the active-agents UI shows no logo while we work). Add `pi` server-side.
 
 ## Phasing
 
@@ -311,7 +314,10 @@ current contract, adopted here first, migrated to other hosts only if proven.
    login, action items, search, memory tools with real renderers. ✅
    (embedded MCP client, `/devspec.login|logout|status`, 15 native tools,
    staging/prod environments; custom TUI renderers still TODO)
-3. **System-prompt injection + slash commands** — workflows native.
+3. **System-prompt injection + slash commands** — workflows native. ✅
+   (`before_agent_start` workflow block; `/devspec.work` with live item
+   completion; `/devspec.help`; +5 workflow verbs: create/claim/release/
+   record/update; reactive git_remote project scoping)
 4. **Remote control** — bond, pump, ingress/egress per contract.
 5. **Memory recall/capture engine + compaction survival.**
 6. **Onboarding polish, theme, embedded user-MCP support.**

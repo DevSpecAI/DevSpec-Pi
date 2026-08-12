@@ -320,6 +320,11 @@ current contract, adopted here first, migrated to other hosts only if proven.
    channel (SSE/WebSocket) that the extension holds open on `session_start`.
    Design as a parallel-system v2: `poll_connection` stays for all current
    hosts; the push channel ships alongside and this package adopts it first.
+   Candidate transports: SSE off the Next app (simplest), or Supabase
+   Realtime Broadcast (the web UI already uses it for live session updates)
+   with an agent-token-scoped channel. Instant ingress, presence rides the
+   channel, the 25s holds and the 60 req/min budget math both disappear.
+   Our pump is isolated behind one module; transport swap is contained.
 2. **Rate limits:** the 60 req/min per-token budget shaped the OpenCode
    long-poll redesign. Confirm the budget still matches reality before this
    package picks pump semantics (and note a push channel changes the math
@@ -358,9 +363,21 @@ current contract, adopted here first, migrated to other hosts only if proven.
    instruction tiers; headless RPC e2e in `scripts/e2e-remote.mjs`.
    Remaining ingress leg — owner message from the web UI — is the human
    acceptance step.)
-   **Slice 2 (next):** dispatches/assignments (`dispatches[]`,
-   acknowledge/resolve, report_progress, pickup lease), trail-phase live
-   progress, last-resort mirror, `pending_context_wipe` handling.
+   **Slice 2 (next):** the MECHANICAL turn lifecycle — zero tokens, no model
+   compliance required (revised after live dogfooding, see below):
+   - **Trail streaming:** extension-driven `phase:'trail'` posts (~1/sec,
+     cumulative) built from pi's real streaming events (`message_update`
+     deltas + tool execution start/end) — the full terminal-style turn in the
+     UI, code formatting intact, culminating in the answer bubble.
+   - **Mechanical final answer:** on `agent_settled` the extension posts the
+     final assistant message with `complete_turn:true` — UNLESS the model
+     already posted via `post_session_message` this turn (tool posts take
+     precedence; never dual writers). This inverts the contract's
+     primary/mirror relationship FOR PI ONLY: the intent (UI shows the
+     agent's real answer) is preserved; the mechanism stops depending on the
+     model remembering. Parallel-system candidate per principle 4.
+   - dispatches/assignments (`dispatches[]`, acknowledge/resolve,
+     report_progress, pickup lease), `pending_context_wipe` handling.
 5. **Memory recall/capture engine + compaction survival.**
 6. **Onboarding polish, theme, embedded user-MCP support.**
 7. **Headless worker CLI** (cloud primitive, dogfooded locally first).

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { formatDispatchMessage } from "../extensions/core/dispatch.ts";
-import { isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, planSettle, shouldSplitFirstAnswer, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
+import { classifyUserKind, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, planSettle, shouldSplitFirstAnswer, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 
 function remoteTurn(answer: string): TurnTracker {
 	const t = new TurnTracker();
@@ -98,11 +98,12 @@ test("segments deliver per message: each message's answer is its own bubble (b1f
 	s2.assistantFinal("answer two");
 	assert.equal(s2.userKind, "remote");
 	assert.deepEqual(planSettle(s2, true), { kind: "final", message: "answer two" });
-	// A notification-segment (no remote prefix) mirrors as a local prompt pair.
+	// A leftover bg receipt is harness origin: no remirror, no answer bubble.
 	const s3 = new TurnTracker();
-	s3.userMessage("[background task finished]");
-	s3.assistantFinal("ack");
-	assert.deepEqual(planSettle(s3, true), { kind: "local_mirror", prompt: "[background task finished]", answer: "ack" });
+	s3.userMessage("<background-task-notification>\n  <status>completed</status>\n</background-task-notification>");
+	s3.assistantFinal("That lint receipt is the isolated check that already passed. No further action.");
+	assert.equal(s3.userKind, "harness");
+	assert.deepEqual(planSettle(s3, true), { kind: "none" });
 });
 
 test("a text-only assistant close is a finished answer (f0df6c3e)", () => {
@@ -158,6 +159,57 @@ test("first user-facing text after a user message splits even when the same mess
 	silent.userMessage("[DevSpec remote — message from Ali to Wary Wolf]\nhi");
 	assert.equal(shouldSplitFirstAnswer(silent, { text: "", hasToolCalls: true }), false);
 	assert.equal(shouldSplitFirstAnswer(silent, { text: "Ali, I'll check the attachments.", hasToolCalls: false }), false, "text-only first close waits for the next round or settle so Working can clear");
+});
+
+test("typed slash commands stay local — we do not filter a leading /", () => {
+	assert.equal(classifyUserKind("/bg-update"), "local");
+	assert.equal(isHarnessOrigin("/bg-update"), false);
+	const t = new TurnTracker();
+	t.userMessage("/bg-update");
+	t.assistantFinal("here is how to update");
+	assert.equal(t.userKind, "local");
+	assert.equal(t.shouldMirrorPrompt, true);
+	assert.deepEqual(planSettle(t, true), {
+		kind: "local_mirror",
+		prompt: "/bg-update",
+		answer: "here is how to update",
+	});
+});
+
+test("leftover [bg completed] / customType is harness: no remirror, no answer", () => {
+	assert.equal(isHarnessOrigin("[bg completed] Isolated lint (abc123)"), true);
+	assert.equal(isHarnessOrigin("hello", "background-task-notification"), true);
+	assert.equal(isHarnessOrigin("Also just to confirm that the Pi package doesn't use MCP"), false);
+
+	const xml = new TurnTracker();
+	xml.userMessage("<background-task-notification>\n  <task-id>abc</task-id>\n</background-task-notification>");
+	xml.assistantFinal("That typecheck receipt is the isolated run that already passed. No further action.");
+	assert.deepEqual(planSettle(xml, true), { kind: "none" });
+
+	const typedThenLeftover = new TurnTracker();
+	typedThenLeftover.userMessage("Also just to confirm native tools?");
+	typedThenLeftover.assistantFinal("Yes — native tools are the connection.", true);
+	assert.deepEqual(planSettle(typedThenLeftover, true), {
+		kind: "local_mirror",
+		prompt: "Also just to confirm native tools?",
+		answer: "Yes — native tools are the connection.",
+	});
+	// Continuation after first-answer split must not remirror the typed prompt.
+	const cont = new TurnTracker();
+	cont.carryUser(typedThenLeftover.userText);
+	cont.assistantFinal("more work after the answer");
+	assert.equal(cont.userKind, "local");
+	assert.equal(cont.shouldMirrorPrompt, false);
+	assert.deepEqual(planSettle(cont, true), { kind: "final", message: "more work after the answer" });
+
+	// A leftover wake that then replays the typed prompt stays harness.
+	const leftover = new TurnTracker();
+	leftover.userMessage("[bg completed] Isolated typecheck", { customType: "background-task-notification" });
+	leftover.userMessage("Also just to confirm native tools?");
+	leftover.assistantFinal("That typecheck receipt already passed. No further action.");
+	assert.equal(leftover.userKind, "harness");
+	assert.equal(leftover.shouldMirrorPrompt, false);
+	assert.deepEqual(planSettle(leftover, true), { kind: "none" });
 });
 
 test("formatDispatchMessage carries the protocol steps and payload", () => {

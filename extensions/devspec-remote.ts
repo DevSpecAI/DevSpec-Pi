@@ -38,7 +38,7 @@ import { unwrapMcpResult } from "./core/result.ts";
 import { buildAttachBlock, shapeRoomAgenda, shapeTranscript } from "./core/attach-context.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { buildAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
-import { planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitFirstAnswer, TurnTracker } from "./core/turn-lifecycle.ts";
+import { planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitFirstAnswer, isHarnessOrigin, TurnTracker } from "./core/turn-lifecycle.ts";
 import { dispatchSummary, formatDispatchMessage } from "./core/dispatch.ts";
 import {
 	firstTextPreview,
@@ -259,6 +259,7 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 	const finalTrail = t.trail.render(FINAL_TRAIL_CHARS);
 	const plan = planSettle(t.tracker, true);
 	debug(`settleSegment(${why}): plan ${plan.kind}, completeTurn=${completeTurn}, final trail ${finalTrail.length} chars`);
+	if (t.tracker.userKind === "harness") return false;
 	if (plan.kind === "final") {
 		// phase 'answer' closes the trail bubble (preserved as "Show work").
 		return await postToSession(plan.message, { phase: "answer", completeTurn, workTrail: finalTrail || undefined, agentStats: agentStats ?? undefined });
@@ -897,16 +898,42 @@ export default function (pi: ExtensionAPI) {
 		ensureTurn();
 	});
 
+	// Leftover bg receipts arrive as custom_message (customType
+	// background-task-notification) and may then replay the last typed prompt
+	// as a user message. Stamp harness origin here so that replay cannot
+	// remirror (item 56b9a3b4). Typed /commands never take this path.
+	pi.on("before_agent_start", (_event, ctx) => {
+		ensureTurn();
+		if (!turn) return;
+		const leaf = ctx.sessionManager.getLeafEntry();
+		if (!leaf || leaf.type !== "custom_message") return;
+		const customType = leaf.customType;
+		const content = typeof leaf.content === "string"
+			? leaf.content
+			: Array.isArray(leaf.content)
+				? leaf.content
+					.filter((b): b is { type: "text"; text: string } => b?.type === "text" && typeof b.text === "string")
+					.map((b) => b.text)
+					.join("\n")
+				: "";
+		if (!isHarnessOrigin(content, customType)) return;
+		if (isDeliveryBoundary(turn.tracker)) splitTurnAtBoundary();
+		turn.tracker.userMessage(content, { customType });
+	});
+
 	pi.on("message_start", (event, ctx) => {
 		lastCtx = ctx;
 		if (!turn) return;
-		const msg = event.message as { role?: string } | undefined;
-		if (msg?.role === "user") {
+		const msg = event.message as { role?: string; customType?: string } | undefined;
+		const text = extractText(event.message);
+		const customType = typeof msg?.customType === "string" ? msg.customType : null;
+		const harness = isHarnessOrigin(text, customType);
+		if (msg?.role === "user" || msg?.role === "custom" || harness) {
 			// A mid-run user message is a delivery boundary (b1fb756a): close the
 			// current segment as its own bubble first. An injection before any
 			// assistant text simply joins the open segment.
 			if (isDeliveryBoundary(turn.tracker)) splitTurnAtBoundary();
-			turn.tracker.userMessage(extractText(event.message));
+			turn.tracker.userMessage(text, { customType });
 		}
 		// A new assistant message = a new LLM round. If the previous close was
 		// a finished text-only answer, that bubble is done — split it off

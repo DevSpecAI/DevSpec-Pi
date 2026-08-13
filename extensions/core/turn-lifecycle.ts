@@ -24,15 +24,41 @@
  *   The run is the execution unit; the segment is the delivery unit.
  * - Runs started by a LOCAL prompt (typed in the terminal while attached)
  *   also mirror the prompt as turn_kind:'local_prompt' before the answer, so
- *   the DevSpec transcript is two-sided.
+ *   the DevSpec transcript is two-sided. Mirror once per typed prompt —
+ *   continuation segments (carryUser) post only the answer (item 56b9a3b4).
+ * - HARNESS leftovers (Pi <background-task-notification> / [bg completed])
+ *   may wake the model but are not conversation: no remirror, no answer
+ *   bubble. Typed slash commands stay local — we classify by origin, not
+ *   by a leading `/`.
  * - Nothing posts when unattached (sessionless) or when there is no answer
  *   text (e.g. a run that was pure tool calls with no closing message).
  */
 
-export type UserKind = "remote" | "dispatch" | "local";
+export type UserKind = "remote" | "dispatch" | "local" | "harness";
 
 export const REMOTE_PREFIX = "[DevSpec remote — message from";
 export const DISPATCH_PREFIX = "[DevSpec remote — work dispatch";
+export const HARNESS_BG_CUSTOM_TYPE = "background-task-notification";
+
+/**
+ * Leftover harness origin (item 56b9a3b4). Prefer Pi's customType, then the
+ * XML notifyCompletion actually injects, then the TUI `[bg completed]` line.
+ * A typed `/bg-update` is NOT harness — slash commands stay first-class local.
+ */
+export function isHarnessOrigin(text: string, customType?: string | null): boolean {
+	if (customType === HARNESS_BG_CUSTOM_TYPE) return true;
+	const t = text.trim();
+	if (!t) return false;
+	if (t.includes("<background-task-notification")) return true;
+	return /^\[bg (completed|failed|killed)\]/m.test(t);
+}
+
+export function classifyUserKind(text: string, customType?: string | null): UserKind {
+	if (text.startsWith(REMOTE_PREFIX)) return "remote";
+	if (text.startsWith(DISPATCH_PREFIX)) return "dispatch";
+	if (isHarnessOrigin(text, customType)) return "harness";
+	return "local";
+}
 
 export class TurnTracker {
 	userKind: UserKind | null = null;
@@ -42,22 +68,30 @@ export class TurnTracker {
 	lastCloseWasAnswer = false;
 	/** True until this segment posts its first user-facing answer. */
 	awaitingFirstAnswer = false;
+	/** True only for a freshly typed local prompt — never after carryUser. */
+	shouldMirrorPrompt = false;
 
-	userMessage(text: string): void {
+	userMessage(text: string, origin?: { customType?: string | null }): void {
+		const kind = classifyUserKind(text, origin?.customType);
+		// A leftover wake may replay the last typed prompt as a user message.
+		// Once this segment is harness, stay harness — do not remirror that prompt.
+		if (this.userKind === "harness" && kind !== "remote" && kind !== "dispatch") {
+			this.awaitingFirstAnswer = false;
+			this.shouldMirrorPrompt = false;
+			return;
+		}
 		this.userText = text;
 		this.awaitingFirstAnswer = true;
-		if (text.startsWith(REMOTE_PREFIX)) this.userKind = "remote";
-		else if (text.startsWith(DISPATCH_PREFIX)) this.userKind = "dispatch";
-		else this.userKind = "local";
+		this.userKind = kind;
+		this.shouldMirrorPrompt = kind === "local";
 	}
 
-	/** Copy the user kind onto a continuation segment without re-arming first-answer. */
+	/** Copy the user kind onto a continuation segment without re-arming first-answer or remirroring. */
 	carryUser(text: string): void {
 		this.userText = text;
 		this.awaitingFirstAnswer = false;
-		if (text.startsWith(REMOTE_PREFIX)) this.userKind = "remote";
-		else if (text.startsWith(DISPATCH_PREFIX)) this.userKind = "dispatch";
-		else this.userKind = "local";
+		this.userKind = classifyUserKind(text);
+		this.shouldMirrorPrompt = false;
 	}
 
 	assistantFinal(text: string, closedAnswer = false): void {
@@ -136,10 +170,12 @@ export function isClosedAnswer(input: {
 
 export function planSettle(tracker: TurnTracker, attached: boolean): SettlePlan {
 	if (!attached) return { kind: "none" };
+	// Harness leftovers may wake the model; they are not room content.
+	if (tracker.userKind === "harness") return { kind: "none" };
 	if (!tracker.lastAssistantText) return { kind: "none" };
-	if (tracker.userKind === "local") {
+	if (tracker.userKind === "local" && tracker.shouldMirrorPrompt) {
 		return { kind: "local_mirror", prompt: tracker.userText, answer: tracker.lastAssistantText };
 	}
-	// remote/dispatch runs (and unknowns with an answer): post the final.
+	// remote/dispatch, local continuations, and unknowns with an answer: post the final.
 	return { kind: "final", message: tracker.lastAssistantText };
 }

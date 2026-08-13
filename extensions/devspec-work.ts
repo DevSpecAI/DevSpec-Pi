@@ -170,6 +170,7 @@ export default function (pi: ExtensionAPI) {
 				"DevSpec commands:",
 				"  /devspec.work [item]  — work an action item (queue pick, or id/title)",
 				"  /devspec.remote       — bond as remote capacity (auto on launch; stop | auto on|off)",
+				"  /devspec.reload       — reload this extension (same as /reload)",
 				"  /devspec.login        — connect (token from the DevSpec Connections page)",
 				"  /devspec.status       — connection state",
 				"  /devspec.logout       — remove the stored token",

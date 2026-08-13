@@ -1,10 +1,10 @@
 /**
- * Owner-authority CONTROL execution (item c2cc8679).
+ * Owner-authority CONTROL execution (item c2cc8679 / dc2e1860).
  *
  * Lifecycle only. Never authors conversational content.
  */
 
-export const CONTROL_VERBS = ["abort", "set_model", "set_thinking", "compact"] as const;
+export const CONTROL_VERBS = ["abort", "set_model", "set_thinking", "compact", "reload"] as const;
 export type ControlVerb = (typeof CONTROL_VERBS)[number];
 
 export interface ControlCommand {
@@ -41,6 +41,7 @@ export interface ControlHost {
 	isIdle(): boolean;
 	abort(): void;
 	compact(): void;
+	reload(): Promise<void> | void;
 	setThinkingLevel(level: string): void;
 	setModel(modelId: string): Promise<boolean> | boolean;
 	notify(message: string): void;
@@ -67,5 +68,8 @@ export async function executeControlCommand(cmd: ControlCommand, host: ControlHo
 			const ok = await host.setModel(model);
 			return ok ? `model=${model}` : `model not available: ${model}`;
 		}
+		case "reload":
+			await host.reload();
+			return "reload requested";
 	}
 }

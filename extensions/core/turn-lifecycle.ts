@@ -66,6 +66,8 @@ export function isHarnessOrigin(text: string, customType?: string | null): boole
 	if (!t) return false;
 	if (CONTEXT_TEXT_PREFIXES.some((prefix) => t.startsWith(prefix))) return true;
 	if (t.includes("<background-task-notification")) return true;
+	// CONTROL reload queues this command; it is not a typed local prompt.
+	if (t === "/devspec.reload") return true;
 	return /^\[bg (completed|failed|killed)\]/m.test(t);
 }
 

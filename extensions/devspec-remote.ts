@@ -686,6 +686,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					isIdle: () => ctx.isIdle(),
 					abort: () => pi_abort(),
 					compact: () => pi_compact(),
+					reload: () => pi_reload(),
 					setThinkingLevel: (level) => pi_setThinking(level),
 					setModel: (modelId) => pi_setModel(modelId),
 					notify: (message) => notify(ctx, message),
@@ -886,6 +887,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 let pi_send: (message: string, mode?: "now" | "steer" | "followUp") => void = () => {};
 let pi_abort: () => void = () => {};
 let pi_compact: () => void = () => {};
+let pi_reload: () => Promise<void> = async () => {};
 let pi_setThinking: (level: string) => void = () => {};
 let pi_setModel: (modelId: string) => Promise<boolean> = async () => false;
 
@@ -967,6 +969,11 @@ export default function (pi: ExtensionAPI) {
 	};
 	pi_compact = () => {
 		lastCtx?.compact?.({});
+	};
+	pi_reload = async () => {
+		// reload() is command-context only. Queue the registered command so
+		// Pi runs the same TUI /reload path (docs/extensions.md).
+		pi.sendUserMessage("/devspec.reload", { deliverAs: "followUp" });
 	};
 	pi_setThinking = (level) => {
 		pi.setThinkingLevel?.(level as never);
@@ -1182,6 +1189,14 @@ export default function (pi: ExtensionAPI) {
 		if (outcome.ok) {
 			notify(ctx, `DevSpec remote: auto-bonded as ${outcome.codename ?? "agent"} — you're reachable from the Agents page. /devspec.remote stop to end.`);
 		}
+	});
+
+	pi.registerCommand("devspec.reload", {
+		description: "Reload this Pi extension (same as /reload). Used by DevSpec CONTROL.",
+		handler: async (_args, ctx) => {
+			await ctx.reload();
+			return;
+		},
 	});
 
 	pi.registerCommand("devspec.remote", {

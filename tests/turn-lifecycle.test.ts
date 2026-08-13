@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { formatDispatchMessage } from "../extensions/core/dispatch.ts";
-import { planSettle, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
+import { isDeliveryBoundary, planSettle, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 
 function remoteTurn(answer: string): TurnTracker {
 	const t = new TurnTracker();
@@ -73,6 +73,36 @@ test("the new single-line envelope still classifies as remote (2b072496)", () =>
 	const t = new TurnTracker();
 	t.userMessage("[DevSpec remote — message from Ali to Wary Wolf] do the thing");
 	assert.equal(t.userKind, "remote");
+});
+
+test("a user message with an accumulated answer is a delivery boundary (b1fb756a)", () => {
+	// Segment has produced text → the injection closes it as its own bubble.
+	assert.equal(isDeliveryBoundary(remoteTurn("the answer so far")), true);
+	// No text yet → the injection just joins the open segment.
+	const fresh = new TurnTracker();
+	assert.equal(isDeliveryBoundary(fresh), false);
+	const zw = new TurnTracker();
+	zw.assistantFinal("\u200B");
+	assert.equal(isDeliveryBoundary(zw), false, "zero-width narration is not an answer worth closing on");
+});
+
+test("segments deliver per message: each message's answer is its own bubble (b1fb756a)", () => {
+	// Segment 1: remote question → answer text accumulates.
+	const s1 = remoteTurn("answer one");
+	assert.equal(isDeliveryBoundary(s1), true);
+	assert.deepEqual(planSettle(s1, true), { kind: "final", message: "answer one" });
+	// The followUp starts segment 2: it classifies and answers independently —
+	// segment 1's text is gone from the tracker, never replaced-at-run-end.
+	const s2 = new TurnTracker();
+	s2.userMessage("[DevSpec remote — message from Ali to Wary Wolf]\nsecond question");
+	s2.assistantFinal("answer two");
+	assert.equal(s2.userKind, "remote");
+	assert.deepEqual(planSettle(s2, true), { kind: "final", message: "answer two" });
+	// A notification-segment (no remote prefix) mirrors as a local prompt pair.
+	const s3 = new TurnTracker();
+	s3.userMessage("[background task finished]");
+	s3.assistantFinal("ack");
+	assert.deepEqual(planSettle(s3, true), { kind: "local_mirror", prompt: "[background task finished]", answer: "ack" });
 });
 
 test("formatDispatchMessage carries the protocol steps and payload", () => {

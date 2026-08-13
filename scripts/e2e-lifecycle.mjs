@@ -81,7 +81,7 @@ try {
 		120_000,
 		"assistant reply",
 	);
-	await new Promise((r) => setTimeout(r, 6000)); // settle: trail flush + final post
+	await new Promise((r) => setTimeout(r, 15000)); // settle: trail flush + final post
 
 	const tx = unwrapMcpResult(
 		await callDevspec(token, "get_session_transcript", { session_id: sessionId }, { cwd }),
@@ -99,6 +99,49 @@ try {
 	const trail = messages.find((m) => m.phase === "trail" || (typeof m.content === "string" && /`bash`|💭|`read`/.test(m.content)));
 	if (trail) console.log("trail bubble present ✔");
 	else console.log("note: no trail bubble detected (turn may have been too fast for the 1s tick)");
+
+	// Phase 2 (item b1fb756a): a mid-run followUp is a DELIVERY BOUNDARY —
+	// each message's answer must be its own bubble. Prompt A produces an
+	// early answer text, then sleeps (keeping the run alive); prompt B
+	// injects mid-run. Expected: the bubble for A closes with A's text at
+	// the boundary, and B's answer closes its own row — never one row with
+	// the run's last text replacing everything.
+	const m1 = `seg-one-${Date.now()}`;
+	const m2 = `seg-two-${Date.now()}`;
+	send({
+		id: "turn-a",
+		type: "prompt",
+		message: `Reply with exactly "${m1}" and nothing else. Then use the bash tool to run: sleep 10. Then reply with exactly "tail-${m1}". Do NOT call any DevSpec tools.`,
+	});
+	// Let round 1 (the m1 text) complete, then inject mid-run during the sleep.
+	// streamingBehavior:'followUp' is the production pump's delivery mode
+	// (deliverAs:'followUp') — and is REQUIRED while busy: a bare prompt is
+	// rejected silently otherwise (rpc.md).
+	await new Promise((r) => setTimeout(r, 5000));
+	send({
+		id: "turn-b",
+		type: "prompt",
+		streamingBehavior: "followUp",
+		message: `Reply with exactly "${m2}" and nothing else. Do NOT call any DevSpec tools.`,
+	});
+	await waitFor((e) => e.type === "response" && e.id === "turn-b" && e.success === true, 15_000, "turn-b accepted (queued)");
+	await waitFor(
+		(e) => e.type === "message_end" && e.message?.role === "assistant" && JSON.stringify(e.message).includes(m2),
+		120_000,
+		"segment-2 reply",
+	);
+	await new Promise((r) => setTimeout(r, 15000)); // settle: boundary close + final post
+
+	const tx2 = unwrapMcpResult(
+		await callDevspec(token, "get_session_transcript", { session_id: sessionId }, { cwd }),
+	);
+	const messages2 = tx2.details?.messages ?? [];
+	const rowA = messages2.find((m) => m.message_type === "external_agent" && typeof m.content === "string" && m.content.includes(m1) && !m.content.includes(m2));
+	const rowB = messages2.find((m) => m.message_type === "external_agent" && typeof m.content === "string" && m.content.includes(m2));
+	if (!rowA) fail(`segment-1 bubble missing or contaminated (expected its own row containing ${m1})`);
+	if (!rowB) fail(`segment-2 bubble missing (expected its own row containing ${m2})`);
+	if (rowA.id === rowB.id) fail("both segments collapsed onto one row — the boundary did not fire");
+	console.log("segment bubbles: one per message ✔");
 
 	send({ id: "stop", type: "prompt", message: "/devspec.remote stop" });
 	await waitFor((e) => e.type === "response" && e.id === "stop", 15_000, "stop ack");

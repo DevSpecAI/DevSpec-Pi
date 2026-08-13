@@ -445,6 +445,12 @@ Tracked as DevSpec items — this list is a pointer, the items are the truth:
   capture proposals at decision moments
 
 Shipped 2026-08-12 late (Nimble Eagle):
+- `b1fb756a` — delivery boundary = the user message, not just the run end.
+  A mid-run followUp injection (owner message, terminal typing, queued
+  notification) settles the current segment as its own bubble before the
+  new message starts a fresh segment. Fixes the 27-minute one-bubble
+  incident: four real answers collapsed into the run's last text because
+  followUps extend the run (no agent_settled between them).
 - `cc9e8c43` — mechanical-only answer delivery, owner-directed: the model's
   final terminal message IS the DevSpec answer, delivered by the extension at
   settle. Deleted the model-facing post_session_message tool, the toolPosted

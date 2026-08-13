@@ -15,6 +15,12 @@
  *   agent_start / first turn_start and lives until agent_settled — never
  *   reset per round. Per-round state was the double-bubble root cause:
  *   suppression marks landed on a tracker the next round threw away.
+ * - …and SEGMENT-delimited (item b1fb756a): a user message injected mid-run
+ *   (owner followUp, terminal typing, a queued notification) is a delivery
+ *   boundary. The text accumulated so far is the answer to the PREVIOUS
+ *   message — it closes as its own bubble, and the new message starts a
+ *   fresh segment. The run is the execution unit; the segment is the
+ *   delivery unit.
  * - Runs started by a LOCAL prompt (typed in the terminal while attached)
  *   also mirror the prompt as turn_kind:'local_prompt' before the answer, so
  *   the DevSpec transcript is two-sided.
@@ -51,6 +57,16 @@ export type SettlePlan =
 	| { kind: "none" }
 	| { kind: "final"; message: string }
 	| { kind: "local_mirror"; prompt: string; answer: string };
+
+/**
+ * Whether a user message arriving mid-run forces a delivery boundary
+ * (item b1fb756a). Only a segment that has PRODUCED an answer text has
+ * something to close — an injection before the first assistant text simply
+ * joins the current segment.
+ */
+export function isDeliveryBoundary(tracker: TurnTracker): boolean {
+	return tracker.lastAssistantText !== "";
+}
 
 export function planSettle(tracker: TurnTracker, attached: boolean): SettlePlan {
 	if (!attached) return { kind: "none" };

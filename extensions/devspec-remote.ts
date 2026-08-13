@@ -36,7 +36,7 @@ import { unwrapMcpResult } from "./core/result.ts";
 import { buildAttachBlock, shapeTranscript } from "./core/attach-context.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { buildAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
-import { planSettle, TurnTracker } from "./core/turn-lifecycle.ts";
+import { planSettle, isDeliveryBoundary, TurnTracker } from "./core/turn-lifecycle.ts";
 import { formatDispatchMessage } from "./core/dispatch.ts";
 import { buildRoomDigest } from "./core/orientation.ts";
 import { openPushChannel, nextPushReconnectDelayMs } from "./core/push-channel.ts";
@@ -217,29 +217,25 @@ async function reportComplete(reason: string): Promise<void> {
 }
 
 /**
- * Settle the turn. Returns true when a final answer post with complete_turn
- * landed (that post closes the activity attempt itself); false means the turn
- * ended silently (aborted/empty/failed post) and the caller must close the
- * attempt explicitly via reportComplete.
+ * Post a captured segment's answer. The SEGMENT is the delivery unit
+ * (b1fb756a): called at run end (settleTurn) AND at a mid-run user-message
+ * boundary (splitTurnAtBoundary). Returns true when a final answer post with
+ * complete_turn landed (that post closes the activity attempt itself).
  */
-async function settleTurn(agentStats: AgentStatsReport | null): Promise<boolean> {
-	const t = turn;
-	turn = null;
-	if (!t) { debug("settleTurn: no turn state"); return false; }
-	if (t.interval) clearInterval(t.interval);
+async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | null, why: string): Promise<boolean> {
 	const bond = getBond();
-	if (!bond?.sessionId) { debug("settleTurn: not attached"); return false; }
+	if (!bond?.sessionId) { debug(`settleSegment(${why}): not attached`); return false; }
 
 	// The final render rides the answer post (item 9b7455df): the server
 	// REPLACES the fold-merged accumulation with this canonical final render —
-	// every tool closed, the whole run's thinking — so the preserved 'Show
-	// work' is exact, and one fewer post is spent. It renders at the larger
-	// final cap: the trail is run-scoped (cc9e8c43), and the live-tick 12k
-	// window would discard earlier rounds the fold had preserved. A run with
-	// no answer still flushes its trail the old way so the work is visible.
+	// every tool closed, the whole segment's thinking — so the preserved
+	// 'Show work' is exact, and one fewer post is spent. It renders at the
+	// larger final cap: the live-tick 12k window would discard earlier rounds
+	// the fold had preserved. A segment with no answer still flushes its
+	// trail the old way so the work is visible.
 	const finalTrail = t.trail.render(FINAL_TRAIL_CHARS);
 	const plan = planSettle(t.tracker, true);
-	debug(`settleTurn: plan ${plan.kind}, final trail ${finalTrail.length} chars`);
+	debug(`settleSegment(${why}): plan ${plan.kind}, final trail ${finalTrail.length} chars`);
 	if (plan.kind === "final") {
 		// phase 'answer' closes the trail bubble (preserved as "Show work").
 		return await postToSession(plan.message, { phase: "answer", completeTurn: true, workTrail: finalTrail || undefined, agentStats: agentStats ?? undefined });
@@ -251,6 +247,48 @@ async function settleTurn(agentStats: AgentStatsReport | null): Promise<boolean>
 		await postToSession(finalTrail, { phase: "trail" });
 	}
 	return false;
+}
+
+/**
+ * Settle the run's open segment at agent_settled. Returns true when a final
+ * answer post with complete_turn landed (that post closes the activity
+ * attempt itself); false means the run ended silently (aborted/empty/failed
+ * post) and the caller must close the attempt explicitly via reportComplete.
+ */
+async function settleTurn(agentStats: AgentStatsReport | null): Promise<boolean> {
+	const t = turn;
+	turn = null;
+	if (!t) { debug("settleTurn: no turn state"); return false; }
+	if (t.interval) clearInterval(t.interval);
+	return await postSegmentAnswer(t, agentStats, "run_end");
+}
+
+/**
+ * A user message arriving MID-RUN (owner followUp, terminal typing, an
+ * injected notification) is a delivery boundary (item b1fb756a): the text
+ * accumulated so far is the answer to the PREVIOUS message, and it must
+ * close as its own bubble — not wait for run end and be replaced by whatever
+ * the run says last (the 27-minute one-bubble incident, session d8883a49).
+ * The split is mechanical: swap the state synchronously so subsequent events
+ * land on the fresh segment, then close the captured one asynchronously.
+ */
+function splitTurnAtBoundary(): void {
+	const t = turn;
+	if (!t) return;
+	if (t.interval) clearInterval(t.interval);
+	const interval = setInterval(trailTick, TRAIL_INTERVAL_MS);
+	if (typeof interval.unref === "function") interval.unref();
+	turn = {
+		tracker: new TurnTracker(),
+		trail: new TrailBuilder(),
+		dirty: false,
+		posts: 0,
+		lastPostAt: 0,
+		interval,
+	};
+	postWarnedThisTurn = false;
+	debug("message_start: delivery boundary — closing previous segment");
+	void postSegmentAnswer(t, null, "boundary");
 }
 
 /**
@@ -732,7 +770,13 @@ export default function (pi: ExtensionAPI) {
 		lastCtx = ctx;
 		if (!turn) return;
 		const msg = event.message as { role?: string } | undefined;
-		if (msg?.role === "user") turn.tracker.userMessage(extractText(event.message));
+		if (msg?.role === "user") {
+			// A mid-run user message is a delivery boundary (b1fb756a): close the
+			// current segment as its own bubble first. An injection before any
+			// assistant text simply joins the open segment.
+			if (isDeliveryBoundary(turn.tracker)) splitTurnAtBoundary();
+			turn.tracker.userMessage(extractText(event.message));
+		}
 		// A new assistant message = a new LLM round: its thinking/text open
 		// fresh trail entries instead of replacing the previous round's.
 		else if (msg?.role === "assistant") turn.trail.beginAssistantMessage();

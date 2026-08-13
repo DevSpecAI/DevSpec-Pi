@@ -16,11 +16,12 @@
  *   reset per round. Per-round state was the double-bubble root cause:
  *   suppression marks landed on a tracker the next round threw away.
  * - …and SEGMENT-delimited (item b1fb756a + f0df6c3e): a user message injected
- *   mid-run is a delivery boundary, AND so is a complete text-only assistant
- *   close (stopReason=stop, no toolCall blocks). That close is a finished
- *   answer bubble — not Working, not trail narration. Later thinking/tools
- *   in the same run open a fresh Working trail. The run is the execution
- *   unit; the segment is the delivery unit.
+ *   mid-run is a delivery boundary. The FIRST user-facing assistant text after
+ *   that user message is the finished answer for the thinking so far — even
+ *   when the same assistant message also has toolCall blocks (round 2: the
+ *   "Ali, I'll check…" line that lived in Show work). Later tools/thinking
+ *   open a fresh Working trail. A later text-only close is another boundary.
+ *   The run is the execution unit; the segment is the delivery unit.
  * - Runs started by a LOCAL prompt (typed in the terminal while attached)
  *   also mirror the prompt as turn_kind:'local_prompt' before the answer, so
  *   the DevSpec transcript is two-sided.
@@ -39,9 +40,21 @@ export class TurnTracker {
 	lastAssistantText = "";
 	/** True when the last assistant close was a finished text-only answer. */
 	lastCloseWasAnswer = false;
+	/** True until this segment posts its first user-facing answer. */
+	awaitingFirstAnswer = false;
 
 	userMessage(text: string): void {
 		this.userText = text;
+		this.awaitingFirstAnswer = true;
+		if (text.startsWith(REMOTE_PREFIX)) this.userKind = "remote";
+		else if (text.startsWith(DISPATCH_PREFIX)) this.userKind = "dispatch";
+		else this.userKind = "local";
+	}
+
+	/** Copy the user kind onto a continuation segment without re-arming first-answer. */
+	carryUser(text: string): void {
+		this.userText = text;
+		this.awaitingFirstAnswer = false;
 		if (text.startsWith(REMOTE_PREFIX)) this.userKind = "remote";
 		else if (text.startsWith(DISPATCH_PREFIX)) this.userKind = "dispatch";
 		else this.userKind = "local";
@@ -51,7 +64,10 @@ export class TurnTracker {
 		// Zero-width/format characters are not text: a "​" final is not an
 		// answer and must never produce a bubble (857d984c, instance 4).
 		const cleaned = text.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
-		if (cleaned) this.lastAssistantText = cleaned;
+		if (cleaned) {
+			this.lastAssistantText = cleaned;
+			this.awaitingFirstAnswer = false;
+		}
 		// Only a real stored close can be an answer; empty/zw text never is.
 		this.lastCloseWasAnswer = Boolean(cleaned) && closedAnswer;
 	}
@@ -75,6 +91,25 @@ export function isDeliveryBoundary(tracker: TurnTracker): boolean {
 /** Next assistant round after a text-only close — the ack is its own bubble. */
 export function isClosedAnswerBoundary(tracker: TurnTracker): boolean {
 	return tracker.lastCloseWasAnswer && tracker.lastAssistantText !== "";
+}
+
+/**
+ * First user-facing text after a user message, when that same assistant
+ * message also starts tools (item f0df6c3e round 2). That line is the
+ * finished answer for the thinking so far — even though hasToolCalls would
+ * make isClosedAnswer false. Later tool events belong on a new trail.
+ */
+export function shouldSplitFirstAnswer(
+	tracker: TurnTracker,
+	input: { text: string; hasToolCalls: boolean },
+): boolean {
+	if (!tracker.awaitingFirstAnswer) return false;
+	const cleaned = input.text.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+	if (!cleaned) return false;
+	// Same-message tools: this line is the answer; later tools get a new trail.
+	// Text-only first closes wait for the next assistant round (or settle),
+	// so a normal one-shot still posts once with complete_turn=true.
+	return input.hasToolCalls;
 }
 
 const CLOSED_ANSWER_STOPS = new Set(["stop"]);

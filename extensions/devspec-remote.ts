@@ -38,7 +38,7 @@ import { unwrapMcpResult } from "./core/result.ts";
 import { buildAttachBlock, shapeTranscript } from "./core/attach-context.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { buildAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
-import { planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, TurnTracker } from "./core/turn-lifecycle.ts";
+import { planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitFirstAnswer, TurnTracker } from "./core/turn-lifecycle.ts";
 import { formatDispatchMessage } from "./core/dispatch.ts";
 import { buildRoomDigest } from "./core/orientation.ts";
 import { openPushChannel, nextPushReconnectDelayMs } from "./core/push-channel.ts";
@@ -286,7 +286,7 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 	const interval = setInterval(trailTick, TRAIL_INTERVAL_MS);
 	if (typeof interval.unref === "function") interval.unref();
 	const next = new TurnTracker();
-	if (t.tracker.userText) next.userMessage(t.tracker.userText);
+	if (t.tracker.userText) next.carryUser(t.tracker.userText);
 	turn = {
 		tracker: next,
 		trail: new TrailBuilder(),
@@ -855,7 +855,11 @@ export default function (pi: ExtensionAPI) {
 			// Round sealed: the next deltas open fresh entries (cc9e8c43).
 			turn.trail.beginAssistantMessage();
 			turn.dirty = true;
-			turn.tracker.assistantFinal(text, isClosedAnswer({ text, hasToolCalls, stopReason }));
+			const firstSplit = shouldSplitFirstAnswer(turn.tracker, { text, hasToolCalls });
+			turn.tracker.assistantFinal(text, firstSplit || isClosedAnswer({ text, hasToolCalls, stopReason }));
+			// First user-facing line after a user message is the answer for the
+			// thinking so far, even when this same message also starts tools.
+			if (firstSplit) splitTurnAtBoundary("first_answer", false);
 		}
 	});
 

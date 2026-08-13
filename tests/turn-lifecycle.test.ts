@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { formatDispatchMessage } from "../extensions/core/dispatch.ts";
-import { isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, planSettle, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
+import { isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, planSettle, shouldSplitFirstAnswer, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 
 function remoteTurn(answer: string): TurnTracker {
 	const t = new TurnTracker();
@@ -133,6 +133,31 @@ test("the next assistant round after a text-only close is a delivery boundary", 
 	const empty = new TurnTracker();
 	empty.assistantFinal("\u200B", true);
 	assert.equal(isClosedAnswerBoundary(empty), false);
+});
+
+test("first user-facing text after a user message splits even when the same message has tools (f0df6c3e r2)", () => {
+	const t = new TurnTracker();
+	t.userMessage("[DevSpec remote — message from Ali to Wary Wolf]\ninterrupt");
+	assert.equal(t.awaitingFirstAnswer, true);
+	assert.equal(
+		shouldSplitFirstAnswer(t, { text: "Yes Ali — interrupt landed. Carrying on.", hasToolCalls: true }),
+		true,
+	);
+	// Consume the first answer the way message_end does.
+	t.assistantFinal("Yes Ali — interrupt landed. Carrying on.", true);
+	assert.equal(t.awaitingFirstAnswer, false);
+	assert.equal(shouldSplitFirstAnswer(t, { text: "looking", hasToolCalls: true }), false, "later tool-loop narration does not split again");
+
+	const next = new TurnTracker();
+	next.carryUser(t.userText);
+	assert.equal(next.awaitingFirstAnswer, false);
+	assert.equal(next.userKind, "remote");
+	assert.equal(shouldSplitFirstAnswer(next, { text: "looking", hasToolCalls: true }), false);
+
+	const silent = new TurnTracker();
+	silent.userMessage("[DevSpec remote — message from Ali to Wary Wolf]\nhi");
+	assert.equal(shouldSplitFirstAnswer(silent, { text: "", hasToolCalls: true }), false);
+	assert.equal(shouldSplitFirstAnswer(silent, { text: "Ali, I'll check the attachments.", hasToolCalls: false }), false, "text-only first close waits for the next round or settle so Working can clear");
 });
 
 test("formatDispatchMessage carries the protocol steps and payload", () => {

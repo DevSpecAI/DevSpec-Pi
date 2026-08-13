@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { isCallableModelVerb, modelFacingSurface } from "../extensions/core/model-surface.ts";
+import { modelFacingCatalog } from "../extensions/devspec-tools.ts";
 import {
 	CATALOG_COUNTS,
 	MCP_CATALOG,
@@ -7,8 +9,6 @@ import {
 	NEVER_MODEL_VERBS,
 	PUMP_VERBS,
 } from "../extensions/generated/mcp-catalog.ts";
-import { modelFacingCatalog } from "../extensions/devspec-tools.ts";
-import { buildDevspecInstructions } from "../extensions/core/instructions.ts";
 
 test("catalog classifies the 12 pump verbs as non-model", () => {
 	for (const name of PUMP_VERBS) {
@@ -23,9 +23,10 @@ test("catalog classifies the 12 pump verbs as non-model", () => {
 test("post_session_message is never a model-facing tool", () => {
 	assert.ok(NEVER_MODEL_VERBS.includes("post_session_message"));
 	assert.ok(!modelFacingCatalog().some((e) => e.name === "post_session_message"));
+	assert.ok(!isCallableModelVerb("post_session_message"));
 });
 
-test("previously gateway-only verbs are native model tools", () => {
+test("catalog remains the complete wire map", () => {
 	const required = [
 		"record_criterion_verdicts",
 		"resolve_action_item_conflict",
@@ -34,10 +35,14 @@ test("previously gateway-only verbs are native model tools", () => {
 		"classify_criterion",
 		"verify_action_item",
 	];
-	const native = new Set(modelFacingCatalog().map((e) => e.name));
 	for (const name of required) {
-		assert.ok(native.has(name), `missing native verb ${name}`);
+		assert.ok(MODEL_VERB_NAMES.includes(name as (typeof MODEL_VERB_NAMES)[number]), `missing wire verb ${name}`);
+		assert.ok(isCallableModelVerb(name), `${name} must stay callable`);
 	}
+	assert.ok(modelFacingSurface().some((e) => e.name === "record_criterion_verdicts"));
+	assert.ok(modelFacingSurface().some((e) => e.name === "get_session_transcript"));
+	assert.ok(!modelFacingSurface().some((e) => e.name === "get_action_item_history"));
+	assert.ok(!modelFacingSurface().some((e) => e.name === "classify_criterion"));
 });
 
 test("every catalog entry has a schema and a name", () => {
@@ -47,20 +52,4 @@ test("every catalog entry has a schema and a name", () => {
 		assert.equal(typeof entry.inputSchema, "object");
 		assert.ok(entry.inputSchema);
 	}
-});
-
-test("instructions mention only model-facing verbs", () => {
-	const text = buildDevspecInstructions();
-	const registered = new Set(modelFacingCatalog().map((e) => e.name));
-	const mentioned = text.match(/\b[a-z]+_[a-z_]+\b/g) ?? [];
-	for (const word of new Set(mentioned)) {
-		if (!registered.has(word)) continue;
-		assert.ok(registered.has(word), `instructions mention unregistered tool: ${word}`);
-		assert.ok(!PUMP_VERBS.includes(word as (typeof PUMP_VERBS)[number]), `instructions leaked pump verb ${word}`);
-		assert.ok(word !== "post_session_message", "instructions must not mention post_session_message");
-	}
-	assert.match(text, /record_criterion_verdicts/);
-	assert.match(text, /resolve_action_item_conflict/);
-	assert.match(text, /get_session_transcript/);
-	assert.match(text, /never describe→call/);
 });

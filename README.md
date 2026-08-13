@@ -26,9 +26,9 @@ and binds all implementation decisions in this repo.
 ## Status
 
 **Phase 2 complete**: embedded MCP transport, `/devspec.login` / `/devspec.logout`
-/ `/devspec.status`, and 15 native tools (projects, action items, memory
-read/write, document search, product help). Remote control, proactive memory,
-and onboarding UI come next — see the phasing plan in VISION.md.
+/ `/devspec.status`. Everyday DevSpec work is a small native hot set; less-common
+verbs go through one `devspec` gateway. The generated MCP catalog is the wire
+map, not what the model sees. See VISION.md.
 
 ## Development
 

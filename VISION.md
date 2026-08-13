@@ -132,8 +132,9 @@ devspec-pi/                        ← this repo, published as one npm package
 │   ├── core/                      ← INTERNAL client: MCP transport, auth store,
 │   │                                bond lifecycle, turn pump, memory engine
 │   ├── devspec-auth.ts            ← /devspec.login, token lifecycle, status
-│   ├── generated/mcp-catalog.ts   ← generated from DevSpecV2 tool-definitions (item 523f1512)
-│   ├── devspec-tools.ts           ← registers every model-facing verb from the catalog
+│   ├── generated/mcp-catalog.ts   ← WIRE map (item 523f1512) — not registered wholesale
+│   ├── core/model-surface.ts      ← Pi-shaped hot set + rare-verb gateway (item 7de79db6)
+│   ├── devspec-tools.ts           ← registers the hot set, not the 76-verb dump
 │   ├── devspec-remote.ts          ← remote control (see below)
 │   ├── devspec-memory.ts          ← proactive recall + capture
 │   ├── devspec-onboard.ts         ← first-run experience, /devspec.help
@@ -154,10 +155,17 @@ pump) is fine as module scope.
 
 The DevSpec MCP endpoint (`https://devspec.ai/api/mcp`) is a **stateless
 Streamable HTTP, POST-only, bearer-token** bridge (verified in
-`apps/web/app/api/mcp/route.ts`). That is ideal: this package embeds a
-minimal MCP client and surfaces every DevSpec verb as a **native pi tool**
-(`pi.registerTool`) with proper schemas, custom TUI renderers, first-class
-error handling, and auth integration.
+`apps/web/app/api/mcp/route.ts`). That is the **wire**. This package embeds
+a minimal MCP client and speaks those verb names. What the *model* sees is
+a **Pi-shaped surface**, not a 1:1 dump of `tool-definitions.ts`:
+
+- always-on hot set (~15 everyday verbs) with short snippets and slimed schemas
+- rare verbs (playbooks, reviews, instruction-rule import, …) via one `devspec` gateway
+- extension stamps `git_remote` / project / session / bond ids — the model is never asked
+- target prefix for DevSpec tools + workflow block: **2–8k tokens**, not ~60k
+
+The generated catalog (`523f1512`) stays as the wire map + drift test. Do
+not regenerate it and register all 76 verbs again.
 
 This is the crucial middle path:
 
@@ -381,12 +389,14 @@ current contract, adopted here first, migrated to other hosts only if proven.
 1. **Scaffold + this document.** ✅
 2. **Core transport + auth + native tools** — usable interactive sessions:
    login, action items, search, memory tools with real renderers. ✅
-   (embedded MCP client, `/devspec.login|logout|status`, 15 native tools,
-   staging/prod environments; custom TUI renderers still TODO)
+   (embedded MCP client, `/devspec.login|logout|status`, staging/prod.
+   Completeness of verbs shipped as a catalog dump in `523f1512`; the
+   **product** is the Pi-shaped hot set in `7de79db6` — ~15 always-on
+   tools + a rare-verb gateway, ~2–8k prefix. Custom TUI renderers still TODO)
 3. **System-prompt injection + slash commands** — workflows native. ✅
-   (`before_agent_start` workflow block; `/devspec.work` with live item
-   completion; `/devspec.help`; +5 workflow verbs: create/claim/release/
-   record/update; reactive git_remote project scoping)
+   (`before_agent_start` workflow block is tight: no "Check DevSpec first",
+   no 76-verb when-X-call-Y dump. `/devspec.work` with live item completion;
+   `/devspec.help`; reactive git_remote project scoping)
 4. **Remote control** — bond, pump, ingress/egress per contract. **Slice 1 ✅**
    (`/devspec.remote [--session id] | stop`; register/revive with local_id =
    pi session id; one held 25s `poll_connection` per bond; owner commands →
@@ -426,13 +436,18 @@ current contract, adopted here first, migrated to other hosts only if proven.
 6. **Onboarding polish, theme, embedded user-MCP support.**
 7. **Headless worker CLI** (cloud primitive, dogfooded locally first).
 
-## Next-up queue (as of 2026-08-12 late evening)
+Shipped 2026-08-13 (Fierce Kestrel / Restless Squirrel):
+- `d2f4f25c` — mechanically suppress an adapter-mounted DevSpec MCP server.
+- `7de79db6` — Pi-shaped model surface: hot set + `devspec` gateway. The
+  generated catalog is the wire map, not the product. Target prefix 2–8k.
+
+## Next-up queue (as of 2026-08-13)
 
 Tracked as DevSpec items — this list is a pointer, the items are the truth:
 
-- `1906e21f` — control plane TELEMETRY slice: per-turn usage (tokens/cost/
-  context%/cache) reported mechanically + rendered live in the UI (rescoped
-  2026-08-12; the control half split out)
+- `274c9f15` — mechanical first-touch: stop telling the model to search first
+  (partially landed with `7de79db6`'s instruction rewrite; remaining: do not
+  expand recall, attach-agenda is `f9fa2767`)
 - `c2cc8679` — control channel: owner-authority CONTROL verbs executed
   in-process (abort mid-turn, set model/thinking, compact, run slash command)
 - `2219b653` — greenfield STRUCTURED audit trail: typed turn events end-to-end

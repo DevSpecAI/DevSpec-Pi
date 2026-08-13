@@ -1,14 +1,10 @@
 /**
- * DevSpec Pi — native tools over the MCP verb surface (item 523f1512).
+ * DevSpec Pi — native tools (item 7de79db6).
  *
- * Every model-facing DevSpec verb is a native pi tool, generated from the
- * server's own tool-definitions (extensions/generated/mcp-catalog.ts). The
- * MCP surface remains the interop contract; this file is a projection of it,
- * not a handwritten mirror.
- *
- * Pump/lifecycle verbs stay extension-internal (the remote pump already
- * calls them). post_session_message is never registered — conversational
- * delivery is mechanical (item cc9e8c43).
+ * The generated catalog is the WIRE map. This file is the model surface:
+ * a small hot set of everyday verbs, plus one `devspec` gateway for the
+ * rest. Pump/lifecycle verbs stay extension-internal. post_session_message
+ * is never registered — conversational delivery is mechanical (cc9e8c43).
  *
  * Headless: tools work in every mode — errors come back as text the model can
  * act on (e.g. "run /devspec.login"), never as UI-only state.
@@ -16,13 +12,23 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { resolveToken } from "./core/auth-store.ts";
+import { getBond } from "./core/bond-state.ts";
 import { connectionsUrl, TOKEN_ENV_VAR } from "./core/config.ts";
 import { callDevspec } from "./core/client.ts";
 import { repoResolver, validateCommitSha } from "./core/commit-ledger.ts";
 import { addFlags, extractFlags } from "./core/conflict-watch.ts";
 import { jsonSchemaToTypebox } from "./core/json-schema.ts";
+import {
+	GATEWAY_DESCRIPTION,
+	GATEWAY_TOOL_NAME,
+	SCOPE_KEY_SET,
+	gatewayInputSchema,
+	modelFacingSurface,
+	rareModelVerbs,
+	resolveGatewayVerb,
+} from "./core/model-surface.ts";
 import { toolErrorResult, toolTextResult, unwrapMcpResult } from "./core/result.ts";
-import { MCP_CATALOG, type CatalogEntry } from "./generated/mcp-catalog.ts";
+import type { CatalogEntry } from "./generated/mcp-catalog.ts";
 
 /** Unwrap a DevSpec MCP result, converting isError payloads into thrown errors. */
 function unwrapOrThrow(name: string, raw: unknown) {
@@ -45,13 +51,10 @@ const NOT_CONNECTED =
 	`Not connected to DevSpec. Run /devspec.login, or set ${TOKEN_ENV_VAR}. ` +
 	`Tokens are minted at ${connectionsUrl()}.`;
 
-type Augment = (
-	params: Record<string, unknown>,
-	ctx: { sessionManager: { getSessionId(): string }; cwd: string },
-) => Record<string, unknown>;
+type CallCtx = { sessionManager: { getSessionId(): string }; cwd: string };
 
 /** Per-verb argument stamps that cannot live in the generated catalog. */
-const AUGMENTS: Record<string, Augment> = {
+const AUGMENTS: Record<string, (params: Record<string, unknown>, ctx: CallCtx) => Record<string, unknown>> = {
 	claim_work_item: (params, ctx) => ({
 		local_session_id: ctx.sessionManager.getSessionId(),
 		...params,
@@ -66,8 +69,36 @@ const AUGMENTS: Record<string, Augment> = {
 	},
 };
 
+/** Drop scope the extension already knows, then stamp bond/cwd values. */
+export function stampKnownScope(params: Record<string, unknown>): Record<string, unknown> {
+	const stamped: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(params)) {
+		if (SCOPE_KEY_SET.has(key)) continue;
+		stamped[key] = value;
+	}
+	const bond = getBond();
+	if (bond?.sessionId) stamped.session_id = bond.sessionId;
+	if (bond?.connectionId) stamped.connection_id = bond.connectionId;
+	return stamped;
+}
+
+async function executeVerb(name: string, params: Record<string, unknown>, ctx: CallCtx) {
+	const resolved = await resolveToken();
+	if (!resolved) return toolErrorResult(NOT_CONNECTED);
+	try {
+		const augment = AUGMENTS[name];
+		const args = stampKnownScope(augment ? augment(params, ctx) : params);
+		const raw = await callDevspec(resolved.token, name, args, { cwd: ctx.cwd });
+		const result = unwrapOrThrow(name, raw);
+		watchForSignals(name, result);
+		return result;
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		return toolErrorResult(message);
+	}
+}
+
 function registerCatalogTool(pi: ExtensionAPI, def: CatalogEntry): void {
-	const augment = AUGMENTS[def.name];
 	pi.registerTool({
 		name: def.name,
 		label: def.label,
@@ -75,30 +106,41 @@ function registerCatalogTool(pi: ExtensionAPI, def: CatalogEntry): void {
 		promptSnippet: def.promptSnippet,
 		parameters: jsonSchemaToTypebox(def.inputSchema),
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			const resolved = await resolveToken();
-			if (!resolved) return toolErrorResult(NOT_CONNECTED);
-			try {
-				const args = augment
-					? augment(params as Record<string, unknown>, ctx)
-					: (params as Record<string, unknown>);
-				const raw = await callDevspec(resolved.token, def.name, args, { cwd: ctx.cwd });
-				const result = unwrapOrThrow(def.name, raw);
-				watchForSignals(def.name, result);
-				return result;
-			} catch (err) {
-				const message = err instanceof Error ? err.message : String(err);
-				return toolErrorResult(message);
-			}
+			return executeVerb(def.name, params as Record<string, unknown>, ctx);
 		},
 	});
 }
 
+function registerGateway(pi: ExtensionAPI): void {
+	const rare = rareModelVerbs();
+	if (rare.length === 0) return;
+	pi.registerTool({
+		name: GATEWAY_TOOL_NAME,
+		label: "DevSpec: other verbs",
+		description: GATEWAY_DESCRIPTION,
+		promptSnippet: GATEWAY_DESCRIPTION,
+		parameters: jsonSchemaToTypebox(gatewayInputSchema()),
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			const resolved = resolveGatewayVerb(String((params as { verb?: unknown }).verb ?? ""));
+			if (!resolved.ok) return toolErrorResult(resolved.error);
+			const args = (params as { args?: unknown }).args;
+			const record =
+				args && typeof args === "object" && !Array.isArray(args)
+					? (args as Record<string, unknown>)
+					: {};
+			return executeVerb(resolved.verb, record, ctx);
+		},
+	});
+}
+
+/** Always-on tools the model sees. Not the full catalog. */
 export function modelFacingCatalog(): CatalogEntry[] {
-	return MCP_CATALOG.filter((e) => e.kind === "model");
+	return modelFacingSurface();
 }
 
 export default function (pi: ExtensionAPI) {
-	for (const entry of modelFacingCatalog()) {
+	for (const entry of modelFacingSurface()) {
 		registerCatalogTool(pi, entry);
 	}
+	registerGateway(pi);
 }

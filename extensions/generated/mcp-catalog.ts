@@ -2,11 +2,11 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Fingerprint: fbc21965214cb9e6530327b0899c992b1937d905531840ebdd919582bf4942eb
- * Regenerated: 2026-08-13T09:16:57.458Z
+ * Fingerprint: 171e5603ad009130fc086f7d79fd6330a955b3d445bcecd4301f0c84fc6b2936
+ * Regenerated: 2026-08-13T11:57:16.857Z
  */
-export const MCP_CATALOG_FINGERPRINT = "fbc21965214cb9e6530327b0899c992b1937d905531840ebdd919582bf4942eb";
-export const MCP_CATALOG_GENERATED_AT = "2026-08-13T09:16:57.458Z";
+export const MCP_CATALOG_FINGERPRINT = "171e5603ad009130fc086f7d79fd6330a955b3d445bcecd4301f0c84fc6b2936";
+export const MCP_CATALOG_GENERATED_AT = "2026-08-13T11:57:16.857Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -3919,7 +3919,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"complete_turn": {
 					"type": "boolean",
-					"description": "Optional. When true on an agent reply posted via connection_id, end this connection's Working attempt in the SAME request (activity complete + busy:false broadcast) so phone/web typing dots and the header spinner clear with the answer bubble — no second round-trip later. Default false: mid-turn progress posts must omit this so Working stays on (item 5e7aac1c). Ignored for turn_kind=local_prompt and when connection_id is omitted. Prefer this on the final answer; wait --after-reply remains a backstop."
+					"description": "Optional. When true on an agent reply posted via connection_id, end this connection's Working attempt in the SAME request (activity complete + busy:false broadcast) so phone/web typing dots and the header spinner clear with the answer bubble — no second round-trip later. Default omitted: mid-turn progress posts omit this so Working stays on (item 5e7aac1c), and leftover phase=trail cannot open a new Working bubble. Pass false on a finished intermediate answer when work will continue (item f0df6c3e): the bubble is complete, but a later phase=trail MAY open a new Working row on the same owner dispatch. Ignored for turn_kind=local_prompt and when connection_id is omitted. Prefer true on the final answer; wait --after-reply remains a backstop."
 				},
 				"phase": {
 					"type": "string",

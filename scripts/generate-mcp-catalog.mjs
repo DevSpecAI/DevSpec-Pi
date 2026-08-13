@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /**
  * Generate extensions/generated/mcp-catalog.ts from the DevSpec MCP tool
- * surface (item 523f1512).
+ * surface (item 523f1512). This is the WIRE map, not the model surface.
+ * The model sees the hot set in extensions/core/model-surface.ts (7de79db6).
  *
  * Source of truth: apps/web/lib/mcp/tool-definitions.ts in a DevSpecV2
  * checkout. This script dumps that contract (or reads a pre-dumped JSON)
- * and writes a checked-in catalog the extension registers from. A drift
+ * and writes a checked-in catalog the embedded client speaks. A drift
  * test fails when the sibling checkout's verb list no longer matches.
  *
  * Usage:

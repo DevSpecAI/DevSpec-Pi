@@ -6,7 +6,8 @@
  * still has a generated title, the claimed/dispatched item, a claimed
  * playbook, and the DevSpec verb currently executing. paintStatus also
  * retitles the OS terminal tab (session → playbook → untitled stand-in →
- * codename). Pure formatter + globalThis store — pi loads each extension
+ * current action item → codename). Pure formatter + globalThis store — pi
+ * loads each extension
  * file with a fresh jiti graph, so module singletons are not shared.
  *
  * sessionTitle is the REAL title only. First-message previews and the
@@ -268,9 +269,12 @@ export function formatStatusLine(snap: StatusSnapshot): string | undefined {
 	return parts.join(" · ");
 }
 
-/** OS tab title. Session wins, then playbook, then untitled stand-in, then codename. */
+/** OS tab title. Session → playbook → untitled stand-in → current item → codename. */
 export function formatTerminalTitle(snap: StatusSnapshot | null | undefined): string {
-	if (!snap || (!snap.codename && !snap.sessionId && !snap.playbookName && !snap.sessionPreview)) {
+	if (
+		!snap ||
+		(!snap.codename && !snap.sessionId && !snap.playbookName && !snap.sessionPreview && !snap.workTitle)
+	) {
 		return DEFAULT_TERMINAL_TITLE;
 	}
 	if (isRealSessionTitle(snap.sessionTitle)) {
@@ -281,6 +285,9 @@ export function formatTerminalTitle(snap: StatusSnapshot | null | undefined): st
 	}
 	if (snap.sessionPreview) {
 		return truncateLabel(snap.sessionPreview, TERMINAL_TITLE_MAX);
+	}
+	if (snap.workTitle) {
+		return truncateLabel(snap.workTitle, TERMINAL_TITLE_MAX);
 	}
 	if (snap.codename?.trim()) return snap.codename.trim();
 	return DEFAULT_TERMINAL_TITLE;

@@ -248,7 +248,7 @@ test("claimed playbook is shown and cleared for that run only", () => {
 	resetStatus();
 });
 
-test("terminal title prefers session, then playbook, then untitled stand-in, then codename", () => {
+test("terminal title prefers session, then playbook, then untitled stand-in, then item, then codename", () => {
 	assert.equal(formatTerminalTitle(undefined), DEFAULT_TERMINAL_TITLE);
 	assert.equal(formatTerminalTitle({}), DEFAULT_TERMINAL_TITLE);
 	assert.equal(
@@ -257,6 +257,7 @@ test("terminal title prefers session, then playbook, then untitled stand-in, the
 			sessionId: "sess-1",
 			sessionTitle: "Pi TUI footer",
 			playbookName: "Pull plugin repos",
+			workTitle: "Fix the build",
 		}),
 		"Pi TUI footer",
 	);
@@ -266,6 +267,7 @@ test("terminal title prefers session, then playbook, then untitled stand-in, the
 			sessionId: "sess-1",
 			sessionTitle: "New session",
 			playbookName: "Pull plugin repos",
+			workTitle: "Fix the build",
 			sessionPreview: "first owner message",
 		}),
 		"Pull plugin repos",
@@ -275,10 +277,32 @@ test("terminal title prefers session, then playbook, then untitled stand-in, the
 			codename: "Golden Possum",
 			sessionId: "sess-1",
 			sessionPreview: "first owner message",
+			workTitle: "Fix the build",
 		}),
 		"first owner message",
 	);
+	assert.equal(
+		formatTerminalTitle({
+			codename: "Golden Possum",
+			workTitle: "Fix the build",
+		}),
+		"Fix the build",
+	);
+	assert.equal(formatTerminalTitle({ workTitle: "Fix the build" }), "Fix the build");
 	assert.equal(formatTerminalTitle({ codename: "Golden Possum", sessionId: "sess-1" }), "Golden Possum");
 	assert.equal(formatTerminalTitle({ codename: "Golden Possum" }), "Golden Possum");
 	assert.equal(formatTerminalTitle({ playbookName: "Pull plugin repos" }), "Pull plugin repos");
+});
+
+test("a batch retitles on each claim and falls back when that item is recorded", () => {
+	resetStatus();
+	patchStatus({ codename: "Golden Possum" });
+	noteWork({ id: "item-1", title: "Fix the flaky test" });
+	assert.equal(formatTerminalTitle(getStatusSnapshot()), "Fix the flaky test");
+	clearWork("item-1");
+	assert.equal(formatTerminalTitle(getStatusSnapshot()), "Golden Possum");
+	noteWork({ id: "item-2", title: "Ship the footer" });
+	assert.equal(formatTerminalTitle(getStatusSnapshot()), "Ship the footer");
+	resetStatus();
+	assert.equal(formatTerminalTitle(getStatusSnapshot()), DEFAULT_TERMINAL_TITLE);
 });

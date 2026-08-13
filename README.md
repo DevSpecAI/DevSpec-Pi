@@ -11,6 +11,15 @@ pi   # /devspec.login and you're in
 One package: native tools, native auth, native remote control, native memory.
 No MCP adapter, no hook scripts, no other packages required.
 
+This package **is** your DevSpec connection. After `/devspec.login`, do not add a
+DevSpec MCP server in Pi (`/mcp`, `.mcp.json`, or a Bearer header). That path is
+for Claude, Cursor, and OpenCode. If this folder already has a DevSpec entry
+because another tool shares it, leave that file — we turn the extra copy off
+for Pi. Other MCP servers you use (Supabase, browsers) stay.
+
+Open source: [github.com/DevSpecAI/DevSpec-Pi](https://github.com/DevSpecAI/DevSpec-Pi).
+On npm as `@devspec/pi-plugin` (keyword `pi-package`).
+
 **Read [VISION.md](./VISION.md) first** — it is the founding design document
 and binds all implementation decisions in this repo.
 

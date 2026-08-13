@@ -943,7 +943,8 @@ export default function (pi: ExtensionAPI) {
 					.join("\n")
 				: "";
 		if (!isHarnessOrigin(content, customType)) return;
-		if (isDeliveryBoundary(turn.tracker)) splitTurnAtBoundary();
+		// Context/harness may wake the model. Do not close the live owner
+		// turn as complete (item 60cf5f00).
 		turn.tracker.userMessage(content, { customType });
 	});
 
@@ -955,10 +956,10 @@ export default function (pi: ExtensionAPI) {
 		const customType = typeof msg?.customType === "string" ? msg.customType : null;
 		const harness = isHarnessOrigin(text, customType);
 		if (msg?.role === "user" || msg?.role === "custom" || harness) {
-			// A mid-run user message is a delivery boundary (b1fb756a): close the
-			// current segment as its own bubble first. An injection before any
-			// assistant text simply joins the open segment.
-			if (isDeliveryBoundary(turn.tracker)) splitTurnAtBoundary();
+			// A mid-run OWNER/LOCAL user message is a delivery boundary
+			// (b1fb756a). Context/harness injections stay on this turn so
+			// they cannot complete_turn a working sentence (item 60cf5f00).
+			if (!harness && isDeliveryBoundary(turn.tracker)) splitTurnAtBoundary();
 			turn.tracker.userMessage(text, { customType });
 		}
 		// A new assistant message = a new LLM round. If the previous close was

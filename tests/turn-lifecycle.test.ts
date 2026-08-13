@@ -256,6 +256,21 @@ test("display:false DevSpec context injections never remirror as local prompts",
 	});
 });
 
+test("mid-turn context injection keeps the original remote turn and posts the wrap-up", () => {
+	const t = new TurnTracker();
+	t.userMessage("[DevSpec remote — message from Ali Price to Rapid Quokka]\nwhat about the auto-recall!?");
+	t.assistantFinal("That recall block was injected with display:false.", true);
+	assert.equal(t.userKind, "remote");
+	t.userMessage("### DevSpec memory — auto-recall\nMechanically recalled", { customType: "devspec-proactive" });
+	assert.equal(t.userKind, "remote", "harness must not overwrite an in-flight remote turn");
+	assert.equal(t.shouldMirrorPrompt, false);
+	t.assistantFinal("You're right, Ali. That auto-recall block was not from you.");
+	assert.deepEqual(planSettle(t, true), {
+		kind: "final",
+		message: "You're right, Ali. That auto-recall block was not from you.",
+	});
+});
+
 test("formatDispatchMessage carries the protocol steps and payload", () => {
 	const msg = formatDispatchMessage({ assignment_id: "as-1", title: "Fix flaky test" }, "Wary Wolf");
 	assert.match(msg, /^\[DevSpec remote — work dispatch to Wary Wolf\]/);

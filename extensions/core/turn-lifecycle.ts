@@ -93,6 +93,11 @@ export class TurnTracker {
 			this.shouldMirrorPrompt = false;
 			return;
 		}
+		// Mid-turn context/harness (auto-recall, leftover receipts) must not
+		// steal an already-started remote/local/dispatch turn (item 60cf5f00).
+		if (kind === "harness" && this.userKind && this.userKind !== "harness") {
+			return;
+		}
 		this.userText = text;
 		this.awaitingFirstAnswer = true;
 		this.userKind = kind;

@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
 	SeenOwnerCommands,
+	resolveAttachedAtMs,
 	sendModeAtSendTime,
 	shouldCompleteSync,
+	splitCatchUpCommands,
 } from "../extensions/core/owner-inject.ts";
 
 test("shouldCompleteSync waits for a cursor or historical commands", () => {
@@ -42,4 +44,57 @@ test("sendMode is never now when not idle", () => {
 	assert.equal(sendModeAtSendTime("preempt", true, true), "now");
 	assert.equal(sendModeAtSendTime("queue", false), "followUp");
 	assert.equal(sendModeAtSendTime("queue", true), "followUp");
+});
+
+const ATTACHED = Date.parse("2026-08-13T14:02:53.420Z");
+
+test("splitCatchUpCommands skips pre-attach history and delivers live first-touch", () => {
+	const { historical, live } = splitCatchUpCommands(
+		[
+			{ id: "old", text: "already answered", createdAt: "2026-08-13T13:53:41.965Z" },
+			{ id: "live", text: "can you pick up from here?", createdAt: "2026-08-13T14:02:55.257Z" },
+			{ id: "same-instant", text: "at attach", createdAt: "2026-08-13T14:02:53.420Z" },
+		],
+		ATTACHED,
+	);
+	assert.deepEqual(historical.map((c) => c.id), ["old"]);
+	assert.deepEqual(live.map((c) => c.id), ["live", "same-instant"]);
+});
+
+test("splitCatchUpCommands treats missing created_at as live", () => {
+	const { historical, live } = splitCatchUpCommands(
+		[
+			{ id: "old", text: "history", createdAt: "2026-08-13T13:00:00.000Z" },
+			{ id: "nots", text: "no timestamp" },
+			{ id: "bad", text: "unparseable", createdAt: "not-a-date" },
+		],
+		ATTACHED,
+	);
+	assert.deepEqual(historical.map((c) => c.id), ["old"]);
+	assert.deepEqual(live.map((c) => c.id), ["nots", "bad"]);
+});
+
+test("historical sync-lap ids stay skipped; live ids are still deliverable", () => {
+	const seen = new SeenOwnerCommands();
+	const split = splitCatchUpCommands(
+		[
+			{ id: "old", text: "already answered", createdAt: "2026-08-13T13:53:41.965Z" },
+			{ id: "live", text: "can you pick up from here?", createdAt: "2026-08-13T14:02:55.257Z" },
+		],
+		ATTACHED,
+	);
+	seen.remember(split.historical);
+	const delivered = seen.takeUnseen(split.live);
+	assert.deepEqual(delivered.map((c) => c.id), ["live"]);
+	assert.equal(seen.has("old"), true);
+	assert.deepEqual(
+		seen.takeUnseen([{ id: "old", text: "already answered" }]).map((c) => c.id),
+		[],
+	);
+});
+
+test("resolveAttachedAtMs prefers a parseable server stamp", () => {
+	assert.equal(resolveAttachedAtMs("2026-08-13T14:02:53.420Z", 1), ATTACHED);
+	assert.equal(resolveAttachedAtMs("nope", 42), 42);
+	assert.equal(resolveAttachedAtMs(undefined, 42), 42);
 });

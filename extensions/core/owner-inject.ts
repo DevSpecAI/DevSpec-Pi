@@ -1,10 +1,14 @@
 /**
- * Owner-command inject hygiene (item aa98098f).
+ * Owner-command inject hygiene (items aa98098f, 09d4993e).
  *
  * Rebond starts a new pump with no cursor. The first poll is catch-up
  * (already-answered history). If that lap is an empty wake, `synced`
- * must not flip — the next cursor-less poll is still catch-up. Commands
- * seen on a skipped lap must never be injected later.
+ * must not flip — the next cursor-less poll is still catch-up.
+ *
+ * Only PRE-ATTACH commands on that lap are history. A live owner
+ * dispatch created at/after this bond attached must still be delivered
+ * even when it rides the cursor-less window (live miss: Ali 2026-08-13,
+ * “can you pick up from here?” swallowed on Rapid Quokka’s first sync).
  *
  * send("now") while the runtime is busy prints
  * "already processing" and is fire-and-forget — we cannot catch it.
@@ -43,8 +47,39 @@ export class SeenOwnerCommands {
 	}
 }
 
+export function parseTimestampMs(value: unknown): number | null {
+	if (typeof value !== "string" || !value.trim()) return null;
+	const ms = Date.parse(value);
+	return Number.isNaN(ms) ? null : ms;
+}
+
+/** Prefer the server attach stamp; otherwise the moment the pump started. */
+export function resolveAttachedAtMs(value: unknown, fallbackMs: number): number {
+	return parseTimestampMs(value) ?? fallbackMs;
+}
+
 /**
- * First poll after rebond: adopt cursors, remember ids, deliver nothing.
+ * Split the cursor-less catch-up window into already-answered history
+ * (created before this bond attached) and live first-touch commands.
+ * Missing/unparseable created_at is live — dropping an instruction is worse
+ * than a possible replay.
+ */
+export function splitCatchUpCommands(
+	commands: readonly OwnerCommand[],
+	attachedAtMs: number,
+): { historical: OwnerCommand[]; live: OwnerCommand[] } {
+	const historical: OwnerCommand[] = [];
+	const live: OwnerCommand[] = [];
+	for (const cmd of commands) {
+		const createdMs = parseTimestampMs(cmd.createdAt);
+		if (createdMs !== null && createdMs < attachedAtMs) historical.push(cmd);
+		else live.push(cmd);
+	}
+	return { historical, live };
+}
+
+/**
+ * First poll after rebond: adopt cursors, remember historical ids.
  * An empty wake (no cursor, no commands) is not a completed sync — the
  * next cursor-less poll is still the catch-up window.
  */

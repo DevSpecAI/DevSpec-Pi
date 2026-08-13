@@ -14,6 +14,8 @@ export interface OwnerCommand {
 	userName?: string;
 	/** Server message id, when present (used as the poll cursor). */
 	id?: string;
+	/** ISO timestamp from the session_messages row, when the server provides it. */
+	createdAt?: string;
 }
 
 interface RawCommand {
@@ -25,6 +27,8 @@ interface RawCommand {
 	user_name?: unknown;
 	userName?: unknown;
 	sender?: unknown;
+	created_at?: unknown;
+	createdAt?: unknown;
 	addressed_to?: { connection_id?: unknown } | unknown;
 	authority?: { kind?: unknown } | unknown;
 }
@@ -54,6 +58,14 @@ function commandSender(cmd: RawCommand): string | undefined {
 	return undefined;
 }
 
+function commandCreatedAt(cmd: RawCommand): string | undefined {
+	for (const key of ["created_at", "createdAt"] as const) {
+		const v = cmd[key];
+		if (typeof v === "string" && v.trim()) return v.trim();
+	}
+	return undefined;
+}
+
 /**
  * Extract the commands this connection must act on.
  * A command counts when addressed_to.connection_id matches us AND
@@ -69,7 +81,12 @@ export function extractOwnerCommands(payload: unknown, connectionId: string): Ow
 		if (addressed !== connectionId || authority !== "owner") continue;
 		const text = commandText(cmd);
 		if (!text) continue;
-		out.push({ text, userName: commandSender(cmd), id: typeof cmd.id === "string" ? cmd.id : undefined });
+		out.push({
+			text,
+			userName: commandSender(cmd),
+			id: typeof cmd.id === "string" ? cmd.id : undefined,
+			createdAt: commandCreatedAt(cmd),
+		});
 	}
 	return out;
 }

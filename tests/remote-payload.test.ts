@@ -24,6 +24,24 @@ test("extracts only owner commands addressed to this connection", () => {
 	assert.equal(cmds[0].id, "m1");
 });
 
+test("extractOwnerCommands stamps created_at from the poll payload", () => {
+	const cmds = extractOwnerCommands(
+		{
+			commands: [
+				{
+					id: "m1",
+					content: "can you pick up from here?",
+					created_at: "2026-08-13T14:02:55.257Z",
+					addressed_to: { connection_id: ME },
+					authority: { kind: "owner" },
+				},
+			],
+		},
+		ME,
+	);
+	assert.equal(cmds[0].createdAt, "2026-08-13T14:02:55.257Z");
+});
+
 test("text can live in message/text/body fields", () => {
 	const payload = {
 		commands: [

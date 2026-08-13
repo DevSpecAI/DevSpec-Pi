@@ -57,7 +57,13 @@ import { openPushChannel, nextPushReconnectDelayMs } from "./core/push-channel.t
 import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
 import { loadSettings, saveSettings } from "./core/settings.ts";
 import { decideOwnerDelivery, PREEMPT_TAIL, waitUntil } from "./core/preempt.ts";
-import { SeenOwnerCommands, sendModeAtSendTime, shouldCompleteSync } from "./core/owner-inject.ts";
+import {
+	SeenOwnerCommands,
+	resolveAttachedAtMs,
+	sendModeAtSendTime,
+	shouldCompleteSync,
+	splitCatchUpCommands,
+} from "./core/owner-inject.ts";
 
 const AGENT_NAME = "Pi";
 const POLL_WAIT_MS = 25_000;
@@ -78,13 +84,17 @@ interface PumpState {
 	 * has no cursor, so the server answers with the catch-up WINDOW — which
 	 * includes already-answered commands. Re-delivering those re-runs old
 	 * work (observed live: a replied-to UI message re-injected on rebond).
-	 * The first *catch-up* package is ORIENTATION ONLY: adopt its cursors,
-	 * remember those command ids, deliver nothing. An empty wake (no cursor)
-	 * is not a completed sync — the next cursor-less poll is still catch-up
+	 * The first *catch-up* package is ORIENTATION: adopt its cursors and
+	 * remember PRE-ATTACH command ids so answered history is not replayed.
+	 * Commands created at/after this bond attached are live and must still
+	 * be delivered (item 09d4993e). An empty wake (no cursor) is not a
+	 * completed sync — the next cursor-less poll is still catch-up
 	 * (live miss: Ali 2026-08-13, answered 11:46 message replayed after rebond).
 	 */
 	synced: boolean;
 	seenOwnerCommands: SeenOwnerCommands;
+	/** Epoch-ms this bond attached / the pump started. First-sync history cutoff. */
+	attachedAtMs: number;
 	// Push channel state (SSE wake mode; falls back to held long-poll).
 	pushAbort?: AbortController;
 	pushClosed?: boolean;
@@ -619,9 +629,13 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		if (pkg.cursor) active.cursor = pkg.cursor;
 		if (pkg.dispatchCursor) active.dispatchCursor = pkg.dispatchCursor;
 
-		// Cold-start orientation: cursors adopted above, nothing delivered.
+		// Cold-start orientation: cursors adopted above. Pre-attach commands
+		// are history (remember, do not inject). Live post-attach commands
+		// fall through and deliver on this same lap.
+		let ownerCommands = pkg.ownerCommands;
 		if (!active.synced) {
-			active.seenOwnerCommands.remember(pkg.ownerCommands);
+			const { historical, live } = splitCatchUpCommands(ownerCommands, active.attachedAtMs);
+			active.seenOwnerCommands.remember(historical);
 			if (!shouldCompleteSync(pkg)) {
 				debug("sync deferred: empty wake, still cursor-less");
 				continue;
@@ -634,14 +648,14 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			const digest = buildRoomDigest(payload, active.bond.codename ?? "this agent");
 			if (digest) {
 				setBond({ ...active.bond, roomDigest: digest });
-				debug(`synced with room digest (${digest.length} chars)`);
+				debug(`synced with room digest (${digest.length} chars); ${historical.length} historical skipped, ${live.length} live`);
 			} else {
-				debug(`synced (cursor ${active.cursor ?? "none"}; ${pkg.ownerCommands.length} historical command(s) not replayed)`);
+				debug(`synced (cursor ${active.cursor ?? "none"}; ${historical.length} historical command(s) not replayed, ${live.length} live)`);
 			}
-			continue;
+			ownerCommands = live;
 		}
 
-		for (const cmd of active.seenOwnerCommands.takeUnseen(pkg.ownerCommands)) {
+		for (const cmd of active.seenOwnerCommands.takeUnseen(ownerCommands)) {
 			try {
 				const mode = decideOwnerDelivery({
 					idle: ctx.isIdle(),
@@ -747,6 +761,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 	};
 
 	let attached = false;
+	let attachedAtStamp: unknown = d.attached_at ?? d.attachedAt;
 	if (sessionArg) {
 		try {
 			const attRaw = await callDevspec(resolved.token, "attach_connection", {
@@ -759,6 +774,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 			} else {
 				const ad = (att.details ?? {}) as Record<string, unknown>;
 				bond.sessionId = (ad.session_id as string | undefined) ?? bond.sessionId;
+				attachedAtStamp = ad.attached_at ?? ad.attachedAt ?? attachedAtStamp;
 				attached = true;
 			}
 		} catch (err) {
@@ -767,7 +783,17 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 	}
 
 	setBond(bond);
-	pump = { bond, busy: false, stop: false, errors: 0, synced: false, seenOwnerCommands: new SeenOwnerCommands(), pushAttempts: 0 };
+	const attachedAtMs = resolveAttachedAtMs(attachedAtStamp, Date.now());
+	pump = {
+		bond,
+		busy: false,
+		stop: false,
+		errors: 0,
+		synced: false,
+		seenOwnerCommands: new SeenOwnerCommands(),
+		pushAttempts: 0,
+		attachedAtMs,
+	};
 	preemptOwnerCached = (await loadSettings()).preemptOwner;
 	setRemoteStatus(ctx);
 	// Revive/register can already be attached (same session_id on the

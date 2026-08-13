@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { formatDispatchMessage } from "../extensions/core/dispatch.ts";
-import { classifyUserKind, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, isWaitNarration, planSettle, shouldSplitFirstAnswer, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
+import { classifyUserKind, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, isWaitNarration, isProcessClose, planSettle, shouldPauseSettle, shouldSplitFirstAnswer, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 
 function remoteTurn(answer: string): TurnTracker {
 	const t = new TurnTracker();
@@ -281,6 +281,12 @@ test("wait-narration is process, not a closed answer (15d7aa56)", () => {
 	assert.equal(isWaitNarration("I'll wait for your go-ahead, Ali."), false);
 	assert.equal(isWaitNarration("Want me to wait for the tests?"), false);
 	assert.equal(isClosedAnswer({ text: "I'll wait for your go-ahead, Ali.", hasToolCalls: false, stopReason: "stop" }), true);
+
+	// Grok emits curly I’ll — same sentence must still be process (6ea9aa47).
+	const curly = "Typecheck is still running. I’ll wait for that, then lint, commit, and check the panel in a real browser.";
+	assert.equal(isWaitNarration(curly), true, "curly apostrophe must fold to ASCII I'll");
+	assert.equal(isClosedAnswer({ text: curly, hasToolCalls: false, stopReason: "stop" }), false);
+	assert.equal(isWaitNarration("Lint is still running. I’ll push and merge as soon as it finishes."), true);
 });
 
 test("remote wait-narration + bg completed + wrap-up posts the wrap-up, not the wait", () => {
@@ -307,6 +313,61 @@ test("remote wait-narration + bg completed + wrap-up posts the wrap-up, not the 
 	t.assistantFinal(wrapUp, isClosedAnswer({ text: wrapUp, hasToolCalls: false, stopReason: "stop" }));
 	assert.equal(t.lastCloseWasAnswer, true);
 	assert.deepEqual(planSettle(t, true), { kind: "final", message: wrapUp });
+});
+
+test("bg_run then text-only close then [bg completed] posts the wrap-up (6ea9aa47)", () => {
+	const t = new TurnTracker();
+	t.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\nCan you take over?");
+	assert.equal(t.userKind, "remote");
+	t.assistantFinal("I'll pick this up properly.", false);
+	t.noteBackgroundTask();
+	const parked = "Typecheck is still running. I’ll wait for that, then lint, commit, and check the panel in a real browser.";
+	assert.equal(isClosedAnswer({
+		text: parked,
+		hasToolCalls: false,
+		stopReason: "stop",
+		awaitingBackground: true,
+	}), false);
+	t.assistantFinal(parked, isClosedAnswer({
+		text: parked,
+		hasToolCalls: false,
+		stopReason: "stop",
+		awaitingBackground: true,
+	}));
+	assert.equal(t.lastCloseWasProcess, true);
+	assert.equal(t.lastCloseWasAnswer, false);
+	assert.equal(isClosedAnswerBoundary(t), false);
+	assert.equal(shouldPauseSettle(t), true);
+	assert.deepEqual(planSettle(t, true), { kind: "none" }, "parked wait must not settle as the answer");
+	assert.equal(t.lastAssistantText, "I'll pick this up properly.");
+
+	t.userMessage("[bg completed] Typecheck panel tabs", { customType: "background-task-notification" });
+	assert.equal(t.userKind, "remote", "bg completed must not steal the owner turn");
+	assert.equal(t.awaitingBackground, false);
+	assert.equal(shouldPauseSettle(t), false, "resolved bg_run can settle once wrap-up exists");
+
+	const wrapUp = "Ali — slice 1 is actually on origin/staging now, not just announced.";
+	t.assistantFinal(wrapUp, isClosedAnswer({ text: wrapUp, hasToolCalls: false, stopReason: "stop" }));
+	assert.equal(t.lastCloseWasAnswer, true);
+	assert.deepEqual(planSettle(t, true), { kind: "final", message: wrapUp });
+});
+
+test("a text-only close after bg_run is process even without wait wording (6ea9aa47)", () => {
+	const t = new TurnTracker();
+	t.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\ncontinue");
+	t.noteBackgroundTask();
+	const parked = "Independent useful work is queued. Coming back when lint finishes.";
+	assert.equal(isWaitNarration(parked), false);
+	assert.equal(isProcessClose({ text: parked, awaitingBackground: true }), true);
+	t.assistantFinal(parked, isClosedAnswer({
+		text: parked,
+		hasToolCalls: false,
+		stopReason: "stop",
+		awaitingBackground: true,
+	}));
+	assert.equal(t.lastCloseWasProcess, true);
+	assert.equal(t.lastAssistantText, "");
+	assert.equal(shouldPauseSettle(t), true);
 });
 
 test("leftover-only [bg completed] still posts no answer (56b9a3b4)", () => {

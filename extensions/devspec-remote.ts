@@ -38,6 +38,7 @@ import {
 } from "./core/client.ts";
 import { getBond, setBond, type BondState } from "./core/bond-state.ts";
 import { formatInboundMessage, parsePollPayload, type OwnerCommand } from "./core/remote-payload.ts";
+import { executeControlCommand, parseControlCommand } from "./core/control.ts";
 import { formatAttachmentNotes, materialiseAttachments } from "./core/attachments.ts";
 import { unwrapMcpResult } from "./core/result.ts";
 import { buildAttachBlock, shapeRoomAgenda, shapeTranscript } from "./core/attach-context.ts";
@@ -678,6 +679,29 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		if (pkg.cursor) active.cursor = pkg.cursor;
 		if (pkg.dispatchCursor) active.dispatchCursor = pkg.dispatchCursor;
 
+		const control = parseControlCommand(pkg.control);
+		if (control) {
+			try {
+				const result = await executeControlCommand(control, {
+					isIdle: () => ctx.isIdle(),
+					abort: () => pi_abort(),
+					compact: () => pi_compact(),
+					setThinkingLevel: (level) => pi_setThinking(level),
+					setModel: (modelId) => pi_setModel(modelId),
+					notify: (message) => notify(ctx, message),
+				});
+				debug(`control ${control.verb}: ${result}`);
+				notify(ctx, `DevSpec remote: ${control.verb} — ${result}.`);
+			} catch (err) {
+				debug(`control failed: ${err instanceof Error ? err.message : err}`);
+			}
+			void callDevspec(token, "poll_connection", {
+				connection_id: active.bond.connectionId,
+				control_ack: control.id,
+				wait_ms: 0,
+			}, { timeoutMs: 10_000, lane: "pump" }).catch(() => {});
+		}
+
 		// Cold-start orientation: cursors adopted above. Pre-attach commands
 		// are history (remember, do not inject). Live post-attach commands
 		// fall through and deliver on this same lap.
@@ -861,6 +885,9 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 // Late-bound so the loop can reference the ExtensionAPI closure.
 let pi_send: (message: string, mode?: "now" | "steer" | "followUp") => void = () => {};
 let pi_abort: () => void = () => {};
+let pi_compact: () => void = () => {};
+let pi_setThinking: (level: string) => void = () => {};
+let pi_setModel: (modelId: string) => Promise<boolean> = async () => false;
 
 /**
  * Attach-time bond context (item 9dcbd157). One bounded transcript fetch
@@ -937,6 +964,21 @@ export default function (pi: ExtensionAPI) {
 	};
 	pi_abort = () => {
 		if (lastCtx && !lastCtx.isIdle()) lastCtx.abort();
+	};
+	pi_compact = () => {
+		lastCtx?.compact?.({});
+	};
+	pi_setThinking = (level) => {
+		pi.setThinkingLevel?.(level as never);
+	};
+	pi_setModel = async (modelId) => {
+		const slash = modelId.indexOf("/");
+		if (slash === -1) return false;
+		const provider = modelId.slice(0, slash);
+		const id = modelId.slice(slash + 1);
+		const model = lastCtx?.modelRegistry?.find?.(provider, id);
+		if (!model) return false;
+		return Boolean(await pi.setModel?.(model));
 	};
 
 	pi.on("agent_start", () => {

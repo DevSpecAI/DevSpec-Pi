@@ -78,6 +78,7 @@ test("parsePollPayload tolerates empty/garbage", () => {
 		changed: false,
 		cursor: undefined,
 		dispatchCursor: undefined,
+		control: undefined,
 		ownerCommands: [],
 		dispatchCount: 0,
 	});

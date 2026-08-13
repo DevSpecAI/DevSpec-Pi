@@ -45,6 +45,8 @@ export interface PollPackage {
 	ownerCommands: OwnerCommand[];
 	/** Count of live assignment dispatches (handled in slice 2). */
 	dispatchCount: number;
+	/** Owner-authority CONTROL verb, if one is waiting (item c2cc8679). */
+	control?: unknown;
 }
 
 function commandText(cmd: RawCommand): string | null {
@@ -107,12 +109,14 @@ export function parsePollPayload(payload: unknown, connectionId: string): PollPa
 		dispatch_cursor?: unknown;
 		dispatches?: unknown[];
 	};
+	const raw = payload as { control?: unknown } | null;
 	return {
 		changed: p.changed === true,
 		cursor: typeof p.cursor === "string" ? p.cursor : undefined,
 		dispatchCursor: typeof p.dispatch_cursor === "string" ? p.dispatch_cursor : undefined,
 		ownerCommands: extractOwnerCommands(payload, connectionId),
 		dispatchCount: Array.isArray(p.dispatches) ? p.dispatches.length : 0,
+		control: raw?.control,
 	};
 }
 

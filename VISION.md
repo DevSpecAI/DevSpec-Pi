@@ -132,7 +132,8 @@ devspec-pi/                        ← this repo, published as one npm package
 │   ├── core/                      ← INTERNAL client: MCP transport, auth store,
 │   │                                bond lifecycle, turn pump, memory engine
 │   ├── devspec-auth.ts            ← /devspec.login, token lifecycle, status
-│   ├── devspec-tools.ts           ← native pi tools over the MCP verb surface
+│   ├── generated/mcp-catalog.ts   ← generated from DevSpecV2 tool-definitions (item 523f1512)
+│   ├── devspec-tools.ts           ← registers every model-facing verb from the catalog
 │   ├── devspec-remote.ts          ← remote control (see below)
 │   ├── devspec-memory.ts          ← proactive recall + capture
 │   ├── devspec-onboard.ts         ← first-run experience, /devspec.help

@@ -7,9 +7,12 @@
  * DevSpec plugins; this client lets us honor that contract while presenting
  * every verb as a NATIVE pi tool (VISION.md, "Transport").
  *
- * One client per (token, url) per process. The server is stateless, so there
- * is no session to manage; on failure we drop the cache and reconnect lazily
- * on the next call.
+ * Two isolated clients per process (item 781886cf):
+ *   - "pump"  — poll / heartbeat / trail / bond. Must not wait on a model verb.
+ *   - "work"  — native tools, gateway, recall. A hang or parse error dies here.
+ *
+ * The server is stateless, so there is no session to manage; on failure we
+ * drop that lane and reconnect lazily on the next call.
  */
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -20,6 +23,11 @@ import { needsProjectScope, resolveGitRemote } from "./project-scope.ts";
 const CLIENT_NAME = "devspec-pi";
 const CLIENT_VERSION = "0.1.0";
 const DEFAULT_TIMEOUT_MS = 60_000;
+/** Hard cap for model-facing verbs. The SDK timeout alone did not fire on the
+ *  live Streamable-HTTP parse hang (~90s, session d8883a49). */
+export const MODEL_TIMEOUT_MS = 25_000;
+
+export type ClientLane = "pump" | "work";
 
 /** Token rejected by the server (401). The user needs to re-login. */
 export class DevspecAuthError extends Error {}
@@ -67,35 +75,52 @@ interface CacheEntry {
 	client: Client;
 }
 
+interface LaneCache {
+	pump: CacheEntry | null;
+	work: CacheEntry | null;
+}
+
 // Cross-extension-file singleton: pi isolates each extension file's module
-// graph, so the cache lives on globalThis (one MCP client per process).
-const GLOBAL_KEY = "__devspecPiClientCache";
+// graph, so the cache lives on globalThis (one MCP client per lane).
+const GLOBAL_KEY = "__devspecPiClientCacheByLane";
 
-function cacheStore(): { current: CacheEntry | null } {
-	const g = globalThis as unknown as Record<string, { current: CacheEntry | null } | undefined>;
-	if (!g[GLOBAL_KEY]) g[GLOBAL_KEY] = { current: null };
-	return g[GLOBAL_KEY] as { current: CacheEntry | null };
+function cacheStore(): LaneCache {
+	const g = globalThis as unknown as Record<string, LaneCache | undefined>;
+	if (!g[GLOBAL_KEY]) g[GLOBAL_KEY] = { pump: null, work: null };
+	return g[GLOBAL_KEY] as LaneCache;
 }
 
-/** Drop the cached connection (logout, token change, after a transport error). */
-export function resetClientCache(): void {
-	const old = cacheStore().current;
-	cacheStore().current = null;
-	if (old) void old.client.close().catch(() => {});
+function closeEntry(entry: CacheEntry | null): void {
+	if (entry) void entry.client.close().catch(() => {});
 }
 
-async function connect(token: string): Promise<Client> {
+/** Drop a lane (or both). Logout / token change clears both. */
+export function resetClientCache(lane?: ClientLane): void {
+	const store = cacheStore();
+	if (!lane) {
+		closeEntry(store.pump);
+		closeEntry(store.work);
+		store.pump = null;
+		store.work = null;
+		return;
+	}
+	closeEntry(store[lane]);
+	store[lane] = null;
+}
+
+async function connect(token: string, lane: ClientLane): Promise<Client> {
 	const url = await resolveEndpoint();
-	const cached = cacheStore().current;
+	const store = cacheStore();
+	const cached = store[lane];
 	if (cached && cached.token === token && cached.url === url) return cached.client;
 
-	resetClientCache();
+	resetClientCache(lane);
 	const transport = new StreamableHTTPClientTransport(new URL(url), {
 		requestInit: { headers: { authorization: `Bearer ${token}` } },
 	});
 	const client = new Client({ name: CLIENT_NAME, version: CLIENT_VERSION }, { capabilities: {} });
 	await client.connect(transport);
-	cacheStore().current = { token, url, client };
+	store[lane] = { token, url, client };
 	return client;
 }
 
@@ -115,6 +140,29 @@ export function mapClientError(err: unknown): Error {
 	return new DevspecApiError(message);
 }
 
+/** Transport / parse / timeout — recoverable. Never a human End. */
+export function isRecoverableTransportError(err: unknown): boolean {
+	if (err instanceof DevspecAuthError) return false;
+	const message = err instanceof Error ? err.message : String(err);
+	return /parse|streamable|timed? ?out|ETIMEDOUT|fetch failed|ECONNREFUSED|ENOTFOUND|ECONNRESET|socket|certificate|network|abort|Cannot reach DevSpec/i.test(
+		message,
+	);
+}
+
+/**
+ * Only a rejected token ends the bond from the client. A poll that reports
+ * `ended`/`not_found` is a *server* verdict — classified separately.
+ */
+export function shouldEndBondOnPollFailure(err: unknown): boolean {
+	return err instanceof DevspecAuthError || mapClientError(err) instanceof DevspecAuthError;
+}
+
+/** Human End / local stop are sticky. Redeploy, parse, not_found are not. */
+export function isPermanentServerEnd(status?: string | null, endReason?: string | null): boolean {
+	if (status !== "ended" && status !== "not_found") return false;
+	return endReason === "ui" || endReason === "local_stop";
+}
+
 export interface CallOptions {
 	/** Request timeout (default 60s). Long-poll callers pass hold + margin. */
 	timeoutMs?: number;
@@ -124,12 +172,33 @@ export interface CallOptions {
 	 * retry once with this checkout's origin remote attached.
 	 */
 	cwd?: string;
+	/**
+	 * Isolated transport. Default "work" so a forgotten lane cannot stall
+	 * the pump. Poll / heartbeat / trail / bond must pass "pump".
+	 */
+	lane?: ClientLane;
+}
+
+/** Race a promise against a wall-clock deadline. Exported for tests. */
+export async function withHardTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const timeout = new Promise<never>((_, reject) => {
+		timer = setTimeout(() => {
+			reject(new DevspecApiError(`DevSpec ${label} timed out after ${timeoutMs}ms`));
+		}, timeoutMs);
+	});
+	try {
+		return await Promise.race([promise, timeout]);
+	} finally {
+		if (timer) clearTimeout(timer);
+	}
 }
 
 /**
  * Call a DevSpec MCP tool. Throws DevspecAuthError / DevspecApiError.
  * One transparent reconnect-retry on transport failure (the cached client may
- * hold a dead socket after sleep/network change).
+ * hold a dead socket after sleep/network change). A work-lane failure never
+ * drops the pump client.
  */
 export async function callDevspec(
 	token: string,
@@ -138,6 +207,7 @@ export async function callDevspec(
 	options: CallOptions = {},
 ): Promise<unknown> {
 	const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+	const lane: ClientLane = options.lane ?? "work";
 	let callArgs = args;
 	let scopedRetryDone = false;
 	let rateLimitRetries = 0;
@@ -145,8 +215,12 @@ export async function callDevspec(
 	for (let attempt = 0; attempt < 2; attempt++) {
 		try {
 			await waitOutCooldown();
-			const client = await connect(token);
-			const raw = await client.callTool({ name, arguments: callArgs }, undefined, { timeout: timeoutMs });
+			const client = await connect(token, lane);
+			const raw = await withHardTimeout(
+				client.callTool({ name, arguments: callArgs }, undefined, { timeout: timeoutMs }),
+				timeoutMs,
+				name,
+			);
 			// MCP-level errors arrive as results, not throws — surface them the
 			// same way so the scoping retry below can see them too.
 			const r = raw as { isError?: boolean; content?: Array<{ type?: string; text?: string }> };
@@ -185,7 +259,7 @@ export async function callDevspec(
 				}
 			}
 			lastError = err;
-			resetClientCache();
+			resetClientCache(lane);
 			// Auth errors are terminal — retrying cannot help.
 			if (mapped instanceof DevspecAuthError) break;
 		}
@@ -198,5 +272,5 @@ export async function callDevspec(
  * shape). Used by /devspec.login and the session-start status check.
  */
 export async function verifyToken(token: string): Promise<unknown> {
-	return callDevspec(token, "verify_agent_connection", {});
+	return callDevspec(token, "verify_agent_connection", {}, { lane: "work", timeoutMs: 15_000 });
 }

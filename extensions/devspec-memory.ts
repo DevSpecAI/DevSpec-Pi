@@ -23,7 +23,7 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { resolveToken } from "./core/auth-store.ts";
-import { callDevspec } from "./core/client.ts";
+import { callDevspec, MODEL_TIMEOUT_MS } from "./core/client.ts";
 import { unwrapMcpResult } from "./core/result.ts";
 import { debugRemote } from "./core/debug.ts";
 import {
@@ -56,7 +56,7 @@ export default function (pi: ExtensionAPI) {
 					resolved.token,
 					"search_memories",
 					{ query, limit: 8 },
-					{ cwd: ctx.cwd },
+					{ cwd: ctx.cwd, lane: "work", timeoutMs: MODEL_TIMEOUT_MS },
 				);
 				const { details, isError } = unwrapMcpResult(raw);
 				if (!isError) {

@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DevspecApiError, DevspecAuthError, mapClientError } from "../extensions/core/client.ts";
+import {
+	DevspecApiError,
+	DevspecAuthError,
+	isPermanentServerEnd,
+	isRecoverableTransportError,
+	mapClientError,
+	shouldEndBondOnPollFailure,
+	withHardTimeout,
+} from "../extensions/core/client.ts";
 
 test("maps the server's 401 body text to DevspecAuthError", () => {
 	const sdkError = new Error(
@@ -32,4 +40,42 @@ test("passes through unknown errors as DevspecApiError", () => {
 	const err = mapClientError(new Error("weird protocol thing"));
 	assert.ok(err instanceof DevspecApiError);
 	assert.match(err.message, /weird protocol thing/);
+});
+
+test("Streamable HTTP parse / timeout hangs are recoverable, not a human End", () => {
+	const parse = new Error("Streamable HTTP error: Failed to parse message");
+	const timeout = new DevspecApiError("DevSpec get_conventions timed out after 25000ms");
+	assert.equal(isRecoverableTransportError(parse), true);
+	assert.equal(isRecoverableTransportError(timeout), true);
+	assert.equal(shouldEndBondOnPollFailure(parse), false);
+	assert.equal(shouldEndBondOnPollFailure(timeout), false);
+});
+
+test("only a rejected token ends the bond from the client", () => {
+	const auth = new DevspecAuthError("DevSpec rejected the token (invalid or revoked). Run /devspec.login.");
+	assert.equal(shouldEndBondOnPollFailure(auth), true);
+	assert.equal(isRecoverableTransportError(auth), false);
+});
+
+test("only ui / local_stop server ends are sticky", () => {
+	assert.equal(isPermanentServerEnd("ended", "ui"), true);
+	assert.equal(isPermanentServerEnd("ended", "local_stop"), true);
+	assert.equal(isPermanentServerEnd("ended", null), false);
+	assert.equal(isPermanentServerEnd("not_found", null), false);
+	assert.equal(isPermanentServerEnd("ended", "idle_timeout"), false);
+	assert.equal(isPermanentServerEnd("live", "ui"), false);
+});
+
+test("withHardTimeout rejects a hung call without waiting for it", async () => {
+	const hung = new Promise(() => {});
+	const started = Date.now();
+	await assert.rejects(
+		() => withHardTimeout(hung, 30, "get_conventions"),
+		(err: unknown) => {
+			assert.ok(err instanceof DevspecApiError);
+			assert.match((err as Error).message, /timed out after 30ms/);
+			return true;
+		},
+	);
+	assert.ok(Date.now() - started < 500);
 });

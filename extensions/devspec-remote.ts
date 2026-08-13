@@ -31,7 +31,11 @@ function debug(line: string): void {
 		try { appendFileSync("/tmp/devspec-remote-debug.log", `${new Date().toISOString()} ${line}\n`); } catch { /* ignore */ }
 	}
 }
-import { callDevspec, DevspecAuthError } from "./core/client.ts";
+import {
+	callDevspec,
+	isPermanentServerEnd,
+	shouldEndBondOnPollFailure,
+} from "./core/client.ts";
 import { getBond, setBond, type BondState } from "./core/bond-state.ts";
 import { formatInboundMessage, parsePollPayload, type OwnerCommand } from "./core/remote-payload.ts";
 import { formatAttachmentNotes, materialiseAttachments } from "./core/attachments.ts";
@@ -204,7 +208,7 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 				? { trail_events: opts.trailEvents }
 				: {}),
 			...(opts.agentStats ? { agent_stats: opts.agentStats } : {}),
-		});
+		}, { lane: "pump" });
 		return true;
 	} catch (err) {
 		debug(`postToSession failed: ${err instanceof Error ? err.message : err}`);
@@ -245,7 +249,7 @@ async function reportComplete(reason: string): Promise<void> {
 		await callDevspec(resolved.token, "report_complete", {
 			connection_id: active.bond.connectionId,
 			reason,
-		}, { timeoutMs: 10_000 });
+		}, { timeoutMs: 10_000, lane: "pump" });
 	} catch {
 		/* best-effort — lease expiry + the disconnect paths are the backstop */
 	}
@@ -349,10 +353,10 @@ async function beatBusy(busy: boolean, agentStats?: AgentStatsReport | null): Pr
 		await callDevspec(resolved.token, "heartbeat_connection", {
 			connection_id: active.bond.connectionId,
 			status: "live",
-		busy,
+			busy,
 			agent_name: AGENT_NAME,
 			...(agentStats ? { agent_stats: agentStats } : {}),
-		});
+		}, { lane: "pump" });
 	} catch {
 		/* presence is best-effort — the next poll re-asserts */
 	}
@@ -385,7 +389,7 @@ async function withMaterialisedAttachments(cmd: OwnerCommand, connectionId: stri
 		{
 			token,
 			connectionId,
-			getResource: (t, args) => callDevspec(t, "get_resource", args),
+			getResource: (t, args) => callDevspec(t, "get_resource", args, { lane: "pump" }),
 		},
 		cmd.id,
 	);
@@ -438,7 +442,7 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 			connection_id: active.bond.connectionId,
 			status: "offline",
 			end_reason: reason,
-		});
+		}, { lane: "pump" });
 	} catch {
 		// Best-effort: the server idle-reaper cleans up regardless.
 	}
@@ -549,11 +553,15 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 	let notifiedFallback = false;
 
 	while (pump === active && !active.stop) {
-		// Server told us the bond ended — tear down without re-ending it.
+		// Server told us the bond ended — only a human End / local stop is sticky.
 		if (active.pushEnded !== undefined) {
-			notify(ctx, `DevSpec remote: connection ended${active.pushEnded ? ` (${active.pushEnded})` : ""}.`, "info");
-			await stopPump(ctx, "owner_gone", true);
-			return;
+			if (isPermanentServerEnd("ended", active.pushEnded)) {
+				notify(ctx, `DevSpec remote: connection ended${active.pushEnded ? ` (${active.pushEnded})` : ""}.`, "info");
+				await stopPump(ctx, "owner_gone", true);
+				return;
+			}
+			debug(`push ended recoverable (${active.pushEnded ?? "none"}) — staying bonded`);
+			active.pushEnded = undefined;
 		}
 		if (pushMode && active.pushClosed) {
 			pushMode = false;
@@ -583,24 +591,26 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					listener_armed: true,
 					agent_name: AGENT_NAME,
 				},
-				{ timeoutMs: POLL_TIMEOUT_MS, cwd: ctx.cwd },
+				{ timeoutMs: POLL_TIMEOUT_MS, cwd: ctx.cwd, lane: "pump" },
 			);
 			const { details, isError, text } = unwrapMcpResult(raw);
 			if (isError) throw new Error(text || "poll_connection failed");
 			payload = details;
 			active.errors = 0;
 		} catch (err) {
-			if (err instanceof DevspecAuthError) {
+			// Only a rejected token ends the bond from the client. A hung or
+			// parse-failed poll is recoverable (item 781886cf) — keep heartbeats
+			// and retry. Never stamp owner_gone / local_stop for transport noise.
+			if (shouldEndBondOnPollFailure(err)) {
 				notify(ctx, "DevSpec remote: token rejected — bond ended. /devspec.login to reconnect.", "error");
 				await stopPump(ctx, "owner_gone");
 				return;
 			}
 			active.errors += 1;
-			if (active.errors >= MAX_CONSECUTIVE_ERRORS) {
-				notify(ctx, `DevSpec remote: ${active.errors} consecutive poll failures — bond ended locally.`, "error");
-				await stopPump(ctx, "owner_gone");
-				return;
+			if (active.errors === 1 || active.errors % MAX_CONSECUTIVE_ERRORS === 0) {
+				debug(`poll recoverable (${active.errors}): ${err instanceof Error ? err.message : err}`);
 			}
+			void beatBusy(active.busy);
 			await new Promise((r) => setTimeout(r, ERROR_BACKOFF_MS));
 			continue;
 		}
@@ -608,12 +618,21 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		if (active.stop || pump !== active) return;
 
 		// The long-poll path also reports server-side ends (status: 'ended').
+		// Only a human End / local stop is sticky. Redeploy / not_found / a
+		// missing reason stay recoverable — ride them out in place.
 		const status = (payload as { status?: string } | null)?.status;
 		if (status === "ended" || status === "not_found") {
-			const endReason = (payload as { end_reason?: string | null } | null)?.end_reason;
-			notify(ctx, `DevSpec remote: connection ended${endReason ? ` (${endReason})` : ""}.`, "info");
-			await stopPump(ctx, "owner_gone", true);
-			return;
+			const endReason = (payload as { end_reason?: string | null } | null)?.end_reason ?? null;
+			if (isPermanentServerEnd(status, endReason)) {
+				notify(ctx, `DevSpec remote: connection ended${endReason ? ` (${endReason})` : ""}.`, "info");
+				await stopPump(ctx, "owner_gone", true);
+				return;
+			}
+			active.errors += 1;
+			debug(`poll recoverable server status=${status} reason=${endReason ?? "none"}`);
+			void beatBusy(active.busy);
+			await new Promise((r) => setTimeout(r, ERROR_BACKOFF_MS));
+			continue;
 		}
 
 		// Adopt the server's CURRENT attachment every lap (edea1a91: the server is
@@ -771,7 +790,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 			agent_name: AGENT_NAME,
 			machine_hostname: hostname(),
 			cwd: ctx.cwd,
-		}, { cwd: ctx.cwd });
+		}, { cwd: ctx.cwd, lane: "pump" });
 		const reg = unwrapMcpResult(regRaw);
 		if (reg.isError) return { ok: false, error: `register failed: ${reg.text}`, errorKind: "api" };
 		regText = reg.text;
@@ -801,7 +820,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 			const attRaw = await callDevspec(resolved.token, "attach_connection", {
 				connection_id: connectionId,
 				session_id: sessionArg,
-			}, { cwd: ctx.cwd });
+			}, { cwd: ctx.cwd, lane: "pump" });
 			const att = unwrapMcpResult(attRaw);
 			if (att.isError) {
 				notify(ctx, `DevSpec remote: bonded but attach failed: ${att.text}`, "warning");
@@ -856,7 +875,7 @@ async function enrichBondWithSession(sessionId: string, withAttachContext: boole
 	const resolved = await resolveToken();
 	if (!resolved) return;
 	try {
-		const raw = await callDevspec(resolved.token, "get_session_transcript", { session_id: sessionId });
+		const raw = await callDevspec(resolved.token, "get_session_transcript", { session_id: sessionId }, { lane: "pump" });
 		const unwrapped = unwrapMcpResult(raw);
 		if (unwrapped.isError) {
 			debug(`session enrich fetch failed: ${unwrapped.text.slice(0, 120)}`);
@@ -871,7 +890,7 @@ async function enrichBondWithSession(sessionId: string, withAttachContext: boole
 					limit: 20,
 					include_briefs: true,
 					lifecycle: "all",
-				});
+				}, { lane: "pump" });
 				const agendaUnwrapped = unwrapMcpResult(agendaRaw);
 				if (!agendaUnwrapped.isError) {
 					shaped.agenda = shapeRoomAgenda(agendaUnwrapped.details);
@@ -1064,8 +1083,10 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", async () => {
-		// Extensions are rebound on session switch; the pump must not outlive it.
-		if (turn?.interval) clearInterval(turn.interval);
+		// Close any open trail / Working row BEFORE tearing the pump down
+		// (item 781886cf). A crash mid-turn must not leave empty bubbles.
+		const openTurn = turn;
+		if (openTurn?.interval) clearInterval(openTurn.interval);
 		turn = null;
 		const active = pump;
 		if (!active) return;
@@ -1076,6 +1097,10 @@ export default function (pi: ExtensionAPI) {
 			const w = active.wakeWaiter;
 			active.wakeWaiter = null;
 			w();
+		}
+		// Close the activity attempt while the bond is still on the wire.
+		if (openTurn) {
+			try { await reportComplete("process_exit"); } catch { /* best-effort */ }
 		}
 		pump = null;
 		setBond(null);
@@ -1096,7 +1121,7 @@ export default function (pi: ExtensionAPI) {
 				status: "offline",
 				agent_name: AGENT_NAME,
 				observed_alive_until: new Date().toISOString(),
-			}, { timeoutMs: 3_000 });
+			}, { timeoutMs: 3_000, lane: "pump" });
 		} catch {
 			/* process is going away — the SSE-close path covers it */
 		}

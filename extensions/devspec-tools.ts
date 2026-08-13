@@ -14,7 +14,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { resolveToken } from "./core/auth-store.ts";
 import { getBond } from "./core/bond-state.ts";
 import { connectionsUrl, TOKEN_ENV_VAR } from "./core/config.ts";
-import { callDevspec } from "./core/client.ts";
+import { callDevspec, MODEL_TIMEOUT_MS } from "./core/client.ts";
 import { repoResolver, validateCommitSha } from "./core/commit-ledger.ts";
 import { addFlags, extractFlags } from "./core/conflict-watch.ts";
 import { jsonSchemaToTypebox } from "./core/json-schema.ts";
@@ -117,7 +117,11 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 	try {
 		const augment = AUGMENTS[name];
 		const args = stampKnownScope(augment ? augment(params, ctx) : params);
-		const raw = await callDevspec(resolved.token, name, args, { cwd: ctx.cwd });
+		const raw = await callDevspec(resolved.token, name, args, {
+			cwd: ctx.cwd,
+			lane: "work",
+			timeoutMs: MODEL_TIMEOUT_MS,
+		});
 		const result = unwrapOrThrow(name, raw);
 		watchForSignals(name, result);
 		applyWorkStatus(name, result);

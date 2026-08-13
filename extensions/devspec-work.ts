@@ -22,7 +22,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
 import { getAdapterGuardState, SUPPRESSION_NOTICE } from "./core/adapter-overlap.ts";
 import { resolveToken } from "./core/auth-store.ts";
-import { callDevspec } from "./core/client.ts";
+import { callDevspec, MODEL_TIMEOUT_MS } from "./core/client.ts";
 import { unwrapMcpResult } from "./core/result.ts";
 import { buildWorkPrompt } from "./core/work-prompt.ts";
 import type { WorkTarget } from "./core/work-prompt.ts";
@@ -41,7 +41,7 @@ async function refreshItemCache(): Promise<void> {
 	const resolved = await resolveToken();
 	if (!resolved) return;
 	try {
-		const raw = await callDevspec(resolved.token, "get_action_items", { fields: "compact", limit: 100 });
+		const raw = await callDevspec(resolved.token, "get_action_items", { fields: "compact", limit: 100 }, { lane: "work", timeoutMs: MODEL_TIMEOUT_MS });
 		const { details } = unwrapMcpResult(raw);
 		const rows = (details as { items?: Array<{ id?: string; title?: string }> } | null)?.items;
 		if (Array.isArray(rows)) {
@@ -92,7 +92,7 @@ async function resolveItemArg(arg: string): Promise<{ id: string } | { error: st
 async function fetchItemById(id: string): Promise<WorkTarget> {
 	const resolved = await resolveToken();
 	if (!resolved) throw new Error("not connected");
-	const raw = await callDevspec(resolved.token, "get_action_item", { action_item_id: id });
+	const raw = await callDevspec(resolved.token, "get_action_item", { action_item_id: id }, { lane: "work", timeoutMs: MODEL_TIMEOUT_MS });
 	const { details, text, isError } = unwrapMcpResult(raw);
 	if (isError) throw new Error(text || "get_action_item failed");
 	const d = details as { id?: string; title?: string; item?: { id?: string; title?: string } } | null;
@@ -103,7 +103,7 @@ async function fetchItemById(id: string): Promise<WorkTarget> {
 async function fetchNextFromQueue(): Promise<WorkTarget | null> {
 	const resolved = await resolveToken();
 	if (!resolved) throw new Error("not connected");
-	const raw = await callDevspec(resolved.token, "get_next_work_item", {});
+	const raw = await callDevspec(resolved.token, "get_next_work_item", {}, { lane: "work", timeoutMs: MODEL_TIMEOUT_MS });
 	const { details, text, isError } = unwrapMcpResult(raw);
 	if (isError) throw new Error(text || "get_next_work_item failed");
 	const d = details as Record<string, unknown> | null;

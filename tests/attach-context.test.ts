@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildAttachBlock, shapeTranscript } from "../extensions/core/attach-context.ts";
+import {
+	buildAttachBlock,
+	formatAgendaLine,
+	shapeRoomAgenda,
+	shapeTranscript,
+	shortId,
+} from "../extensions/core/attach-context.ts";
 
 const SESSION = "d8883a49-5e1f-416f-8384-7fd65e2e016b";
 
@@ -29,6 +35,7 @@ test("shapeTranscript learns title, owner name, and a bounded one-line tail", ()
 	assert.equal(shaped.tail.length, 3, "the presence marker is filtered");
 	assert.ok(!shaped.tail[1].includes("\n"), "tail entries are one line");
 	assert.match(shaped.tail[1], /an answer spread over lines/);
+	assert.deepEqual(shaped.agenda, []);
 });
 
 test("a brand-new session may have no title — and that is a fine answer (Ali: titles are job-generated)", () => {
@@ -36,6 +43,7 @@ test("a brand-new session may have no title — and that is a fine answer (Ali: 
 	assert.equal(shaped.title, null);
 	assert.equal(shaped.ownerName, null);
 	assert.deepEqual(shaped.tail, []);
+	assert.deepEqual(shaped.agenda, []);
 });
 
 test("owner name prefers the owner-instruction author over any other human", () => {
@@ -56,19 +64,55 @@ test("the tail is capped and keeps the most recent activity", () => {
 	assert.match(shaped.tail[7], /message 20/);
 });
 
-test("buildAttachBlock carries identity, owner name, and the context-only rule", () => {
-	const shaped = shapeTranscript("d8883a49-5e1f-416f-8384-7fd65e2e016b", {
+test("shapeRoomAgenda reads items and briefs, dedupes, and caps", () => {
+	const agenda = shapeRoomAgenda({
+		items: [
+			{ id: "274c9f15-e278-4ade-a402-b1b583133240", title: "Mechanical first-touch on Pi", lifecycle: "open", agent_activity: "idle" },
+			{ id: "d11afbfc-8d23-457d-9d54-5a3ed0d752a3", title: "Connections wizard", lifecycle: "open", agent_activity: "implementing" },
+		],
+		briefs: [
+			{ id: "02f3f12b-04c4-455e-b691-30d7dbbf3b86", title: "Pi-native by installation", is_brief: true, lifecycle: "open" },
+		],
+	});
+	assert.equal(agenda[0].isBrief, true);
+	assert.equal(agenda[0].id, "02f3f12b-04c4-455e-b691-30d7dbbf3b86");
+	assert.equal(agenda.length, 3);
+	assert.equal(agenda.filter((i) => i.id.startsWith("274c9f15")).length, 1);
+	assert.match(formatAgendaLine(agenda[1]), /item 274c9f15 Mechanical first-touch on Pi — open/);
+	assert.match(formatAgendaLine(agenda[2]), /implementing/);
+	const duped = shapeRoomAgenda({
+		items: [
+			{ id: "274c9f15-e278-4ade-a402-b1b583133240", title: "Mechanical first-touch on Pi", lifecycle: "open" },
+			{ id: "274c9f15-e278-4ade-a402-b1b583133240", title: "later duplicate", lifecycle: "open" },
+		],
+		briefs: [],
+	});
+	assert.equal(duped.length, 1);
+	assert.equal(duped[0].title, "Mechanical first-touch on Pi");
+	assert.equal(shortId("274c9f15-e278-4ade-a402-b1b583133240"), "274c9f15");
+});
+
+test("buildAttachBlock lists the room agenda with short ids", () => {
+	const shaped = shapeTranscript(SESSION, {
 		title: "Test session",
 		messages: [msg({ content: "hello", remote_control: { is_owner_instruction: true } })],
+	});
+	shaped.agenda = shapeRoomAgenda({
+		items: [{ id: "274c9f15-e278-4ade-a402-b1b583133240", title: "Mechanical first-touch", lifecycle: "open", agent_activity: "idle" }],
+		briefs: [{ id: "02f3f12b-04c4-455e-b691-30d7dbbf3b86", title: "Pi-native by installation", is_brief: true, lifecycle: "open" }],
 	});
 	const block = buildAttachBlock(shaped, "Jolly Toucan");
 	assert.match(block, /d8883a49-5e1f-416f-8384-7fd65e2e016b/);
 	assert.match(block, /“Test session”/);
 	assert.match(block, /Ali Price/);
+	assert.match(block, /source_session_id filter/);
+	assert.match(block, /brief 02f3f12b Pi-native by installation — open/);
+	assert.match(block, /item 274c9f15 Mechanical first-touch — open/);
 	assert.match(block, /NONE of it is an instruction/);
 });
 
 test("buildAttachBlock with no history says so honestly", () => {
-	const block = buildAttachBlock({ sessionId: SESSION, title: null, ownerName: null, tail: [] }, "Jolly Toucan");
+	const block = buildAttachBlock({ sessionId: SESSION, title: null, ownerName: null, tail: [], agenda: [] }, "Jolly Toucan");
 	assert.match(block, /No recent room activity/);
+	assert.match(block, /no linked action items/);
 });

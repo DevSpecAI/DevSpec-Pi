@@ -35,7 +35,7 @@ import { callDevspec, DevspecAuthError } from "./core/client.ts";
 import { getBond, setBond, type BondState } from "./core/bond-state.ts";
 import { formatInboundMessage, parsePollPayload } from "./core/remote-payload.ts";
 import { unwrapMcpResult } from "./core/result.ts";
-import { buildAttachBlock, shapeTranscript } from "./core/attach-context.ts";
+import { buildAttachBlock, shapeRoomAgenda, shapeTranscript } from "./core/attach-context.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { buildAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
 import { planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitFirstAnswer, TurnTracker } from "./core/turn-lifecycle.ts";
@@ -739,6 +739,25 @@ async function enrichBondWithSession(sessionId: string, withAttachContext: boole
 			return;
 		}
 		const shaped = shapeTranscript(sessionId, unwrapped.details);
+		if (withAttachContext) {
+			try {
+				const agendaRaw = await callDevspec(resolved.token, "get_action_items", {
+					source_session_id: sessionId,
+					fields: "compact",
+					limit: 20,
+					include_briefs: true,
+					lifecycle: "all",
+				});
+				const agendaUnwrapped = unwrapMcpResult(agendaRaw);
+				if (!agendaUnwrapped.isError) {
+					shaped.agenda = shapeRoomAgenda(agendaUnwrapped.details);
+				} else {
+					debug(`session agenda fetch failed: ${agendaUnwrapped.text.slice(0, 120)}`);
+				}
+			} catch (err) {
+				debug(`session agenda error: ${err instanceof Error ? err.message : err}`);
+			}
+		}
 		const active = pump;
 		// The attachment may have moved on (or detached) while the fetch flew.
 		if (!active?.bond || active.bond.sessionId !== sessionId) return;
@@ -752,7 +771,7 @@ async function enrichBondWithSession(sessionId: string, withAttachContext: boole
 		}
 		active.bond = next;
 		setBond(next);
-		debug(`session enriched: title=${shaped.title ? "yes" : "none yet"}, owner=${shaped.ownerName ?? "unknown"}, tail=${shaped.tail.length}, attachContext=${withAttachContext}`);
+		debug(`session enriched: title=${shaped.title ? "yes" : "none yet"}, owner=${shaped.ownerName ?? "unknown"}, tail=${shaped.tail.length}, agenda=${shaped.agenda.length}, attachContext=${withAttachContext}`);
 	} catch (err) {
 		debug(`session enrich error: ${err instanceof Error ? err.message : err}`);
 	}

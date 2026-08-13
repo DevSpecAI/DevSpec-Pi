@@ -45,7 +45,7 @@ import { unwrapMcpResult } from "./core/result.ts";
 import { buildAttachBlock, shapeRoomAgenda, shapeTranscript } from "./core/attach-context.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { buildAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
-import { planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitFirstAnswer, isHarnessOrigin, TurnTracker } from "./core/turn-lifecycle.ts";
+import { planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitFirstAnswer, isHarnessOrigin, shouldPauseSettle, TurnTracker } from "./core/turn-lifecycle.ts";
 import { dispatchSummary, formatDispatchMessage } from "./core/dispatch.ts";
 import {
 	firstTextPreview,
@@ -302,8 +302,14 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
  */
 async function settleTurn(agentStats: AgentStatsReport | null): Promise<boolean> {
 	const t = turn;
-	turn = null;
 	if (!t) { debug("settleTurn: no turn state"); return false; }
+	// Wait / unresolved bg_run: park the owner tracker. The next
+	// [bg completed] agent_start continues this turn (item 6ea9aa47).
+	if (shouldPauseSettle(t.tracker)) {
+		debug("settleTurn: pause — wait/bg_run close, keeping owner tracker");
+		return true;
+	}
+	turn = null;
 	if (t.interval) clearInterval(t.interval);
 	return await postSegmentAnswer(t, agentStats, "run_end");
 }
@@ -1027,6 +1033,7 @@ export default function (pi: ExtensionAPI) {
 		}
 		void (async () => {
 			const posted = await settleTurn(agentStats);
+			// Pause (wait/bg_run) keeps the tracker and the working attempt.
 			// No complete_turn post landed (aborted/empty turn, or the post
 			// failed) — close the working attempt explicitly (item 2c20337a).
 			if (!posted) await reportComplete("turn_end");
@@ -1122,7 +1129,12 @@ export default function (pi: ExtensionAPI) {
 			turn.trail.beginAssistantMessage();
 			turn.dirty = true;
 			const firstSplit = shouldSplitFirstAnswer(turn.tracker, { text, hasToolCalls });
-			turn.tracker.assistantFinal(text, firstSplit || isClosedAnswer({ text, hasToolCalls, stopReason }));
+			turn.tracker.assistantFinal(text, firstSplit || isClosedAnswer({
+				text,
+				hasToolCalls,
+				stopReason,
+				awaitingBackground: turn.tracker.awaitingBackground,
+			}));
 			// First user-facing line after a user message is the answer for the
 			// thinking so far, even when this same message also starts tools.
 			if (firstSplit) splitTurnAtBoundary("first_answer", false);
@@ -1134,6 +1146,9 @@ export default function (pi: ExtensionAPI) {
 		noteVerbStart(event.toolCallId, event.toolName, event.args);
 		paintStatus(ctx);
 		if (!turn) return;
+		if (event.toolName === "bg_run" || event.toolName === "bg_run_pi_attested") {
+			turn.tracker.noteBackgroundTask();
+		}
 		turn.trail.toolStart(event.toolName, event.args);
 		turn.dirty = true;
 	});

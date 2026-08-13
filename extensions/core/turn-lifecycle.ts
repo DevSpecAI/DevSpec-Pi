@@ -24,7 +24,11 @@
  *   The run is the execution unit; the segment is the delivery unit.
  *   Mid-run wait-narration (“I'll wait… Independent work is done.”) is
  *   process, not an answer (item 15d7aa56 / brief 7e99501c): it stays on
- *   the trail and never splits a bubble.
+ *   the trail and never splits a bubble. A text-only close after bg_run
+ *   in the same segment is the same class (item 6ea9aa47): Grok's curly
+ *   I’ll must fold to ASCII, and agent_settled must PAUSE the owner
+ *   tracker so the [bg completed] wake continues the turn instead of
+ *   opening a silent harness run.
  * - Runs started by a LOCAL prompt (typed in the terminal while attached)
  *   also mirror the prompt as turn_kind:'local_prompt' before the answer, so
  *   the DevSpec transcript is two-sided. Mirror once per typed prompt —
@@ -88,6 +92,10 @@ export class TurnTracker {
 	awaitingFirstAnswer = false;
 	/** True only for a freshly typed local prompt — never after carryUser. */
 	shouldMirrorPrompt = false;
+	/** True after bg_run in this segment until [bg completed] resolves it. */
+	awaitingBackground = false;
+	/** True when the last assistant close was wait/bg_run process, not an answer. */
+	lastCloseWasProcess = false;
 
 	userMessage(text: string, origin?: { customType?: string | null }): void {
 		const kind = classifyUserKind(text, origin?.customType);
@@ -101,6 +109,9 @@ export class TurnTracker {
 		// Mid-turn context/harness (auto-recall, leftover receipts) must not
 		// steal an already-started remote/local/dispatch turn (item 60cf5f00).
 		if (kind === "harness" && this.userKind && this.userKind !== "harness") {
+			// [bg completed] resolves the parked wait; keep the owner turn.
+			this.awaitingBackground = false;
+			this.lastCloseWasProcess = false;
 			return;
 		}
 		this.userText = text;
@@ -117,17 +128,27 @@ export class TurnTracker {
 		this.shouldMirrorPrompt = false;
 	}
 
+	/** A bg_run (or attested sibling) started in this segment. */
+	noteBackgroundTask(): void {
+		this.awaitingBackground = true;
+	}
+
 	assistantFinal(text: string, closedAnswer = false): void {
 		// Zero-width/format characters are not text: a "​" final is not an
 		// answer and must never produce a bubble (857d984c, instance 4).
 		const cleaned = text.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
-		// Wait-narration is trail process, not the room answer (15d7aa56).
-		if (cleaned && !isWaitNarration(cleaned)) {
+		const process = Boolean(cleaned) && isProcessClose({
+			text: cleaned,
+			awaitingBackground: this.awaitingBackground,
+		});
+		// Wait / bg_run process is trail, not the room answer (15d7aa56 / 6ea9aa47).
+		if (cleaned && !process) {
 			this.lastAssistantText = cleaned;
 			this.awaitingFirstAnswer = false;
 		}
-		// Only a real stored close can be an answer; empty/zw/wait never is.
-		this.lastCloseWasAnswer = Boolean(cleaned) && closedAnswer && !isWaitNarration(cleaned);
+		// Only a real stored close can be an answer; empty/zw/wait/bg never is.
+		this.lastCloseWasAnswer = Boolean(cleaned) && closedAnswer && !process;
+		this.lastCloseWasProcess = process;
 	}
 }
 
@@ -163,7 +184,9 @@ export function shouldSplitFirstAnswer(
 ): boolean {
 	if (!tracker.awaitingFirstAnswer) return false;
 	const cleaned = input.text.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
-	if (!cleaned || isWaitNarration(cleaned)) return false;
+	if (!cleaned || isProcessClose({ text: cleaned, awaitingBackground: tracker.awaitingBackground })) {
+		return false;
+	}
 	// Same-message tools: this line is the answer; later tools get a new trail.
 	// Text-only first closes wait for the next assistant round (or settle),
 	// so a normal one-shot still posts once with complete_turn=true.
@@ -173,6 +196,15 @@ export function shouldSplitFirstAnswer(
 const CLOSED_ANSWER_STOPS = new Set(["stop"]);
 const OPEN_ROUND_STOPS = new Set(["toolUse", "aborted", "error", "length", "pending"]);
 
+/** Grok (and others) emit curly I’ll; the wait regex is ASCII. */
+export function foldApostrophes(text: string): string {
+	return text.replace(/[\u2018\u2019\u02BC\u2032]/g, "'");
+}
+
+function cleanedProcessText(text: string): string {
+	return foldApostrophes(text.replace(/[\u200B-\u200D\uFEFF]/g, "")).trim();
+}
+
 /**
  * Mid-run process close while a background task is in flight (item 15d7aa56).
  * The model is told to acknowledge and end the turn rather than poll; that
@@ -180,17 +212,44 @@ const OPEN_ROUND_STOPS = new Set(["toolUse", "aborted", "error", "length", "pend
  * (brief 7e99501c / decision af24bdb5): the room is things said, not work.
  */
 export function isWaitNarration(text: string): boolean {
-	const cleaned = text.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+	const cleaned = cleanedProcessText(text);
 	if (!cleaned || cleaned.length > 500) return false;
 	if (/\bindependent work is done\b/i.test(cleaned)) return true;
-	const waitingOnWork =
-		/\bI(?:'ll| will) wait (?:for|until)\b/i.test(cleaned) &&
-		/\b(test|tests|typecheck|suite|task|results?|notification|build|lint)\b/i.test(cleaned);
-	if (!waitingOnWork) return false;
 	// Owner-directed waits are real answers ("I'll wait for your go-ahead").
 	if (/\?/.test(cleaned)) return false;
 	if (/\b(you|your|Ali)\b/i.test(cleaned)) return false;
-	return true;
+	const waitingOnWork =
+		/\bI(?:'ll| will) wait (?:for|until)\b/i.test(cleaned) &&
+		/\b(test|tests|typecheck|suite|task|results?|notification|build|lint)\b/i.test(cleaned);
+	if (waitingOnWork) return true;
+	// "Typecheck is still running. I'll push after." — process even without "wait".
+	return /\b(typecheck|lint|test|tests|suite|build|ci)\b/i.test(cleaned) &&
+		/\b(still running|is running)\b/i.test(cleaned);
+}
+
+/**
+ * Trail process, not a spoken answer: wait-narration, or a text-only close
+ * while this segment still has an unresolved bg_run (item 6ea9aa47).
+ */
+export function isProcessClose(input: {
+	text: string;
+	awaitingBackground?: boolean;
+	hasToolCalls?: boolean;
+}): boolean {
+	const cleaned = cleanedProcessText(input.text);
+	if (!cleaned) return false;
+	if (isWaitNarration(cleaned)) return true;
+	if (input.hasToolCalls) return false;
+	return Boolean(input.awaitingBackground);
+}
+
+/**
+ * agent_settled after a wait/bg_run close must keep the owner tracker so the
+ * next [bg completed] wake continues the turn (item 6ea9aa47).
+ */
+export function shouldPauseSettle(tracker: TurnTracker): boolean {
+	if (!tracker.userKind || tracker.userKind === "harness") return false;
+	return tracker.lastCloseWasProcess || tracker.awaitingBackground;
 }
 
 /**
@@ -198,16 +257,24 @@ export function isWaitNarration(text: string): boolean {
  * Tool-loop rounds (toolCall blocks or stopReason=toolUse) stay in the trail.
  * Missing stopReason with no tool calls still counts as closed — some providers
  * omit it; the content shape is the authority.
- * Wait-narration is the exception (15d7aa56): process, not a closed answer.
+ * Wait-narration / unresolved bg_run closes are the exception (15d7aa56 /
+ * 6ea9aa47): process, not a closed answer.
  */
 export function isClosedAnswer(input: {
 	text: string;
 	hasToolCalls: boolean;
 	stopReason?: string | null;
+	awaitingBackground?: boolean;
 }): boolean {
 	const cleaned = input.text.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
 	if (!cleaned) return false;
-	if (isWaitNarration(cleaned)) return false;
+	if (isProcessClose({
+		text: cleaned,
+		awaitingBackground: input.awaitingBackground,
+		hasToolCalls: input.hasToolCalls,
+	})) {
+		return false;
+	}
 	if (input.hasToolCalls) return false;
 	const reason = input.stopReason ?? "stop";
 	if (OPEN_ROUND_STOPS.has(reason)) return false;
@@ -218,6 +285,7 @@ export function planSettle(tracker: TurnTracker, attached: boolean): SettlePlan 
 	if (!attached) return { kind: "none" };
 	// Harness leftovers may wake the model; they are not room content.
 	if (tracker.userKind === "harness") return { kind: "none" };
+	if (shouldPauseSettle(tracker)) return { kind: "none" };
 	if (!tracker.lastAssistantText) return { kind: "none" };
 	if (tracker.userKind === "local" && tracker.shouldMirrorPrompt) {
 		return { kind: "local_mirror", prompt: tracker.userText, answer: tracker.lastAssistantText };

@@ -43,7 +43,7 @@ import { buildRoomDigest } from "./core/orientation.ts";
 import { openPushChannel, nextPushReconnectDelayMs } from "./core/push-channel.ts";
 import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
 import { loadSettings, saveSettings } from "./core/settings.ts";
-import { decideOwnerDelivery } from "./core/preempt.ts";
+import { decideOwnerDelivery, sendModeFor } from "./core/preempt.ts";
 
 const AGENT_NAME = "Pi";
 const POLL_WAIT_MS = 25_000;
@@ -596,18 +596,20 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				const formatted = formatInboundMessage(cmd, active.bond.codename ?? "this agent", active.bond);
 				if (mode === "preempt") {
 					// Pause the running turn (ESC equivalent). Context and edits survive;
-					// agent_settled closes the attempt honestly. Then deliver as a fresh
-					// user message so the owner instruction is answered first.
+					// agent_settled closes the attempt honestly. Then STEER the owner
+					// message — never a bare send. abort() is cooperative and
+					// isStreaming stays true for a beat; sendUserMessage is
+					// fire-and-forget so try/catch cannot recover a bounce
+					// (live miss, Ali 2026-08-13).
 					debug("preempt: aborting running turn for owner instruction");
 					pi_abort();
-					pi_sendAfterAbort(formatted);
+					pi_send(formatted, sendModeFor(mode));
 					notify(ctx, `DevSpec remote: interrupted — ${cmd.userName ?? "owner"} first.`);
-				} else if (mode === "queue") {
-					pi_send(formatted, true);
-					notify(ctx, `DevSpec remote: queued owner message (${cmd.userName ?? "owner"}).`);
 				} else {
-					pi_send(formatted);
-					notify(ctx, `DevSpec remote: delivered owner message (${cmd.userName ?? "owner"}).`);
+					pi_send(formatted, sendModeFor(mode));
+					notify(ctx, mode === "queue"
+						? `DevSpec remote: queued owner message (${cmd.userName ?? "owner"}).`
+						: `DevSpec remote: delivered owner message (${cmd.userName ?? "owner"}).`);
 				}
 			} catch (err) {
 				notify(ctx, `DevSpec remote: failed to deliver owner message: ${err instanceof Error ? err.message : err}`, "warning");
@@ -617,8 +619,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		for (const dispatch of dispatches) {
 			try {
 				const message = formatDispatchMessage(dispatch, active.bond.codename ?? "this agent");
-				if (ctx.isIdle()) pi_send(message);
-				else pi_send(message, true);
+				pi_send(message, ctx.isIdle() ? "now" : "followUp");
 				notify(ctx, "DevSpec remote: work dispatch delivered.");
 			} catch (err) {
 				notify(ctx, `DevSpec remote: failed to deliver dispatch: ${err instanceof Error ? err.message : err}`, "warning");
@@ -706,9 +707,8 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 }
 
 // Late-bound so the loop can reference the ExtensionAPI closure.
-let pi_send: (message: string, followUp?: boolean) => void = () => {};
+let pi_send: (message: string, mode?: "now" | "steer" | "followUp") => void = () => {};
 let pi_abort: () => void = () => {};
-let pi_sendAfterAbort: (message: string) => void = () => {};
 
 /**
  * Attach-time bond context (item 9dcbd157). One bounded transcript fetch
@@ -750,19 +750,13 @@ async function enrichBondWithSession(sessionId: string, withAttachContext: boole
 }
 
 export default function (pi: ExtensionAPI) {
-	pi_send = (message, followUp) =>
-		followUp ? pi.sendUserMessage(message, { deliverAs: "followUp" }) : pi.sendUserMessage(message);
+	pi_send = (message, mode = "now") => {
+		if (mode === "steer") pi.sendUserMessage(message, { deliverAs: "steer" });
+		else if (mode === "followUp") pi.sendUserMessage(message, { deliverAs: "followUp" });
+		else pi.sendUserMessage(message);
+	};
 	pi_abort = () => {
 		if (lastCtx && !lastCtx.isIdle()) lastCtx.abort();
-	};
-	pi_sendAfterAbort = (message) => {
-		try {
-			pi.sendUserMessage(message);
-		} catch {
-			// abort() is cooperative — if the run is still marked streaming for
-			// a beat, steer delivers after the current tool honors AbortSignal.
-			pi.sendUserMessage(message, { deliverAs: "steer" });
-		}
 	};
 
 	pi.on("agent_start", () => {

@@ -11,6 +11,9 @@
 
 export type OwnerDeliveryMode = "immediate" | "queue" | "preempt";
 
+/** How sendUserMessage must be called for that mode. */
+export type OwnerSendMode = "now" | "steer" | "followUp";
+
 export function decideOwnerDelivery(input: {
 	idle: boolean;
 	preemptEnabled: boolean;
@@ -20,4 +23,16 @@ export function decideOwnerDelivery(input: {
 	if (input.idle) return "immediate";
 	if (input.preemptEnabled) return "preempt";
 	return "queue";
+}
+
+/**
+ * After abort(), a bare sendUserMessage throws "Agent is already processing"
+ * because abort is cooperative and isStreaming is still true (live miss,
+ * Ali 2026-08-13). The extension API is fire-and-forget, so try/catch cannot
+ * recover. Preempt MUST send as steer — never a bare send.
+ */
+export function sendModeFor(mode: OwnerDeliveryMode): OwnerSendMode {
+	if (mode === "preempt") return "steer";
+	if (mode === "queue") return "followUp";
+	return "now";
 }

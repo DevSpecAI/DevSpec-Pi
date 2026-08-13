@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { decideOwnerDelivery } from "../extensions/core/preempt.ts";
+import { decideOwnerDelivery, sendModeFor } from "../extensions/core/preempt.ts";
 
 test("idle owner messages deliver immediately", () => {
 	assert.equal(
@@ -28,4 +28,10 @@ test("no owner command never preempts (ambient/dispatch stay out)", () => {
 		decideOwnerDelivery({ idle: false, preemptEnabled: true, hasOwnerCommand: false }),
 		"immediate",
 	);
+});
+
+test("preempt never uses a bare send (live miss: already processing)", () => {
+	assert.equal(sendModeFor("preempt"), "steer");
+	assert.equal(sendModeFor("queue"), "followUp");
+	assert.equal(sendModeFor("immediate"), "now");
 });

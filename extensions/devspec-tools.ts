@@ -28,7 +28,15 @@ import {
 	resolveGatewayVerb,
 } from "./core/model-surface.ts";
 import { toolErrorResult, toolTextResult, unwrapMcpResult } from "./core/result.ts";
-import { clearWork, extractItemRef, noteWork, paintStatus } from "./core/status-line.ts";
+import {
+	clearPlaybook,
+	clearWork,
+	extractItemRef,
+	extractPlaybookRef,
+	notePlaybook,
+	noteWork,
+	paintStatus,
+} from "./core/status-line.ts";
 import type { CatalogEntry } from "./generated/mcp-catalog.ts";
 
 /** Unwrap a DevSpec MCP result, converting isError payloads into thrown errors. */
@@ -48,12 +56,22 @@ function watchForSignals(name: string, result: unknown): void {
 	}
 }
 
+function claimFlag(result: unknown): unknown {
+	if (!result || typeof result !== "object") return undefined;
+	const root = result as { claimed?: unknown; details?: { claimed?: unknown } };
+	return root.details && typeof root.details === "object" ? root.details.claimed : root.claimed;
+}
+
 function applyWorkStatus(name: string, result: unknown): void {
 	const ref = extractItemRef(result);
 	if (name === "claim_work_item") {
 		noteWork(ref);
 	} else if (name === "record_implementation" || name === "release_work_item" || name === "fail_work_item") {
 		clearWork(ref.id);
+	} else if (name === "claim_playbook_run") {
+		if (claimFlag(result) !== false) notePlaybook(extractPlaybookRef(result));
+	} else if (name === "record_playbook_run") {
+		clearPlaybook(extractPlaybookRef(result).runId);
 	}
 	paintStatus();
 }

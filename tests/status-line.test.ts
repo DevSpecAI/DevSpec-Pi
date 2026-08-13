@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+	DEFAULT_TERMINAL_TITLE,
+	clearPlaybook,
 	clearWork,
 	extractItemRef,
+	extractPlaybookRef,
 	firstTextPreview,
 	formatStatusLine,
+	formatTerminalTitle,
 	getStatusSnapshot,
 	isDevspecVerb,
 	isRealSessionTitle,
+	notePlaybook,
 	noteVerbEnd,
 	noteVerbStart,
 	noteWork,
@@ -196,4 +201,84 @@ test("claimed work is shown and cleared for that item only", () => {
 	clearWork("item-1");
 	assert.equal(getStatusSnapshot().workTitle, undefined);
 	resetStatus();
+});
+
+test("extractPlaybookRef reads claim_playbook_run and record payloads", () => {
+	assert.deepEqual(
+		extractPlaybookRef({
+			claimed: true,
+			run: { run_id: "run-1", playbook_id: "pb-1", playbook_name: "Pull plugin repos" },
+			playbook: { id: "pb-1", name: "Pull plugin repos" },
+		}),
+		{ id: "pb-1", runId: "run-1", name: "Pull plugin repos" },
+	);
+	assert.deepEqual(
+		extractPlaybookRef({
+			details: {
+				recorded: true,
+				run: { run_id: "run-1", playbook_id: "pb-1", playbook_name: "Pull plugin repos" },
+			},
+		}),
+		{ id: "pb-1", runId: "run-1", name: "Pull plugin repos" },
+	);
+});
+
+test("claimed playbook sits in the footer and is distinct from an action item", () => {
+	assert.equal(
+		formatStatusLine({
+			codename: "Golden Possum",
+			sessionId: "sess-1",
+			sessionTitle: "Room",
+			playbookName: "Pull plugin repos",
+			workTitle: "Fix the build",
+		}),
+		"⛁ Golden Possum · “Room” · playbook “Pull plugin repos” · “Fix the build”",
+	);
+});
+
+test("claimed playbook is shown and cleared for that run only", () => {
+	resetStatus();
+	patchStatus({ codename: "Golden Possum" });
+	notePlaybook({ id: "pb-1", runId: "run-1", name: "Pull plugin repos" });
+	assert.equal(formatStatusLine(getStatusSnapshot()), "⛁ Golden Possum · playbook “Pull plugin repos”");
+	clearPlaybook("run-other");
+	assert.equal(getStatusSnapshot().playbookName, "Pull plugin repos");
+	clearPlaybook("run-1");
+	assert.equal(getStatusSnapshot().playbookName, undefined);
+	resetStatus();
+});
+
+test("terminal title prefers session, then playbook, then untitled stand-in, then codename", () => {
+	assert.equal(formatTerminalTitle(undefined), DEFAULT_TERMINAL_TITLE);
+	assert.equal(formatTerminalTitle({}), DEFAULT_TERMINAL_TITLE);
+	assert.equal(
+		formatTerminalTitle({
+			codename: "Golden Possum",
+			sessionId: "sess-1",
+			sessionTitle: "Pi TUI footer",
+			playbookName: "Pull plugin repos",
+		}),
+		"Pi TUI footer",
+	);
+	assert.equal(
+		formatTerminalTitle({
+			codename: "Golden Possum",
+			sessionId: "sess-1",
+			sessionTitle: "New session",
+			playbookName: "Pull plugin repos",
+			sessionPreview: "first owner message",
+		}),
+		"Pull plugin repos",
+	);
+	assert.equal(
+		formatTerminalTitle({
+			codename: "Golden Possum",
+			sessionId: "sess-1",
+			sessionPreview: "first owner message",
+		}),
+		"first owner message",
+	);
+	assert.equal(formatTerminalTitle({ codename: "Golden Possum", sessionId: "sess-1" }), "Golden Possum");
+	assert.equal(formatTerminalTitle({ codename: "Golden Possum" }), "Golden Possum");
+	assert.equal(formatTerminalTitle({ playbookName: "Pull plugin repos" }), "Pull plugin repos");
 });

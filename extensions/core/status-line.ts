@@ -3,10 +3,11 @@
  *
  * The footer already showed the bond codename. This module adds the rest of
  * what the process already knows: which room we are in, whether that room
- * still has a generated title, the claimed/dispatched item, and the DevSpec
- * verb currently executing. Pure formatter + globalThis store — pi loads
- * each extension file with a fresh jiti graph, so module singletons are
- * not shared.
+ * still has a generated title, the claimed/dispatched item, a claimed
+ * playbook, and the DevSpec verb currently executing. paintStatus also
+ * retitles the OS terminal tab (session → playbook → untitled stand-in →
+ * codename). Pure formatter + globalThis store — pi loads each extension
+ * file with a fresh jiti graph, so module singletons are not shared.
  *
  * sessionTitle is the REAL title only. First-message previews and the
  * literal "New session" placeholder never write there (same rule as the
@@ -20,6 +21,9 @@ export const STATUS_KEY = "devspec-remote";
 const SESSION_TITLE_MAX = 28;
 const SESSION_PREVIEW_MAX = 22;
 const WORK_TITLE_MAX = 28;
+const PLAYBOOK_NAME_MAX = 28;
+const TERMINAL_TITLE_MAX = 48;
+export const DEFAULT_TERMINAL_TITLE = "Pi";
 
 export interface StatusSnapshot {
 	codename?: string;
@@ -30,13 +34,19 @@ export interface StatusSnapshot {
 	sessionPreview?: string;
 	workId?: string;
 	workTitle?: string;
+	playbookId?: string;
+	playbookRunId?: string;
+	playbookName?: string;
 	/** Currently executing DevSpec verb (MCP name). */
 	verb?: string;
 }
 
 export interface StatusUi {
 	hasUI?: boolean;
-	ui: { setStatus(key: string, text: string | undefined): void };
+	ui: {
+		setStatus(key: string, text: string | undefined): void;
+		setTitle?(title: string): void;
+	};
 }
 
 interface LiveVerb {
@@ -160,6 +170,11 @@ const VERB_LABELS: Record<string, string> = {
 	acknowledge_assignment: "acknowledging",
 	resolve_assignment: "resolving assignment",
 	get_assignment: "reading assignment",
+	claim_playbook_run: "claiming playbook",
+	record_playbook_run: "recording playbook",
+	get_playbook: "reading playbook",
+	get_playbooks: "listing playbooks",
+	get_playbook_runs: "listing playbook runs",
 };
 
 export function verbLabel(verb: string): string {
@@ -191,9 +206,42 @@ export function extractItemRef(value: unknown): { id?: string; title?: string } 
 	return { id, title };
 }
 
+export function extractPlaybookRef(value: unknown): {
+	id?: string;
+	runId?: string;
+	name?: string;
+} {
+	const root = asRecord(value);
+	if (!root) return {};
+	if (root.details !== undefined) {
+		const inner = extractPlaybookRef(root.details);
+		if (inner.id || inner.runId || inner.name) return inner;
+	}
+	const playbook = asRecord(root.playbook);
+	const run = asRecord(root.run);
+	const name =
+		(playbook && typeof playbook.name === "string" && playbook.name.trim() && playbook.name.trim()) ||
+		(typeof root.playbook_name === "string" && root.playbook_name.trim() && root.playbook_name.trim()) ||
+		(run && typeof run.playbook_name === "string" && run.playbook_name.trim() && run.playbook_name.trim()) ||
+		undefined;
+	const id =
+		(playbook && typeof playbook.id === "string" && playbook.id) ||
+		(typeof root.playbook_id === "string" && root.playbook_id) ||
+		(run && typeof run.playbook_id === "string" && run.playbook_id) ||
+		undefined;
+	const runId =
+		(typeof root.run_id === "string" && root.run_id) ||
+		(run && typeof run.run_id === "string" && run.run_id) ||
+		(run && typeof run.id === "string" && run.id) ||
+		undefined;
+	return { id, runId, name };
+}
+
 export function formatStatusLine(snap: StatusSnapshot): string | undefined {
 	const codename = snap.codename?.trim();
-	if (!codename && !snap.sessionId && !snap.workTitle && !snap.verb) return undefined;
+	if (!codename && !snap.sessionId && !snap.workTitle && !snap.playbookName && !snap.verb) {
+		return undefined;
+	}
 
 	const parts: string[] = [`⛁ ${codename || "bonded"}`];
 
@@ -207,6 +255,10 @@ export function formatStatusLine(snap: StatusSnapshot): string | undefined {
 		}
 	}
 
+	if (snap.playbookName) {
+		parts.push(`playbook “${truncateLabel(snap.playbookName, PLAYBOOK_NAME_MAX)}”`);
+	}
+
 	if (snap.workTitle) {
 		parts.push(`“${truncateLabel(snap.workTitle, WORK_TITLE_MAX)}”`);
 	}
@@ -214,6 +266,24 @@ export function formatStatusLine(snap: StatusSnapshot): string | undefined {
 	if (snap.verb) parts.push(verbLabel(snap.verb));
 
 	return parts.join(" · ");
+}
+
+/** OS tab title. Session wins, then playbook, then untitled stand-in, then codename. */
+export function formatTerminalTitle(snap: StatusSnapshot | null | undefined): string {
+	if (!snap || (!snap.codename && !snap.sessionId && !snap.playbookName && !snap.sessionPreview)) {
+		return DEFAULT_TERMINAL_TITLE;
+	}
+	if (isRealSessionTitle(snap.sessionTitle)) {
+		return truncateLabel(snap.sessionTitle, TERMINAL_TITLE_MAX);
+	}
+	if (snap.playbookName) {
+		return truncateLabel(snap.playbookName, TERMINAL_TITLE_MAX);
+	}
+	if (snap.sessionPreview) {
+		return truncateLabel(snap.sessionPreview, TERMINAL_TITLE_MAX);
+	}
+	if (snap.codename?.trim()) return snap.codename.trim();
+	return DEFAULT_TERMINAL_TITLE;
 }
 
 function syncLiveVerb(): void {
@@ -251,6 +321,23 @@ export function clearWork(id?: string): void {
 	patchStatus({ workId: undefined, workTitle: undefined });
 }
 
+export function notePlaybook(ref: { id?: string; runId?: string; name?: string }): void {
+	if (!ref.id && !ref.runId && !ref.name) return;
+	patchStatus({
+		playbookId: ref.id,
+		playbookRunId: ref.runId,
+		playbookName: ref.name,
+	});
+}
+
+export function clearPlaybook(id?: string): void {
+	const current = store().current;
+	if (id && current.playbookRunId && current.playbookRunId !== id && current.playbookId !== id) {
+		return;
+	}
+	patchStatus({ playbookId: undefined, playbookRunId: undefined, playbookName: undefined });
+}
+
 /** Apply bond identity into the snapshot. Session change drops the old preview. */
 export function syncBondIntoStatus(bond: {
 	codename?: string;
@@ -284,4 +371,5 @@ export function paintStatus(ctx?: StatusUi | null): void {
 	const target = ctx?.hasUI ? ctx : s.lastUi;
 	if (!target?.hasUI) return;
 	target.ui.setStatus(STATUS_KEY, formatStatusLine(s.current));
+	target.ui.setTitle?.(formatTerminalTitle(s.current));
 }

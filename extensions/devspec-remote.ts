@@ -39,7 +39,19 @@ import { buildAttachBlock, shapeRoomAgenda, shapeTranscript } from "./core/attac
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { buildAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
 import { planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitFirstAnswer, TurnTracker } from "./core/turn-lifecycle.ts";
-import { formatDispatchMessage } from "./core/dispatch.ts";
+import { dispatchSummary, formatDispatchMessage } from "./core/dispatch.ts";
+import {
+	firstTextPreview,
+	isRealSessionTitle,
+	noteVerbEnd,
+	noteVerbStart,
+	noteWork,
+	paintStatus,
+	previewFromText,
+	resetStatus,
+	setSessionPreview,
+	syncBondIntoStatus,
+} from "./core/status-line.ts";
 import { buildRoomDigest } from "./core/orientation.ts";
 import { openPushChannel, nextPushReconnectDelayMs } from "./core/push-channel.ts";
 import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
@@ -331,9 +343,29 @@ function notify(ctx: ExtensionContext | null, message: string, level: "info" | "
 }
 
 function setRemoteStatus(ctx: ExtensionContext | null): void {
-	if (!ctx?.hasUI) return;
+	syncBondIntoStatus(getBond());
+	paintStatus(ctx);
+}
+
+function untitledAttached(): boolean {
 	const bond = getBond();
-	ctx.ui.setStatus("devspec-remote", bond ? `⛁ ${bond.codename ?? "bonded"}` : undefined);
+	return Boolean(bond?.sessionId && !isRealSessionTitle(bond.sessionTitle));
+}
+
+/** Titles are job-generated after the first substantial message. After an
+ *  owner delivery or settle, retry once shortly — not a hot poll. */
+function scheduleTitleRefresh(sessionId: string, delayMs = 8_000): void {
+	const active = pump;
+	if (!active || active.bond.sessionId !== sessionId) return;
+	if (isRealSessionTitle(active.bond.sessionTitle)) return;
+	const timer = setTimeout(() => {
+		const current = pump;
+		if (!current || current.bond.sessionId !== sessionId) return;
+		if (isRealSessionTitle(current.bond.sessionTitle)) return;
+		current.lastSessionEnrichAt = Date.now();
+		void enrichBondWithSession(sessionId, false);
+	}, delayMs);
+	if (typeof timer.unref === "function") timer.unref();
 }
 
 async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "owner_gone", serverAlreadyEnded = false): Promise<void> {
@@ -549,9 +581,17 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		// too (server session_id null → posting stops).
 		const serverSessionId = (payload as { session_id?: string | null } | null)?.session_id ?? null;
 		if (serverSessionId !== (active.bond.sessionId ?? null)) {
-			const next = { ...active.bond, sessionId: serverSessionId ?? undefined };
+			const next = {
+				...active.bond,
+				sessionId: serverSessionId ?? undefined,
+				// A new room (or detach) must not keep the previous room's title.
+				sessionTitle: undefined,
+				ownerName: undefined,
+				attachContext: undefined,
+			};
 			active.bond = next;
 			setBond(next);
+			setRemoteStatus(ctx);
 			debug(`attachment adopted from server: ${serverSessionId ?? "sessionless"}`);
 			// Attach-time bond context (item 9dcbd157): one bounded fetch learns the
 			// room's identity — title, owner name, recent tail — so a fresh bond
@@ -562,7 +602,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		// Titles are job-generated from the first substantial message: an attach
 		// that found none retries on a slow cadence (never hot-polled) until one
 		// lands — and a refresh never re-injects the attach block.
-		if (active.bond.sessionId && !active.bond.sessionTitle) {
+		if (active.bond.sessionId && !isRealSessionTitle(active.bond.sessionTitle)) {
 			const last = active.lastSessionEnrichAt ?? 0;
 			if (Date.now() - last > 60_000) {
 				active.lastSessionEnrichAt = Date.now();
@@ -620,6 +660,11 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 						? `DevSpec remote: queued owner message (${cmd.userName ?? "owner"}).`
 						: `DevSpec remote: delivered owner message (${cmd.userName ?? "owner"}).`);
 				}
+				if (untitledAttached()) {
+					setSessionPreview(previewFromText(cmd.text));
+					paintStatus(ctx);
+					if (active.bond.sessionId) scheduleTitleRefresh(active.bond.sessionId);
+				}
 			} catch (err) {
 				notify(ctx, `DevSpec remote: failed to deliver owner message: ${err instanceof Error ? err.message : err}`, "warning");
 			}
@@ -628,6 +673,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		for (const dispatch of dispatches) {
 			try {
 				const message = formatDispatchMessage(dispatch, active.bond.codename ?? "this agent");
+				const summary = dispatchSummary(dispatch);
+				noteWork({ id: summary.assignmentId, title: summary.title });
+				paintStatus(ctx);
 				pi_send(message, ctx.isIdle() ? "now" : "followUp");
 				notify(ctx, "DevSpec remote: work dispatch delivered.");
 			} catch (err) {
@@ -763,7 +811,11 @@ async function enrichBondWithSession(sessionId: string, withAttachContext: boole
 		if (!active?.bond || active.bond.sessionId !== sessionId) return;
 		const next: BondState = {
 			...active.bond,
-			sessionTitle: shaped.title ?? active.bond.sessionTitle,
+			sessionTitle: isRealSessionTitle(shaped.title)
+				? shaped.title
+				: isRealSessionTitle(active.bond.sessionTitle)
+					? active.bond.sessionTitle
+					: undefined,
 			ownerName: shaped.ownerName ?? active.bond.ownerName,
 		};
 		if (withAttachContext) {
@@ -771,6 +823,11 @@ async function enrichBondWithSession(sessionId: string, withAttachContext: boole
 		}
 		active.bond = next;
 		setBond(next);
+		if (!isRealSessionTitle(next.sessionTitle)) {
+			const preview = firstTextPreview((unwrapped.details as { messages?: unknown } | null)?.messages);
+			if (preview) setSessionPreview(preview);
+		}
+		setRemoteStatus(lastCtx);
 		debug(`session enriched: title=${shaped.title ? "yes" : "none yet"}, owner=${shaped.ownerName ?? "unknown"}, tail=${shaped.tail.length}, agenda=${shaped.agenda.length}, attachContext=${withAttachContext}`);
 	} catch (err) {
 		debug(`session enrich error: ${err instanceof Error ? err.message : err}`);
@@ -804,6 +861,9 @@ export default function (pi: ExtensionAPI) {
 		if (pump) {
 			pump.busy = false;
 			void beatBusy(false, agentStats);
+		}
+		if (untitledAttached() && pump?.bond.sessionId) {
+			scheduleTitleRefresh(pump.bond.sessionId);
 		}
 		void (async () => {
 			const posted = await settleTurn(agentStats);
@@ -884,6 +944,8 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("tool_execution_start", (event, ctx) => {
 		lastCtx = ctx;
+		noteVerbStart(event.toolCallId, event.toolName, event.args);
+		paintStatus(ctx);
 		if (!turn) return;
 		turn.trail.toolStart(event.toolName, event.args);
 		turn.dirty = true;
@@ -891,6 +953,8 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("tool_execution_end", (event, ctx) => {
 		lastCtx = ctx;
+		noteVerbEnd(event.toolCallId);
+		paintStatus(ctx);
 		if (!turn) return;
 		turn.trail.toolEnd(event.toolName, !event.isError, event.result);
 		turn.dirty = true;
@@ -912,6 +976,8 @@ export default function (pi: ExtensionAPI) {
 		}
 		pump = null;
 		setBond(null);
+		resetStatus();
+		paintStatus(lastCtx);
 
 		// Going-away stamp (item 8b0c162b): tell DevSpec immediately rather than
 		// leaving the UI to age the bond out of the 90s liveness window. NON-STICKY

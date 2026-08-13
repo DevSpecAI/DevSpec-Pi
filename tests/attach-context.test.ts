@@ -44,6 +44,7 @@ test("a brand-new session may have no title — and that is a fine answer (Ali: 
 	assert.equal(shaped.ownerName, null);
 	assert.deepEqual(shaped.tail, []);
 	assert.deepEqual(shaped.agenda, []);
+	assert.equal(shapeTranscript(SESSION, { title: "New session", messages: [] }).title, null);
 });
 
 test("owner name prefers the owner-instruction author over any other human", () => {

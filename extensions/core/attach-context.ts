@@ -12,6 +12,8 @@
  * instruction.
  */
 
+import { isRealSessionTitle } from "./status-line.ts";
+
 export interface TranscriptMessage {
 	author?: { kind?: string; name?: string };
 	content?: string;
@@ -94,7 +96,7 @@ export function shapeTranscript(sessionId: string, raw: unknown): AttachContextS
 
 	return {
 		sessionId,
-		title: typeof t.title === "string" && t.title.trim() ? t.title.trim() : null,
+		title: isRealSessionTitle(t.title) ? t.title.trim() : null,
 		ownerName,
 		tail: tail.slice(-MAX_TAIL),
 		agenda: [],

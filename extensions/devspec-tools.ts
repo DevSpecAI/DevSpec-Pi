@@ -28,6 +28,7 @@ import {
 	resolveGatewayVerb,
 } from "./core/model-surface.ts";
 import { toolErrorResult, toolTextResult, unwrapMcpResult } from "./core/result.ts";
+import { clearWork, extractItemRef, noteWork, paintStatus } from "./core/status-line.ts";
 import type { CatalogEntry } from "./generated/mcp-catalog.ts";
 
 /** Unwrap a DevSpec MCP result, converting isError payloads into thrown errors. */
@@ -45,6 +46,16 @@ function watchForSignals(name: string, result: unknown): void {
 	} catch {
 		/* never let the watch break a tool call */
 	}
+}
+
+function applyWorkStatus(name: string, result: unknown): void {
+	const ref = extractItemRef(result);
+	if (name === "claim_work_item") {
+		noteWork(ref);
+	} else if (name === "record_implementation" || name === "release_work_item" || name === "fail_work_item") {
+		clearWork(ref.id);
+	}
+	paintStatus();
 }
 
 const NOT_CONNECTED =
@@ -91,6 +102,7 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 		const raw = await callDevspec(resolved.token, name, args, { cwd: ctx.cwd });
 		const result = unwrapOrThrow(name, raw);
 		watchForSignals(name, result);
+		applyWorkStatus(name, result);
 		return result;
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);

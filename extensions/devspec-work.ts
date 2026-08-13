@@ -26,6 +26,7 @@ import { callDevspec } from "./core/client.ts";
 import { unwrapMcpResult } from "./core/result.ts";
 import { buildWorkPrompt } from "./core/work-prompt.ts";
 import type { WorkTarget } from "./core/work-prompt.ts";
+import { noteWork, paintStatus } from "./core/status-line.ts";
 
 const CACHE_TTL_MS = 60_000;
 
@@ -155,6 +156,8 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			void refreshItemCache();
+			noteWork({ id: target.id, title: target.title });
+			paintStatus(ctx);
 			pi.sendUserMessage(buildWorkPrompt(target));
 		},
 	});

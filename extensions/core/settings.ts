@@ -12,9 +12,11 @@ import { devspecDir } from "./config.ts";
 
 export interface DevspecSettings {
 	autoBond: boolean;
+	/** Owner messages abort a running turn (item f5bbc8f8). Default on. */
+	preemptOwner: boolean;
 }
 
-const DEFAULTS: DevspecSettings = { autoBond: true };
+const DEFAULTS: DevspecSettings = { autoBond: true, preemptOwner: true };
 
 function settingsPath(): string {
 	return join(devspecDir(), "settings.json");

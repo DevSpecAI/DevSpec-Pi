@@ -9,8 +9,9 @@
  *   server revives the same (owner, local_id) bond within its 24h window, so
  *   `pi -c` keeps the same connection and codename.
  * - ONE held poll_connection long-poll (25s) carries heartbeat + commands +
- *   advisory; owner commands arrive as REAL user messages (sendUserMessage,
- *   followUp while busy). Advisory tiers never wake the agent.
+ *   advisory; owner commands arrive as REAL user messages (sendUserMessage).
+ *   Mid-turn owner arrivals PREEMPT (abort the running turn, then deliver) —
+ *   item f5bbc8f8. Advisory tiers never wake or abort.
  * - Egress is runtime-mechanical (item cc9e8c43): the extension delivers the
  *   run's final assistant message with complete_turn:true. The model never
  *   posts conversational content — ONE writer, no suppression, no dual
@@ -42,6 +43,7 @@ import { buildRoomDigest } from "./core/orientation.ts";
 import { openPushChannel, nextPushReconnectDelayMs } from "./core/push-channel.ts";
 import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
 import { loadSettings, saveSettings } from "./core/settings.ts";
+import { decideOwnerDelivery } from "./core/preempt.ts";
 
 const AGENT_NAME = "Pi";
 const POLL_WAIT_MS = 25_000;
@@ -83,6 +85,8 @@ interface PumpState {
 }
 
 let pump: PumpState | null = null;
+/** Cached so a mid-turn poll does not re-read settings.json every lap. */
+let preemptOwnerCached = true;
 
 // ---- Mechanical turn lifecycle (trail + final answer) ---------------------
 // All of this is extension-mechanical: zero tokens, no model compliance.
@@ -584,12 +588,27 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 
 		for (const cmd of pkg.ownerCommands) {
 			try {
-				if (ctx.isIdle()) {
-					pi_send(formatInboundMessage(cmd, active.bond.codename ?? "this agent", active.bond));
+				const mode = decideOwnerDelivery({
+					idle: ctx.isIdle(),
+					preemptEnabled: preemptOwnerCached,
+					hasOwnerCommand: true,
+				});
+				const formatted = formatInboundMessage(cmd, active.bond.codename ?? "this agent", active.bond);
+				if (mode === "preempt") {
+					// Pause the running turn (ESC equivalent). Context and edits survive;
+					// agent_settled closes the attempt honestly. Then deliver as a fresh
+					// user message so the owner instruction is answered first.
+					debug("preempt: aborting running turn for owner instruction");
+					pi_abort();
+					pi_sendAfterAbort(formatted);
+					notify(ctx, `DevSpec remote: interrupted — ${cmd.userName ?? "owner"} first.`);
+				} else if (mode === "queue") {
+					pi_send(formatted, true);
+					notify(ctx, `DevSpec remote: queued owner message (${cmd.userName ?? "owner"}).`);
 				} else {
-					pi_send(formatInboundMessage(cmd, active.bond.codename ?? "this agent", active.bond), true);
+					pi_send(formatted);
+					notify(ctx, `DevSpec remote: delivered owner message (${cmd.userName ?? "owner"}).`);
 				}
-				notify(ctx, `DevSpec remote: delivered owner message (${cmd.userName ?? "owner"}).`);
 			} catch (err) {
 				notify(ctx, `DevSpec remote: failed to deliver owner message: ${err instanceof Error ? err.message : err}`, "warning");
 			}
@@ -680,6 +699,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 
 	setBond(bond);
 	pump = { bond, busy: false, stop: false, errors: 0, synced: false, pushAttempts: 0 };
+	preemptOwnerCached = (await loadSettings()).preemptOwner;
 	setRemoteStatus(ctx);
 	void pumpLoop(ctx);
 	return { ok: true, codename: bond.codename, attached };
@@ -687,6 +707,8 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 
 // Late-bound so the loop can reference the ExtensionAPI closure.
 let pi_send: (message: string, followUp?: boolean) => void = () => {};
+let pi_abort: () => void = () => {};
+let pi_sendAfterAbort: (message: string) => void = () => {};
 
 /**
  * Attach-time bond context (item 9dcbd157). One bounded transcript fetch
@@ -730,6 +752,18 @@ async function enrichBondWithSession(sessionId: string, withAttachContext: boole
 export default function (pi: ExtensionAPI) {
 	pi_send = (message, followUp) =>
 		followUp ? pi.sendUserMessage(message, { deliverAs: "followUp" }) : pi.sendUserMessage(message);
+	pi_abort = () => {
+		if (lastCtx && !lastCtx.isIdle()) lastCtx.abort();
+	};
+	pi_sendAfterAbort = (message) => {
+		try {
+			pi.sendUserMessage(message);
+		} catch {
+			// abort() is cooperative — if the run is still marked streaming for
+			// a beat, steer delivers after the current tool honors AbortSignal.
+			pi.sendUserMessage(message, { deliverAs: "steer" });
+		}
+	};
 
 	pi.on("agent_start", () => {
 		if (pump) {
@@ -885,7 +919,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("devspec.remote", {
-		description: "Bond this pi session as DevSpec capacity. Usage: /devspec.remote [--session <id>] | stop | auto [on|off]",
+		description: "Bond this pi session as DevSpec capacity. Usage: /devspec.remote [--session <id>] | stop | auto [on|off] | preempt [on|off]",
 		handler: async (args, ctx) => {
 			const arg = args.trim();
 
@@ -908,6 +942,19 @@ export default function (pi: ExtensionAPI) {
 				} else {
 					const cur = await loadSettings();
 					notify(ctx, `DevSpec remote: auto-bond is ${cur.autoBond ? "on" : "off"} (interactive sessions only).`);
+				}
+				return;
+			}
+
+			if (arg === "preempt" || arg.startsWith("preempt ")) {
+				const sub = arg.split(/\s+/)[1];
+				if (sub === "on" || sub === "off") {
+					const next = await saveSettings({ preemptOwner: sub === "on" });
+					preemptOwnerCached = next.preemptOwner;
+					notify(ctx, `DevSpec remote: owner-message preemption ${next.preemptOwner ? "ON — mid-turn owner messages interrupt" : "OFF — they queue until the turn finishes"}.`);
+				} else {
+					const cur = await loadSettings();
+					notify(ctx, `DevSpec remote: owner-message preemption is ${cur.preemptOwner ? "on" : "off"}.`);
 				}
 				return;
 			}

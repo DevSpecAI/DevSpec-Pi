@@ -27,9 +27,10 @@
  *   the DevSpec transcript is two-sided. Mirror once per typed prompt —
  *   continuation segments (carryUser) post only the answer (item 56b9a3b4).
  * - HARNESS leftovers (Pi <background-task-notification> / [bg completed])
- *   may wake the model but are not conversation: no remirror, no answer
- *   bubble. Typed slash commands stay local — we classify by origin, not
- *   by a leading `/`.
+ *   and DevSpec display:false context injections (auto-recall, attach
+ *   block, room orientation) may wake the model but are not conversation:
+ *   no remirror, no answer bubble. Typed slash commands stay local — we
+ *   classify by origin, not by a leading `/`.
  * - Nothing posts when unattached (sessionless) or when there is no answer
  *   text (e.g. a run that was pure tool calls with no closing message).
  */
@@ -39,16 +40,28 @@ export type UserKind = "remote" | "dispatch" | "local" | "harness";
 export const REMOTE_PREFIX = "[DevSpec remote — message from";
 export const DISPATCH_PREFIX = "[DevSpec remote — work dispatch";
 export const HARNESS_BG_CUSTOM_TYPE = "background-task-notification";
+export const CONTEXT_CUSTOM_TYPES = new Set([
+	"devspec-proactive",
+	"devspec-attach-context",
+	"devspec-room-orientation",
+]);
+const CONTEXT_TEXT_PREFIXES = [
+	"### DevSpec memory — auto-recall",
+	"[DevSpec remote — bond context",
+	"[DevSpec remote — room orientation",
+];
 
 /**
- * Leftover harness origin (item 56b9a3b4). Prefer Pi's customType, then the
- * XML notifyCompletion actually injects, then the TUI `[bg completed]` line.
+ * Leftover / injected origin (items 56b9a3b4, 4f801a67). Prefer Pi's
+ * customType, then known injected text, then leftover bg receipts.
  * A typed `/bg-update` is NOT harness — slash commands stay first-class local.
  */
 export function isHarnessOrigin(text: string, customType?: string | null): boolean {
 	if (customType === HARNESS_BG_CUSTOM_TYPE) return true;
+	if (customType && CONTEXT_CUSTOM_TYPES.has(customType)) return true;
 	const t = text.trim();
 	if (!t) return false;
+	if (CONTEXT_TEXT_PREFIXES.some((prefix) => t.startsWith(prefix))) return true;
 	if (t.includes("<background-task-notification")) return true;
 	return /^\[bg (completed|failed|killed)\]/m.test(t);
 }

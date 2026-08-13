@@ -212,6 +212,50 @@ test("leftover [bg completed] / customType is harness: no remirror, no answer", 
 	assert.deepEqual(planSettle(leftover, true), { kind: "none" });
 });
 
+test("display:false DevSpec context injections never remirror as local prompts", () => {
+	assert.equal(isHarnessOrigin("### DevSpec memory — auto-recall\nBINDING"), true);
+	assert.equal(isHarnessOrigin("cards", "devspec-proactive"), true);
+	assert.equal(isHarnessOrigin("[DevSpec remote — bond context for Rapid Quokka]\nYou are attached"), true);
+	assert.equal(isHarnessOrigin("tail", "devspec-attach-context"), true);
+	assert.equal(isHarnessOrigin("[DevSpec remote — room orientation for Rapid Quokka]\nRecent activity"), true);
+	assert.equal(isHarnessOrigin("digest", "devspec-room-orientation"), true);
+
+	const recall = new TurnTracker();
+	recall.userMessage("### DevSpec memory — auto-recall\nMechanically recalled for this turn's prompt.", { customType: "devspec-proactive" });
+	recall.assistantFinal("Looking good now, Ali.");
+	assert.equal(recall.userKind, "harness");
+	assert.equal(recall.shouldMirrorPrompt, false);
+	assert.deepEqual(planSettle(recall, true), { kind: "none" });
+
+	const attach = new TurnTracker();
+	attach.userMessage("[DevSpec remote — bond context for Rapid Quokka]\nYou are attached", { customType: "devspec-attach-context" });
+	attach.assistantFinal("ok");
+	assert.deepEqual(planSettle(attach, true), { kind: "none" });
+
+	const orient = new TurnTracker();
+	orient.userMessage("[DevSpec remote — room orientation for Rapid Quokka]\nRecent activity", { customType: "devspec-room-orientation" });
+	orient.assistantFinal("ok");
+	assert.deepEqual(planSettle(orient, true), { kind: "none" });
+
+	// A real owner envelope that quotes the recall heading stays remote.
+	const quoted = new TurnTracker();
+	quoted.userMessage("[DevSpec remote — message from Ali Price to Rapid Quokka]\nwhat about the DevSpec memory auto-recall!?");
+	quoted.assistantFinal("That block is not from you.");
+	assert.equal(quoted.userKind, "remote");
+	assert.deepEqual(planSettle(quoted, true), { kind: "final", message: "That block is not from you." });
+
+	// Typed local prompts still mirror once.
+	const typed = new TurnTracker();
+	typed.userMessage("Ok I reloaded, how's it looking now?");
+	typed.assistantFinal("Looking good.");
+	assert.equal(typed.userKind, "local");
+	assert.deepEqual(planSettle(typed, true), {
+		kind: "local_mirror",
+		prompt: "Ok I reloaded, how's it looking now?",
+		answer: "Looking good.",
+	});
+});
+
 test("formatDispatchMessage carries the protocol steps and payload", () => {
 	const msg = formatDispatchMessage({ assignment_id: "as-1", title: "Fix flaky test" }, "Wary Wolf");
 	assert.match(msg, /^\[DevSpec remote — work dispatch to Wary Wolf\]/);

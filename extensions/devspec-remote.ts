@@ -759,6 +759,11 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 	pump = { bond, busy: false, stop: false, errors: 0, synced: false, pushAttempts: 0 };
 	preemptOwnerCached = (await loadSettings()).preemptOwner;
 	setRemoteStatus(ctx);
+	// Revive/register can already be attached (same session_id on the
+	// connection row). The pump only rebuilds attachContext on a sessionId
+	// *transition*, so a stop→remote into the same room would otherwise
+	// skip the room-agenda card. Fetch it here as a genuine attach.
+	if (bond.sessionId) void enrichBondWithSession(bond.sessionId, true);
 	void pumpLoop(ctx);
 	return { ok: true, codename: bond.codename, attached };
 }

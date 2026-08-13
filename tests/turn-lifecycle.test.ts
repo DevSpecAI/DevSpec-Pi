@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { formatDispatchMessage } from "../extensions/core/dispatch.ts";
-import { classifyUserKind, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, planSettle, shouldSplitFirstAnswer, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
+import { classifyUserKind, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, isWaitNarration, planSettle, shouldSplitFirstAnswer, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 
 function remoteTurn(answer: string): TurnTracker {
 	const t = new TurnTracker();
@@ -269,6 +269,52 @@ test("mid-turn context injection keeps the original remote turn and posts the wr
 		kind: "final",
 		message: "You're right, Ali. That auto-recall block was not from you.",
 	});
+});
+
+test("wait-narration is process, not a closed answer (15d7aa56)", () => {
+	const wait = "I'll wait for the linked-modules v2 tests, then commit both repos. Independent work is done.";
+	assert.equal(isWaitNarration(wait), true);
+	assert.equal(isWaitNarration("I'll wait for the poll-connection suite. Independent work is done."), true);
+	assert.equal(isWaitNarration("I'll wait for v2 typecheck, then rebase, commit, and merge. Independent work is done."), true);
+	assert.equal(isClosedAnswer({ text: wait, hasToolCalls: false, stopReason: "stop" }), false);
+	// Owner-directed waits stay answers.
+	assert.equal(isWaitNarration("I'll wait for your go-ahead, Ali."), false);
+	assert.equal(isWaitNarration("Want me to wait for the tests?"), false);
+	assert.equal(isClosedAnswer({ text: "I'll wait for your go-ahead, Ali.", hasToolCalls: false, stopReason: "stop" }), true);
+});
+
+test("remote wait-narration + bg completed + wrap-up posts the wrap-up, not the wait", () => {
+	const t = new TurnTracker();
+	t.userMessage("[DevSpec remote — message from Ali Price to Drifting Mantis]\nOkay. I reloaded, so let's continue.");
+	assert.equal(t.userKind, "remote");
+	const wait = "I'll wait for the linked-modules v2 tests, then commit both repos. Independent work is done.";
+	assert.equal(isClosedAnswer({ text: wait, hasToolCalls: false, stopReason: "stop" }), false);
+	t.assistantFinal(wait, isClosedAnswer({ text: wait, hasToolCalls: false, stopReason: "stop" }));
+	assert.equal(t.lastCloseWasAnswer, false);
+	assert.equal(isClosedAnswerBoundary(t), false, "wait-narration must not split a bubble");
+	assert.equal(t.lastAssistantText, "", "wait text never becomes the stored answer");
+	assert.equal(t.awaitingFirstAnswer, true);
+
+	// Several wait-splits later, a leftover bg receipt must stay harness and
+	// must not overwrite the live remote turn (60cf5f00 still holds).
+	t.userMessage("[bg completed] linked-modules v2 tests", { customType: "background-task-notification" });
+	assert.equal(t.userKind, "remote", "bg completed must not steal the owner turn");
+	t.assistantFinal("I'll wait for the poll-connection suite. Independent work is done.", false);
+	t.userMessage("[bg completed] poll-connection suite", { customType: "background-task-notification" });
+	assert.equal(t.userKind, "remote");
+
+	const wrapUp = "CONTROL shipped. Stop is on the now-line. Compact is in the tooltip.";
+	t.assistantFinal(wrapUp, isClosedAnswer({ text: wrapUp, hasToolCalls: false, stopReason: "stop" }));
+	assert.equal(t.lastCloseWasAnswer, true);
+	assert.deepEqual(planSettle(t, true), { kind: "final", message: wrapUp });
+});
+
+test("leftover-only [bg completed] still posts no answer (56b9a3b4)", () => {
+	const leftover = new TurnTracker();
+	leftover.userMessage("[bg completed] Isolated typecheck", { customType: "background-task-notification" });
+	leftover.assistantFinal("I'll wait for nothing — that receipt already passed.");
+	assert.equal(leftover.userKind, "harness");
+	assert.deepEqual(planSettle(leftover, true), { kind: "none" });
 });
 
 test("formatDispatchMessage carries the protocol steps and payload", () => {

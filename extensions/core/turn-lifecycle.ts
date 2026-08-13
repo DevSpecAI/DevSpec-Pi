@@ -22,6 +22,9 @@
  *   "Ali, I'll check…" line that lived in Show work). Later tools/thinking
  *   open a fresh Working trail. A later text-only close is another boundary.
  *   The run is the execution unit; the segment is the delivery unit.
+ *   Mid-run wait-narration (“I'll wait… Independent work is done.”) is
+ *   process, not an answer (item 15d7aa56 / brief 7e99501c): it stays on
+ *   the trail and never splits a bubble.
  * - Runs started by a LOCAL prompt (typed in the terminal while attached)
  *   also mirror the prompt as turn_kind:'local_prompt' before the answer, so
  *   the DevSpec transcript is two-sided. Mirror once per typed prompt —
@@ -116,12 +119,13 @@ export class TurnTracker {
 		// Zero-width/format characters are not text: a "​" final is not an
 		// answer and must never produce a bubble (857d984c, instance 4).
 		const cleaned = text.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
-		if (cleaned) {
+		// Wait-narration is trail process, not the room answer (15d7aa56).
+		if (cleaned && !isWaitNarration(cleaned)) {
 			this.lastAssistantText = cleaned;
 			this.awaitingFirstAnswer = false;
 		}
-		// Only a real stored close can be an answer; empty/zw text never is.
-		this.lastCloseWasAnswer = Boolean(cleaned) && closedAnswer;
+		// Only a real stored close can be an answer; empty/zw/wait never is.
+		this.lastCloseWasAnswer = Boolean(cleaned) && closedAnswer && !isWaitNarration(cleaned);
 	}
 }
 
@@ -157,7 +161,7 @@ export function shouldSplitFirstAnswer(
 ): boolean {
 	if (!tracker.awaitingFirstAnswer) return false;
 	const cleaned = input.text.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
-	if (!cleaned) return false;
+	if (!cleaned || isWaitNarration(cleaned)) return false;
 	// Same-message tools: this line is the answer; later tools get a new trail.
 	// Text-only first closes wait for the next assistant round (or settle),
 	// so a normal one-shot still posts once with complete_turn=true.
@@ -168,10 +172,31 @@ const CLOSED_ANSWER_STOPS = new Set(["stop"]);
 const OPEN_ROUND_STOPS = new Set(["toolUse", "aborted", "error", "length", "pending"]);
 
 /**
+ * Mid-run process close while a background task is in flight (item 15d7aa56).
+ * The model is told to acknowledge and end the turn rather than poll; that
+ * sentence is trail, not a spoken answer. Matches the now-line contract
+ * (brief 7e99501c / decision af24bdb5): the room is things said, not work.
+ */
+export function isWaitNarration(text: string): boolean {
+	const cleaned = text.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+	if (!cleaned || cleaned.length > 500) return false;
+	if (/\bindependent work is done\b/i.test(cleaned)) return true;
+	const waitingOnWork =
+		/\bI(?:'ll| will) wait (?:for|until)\b/i.test(cleaned) &&
+		/\b(test|tests|typecheck|suite|task|results?|notification|build|lint)\b/i.test(cleaned);
+	if (!waitingOnWork) return false;
+	// Owner-directed waits are real answers ("I'll wait for your go-ahead").
+	if (/\?/.test(cleaned)) return false;
+	if (/\b(you|your|Ali)\b/i.test(cleaned)) return false;
+	return true;
+}
+
+/**
  * A text-only assistant close is a finished answer (item f0df6c3e).
  * Tool-loop rounds (toolCall blocks or stopReason=toolUse) stay in the trail.
  * Missing stopReason with no tool calls still counts as closed — some providers
  * omit it; the content shape is the authority.
+ * Wait-narration is the exception (15d7aa56): process, not a closed answer.
  */
 export function isClosedAnswer(input: {
 	text: string;
@@ -180,6 +205,7 @@ export function isClosedAnswer(input: {
 }): boolean {
 	const cleaned = input.text.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
 	if (!cleaned) return false;
+	if (isWaitNarration(cleaned)) return false;
 	if (input.hasToolCalls) return false;
 	const reason = input.stopReason ?? "stop";
 	if (OPEN_ROUND_STOPS.has(reason)) return false;

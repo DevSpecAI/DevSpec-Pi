@@ -26,13 +26,41 @@ export function decideOwnerDelivery(input: {
 }
 
 /**
- * After abort(), a bare sendUserMessage throws "Agent is already processing"
- * because abort is cooperative and isStreaming is still true (live miss,
- * Ali 2026-08-13). The extension API is fire-and-forget, so try/catch cannot
- * recover. Preempt MUST send as steer — never a bare send.
+ * After abort(), isStreaming stays true until the aborted run settles
+ * (cooperative AbortSignal). A bare send during that window throws
+ * "already processing" (live miss 1). Steering into the SAME run then
+ * produces a terminal answer that agent_settled never posts — settle
+ * nulls turn state first (live miss 2, Ali 2026-08-13: interrupt worked,
+ * reply stayed in the terminal).
+ *
+ * Wait for idle, then send as a fresh turn (`now`). If the wait times
+ * out, fall back to steer so the message is not dropped.
  */
-export function sendModeFor(mode: OwnerDeliveryMode): OwnerSendMode {
-	if (mode === "preempt") return "steer";
+export function sendModeFor(mode: OwnerDeliveryMode, settled = false): OwnerSendMode {
+	if (mode === "preempt") return settled ? "now" : "steer";
 	if (mode === "queue") return "followUp";
 	return "now";
 }
+
+export async function waitUntil(
+	check: () => boolean,
+	opts: {
+		timeoutMs: number;
+		intervalMs: number;
+		now?: () => number;
+		sleep?: (ms: number) => Promise<void>;
+	},
+): Promise<boolean> {
+	const now = opts.now ?? Date.now;
+	const sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+	const deadline = now() + opts.timeoutMs;
+	while (!check()) {
+		if (now() >= deadline) return false;
+		await sleep(opts.intervalMs);
+	}
+	return true;
+}
+
+/** Tail note so the model judges stop-vs-continue. Not an instruction to invent work. */
+export const PREEMPT_TAIL =
+	"[This interrupted a running turn. Answer this first. Then continue the prior work if that is appropriate — a short ack is enough to stop; do not throw the previous context away.]";

@@ -43,7 +43,7 @@ import { buildRoomDigest } from "./core/orientation.ts";
 import { openPushChannel, nextPushReconnectDelayMs } from "./core/push-channel.ts";
 import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
 import { loadSettings, saveSettings } from "./core/settings.ts";
-import { decideOwnerDelivery, sendModeFor } from "./core/preempt.ts";
+import { decideOwnerDelivery, PREEMPT_TAIL, sendModeFor, waitUntil } from "./core/preempt.ts";
 
 const AGENT_NAME = "Pi";
 const POLL_WAIT_MS = 25_000;
@@ -595,15 +595,19 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				});
 				const formatted = formatInboundMessage(cmd, active.bond.codename ?? "this agent", active.bond);
 				if (mode === "preempt") {
-					// Pause the running turn (ESC equivalent). Context and edits survive;
-					// agent_settled closes the attempt honestly. Then STEER the owner
-					// message — never a bare send. abort() is cooperative and
-					// isStreaming stays true for a beat; sendUserMessage is
-					// fire-and-forget so try/catch cannot recover a bounce
-					// (live miss, Ali 2026-08-13).
+					// Pause the running turn. Wait for settle, then send as a fresh
+					// idle turn — that is the path whose answer is posted to the room.
+					// Steering into the aborted run produced a terminal-only reply
+					// (live miss 2, Ali 2026-08-13).
 					debug("preempt: aborting running turn for owner instruction");
 					pi_abort();
-					pi_send(formatted, sendModeFor(mode));
+					const settled = await waitUntil(() => ctx.isIdle(), {
+						timeoutMs: 8_000,
+						intervalMs: 50,
+					});
+					const sendMode = sendModeFor(mode, settled);
+					debug(`preempt: settled=${settled} send=${sendMode}`);
+					pi_send(`${formatted}\n\n${PREEMPT_TAIL}`, sendMode);
 					notify(ctx, `DevSpec remote: interrupted — ${cmd.userName ?? "owner"} first.`);
 				} else {
 					pi_send(formatted, sendModeFor(mode));

@@ -451,8 +451,8 @@ Tracked as DevSpec items — this list is a pointer, the items are the truth:
 - `c2cc8679` — control channel: owner-authority CONTROL verbs executed
   in-process (abort mid-turn, set model/thinking, compact, run slash command)
 - `2219b653` — greenfield STRUCTURED audit trail: typed turn events end-to-end
-  (thinking/tool_start/tool_end/diffs) → timeline UI. The string trail is a
-  stopgap; this is the owner's explicit direction ('a full audit trail').
+  (thinking/text/tool/domain) → timeline UI. Markdown `work_trail` stays the
+  fallback for other hosts. Pi posts `trail_events` on the same cadence.
 - `bb6a7135` — instruction-tier parity audit (project/personal/agent/style,
   no CLAUDE.md reliance)
 - `477a3eae` — composed working+queued UI state (general, not Pi-specific)

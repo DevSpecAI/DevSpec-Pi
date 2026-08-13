@@ -7,6 +7,7 @@ import {
 	summarizeResult,
 	TrailBuilder,
 } from "../extensions/core/trail.ts";
+import { classifyDomainTool } from "../extensions/core/trail-events.ts";
 
 test("summarizeArgs prefers readable keys", () => {
 	assert.equal(summarizeArgs({ command: "npm test" }), "npm test");
@@ -152,4 +153,38 @@ test("the final render honours the larger cap (9b7455df + cc9e8c43)", () => {
 	const out = t.render(48_000);
 	assert.ok(!out.startsWith("…"), "20k fits under the final cap — no head trim");
 	assert.equal(out.length, 20_000);
+});
+
+test("TrailBuilder.events emits stable seqs and classifies domain tools", () => {
+	assert.deepEqual(classifyDomainTool("create_action_item"), {
+		domain: "action_item",
+		action: "created",
+	});
+	assert.deepEqual(classifyDomainTool("devspec", { verb: "record_memory" }), {
+		domain: "memory",
+		action: "recorded",
+	});
+	assert.equal(classifyDomainTool("bash"), null);
+
+	const t = new TrailBuilder();
+	t.setThinking("plan");
+	t.toolStart("create_action_item", { title: "Trail UI" });
+	t.toolEnd("create_action_item", true, {
+		content: [{ type: "text", text: JSON.stringify({ id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", title: "Trail UI" }) }],
+	});
+	t.toolStart("bash", { command: "npm test" });
+	const events = t.events();
+	assert.equal(events[0]?.kind, "thinking");
+	assert.equal(events[0]?.seq, 1);
+	assert.equal(events[1]?.kind, "domain");
+	if (events[1]?.kind === "domain") {
+		assert.equal(events[1].domain, "action_item");
+		assert.equal(events[1].status, "ok");
+		assert.equal(events[1].title, "Trail UI");
+	}
+	assert.equal(events[2]?.kind, "tool");
+	if (events[2]?.kind === "tool") {
+		assert.equal(events[2].status, "running");
+		assert.equal(events[2].name, "bash");
+	}
 });

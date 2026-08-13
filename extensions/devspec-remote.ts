@@ -185,7 +185,7 @@ function settleTelemetry(): AgentStatsReport | null {
 	});
 }
 
-async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; workTrail?: string; agentStats?: AgentStatsReport } = {}): Promise<boolean> {
+async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; workTrail?: string; trailEvents?: unknown; agentStats?: AgentStatsReport } = {}): Promise<boolean> {
 	const bond = getBond();
 	if (!bond?.sessionId) return false;
 	const resolved = await resolveToken();
@@ -199,6 +199,9 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 			...(opts.completeTurn === true ? { complete_turn: true } : opts.completeTurn === false ? { complete_turn: false } : {}),
 			...(opts.turnKind ? { turn_kind: opts.turnKind } : {}),
 			...(opts.workTrail ? { work_trail: opts.workTrail } : {}),
+			...(opts.trailEvents && Array.isArray(opts.trailEvents) && opts.trailEvents.length > 0
+				? { trail_events: opts.trailEvents }
+				: {}),
 			...(opts.agentStats ? { agent_stats: opts.agentStats } : {}),
 		});
 		return true;
@@ -221,7 +224,7 @@ function trailTick(): void {
 	turn.dirty = false;
 	turn.posts += 1;
 	turn.lastPostAt = now;
-	void postToSession(rendered, { phase: "trail" });
+	void postToSession(rendered, { phase: "trail", trailEvents: turn.trail.events() });
 }
 
 /**
@@ -267,18 +270,19 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 	// the fold had preserved. A segment with no answer still flushes its
 	// trail the old way so the work is visible.
 	const finalTrail = t.trail.render(FINAL_TRAIL_CHARS);
+	const finalEvents = t.trail.events();
 	const plan = planSettle(t.tracker, true);
 	debug(`settleSegment(${why}): plan ${plan.kind}, completeTurn=${completeTurn}, final trail ${finalTrail.length} chars`);
 	if (t.tracker.userKind === "harness") return false;
 	if (plan.kind === "final") {
 		// phase 'answer' closes the trail bubble (preserved as "Show work").
-		return await postToSession(plan.message, { phase: "answer", completeTurn, workTrail: finalTrail || undefined, agentStats: agentStats ?? undefined });
+		return await postToSession(plan.message, { phase: "answer", completeTurn, workTrail: finalTrail || undefined, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
 	} else if (plan.kind === "local_mirror") {
 		await postToSession(plan.prompt, { turnKind: "local_prompt" });
-		return await postToSession(plan.answer, { phase: "answer", completeTurn, workTrail: finalTrail || undefined, agentStats: agentStats ?? undefined });
+		return await postToSession(plan.answer, { phase: "answer", completeTurn, workTrail: finalTrail || undefined, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
 	}
 	if (t.dirty && finalTrail) {
-		await postToSession(finalTrail, { phase: "trail" });
+		await postToSession(finalTrail, { phase: "trail", trailEvents: finalEvents });
 	}
 	return false;
 }

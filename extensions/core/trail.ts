@@ -7,6 +7,14 @@
  * preserves it as the collapsed "Show work" under the final answer.
  */
 
+import {
+	classifyDomainTool,
+	domainIdentity,
+	type DomainTrailEvent,
+	type TrailEvent,
+	type ToolTrailEvent,
+} from "./trail-events.ts";
+
 /**
  * Render cap for one trail snapshot. The server folds sliding-window snapshots
  * on a 24-char tail anchor (item 95db8479), so a head-trimmed window merges
@@ -23,16 +31,20 @@ const MAX_TRAIL_CHARS = 12_000;
 export const FINAL_TRAIL_CHARS = 48_000;
 
 type TrailEntry =
-	| { kind: "thinking"; text: string }
-	| { kind: "text"; text: string }
-	| { kind: "tool"; line: ToolLine };
+	| { kind: "thinking"; text: string; seq: number }
+	| { kind: "text"; text: string; seq: number }
+	| { kind: "tool"; line: ToolLine; seq: number };
 
 interface ToolLine {
 	name: string;
+	args?: unknown;
 	argsSummary?: string;
 	open: boolean;
 	ok?: boolean;
+	result?: unknown;
 	resultSummary?: string;
+	startedAt: number;
+	durationMs?: number;
 }
 
 /** One-line summary of tool args for the trail (best-effort, readable). */
@@ -113,6 +125,7 @@ export class TrailBuilder {
 	/** Indices of the in-flight round's thinking/text entries (-1 = none yet). */
 	private curThinking = -1;
 	private curText = -1;
+	private nextSeq = 1;
 
 	/**
 	 * A new assistant message begins (message_start) — or the current one is
@@ -133,9 +146,9 @@ export class TrailBuilder {
 		const t = thinking.trim();
 		if (!t) return;
 		if (this.curThinking >= 0) {
-			(this.entries[this.curThinking] as { kind: "thinking"; text: string }).text = t;
+			(this.entries[this.curThinking] as { kind: "thinking"; text: string; seq: number }).text = t;
 		} else {
-			this.curThinking = this.entries.push({ kind: "thinking", text: t }) - 1;
+			this.curThinking = this.entries.push({ kind: "thinking", text: t, seq: this.nextSeq++ }) - 1;
 		}
 	}
 
@@ -143,14 +156,18 @@ export class TrailBuilder {
 		const t = text.trim();
 		if (!t) return;
 		if (this.curText >= 0) {
-			(this.entries[this.curText] as { kind: "text"; text: string }).text = t;
+			(this.entries[this.curText] as { kind: "text"; text: string; seq: number }).text = t;
 		} else {
-			this.curText = this.entries.push({ kind: "text", text: t }) - 1;
+			this.curText = this.entries.push({ kind: "text", text: t, seq: this.nextSeq++ }) - 1;
 		}
 	}
 
 	toolStart(name: string, args?: unknown): void {
-		this.entries.push({ kind: "tool", line: { name, argsSummary: summarizeArgs(args), open: true } });
+		this.entries.push({
+			kind: "tool",
+			seq: this.nextSeq++,
+			line: { name, args, argsSummary: summarizeArgs(args), open: true, startedAt: Date.now() },
+		});
 	}
 
 	toolEnd(name: string, ok: boolean, result?: unknown): void {
@@ -161,7 +178,9 @@ export class TrailBuilder {
 			if (e.line.open && e.line.name === name) {
 				e.line.open = false;
 				e.line.ok = ok;
+				e.line.result = result;
 				e.line.resultSummary = summarizeResult(result);
+				e.line.durationMs = Math.max(0, Date.now() - e.line.startedAt);
 				return;
 			}
 		}
@@ -169,6 +188,48 @@ export class TrailBuilder {
 
 	isEmpty(): boolean {
 		return this.entries.length === 0;
+	}
+
+	/** Typed events for the structured trail (item 2219b653). Seq is stable. */
+	events(): TrailEvent[] {
+		const out: TrailEvent[] = [];
+		for (const e of this.entries) {
+			if (e.kind === "thinking") {
+				const flat = e.text.replace(/\n/g, " ");
+				out.push({ seq: e.seq, kind: "thinking", text: flat.length > 800 ? `${flat.slice(0, 800)}…` : flat });
+			} else if (e.kind === "text") {
+				out.push({ seq: e.seq, kind: "text", text: e.text });
+			} else {
+				const domain = classifyDomainTool(e.line.name, e.line.args);
+				if (domain) {
+					const ident = domainIdentity(e.line.args, e.line.result);
+					const ev: DomainTrailEvent = {
+						seq: e.seq,
+						kind: "domain",
+						domain: domain.domain,
+						action: domain.action,
+						name: e.line.name,
+						status: e.line.open ? "running" : e.line.ok ? "ok" : "error",
+					};
+					if (ident.title) ev.title = ident.title;
+					if (ident.id) ev.id = ident.id;
+					if (!e.line.open && e.line.resultSummary) ev.result = e.line.resultSummary;
+					out.push(ev);
+				} else {
+					const ev: ToolTrailEvent = {
+						seq: e.seq,
+						kind: "tool",
+						name: e.line.name,
+						status: e.line.open ? "running" : e.line.ok ? "ok" : "error",
+					};
+					if (e.line.argsSummary) ev.args = e.line.argsSummary;
+					if (!e.line.open && e.line.resultSummary) ev.result = e.line.resultSummary;
+					if (e.line.durationMs != null) ev.durationMs = e.line.durationMs;
+					out.push(ev);
+				}
+			}
+		}
+		return out;
 	}
 
 	render(maxChars: number = MAX_TRAIL_CHARS): string {

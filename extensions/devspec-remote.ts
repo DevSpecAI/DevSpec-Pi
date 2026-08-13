@@ -33,7 +33,8 @@ function debug(line: string): void {
 }
 import { callDevspec, DevspecAuthError } from "./core/client.ts";
 import { getBond, setBond, type BondState } from "./core/bond-state.ts";
-import { formatInboundMessage, parsePollPayload } from "./core/remote-payload.ts";
+import { formatInboundMessage, parsePollPayload, type OwnerCommand } from "./core/remote-payload.ts";
+import { formatAttachmentNotes, materialiseAttachments } from "./core/attachments.ts";
 import { unwrapMcpResult } from "./core/result.ts";
 import { buildAttachBlock, shapeRoomAgenda, shapeTranscript } from "./core/attach-context.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
@@ -366,6 +367,31 @@ function setRemoteStatus(ctx: ExtensionContext | null): void {
 	paintStatus(ctx);
 }
 
+async function withMaterialisedAttachments(cmd: OwnerCommand, connectionId: string): Promise<OwnerCommand> {
+	if (!cmd.attachments || cmd.attachments.length === 0) return cmd;
+	const token = (await resolveToken())?.token;
+	if (!token) {
+		const notes = cmd.attachments.map((a) => {
+			const name =
+				a && typeof a === "object" && typeof (a as { filename?: unknown }).filename === "string"
+					? (a as { filename: string }).filename
+					: "attachment";
+			return `- ${name} was attached and could not be opened (not signed in).`;
+		});
+		return { ...cmd, attachmentNotes: notes.join("\n") };
+	}
+	const materialised = await materialiseAttachments(
+		cmd.attachments,
+		{
+			token,
+			connectionId,
+			getResource: (t, args) => callDevspec(t, "get_resource", args),
+		},
+		cmd.id,
+	);
+	return { ...cmd, attachmentNotes: formatAttachmentNotes(materialised) };
+}
+
 function untitledAttached(): boolean {
 	const bond = getBond();
 	return Boolean(bond?.sessionId && !isRealSessionTitle(bond.sessionTitle));
@@ -666,7 +692,11 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					preemptEnabled: preemptOwnerCached,
 					hasOwnerCommand: true,
 				});
-				const formatted = formatInboundMessage(cmd, active.bond.codename ?? "this agent", active.bond);
+				const formatted = formatInboundMessage(
+					await withMaterialisedAttachments(cmd, active.bond.connectionId),
+					active.bond.codename ?? "this agent",
+					active.bond,
+				);
 				if (mode === "preempt") {
 					// Pause the running turn. Wait for settle, then send as a fresh
 					// idle turn — that is the path whose answer is posted to the room.

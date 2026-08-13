@@ -16,6 +16,10 @@ export interface OwnerCommand {
 	id?: string;
 	/** ISO timestamp from the session_messages row, when the server provides it. */
 	createdAt?: string;
+	/** Server attachment objects — materialised to disk before inject. */
+	attachments?: unknown[];
+	/** Local-file notes appended after materialisation. Never contains bytes or URLs. */
+	attachmentNotes?: string;
 }
 
 interface RawCommand {
@@ -31,6 +35,7 @@ interface RawCommand {
 	createdAt?: unknown;
 	addressed_to?: { connection_id?: unknown } | unknown;
 	authority?: { kind?: unknown } | unknown;
+	attachments?: unknown;
 }
 
 export interface PollPackage {
@@ -80,12 +85,15 @@ export function extractOwnerCommands(payload: unknown, connectionId: string): Ow
 		const authority = (cmd.authority as { kind?: unknown } | undefined)?.kind;
 		if (addressed !== connectionId || authority !== "owner") continue;
 		const text = commandText(cmd);
-		if (!text) continue;
+		const attachments = Array.isArray(cmd.attachments) ? cmd.attachments : [];
+		// An attachment-only command is still a command — do not drop it.
+		if (!text && attachments.length === 0) continue;
 		out.push({
-			text,
+			text: text ?? "",
 			userName: commandSender(cmd),
 			id: typeof cmd.id === "string" ? cmd.id : undefined,
 			createdAt: commandCreatedAt(cmd),
+			...(attachments.length > 0 ? { attachments } : {}),
 		});
 	}
 	return out;
@@ -128,12 +136,14 @@ export function formatInboundMessage(cmd: OwnerCommand, codename: string, bond?:
 		? ` · ${bond.sessionTitle ? `“${bond.sessionTitle.length > 26 ? `${bond.sessionTitle.slice(0, 25)}…` : bond.sessionTitle}” ` : ""}(${bond.sessionId.slice(0, 8)})`
 		: "";
 	const header = `[DevSpec remote — message from ${who} to ${codename}${sessionStamp}]`;
-	const body = cmd.text;
+	const notes = cmd.attachmentNotes?.trim();
+	const body = notes ? (cmd.text ? `${cmd.text}\n\n${notes}` : notes) : cmd.text;
 	// The TUI previews a queued follow-up by its FIRST line only — so line one
 	// must carry content, never a bare envelope (item 2b072496: header-only
 	// first lines made real queued messages indistinguishable from empty
 	// "phantom" envelopes). Single-line bodies ride the header directly;
 	// multiline messages lead with an excerpt of their first line.
+	if (!body) return `${header} (attached file)`;
 	if (!body.includes("\n")) return `${header} ${body}`;
 	const firstLine = body.split("\n", 1)[0] ?? "";
 	const excerpt = firstLine.length > 80 ? `${firstLine.slice(0, 77)}…` : `${firstLine} …`;

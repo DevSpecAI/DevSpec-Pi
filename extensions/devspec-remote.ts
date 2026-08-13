@@ -38,7 +38,7 @@ import {
 } from "./core/client.ts";
 import { getBond, setBond, type BondState } from "./core/bond-state.ts";
 import { formatInboundMessage, parsePollPayload, type OwnerCommand } from "./core/remote-payload.ts";
-import { executeControlCommand, parseControlCommand } from "./core/control.ts";
+import { compactWithContext, executeControlCommand, parseControlCommand } from "./core/control.ts";
 import { formatAttachmentNotes, materialiseAttachments } from "./core/attachments.ts";
 import { unwrapMcpResult } from "./core/result.ts";
 import { buildAttachBlock, shapeRoomAgenda, shapeTranscript } from "./core/attach-context.ts";
@@ -554,6 +554,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 	let notifiedFallback = false;
 
 	while (pump === active && !active.stop) {
+		lastCtx = ctx;
 		// Server told us the bond ended — only a human End / local stop is sticky.
 		if (active.pushEnded !== undefined) {
 			if (isPermanentServerEnd("ended", active.pushEnded)) {
@@ -681,11 +682,12 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 
 		const control = parseControlCommand(pkg.control);
 		if (control) {
+			lastCtx = ctx;
 			try {
 				const result = await executeControlCommand(control, {
 					isIdle: () => ctx.isIdle(),
-					abort: () => pi_abort(),
-					compact: () => pi_compact(),
+					abort: () => ctx.abort(),
+					compact: () => compactWithContext(ctx),
 					reload: () => pi_reload(),
 					setThinkingLevel: (level) => pi_setThinking(level),
 					setModel: (modelId) => pi_setModel(modelId),
@@ -694,7 +696,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				debug(`control ${control.verb}: ${result}`);
 				notify(ctx, `DevSpec remote: ${control.verb} — ${result}.`);
 			} catch (err) {
-				debug(`control failed: ${err instanceof Error ? err.message : err}`);
+				const msg = err instanceof Error ? err.message : String(err);
+				debug(`control failed: ${msg}`);
+				notify(ctx, `DevSpec remote: ${control.verb} failed — ${msg}`, "error");
 			}
 			void callDevspec(token, "poll_connection", {
 				connection_id: active.bond.connectionId,
@@ -1187,6 +1191,7 @@ export default function (pi: ExtensionAPI) {
 		if (!resolved) return;
 		const outcome = await bondNow(ctx);
 		if (outcome.ok) {
+			lastCtx = ctx;
 			notify(ctx, `DevSpec remote: auto-bonded as ${outcome.codename ?? "agent"} — you're reachable from the Agents page. /devspec.remote stop to end.`);
 		}
 	});

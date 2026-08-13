@@ -15,6 +15,7 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { getAdapterGuardState, SUPPRESSION_NOTICE } from "./core/adapter-overlap.ts";
 import { clearAuth, resolveEndpoint, resolveToken, saveAuth } from "./core/auth-store.ts";
 import { connectionsUrl, mcpUrl, TOKEN_ENV_VAR } from "./core/config.ts";
 import { DevspecAuthError, resetClientCache, verifyToken } from "./core/client.ts";
@@ -61,7 +62,8 @@ async function doLogin(token: string, ctx: ExtensionContext): Promise<boolean> {
 		verifyAttempted = true;
 		await saveAuth({ token, url: mcpUrl(), principal: principal ?? undefined, verifiedAt: new Date().toISOString() });
 		setStatus(ctx, `DevSpec: ${principal ?? "connected"}`);
-		ctx.ui.notify(`Connected to DevSpec${principal ? ` as ${principal}` : ""}.`, "info");
+		const extra = getAdapterGuardState().suppressed.length > 0 ? ` ${SUPPRESSION_NOTICE}` : "";
+		ctx.ui.notify(`Connected to DevSpec${principal ? ` as ${principal}` : ""}.${extra}`, "info");
 		return true;
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);

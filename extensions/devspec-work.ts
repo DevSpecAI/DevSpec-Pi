@@ -20,6 +20,7 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
+import { getAdapterGuardState, SUPPRESSION_NOTICE } from "./core/adapter-overlap.ts";
 import { resolveToken } from "./core/auth-store.ts";
 import { callDevspec } from "./core/client.ts";
 import { unwrapMcpResult } from "./core/result.ts";
@@ -171,9 +172,11 @@ export default function (pi: ExtensionAPI) {
 				"  /devspec.logout       — remove the stored token",
 				"  /devspec.logo         — toggle the duck header",
 				"",
-				`DevSpec tools: 26 native tools (projects, action items incl. claim/record, memory, search, assignments).`,
+				`DevSpec tools: native (this package). Foreign MCP servers you connected stay available.`,
 				`Connection: ${resolved ? `token from ${resolved.source}` : "not connected — /devspec.login"}`,
 			];
+			const guard = getAdapterGuardState();
+			if (guard.suppressed.length > 0) lines.push("", SUPPRESSION_NOTICE);
 			ctx.ui.notify(lines.join("\n"), "info");
 		},
 	});

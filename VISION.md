@@ -167,6 +167,11 @@ This is the crucial middle path:
 - The same embedded client can optionally mount the **user's own MCP servers**
   (e.g. Supabase) from a standard config — one install, their servers work,
   headless workers included. (Prototype early; de-risks the one-package promise.)
+- A `devspec` entry in project `.mcp.json` (the file other hosts use) is **not**
+  a second connection. The extension detects DevSpec's own origin and writes
+  `{ disabled: true }` to the Pi-local overlay (`.pi/mcp.json`) so the adapter
+  never registers those verbs. The shared file is left untouched. Foreign
+  servers stay.
 
 ### Instructions without skill-sprawl
 

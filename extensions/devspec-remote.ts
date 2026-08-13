@@ -56,7 +56,8 @@ import { buildRoomDigest } from "./core/orientation.ts";
 import { openPushChannel, nextPushReconnectDelayMs } from "./core/push-channel.ts";
 import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
 import { loadSettings, saveSettings } from "./core/settings.ts";
-import { decideOwnerDelivery, PREEMPT_TAIL, sendModeFor, waitUntil } from "./core/preempt.ts";
+import { decideOwnerDelivery, PREEMPT_TAIL, waitUntil } from "./core/preempt.ts";
+import { SeenOwnerCommands, sendModeAtSendTime, shouldCompleteSync } from "./core/owner-inject.ts";
 
 const AGENT_NAME = "Pi";
 const POLL_WAIT_MS = 25_000;
@@ -77,10 +78,13 @@ interface PumpState {
 	 * has no cursor, so the server answers with the catch-up WINDOW — which
 	 * includes already-answered commands. Re-delivering those re-runs old
 	 * work (observed live: a replied-to UI message re-injected on rebond).
-	 * The first package is ORIENTATION ONLY: adopt its cursors, deliver
-	 * nothing. Only arrivals after that point are actionable.
+	 * The first *catch-up* package is ORIENTATION ONLY: adopt its cursors,
+	 * remember those command ids, deliver nothing. An empty wake (no cursor)
+	 * is not a completed sync — the next cursor-less poll is still catch-up
+	 * (live miss: Ali 2026-08-13, answered 11:46 message replayed after rebond).
 	 */
 	synced: boolean;
+	seenOwnerCommands: SeenOwnerCommands;
 	// Push channel state (SSE wake mode; falls back to held long-poll).
 	pushAbort?: AbortController;
 	pushClosed?: boolean;
@@ -616,6 +620,11 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 
 		// Cold-start orientation: cursors adopted above, nothing delivered.
 		if (!active.synced) {
+			active.seenOwnerCommands.remember(pkg.ownerCommands);
+			if (!shouldCompleteSync(pkg)) {
+				debug("sync deferred: empty wake, still cursor-less");
+				continue;
+			}
 			active.synced = true;
 			// Room orientation: the catch-up window's ambient context becomes a
 			// one-shot digest (injected by devspec-context on the next turn) so
@@ -631,7 +640,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			continue;
 		}
 
-		for (const cmd of pkg.ownerCommands) {
+		for (const cmd of active.seenOwnerCommands.takeUnseen(pkg.ownerCommands)) {
 			try {
 				const mode = decideOwnerDelivery({
 					idle: ctx.isIdle(),
@@ -650,13 +659,14 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 						timeoutMs: 8_000,
 						intervalMs: 50,
 					});
-					const sendMode = sendModeFor(mode, settled);
+					const sendMode = sendModeAtSendTime(mode, ctx.isIdle(), settled);
 					debug(`preempt: settled=${settled} send=${sendMode}`);
 					pi_send(`${formatted}\n\n${PREEMPT_TAIL}`, sendMode);
 					notify(ctx, `DevSpec remote: interrupted — ${cmd.userName ?? "owner"} first.`);
 				} else {
-					pi_send(formatted, sendModeFor(mode));
-					notify(ctx, mode === "queue"
+					const sendMode = sendModeAtSendTime(mode, ctx.isIdle());
+					pi_send(formatted, sendMode);
+					notify(ctx, mode === "queue" || sendMode === "followUp"
 						? `DevSpec remote: queued owner message (${cmd.userName ?? "owner"}).`
 						: `DevSpec remote: delivered owner message (${cmd.userName ?? "owner"}).`);
 				}
@@ -756,7 +766,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 	}
 
 	setBond(bond);
-	pump = { bond, busy: false, stop: false, errors: 0, synced: false, pushAttempts: 0 };
+	pump = { bond, busy: false, stop: false, errors: 0, synced: false, seenOwnerCommands: new SeenOwnerCommands(), pushAttempts: 0 };
 	preemptOwnerCached = (await loadSettings()).preemptOwner;
 	setRemoteStatus(ctx);
 	// Revive/register can already be attached (same session_id on the

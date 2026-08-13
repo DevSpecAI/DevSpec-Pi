@@ -55,6 +55,19 @@ test("executeControlCommand compact awaits the host and reports compacted", asyn
 	assert.deepEqual(calls, ["compact"]);
 });
 
+test("executeControlCommand list_models is a no-op host call that reports listed", async () => {
+	const calls: string[] = [];
+	const cmd = parseControlCommand({
+		id: "c4",
+		verb: "list_models",
+		issuedAt: "2026-08-13T19:00:00.000Z",
+		issuedByUserId: "u1",
+	});
+	assert.ok(cmd);
+	assert.equal(await executeControlCommand(cmd, host(calls)), "listed");
+	assert.deepEqual(calls, []);
+});
+
 test("executeControlCommand reload calls the host reload", async () => {
 	const calls: string[] = [];
 	const cmd = parseControlCommand({

@@ -4,7 +4,7 @@
  * Lifecycle only. Never authors conversational content.
  */
 
-export const CONTROL_VERBS = ["abort", "set_model", "set_thinking", "compact", "reload"] as const;
+export const CONTROL_VERBS = ["abort", "set_model", "set_thinking", "compact", "reload", "list_models"] as const;
 export type ControlVerb = (typeof CONTROL_VERBS)[number];
 
 export interface ControlCommand {
@@ -71,6 +71,8 @@ export async function executeControlCommand(cmd: ControlCommand, host: ControlHo
 		case "reload":
 			await host.reload();
 			return "reloaded";
+		case "list_models":
+			return "listed";
 	}
 }
 

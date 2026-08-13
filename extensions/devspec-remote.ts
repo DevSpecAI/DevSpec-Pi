@@ -39,6 +39,7 @@ import {
 import { getBond, setBond, type BondState } from "./core/bond-state.ts";
 import { formatInboundMessage, parsePollPayload, type OwnerCommand } from "./core/remote-payload.ts";
 import { compactWithContext, executeControlCommand, parseControlCommand } from "./core/control.ts";
+import { collectModelCatalog, type ModelCatalogSnapshot } from "./core/model-catalog.ts";
 import { formatAttachmentNotes, materialiseAttachments } from "./core/attachments.ts";
 import { unwrapMcpResult } from "./core/result.ts";
 import { buildAttachBlock, shapeRoomAgenda, shapeTranscript } from "./core/attach-context.ts";
@@ -683,6 +684,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		const control = parseControlCommand(pkg.control);
 		if (control) {
 			lastCtx = ctx;
+			let catalog: ModelCatalogSnapshot | undefined;
 			try {
 				const result = await executeControlCommand(control, {
 					isIdle: () => ctx.isIdle(),
@@ -694,7 +696,16 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					notify: (message) => notify(ctx, message),
 				});
 				debug(`control ${control.verb}: ${result}`);
-				notify(ctx, `DevSpec remote: ${control.verb} — ${result}.`);
+				if (control.verb === "list_models") {
+					catalog = collectModelCatalog({
+						scopedModels: ctx.scopedModels,
+						modelRegistry: ctx.modelRegistry,
+						model: ctx.model,
+					});
+					notify(ctx, `DevSpec remote: list_models — ${catalog.models.length} models.`);
+				} else {
+					notify(ctx, `DevSpec remote: ${control.verb} — ${result}.`);
+				}
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
 				debug(`control failed: ${msg}`);
@@ -704,6 +715,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				connection_id: active.bond.connectionId,
 				control_ack: control.id,
 				wait_ms: 0,
+				...(catalog ? { model_catalog: catalog } : {}),
 			}, { timeoutMs: 10_000, lane: "pump" }).catch(() => {});
 		}
 

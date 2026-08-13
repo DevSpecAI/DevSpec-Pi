@@ -30,7 +30,29 @@ test("extractAssistantParts separates text and thinking", () => {
 			{ type: "text", text: "world" },
 		],
 	};
-	assert.deepEqual(extractAssistantParts(msg), { text: "hello world", thinking: "hmm" });
+	assert.deepEqual(extractAssistantParts(msg), {
+		text: "hello world",
+		thinking: "hmm",
+		hasToolCalls: false,
+		stopReason: null,
+	});
+});
+
+test("extractAssistantParts flags toolCall blocks and stopReason", () => {
+	const msg = {
+		role: "assistant",
+		stopReason: "toolUse",
+		content: [
+			{ type: "text", text: "looking" },
+			{ type: "toolCall", id: "1", name: "bash", arguments: {} },
+		],
+	};
+	assert.deepEqual(extractAssistantParts(msg), {
+		text: "looking",
+		thinking: "",
+		hasToolCalls: true,
+		stopReason: "toolUse",
+	});
 });
 
 test("extractText handles string and block content", () => {

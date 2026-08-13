@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { formatDispatchMessage } from "../extensions/core/dispatch.ts";
-import { isDeliveryBoundary, planSettle, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
+import { isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, planSettle, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 
 function remoteTurn(answer: string): TurnTracker {
 	const t = new TurnTracker();
@@ -103,6 +103,36 @@ test("segments deliver per message: each message's answer is its own bubble (b1f
 	s3.userMessage("[background task finished]");
 	s3.assistantFinal("ack");
 	assert.deepEqual(planSettle(s3, true), { kind: "local_mirror", prompt: "[background task finished]", answer: "ack" });
+});
+
+test("a text-only assistant close is a finished answer (f0df6c3e)", () => {
+	assert.equal(isClosedAnswer({ text: "You're right. I'll measure the recall path.", hasToolCalls: false, stopReason: "stop" }), true);
+	assert.equal(isClosedAnswer({ text: "You're right. I'll measure the recall path.", hasToolCalls: false, stopReason: null }), true, "missing stopReason with no tools is still a close");
+	assert.equal(isClosedAnswer({ text: "looking", hasToolCalls: true, stopReason: "toolUse" }), false);
+	assert.equal(isClosedAnswer({ text: "looking", hasToolCalls: true, stopReason: "stop" }), false, "toolCall blocks win over stopReason");
+	assert.equal(isClosedAnswer({ text: "looking", hasToolCalls: false, stopReason: "toolUse" }), false);
+	assert.equal(isClosedAnswer({ text: "", hasToolCalls: false, stopReason: "stop" }), false);
+	assert.equal(isClosedAnswer({ text: "\u200B", hasToolCalls: false, stopReason: "stop" }), false);
+	assert.equal(isClosedAnswer({ text: "partial", hasToolCalls: false, stopReason: "aborted" }), false);
+	assert.equal(isClosedAnswer({ text: "partial", hasToolCalls: false, stopReason: "error" }), false);
+	assert.equal(isClosedAnswer({ text: "partial", hasToolCalls: false, stopReason: "length" }), false);
+});
+
+test("the next assistant round after a text-only close is a delivery boundary", () => {
+	const t = new TurnTracker();
+	t.userMessage("[DevSpec remote — message from Ali to Wary Wolf]\ninterrupt");
+	t.assistantFinal("You're right. I'll measure it.", true);
+	assert.equal(isClosedAnswerBoundary(t), true);
+	assert.equal(isDeliveryBoundary(t), true);
+	// A tool-loop close is NOT a finished answer — later rounds stay on this segment.
+	const loop = new TurnTracker();
+	loop.assistantFinal("looking", false);
+	assert.equal(isClosedAnswerBoundary(loop), false);
+	assert.equal(isDeliveryBoundary(loop), true);
+	// A zero-width close cannot be an answer boundary.
+	const empty = new TurnTracker();
+	empty.assistantFinal("\u200B", true);
+	assert.equal(isClosedAnswerBoundary(empty), false);
 });
 
 test("formatDispatchMessage carries the protocol steps and payload", () => {

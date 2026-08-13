@@ -12,10 +12,11 @@
  *   advisory; owner commands arrive as REAL user messages (sendUserMessage).
  *   Mid-turn owner arrivals PREEMPT (abort the running turn, then deliver) —
  *   item f5bbc8f8. Advisory tiers never wake or abort.
- * - Egress is runtime-mechanical (item cc9e8c43): the extension delivers the
- *   run's final assistant message with complete_turn:true. The model never
- *   posts conversational content — ONE writer, no suppression, no dual
- *   writers, no mirror-as-primary.
+ * - Egress is runtime-mechanical (item cc9e8c43): the extension delivers
+ *   assistant text as session answers. A text-only close is a finished
+ *   bubble with complete_turn:false (work may continue); settle / a new
+ *   user message posts complete_turn:true. The model never posts
+ *   conversational content — ONE writer, no suppression, no dual writers.
  * - The pump asserts busy from pi's own turn events and reports
  *   listener_armed from the live loop — never from leftover state.
  * - Headless: works in -p/rpc/json; notifications degrade to no-ops.
@@ -37,7 +38,7 @@ import { unwrapMcpResult } from "./core/result.ts";
 import { buildAttachBlock, shapeTranscript } from "./core/attach-context.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { buildAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
-import { planSettle, isDeliveryBoundary, TurnTracker } from "./core/turn-lifecycle.ts";
+import { planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, TurnTracker } from "./core/turn-lifecycle.ts";
 import { formatDispatchMessage } from "./core/dispatch.ts";
 import { buildRoomDigest } from "./core/orientation.ts";
 import { openPushChannel, nextPushReconnectDelayMs } from "./core/push-channel.ts";
@@ -169,7 +170,7 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 			message,
 			agent_name: AGENT_NAME,
 			...(opts.phase ? { phase: opts.phase } : {}),
-			...(opts.completeTurn ? { complete_turn: true } : {}),
+			...(opts.completeTurn === true ? { complete_turn: true } : opts.completeTurn === false ? { complete_turn: false } : {}),
 			...(opts.turnKind ? { turn_kind: opts.turnKind } : {}),
 			...(opts.workTrail ? { work_trail: opts.workTrail } : {}),
 			...(opts.agentStats ? { agent_stats: opts.agentStats } : {}),
@@ -225,8 +226,10 @@ async function reportComplete(reason: string): Promise<void> {
  * (b1fb756a): called at run end (settleTurn) AND at a mid-run user-message
  * boundary (splitTurnAtBoundary). Returns true when a final answer post with
  * complete_turn landed (that post closes the activity attempt itself).
+ * completeTurn defaults true (run end / new user message). A text-only
+ * mid-run close (f0df6c3e) passes false: the bubble is finished, work is not.
  */
-async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | null, why: string): Promise<boolean> {
+async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | null, why: string, completeTurn = true): Promise<boolean> {
 	const bond = getBond();
 	if (!bond?.sessionId) { debug(`settleSegment(${why}): not attached`); return false; }
 
@@ -239,13 +242,13 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 	// trail the old way so the work is visible.
 	const finalTrail = t.trail.render(FINAL_TRAIL_CHARS);
 	const plan = planSettle(t.tracker, true);
-	debug(`settleSegment(${why}): plan ${plan.kind}, final trail ${finalTrail.length} chars`);
+	debug(`settleSegment(${why}): plan ${plan.kind}, completeTurn=${completeTurn}, final trail ${finalTrail.length} chars`);
 	if (plan.kind === "final") {
 		// phase 'answer' closes the trail bubble (preserved as "Show work").
-		return await postToSession(plan.message, { phase: "answer", completeTurn: true, workTrail: finalTrail || undefined, agentStats: agentStats ?? undefined });
+		return await postToSession(plan.message, { phase: "answer", completeTurn, workTrail: finalTrail || undefined, agentStats: agentStats ?? undefined });
 	} else if (plan.kind === "local_mirror") {
 		await postToSession(plan.prompt, { turnKind: "local_prompt" });
-		return await postToSession(plan.answer, { phase: "answer", completeTurn: true, workTrail: finalTrail || undefined, agentStats: agentStats ?? undefined });
+		return await postToSession(plan.answer, { phase: "answer", completeTurn, workTrail: finalTrail || undefined, agentStats: agentStats ?? undefined });
 	}
 	if (t.dirty && finalTrail) {
 		await postToSession(finalTrail, { phase: "trail" });
@@ -276,14 +279,16 @@ async function settleTurn(agentStats: AgentStatsReport | null): Promise<boolean>
  * The split is mechanical: swap the state synchronously so subsequent events
  * land on the fresh segment, then close the captured one asynchronously.
  */
-function splitTurnAtBoundary(): void {
+function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 	const t = turn;
 	if (!t) return;
 	if (t.interval) clearInterval(t.interval);
 	const interval = setInterval(trailTick, TRAIL_INTERVAL_MS);
 	if (typeof interval.unref === "function") interval.unref();
+	const next = new TurnTracker();
+	if (t.tracker.userText) next.userMessage(t.tracker.userText);
 	turn = {
-		tracker: new TurnTracker(),
+		tracker: next,
 		trail: new TrailBuilder(),
 		dirty: false,
 		posts: 0,
@@ -291,8 +296,8 @@ function splitTurnAtBoundary(): void {
 		interval,
 	};
 	postWarnedThisTurn = false;
-	debug("message_start: delivery boundary — closing previous segment");
-	void postSegmentAnswer(t, null, "boundary");
+	debug(`delivery boundary (${why}, completeTurn=${completeTurn}) — closing previous segment`);
+	void postSegmentAnswer(t, null, why, completeTurn);
 }
 
 /**
@@ -809,9 +814,13 @@ export default function (pi: ExtensionAPI) {
 			if (isDeliveryBoundary(turn.tracker)) splitTurnAtBoundary();
 			turn.tracker.userMessage(extractText(event.message));
 		}
-		// A new assistant message = a new LLM round: its thinking/text open
-		// fresh trail entries instead of replacing the previous round's.
-		else if (msg?.role === "assistant") turn.trail.beginAssistantMessage();
+		// A new assistant message = a new LLM round. If the previous close was
+		// a finished text-only answer, that bubble is done — split it off
+		// (complete_turn=false) so this round's thinking/tools open a new trail.
+		else if (msg?.role === "assistant") {
+			if (isClosedAnswerBoundary(turn.tracker)) splitTurnAtBoundary("closed_answer", false);
+			turn.trail.beginAssistantMessage();
+		}
 	});
 
 	pi.on("message_update", (event, ctx) => {
@@ -840,13 +849,13 @@ export default function (pi: ExtensionAPI) {
 			// streams live in the TUI, but headless modes (RPC/print/SDK) emit
 			// no deltas — this keeps the trail complete there (flushed at
 			// settle) without double-posting in the TUI (cumulative snapshots).
-			const { text, thinking } = extractAssistantParts(event.message);
+			const { text, thinking, hasToolCalls, stopReason } = extractAssistantParts(event.message);
 			turn.trail.setThinking(thinking);
 			turn.trail.setText(text);
 			// Round sealed: the next deltas open fresh entries (cc9e8c43).
 			turn.trail.beginAssistantMessage();
 			turn.dirty = true;
-			turn.tracker.assistantFinal(text);
+			turn.tracker.assistantFinal(text, isClosedAnswer({ text, hasToolCalls, stopReason }));
 		}
 	});
 

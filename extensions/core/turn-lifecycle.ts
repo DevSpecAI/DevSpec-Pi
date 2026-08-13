@@ -15,12 +15,12 @@
  *   agent_start / first turn_start and lives until agent_settled — never
  *   reset per round. Per-round state was the double-bubble root cause:
  *   suppression marks landed on a tracker the next round threw away.
- * - …and SEGMENT-delimited (item b1fb756a): a user message injected mid-run
- *   (owner followUp, terminal typing, a queued notification) is a delivery
- *   boundary. The text accumulated so far is the answer to the PREVIOUS
- *   message — it closes as its own bubble, and the new message starts a
- *   fresh segment. The run is the execution unit; the segment is the
- *   delivery unit.
+ * - …and SEGMENT-delimited (item b1fb756a + f0df6c3e): a user message injected
+ *   mid-run is a delivery boundary, AND so is a complete text-only assistant
+ *   close (stopReason=stop, no toolCall blocks). That close is a finished
+ *   answer bubble — not Working, not trail narration. Later thinking/tools
+ *   in the same run open a fresh Working trail. The run is the execution
+ *   unit; the segment is the delivery unit.
  * - Runs started by a LOCAL prompt (typed in the terminal while attached)
  *   also mirror the prompt as turn_kind:'local_prompt' before the answer, so
  *   the DevSpec transcript is two-sided.
@@ -37,6 +37,8 @@ export class TurnTracker {
 	userKind: UserKind | null = null;
 	userText = "";
 	lastAssistantText = "";
+	/** True when the last assistant close was a finished text-only answer. */
+	lastCloseWasAnswer = false;
 
 	userMessage(text: string): void {
 		this.userText = text;
@@ -45,11 +47,13 @@ export class TurnTracker {
 		else this.userKind = "local";
 	}
 
-	assistantFinal(text: string): void {
+	assistantFinal(text: string, closedAnswer = false): void {
 		// Zero-width/format characters are not text: a "​" final is not an
 		// answer and must never produce a bubble (857d984c, instance 4).
 		const cleaned = text.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
 		if (cleaned) this.lastAssistantText = cleaned;
+		// Only a real stored close can be an answer; empty/zw text never is.
+		this.lastCloseWasAnswer = Boolean(cleaned) && closedAnswer;
 	}
 }
 
@@ -66,6 +70,33 @@ export type SettlePlan =
  */
 export function isDeliveryBoundary(tracker: TurnTracker): boolean {
 	return tracker.lastAssistantText !== "";
+}
+
+/** Next assistant round after a text-only close — the ack is its own bubble. */
+export function isClosedAnswerBoundary(tracker: TurnTracker): boolean {
+	return tracker.lastCloseWasAnswer && tracker.lastAssistantText !== "";
+}
+
+const CLOSED_ANSWER_STOPS = new Set(["stop"]);
+const OPEN_ROUND_STOPS = new Set(["toolUse", "aborted", "error", "length", "pending"]);
+
+/**
+ * A text-only assistant close is a finished answer (item f0df6c3e).
+ * Tool-loop rounds (toolCall blocks or stopReason=toolUse) stay in the trail.
+ * Missing stopReason with no tool calls still counts as closed — some providers
+ * omit it; the content shape is the authority.
+ */
+export function isClosedAnswer(input: {
+	text: string;
+	hasToolCalls: boolean;
+	stopReason?: string | null;
+}): boolean {
+	const cleaned = input.text.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+	if (!cleaned) return false;
+	if (input.hasToolCalls) return false;
+	const reason = input.stopReason ?? "stop";
+	if (OPEN_ROUND_STOPS.has(reason)) return false;
+	return CLOSED_ANSWER_STOPS.has(reason) || input.stopReason == null;
 }
 
 export function planSettle(tracker: TurnTracker, attached: boolean): SettlePlan {

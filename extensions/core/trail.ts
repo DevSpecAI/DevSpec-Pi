@@ -68,17 +68,25 @@ export function summarizeResult(result: unknown): string | undefined {
 	return text.length > 90 ? `${text.slice(0, 90)}…` : text;
 }
 
-/** Extract text + thinking from an assistant message (content blocks). */
-export function extractAssistantParts(message: unknown): { text: string; thinking: string } {
-	const m = message as { content?: unknown } | null;
+/** Extract text, thinking, tool-call presence, and stopReason from an assistant message. */
+export function extractAssistantParts(message: unknown): {
+	text: string;
+	thinking: string;
+	hasToolCalls: boolean;
+	stopReason: string | null;
+} {
+	const m = message as { content?: unknown; stopReason?: unknown } | null;
 	const blocks = Array.isArray(m?.content) ? (m.content as Array<Record<string, unknown>>) : [];
 	let text = "";
 	let thinking = "";
+	let hasToolCalls = false;
 	for (const b of blocks) {
 		if (b?.type === "text" && typeof b.text === "string") text += b.text;
 		if (b?.type === "thinking" && typeof b.thinking === "string") thinking += b.thinking;
+		if (b?.type === "toolCall") hasToolCalls = true;
 	}
-	return { text, thinking };
+	const stopReason = typeof m?.stopReason === "string" ? m.stopReason : null;
+	return { text, thinking, hasToolCalls, stopReason };
 }
 
 /** Extract plain text from any message (user prompts included). */

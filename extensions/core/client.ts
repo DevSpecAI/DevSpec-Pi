@@ -18,7 +18,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { resolveEndpoint } from "./auth-store.ts";
-import { needsProjectScope, resolveGitRemote } from "./project-scope.ts";
+import { needsProjectScope, resolveGitRemote, resolveProjectPin } from "./project-scope.ts";
 
 const CLIENT_NAME = "devspec-pi";
 const CLIENT_VERSION = "0.1.0";
@@ -242,18 +242,33 @@ export async function callDevspec(
 				attempt--; // the rate-limit wait-retry doesn't consume a transport attempt
 				continue;
 			}
-			// Reactive project scoping: one retry with the checkout's remote.
+			// Reactive project scoping: one retry with whatever anchors this folder has —
+			// its git remote, its `.devspec/project.json` pin, or both. A folder with no
+			// repo has no remote, so the pin is the only anchor it can offer; sending both
+			// when both exist is deliberate, because the SERVER ranks them (a verified
+			// remote wins) and precedence must never be decided here.
 			if (
 				!scopedRetryDone &&
 				!(mapped instanceof DevspecAuthError) &&
 				!callArgs.git_remote &&
+				!callArgs.pinned_project_id &&
 				!callArgs.project_id &&
 				needsProjectScope(mapped.message)
 			) {
-				const remote = await resolveGitRemote(options.cwd ?? process.cwd());
-				if (remote) {
+				const cwd = options.cwd ?? process.cwd();
+				const [remote, pin] = await Promise.all([
+					resolveGitRemote(cwd),
+					resolveProjectPin(cwd),
+				]);
+				if (remote || pin) {
 					scopedRetryDone = true;
-					callArgs = { ...callArgs, git_remote: remote };
+					callArgs = {
+						...callArgs,
+						...(remote ? { git_remote: remote } : {}),
+						// NEVER `project_id` — that would outrank the remote and reverse the
+						// decided precedence. See project-scope.ts.
+						...(pin ? { pinned_project_id: pin } : {}),
+					};
 					attempt--; // the scoping retry doesn't consume a transport attempt
 					continue;
 				}

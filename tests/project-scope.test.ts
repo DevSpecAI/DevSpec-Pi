@@ -6,8 +6,9 @@ import {
 	clearGitRemoteCache,
 	resolveProjectPin,
 	clearProjectPinCache,
+	writeProjectPin,
 } from "../extensions/core/project-scope.ts";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -130,6 +131,75 @@ test("a pin at or above $HOME is never read", async () => {
 	// ...and the bound is the only reason: the same tree resolves with home elsewhere.
 	clearProjectPinCache();
 	assert.equal(await resolveProjectPin(work, join(home, "nowhere")), "home-project");
+});
+
+/**
+ * Writing the pin (item 597c5d49). Nothing wrote this file before — a user had to
+ * hand-author JSON whose shape they learned from an error message.
+ */
+
+test("writes the pin at the working directory when there is no repo", async () => {
+	clearProjectPinCache();
+	const dir = await mkdtemp(join(tmpdir(), "devspec-write-"));
+	const r = await writeProjectPin(dir, "greenfield-project", undefined, join(dir, "no-home"));
+	assert.equal(r.path, join(dir, ".devspec", "project.json"));
+	assert.equal(r.replaced, null);
+	// Round-trip through the READER, not just the returned path.
+	assert.equal(await resolveProjectPin(dir, join(dir, "no-home")), "greenfield-project");
+});
+
+test("writes at the repository ROOT, not the subdirectory it was called from", async () => {
+	// D13: the root is the only place the read walk reaches from every subdirectory, and
+	// where a committed pin belongs. A pin halfway up resolves for one subtree only.
+	clearProjectPinCache();
+	const repo = await mkdtemp(join(tmpdir(), "devspec-writerepo-"));
+	await mkdir(join(repo, ".git"), { recursive: true });
+	const deep = join(repo, "apps", "web");
+	await mkdir(deep, { recursive: true });
+
+	const r = await writeProjectPin(deep, "monorepo-project", undefined, join(repo, "no-home"));
+	assert.equal(r.path, join(repo, ".devspec", "project.json"));
+	// Resolves from a SIBLING subdirectory, which a cwd-level write would not have done.
+	const sibling = join(repo, "packages", "core");
+	await mkdir(sibling, { recursive: true });
+	assert.equal(await resolveProjectPin(sibling, join(repo, "no-home")), "monorepo-project");
+});
+
+test("re-pinning reports what it replaced, so a caller can say so before overwriting", async () => {
+	// Silently repointing a COMMITTED pin would move a whole team's folder on one
+	// person's say-so, so the write surfaces the previous id rather than swallowing it.
+	clearProjectPinCache();
+	const dir = await pinnedDir('{"project_id":"old-project"}');
+	const r = await writeProjectPin(dir, "new-project", undefined, join(dir, "no-home"));
+	assert.equal(r.replaced, "old-project");
+	assert.equal(await resolveProjectPin(dir, join(dir, "no-home")), "new-project");
+
+	// Re-writing the SAME id is not a replacement — nothing changed to report.
+	clearProjectPinCache();
+	const again = await writeProjectPin(dir, "new-project", undefined, join(dir, "no-home"));
+	assert.equal(again.replaced, null);
+});
+
+test("the written file carries project_id only, plus an optional non-authoritative name", async () => {
+	// D10: no path, hostname, user, token or timestamp. That rule is the whole reason
+	// this file is safe to commit, so it is asserted rather than trusted to review.
+	clearProjectPinCache();
+	const dir = await mkdtemp(join(tmpdir(), "devspec-shape-"));
+	await writeProjectPin(dir, "shape-project", "Scratch Project", join(dir, "no-home"));
+	const raw = JSON.parse(await readFile(join(dir, ".devspec", "project.json"), "utf8"));
+	assert.deepEqual(Object.keys(raw).sort(), ["project_id", "project_name"]);
+	assert.equal(raw.project_id, "shape-project");
+
+	clearProjectPinCache();
+	const bare = await mkdtemp(join(tmpdir(), "devspec-shape2-"));
+	await writeProjectPin(bare, "bare-project", undefined, join(bare, "no-home"));
+	const raw2 = JSON.parse(await readFile(join(bare, ".devspec", "project.json"), "utf8"));
+	assert.deepEqual(Object.keys(raw2), ["project_id"]);
+});
+
+test("writeProjectPin refuses an empty project id rather than writing a useless pin", async () => {
+	const dir = await mkdtemp(join(tmpdir(), "devspec-empty-"));
+	await assert.rejects(() => writeProjectPin(dir, "   "), /projectId is required/);
 });
 
 test("a repo checkout with no pin yields a remote but no pin", async () => {

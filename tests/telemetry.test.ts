@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildAgentStatsReport, TelemetryCollector } from "../extensions/core/telemetry.ts";
+import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector } from "../extensions/core/telemetry.ts";
 
 test("TelemetryCollector sums message usages within a turn and folds into the session at settle", () => {
 	const c = new TelemetryCollector();
@@ -44,6 +44,33 @@ test("buildAgentStatsReport shapes the wire report and rounds cost/percent", () 
 	assert.equal(report.thinkingLevel, "high");
 	assert.deepEqual(report.context, { tokens: 12346, window: 200000, percent: 61.7 });
 	assert.equal(report.at, "2026-08-12T00:00:00.000Z");
+});
+
+test("refreshAgentStatsReport updates runtime identity without inventing a turn or losing usage", () => {
+	const initial = buildAgentStatsReport({
+		turn: { input: 10, output: 4, cacheRead: 20, cacheWrite: 0, costUsd: 0.01, messages: 1 },
+		session: { input: 50, output: 12, cacheRead: 80, cacheWrite: 0, costUsd: 0.05, turns: 3 },
+		model: { provider: "anthropic", id: "claude-opus-4.1" },
+		thinkingLevel: "medium",
+		now: "2026-08-12T00:00:00.000Z",
+	});
+	const refreshed = refreshAgentStatsReport({
+		previous: initial,
+		model: { provider: "openai-codex", id: "gpt-5.6-sol" },
+		thinkingLevel: "high",
+		now: "2026-08-12T00:01:00.000Z",
+	});
+	assert.deepEqual(refreshed.turn, initial.turn);
+	assert.deepEqual(refreshed.session, initial.session);
+	assert.deepEqual(refreshed.model, { provider: "openai-codex", id: "gpt-5.6-sol" });
+	assert.equal(refreshed.thinkingLevel, "high");
+
+	const startup = refreshAgentStatsReport({
+		model: { provider: "openai-codex", id: "gpt-5.6-sol" },
+		thinkingLevel: "low",
+	});
+	assert.equal(startup.turn.messages, 0);
+	assert.equal(startup.session.turns, 0);
 });
 
 test("buildAgentStatsReport tolerates unknown model and null context", () => {

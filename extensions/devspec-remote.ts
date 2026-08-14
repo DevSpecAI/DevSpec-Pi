@@ -46,7 +46,7 @@ import { formatAttachmentNotes, materialiseAttachments } from "./core/attachment
 import { unwrapMcpResult } from "./core/result.ts";
 import { buildAttachBlock, shapeRoomAgenda, shapeTranscript } from "./core/attach-context.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
-import { buildAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
+import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
 import { planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitFirstAnswer, isHarnessOrigin, shouldPauseSettle, TurnTracker } from "./core/turn-lifecycle.ts";
 import { dispatchSummary, formatDispatchMessage } from "./core/dispatch.ts";
 import {
@@ -179,19 +179,49 @@ function ensureTurn(): void {
 // pi's own message_end usage; the report rides the settle answer post (when
 // attached) AND the idle heartbeat (always, so sessionless agents show too).
 const telemetry = new TelemetryCollector();
+/** Last settled usage plus runtime identity. Runtime-only refreshes preserve usage. */
+let latestAgentStats: AgentStatsReport | null = null;
+let runtimeStampTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** Settle the turn's usage into a wire report from the current context. Null when nothing was tracked. */
-function settleTelemetry(): AgentStatsReport | null {
+function runtimeAgentStats(ctx: ExtensionContext | null = lastCtx): AgentStatsReport {
+	const model = ctx?.model as { provider?: string; id?: string } | undefined;
+	return refreshAgentStatsReport({
+		previous: latestAgentStats,
+		model: model ?? null,
+		thinkingLevel: ctx?.thinkingLevel ?? null,
+		context: ctx?.getContextUsage?.() ?? null,
+	});
+}
+
+/** Coalesce model_select + thinking clamp into one immediate mechanical stamp. */
+function scheduleRuntimeStamp(ctx: ExtensionContext): void {
+	lastCtx = ctx;
+	if (!pump) return;
+	if (runtimeStampTimer) clearTimeout(runtimeStampTimer);
+	runtimeStampTimer = setTimeout(() => {
+		runtimeStampTimer = null;
+		const active = pump;
+		if (!active || active.stop) return;
+		const stats = runtimeAgentStats(lastCtx);
+		latestAgentStats = stats;
+		void beatBusy(active.busy, stats);
+	}, 0);
+	if (typeof runtimeStampTimer.unref === "function") runtimeStampTimer.unref();
+}
+
+/** Settle the turn's usage into a wire report from the current context. */
+function settleTelemetry(): AgentStatsReport {
 	const settled = telemetry.settleTurn();
 	const ctx = lastCtx;
 	const model = ctx?.model as { provider?: string; id?: string } | undefined;
-	return buildAgentStatsReport({
+	latestAgentStats = buildAgentStatsReport({
 		turn: settled.turn,
 		session: settled.session,
 		model: model ?? null,
 		thinkingLevel: ctx?.thinkingLevel ?? null,
 		context: ctx?.getContextUsage?.() ?? null,
 	});
+	return latestAgentStats;
 }
 
 async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; workTrail?: string; trailEvents?: unknown; agentStats?: AgentStatsReport } = {}): Promise<boolean> {
@@ -619,6 +649,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					busy: active.busy,
 					listener_armed: true,
 					agent_name: AGENT_NAME,
+					agent_stats: runtimeAgentStats(ctx),
 				},
 				{ timeoutMs: POLL_TIMEOUT_MS, cwd: ctx.cwd, lane: "pump" },
 			);
@@ -924,6 +955,9 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 	};
 	preemptOwnerCached = (await loadSettings()).preemptOwner;
 	setRemoteStatus(ctx);
+	// Initial runtime identity must be visible before this agent has completed a
+	// turn. The first long-poll below carries this report with its heartbeat.
+	latestAgentStats = runtimeAgentStats(ctx);
 	// Revive/register can already be attached (same session_id on the
 	// connection row). The pump only rebuilds attachContext on a sessionId
 	// *transition*, so a stop→remote into the same room would otherwise
@@ -1036,6 +1070,13 @@ export default function (pi: ExtensionAPI) {
 		if (!model) return false;
 		return Boolean(await pi.setModel?.(model));
 	};
+
+	pi.on("model_select", (_event, ctx) => {
+		scheduleRuntimeStamp(ctx);
+	});
+	pi.on("thinking_level_select", (_event, ctx) => {
+		scheduleRuntimeStamp(ctx);
+	});
 
 	pi.on("agent_start", () => {
 		if (pump) {
@@ -1190,6 +1231,10 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", async () => {
+		if (runtimeStampTimer) {
+			clearTimeout(runtimeStampTimer);
+			runtimeStampTimer = null;
+		}
 		// Close any open trail / Working row BEFORE tearing the pump down
 		// (item 781886cf). A crash mid-turn must not leave empty bubbles.
 		const openTurn = turn;

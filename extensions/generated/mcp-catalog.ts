@@ -2,11 +2,11 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Fingerprint: 376b4c387909c7f781d81755b7e765771e0b46c34aa42bb9a59be41eaa5e8688
- * Regenerated: 2026-08-14T11:00:55.878Z
+ * Fingerprint: 3e94f83d85c475f761602b9a402f28d4a000c6deac46c30f0f20d0da83d24cc8
+ * Regenerated: 2026-08-14T12:05:19.883Z
  */
-export const MCP_CATALOG_FINGERPRINT = "376b4c387909c7f781d81755b7e765771e0b46c34aa42bb9a59be41eaa5e8688";
-export const MCP_CATALOG_GENERATED_AT = "2026-08-14T11:00:55.879Z";
+export const MCP_CATALOG_FINGERPRINT = "3e94f83d85c475f761602b9a402f28d4a000c6deac46c30f0f20d0da83d24cc8";
+export const MCP_CATALOG_GENERATED_AT = "2026-08-14T12:05:19.883Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -4583,6 +4583,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"unread_commands": {
 					"type": "number",
 					"description": "Optional. How many owner commands have been delivered to your local inbox that no listener has consumed. Pair it with listener_armed: false to say \"these are stranded\". Omit when not tracked."
+				},
+				"agent_stats": {
+					"type": "object",
+					"description": "Optional. Your latest mechanical runtime telemetry (including current model and thinking level) riding this long-poll heartbeat. Stored last-known-good on the connection row; no extra keep-alive call is needed."
 				},
 				"agent_name": {
 					"type": "string",

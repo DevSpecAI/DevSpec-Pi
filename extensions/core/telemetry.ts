@@ -137,3 +137,27 @@ export function buildAgentStatsReport(input: {
 		at: input.now ?? new Date().toISOString(),
 	};
 }
+
+/**
+ * Refresh only the runtime identity/context on the last report. Used by idle
+ * heartbeats and model/thinking events so those settings update immediately
+ * without pretending a new turn settled or discarding the last usage totals.
+ */
+export function refreshAgentStatsReport(input: {
+	previous?: AgentStatsReport | null;
+	model?: { provider?: string; id?: string } | null;
+	thinkingLevel?: string | null;
+	context?: { tokens: number | null; contextWindow: number; percent: number | null } | null;
+	now?: string;
+}): AgentStatsReport {
+	const zeroTurn = { ...emptyTotals(), messages: 0 };
+	const zeroSession = { ...emptyTotals(), turns: 0 };
+	return buildAgentStatsReport({
+		turn: input.previous?.turn ?? zeroTurn,
+		session: input.previous?.session ?? zeroSession,
+		model: input.model,
+		thinkingLevel: input.thinkingLevel,
+		context: input.context,
+		now: input.now,
+	});
+}

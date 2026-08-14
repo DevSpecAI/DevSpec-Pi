@@ -37,12 +37,19 @@ test("buildAgentStatsReport shapes the wire report and rounds cost/percent", () 
 		model: { provider: "anthropic", id: "claude-opus-4.1" },
 		thinkingLevel: "high",
 		context: { tokens: 12345.6, contextWindow: 200000, percent: 61.72 },
+		contextBudget: {
+			v: 1,
+			static: { systemPromptChars: 20_000, activeToolCount: 16, activeToolDefinitionChars: 12_000, contextFileCount: 1, contextFileChars: 4_000, skillCount: 2, skillChars: 3_000 },
+			injected: { attachChars: 0, roomDigestChars: 0, recallChars: 900, conflictNudgeChars: 0, totalChars: 900 },
+			toolResults: { calls: 1, chars: 4_000, maxChars: 4_000, byVerb: [{ verb: "search_action_items", calls: 1, chars: 4_000, maxChars: 4_000 }] },
+		},
 		now: "2026-08-12T00:00:00.000Z",
 	});
 	assert.equal(report.v, 1);
 	assert.deepEqual(report.model, { provider: "anthropic", id: "claude-opus-4.1" });
 	assert.equal(report.thinkingLevel, "high");
 	assert.deepEqual(report.context, { tokens: 12346, window: 200000, percent: 61.7 });
+	assert.equal(report.contextBudget?.toolResults.byVerb[0]?.verb, "search_action_items");
 	assert.equal(report.at, "2026-08-12T00:00:00.000Z");
 });
 
@@ -64,6 +71,7 @@ test("refreshAgentStatsReport updates runtime identity without inventing a turn 
 	assert.deepEqual(refreshed.session, initial.session);
 	assert.deepEqual(refreshed.model, { provider: "openai-codex", id: "gpt-5.6-sol" });
 	assert.equal(refreshed.thinkingLevel, "high");
+	assert.equal(refreshed.contextBudget, initial.contextBudget);
 
 	const startup = refreshAgentStatsReport({
 		model: { provider: "openai-codex", id: "gpt-5.6-sol" },

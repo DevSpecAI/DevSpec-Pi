@@ -10,6 +10,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { resolveToken } from "./core/auth-store.ts";
 import { getBond } from "./core/bond-state.ts";
 import { buildDevspecInstructions } from "./core/instructions.ts";
+import { noteInjectedContext, noteStaticContextBudget } from "./core/context-budget.ts";
 
 /** Extra block while this session is bonded as remote capacity. */
 function buildBondedInstructions(): string | null {
@@ -39,6 +40,19 @@ function buildBondedInstructions(): string | null {
 	return lines.join("\n");
 }
 
+function serializedChars(value: unknown): number {
+	try {
+		return JSON.stringify(value)?.length ?? 0;
+	} catch {
+		return 0;
+	}
+}
+
+function contentChars(values: unknown): number {
+	if (!Array.isArray(values)) return 0;
+	return values.reduce((sum, value) => sum + serializedChars(value), 0);
+}
+
 export default function (pi: ExtensionAPI) {
 	// The room digest is a one-shot orientation message: injected once per
 	// session instance, the first turn after the pump's cold-start sync.
@@ -55,9 +69,28 @@ export default function (pi: ExtensionAPI) {
 		const bonded = buildBondedInstructions();
 		if (bonded) prompt += `\n\n### DevSpec remote (bonded)\n${bonded}`;
 
+		const activeNames = new Set(pi.getActiveTools());
+		const activeTools = pi.getAllTools().filter((tool) => activeNames.has(tool.name));
+		const options = event.systemPromptOptions as { contextFiles?: unknown[]; skills?: unknown[] } | undefined;
+		noteStaticContextBudget({
+			systemPromptChars: prompt.length,
+			activeToolCount: activeTools.length,
+			activeToolDefinitionChars: serializedChars(activeTools.map((tool) => ({
+				name: tool.name,
+				description: tool.description,
+				parameters: tool.parameters,
+				promptGuidelines: tool.promptGuidelines,
+			}))),
+			contextFileCount: options?.contextFiles?.length ?? 0,
+			contextFileChars: contentChars(options?.contextFiles),
+			skillCount: options?.skills?.length ?? 0,
+			skillChars: contentChars(options?.skills),
+		});
+
 		const bond = getBond();
 		if (bond?.attachContext && bond.attachContext !== injectedAttachContext) {
 			injectedAttachContext = bond.attachContext;
+			noteInjectedContext("attach", bond.attachContext.length);
 			return {
 				systemPrompt: prompt,
 				message: {
@@ -69,6 +102,7 @@ export default function (pi: ExtensionAPI) {
 		}
 		if (bond?.roomDigest && !digestInjected) {
 			digestInjected = true;
+			noteInjectedContext("roomDigest", bond.roomDigest.length);
 			return {
 				systemPrompt: prompt,
 				message: {

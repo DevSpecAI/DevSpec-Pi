@@ -8,14 +8,8 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { appendFileSync } from "node:fs";
 import { captureGitCommit, repoResolver } from "./core/commit-ledger.ts";
-
-function debug(line: string): void {
-	if (process.env.DEVSPEC_DEBUG_REMOTE) {
-		try { appendFileSync("/tmp/devspec-remote-debug.log", `${new Date().toISOString()} ${line}\n`); } catch { /* ignore */ }
-	}
-}
+import { debugRemote } from "./core/debug.ts";
 
 function commandOf(args: unknown): string {
 	const a = args as { command?: unknown } | null;
@@ -50,6 +44,6 @@ export default function (pi: ExtensionAPI) {
 		pending.delete(event.toolCallId);
 		if (!command || event.isError) return;
 		const captured = captureGitCommit(command, outputOf(event.result), repoResolver(ctx.cwd));
-		if (captured) debug(`ledger: captured ${captured.shortSha} (${captured.branch})`);
+		if (captured) debugRemote("commit ledger captured");
 	});
 }

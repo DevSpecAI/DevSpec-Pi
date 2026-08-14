@@ -79,7 +79,7 @@ function deactivate(pi: ExtensionAPI, serverNames: string[]): string[] {
 	try {
 		registered = (pi.getAllTools?.() ?? []) as typeof registered;
 	} catch (err) {
-		debugRemote(`adapter-guard: getAllTools failed: ${err instanceof Error ? err.message : err}`);
+		debugRemote("adapter guard get tools failed", { errorPresent: Boolean(err) });
 		return [];
 	}
 	const names = toolsToDeactivate(registered, serverNames);
@@ -99,7 +99,7 @@ function deactivate(pi: ExtensionAPI, serverNames: string[]): string[] {
 		const next = active.filter((n) => !drop.has(n));
 		if (next.length !== active.length) pi.setActiveTools(next);
 	} catch (err) {
-		debugRemote(`adapter-guard: setActiveTools failed: ${err instanceof Error ? err.message : err}`);
+		debugRemote("adapter guard set active tools failed", { errorPresent: Boolean(err) });
 	}
 	return names;
 }
@@ -122,15 +122,13 @@ function apply(pi: ExtensionAPI, ctx: ExtensionContext): void {
 			overlayPath = result.path;
 			wrote = result.changed;
 		} catch (err) {
-			debugRemote(`adapter-guard: persist failed: ${err instanceof Error ? err.message : err}`);
+			debugRemote("adapter guard persist failed", { errorPresent: Boolean(err) });
 		}
 	}
 
 	const deactivated = deactivate(pi, hits.map((h) => h.name));
 	recordAdapterGuard({ suppressed: hits, persisted: wrote || hits.some((h) => h.alreadyDisabled), overlayPath });
-	debugRemote(
-		`adapter-guard: hid ${hits.map((h) => h.name).join(", ")} (${deactivated.length} tools this session)`,
-	);
+	debugRemote("adapter guard applied", { serverCount: hits.length, deactivatedTools: deactivated.length });
 	// Once per write — not every subsequent session.
 	if (wrote && ctx.hasUI && ctx.mode === "tui") {
 		ctx.ui.notify(SUPPRESSION_NOTICE, "info");
@@ -142,7 +140,7 @@ export default function (pi: ExtensionAPI) {
 		try {
 			apply(pi, ctx);
 		} catch (err) {
-			debugRemote(`adapter-guard: ${err instanceof Error ? err.message : err}`);
+			debugRemote("adapter guard failed", { errorPresent: Boolean(err) });
 		}
 	});
 
@@ -154,7 +152,7 @@ export default function (pi: ExtensionAPI) {
 		try {
 			deactivate(pi, state.suppressed.map((h) => h.name));
 		} catch (err) {
-			debugRemote(`adapter-guard (turn): ${err instanceof Error ? err.message : err}`);
+			debugRemote("adapter guard turn failed", { errorPresent: Boolean(err) });
 		}
 		return undefined;
 	});

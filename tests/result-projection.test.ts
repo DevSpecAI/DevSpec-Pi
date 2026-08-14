@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { test } from "node:test";
 import { stream as streamAnthropic } from "@earendil-works/pi-ai/api/anthropic-messages";
 import { convertMessages as convertGoogleMessages } from "@earendil-works/pi-ai/api/google-shared";
@@ -9,6 +10,7 @@ import { PROJECTION_BUDGETS, projectModelText, projectionFamily } from "../exten
 import { projectedToolResult, unwrapMcpResult } from "../extensions/core/result.ts";
 import { extractItemRef, getStatusSnapshot, resetStatus } from "../extensions/core/status-line.ts";
 import { consumeResultMechanics } from "../extensions/devspec-tools.ts";
+import { MCP_CATALOG, MODEL_VERB_NAMES } from "../extensions/generated/mcp-catalog.ts";
 
 const huge = (label: string, length = 12_000) => `${label}: ${"internal payload ".repeat(Math.ceil(length / 17))}`.slice(0, length);
 
@@ -61,6 +63,23 @@ function model(api: string) {
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 	};
 }
+
+test("every generated model verb is intentionally assigned to a projection contract", () => {
+	const fallback = MODEL_VERB_NAMES.filter((name) => projectionFamily(name) === "fallback");
+	assert.deepEqual(fallback, ["generate_commit_message"], "new/changed verbs must choose a projection family explicitly");
+});
+
+test("model tool schemas and projection families require an explicit contract-baseline update", () => {
+	const contract = MCP_CATALOG
+		.filter((entry) => entry.kind === "model")
+		.map(({ name, inputSchema }) => ({ name, inputSchema, family: projectionFamily(name) }));
+	const fingerprint = createHash("sha256").update(JSON.stringify(contract)).digest("hex");
+	assert.equal(
+		fingerprint,
+		"e619fddf01d3b03808357618e50f6e857751ef5843598b75af247b90ccbace24",
+		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
+	);
+});
 
 test("verb projections use explicit, loss-aware families", () => {
 	assert.equal(projectionFamily("get_project_summary"), "project");

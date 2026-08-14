@@ -26,6 +26,7 @@ import { resolveToken } from "./core/auth-store.ts";
 import { callDevspec, MODEL_TIMEOUT_MS } from "./core/client.ts";
 import { unwrapMcpResult } from "./core/result.ts";
 import { debugRemote } from "./core/debug.ts";
+import { noteInjectedContext } from "./core/context-budget.ts";
 import {
 	cardKey,
 	extractCards,
@@ -66,14 +67,16 @@ export default function (pi: ExtensionAPI) {
 						if (k) injected.add(k);
 					}
 					if (fresh.length > 0) {
-						debugRemote(`recall: "${query.slice(0, 80)}" → ${fresh.length} new: ${fresh.map((c) => c.title).join(" | ")}`);
-						parts.push(formatRecallBlock(fresh));
+						debugRemote("recall", { queryChars: query.length, newHits: fresh.length });
+						const recall = formatRecallBlock(fresh);
+						noteInjectedContext("recall", recall.length);
+						parts.push(recall);
 					} else {
-						debugRemote(`recall: "${query.slice(0, 80)}" → nothing new`);
+						debugRemote("recall", { queryChars: query.length, newHits: 0 });
 					}
 				}
 			} catch (err) {
-				debugRemote(`recall failed: ${err instanceof Error ? err.message : err}`);
+				debugRemote("recall failed", { errorPresent: Boolean(err) });
 			}
 		}
 
@@ -83,7 +86,10 @@ export default function (pi: ExtensionAPI) {
 		if (flags.length > 0 && sig !== lastNudgeSig) {
 			lastNudgeSig = sig;
 			const nudge = formatConflictNudge(flags);
-			if (nudge) parts.push(nudge);
+			if (nudge) {
+				noteInjectedContext("conflictNudge", nudge.length);
+				parts.push(nudge);
+			}
 		}
 
 		if (parts.length === 0) return undefined;

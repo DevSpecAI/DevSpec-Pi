@@ -28,6 +28,8 @@
     ]
   },
   "scripts": {
+    "benchmark:context": "node --experimental-strip-types scripts/context-benchmark.ts",
+    "check": "npm run typecheck && npm test && npm run benchmark:context",
     "typecheck": "tsc --noEmit",
     "generate:catalog": "node scripts/generate-mcp-catalog.mjs",
     "test": "node --test tests/*.test.ts"

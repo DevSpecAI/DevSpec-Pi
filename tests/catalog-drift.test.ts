@@ -8,7 +8,10 @@ import { fileURLToPath } from "node:url";
 import { MCP_CATALOG, MCP_CATALOG_FINGERPRINT } from "../extensions/generated/mcp-catalog.ts";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
-const V2_ROOT = resolve(HERE, "../../../devspecv2");
+const EXPLICIT_V2_ROOT = process.env.DEVSPEC_V2_ROOT?.trim() || null;
+const V2_ROOT = EXPLICIT_V2_ROOT
+	? resolve(EXPLICIT_V2_ROOT)
+	: resolve(HERE, "../../../devspecv2");
 const DEFINITIONS = resolve(V2_ROOT, "apps/web/lib/mcp/tool-definitions.ts");
 
 function fingerprint(tools: Array<{ name: string; inputSchema: unknown }>): string {
@@ -24,6 +27,7 @@ function fingerprint(tools: Array<{ name: string; inputSchema: unknown }>): stri
 
 test("checked-in catalog matches the sibling DevSpecV2 verb surface when present", (t) => {
 	if (!existsSync(DEFINITIONS)) {
+		if (EXPLICIT_V2_ROOT) assert.fail(`DEVSPEC_V2_ROOT was supplied but tool definitions are missing: ${DEFINITIONS}`);
 		t.skip("sibling DevSpecV2 checkout not present — CI without the pair is allowed");
 		return;
 	}
@@ -43,6 +47,7 @@ process.stdout.write(JSON.stringify(tools.map((t) => ({
 			maxBuffer: 20 * 1024 * 1024,
 		});
 	} catch (err) {
+		if (EXPLICIT_V2_ROOT) throw err;
 		t.skip(`could not dump sibling tool surface: ${err instanceof Error ? err.message : String(err)}`);
 		return;
 	}

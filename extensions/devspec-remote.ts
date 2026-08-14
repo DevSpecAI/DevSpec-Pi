@@ -24,13 +24,7 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { hostname } from "node:os";
-import { appendFileSync } from "node:fs";
-
-function debug(line: string): void {
-	if (process.env.DEVSPEC_DEBUG_REMOTE) {
-		try { appendFileSync("/tmp/devspec-remote-debug.log", `${new Date().toISOString()} ${line}\n`); } catch { /* ignore */ }
-	}
-}
+import { debugRemote as debug } from "./core/debug.ts";
 import {
 	callDevspec,
 	isPermanentServerEnd,
@@ -47,6 +41,7 @@ import { unwrapMcpResult } from "./core/result.ts";
 import { buildAttachBlock, shapeRoomAgenda, shapeTranscript } from "./core/attach-context.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
+import { takeContextBudgetReport } from "./core/context-budget.ts";
 import { automaticBackgroundTaskId, backgroundTaskNotificationId, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitFirstAnswer, isHarnessOrigin, shouldPauseSettle, TurnTracker } from "./core/turn-lifecycle.ts";
 import { dispatchSummary, formatDispatchMessage } from "./core/dispatch.ts";
 import {
@@ -214,12 +209,20 @@ function settleTelemetry(): AgentStatsReport {
 	const settled = telemetry.settleTurn();
 	const ctx = lastCtx;
 	const model = ctx?.model as { provider?: string; id?: string } | undefined;
+	const contextBudget = takeContextBudgetReport();
 	latestAgentStats = buildAgentStatsReport({
 		turn: settled.turn,
 		session: settled.session,
 		model: model ?? null,
 		thinkingLevel: ctx?.thinkingLevel ?? null,
 		context: ctx?.getContextUsage?.() ?? null,
+		contextBudget,
+	});
+	debug("context budget", {
+		staticChars: contextBudget.static.systemPromptChars + contextBudget.static.activeToolDefinitionChars + contextBudget.static.contextFileChars + contextBudget.static.skillChars,
+		injectedChars: contextBudget.injected.totalChars,
+		resultCalls: contextBudget.toolResults.calls,
+		resultChars: contextBudget.toolResults.chars,
 	});
 	return latestAgentStats;
 }
@@ -245,7 +248,7 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 		}, { lane: "pump" });
 		return true;
 	} catch (err) {
-		debug(`postToSession failed: ${err instanceof Error ? err.message : err}`);
+		debug("post to session failed", { errorPresent: Boolean(err) });
 		if (!postWarnedThisTurn) {
 			postWarnedThisTurn = true;
 			notify(lastCtx, `DevSpec remote: post failed (${err instanceof Error ? err.message.slice(0, 120) : err}) — further failures this turn logged to debug only.`, "warning");
@@ -303,7 +306,7 @@ async function reportComplete(reason: string): Promise<void> {
  */
 async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | null, why: string, completeTurn = true): Promise<boolean> {
 	const bond = getBond();
-	if (!bond?.sessionId) { debug(`settleSegment(${why}): not attached`); return false; }
+	if (!bond?.sessionId) { debug("settle segment not attached"); return false; }
 
 	// The final render rides the answer post (item 9b7455df): the server
 	// REPLACES the fold-merged accumulation with this canonical final render —
@@ -316,7 +319,7 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 	const finalEvents = t.trail.events();
 	const activityTrail = finalEvents.length > 0 ? finalTrail : undefined;
 	const plan = planSettle(t.tracker, true);
-	debug(`settleSegment(${why}): plan ${plan.kind}, completeTurn=${completeTurn}, final trail ${finalTrail.length} chars`);
+	debug("settle segment", { completeTurn, trailChars: finalTrail.length });
 	if (t.tracker.userKind === "harness") return false;
 	if (plan.kind === "final") {
 		// phase 'answer' closes the trail bubble (preserved as "Show work").
@@ -381,7 +384,7 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 		interval,
 	};
 	postWarnedThisTurn = false;
-	debug(`delivery boundary (${why}, completeTurn=${completeTurn}) — closing previous segment`);
+	debug("delivery boundary", { completeTurn });
 	void postSegmentAnswer(t, null, why, completeTurn);
 }
 
@@ -555,7 +558,7 @@ function schedulePushReconnect(active: PumpState, token: string, endpoint: strin
 		return;
 	}
 	active.pushAttempts += 1;
-	debug(`push reconnect attempt ${active.pushAttempts} in ${delay}ms`);
+	debug("push reconnect attempt", { attempt: active.pushAttempts, delayMs: delay });
 	active.pushReconnectTimer = setTimeout(() => {
 		active.pushReconnectTimer = undefined;
 		if (active.stop || active.pushEnded !== undefined) return;
@@ -588,14 +591,14 @@ function startPushChannel(active: PumpState, token: string, endpoint: string): v
 			},
 			onClose: (reason) => {
 				if (controller.signal.aborted) return;
-				debug(`push channel closed: ${reason}`);
+				debug("push channel closed", { reasonPresent: Boolean(reason) });
 				schedulePushReconnect(active, token, endpoint);
 				signalWake(active);
 			},
 		},
 	}).catch((err) => {
 		if (controller.signal.aborted) return;
-		debug(`push channel connect failed: ${err instanceof Error ? err.message : err}`);
+		debug("push channel connect failed", { errorPresent: Boolean(err) });
 		schedulePushReconnect(active, token, endpoint);
 		signalWake(active);
 	});
@@ -625,7 +628,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				await stopPump(ctx, "owner_gone", true);
 				return;
 			}
-			debug(`push ended recoverable (${active.pushEnded ?? "none"}) — staying bonded`);
+			debug("push ended recoverable", { reasonPresent: Boolean(active.pushEnded) });
 			active.pushEnded = undefined;
 		}
 		if (pushMode && active.pushClosed) {
@@ -674,7 +677,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			}
 			active.errors += 1;
 			if (active.errors === 1 || active.errors % MAX_CONSECUTIVE_ERRORS === 0) {
-				debug(`poll recoverable (${active.errors}): ${err instanceof Error ? err.message : err}`);
+				debug("poll recoverable", { errors: active.errors, errorPresent: Boolean(err) });
 			}
 			void beatBusy(active.busy);
 			await new Promise((r) => setTimeout(r, ERROR_BACKOFF_MS));
@@ -695,7 +698,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				return;
 			}
 			active.errors += 1;
-			debug(`poll recoverable server status=${status} reason=${endReason ?? "none"}`);
+			debug("poll recoverable server response", { ended: status === "ended", reasonPresent: Boolean(endReason) });
 			void beatBusy(active.busy);
 			await new Promise((r) => setTimeout(r, ERROR_BACKOFF_MS));
 			continue;
@@ -722,7 +725,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			active.bond = next;
 			setBond(next);
 			setRemoteStatus(ctx);
-			debug(`attachment adopted from server: ${serverSessionId ?? "sessionless"}`);
+			debug("attachment adopted from server", { attached: Boolean(serverSessionId) });
 			// Attach-time bond context (item 9dcbd157): one bounded fetch learns the
 			// room's identity — title, owner name, recent tail — so a fresh bond
 			// attached-then-messaged within seconds never starts blind.
@@ -755,7 +758,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					ack: () => ackControl(token, active.bond.connectionId, control.id),
 					reload: () => reloadWithContext(commandReloadContext() ?? (ctx as { reload?: () => Promise<void> })),
 				});
-				debug(`control reload: ${lap.status}${lap.error ? ` (${lap.error})` : ""}`);
+				debug("control reload", { succeeded: lap.status === "reloaded", errorPresent: Boolean(lap.error) });
 				if (lap.status === "reloaded") return;
 				notify(ctx, `DevSpec remote: reload failed — ${lap.error ?? lap.status}`, "error");
 			} else {
@@ -770,7 +773,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 						setModel: (modelId) => pi_setModel(modelId),
 						notify: (message) => notify(ctx, message),
 					});
-					debug(`control ${control.verb}: ${result}`);
+					debug("control completed", { resultPresent: Boolean(result) });
 					if (control.verb === "list_models") {
 						catalog = collectModelCatalog({
 							scopedModels: ctx.scopedModels,
@@ -783,7 +786,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					}
 				} catch (err) {
 					const msg = err instanceof Error ? err.message : String(err);
-					debug(`control failed: ${msg}`);
+					debug("control failed", { messageChars: msg.length });
 					notify(ctx, `DevSpec remote: ${control.verb} failed — ${msg}`, "error");
 				}
 				void ackControl(token, active.bond.connectionId, control.id, catalog).catch(() => {});
@@ -809,9 +812,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			const digest = buildRoomDigest(payload, active.bond.codename ?? "this agent");
 			if (digest) {
 				setBond({ ...active.bond, roomDigest: digest });
-				debug(`synced with room digest (${digest.length} chars); ${historical.length} historical skipped, ${live.length} live`);
+				debug("synced with room digest", { digestChars: digest.length, historical: historical.length, live: live.length });
 			} else {
-				debug(`synced (cursor ${active.cursor ?? "none"}; ${historical.length} historical command(s) not replayed, ${live.length} live)`);
+				debug("synced", { cursorPresent: Boolean(active.cursor), historical: historical.length, live: live.length });
 			}
 			ownerCommands = live;
 		}
@@ -840,7 +843,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 						intervalMs: 50,
 					});
 					const sendMode = sendModeAtSendTime(mode, ctx.isIdle(), settled);
-					debug(`preempt: settled=${settled} send=${sendMode}`);
+					debug("preempt", { settled, immediate: sendMode === "now" });
 					pi_send(`${formatted}\n\n${PREEMPT_TAIL}`, sendMode);
 					notify(ctx, `DevSpec remote: interrupted — ${cmd.userName ?? "owner"} first.`);
 				} else {
@@ -997,7 +1000,7 @@ async function enrichBondWithSession(sessionId: string, withAttachContext: boole
 		const raw = await callDevspec(resolved.token, "get_session_transcript", { session_id: sessionId }, { lane: "pump" });
 		const unwrapped = unwrapMcpResult(raw);
 		if (unwrapped.isError) {
-			debug(`session enrich fetch failed: ${unwrapped.text.slice(0, 120)}`);
+			debug("session enrich fetch failed", { resultChars: unwrapped.text.length });
 			return;
 		}
 		const shaped = shapeTranscript(sessionId, unwrapped.details);
@@ -1014,10 +1017,10 @@ async function enrichBondWithSession(sessionId: string, withAttachContext: boole
 				if (!agendaUnwrapped.isError) {
 					shaped.agenda = shapeRoomAgenda(agendaUnwrapped.details);
 				} else {
-					debug(`session agenda fetch failed: ${agendaUnwrapped.text.slice(0, 120)}`);
+					debug("session agenda fetch failed", { resultChars: agendaUnwrapped.text.length });
 				}
 			} catch (err) {
-				debug(`session agenda error: ${err instanceof Error ? err.message : err}`);
+				debug("session agenda error", { errorPresent: Boolean(err) });
 			}
 		}
 		const active = pump;
@@ -1042,9 +1045,9 @@ async function enrichBondWithSession(sessionId: string, withAttachContext: boole
 			if (preview) setSessionPreview(preview);
 		}
 		setRemoteStatus(lastCtx);
-		debug(`session enriched: title=${shaped.title ? "yes" : "none yet"}, owner=${shaped.ownerName ?? "unknown"}, tail=${shaped.tail.length}, agenda=${shaped.agenda.length}, attachContext=${withAttachContext}`);
+		debug("session enriched", { titlePresent: Boolean(shaped.title), ownerPresent: Boolean(shaped.ownerName), tail: shaped.tail.length, agenda: shaped.agenda.length, attachContext: withAttachContext });
 	} catch (err) {
-		debug(`session enrich error: ${err instanceof Error ? err.message : err}`);
+		debug("session enrich error", { errorPresent: Boolean(err) });
 	}
 }
 

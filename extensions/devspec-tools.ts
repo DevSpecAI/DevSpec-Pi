@@ -31,6 +31,10 @@ import {
 } from "./core/model-surface.ts";
 import { projectedToolResult, toolErrorResult, toolTextResult, unwrapMcpResult } from "./core/result.ts";
 import {
+	noteModelToolResult,
+	registerContextBudgetToolNames,
+} from "./core/context-budget.ts";
+import {
 	clearPlaybook,
 	clearWork,
 	extractItemRef,
@@ -39,7 +43,7 @@ import {
 	noteWork,
 	paintStatus,
 } from "./core/status-line.ts";
-import type { CatalogEntry } from "./generated/mcp-catalog.ts";
+import { MODEL_VERB_NAMES, type CatalogEntry } from "./generated/mcp-catalog.ts";
 
 /** Unwrap and project a DevSpec result, retaining complete data in details. */
 function unwrapOrThrow(name: string, raw: unknown) {
@@ -99,6 +103,17 @@ const NOT_CONNECTED =
 	`Tokens are minted at ${connectionsUrl()}.`;
 
 type CallCtx = { sessionManager: { getSessionId(): string }; cwd: string };
+
+type PiToolResult = { content?: Array<{ type?: string; text?: string }> };
+
+/** Attribute model-visible characters only; details/args never enter telemetry. */
+function measuredToolResult<T extends PiToolResult>(name: string, result: T): T {
+	const chars = (result.content ?? [])
+		.filter((block) => block?.type === "text" && typeof block.text === "string")
+		.reduce((sum, block) => sum + (block.text?.length ?? 0), 0);
+	noteModelToolResult(name, chars);
+	return result;
+}
 
 /** Per-verb argument stamps that cannot live in the generated catalog. */
 const AUGMENTS: Record<string, (params: Record<string, unknown>, ctx: CallCtx) => Record<string, unknown>> = {
@@ -166,7 +181,7 @@ export function stampKnownScope(params: Record<string, unknown>): Record<string,
 
 async function executeVerb(name: string, params: Record<string, unknown>, ctx: CallCtx) {
 	const resolved = await resolveToken();
-	if (!resolved) return toolErrorResult(NOT_CONNECTED);
+	if (!resolved) return measuredToolResult(name, toolErrorResult(NOT_CONNECTED));
 	try {
 		const augment = AUGMENTS[name];
 		const args = stampKnownScope(
@@ -179,10 +194,10 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 		});
 		const result = unwrapOrThrow(name, raw);
 		consumeResultMechanics(name, result);
-		return result;
+		return measuredToolResult(name, result);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
-		return toolErrorResult(message);
+		return measuredToolResult(name, toolErrorResult(message));
 	}
 }
 
@@ -213,22 +228,22 @@ function registerToolLoader(pi: ExtensionAPI): void {
 			const limit = typeof input.limit === "number" ? input.limit : undefined;
 			const matches = searchRareModelTools(query, limit).map((entry) => entry.name);
 			if (matches.length === 0) {
-				return toolTextResult(`No less-common DevSpec tools found for: ${query}`, {
+				return measuredToolResult(TOOL_LOADER_NAME, toolTextResult(`No less-common DevSpec tools found for: ${query}`, {
 					matches: [],
 					added: [],
-				});
+				}));
 			}
 
 			const active = pi.getActiveTools();
 			const activeSet = new Set(active);
 			const added = matches.filter((name) => !activeSet.has(name));
 			if (added.length > 0) pi.setActiveTools([...active, ...added]);
-			return toolTextResult(
+			return measuredToolResult(TOOL_LOADER_NAME, toolTextResult(
 				added.length > 0
 					? `Loaded DevSpec tools: ${added.join(", ")}`
 					: `Matching DevSpec tools already active: ${matches.join(", ")}`,
 				{ matches, added },
-			);
+			));
 		},
 	});
 }
@@ -251,6 +266,7 @@ export function initialActiveTools(active: readonly string[]): string[] {
 }
 
 export default function (pi: ExtensionAPI) {
+	registerContextBudgetToolNames([...MODEL_VERB_NAMES, TOOL_LOADER_NAME]);
 	for (const entry of allModelFacingTools()) registerCatalogTool(pi, entry);
 	registerToolLoader(pi);
 	pi.on("session_start", () => {

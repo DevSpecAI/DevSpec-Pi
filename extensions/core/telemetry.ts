@@ -11,6 +11,8 @@
  * contract, so it is built and sanitized here, never inline in the extension.
  */
 
+import type { ContextBudgetReport } from "./context-budget.ts";
+
 /** Subset of pi-ai's Usage the report reads (kept structural — no import). */
 export interface MessageUsage {
 	input?: number;
@@ -35,6 +37,8 @@ export interface AgentStatsReport {
 	model: { provider: string; id: string } | null;
 	thinkingLevel: string | null;
 	context: { tokens: number | null; window: number | null; percent: number | null } | null;
+	/** Numeric-only DevSpec attribution; no prompt/tool payload content. */
+	contextBudget?: ContextBudgetReport;
 	turn: UsageTotals & { messages: number };
 	session: UsageTotals & { turns: number };
 	at: string;
@@ -112,6 +116,7 @@ export function buildAgentStatsReport(input: {
 	model?: { provider?: string; id?: string } | null;
 	thinkingLevel?: string | null;
 	context?: { tokens: number | null; contextWindow: number; percent: number | null } | null;
+	contextBudget?: ContextBudgetReport;
 	now?: string;
 }): AgentStatsReport {
 	const ctx = input.context;
@@ -132,6 +137,7 @@ export function buildAgentStatsReport(input: {
 							: null,
 				}
 			: null,
+		...(input.contextBudget ? { contextBudget: input.contextBudget } : {}),
 		turn: input.turn,
 		session: input.session,
 		at: input.now ?? new Date().toISOString(),
@@ -148,6 +154,7 @@ export function refreshAgentStatsReport(input: {
 	model?: { provider?: string; id?: string } | null;
 	thinkingLevel?: string | null;
 	context?: { tokens: number | null; contextWindow: number; percent: number | null } | null;
+	contextBudget?: ContextBudgetReport;
 	now?: string;
 }): AgentStatsReport {
 	const zeroTurn = { ...emptyTotals(), messages: 0 };
@@ -158,6 +165,7 @@ export function refreshAgentStatsReport(input: {
 		model: input.model,
 		thinkingLevel: input.thinkingLevel,
 		context: input.context,
+		contextBudget: input.contextBudget ?? input.previous?.contextBudget,
 		now: input.now,
 	});
 }

@@ -123,6 +123,24 @@ no-op on Windows), no shell-specific behavior in code or docs, no `sh`-isms in
 spawned processes. If a feature can't be parity, it gates cleanly per-OS — it
 never silently half-works.
 
+### 8. Context efficiency and result quality are tested contracts
+
+A smaller payload is not an improvement if it hides the fields needed to choose
+the right exact read. A richer payload is not an improvement if it needlessly
+repeats whole entities into every later model request. Therefore every new or
+changed model-facing tool must deliberately choose a projection family, retain
+its selection/action inputs, declare omissions and a recovery path, and remain
+inside an explicit model-visible budget. Exact reads stay complete where no
+lossless continuation exists.
+
+`npm run check` is the development and CI gate: typecheck, the full contract /
+privacy / projection suite, and the deterministic `benchmark:context` fixtures.
+The generated wire catalog is additionally fingerprinted against a sibling
+DevSpecV2 checkout whenever both repositories are present. Runtime refinement
+uses numeric counts plus generated verb identifiers for context-budget
+telemetry (static prompt/tools, injected context, result characters); prompt text, instructions,
+context contents, arguments, results and provider payloads are never logged.
+
 ## Architecture
 
 ```
@@ -432,7 +450,8 @@ current contract, adopted here first, migrated to other hosts only if proven.
      Trail storage is server-side (not exposed by get_session_transcript) —
      the "Show work" bubble is verified in the web UI.
    - `pending_context_wipe`: surfaced as a notification only (never
-     auto-wipes). Debug: DEVSPEC_DEBUG_REMOTE=1 → /tmp/devspec-remote-debug.log.
+     auto-wipes). Debug: `DEVSPEC_DEBUG_REMOTE=1` writes privacy-safe metadata
+     to `devspec-remote-debug.log` under the platform's temporary directory.
 5. **Memory recall/capture engine + compaction survival.**
 6. **Onboarding polish, theme, embedded user-MCP support.**
 7. **Headless worker CLI** (cloud primitive, dogfooded locally first).

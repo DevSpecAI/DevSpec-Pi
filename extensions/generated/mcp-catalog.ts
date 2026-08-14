@@ -2,11 +2,11 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Fingerprint: 3e94f83d85c475f761602b9a402f28d4a000c6deac46c30f0f20d0da83d24cc8
- * Regenerated: 2026-08-14T12:05:19.883Z
+ * Fingerprint: fb773661cf2fcf01a525d07abd490212fb0fe8f55081349a7eee67f9e26562a7
+ * Regenerated: 2026-08-14T14:49:39.828Z
  */
-export const MCP_CATALOG_FINGERPRINT = "3e94f83d85c475f761602b9a402f28d4a000c6deac46c30f0f20d0da83d24cc8";
-export const MCP_CATALOG_GENERATED_AT = "2026-08-14T12:05:19.883Z";
+export const MCP_CATALOG_FINGERPRINT = "fb773661cf2fcf01a525d07abd490212fb0fe8f55081349a7eee67f9e26562a7";
+export const MCP_CATALOG_GENERATED_AT = "2026-08-14T14:49:39.828Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -4186,7 +4186,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"trail_events": {
 					"type": "array",
-					"description": "Optional structured work trail (item 2219b653). Array of {seq, kind: thinking|text|tool|domain, …}. Replace-by-seq on the server — no string merging. Display-only; never returned by get_session_transcript. Other hosts may omit this and keep posting the markdown work_trail string.",
+					"description": "Optional structured agent activity. Array of timestamped {seq, kind: thinking|tool|domain|subagent, …}; assistant speech is transcript-only and must not be included. Tool/domain/subagent events may carry correlationId, occurredAt, completedAt, durationMs, and nested subagent children. Replace-by-seq on the server — no string merging or silent tail cap. Display-only; never returned by get_session_transcript. Other hosts may omit this and keep posting the markdown work_trail string.",
 					"items": {
 						"type": "object"
 					}

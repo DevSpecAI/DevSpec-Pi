@@ -5,7 +5,7 @@
  * fallback for hosts that only speak `work_trail` text. Pi posts BOTH.
  */
 
-export const TRAIL_EVENT_KINDS = ["thinking", "text", "tool", "domain"] as const;
+export const TRAIL_EVENT_KINDS = ["thinking", "text", "tool", "domain", "subagent"] as const;
 export type TrailEventKind = (typeof TRAIL_EVENT_KINDS)[number];
 
 export const TRAIL_EVENT_STATUSES = ["running", "ok", "error"] as const;
@@ -25,17 +25,26 @@ export interface ThinkingTrailEvent {
 	seq: number;
 	kind: "thinking";
 	text: string;
+	occurredAt: string;
 }
 
+/** Legacy only. Pi no longer emits assistant speech into Activity. */
 export interface TextTrailEvent {
 	seq: number;
 	kind: "text";
 	text: string;
+	occurredAt?: string;
 }
 
-export interface ToolTrailEvent {
+interface TimedTrailEvent {
+	occurredAt: string;
+	completedAt?: string;
+}
+
+export interface ToolTrailEvent extends TimedTrailEvent {
 	seq: number;
 	kind: "tool";
+	correlationId: string;
 	name: string;
 	args?: string;
 	status: TrailEventStatus;
@@ -43,9 +52,10 @@ export interface ToolTrailEvent {
 	durationMs?: number;
 }
 
-export interface DomainTrailEvent {
+export interface DomainTrailEvent extends TimedTrailEvent {
 	seq: number;
 	kind: "domain";
+	correlationId: string;
 	domain: TrailDomain;
 	action: string;
 	name: string;
@@ -55,11 +65,34 @@ export interface DomainTrailEvent {
 	result?: string;
 }
 
+export interface SubagentTrailChild {
+	key: string;
+	agent: string;
+	status: "pending" | "running" | "completed" | "failed" | "detached" | "stopped" | "paused";
+	model?: string;
+	thinking?: string;
+	lastActivityAt?: string;
+	durationMs?: number;
+	summary?: string;
+}
+
+export interface SubagentTrailEvent extends TimedTrailEvent {
+	seq: number;
+	kind: "subagent";
+	correlationId: string;
+	name: string;
+	status: TrailEventStatus;
+	summary?: string;
+	children: SubagentTrailChild[];
+	durationMs?: number;
+}
+
 export type TrailEvent =
 	| ThinkingTrailEvent
 	| TextTrailEvent
 	| ToolTrailEvent
-	| DomainTrailEvent;
+	| DomainTrailEvent
+	| SubagentTrailEvent;
 
 interface DomainSpec {
 	domain: TrailDomain;

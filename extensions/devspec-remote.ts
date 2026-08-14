@@ -258,12 +258,16 @@ function trailTick(): void {
 	if (!turn?.dirty) return;
 	const now = Date.now();
 	if (now - turn.lastPostAt < nextTrailDelayMs(turn.posts)) return;
-	const rendered = turn.trail.render();
+	const activityEvents = turn.trail.events();
+	// Assistant speech belongs to the transcript. A text-only progress/final
+	// message must not open an empty Activity record containing a duplicate.
+	if (activityEvents.length === 0) return;
+	const rendered = turn.trail.render(undefined, false);
 	if (!rendered) return;
 	turn.dirty = false;
 	turn.posts += 1;
 	turn.lastPostAt = now;
-	void postToSession(rendered, { phase: "trail", trailEvents: turn.trail.events() });
+	void postToSession(rendered, { phase: "trail", trailEvents: activityEvents });
 }
 
 /**
@@ -308,20 +312,21 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 	// larger final cap: the live-tick 12k window would discard earlier rounds
 	// the fold had preserved. A segment with no answer still flushes its
 	// trail the old way so the work is visible.
-	const finalTrail = t.trail.render(FINAL_TRAIL_CHARS);
+	const finalTrail = t.trail.render(FINAL_TRAIL_CHARS, false);
 	const finalEvents = t.trail.events();
+	const activityTrail = finalEvents.length > 0 ? finalTrail : undefined;
 	const plan = planSettle(t.tracker, true);
 	debug(`settleSegment(${why}): plan ${plan.kind}, completeTurn=${completeTurn}, final trail ${finalTrail.length} chars`);
 	if (t.tracker.userKind === "harness") return false;
 	if (plan.kind === "final") {
 		// phase 'answer' closes the trail bubble (preserved as "Show work").
-		return await postToSession(plan.message, { phase: "answer", completeTurn, workTrail: finalTrail || undefined, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
+		return await postToSession(plan.message, { phase: "answer", completeTurn, workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
 	} else if (plan.kind === "local_mirror") {
 		await postToSession(plan.prompt, { turnKind: "local_prompt" });
-		return await postToSession(plan.answer, { phase: "answer", completeTurn, workTrail: finalTrail || undefined, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
+		return await postToSession(plan.answer, { phase: "answer", completeTurn, workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
 	}
-	if (t.dirty && finalTrail) {
-		await postToSession(finalTrail, { phase: "trail", trailEvents: finalEvents });
+	if (t.dirty && activityTrail) {
+		await postToSession(activityTrail, { phase: "trail", trailEvents: finalEvents });
 	}
 	return false;
 }
@@ -363,15 +368,16 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 	if (typeof interval.unref === "function") interval.unref();
 	const next = new TurnTracker();
 	if (t.tracker.userText) next.carryUser(t.tracker.userText, t.tracker);
-	// Keep the live trail across first-answer / closed-answer splits so seq
-	// numbers stay stable and the inspector does not flicker between a
-	// one-line snapshot and the full trail (item 9b66a177).
+	// A user-facing progress answer closes one transcript segment. Activity after
+	// it belongs to the next segment; carrying the old builder duplicated the
+	// entire prior activity beneath every later answer. Exact message identity
+	// now keeps the two records stable without cumulative snapshots.
 	turn = {
 		tracker: next,
-		trail: t.trail,
-		dirty: t.dirty,
-		posts: t.posts,
-		lastPostAt: t.lastPostAt,
+		trail: new TrailBuilder(),
+		dirty: false,
+		posts: 0,
+		lastPostAt: 0,
 		interval,
 	};
 	postWarnedThisTurn = false;
@@ -1217,7 +1223,14 @@ export default function (pi: ExtensionAPI) {
 		if (event.toolName === "bg_run" || event.toolName === "bg_run_pi_attested") {
 			turn.tracker.noteBackgroundTask();
 		}
-		turn.trail.toolStart(event.toolName, event.args);
+		turn.trail.toolStart(event.toolCallId, event.toolName, event.args);
+		turn.dirty = true;
+	});
+
+	pi.on("tool_execution_update", (event, ctx) => {
+		lastCtx = ctx;
+		if (!turn) return;
+		turn.trail.toolUpdate(event.toolCallId, event.partialResult);
 		turn.dirty = true;
 	});
 
@@ -1226,7 +1239,7 @@ export default function (pi: ExtensionAPI) {
 		noteVerbEnd(event.toolCallId);
 		paintStatus(ctx);
 		if (!turn) return;
-		turn.trail.toolEnd(event.toolName, !event.isError, event.result);
+		turn.trail.toolEnd(event.toolCallId, event.toolName, !event.isError, event.result);
 		turn.dirty = true;
 	});
 

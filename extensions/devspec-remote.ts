@@ -47,7 +47,7 @@ import { unwrapMcpResult } from "./core/result.ts";
 import { buildAttachBlock, shapeRoomAgenda, shapeTranscript } from "./core/attach-context.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
-import { planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitFirstAnswer, isHarnessOrigin, shouldPauseSettle, TurnTracker } from "./core/turn-lifecycle.ts";
+import { automaticBackgroundTaskId, backgroundTaskNotificationId, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitFirstAnswer, isHarnessOrigin, shouldPauseSettle, TurnTracker } from "./core/turn-lifecycle.ts";
 import { dispatchSummary, formatDispatchMessage } from "./core/dispatch.ts";
 import {
 	firstTextPreview,
@@ -1143,14 +1143,19 @@ export default function (pi: ExtensionAPI) {
 				: "";
 		if (!isHarnessOrigin(content, customType)) return;
 		// Context/harness may wake the model. Do not close the live owner
-		// turn as complete (item 60cf5f00).
-		turn.tracker.userMessage(content, { customType });
+		// turn as complete (item 60cf5f00). A terminal task notification
+		// resolves only its matching owner-started task (item 15cb0983).
+		const details = (leaf as { details?: unknown }).details;
+		turn.tracker.userMessage(content, {
+			customType,
+			backgroundTaskId: backgroundTaskNotificationId(content, details),
+		});
 	});
 
 	pi.on("message_start", (event, ctx) => {
 		lastCtx = ctx;
 		if (!turn) return;
-		const msg = event.message as { role?: string; customType?: string } | undefined;
+		const msg = event.message as { role?: string; customType?: string; details?: unknown } | undefined;
 		const text = extractText(event.message);
 		const customType = typeof msg?.customType === "string" ? msg.customType : null;
 		const harness = isHarnessOrigin(text, customType);
@@ -1159,7 +1164,10 @@ export default function (pi: ExtensionAPI) {
 			// (b1fb756a). Context/harness injections stay on this turn so
 			// they cannot complete_turn a working sentence (item 60cf5f00).
 			if (!harness && isDeliveryBoundary(turn.tracker)) splitTurnAtBoundary();
-			turn.tracker.userMessage(text, { customType });
+			turn.tracker.userMessage(text, {
+				customType,
+				backgroundTaskId: harness ? backgroundTaskNotificationId(text, msg?.details) : null,
+			});
 		}
 		// A new assistant message = a new LLM round. If the previous close was
 		// a finished text-only answer, that bubble is done — split it off
@@ -1220,9 +1228,6 @@ export default function (pi: ExtensionAPI) {
 		noteVerbStart(event.toolCallId, event.toolName, event.args);
 		paintStatus(ctx);
 		if (!turn) return;
-		if (event.toolName === "bg_run" || event.toolName === "bg_run_pi_attested") {
-			turn.tracker.noteBackgroundTask();
-		}
 		turn.trail.toolStart(event.toolCallId, event.toolName, event.args);
 		turn.dirty = true;
 	});
@@ -1239,6 +1244,11 @@ export default function (pi: ExtensionAPI) {
 		noteVerbEnd(event.toolCallId);
 		paintStatus(ctx);
 		if (!turn) return;
+		// Register ownership only from a successful launch receipt that promises
+		// both terminal notification and automatic wake. tool_execution_start is
+		// too early: a failed launch would otherwise park the turn forever.
+		const backgroundTaskId = automaticBackgroundTaskId(event.toolName, event.result, event.isError);
+		if (backgroundTaskId) turn.tracker.noteBackgroundTask(backgroundTaskId);
 		turn.trail.toolEnd(event.toolCallId, event.toolName, !event.isError, event.result);
 		turn.dirty = true;
 	});

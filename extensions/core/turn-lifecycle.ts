@@ -92,12 +92,16 @@ export class TurnTracker {
 	awaitingFirstAnswer = false;
 	/** True only for a freshly typed local prompt — never after carryUser. */
 	shouldMirrorPrompt = false;
-	/** True after bg_run in this segment until [bg completed] resolves it. */
-	awaitingBackground = false;
+	/** Owner-started automatic-wake tasks that have not reached terminal state. */
+	private pendingBackgroundTaskIds = new Set<string>();
+	/** Compatibility/readability projection used by lifecycle predicates. */
+	get awaitingBackground(): boolean {
+		return this.pendingBackgroundTaskIds.size > 0;
+	}
 	/** True when the last assistant close was wait/bg_run process, not an answer. */
 	lastCloseWasProcess = false;
 
-	userMessage(text: string, origin?: { customType?: string | null }): void {
+	userMessage(text: string, origin?: { customType?: string | null; backgroundTaskId?: string | null }): void {
 		const kind = classifyUserKind(text, origin?.customType);
 		// A leftover wake may replay the last typed prompt as a user message.
 		// Once this segment is harness, stay harness — do not remirror that prompt.
@@ -109,8 +113,11 @@ export class TurnTracker {
 		// Mid-turn context/harness (auto-recall, leftover receipts) must not
 		// steal an already-started remote/local/dispatch turn (item 60cf5f00).
 		if (kind === "harness" && this.userKind && this.userKind !== "harness") {
-			// [bg completed] resolves the parked wait; keep the owner turn.
-			this.awaitingBackground = false;
+			// A terminal notification resolves only the task it names. This is
+			// deliberately idempotent because before_agent_start + message_start
+			// may observe the same custom message. One sibling completion must
+			// never consume every pending task (item 15cb0983).
+			if (origin?.backgroundTaskId) this.resolveBackgroundTask(origin.backgroundTaskId);
 			return;
 		}
 		this.userText = text;
@@ -126,14 +133,25 @@ export class TurnTracker {
 		this.userKind = classifyUserKind(text);
 		this.shouldMirrorPrompt = false;
 		if (from) {
-			this.awaitingBackground = from.awaitingBackground;
+			this.pendingBackgroundTaskIds = new Set(from.pendingBackgroundTaskIds);
 			this.lastCloseWasProcess = from.lastCloseWasProcess;
 		}
 	}
 
-	/** A bg_run (or attested sibling) started in this segment. */
-	noteBackgroundTask(): void {
-		this.awaitingBackground = true;
+	/** A successful automatic-wake task started in this owner turn. */
+	noteBackgroundTask(taskId: string): void {
+		const id = taskId.trim();
+		if (id) this.pendingBackgroundTaskIds.add(id);
+	}
+
+	/** Resolve one matching terminal notification; unknown/duplicate ids are no-ops. */
+	resolveBackgroundTask(taskId: string): boolean {
+		const id = taskId.trim();
+		return id ? this.pendingBackgroundTaskIds.delete(id) : false;
+	}
+
+	pendingBackgroundTasks(): string[] {
+		return [...this.pendingBackgroundTaskIds];
 	}
 
 	assistantFinal(text: string, closedAnswer = false): void {
@@ -162,6 +180,72 @@ export type SettlePlan =
 	| { kind: "none" }
 	| { kind: "final"; message: string }
 	| { kind: "local_mirror"; prompt: string; answer: string };
+
+/**
+ * Extract a successful provider launch that will both notify and wake Pi.
+ * The background-task providers share details.task; failed launches or
+ * notification-only tasks must not park an owner turn forever.
+ */
+const AUTOMATIC_BACKGROUND_LAUNCH_TOOLS = new Set([
+	"bg_run",
+	"bg_run_pi_attested",
+	"bg_delegate",
+	"fusion_reason",
+	"fusion_investigate",
+	"fusion_research",
+	"fusion_validate",
+]);
+
+export function automaticBackgroundTaskId(
+	toolName: string,
+	result: unknown,
+	isError = false,
+): string | null {
+	// Inspection tools such as bg_logs return the original task receipt too.
+	// Receipt shape alone is therefore not proof of launch (item 15cb0983).
+	if (!AUTOMATIC_BACKGROUND_LAUNCH_TOOLS.has(toolName)) return null;
+	if (isError || !result || typeof result !== "object") return null;
+	const outer = result as { details?: unknown; task?: unknown };
+	const details = outer.details && typeof outer.details === "object"
+		? outer.details as { task?: unknown }
+		: outer;
+	const task = details.task;
+	if (!task || typeof task !== "object") return null;
+	const receipt = task as {
+		id?: unknown;
+		notifyOnCompletion?: unknown;
+		triggerOnCompletion?: unknown;
+	};
+	if (receipt.notifyOnCompletion !== true || receipt.triggerOnCompletion !== true) return null;
+	return typeof receipt.id === "string" && receipt.id.trim() ? receipt.id.trim() : null;
+}
+
+/** Terminal task id from Pi's custom notification envelope/details. */
+export function backgroundTaskNotificationId(text: string, details?: unknown): string | null {
+	let structuredId: string | null = null;
+	let structuredStatus: string | null = null;
+	if (details && typeof details === "object") {
+		const record = details as {
+			id?: unknown;
+			taskId?: unknown;
+			status?: unknown;
+			task?: { id?: unknown; status?: unknown };
+		};
+		for (const value of [record.id, record.taskId, record.task?.id]) {
+			if (typeof value === "string" && value.trim()) {
+				structuredId = value.trim();
+				break;
+			}
+		}
+		const status = record.status ?? record.task?.status;
+		if (typeof status === "string") structuredStatus = status.trim().toLowerCase();
+	}
+	const xmlId = text.match(/<task-id>\s*([^<]+?)\s*<\/task-id>/i)?.[1]?.trim() ?? null;
+	const xmlStatus = text.match(/<status>\s*([^<]+?)\s*<\/status>/i)?.[1]?.trim().toLowerCase() ?? null;
+	const status = structuredStatus || xmlStatus;
+	if (!status || !["completed", "failed", "killed"].includes(status)) return null;
+	return structuredId || xmlId;
+}
 
 /**
  * Whether a user message arriving mid-run forces a delivery boundary

@@ -11,9 +11,12 @@
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 
-const EXT = ["devspec-auth", "devspec-tools", "devspec-context", "devspec-remote"].map(
-	(n) => `./extensions/${n}.ts`,
-);
+const EXT = [
+	...["devspec-auth", "devspec-tools", "devspec-context", "devspec-remote"].map(
+		(n) => `./extensions/${n}.ts`,
+	),
+	"./scripts/e2e-background-fixture.ts",
+];
 
 const { resolveToken } = await import("../extensions/core/auth-store.ts");
 const { callDevspec } = await import("../extensions/core/client.ts");
@@ -50,6 +53,13 @@ rl.on("line", (line) => {
 });
 
 function send(cmd) { pi.stdin.write(`${JSON.stringify(cmd)}\n`); }
+function assistantText(event) {
+	if (event.type !== "message_end" || event.message?.role !== "assistant") return "";
+	return (event.message.content ?? [])
+		.filter((block) => block?.type === "text" && typeof block.text === "string")
+		.map((block) => block.text)
+		.join("\n");
+}
 function waitFor(pred, timeoutMs, what) {
 	return new Promise((resolve, reject) => {
 		const started = Date.now();
@@ -142,6 +152,53 @@ try {
 	if (!rowB) fail(`segment-2 bubble missing (expected its own row containing ${m2})`);
 	if (rowA.id === rowB.id) fail("both segments collapsed onto one row — the boundary did not fire");
 	console.log("segment bubbles: one per message ✔");
+
+	// Phase 3 (item 15cb0983): overlapping automatic-wake tasks remain owned
+	// by the original remote turn until EACH matching terminal notification
+	// arrives. Completion A must not consume B. Process closes before B are
+	// silent; B's substantive recap is delivered exactly once.
+	const taskA = `overlap-a-${Date.now()}`;
+	const taskB = `overlap-b-${Date.now()}`;
+	const parked = `overlap-parked-${Date.now()}`;
+	const between = `overlap-between-${Date.now()}`;
+	const recap = `overlap-recap-${Date.now()}`;
+	send({
+		id: "overlap",
+		type: "prompt",
+		message: [
+			"Call bg_run exactly twice in the SAME assistant response, with these exact arguments:",
+			`1. {\"id\":\"${taskA}\",\"delay_ms\":6000,\"completion_instruction\":\"Task A completed. Reply with exactly ${between} and nothing else.\"}`,
+			`2. {\"id\":\"${taskB}\",\"delay_ms\":14000,\"completion_instruction\":\"Task B completed. Reply with exactly ${recap} and nothing else.\"}`,
+			`After both tool calls return, reply with exactly ${parked} and nothing else.`,
+			"Do not call any other tools.",
+		].join("\n"),
+	});
+	await waitFor(
+		(e) => assistantText(e).includes(parked),
+		120_000,
+		"overlap parked close",
+	);
+	await waitFor(
+		(e) => assistantText(e).includes(recap),
+		120_000,
+		"overlap final recap",
+	);
+	await new Promise((r) => setTimeout(r, 15000));
+
+	const tx3 = unwrapMcpResult(
+		await callDevspec(token, "get_session_transcript", { session_id: sessionId }, { cwd }),
+	);
+	if (tx3.isError) fail(`overlap transcript: ${tx3.text.slice(0, 300)}`);
+	const external3 = (tx3.details?.messages ?? []).filter((m) => m.message_type === "external_agent");
+	const recapRows = external3.filter((m) => typeof m.content === "string" && m.content.includes(recap));
+	if (recapRows.length !== 1) fail(`expected exactly one overlap recap bubble; found ${recapRows.length}`);
+	if (external3.some((m) => typeof m.content === "string" && m.content.includes(parked))) {
+		fail("initial overlap process close became a room answer");
+	}
+	if (external3.some((m) => typeof m.content === "string" && m.content.includes(between))) {
+		fail("task A completion consumed sibling B and became a room answer");
+	}
+	console.log("overlapping background tasks: final recap once, process closes silent ✔");
 
 	send({ id: "stop", type: "prompt", message: "/devspec.remote stop" });
 	await waitFor((e) => e.type === "response" && e.id === "stop", 15_000, "stop ack");

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { formatDispatchMessage } from "../extensions/core/dispatch.ts";
-import { classifyUserKind, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, isWaitNarration, isProcessClose, planSettle, shouldPauseSettle, shouldSplitFirstAnswer, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
+import { automaticBackgroundTaskId, backgroundTaskNotificationId, classifyUserKind, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, isWaitNarration, isProcessClose, planSettle, shouldPauseSettle, shouldSplitFirstAnswer, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 
 function remoteTurn(answer: string): TurnTracker {
 	const t = new TurnTracker();
@@ -320,7 +320,7 @@ test("bg_run then text-only close then [bg completed] posts the wrap-up (6ea9aa4
 	t.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\nCan you take over?");
 	assert.equal(t.userKind, "remote");
 	t.assistantFinal("I'll pick this up properly.", false);
-	t.noteBackgroundTask();
+	t.noteBackgroundTask("typecheck-panel");
 	const parked = "Typecheck is still running. I’ll wait for that, then lint, commit, and check the panel in a real browser.";
 	assert.equal(isClosedAnswer({
 		text: parked,
@@ -341,7 +341,10 @@ test("bg_run then text-only close then [bg completed] posts the wrap-up (6ea9aa4
 	assert.deepEqual(planSettle(t, true), { kind: "none" }, "parked wait must not settle as the answer");
 	assert.equal(t.lastAssistantText, "I'll pick this up properly.");
 
-	t.userMessage("[bg completed] Typecheck panel tabs", { customType: "background-task-notification" });
+	t.userMessage("[bg completed] Typecheck panel tabs", {
+		customType: "background-task-notification",
+		backgroundTaskId: "typecheck-panel",
+	});
 	assert.equal(t.userKind, "remote", "bg completed must not steal the owner turn");
 	assert.equal(t.awaitingBackground, false);
 	assert.equal(t.lastCloseWasProcess, true);
@@ -356,7 +359,7 @@ test("bg_run then text-only close then [bg completed] posts the wrap-up (6ea9aa4
 test("a text-only close after bg_run is process even without wait wording (6ea9aa47)", () => {
 	const t = new TurnTracker();
 	t.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\ncontinue");
-	t.noteBackgroundTask();
+	t.noteBackgroundTask("lint");
 	const parked = "Independent useful work is queued. Coming back when lint finishes.";
 	assert.equal(isWaitNarration(parked), false);
 	assert.equal(isProcessClose({ text: parked, awaitingBackground: true }), true);
@@ -374,7 +377,7 @@ test("a text-only close after bg_run is process even without wait wording (6ea9a
 test("first-answer split preserves parked wait state (9b66a177)", () => {
 	const t = new TurnTracker();
 	t.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\ncontinue");
-	t.noteBackgroundTask();
+	t.noteBackgroundTask("typecheck");
 	const wait = "Typecheck is still running. I’ll wait for it, then lint from the worktree and ship.";
 	t.assistantFinal(wait, isClosedAnswer({
 		text: wait,
@@ -395,7 +398,7 @@ test("first-answer split preserves parked wait state (9b66a177)", () => {
 test("empty assistantFinal does not clear lastCloseWasProcess (9b66a177)", () => {
 	const t = new TurnTracker();
 	t.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\ncontinue");
-	t.noteBackgroundTask();
+	t.noteBackgroundTask("typecheck");
 	const wait = "Typecheck is still running. I’ll wait for it, then lint from the worktree and ship.";
 	t.assistantFinal(wait, false);
 	assert.equal(t.lastCloseWasProcess, true);
@@ -409,11 +412,14 @@ test("empty assistantFinal does not clear lastCloseWasProcess (9b66a177)", () =>
 test("harness [bg completed] keeps lastCloseWasProcess on a live owner turn (9b66a177)", () => {
 	const t = new TurnTracker();
 	t.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\ncontinue");
-	t.noteBackgroundTask();
+	t.noteBackgroundTask("typecheck-header");
 	const wait = "Typecheck is still running. I’ll wait for it, then lint from the worktree and ship.";
 	t.assistantFinal(wait, false);
 	assert.equal(t.lastCloseWasProcess, true);
-	t.userMessage("[bg completed] Typecheck header menu", { customType: "background-task-notification" });
+	t.userMessage("[bg completed] Typecheck header menu", {
+		customType: "background-task-notification",
+		backgroundTaskId: "typecheck-header",
+	});
 	assert.equal(t.userKind, "remote");
 	assert.equal(t.awaitingBackground, false);
 	assert.equal(t.lastCloseWasProcess, true);
@@ -428,7 +434,7 @@ test("first-answer + bg_run + wait + empty close + [bg completed] posts the wrap
 	t.assistantFinal(opener, true);
 	const next = new TurnTracker();
 	next.carryUser(t.userText, t);
-	next.noteBackgroundTask();
+	next.noteBackgroundTask("typecheck-menu");
 	const wait = "Selection wiring is already there. Typecheck is running; I’ll wait for it, then lint from the worktree and ship.";
 	next.assistantFinal(wait, isClosedAnswer({
 		text: wait,
@@ -442,13 +448,103 @@ test("first-answer + bg_run + wait + empty close + [bg completed] posts the wrap
 	assert.equal(next.lastCloseWasProcess, true);
 	assert.equal(shouldPauseSettle(next), true);
 	assert.deepEqual(planSettle(next, true), { kind: "none" });
-	next.userMessage("[bg completed] Typecheck header menu", { customType: "background-task-notification" });
+	next.userMessage("[bg completed] Typecheck header menu", {
+		customType: "background-task-notification",
+		backgroundTaskId: "typecheck-menu",
+	});
 	assert.equal(next.userKind, "remote");
 	assert.equal(next.lastCloseWasProcess, true);
 	const wrapUp = "Ali — slice 3 is on staging. Header Agents menu now shows a working agent’s live headline.";
 	next.assistantFinal(wrapUp, isClosedAnswer({ text: wrapUp, hasToolCalls: false, stopReason: "stop" }));
 	assert.equal(next.lastCloseWasAnswer, true);
 	assert.deepEqual(planSettle(next, true), { kind: "final", message: wrapUp });
+});
+
+test("automatic background task receipts require a successful notifying wake", () => {
+	const live = {
+		details: {
+			task: {
+				id: "task-live",
+				notifyOnCompletion: true,
+				triggerOnCompletion: true,
+			},
+		},
+	};
+	assert.equal(automaticBackgroundTaskId("bg_run", live), "task-live");
+	assert.equal(automaticBackgroundTaskId("bg_run", live, true), null, "failed launch cannot park the turn");
+	assert.equal(automaticBackgroundTaskId("bg_logs", live), null, "inspection receipts cannot re-arm a completed task");
+	assert.equal(automaticBackgroundTaskId("bg_run", { details: { task: { ...live.details.task, notifyOnCompletion: false } } }), null);
+	assert.equal(automaticBackgroundTaskId("bg_delegate", { details: { task: { ...live.details.task, triggerOnCompletion: false } } }), null);
+	assert.equal(automaticBackgroundTaskId("fusion_validate", { details: { task: { id: "missing-flags" } } }), null);
+});
+
+test("terminal notification ids prefer structured details and fall back to the envelope", () => {
+	const xml = "<background-task-notification><task-id>task-xml</task-id><status>failed</status></background-task-notification>";
+	assert.equal(backgroundTaskNotificationId(xml), "task-xml");
+	assert.equal(backgroundTaskNotificationId(xml, { id: "task-details" }), "task-details");
+	assert.equal(backgroundTaskNotificationId("<task-id>running</task-id><status>running</status>"), null);
+	assert.equal(backgroundTaskNotificationId("<task-id>done</task-id>", { status: "completed" }), "done");
+	assert.equal(backgroundTaskNotificationId("[bg killed] unknown"), null);
+});
+
+test("overlapping background completions preserve the owner turn until the final wrap-up (15cb0983)", () => {
+	const t = new TurnTracker();
+	t.userMessage("[DevSpec remote — message from Ali Price to Amber Hawk]\nImplement the next slices.");
+	t.noteBackgroundTask("gate-a");
+	t.noteBackgroundTask("gate-b");
+	assert.deepEqual(t.pendingBackgroundTasks(), ["gate-a", "gate-b"]);
+
+	const parked = "The gates are running; I’ll merge and browser-check when green.";
+	t.assistantFinal(parked, false);
+	assert.equal(t.lastCloseWasProcess, true);
+	assert.equal(shouldPauseSettle(t), true);
+
+	// A completes twice (before_agent_start + message_start). The duplicate is
+	// idempotent and must not consume sibling B.
+	const completeA = {
+		customType: "background-task-notification",
+		backgroundTaskId: "gate-a",
+	};
+	t.userMessage("[bg completed] gate A", completeA);
+	t.userMessage("[bg completed] gate A", completeA);
+	assert.deepEqual(t.pendingBackgroundTasks(), ["gate-b"]);
+	assert.equal(shouldPauseSettle(t), true);
+
+	// The process-only response to A still cannot settle while B is live.
+	t.assistantFinal("That was gate A; gate B remains active.", false);
+	assert.equal(t.lastCloseWasProcess, true);
+	assert.deepEqual(planSettle(t, true), { kind: "none" });
+
+	// An unrelated leftover cannot consume B.
+	t.userMessage("[bg killed] stale task", {
+		customType: "background-task-notification",
+		backgroundTaskId: "other-task",
+	});
+	assert.deepEqual(t.pendingBackgroundTasks(), ["gate-b"]);
+
+	// B may complete, fail, or be killed: terminal state is represented by the
+	// same matching id. The resulting substantive recap is the one answer.
+	t.userMessage("[bg failed] gate B", {
+		customType: "background-task-notification",
+		backgroundTaskId: "gate-b",
+	});
+	assert.deepEqual(t.pendingBackgroundTasks(), []);
+	const recap = "Two dependency slices are complete and deployed; all checks passed.";
+	t.assistantFinal(recap, true);
+	assert.deepEqual(planSettle(t, true), { kind: "final", message: recap });
+});
+
+test("pending background task identities survive delivery segment splits (15cb0983)", () => {
+	const first = new TurnTracker();
+	first.userMessage("[DevSpec remote — message from Ali Price to Amber Hawk]\nContinue.");
+	first.noteBackgroundTask("deploy");
+	first.noteBackgroundTask("browser-review");
+	const continuation = new TurnTracker();
+	continuation.carryUser(first.userText, first);
+	assert.deepEqual(continuation.pendingBackgroundTasks(), ["deploy", "browser-review"]);
+	continuation.resolveBackgroundTask("deploy");
+	assert.deepEqual(first.pendingBackgroundTasks(), ["deploy", "browser-review"], "split copies ownership rather than aliasing it");
+	assert.deepEqual(continuation.pendingBackgroundTasks(), ["browser-review"]);
 });
 
 test("leftover-only [bg completed] still posts no answer (56b9a3b4)", () => {

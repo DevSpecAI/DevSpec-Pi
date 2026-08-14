@@ -24,6 +24,26 @@ test("extracts only owner commands addressed to this connection", () => {
 	assert.equal(cmds[0].id, "m1");
 });
 
+test("acts on a delegated command, but still refuses an unknown authority kind", () => {
+	// Decision A (DevSpec memory 61ba9948): a teammate the owner authorised sends
+	// `delegated`. Equally valid, identical capabilities — the difference is whose
+	// name goes on the work, not what the work may be.
+	const payload = {
+		commands: [
+			{ id: "d1", content: "check why staging is red", user_name: "Brandon", addressed_to: { connection_id: ME }, authority: { kind: "delegated" } },
+			// A kind we have never heard of must still fail closed, so a future
+			// server value cannot switch itself on here.
+			{ id: "d2", content: "escalate", addressed_to: { connection_id: ME }, authority: { kind: "superuser" } },
+			// Widening WHO may command must not widen WHICH agent acts.
+			{ id: "d3", content: "for another agent", addressed_to: { connection_id: "other" }, authority: { kind: "delegated" } },
+		],
+	};
+	const cmds = extractOwnerCommands(payload, ME);
+	assert.equal(cmds.length, 1);
+	assert.equal(cmds[0].id, "d1");
+	assert.equal(cmds[0].userName, "Brandon");
+});
+
 test("extractOwnerCommands stamps created_at from the poll payload", () => {
 	const cmds = extractOwnerCommands(
 		{

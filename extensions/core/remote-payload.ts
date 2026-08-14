@@ -75,9 +75,19 @@ function commandCreatedAt(cmd: RawCommand): string | undefined {
 
 /**
  * Extract the commands this connection must act on.
- * A command counts when addressed_to.connection_id matches us AND
- * authority.kind is "owner". Missing stamps mean NOT actionable — fail closed.
+ * A command counts when addressed_to.connection_id matches us AND carries an
+ * authority.kind we recognise. Missing stamps mean NOT actionable — fail closed.
+ *
+ * Two kinds are recognised (Decision A / DevSpec memory 61ba9948): "owner" is the
+ * person who launched this agent, "delegated" an authorized project member. The
+ * SERVER decides which — it stamps "delegated" only when this connection's own
+ * command_authority permits that person, and only its owner can set that — so
+ * accepting it here cannot be forged from the wire. Any OTHER kind still fails
+ * closed, deliberately: a future server value must not switch itself on.
+ *
+ * Both carry identical capabilities. The difference is attribution, not power.
  */
+const ACTIONABLE_AUTHORITIES = new Set(["owner", "delegated"]);
 export function extractOwnerCommands(payload: unknown, connectionId: string): OwnerCommand[] {
 	const p = payload as { commands?: RawCommand[] } | null;
 	const commands = Array.isArray(p?.commands) ? (p.commands as RawCommand[]) : [];
@@ -85,7 +95,7 @@ export function extractOwnerCommands(payload: unknown, connectionId: string): Ow
 	for (const cmd of commands) {
 		const addressed = (cmd.addressed_to as { connection_id?: unknown } | undefined)?.connection_id;
 		const authority = (cmd.authority as { kind?: unknown } | undefined)?.kind;
-		if (addressed !== connectionId || authority !== "owner") continue;
+		if (addressed !== connectionId || !ACTIONABLE_AUTHORITIES.has(authority as string)) continue;
 		const text = commandText(cmd);
 		const attachments = Array.isArray(cmd.attachments) ? cmd.attachments : [];
 		// An attachment-only command is still a command — do not drop it.

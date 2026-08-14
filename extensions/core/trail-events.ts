@@ -5,6 +5,8 @@
  * fallback for hosts that only speak `work_trail` text. Pi posts BOTH.
  */
 
+import { safeTrailId, safeTrailLabel } from "./trail-projection.ts";
+
 export const TRAIL_EVENT_KINDS = ["thinking", "text", "tool", "domain", "subagent"] as const;
 export type TrailEventKind = (typeof TRAIL_EVENT_KINDS)[number];
 
@@ -63,6 +65,7 @@ export interface DomainTrailEvent extends TimedTrailEvent {
 	id?: string;
 	status: TrailEventStatus;
 	result?: string;
+	durationMs?: number;
 }
 
 export interface SubagentTrailChild {
@@ -133,6 +136,10 @@ function pickString(obj: Record<string, unknown> | null, keys: string[]): string
 function unwrapResult(result: unknown): Record<string, unknown> | null {
 	const outer = asRecord(result);
 	if (!outer) return null;
+	// Pi tool results retain the complete parsed payload in host-only `details`.
+	// Select identity fields mechanically, but never serialize the object.
+	const details = asRecord(outer.details);
+	if (details) return details;
 	const content = outer.content;
 	if (Array.isArray(content)) {
 		const text = content
@@ -157,12 +164,31 @@ export function classifyDomainTool(name: string, _args?: unknown): DomainSpec | 
 	return DOMAIN_BY_NAME[name] ?? null;
 }
 
-export function domainIdentity(args?: unknown, result?: unknown): { id?: string; title?: string } {
+export function domainIdentity(name: string, args?: unknown, result?: unknown): { id?: string; title?: string } {
+	const spec = DOMAIN_BY_NAME[name];
+	if (!spec) return {};
 	const a = asRecord(args);
 	const r = unwrapResult(result);
-	const nested = asRecord(r?.action_item) ?? asRecord(r?.memory) ?? asRecord(r?.resource) ?? r;
-	return {
-		id: pickString(nested, ["id", "action_item_id"]) ?? pickString(a, ["action_item_id", "id"]),
-		title: pickString(nested, ["title", "name"]) ?? pickString(a, ["title", "name"]),
-	};
+	const item = asRecord(r?.item);
+	let nested: Record<string, unknown> | null = null;
+	if (spec.domain === "action_item") nested = asRecord(r?.action_item) ?? asRecord(item?.action_item) ?? item ?? r;
+	if (spec.domain === "memory") nested = asRecord(r?.memory) ?? asRecord(item?.memory) ?? item ?? r;
+	if (spec.domain === "resource") nested = asRecord(r?.resource) ?? asRecord(item?.resource) ?? item ?? r;
+	if (["implementation", "criterion", "conflict"].includes(spec.domain)) {
+		nested = asRecord(r?.action_item) ?? asRecord(item?.action_item) ?? item ?? r;
+	}
+
+	const resultIdKeys = spec.domain === "memory"
+		? ["id", "memory_id"]
+		: spec.domain === "resource"
+			? ["id", "resource_id"]
+			: ["id", "action_item_id"];
+	const argIdKeys = spec.domain === "memory"
+		? ["memory_id", "id"]
+		: spec.domain === "resource"
+			? ["resource_id", "id"]
+			: ["action_item_id", "id"];
+	const id = safeTrailId(pickString(nested, resultIdKeys) ?? pickString(a, argIdKeys));
+	const title = safeTrailLabel(pickString(nested, ["title"]) ?? pickString(a, ["title"]), 240);
+	return { id, title };
 }

@@ -16,6 +16,7 @@ import {
 	type TrailEvent,
 	type ToolTrailEvent,
 } from "./trail-events.ts";
+import { projectTrailArgs, projectTrailResult, safeTrailLabel } from "./trail-projection.ts";
 
 /**
  * Render cap for one trail snapshot. The server folds sliding-window snapshots
@@ -40,50 +41,26 @@ type TrailEntry =
 interface ToolLine {
 	toolCallId: string;
 	name: string;
-	args?: unknown;
 	argsSummary?: string;
+	identity: { id?: string; title?: string };
 	open: boolean;
 	ok?: boolean;
-	result?: unknown;
-	partialResult?: unknown;
 	resultSummary?: string;
+	subagentChildren?: SubagentTrailChild[];
 	startedAt: number;
 	startedAtIso: string;
 	completedAtIso?: string;
 	durationMs?: number;
 }
 
-/** One-line summary of tool args for the trail (best-effort, readable). */
-export function summarizeArgs(args: unknown): string | undefined {
-	if (!args || typeof args !== "object") return undefined;
-	const a = args as Record<string, unknown>;
-	if (Object.keys(a).length === 0) return undefined;
-	for (const key of ["command", "path", "file_path", "query", "id", "action_item_id", "message", "url", "name"]) {
-		const v = a[key];
-		if (typeof v === "string" && v.trim()) {
-			const oneLine = v.replace(/\s+/g, " ").trim();
-			return oneLine.length > 4000 ? `${oneLine.slice(0, 4000)}…` : oneLine;
-		}
-	}
-	try {
-		const json = JSON.stringify(a);
-		return json.length > 4000 ? `${json.slice(0, 4000)}…` : json;
-	} catch {
-		return undefined;
-	}
+/** Privacy-safe one-line metadata selected for a known tool's arguments. */
+export function summarizeArgs(name: string, args: unknown): string | undefined {
+	return projectTrailArgs(name, args);
 }
 
-/** One-line summary of a tool result for the trail. */
-export function summarizeResult(result: unknown): string | undefined {
-	const r = result as { content?: Array<{ type?: string; text?: string }> } | null;
-	const text = (r?.content ?? [])
-		.filter((c) => c?.type === "text" && typeof c.text === "string")
-		.map((c) => c.text as string)
-		.join(" ")
-		.replace(/\s+/g, " ")
-		.trim();
-	if (!text) return undefined;
-	return text.length > 4000 ? `${text.slice(0, 4000)}…` : text;
+/** Privacy-safe outcome metadata selected for a known tool's result. */
+export function summarizeResult(name: string, result: unknown): string | undefined {
+	return projectTrailResult(name, result);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -107,6 +84,18 @@ function isoFromMs(value: unknown): string | undefined {
 		: undefined;
 }
 
+function safeChildField(value: unknown, maxChars = 80): string | undefined {
+	const label = safeTrailLabel(value, maxChars);
+	return label && /^[A-Za-z0-9 ._:/@+-]+$/.test(label) ? label : undefined;
+}
+
+function safeThinkingLevel(value: unknown): string | undefined {
+	if (typeof value !== "string") return undefined;
+	return new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max", "inherit"]).has(value)
+		? value
+		: undefined;
+}
+
 function subagentChildren(value: unknown): SubagentTrailChild[] {
 	const details = toolDetails(value);
 	if (!details) return [];
@@ -115,13 +104,15 @@ function subagentChildren(value: unknown): SubagentTrailChild[] {
 		return progress.slice(0, 24).flatMap((raw, index) => {
 			const item = asRecord(raw);
 			if (!item) return [];
-			const agent = typeof item.agent === "string" ? item.agent : `Agent ${index + 1}`;
+			const agent = safeChildField(item.agent) ?? `Agent ${index + 1}`;
+			const model = safeChildField(item.model, 120);
+			const thinking = safeThinkingLevel(item.thinking);
 			return [{
-				key: typeof item.index === "number" ? String(item.index) : `${agent}:${index}`,
+				key: typeof item.index === "number" ? String(item.index) : String(index),
 				agent,
 				status: statusForChild(item.status),
-				...(typeof item.model === "string" ? { model: item.model } : {}),
-				...(typeof item.thinking === "string" ? { thinking: item.thinking } : {}),
+				...(model ? { model } : {}),
+				...(thinking ? { thinking } : {}),
 				...(isoFromMs(item.lastActivityAt) ? { lastActivityAt: isoFromMs(item.lastActivityAt) } : {}),
 				...(typeof item.durationMs === "number" ? { durationMs: item.durationMs } : {}),
 			} satisfies SubagentTrailChild];
@@ -132,13 +123,15 @@ function subagentChildren(value: unknown): SubagentTrailChild[] {
 	return nodes.slice(0, 24).flatMap((raw, index) => {
 		const item = asRecord(raw);
 		if (!item) return [];
-		const agent = typeof item.agent === "string" ? item.agent : typeof item.label === "string" ? item.label : `Agent ${index + 1}`;
+		const agent = safeChildField(item.agent) ?? safeChildField(item.label) ?? `Agent ${index + 1}`;
+		const model = safeChildField(item.model, 120);
+		const thinking = safeThinkingLevel(item.thinking);
 		return [{
-			key: typeof item.id === "string" ? item.id : `${agent}:${index}`,
+			key: String(index),
 			agent,
 			status: statusForChild(item.status),
-			...(typeof item.model === "string" ? { model: item.model } : {}),
-			...(typeof item.thinking === "string" ? { thinking: item.thinking } : {}),
+			...(model ? { model } : {}),
+			...(thinking ? { thinking } : {}),
 			...(typeof item.durationMs === "number" ? { durationMs: item.durationMs } : {}),
 		} satisfies SubagentTrailChild];
 	});
@@ -239,8 +232,8 @@ export class TrailBuilder {
 			line: {
 				toolCallId,
 				name,
-				args,
-				argsSummary: summarizeArgs(args),
+				argsSummary: summarizeArgs(name, args),
+				identity: domainIdentity(name, args),
 				open: true,
 				startedAt,
 				startedAtIso: new Date(startedAt).toISOString(),
@@ -252,7 +245,9 @@ export class TrailBuilder {
 		for (let i = this.entries.length - 1; i >= 0; i--) {
 			const e = this.entries[i];
 			if (e.kind === "tool" && e.line.toolCallId === toolCallId) {
-				e.line.partialResult = partialResult;
+				if (e.line.name === "subagent" || e.line.name === "subagent_wait") {
+					e.line.subagentChildren = subagentChildren(partialResult);
+				}
 				return;
 			}
 		}
@@ -266,8 +261,15 @@ export class TrailBuilder {
 				const completedAt = Date.now();
 				e.line.open = false;
 				e.line.ok = ok;
-				e.line.result = result;
-				e.line.resultSummary = summarizeResult(result);
+				const resultIdentity = domainIdentity(name, undefined, result);
+				e.line.identity = {
+					id: resultIdentity.id ?? e.line.identity.id,
+					title: resultIdentity.title ?? e.line.identity.title,
+				};
+				e.line.resultSummary = summarizeResult(name, result);
+				if (name === "subagent" || name === "subagent_wait") {
+					e.line.subagentChildren = subagentChildren(result);
+				}
 				e.line.durationMs = Math.max(0, completedAt - e.line.startedAt);
 				e.line.completedAtIso = new Date(completedAt).toISOString();
 				return;
@@ -301,7 +303,7 @@ export class TrailBuilder {
 					...(e.line.completedAtIso ? { completedAt: e.line.completedAtIso } : {}),
 				};
 				if (e.line.name === "subagent" || e.line.name === "subagent_wait") {
-					const children = subagentChildren(e.line.open ? e.line.partialResult : e.line.result ?? e.line.partialResult);
+					const children = e.line.subagentChildren ?? [];
 					const running = children.filter((child) => child.status === "running").length;
 					const ev: SubagentTrailEvent = {
 						seq: e.seq,
@@ -319,9 +321,9 @@ export class TrailBuilder {
 					out.push(ev);
 					continue;
 				}
-				const domain = classifyDomainTool(e.line.name, e.line.args);
+				const domain = classifyDomainTool(e.line.name);
 				if (domain) {
-					const ident = domainIdentity(e.line.args, e.line.result);
+					const ident = e.line.identity;
 					const ev: DomainTrailEvent = {
 						seq: e.seq,
 						kind: "domain",
@@ -335,6 +337,7 @@ export class TrailBuilder {
 					if (ident.title) ev.title = ident.title;
 					if (ident.id) ev.id = ident.id;
 					if (!e.line.open && e.line.resultSummary) ev.result = e.line.resultSummary;
+					if (e.line.durationMs != null) ev.durationMs = e.line.durationMs;
 					out.push(ev);
 				} else {
 					const ev: ToolTrailEvent = {
@@ -372,7 +375,9 @@ export class TrailBuilder {
 			} else {
 				const t = e.line;
 				const status = t.open ? "…" : t.ok ? "✔" : "✖";
-				const args = t.argsSummary ? ` — \`${t.argsSummary}\`` : "";
+				const safeIdentity = t.identity.title ?? t.identity.id;
+				const summary = t.argsSummary ?? safeIdentity;
+				const args = summary ? ` — \`${summary}\`` : "";
 				const res = !t.open && t.resultSummary ? ` → ${t.resultSummary}` : "";
 				parts.push(`${status} \`${t.name}\`${args}${res}`);
 			}

@@ -329,34 +329,45 @@ function card(raw: unknown, index: number): string {
 		["state", "status"],
 		["type", "item_type", "memory_type", "resource_type"],
 		["priority"],
+		["source", "source_type"],
 	] as const) {
 		const value = oneLine(first(row, keys), 70);
 		if (value && !metadata.includes(value)) metadata.push(value);
 	}
 	const parentRow = record(row.parent) ?? record(row.brief);
 	const parent = oneLine(
-		first(row, ["parent_action_item_id", "parent_id", "parent_title", "brief_title"])
-			?? (parentRow ? first(parentRow, ["id", "title", "name"]) : undefined),
+		first(row, ["parent_title", "brief_title", "parent_action_item_id", "parent_id"])
+			?? (parentRow ? first(parentRow, ["title", "name", "id"]) : undefined),
 		140,
 	);
 	const why = oneLine(
-		first(outer, ["why", "why_matched", "match_reason", "snippet", "summary", "description_preview", "content_preview"])
-			?? first(row, ["why", "summary", "snippet", "description_preview", "content_preview"]),
+		first(outer, ["why", "why_matched", "match_reason", "matching_passage", "intent", "snippet", "summary", "description_preview", "content_preview"])
+			?? first(row, ["why", "matching_passage", "intent", "summary", "snippet", "description_preview", "content_preview"]),
 		200,
 	);
+	const created = oneLine(first(row, ["created_at", "createdAt"]), 40);
+	const age = created ? undefined : oneLine(first(row, ["age"]), 30);
+	const lastActivity = oneLine(first(row, ["last_activity_at", "lastActivityAt", "last_activity"]), 40);
+	const timeline = [created && `created ${created}`, age && `age ${age}`, lastActivity && `last activity ${lastActivity}`]
+		.filter((value): value is string => Boolean(value));
 	const signals = [...new Set([...signalLabels(outer), ...signalLabels(row)])];
-	const lines = [`${index + 1}. ${id ? `[${id}] ` : ""}${title}${metadata.length ? ` — ${metadata.join(" · ")}` : ""}`];
-	if (parent) lines.push(`   parent/brief: ${parent}`);
-	if (why) lines.push(`   ${why}`);
+	const required = [`${index + 1}. ${id ? `[${id}] ` : ""}${title}${metadata.length ? ` — ${metadata.join(" · ")}` : ""}`];
+	// A card exists to decide whether an exact read is worth paying for. Parent,
+	// chronology, and intent/matching passage are therefore selection inputs, not
+	// decorative fields that may disappear before optional repo/signal metadata.
+	if (parent) required.push(`   parent/brief: ${parent}`);
+	if (timeline.length) required.push(`   ${timeline.join(" · ")}`);
+	if (why) required.push(`   ${why}`);
+	const optional: string[] = [];
 	const repos = Array.isArray(row.repos) ? row.repos : [];
 	if (repos.length) {
 		const names = repos.slice(0, 2)
 			.map((entry) => oneLine(first(record(entry) ?? {}, ["full_name", "name", "url"]), 120))
 			.filter((entry): entry is string => Boolean(entry));
-		if (names.length) lines.push(`   repos: ${names.join(", ")}`);
+		if (names.length) optional.push(`   repos: ${names.join(", ")}`);
 	}
-	if (signals.length) lines.push(`   signals: ${signals.join(", ")}`);
-	return withinBudget(lines, CARD_BUDGET, "card field");
+	if (signals.length) optional.push(`   signals: ${signals.join(", ")}`);
+	return withinBudgetRequired(required, optional, CARD_BUDGET, "card field");
 }
 
 interface FoundRows {
@@ -382,24 +393,46 @@ function genericRows(root: Row): FoundRows {
 }
 
 function collectionRows(toolName: string, root: Row): FoundRows {
+	if (toolName === "search_resources") {
+		const hasDocuments = Array.isArray(root.documents);
+		const hasArtifacts = Array.isArray(root.artifacts);
+		if (!hasDocuments && !hasArtifacts) return genericRows(root);
+		const documents = hasDocuments ? root.documents as unknown[] : [];
+		const artifacts = hasArtifacts ? root.artifacts as unknown[] : [];
+		const rows: unknown[] = [];
+		// The server searches these as two independent corpora. Interleave them so
+		// one full corpus cannot hide every hit from the other at the card budget.
+		for (let index = 0; index < Math.max(documents.length, artifacts.length); index += 1) {
+			if (index < documents.length) rows.push(documents[index]);
+			if (index < artifacts.length) rows.push(artifacts[index]);
+		}
+		return { rows, recognized: true, briefCount: 0 };
+	}
 	if (toolName !== "get_action_items") return genericRows(root);
 	const hasItems = Array.isArray(root.items);
 	const hasBriefs = Array.isArray(root.briefs);
 	if (!hasItems && !hasBriefs) return genericRows(root);
 	const combined: unknown[] = [];
 	const seen = new Set<string>();
-	for (const raw of [...(hasBriefs ? root.briefs as unknown[] : []), ...(hasItems ? root.items as unknown[] : [])]) {
+	let briefCount = 0;
+	// Page rows carry the caller's requested queue/chronological order. Briefs are
+	// contextual rollups, so they must never jump ahead and destroy that order.
+	for (const raw of hasItems ? root.items as unknown[] : []) {
 		const row = record(raw);
 		const id = row ? boundedId(nestedEntity(row), row) : undefined;
 		if (id && seen.has(id)) continue;
 		if (id) seen.add(id);
 		combined.push(raw);
 	}
-	return {
-		rows: combined,
-		recognized: true,
-		briefCount: hasBriefs ? (root.briefs as unknown[]).length : 0,
-	};
+	for (const raw of hasBriefs ? root.briefs as unknown[] : []) {
+		const row = record(raw);
+		const id = row ? boundedId(nestedEntity(row), row) : undefined;
+		if (id && seen.has(id)) continue;
+		if (id) seen.add(id);
+		combined.push(raw);
+		briefCount += 1;
+	}
+	return { rows: combined, recognized: true, briefCount };
 }
 
 function totalRows(root: Row, found: number): number {
@@ -429,12 +462,14 @@ function collectionProjection(toolName: string, details: unknown): string | null
 	const found = collectionRows(toolName, root);
 	if (!found.recognized) return null;
 	const shown = found.rows.slice(0, CARD_LIMIT);
-	const pageTotal = totalRows(root, toolName === "get_action_items" ? Math.max(0, found.rows.length - found.briefCount) : found.rows.length);
-	const total = toolName === "get_action_items" ? pageTotal + found.briefCount : pageTotal;
+	const primaryCount = toolName === "get_action_items"
+		? Math.max(0, found.rows.length - found.briefCount)
+		: found.rows.length;
+	const total = totalRows(root, primaryCount);
 	const summary = record(root.summary);
 	const counts = summary ? record(summary.ui_buckets) ?? record(summary.lifecycle_breakdown) : null;
 	const heading = toolName === "get_action_items" && found.briefCount > 0
-		? `${toolName}: ${pageTotal} action item(s) plus ${found.briefCount} brief(s); showing ${shown.length} combined card(s).`
+		? `${toolName}: ${total} result${total === 1 ? "" : "s"}; ${found.briefCount} additional contextual brief card(s); showing ${shown.length} combined card(s).`
 		: `${toolName}: ${total} result${total === 1 ? "" : "s"}${shown.length < total ? `; showing ${shown.length}` : ""}.`;
 	const blocks = [heading];
 	if (counts) {
@@ -445,9 +480,18 @@ function collectionProjection(toolName: string, details: unknown): string | null
 		if (compactCounts.length) blocks.push(`Counts: ${compactCounts.join(", ")}`);
 	}
 	for (const [index, row] of shown.entries()) blocks.push(card(row, index));
-	if (total === 0) blocks.push("No matching entities returned (recognized empty result set).");
-	const omitted = Math.max(total - shown.length, found.rows.length - shown.length);
-	if (omitted > 0) blocks.push(`Omitted ${omitted} result(s) from model-visible content.`);
+	if (total === 0 && found.briefCount === 0) blocks.push("No matching entities returned (recognized empty result set).");
+	if (toolName === "get_action_items") {
+		const shownPrimary = Math.min(shown.length, primaryCount);
+		const shownBriefs = Math.max(0, shown.length - shownPrimary);
+		const omittedPrimary = Math.max(0, total - shownPrimary);
+		const omittedBriefs = Math.max(0, found.briefCount - shownBriefs);
+		if (omittedPrimary > 0) blocks.push(`Omitted ${omittedPrimary} action-item result(s) from model-visible content.`);
+		if (omittedBriefs > 0) blocks.push(`Omitted ${omittedBriefs} contextual brief card(s) from model-visible content.`);
+	} else {
+		const omitted = Math.max(total - shown.length, found.rows.length - shown.length);
+		if (omitted > 0) blocks.push(`Omitted ${omitted} result(s) from model-visible content.`);
+	}
 	blocks.push(fetchHint(toolName));
 	return withinBudget(blocks, PROJECTION_BUDGETS.collection, "collection");
 }

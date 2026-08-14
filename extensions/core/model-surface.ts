@@ -1,17 +1,10 @@
 /**
- * DevSpec Pi — the model-facing tool surface (item 7de79db6).
+ * DevSpec Pi — the model-facing tool surface.
  *
  * The generated catalog (`extensions/generated/mcp-catalog.ts`) is the WIRE
- * map: every MCP verb, full essays, full schemas. That is not what the model
- * sees. This file is the parallel Pi-shaped projection:
- *
- *   - a small always-on hot set (~15 everyday verbs)
- *   - short snippets, slimed schemas
- *   - scope keys the extension already knows are stripped (git_remote,
- *     project_id, session_id, runner_session_id, connection_id)
- *   - rare verbs stay on the wire and load through one `devspec` gateway
- *
- * Target: tools + workflow block ≈ 2–8k tokens, not ~60k.
+ * map. Every safe model verb is registered as a real Pi tool, while only a
+ * small everyday hot set starts active. Less-common tools are found and
+ * additively activated through one tiny loader.
  */
 
 import {
@@ -20,7 +13,7 @@ import {
 	type CatalogEntry,
 } from "../generated/mcp-catalog.ts";
 
-/** Everyday work. Not all 76. Order is the prompt order. */
+/** Everyday work. Order is the initial prompt order. */
 export const HOT_SET_VERBS = [
 	"get_project_summary",
 	"search_action_items",
@@ -54,9 +47,65 @@ export const SCOPE_KEYS = [
 
 export const SCOPE_KEY_SET = new Set<string>(SCOPE_KEYS);
 
-export const GATEWAY_TOOL_NAME = "devspec";
+export const TOOL_LOADER_NAME = "search_devspec_tools";
+export const TOOL_LOADER_DESCRIPTION =
+	"Find and load less-common DevSpec tools for a task described in natural language.";
+
+export interface ToolPromptMetadata {
+	promptSnippet?: string;
+	promptGuidelines?: string[];
+}
+
+export const TOOL_LOADER_PROMPT_METADATA: ToolPromptMetadata = {
+	promptSnippet: "Search and load less-common DevSpec tools when the active tools cannot perform a task",
+};
 
 const SNIPPET_MAX = 140;
+const DEFAULT_SEARCH_LIMIT = 5;
+const MAX_SEARCH_LIMIT = 10;
+const SEARCH_STOP_WORDS = new Set([
+	"a",
+	"an",
+	"and",
+	"are",
+	"devspec",
+	"do",
+	"does",
+	"exist",
+	"for",
+	"i",
+	"in",
+	"is",
+	"me",
+	"my",
+	"of",
+	"on",
+	"or",
+	"our",
+	"please",
+	"the",
+	"this",
+	"to",
+	"tool",
+	"tools",
+	"want",
+	"we",
+	"what",
+	"with",
+]);
+
+type ModelVerbName = (typeof MODEL_VERB_NAMES)[number];
+
+/** Ordinary-language concepts that do not occur in the corresponding tool contract. */
+const TOOL_SEARCH_ALIASES: Partial<Record<ModelVerbName, readonly string[]>> = {
+	release_work_item: ["unclaim", "give up claimed work", "abandon claimed task"],
+	fail_work_item: ["could not finish claimed work", "unable to finish claimed task", "stuck on claimed work"],
+	get_recent_sessions: ["recent activity", "recent conversations"],
+	get_claimable_reviews: ["inspect someone else's changes", "check someone else's changes"],
+	get_playbooks: ["recurring automations", "saved routines"],
+	get_project_goals: ["objectives", "working toward", "big picture"],
+	get_project_instruction_rules: ["team policies", "agent guidelines", "how agents should behave"],
+};
 
 export function firstSentence(text: string, max = SNIPPET_MAX): string {
 	const trimmed = String(text ?? "")
@@ -119,18 +168,26 @@ export function catalogEntry(name: string): CatalogEntry | undefined {
 	return MCP_CATALOG.find((entry) => entry.name === name);
 }
 
-/** Slimmed hot-set entries, in prompt order. Missing catalog names are skipped. */
+/** Slimmed hot-set entries, in initial prompt order. */
 export function modelFacingSurface(): CatalogEntry[] {
 	const out: CatalogEntry[] = [];
 	for (const name of HOT_SET_VERBS) {
 		const entry = catalogEntry(name);
-		if (!entry || entry.kind !== "model") continue;
-		out.push(slimCatalogEntry(entry));
+		if (entry?.kind === "model") out.push(slimCatalogEntry(entry));
 	}
 	return out;
 }
 
-/** Model-kind catalog verbs that are not in the hot set. */
+/** All safe model-facing tools, in generated wire-map order. */
+export function allModelFacingTools(): CatalogEntry[] {
+	return MCP_CATALOG.filter((entry) => entry.kind === "model").map(slimCatalogEntry);
+}
+
+/** Slimmed, searchable tools that stay inactive at session start. */
+export function rareModelSurface(): CatalogEntry[] {
+	return allModelFacingTools().filter((entry) => !HOT_SET.has(entry.name));
+}
+
 export function rareModelVerbs(): string[] {
 	return MODEL_VERB_NAMES.filter((name) => !HOT_SET.has(name));
 }
@@ -144,70 +201,174 @@ export function isHotSetVerb(name: string): boolean {
 	return HOT_SET.has(name);
 }
 
-export type GatewayVerbResolution =
-	| { ok: true; verb: string }
-	| { ok: false; error: string };
-
-/** Validate a `devspec` gateway verb before it hits the wire. */
-export function resolveGatewayVerb(verb: string): GatewayVerbResolution {
-	const name = verb.trim();
-	if (!name) return { ok: false, error: "devspec requires a verb." };
-	if (isHotSetVerb(name)) {
-		return {
-			ok: false,
-			error: `${name} is a dedicated tool — call it directly, not through devspec.`,
-		};
-	}
-	if (!isCallableModelVerb(name)) {
-		return {
-			ok: false,
-			error: `${name} is not a model-facing DevSpec verb. Everyday work uses the dedicated tools; rare verbs are listed on this tool's verb enum.`,
-		};
-	}
-	return { ok: true, verb: name };
+/** Prompt metadata used by both Pi registration and prefix accounting. */
+export function hotToolPromptMetadata(entry: CatalogEntry): ToolPromptMetadata {
+	return HOT_SET.has(entry.name) ? { promptSnippet: entry.promptSnippet } : {};
 }
 
-/** Schema the `devspec` gateway shows the model — names only, no essays. */
-export function gatewayInputSchema(): Record<string, unknown> {
+function canonicalSearchToken(token: string): string {
+	if (token.length > 4 && token.endsWith("ies")) return `${token.slice(0, -3)}y`;
+	if (
+		token.length > 3 &&
+		token.endsWith("s") &&
+		!token.endsWith("ss") &&
+		!token.endsWith("us") &&
+		!token.endsWith("is")
+	) {
+		return token.slice(0, -1);
+	}
+	return token;
+}
+
+function searchTokens(text: string): string[] {
+	return [
+		...new Set(
+			text
+				.toLowerCase()
+				.split(/[^a-z0-9]+/)
+				.map(canonicalSearchToken)
+				.filter((token) => token.length > 1 && !SEARCH_STOP_WORDS.has(token)),
+		),
+	];
+}
+
+function schemaSearchText(schema: Record<string, unknown>): string {
+	const parts: string[] = [];
+	const addStrings = (value: unknown): void => {
+		if (typeof value === "string") parts.push(value);
+		else if (Array.isArray(value)) value.forEach(addStrings);
+	};
+	const visit = (value: unknown): void => {
+		if (!value || typeof value !== "object" || Array.isArray(value)) return;
+		for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+			if (key === "properties" && child && typeof child === "object" && !Array.isArray(child)) {
+				for (const [propertyName, propertySchema] of Object.entries(child as Record<string, unknown>)) {
+					if (SCOPE_KEY_SET.has(propertyName)) continue;
+					parts.push(propertyName);
+					visit(propertySchema);
+				}
+			} else if (key === "description" || key === "title" || key === "enum" || key === "const") {
+				addStrings(child);
+			} else if (key === "items" || key === "anyOf" || key === "oneOf" || key === "allOf") {
+				if (Array.isArray(child)) child.forEach(visit);
+				else visit(child);
+			}
+		}
+	};
+	visit(schema);
+	return parts.join(" ");
+}
+
+function searchScore(entry: CatalogEntry, query: string, terms: string[]): number {
+	const name = entry.name.toLowerCase();
+	const nameTokens = new Set(searchTokens(name));
+	const labelTokens = new Set(searchTokens(entry.label));
+	const descriptionTokens = new Set(searchTokens(`${entry.description} ${entry.promptSnippet}`));
+	const schemaTokens = new Set(searchTokens(schemaSearchText(entry.inputSchema)));
+	const aliases = TOOL_SEARCH_ALIASES[entry.name as ModelVerbName] ?? [];
+	const aliasTokens = new Set(searchTokens(aliases.join(" ")));
+	const normalized = query.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+	const normalizedWords = normalized.replace(/_/g, " ");
+	let score = normalized === name ? 1000 : name.includes(normalized) && normalized.length > 2 ? 40 : 0;
+	if (aliases.some((alias) => normalizedWords.includes(alias))) score += 50;
+	for (const term of terms) {
+		if (nameTokens.has(term)) score += 12;
+		if (labelTokens.has(term)) score += 6;
+		if (aliasTokens.has(term)) score += 8;
+		if (descriptionTokens.has(term)) score += 3;
+		if (
+			schemaTokens.has(term) &&
+			!nameTokens.has(term) &&
+			!labelTokens.has(term) &&
+			!aliasTokens.has(term) &&
+			!descriptionTokens.has(term)
+		) {
+			score += 1;
+		}
+	}
+	return score;
+}
+
+/** Deterministic lexical search over full generated metadata; results remain slim. */
+export function searchRareModelTools(query: string, limit = DEFAULT_SEARCH_LIMIT): CatalogEntry[] {
+	const terms = searchTokens(query);
+	if (terms.length === 0) return [];
+	const boundedLimit = Math.max(1, Math.min(MAX_SEARCH_LIMIT, Math.trunc(limit) || DEFAULT_SEARCH_LIMIT));
+	return MCP_CATALOG.filter((entry) => entry.kind === "model" && !HOT_SET.has(entry.name))
+		.map((entry, index) => ({ entry, index, score: searchScore(entry, query, terms) }))
+		.filter(({ score }) => score > 0)
+		.sort((a, b) => b.score - a.score || a.index - b.index)
+		.slice(0, boundedLimit)
+		.map(({ entry }) => slimCatalogEntry(entry));
+}
+
+export function toolLoaderInputSchema(): Record<string, unknown> {
 	return {
 		type: "object",
 		properties: {
-			verb: {
+			query: {
 				type: "string",
-				enum: rareModelVerbs(),
-				description: "Less-common DevSpec verb (MCP name). Everyday work uses the dedicated tools.",
+				description: "Task or capability to find DevSpec tools for.",
 			},
-			args: {
-				type: "object",
-				description: "Arguments for that verb. Do not pass git_remote, project_id, or session id.",
+			limit: {
+				type: "integer",
+				minimum: 1,
+				maximum: MAX_SEARCH_LIMIT,
+				default: DEFAULT_SEARCH_LIMIT,
 			},
 		},
-		required: ["verb"],
+		required: ["query"],
 	};
 }
 
-export const GATEWAY_DESCRIPTION =
-	"Call a less-common DevSpec verb (playbooks, reviews, assignments, instruction rules, …). Everyday work uses the dedicated tools. verb is the MCP name; args is that verb's arguments.";
+function normalizePromptLine(text: string): string {
+	return text.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+}
 
-/** Bytes the model pays for: slimed hot-set tools + the gateway + instructions. */
+function activePromptContribution(entries: Array<{ name: string; metadata: ToolPromptMetadata }>): string {
+	const snippets = entries.flatMap(({ name, metadata }) => {
+		const snippet = metadata.promptSnippet ? normalizePromptLine(metadata.promptSnippet) : "";
+		return snippet ? [`- ${name}: ${snippet}`] : [];
+	});
+	const guidelines = [
+		...new Set(
+			entries.flatMap(({ metadata }) =>
+				(metadata.promptGuidelines ?? []).map(normalizePromptLine).filter(Boolean),
+			),
+		),
+	].map((guideline) => `- ${guideline}`);
+	return [...snippets, ...guidelines].join("\n");
+}
+
+/** Bytes paid initially: slim schemas, instructions, and Pi's active prompt contributions. */
 export function estimatePrefixChars(instructions: string): number {
-	const tools = modelFacingSurface().map((entry) => ({
+	const hotTools = modelFacingSurface();
+	const tools = hotTools.map((entry) => ({
 		name: entry.name,
 		description: entry.description,
 		inputSchema: entry.inputSchema,
 	}));
-	const gateway = {
-		name: GATEWAY_TOOL_NAME,
-		description: GATEWAY_DESCRIPTION,
-		inputSchema: gatewayInputSchema(),
+	const loader = {
+		name: TOOL_LOADER_NAME,
+		description: TOOL_LOADER_DESCRIPTION,
+		inputSchema: toolLoaderInputSchema(),
 	};
-	return JSON.stringify(tools).length + JSON.stringify(gateway).length + instructions.length;
+	const promptContribution = activePromptContribution([
+		...hotTools.map((entry) => ({ name: entry.name, metadata: hotToolPromptMetadata(entry) })),
+		{ name: TOOL_LOADER_NAME, metadata: TOOL_LOADER_PROMPT_METADATA },
+	]);
+	return (
+		JSON.stringify(tools).length +
+		JSON.stringify(loader).length +
+		instructions.length +
+		promptContribution.length
+	);
 }
 
 /** Conservative token estimate (chars/4). Target band is 2–8k. */
 export function estimatePrefixTokens(instructions: string): number {
-	return Math.round(estimatePrefixChars(instructions) / 4);
+	return Math.ceil(estimatePrefixChars(instructions) / 4);
 }
 
 export const PREFIX_TOKEN_MAX = 8000;
-export const PREFIX_TOKEN_MIN = 1500;
+export const PREFIX_TOKEN_MIN = 2000;

@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildDevspecInstructions, INSTRUCTIONS_VERSION } from "../extensions/core/instructions.ts";
-import { GATEWAY_TOOL_NAME, HOT_SET, rareModelVerbs } from "../extensions/core/model-surface.ts";
+import { HOT_SET, TOOL_LOADER_NAME, rareModelVerbs } from "../extensions/core/model-surface.ts";
 import { modelFacingCatalog } from "../extensions/devspec-tools.ts";
 import { PUMP_VERBS } from "../extensions/generated/mcp-catalog.ts";
 
 test("instructions reference only tools this package registers", () => {
 	const text = buildDevspecInstructions();
 	const registered = new Set(modelFacingCatalog().map((e) => e.name));
-	registered.add(GATEWAY_TOOL_NAME);
+	registered.add(TOOL_LOADER_NAME);
 	const mentioned = text.match(/\b[a-z]+_[a-z_]+\b/g) ?? [];
 	for (const word of new Set(mentioned)) {
-		if (word === GATEWAY_TOOL_NAME) continue;
+		if (word === TOOL_LOADER_NAME) continue;
 		if (!HOT_SET.has(word) && !rareModelVerbs().includes(word)) continue;
 		assert.ok(
 			registered.has(word),
@@ -30,6 +30,7 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /record_memory/);
 	assert.match(text, /git_remote/);
 	assert.match(text, /extension already knows/i);
+	assert.match(text, /search_devspec_tools/);
 });
 
 test("instructions do not dump search-first or the 76-verb map", () => {

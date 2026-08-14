@@ -1,23 +1,35 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { setBond } from "../extensions/core/bond-state.ts";
 import { buildDevspecInstructions } from "../extensions/core/instructions.ts";
+import { jsonSchemaToTypebox } from "../extensions/core/json-schema.ts";
 import {
-	GATEWAY_TOOL_NAME,
 	HOT_SET,
 	HOT_SET_VERBS,
 	PREFIX_TOKEN_MAX,
+	PREFIX_TOKEN_MIN,
 	SCOPE_KEY_SET,
+	TOOL_LOADER_DESCRIPTION,
+	TOOL_LOADER_NAME,
+	TOOL_LOADER_PROMPT_METADATA,
+	allModelFacingTools,
+	estimatePrefixChars,
 	estimatePrefixTokens,
-	gatewayInputSchema,
 	isCallableModelVerb,
 	isHotSetVerb,
 	modelFacingSurface,
+	rareModelSurface,
 	rareModelVerbs,
-	resolveGatewayVerb,
+	searchRareModelTools,
 	slimSchema,
+	toolLoaderInputSchema,
 } from "../extensions/core/model-surface.ts";
-import { modelFacingCatalog, stampKnownScope } from "../extensions/devspec-tools.ts";
+import registerDevspecTools, {
+	initialActiveTools,
+	modelFacingCatalog,
+	stampKnownScope,
+} from "../extensions/devspec-tools.ts";
 import { MODEL_VERB_NAMES, NEVER_MODEL_VERBS, PUMP_VERBS } from "../extensions/generated/mcp-catalog.ts";
 
 test("hot set is a small everyday slice, not the full catalog", () => {
@@ -45,12 +57,19 @@ test("everyday work is on the hot set", () => {
 		"record_criterion_verdicts",
 		"get_session_transcript",
 	];
-	for (const name of required) {
-		assert.ok(isHotSetVerb(name), `missing everyday verb ${name}`);
+	for (const name of required) assert.ok(isHotSetVerb(name), `missing everyday verb ${name}`);
+});
+
+test("all and only safe generated model verbs are model-facing", () => {
+	assert.deepEqual(allModelFacingTools().map((entry) => entry.name), [...MODEL_VERB_NAMES]);
+	assert.deepEqual(modelFacingCatalog().map((entry) => entry.name), [...MODEL_VERB_NAMES]);
+	for (const name of [...PUMP_VERBS, ...NEVER_MODEL_VERBS]) {
+		assert.equal(isCallableModelVerb(name), false, `${name} became model-callable`);
+		assert.ok(!modelFacingCatalog().some((entry) => entry.name === name), `${name} was exposed`);
 	}
 });
 
-test("rare verbs are not in the always-on hot set", () => {
+test("rare verbs are searchable but not in the initial hot set", () => {
 	const rareMustStayOff = [
 		"create_playbook",
 		"claim_playbook_run",
@@ -61,29 +80,24 @@ test("rare verbs are not in the always-on hot set", () => {
 	];
 	for (const name of rareMustStayOff) {
 		assert.ok(!HOT_SET.has(name), `${name} leaked into the hot set`);
-		assert.ok(rareModelVerbs().includes(name), `${name} missing from the gateway enum`);
+		assert.ok(rareModelVerbs().includes(name), `${name} missing from deferred tools`);
 		assert.ok(isCallableModelVerb(name));
 	}
-	assert.ok(!isCallableModelVerb("post_session_message"));
-	assert.ok(!isCallableModelVerb("register_connection"));
+	assert.equal(rareModelSurface().length, MODEL_VERB_NAMES.length - HOT_SET_VERBS.length);
 });
 
-test("slimed schemas never ask for stamped scope keys", () => {
-	for (const entry of modelFacingSurface()) {
+test("slimmed schemas never ask for stamped scope keys", () => {
+	for (const entry of allModelFacingTools()) {
 		const props = (entry.inputSchema.properties ?? {}) as Record<string, unknown>;
-		for (const key of SCOPE_KEY_SET) {
-			assert.ok(!(key in props), `${entry.name} still exposes ${key}`);
-		}
+		for (const key of SCOPE_KEY_SET) assert.ok(!(key in props), `${entry.name} still exposes ${key}`);
 		const required = (entry.inputSchema.required ?? []) as string[];
-		for (const key of SCOPE_KEY_SET) {
-			assert.ok(!required.includes(key), `${entry.name} still requires ${key}`);
-		}
+		for (const key of SCOPE_KEY_SET) assert.ok(!required.includes(key), `${entry.name} still requires ${key}`);
 		assert.ok(entry.description.length <= 160, `${entry.name} description still an essay`);
 	}
 });
 
 test("slimSchema drops nested scope keys and shortens descriptions", () => {
-	const slimed = slimSchema({
+	const slimmed = slimSchema({
 		type: "object",
 		properties: {
 			title: { type: "string", description: "A long essay. Second sentence stays out." },
@@ -99,41 +113,126 @@ test("slimSchema drops nested scope keys and shortens descriptions", () => {
 		},
 		required: ["title", "git_remote"],
 	});
-	const props = slimed.properties as Record<string, Record<string, unknown>>;
+	const props = slimmed.properties as Record<string, Record<string, unknown>>;
 	assert.ok(props.title);
 	assert.equal(props.git_remote, undefined);
 	assert.equal(props.title.description, "A long essay.");
-	assert.deepEqual(slimed.required, ["title"]);
+	assert.deepEqual(slimmed.required, ["title"]);
 	const nested = props.nested as { properties: Record<string, unknown>; required?: string[] };
 	assert.equal(nested.properties.project_id, undefined);
 	assert.ok(nested.properties.ok);
 	assert.deepEqual(nested.required, ["ok"]);
 });
 
-test("gateway enum is the rare set and excludes the hot set", () => {
-	const schema = gatewayInputSchema();
-	const verb = (schema.properties as { verb: { enum: string[] } }).verb;
-	assert.deepEqual(new Set(verb.enum), new Set(rareModelVerbs()));
-	for (const name of HOT_SET_VERBS) {
-		assert.ok(!verb.enum.includes(name));
-	}
-	assert.equal(GATEWAY_TOOL_NAME, "devspec");
+test("natural-language rare-tool search is deterministic and relevance-ranked", () => {
+	assert.equal(searchRareModelTools("create a reusable playbook")[0]?.name, "create_playbook");
+	assert.equal(
+		searchRareModelTools("update my personal instructions")[0]?.name,
+		"update_personal_instructions",
+	);
+	const first = searchRareModelTools("review playbook work", 7).map((entry) => entry.name);
+	const second = searchRareModelTools("review playbook work", 7).map((entry) => entry.name);
+	assert.deepEqual(first, second);
+	assert.ok(first.length > 0);
+	assert.deepEqual(searchRareModelTools("the and please"), []);
 });
 
-test("gateway verb resolver refuses hot-set and pump verbs", () => {
-	assert.deepEqual(resolveGatewayVerb("create_playbook"), { ok: true, verb: "create_playbook" });
-	assert.equal(resolveGatewayVerb("get_action_item").ok, false);
-	assert.equal(resolveGatewayVerb("post_session_message").ok, false);
-	assert.equal(resolveGatewayVerb("register_connection").ok, false);
-	assert.equal(resolveGatewayVerb("").ok, false);
+test("colloquial requests route across materially different rare tool families", () => {
+	const cases = [
+		["what tables exist?", "get_database_schema"],
+		["give up the work I claimed", "release_work_item"],
+		["I could not finish the claimed work", "fail_work_item"],
+		["show me recent activity and conversations", "get_recent_sessions"],
+		["is there anything waiting for me to review?", "get_claimable_reviews"],
+		["show my recurring automations", "get_playbooks"],
+		["what objectives are we working toward?", "get_project_goals"],
+		["what team policies should agents follow?", "get_project_instruction_rules"],
+	] as const;
+	for (const [query, expected] of cases) {
+		const match = searchRareModelTools(query, 1)[0];
+		assert.equal(match?.name, expected, `${JSON.stringify(query)} routed to ${match?.name}`);
+		assert.ok(match.description.length <= 160, `${expected} result was not slimmed`);
+	}
+});
+
+test("initial activation preserves other tools and contains hot set plus loader only", () => {
+	const initial = initialActiveTools(["read", "custom_tool", ...MODEL_VERB_NAMES]);
+	assert.ok(initial.includes("read"));
+	assert.ok(initial.includes("custom_tool"));
+	assert.ok(initial.includes(TOOL_LOADER_NAME));
+	for (const name of HOT_SET_VERBS) assert.ok(initial.includes(name));
+	for (const name of rareModelVerbs()) assert.ok(!initial.includes(name), `${name} initially active`);
+	assert.equal(initial.length, new Set(initial).size);
+});
+
+test("registration exposes complete real schemas and loader activation is purely additive", async () => {
+	type ToolDef = {
+		name: string;
+		promptSnippet?: string;
+		promptGuidelines?: string[];
+		parameters: unknown;
+		execute: (...args: any[]) => Promise<{ details?: { matches?: string[]; added?: string[] } }>;
+	};
+	const definitions: ToolDef[] = [];
+	const handlers = new Map<string, () => void>();
+	let active = ["read", "custom_tool"];
+	const setCalls: string[][] = [];
+	const pi = {
+		registerTool(def: ToolDef) {
+			definitions.push(def);
+			active.push(def.name);
+		},
+		on(name: string, handler: () => void) {
+			handlers.set(name, handler);
+		},
+		getActiveTools() {
+			return [...active];
+		},
+		setActiveTools(names: string[]) {
+			active = [...names];
+			setCalls.push([...names]);
+		},
+	} as unknown as ExtensionAPI;
+
+	registerDevspecTools(pi);
+	assert.deepEqual(
+		definitions.map((def) => def.name),
+		[...MODEL_VERB_NAMES, TOOL_LOADER_NAME],
+	);
+	assert.ok(!definitions.some((def) => def.name === "devspec"), "opaque gateway remains registered");
+	for (const forbidden of [...PUMP_VERBS, ...NEVER_MODEL_VERBS]) {
+		assert.ok(!definitions.some((def) => def.name === forbidden), `${forbidden} registered`);
+	}
+
+	for (const rare of rareModelSurface()) {
+		const rareDef = definitions.find((def) => def.name === rare.name);
+		assert.ok(rareDef, `${rare.name} not registered`);
+		assert.deepEqual(rareDef.parameters, jsonSchemaToTypebox(rare.inputSchema));
+		assert.equal(rareDef.promptSnippet, undefined, `${rare.name} has an active-only snippet`);
+		assert.equal(rareDef.promptGuidelines, undefined, `${rare.name} has active-only guidelines`);
+	}
+	assert.ok(definitions.find((def) => def.name === HOT_SET_VERBS[0])?.promptSnippet);
+
+	handlers.get("session_start")?.();
+	const beforeLoad = [...active];
+	assert.deepEqual(
+		active.filter((name) => MODEL_VERB_NAMES.includes(name as (typeof MODEL_VERB_NAMES)[number])),
+		[...HOT_SET_VERBS],
+	);
+	assert.ok(active.includes(TOOL_LOADER_NAME));
+
+	const loader = definitions.find((def) => def.name === TOOL_LOADER_NAME);
+	assert.ok(loader);
+	const result = await loader.execute("call-1", { query: "create a reusable playbook", limit: 1 });
+	assert.deepEqual(result.details?.matches, ["create_playbook"]);
+	assert.deepEqual(result.details?.added, ["create_playbook"]);
+	assert.deepEqual(active.slice(0, beforeLoad.length), beforeLoad, "activation replaced or reordered tools");
+	assert.equal(active.at(-1), "create_playbook");
+	assert.equal(setCalls.length, 2, "expected initial reset and one additive activation");
 });
 
 test("stampKnownScope drops model-supplied scope and adds the bond", () => {
-	setBond({
-		connectionId: "conn-1",
-		sessionId: "sess-1",
-		codename: "Restless Squirrel",
-	});
+	setBond({ connectionId: "conn-1", sessionId: "sess-1", codename: "Restless Squirrel" });
 	const stamped = stampKnownScope({
 		title: "hello",
 		git_remote: "git@example.com:nope.git",
@@ -148,15 +247,32 @@ test("stampKnownScope drops model-supplied scope and adds the bond", () => {
 	setBond(null);
 });
 
-test("modelFacingCatalog is the hot set only", () => {
-	const names = modelFacingCatalog().map((e) => e.name);
-	assert.deepEqual(names, [...HOT_SET_VERBS]);
-	assert.ok(!names.includes("post_session_message"));
-	assert.ok(!names.includes("create_playbook"));
-});
+test("prefix estimate includes Pi's active snippets and lands in the 2–8k token band", () => {
+	const instructions = buildDevspecInstructions();
+	const hotTools = modelFacingSurface();
+	const schemaChars = JSON.stringify(
+		hotTools.map((entry) => ({
+			name: entry.name,
+			description: entry.description,
+			inputSchema: entry.inputSchema,
+		})),
+	).length;
+	const loaderChars = JSON.stringify({
+		name: TOOL_LOADER_NAME,
+		description: TOOL_LOADER_DESCRIPTION,
+		inputSchema: toolLoaderInputSchema(),
+	}).length;
+	const availableToolLines = [
+		...hotTools.map((entry) => `- ${entry.name}: ${entry.promptSnippet}`),
+		`- ${TOOL_LOADER_NAME}: ${TOOL_LOADER_PROMPT_METADATA.promptSnippet}`,
+	].join("\n");
+	assert.equal(
+		estimatePrefixChars(instructions),
+		schemaChars + loaderChars + instructions.length + availableToolLines.length,
+	);
 
-test("prefix estimate lands in the 2–8k token band", () => {
-	const tokens = estimatePrefixTokens(buildDevspecInstructions());
-	assert.ok(tokens >= 1500, `prefix too small to be real: ${tokens}`);
+	const tokens = estimatePrefixTokens(instructions);
+	assert.ok(tokens >= PREFIX_TOKEN_MIN, `prefix too small to be real: ${tokens}`);
 	assert.ok(tokens <= PREFIX_TOKEN_MAX, `prefix still too fat: ${tokens}`);
+	assert.deepEqual(hotTools.map((entry) => entry.name), [...HOT_SET_VERBS]);
 });

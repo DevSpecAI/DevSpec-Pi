@@ -119,15 +119,9 @@ function unwrapResult(result: unknown): Record<string, unknown> | null {
 	return outer;
 }
 
-/** Map a tool name (+ optional gateway verb) to a first-class domain event. */
-export function classifyDomainTool(name: string, args?: unknown): DomainSpec | null {
-	const direct = DOMAIN_BY_NAME[name];
-	if (direct) return direct;
-	if (name === "devspec") {
-		const verb = pickString(asRecord(args), ["verb"]);
-		if (verb && DOMAIN_BY_NAME[verb]) return DOMAIN_BY_NAME[verb];
-	}
-	return null;
+/** Map a native tool name to a first-class domain event. */
+export function classifyDomainTool(name: string, _args?: unknown): DomainSpec | null {
+	return DOMAIN_BY_NAME[name] ?? null;
 }
 
 export function domainIdentity(args?: unknown, result?: unknown): { id?: string; title?: string } {

@@ -132,9 +132,9 @@ devspec-pi/                        ← this repo, published as one npm package
 │   ├── core/                      ← INTERNAL client: MCP transport, auth store,
 │   │                                bond lifecycle, turn pump, memory engine
 │   ├── devspec-auth.ts            ← /devspec.login, token lifecycle, status
-│   ├── generated/mcp-catalog.ts   ← WIRE map (item 523f1512) — not registered wholesale
-│   ├── core/model-surface.ts      ← Pi-shaped hot set + rare-verb gateway (item 7de79db6)
-│   ├── devspec-tools.ts           ← registers the hot set, not the 76-verb dump
+│   ├── generated/mcp-catalog.ts   ← WIRE map (item 523f1512), not the initial surface
+│   ├── core/model-surface.ts      ← hot set + deterministic deferred-tool search
+│   ├── devspec-tools.ts           ← safe verbs registered; rare tools start inactive
 │   ├── devspec-remote.ts          ← remote control (see below)
 │   ├── devspec-memory.ts          ← proactive recall + capture
 │   ├── devspec-onboard.ts         ← first-run experience, /devspec.help
@@ -159,13 +159,14 @@ Streamable HTTP, POST-only, bearer-token** bridge (verified in
 a minimal MCP client and speaks those verb names. What the *model* sees is
 a **Pi-shaped surface**, not a 1:1 dump of `tool-definitions.ts`:
 
-- always-on hot set (~15 everyday verbs) with short snippets and slimed schemas
-- rare verbs (playbooks, reviews, instruction-rule import, …) via one `devspec` gateway
+- always-on hot set (~15 everyday verbs) with short snippets and slimmed schemas
+- safe rare verbs registered as real, initially inactive Pi tools with slimmed schemas
+- one tiny `search_devspec_tools` loader additively activates relevant rare tools
 - extension stamps `git_remote` / project / session / bond ids — the model is never asked
-- target prefix for DevSpec tools + workflow block: **2–8k tokens**, not ~60k
+- target initial prefix for DevSpec tools + workflow block: **2–8k tokens**, not ~60k
 
-The generated catalog (`523f1512`) stays as the wire map + drift test. Do
-not regenerate it and register all 76 verbs again.
+The generated catalog (`523f1512`) stays the wire map + drift test, not the
+initial active model surface.
 
 This is the crucial middle path:
 
@@ -391,8 +392,8 @@ current contract, adopted here first, migrated to other hosts only if proven.
    login, action items, search, memory tools with real renderers. ✅
    (embedded MCP client, `/devspec.login|logout|status`, staging/prod.
    Completeness of verbs shipped as a catalog dump in `523f1512`; the
-   **product** is the Pi-shaped hot set in `7de79db6` — ~15 always-on
-   tools + a rare-verb gateway, ~2–8k prefix. Custom TUI renderers still TODO)
+   **product** starts with a Pi-shaped hot set — ~15 always-on tools plus
+   deferred rare-tool search, ~2–8k prefix. Custom TUI renderers still TODO)
 3. **System-prompt injection + slash commands** — workflows native. ✅
    (`before_agent_start` workflow block is tight: no "Check DevSpec first",
    no 76-verb when-X-call-Y dump. `/devspec.work` with live item completion;
@@ -438,8 +439,8 @@ current contract, adopted here first, migrated to other hosts only if proven.
 
 Shipped 2026-08-13 (Fierce Kestrel / Restless Squirrel):
 - `d2f4f25c` — mechanically suppress an adapter-mounted DevSpec MCP server.
-- `7de79db6` — Pi-shaped model surface: hot set + `devspec` gateway. The
-  generated catalog is the wire map, not the product. Target prefix 2–8k.
+- `7de79db6` — original Pi-shaped model surface. Superseded by native
+  deferred loading for rare tools; the generated catalog remains the wire map.
 
 ## Next-up queue (as of 2026-08-13)
 

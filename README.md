@@ -26,9 +26,9 @@ and binds all implementation decisions in this repo.
 ## Status
 
 **Phase 2 complete**: embedded MCP transport, `/devspec.login` / `/devspec.logout`
-/ `/devspec.status`. Everyday DevSpec work is a small native hot set; less-common
-verbs go through one `devspec` gateway. The generated MCP catalog is the wire
-map, not what the model sees. See VISION.md.
+/ `/devspec.status`. Everyday DevSpec work is a small active native hot set;
+less-common native tools are loaded on demand with `search_devspec_tools`. The
+generated MCP catalog is the wire map, not the initial model surface. See VISION.md.
 
 ## Development
 

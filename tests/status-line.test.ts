@@ -103,13 +103,14 @@ test("claimed work and a live DevSpec verb append; bash does not", () => {
 		"⛁ Golden Possum · “Room” · “Show the session title” · claiming",
 	);
 	assert.equal(isDevspecVerb("claim_work_item"), true);
-	assert.equal(isDevspecVerb("devspec"), true);
+	assert.equal(isDevspecVerb("search_devspec_tools"), true);
+	assert.equal(isDevspecVerb("devspec"), false);
 	assert.equal(isDevspecVerb("bash"), false);
 	assert.equal(isDevspecVerb("read"), false);
 	assert.equal(isDevspecVerb("edit"), false);
 	assert.equal(resolveExecutingVerb("bash", { command: "ls" }), undefined);
 	assert.equal(resolveExecutingVerb("claim_work_item", { action_item_id: "x" }), "claim_work_item");
-	assert.equal(resolveExecutingVerb("devspec", { verb: "release_work_item" }), "release_work_item");
+	assert.equal(resolveExecutingVerb("search_devspec_tools", { query: "release work" }), "search_devspec_tools");
 	assert.equal(verbLabel("record_implementation"), "recording");
 });
 
@@ -183,8 +184,8 @@ test("live verbs stack and pop; non-DevSpec tools never enter the slot", () => {
 	assert.equal(getStatusSnapshot().verb, undefined);
 	noteVerbStart("2", "claim_work_item", { action_item_id: "x" });
 	assert.equal(getStatusSnapshot().verb, "claim_work_item");
-	noteVerbStart("3", "devspec", { verb: "search_memories" });
-	assert.equal(getStatusSnapshot().verb, "search_memories");
+	noteVerbStart("3", "search_devspec_tools", { query: "playbooks" });
+	assert.equal(getStatusSnapshot().verb, "search_devspec_tools");
 	noteVerbEnd("3");
 	assert.equal(getStatusSnapshot().verb, "claim_work_item");
 	noteVerbEnd("2");

@@ -6,6 +6,8 @@
  * into something a pi tool can return directly. Pure functions — unit-tested.
  */
 
+import { projectModelText } from "./result-projection.ts";
+
 export interface UnwrappedResult {
 	/** Concatenated text content — what the model reads. */
 	text: string;
@@ -52,6 +54,14 @@ export function unwrapMcpResult(res: unknown): UnwrappedResult {
 /** Shape pi tools return on success. */
 export function toolTextResult(text: string, details?: unknown) {
 	return { content: [{ type: "text" as const, text }], details: details ?? {} };
+}
+
+/** Build a projected Pi success result while retaining the complete payload. */
+export function projectedToolResult(toolName: string, result: UnwrappedResult) {
+	return toolTextResult(
+		projectModelText({ toolName, text: result.text, details: result.details }),
+		result.details ?? {},
+	);
 }
 
 /**

@@ -77,6 +77,30 @@ export async function executeControlCommand(cmd: ControlCommand, host: ControlHo
 }
 
 /**
+ * Reload invalidates the pump ctx (Pi assertActive). The old lap must ack
+ * first so a revived bond cannot see the same pending CONTROL, then reload,
+ * then stop. Do not notify on the old ctx after a successful reload.
+ */
+export type ReloadLapStatus = "reloaded" | "ack_failed" | "reload_failed";
+
+export async function runReloadLap(opts: {
+	ack: () => Promise<void>;
+	reload: () => Promise<void>;
+}): Promise<{ status: ReloadLapStatus; error?: string }> {
+	try {
+		await opts.ack();
+	} catch (err) {
+		return { status: "ack_failed", error: err instanceof Error ? err.message : String(err) };
+	}
+	try {
+		await opts.reload();
+		return { status: "reloaded" };
+	} catch (err) {
+		return { status: "reload_failed", error: err instanceof Error ? err.message : String(err) };
+	}
+}
+
+/**
  * Run Pi command-context reload (same as TUI /reload).
  * Event/pump ctx does not have reload(); sendUserMessage("/devspec.reload")
  * is not a substitute — it skips command execution (item e82a690a).

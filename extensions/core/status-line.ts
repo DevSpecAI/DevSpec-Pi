@@ -16,6 +16,7 @@
  */
 
 import { GATEWAY_TOOL_NAME, HOT_SET, isCallableModelVerb } from "./model-surface.ts";
+import { safeHasUI, withLiveUi } from "./ctx-guard.ts";
 
 export const STATUS_KEY = "devspec-remote";
 
@@ -79,6 +80,7 @@ export function resetStatus(): void {
 	const s = store();
 	s.current = {};
 	s.live = [];
+	s.lastUi = null;
 }
 
 export function patchStatus(patch: Partial<StatusSnapshot>): StatusSnapshot {
@@ -374,9 +376,17 @@ export function setSessionPreview(preview: string | undefined): void {
 
 export function paintStatus(ctx?: StatusUi | null): void {
 	const s = store();
-	if (ctx?.hasUI) s.lastUi = ctx;
-	const target = ctx?.hasUI ? ctx : s.lastUi;
-	if (!target?.hasUI) return;
-	target.ui.setStatus(STATUS_KEY, formatStatusLine(s.current));
-	target.ui.setTitle?.(formatTerminalTitle(s.current));
+	if (ctx) {
+		if (safeHasUI(ctx)) s.lastUi = ctx;
+		else if (s.lastUi === ctx) s.lastUi = null;
+	}
+	const target = ctx && safeHasUI(ctx) ? ctx : s.lastUi;
+	if (!target || !safeHasUI(target)) {
+		if (target && s.lastUi === target) s.lastUi = null;
+		return;
+	}
+	withLiveUi(target, () => {
+		target.ui.setStatus(STATUS_KEY, formatStatusLine(s.current));
+		target.ui.setTitle?.(formatTerminalTitle(s.current));
+	});
 }

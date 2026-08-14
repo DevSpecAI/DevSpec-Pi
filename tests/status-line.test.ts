@@ -16,6 +16,7 @@ import {
 	noteVerbEnd,
 	noteVerbStart,
 	noteWork,
+	paintStatus,
 	patchStatus,
 	previewFromText,
 	resetStatus,
@@ -305,4 +306,35 @@ test("a batch retitles on each claim and falls back when that item is recorded",
 	assert.equal(formatTerminalTitle(getStatusSnapshot()), "Ship the footer");
 	resetStatus();
 	assert.equal(formatTerminalTitle(getStatusSnapshot()), DEFAULT_TERMINAL_TITLE);
+});
+
+test("paintStatus skips a stale post-reload ctx instead of throwing", () => {
+	resetStatus();
+	patchStatus({ codename: "Drifting Mantis" });
+	const stale = {
+		get hasUI() {
+			throw new Error(
+				"This extension ctx is stale after session replacement or reload. Do not use a captured pi or command ctx after ctx.reload().",
+			);
+		},
+		ui: {
+			setStatus() {
+				throw new Error("should not paint stale ui");
+			},
+		},
+	};
+	assert.doesNotThrow(() => paintStatus(stale));
+
+	let painted = "";
+	const live = {
+		hasUI: true,
+		ui: {
+			setStatus(_key: string, text: string | undefined) {
+				painted = text ?? "";
+			},
+		},
+	};
+	paintStatus(live);
+	assert.match(painted, /Drifting Mantis/);
+	resetStatus();
 });

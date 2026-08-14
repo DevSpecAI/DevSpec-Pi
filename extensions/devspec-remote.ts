@@ -38,7 +38,8 @@ import {
 } from "./core/client.ts";
 import { getBond, setBond, type BondState } from "./core/bond-state.ts";
 import { formatInboundMessage, parsePollPayload, type OwnerCommand } from "./core/remote-payload.ts";
-import { compactWithContext, executeControlCommand, parseControlCommand, reloadWithContext } from "./core/control.ts";
+import { compactWithContext, executeControlCommand, parseControlCommand, reloadWithContext, runReloadLap } from "./core/control.ts";
+import { withLiveUi } from "./core/ctx-guard.ts";
 import { commandReloadContext, rememberExtensionRunner } from "./core/command-runner.ts";
 import { collectModelCatalog, type ModelCatalogSnapshot } from "./core/model-catalog.ts";
 import { formatAttachmentNotes, materialiseAttachments } from "./core/attachments.ts";
@@ -372,7 +373,22 @@ async function beatBusy(busy: boolean, agentStats?: AgentStatsReport | null): Pr
 }
 
 function notify(ctx: ExtensionContext | null, message: string, level: "info" | "warning" | "error" = "info"): void {
-	if (ctx?.hasUI) ctx.ui.notify(message, level);
+	if (!ctx) return;
+	withLiveUi(ctx, () => ctx.ui.notify(message, level));
+}
+
+async function ackControl(
+	token: string,
+	connectionId: string,
+	controlId: string,
+	catalog?: ModelCatalogSnapshot,
+): Promise<void> {
+	await callDevspec(token, "poll_connection", {
+		connection_id: connectionId,
+		control_ack: controlId,
+		wait_ms: 0,
+		...(catalog ? { model_catalog: catalog } : {}),
+	}, { timeoutMs: 10_000, lane: "pump" });
 }
 
 function setRemoteStatus(ctx: ExtensionContext | null): void {
@@ -691,39 +707,47 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		const control = parseControlCommand(pkg.control);
 		if (control) {
 			lastCtx = ctx;
-			let catalog: ModelCatalogSnapshot | undefined;
-			try {
-				const result = await executeControlCommand(control, {
-					isIdle: () => ctx.isIdle(),
-					abort: () => ctx.abort(),
-					compact: () => compactWithContext(ctx),
+			// Reload is terminal for this pump frame (item e4d5612c). Ack first so
+			// a revived bond cannot see the same pending CONTROL, then reload, then
+			// return. Do not notify on the old ctx after a successful reload.
+			if (control.verb === "reload") {
+				const lap = await runReloadLap({
+					ack: () => ackControl(token, active.bond.connectionId, control.id),
 					reload: () => reloadWithContext(commandReloadContext() ?? (ctx as { reload?: () => Promise<void> })),
-					setThinkingLevel: (level) => pi_setThinking(level),
-					setModel: (modelId) => pi_setModel(modelId),
-					notify: (message) => notify(ctx, message),
 				});
-				debug(`control ${control.verb}: ${result}`);
-				if (control.verb === "list_models") {
-					catalog = collectModelCatalog({
-						scopedModels: ctx.scopedModels,
-						modelRegistry: ctx.modelRegistry,
-						model: ctx.model,
+				debug(`control reload: ${lap.status}${lap.error ? ` (${lap.error})` : ""}`);
+				if (lap.status === "reloaded") return;
+				notify(ctx, `DevSpec remote: reload failed — ${lap.error ?? lap.status}`, "error");
+			} else {
+				let catalog: ModelCatalogSnapshot | undefined;
+				try {
+					const result = await executeControlCommand(control, {
+						isIdle: () => ctx.isIdle(),
+						abort: () => ctx.abort(),
+						compact: () => compactWithContext(ctx),
+						reload: () => reloadWithContext(commandReloadContext() ?? (ctx as { reload?: () => Promise<void> })),
+						setThinkingLevel: (level) => pi_setThinking(level),
+						setModel: (modelId) => pi_setModel(modelId),
+						notify: (message) => notify(ctx, message),
 					});
-					notify(ctx, `DevSpec remote: list_models — ${catalog.models.length} models.`);
-				} else {
-					notify(ctx, `DevSpec remote: ${control.verb} — ${result}.`);
+					debug(`control ${control.verb}: ${result}`);
+					if (control.verb === "list_models") {
+						catalog = collectModelCatalog({
+							scopedModels: ctx.scopedModels,
+							modelRegistry: ctx.modelRegistry,
+							model: ctx.model,
+						});
+						notify(ctx, `DevSpec remote: list_models — ${catalog.models.length} models.`);
+					} else {
+						notify(ctx, `DevSpec remote: ${control.verb} — ${result}.`);
+					}
+				} catch (err) {
+					const msg = err instanceof Error ? err.message : String(err);
+					debug(`control failed: ${msg}`);
+					notify(ctx, `DevSpec remote: ${control.verb} failed — ${msg}`, "error");
 				}
-			} catch (err) {
-				const msg = err instanceof Error ? err.message : String(err);
-				debug(`control failed: ${msg}`);
-				notify(ctx, `DevSpec remote: ${control.verb} failed — ${msg}`, "error");
+				void ackControl(token, active.bond.connectionId, control.id, catalog).catch(() => {});
 			}
-			void callDevspec(token, "poll_connection", {
-				connection_id: active.bond.connectionId,
-				control_ack: control.id,
-				wait_ms: 0,
-				...(catalog ? { model_catalog: catalog } : {}),
-			}, { timeoutMs: 10_000, lane: "pump" }).catch(() => {});
 		}
 
 		// Cold-start orientation: cursors adopted above. Pre-attach commands

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { compactWithContext, executeControlCommand, parseControlCommand, reloadWithContext } from "../extensions/core/control.ts";
+import { compactWithContext, executeControlCommand, parseControlCommand, reloadWithContext, runReloadLap } from "../extensions/core/control.ts";
 
 function host(calls: string[]) {
 	return {
@@ -109,5 +109,47 @@ test("reloadWithContext uses the provided ctx and never invents a queued slash",
 	assert.equal(called, true);
 	await assert.rejects(() => reloadWithContext(null), /not available/);
 	await assert.rejects(() => reloadWithContext({}), /not available/);
+});
+
+test("runReloadLap acks before reload and does not reload if ack fails", async () => {
+	const order: string[] = [];
+	const ok = await runReloadLap({
+		ack: async () => {
+			order.push("ack");
+		},
+		reload: async () => {
+			order.push("reload");
+		},
+	});
+	assert.deepEqual(ok, { status: "reloaded" });
+	assert.deepEqual(order, ["ack", "reload"]);
+
+	const failed = await runReloadLap({
+		ack: async () => {
+			throw new Error("ack down");
+		},
+		reload: async () => {
+			order.push("should-not-reload");
+		},
+	});
+	assert.equal(failed.status, "ack_failed");
+	assert.equal(failed.error, "ack down");
+	assert.deepEqual(order, ["ack", "reload"]);
+});
+
+test("runReloadLap reports reload_failed after a successful ack", async () => {
+	const order: string[] = [];
+	const failed = await runReloadLap({
+		ack: async () => {
+			order.push("ack");
+		},
+		reload: async () => {
+			order.push("reload");
+			throw new Error("reload is not available on this context");
+		},
+	});
+	assert.deepEqual(order, ["ack", "reload"]);
+	assert.equal(failed.status, "reload_failed");
+	assert.match(failed.error ?? "", /not available/);
 });
 

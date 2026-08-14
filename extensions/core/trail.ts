@@ -11,6 +11,8 @@ import {
 	classifyDomainTool,
 	domainIdentity,
 	type DomainTrailEvent,
+	type SubagentTrailChild,
+	type SubagentTrailEvent,
 	type TrailEvent,
 	type ToolTrailEvent,
 } from "./trail-events.ts";
@@ -31,19 +33,23 @@ const MAX_TRAIL_CHARS = 12_000;
 export const FINAL_TRAIL_CHARS = 48_000;
 
 type TrailEntry =
-	| { kind: "thinking"; text: string; seq: number }
+	| { kind: "thinking"; text: string; seq: number; occurredAt: string }
 	| { kind: "text"; text: string; seq: number }
 	| { kind: "tool"; line: ToolLine; seq: number };
 
 interface ToolLine {
+	toolCallId: string;
 	name: string;
 	args?: unknown;
 	argsSummary?: string;
 	open: boolean;
 	ok?: boolean;
 	result?: unknown;
+	partialResult?: unknown;
 	resultSummary?: string;
 	startedAt: number;
+	startedAtIso: string;
+	completedAtIso?: string;
 	durationMs?: number;
 }
 
@@ -78,6 +84,64 @@ export function summarizeResult(result: unknown): string | undefined {
 		.trim();
 	if (!text) return undefined;
 	return text.length > 4000 ? `${text.slice(0, 4000)}…` : text;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+	return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function toolDetails(value: unknown): Record<string, unknown> | null {
+	const record = asRecord(value);
+	return asRecord(record?.details) ?? record;
+}
+
+function statusForChild(value: unknown): SubagentTrailChild["status"] {
+	if (value === "running" || value === "completed" || value === "failed" || value === "pending" || value === "detached" || value === "stopped" || value === "paused") return value;
+	if (value === "complete") return "completed";
+	return "pending";
+}
+
+function isoFromMs(value: unknown): string | undefined {
+	return typeof value === "number" && Number.isFinite(value) && value > 0
+		? new Date(value).toISOString()
+		: undefined;
+}
+
+function subagentChildren(value: unknown): SubagentTrailChild[] {
+	const details = toolDetails(value);
+	if (!details) return [];
+	const progress = Array.isArray(details.progress) ? details.progress : [];
+	if (progress.length > 0) {
+		return progress.slice(0, 24).flatMap((raw, index) => {
+			const item = asRecord(raw);
+			if (!item) return [];
+			const agent = typeof item.agent === "string" ? item.agent : `Agent ${index + 1}`;
+			return [{
+				key: typeof item.index === "number" ? String(item.index) : `${agent}:${index}`,
+				agent,
+				status: statusForChild(item.status),
+				...(typeof item.model === "string" ? { model: item.model } : {}),
+				...(typeof item.thinking === "string" ? { thinking: item.thinking } : {}),
+				...(isoFromMs(item.lastActivityAt) ? { lastActivityAt: isoFromMs(item.lastActivityAt) } : {}),
+				...(typeof item.durationMs === "number" ? { durationMs: item.durationMs } : {}),
+			} satisfies SubagentTrailChild];
+		});
+	}
+	const graph = asRecord(details.workflowGraph);
+	const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+	return nodes.slice(0, 24).flatMap((raw, index) => {
+		const item = asRecord(raw);
+		if (!item) return [];
+		const agent = typeof item.agent === "string" ? item.agent : typeof item.label === "string" ? item.label : `Agent ${index + 1}`;
+		return [{
+			key: typeof item.id === "string" ? item.id : `${agent}:${index}`,
+			agent,
+			status: statusForChild(item.status),
+			...(typeof item.model === "string" ? { model: item.model } : {}),
+			...(typeof item.thinking === "string" ? { thinking: item.thinking } : {}),
+			...(typeof item.durationMs === "number" ? { durationMs: item.durationMs } : {}),
+		} satisfies SubagentTrailChild];
+	});
 }
 
 /** Extract text, thinking, tool-call presence, and stopReason from an assistant message. */
@@ -148,7 +212,12 @@ export class TrailBuilder {
 		if (this.curThinking >= 0) {
 			(this.entries[this.curThinking] as { kind: "thinking"; text: string; seq: number }).text = t;
 		} else {
-			this.curThinking = this.entries.push({ kind: "thinking", text: t, seq: this.nextSeq++ }) - 1;
+			this.curThinking = this.entries.push({
+				kind: "thinking",
+				text: t,
+				seq: this.nextSeq++,
+				occurredAt: new Date().toISOString(),
+			}) - 1;
 		}
 	}
 
@@ -162,25 +231,45 @@ export class TrailBuilder {
 		}
 	}
 
-	toolStart(name: string, args?: unknown): void {
+	toolStart(toolCallId: string, name: string, args?: unknown): void {
+		const startedAt = Date.now();
 		this.entries.push({
 			kind: "tool",
 			seq: this.nextSeq++,
-			line: { name, args, argsSummary: summarizeArgs(args), open: true, startedAt: Date.now() },
+			line: {
+				toolCallId,
+				name,
+				args,
+				argsSummary: summarizeArgs(args),
+				open: true,
+				startedAt,
+				startedAtIso: new Date(startedAt).toISOString(),
+			},
 		});
 	}
 
-	toolEnd(name: string, ok: boolean, result?: unknown): void {
-		// Close the most recent open tool entry with this name (parallel-safe enough).
+	toolUpdate(toolCallId: string, partialResult: unknown): void {
+		for (let i = this.entries.length - 1; i >= 0; i--) {
+			const e = this.entries[i];
+			if (e.kind === "tool" && e.line.toolCallId === toolCallId) {
+				e.line.partialResult = partialResult;
+				return;
+			}
+		}
+	}
+
+	toolEnd(toolCallId: string, name: string, ok: boolean, result?: unknown): void {
 		for (let i = this.entries.length - 1; i >= 0; i--) {
 			const e = this.entries[i];
 			if (e.kind !== "tool") continue;
-			if (e.line.open && e.line.name === name) {
+			if (e.line.open && (e.line.toolCallId === toolCallId || e.line.name === name)) {
+				const completedAt = Date.now();
 				e.line.open = false;
 				e.line.ok = ok;
 				e.line.result = result;
 				e.line.resultSummary = summarizeResult(result);
-				e.line.durationMs = Math.max(0, Date.now() - e.line.startedAt);
+				e.line.durationMs = Math.max(0, completedAt - e.line.startedAt);
+				e.line.completedAtIso = new Date(completedAt).toISOString();
 				return;
 			}
 		}
@@ -190,26 +279,58 @@ export class TrailBuilder {
 		return this.entries.length === 0;
 	}
 
-	/** Typed events for the structured trail (item 2219b653). Seq is stable. */
+	/** Typed events for the structured activity record. Assistant speech is deliberately excluded. */
 	events(): TrailEvent[] {
 		const out: TrailEvent[] = [];
 		for (const e of this.entries) {
 			if (e.kind === "thinking") {
 				const flat = e.text.replace(/\n/g, " ");
-				out.push({ seq: e.seq, kind: "thinking", text: flat.length > 800 ? `${flat.slice(0, 800)}…` : flat });
+				out.push({
+					seq: e.seq,
+					kind: "thinking",
+					text: flat.length > 4_000 ? `${flat.slice(0, 4_000)}…` : flat,
+					occurredAt: e.occurredAt,
+				});
 			} else if (e.kind === "text") {
-				out.push({ seq: e.seq, kind: "text", text: e.text });
+				// Text is speech: progress/final messages belong only in the transcript.
+				continue;
 			} else {
+				const status = e.line.open ? "running" : e.line.ok ? "ok" : "error";
+				const timing = {
+					occurredAt: e.line.startedAtIso,
+					...(e.line.completedAtIso ? { completedAt: e.line.completedAtIso } : {}),
+				};
+				if (e.line.name === "subagent" || e.line.name === "subagent_wait") {
+					const children = subagentChildren(e.line.open ? e.line.partialResult : e.line.result ?? e.line.partialResult);
+					const running = children.filter((child) => child.status === "running").length;
+					const ev: SubagentTrailEvent = {
+						seq: e.seq,
+						kind: "subagent",
+						correlationId: e.line.toolCallId,
+						name: e.line.name,
+						status,
+						children,
+						...timing,
+						...(children.length > 0
+							? { summary: running > 0 ? `${running} of ${children.length} agents active` : `${children.length} agents` }
+							: {}),
+						...(e.line.durationMs != null ? { durationMs: e.line.durationMs } : {}),
+					};
+					out.push(ev);
+					continue;
+				}
 				const domain = classifyDomainTool(e.line.name, e.line.args);
 				if (domain) {
 					const ident = domainIdentity(e.line.args, e.line.result);
 					const ev: DomainTrailEvent = {
 						seq: e.seq,
 						kind: "domain",
+						correlationId: e.line.toolCallId,
 						domain: domain.domain,
 						action: domain.action,
 						name: e.line.name,
-						status: e.line.open ? "running" : e.line.ok ? "ok" : "error",
+						status,
+						...timing,
 					};
 					if (ident.title) ev.title = ident.title;
 					if (ident.id) ev.id = ident.id;
@@ -219,8 +340,10 @@ export class TrailBuilder {
 					const ev: ToolTrailEvent = {
 						seq: e.seq,
 						kind: "tool",
+						correlationId: e.line.toolCallId,
 						name: e.line.name,
-						status: e.line.open ? "running" : e.line.ok ? "ok" : "error",
+						status,
+						...timing,
 					};
 					if (e.line.argsSummary) ev.args = e.line.argsSummary;
 					if (!e.line.open && e.line.resultSummary) ev.result = e.line.resultSummary;
@@ -232,7 +355,7 @@ export class TrailBuilder {
 		return out;
 	}
 
-	render(maxChars: number = MAX_TRAIL_CHARS): string {
+	render(maxChars: number = MAX_TRAIL_CHARS, includeSpeech = true): string {
 		const parts: string[] = [];
 		for (const e of this.entries) {
 			if (e.kind === "thinking") {
@@ -245,7 +368,7 @@ export class TrailBuilder {
 				const t = flat.length > 800 ? `${flat.slice(0, 800)}…` : flat;
 				parts.push(`> 💭 ${t}`);
 			} else if (e.kind === "text") {
-				parts.push(e.text);
+				if (includeSpeech) parts.push(e.text);
 			} else {
 				const t = e.line;
 				const status = t.open ? "…" : t.ok ? "✔" : "✖";

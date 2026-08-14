@@ -66,9 +66,9 @@ test("TrailBuilder renders thinking, text, and tools with statuses", () => {
 	assert.ok(t.isEmpty());
 	t.setThinking("let me think");
 	t.setText("working on it");
-	t.toolStart("bash", { command: "npm test" });
-	t.toolEnd("bash", true, { content: [{ type: "text", text: "12 passing" }] });
-	t.toolStart("read", { path: "a.ts" }); // left open
+	t.toolStart("tool-1", "bash", { command: "npm test" });
+	t.toolEnd("tool-1", "bash", true, { content: [{ type: "text", text: "12 passing" }] });
+	t.toolStart("tool-2", "read", { path: "a.ts" }); // left open
 	const out = t.render();
 	assert.match(out, /> 💭 let me think/);
 	assert.match(out, /working on it/);
@@ -113,13 +113,13 @@ test("TrailBuilder accumulates EVERY round of a run in order (cc9e8c43)", () => 
 	// Round 1
 	t.setThinking("first I search");
 	t.setText("looking into it");
-	t.toolStart("bash", { command: "rg foo" });
-	t.toolEnd("bash", true, { content: [{ type: "text", text: "3 hits" }] });
+	t.toolStart("tool-1", "bash", { command: "rg foo" });
+	t.toolEnd("tool-1", "bash", true, { content: [{ type: "text", text: "3 hits" }] });
 	t.beginAssistantMessage(); // message_end / next message_start
 	// Round 2
 	t.setThinking("now I edit");
-	t.toolStart("edit", { path: "a.ts" });
-	t.toolEnd("edit", true, { content: [{ type: "text", text: "ok" }] });
+	t.toolStart("tool-2", "edit", { path: "a.ts" });
+	t.toolEnd("tool-2", "edit", true, { content: [{ type: "text", text: "ok" }] });
 	t.beginAssistantMessage();
 	// Round 3 — the answer
 	t.setText("done — here is what changed");
@@ -165,11 +165,11 @@ test("TrailBuilder.events emits stable seqs and classifies domain tools", () => 
 
 	const t = new TrailBuilder();
 	t.setThinking("plan");
-	t.toolStart("create_action_item", { title: "Trail UI" });
-	t.toolEnd("create_action_item", true, {
+	t.toolStart("tool-1", "create_action_item", { title: "Trail UI" });
+	t.toolEnd("tool-1", "create_action_item", true, {
 		content: [{ type: "text", text: JSON.stringify({ id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", title: "Trail UI" }) }],
 	});
-	t.toolStart("bash", { command: "npm test" });
+	t.toolStart("tool-2", "bash", { command: "npm test" });
 	const events = t.events();
 	assert.equal(events[0]?.kind, "thinking");
 	assert.equal(events[0]?.seq, 1);
@@ -183,5 +183,33 @@ test("TrailBuilder.events emits stable seqs and classifies domain tools", () => 
 	if (events[2]?.kind === "tool") {
 		assert.equal(events[2].status, "running");
 		assert.equal(events[2].name, "bash");
+		assert.equal(events[2].correlationId, "tool-2");
+		assert.ok(events[2].occurredAt);
+	}
+});
+
+test("structured Activity excludes assistant speech and captures nested subagents", () => {
+	const t = new TrailBuilder();
+	t.setText("I understand — I’ll inspect the activity contract first.");
+	t.setThinking("**Inspecting the activity contract**");
+	t.toolStart("sub-1", "subagent", { workflowScript: "review two lanes" });
+	t.toolUpdate("sub-1", {
+		details: {
+			progress: [
+				{ index: 0, agent: "contracts", status: "running", model: "gpt-5.6-sol", thinking: "high", lastActivityAt: Date.now(), durationMs: 1200 },
+				{ index: 1, agent: "budgets", status: "completed", model: "gpt-5.6-sol", thinking: "high", durationMs: 900 },
+			],
+		},
+	});
+	const events = t.events();
+	assert.equal(events.some((event) => event.kind === "text"), false);
+	assert.doesNotMatch(t.render(undefined, false), /I understand/);
+	assert.equal(events[0]?.kind, "thinking");
+	assert.equal(events[1]?.kind, "subagent");
+	if (events[1]?.kind === "subagent") {
+		assert.equal(events[1].children.length, 2);
+		assert.equal(events[1].children[0]?.agent, "contracts");
+		assert.equal(events[1].children[0]?.model, "gpt-5.6-sol");
+		assert.equal(events[1].summary, "1 of 2 agents active");
 	}
 });

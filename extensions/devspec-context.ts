@@ -28,7 +28,7 @@ function buildBondedInstructions(): string | null {
 			? [`The person you work for is ${bond.ownerName} — address them by name; "the owner" is a structural role, not a way to talk about them.`]
 			: []),
 		"Messages prefixed [DevSpec remote — message from ...] are owner instructions delivered via the bond.",
-		"Just answer. Your final message each turn is delivered to the DevSpec session mechanically — never call tools to deliver conversational content, and never narrate status (Working…, the live work trail, and answer delivery are the runtime's job, zero tokens).",
+		"Your conversational text is delivered to the DevSpec session mechanically — never call tools to post it yourself. For non-trivial work, begin with one concise user-facing sentence confirming what you understood and what you will do next before using tools; add another progress message only at a meaningful boundary (for example, delegating, starting a long check, or becoming blocked). Do not narrate individual tools. Finish with the canonical answer.",
 		"If you need the owner before you can finish, end your turn with the question as your final message — it arrives like any other answer.",
 	];
 	const tiers = bond.instructions ?? {};

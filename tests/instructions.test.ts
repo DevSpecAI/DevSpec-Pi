@@ -31,6 +31,8 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /git_remote/);
 	assert.match(text, /extension already knows/i);
 	assert.match(text, /search_devspec_tools/);
+	assert.match(text, /concise user-facing sentence/);
+	assert.match(text, /never narrate individual tools/);
 });
 
 test("instructions do not dump search-first or the 76-verb map", () => {

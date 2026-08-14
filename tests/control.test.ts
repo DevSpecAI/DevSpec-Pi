@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { compactWithContext, executeControlCommand, parseControlCommand } from "../extensions/core/control.ts";
+import { compactWithContext, executeControlCommand, parseControlCommand, reloadWithContext } from "../extensions/core/control.ts";
 
 function host(calls: string[]) {
 	return {
@@ -97,5 +97,17 @@ test("compactWithContext uses the provided ctx even when lastCtx would be null",
 test("compactWithContext times out when neither callback fires", async () => {
 	const hanging = { compact: () => {} };
 	await assert.rejects(() => compactWithContext(hanging, 20), /timed out/);
+});
+
+test("reloadWithContext uses the provided ctx and never invents a queued slash", async () => {
+	let called = false;
+	await reloadWithContext({
+		reload: async () => {
+			called = true;
+		},
+	});
+	assert.equal(called, true);
+	await assert.rejects(() => reloadWithContext(null), /not available/);
+	await assert.rejects(() => reloadWithContext({}), /not available/);
 });
 

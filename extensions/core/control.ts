@@ -77,9 +77,25 @@ export async function executeControlCommand(cmd: ControlCommand, host: ControlHo
 }
 
 /**
+ * Run Pi command-context reload (same as TUI /reload).
+ * Event/pump ctx does not have reload(); sendUserMessage("/devspec.reload")
+ * is not a substitute — it skips command execution (item e82a690a).
+ */
+export async function reloadWithContext(
+	ctx: { reload?: () => Promise<void> } | null | undefined,
+): Promise<void> {
+	const reload = ctx?.reload;
+	if (typeof reload !== "function") {
+		throw new Error("reload is not available on this context");
+	}
+	await reload.call(ctx);
+}
+
+/**
  * Run Pi ctx.compact and wait for onComplete / onError.
  * Fire-and-forget compact is how “requested” lied after a no-op.
  */
+
 export function compactWithContext(
 	ctx: {
 		compact?: (opts?: {

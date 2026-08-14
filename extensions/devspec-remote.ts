@@ -38,7 +38,8 @@ import {
 } from "./core/client.ts";
 import { getBond, setBond, type BondState } from "./core/bond-state.ts";
 import { formatInboundMessage, parsePollPayload, type OwnerCommand } from "./core/remote-payload.ts";
-import { compactWithContext, executeControlCommand, parseControlCommand } from "./core/control.ts";
+import { compactWithContext, executeControlCommand, parseControlCommand, reloadWithContext } from "./core/control.ts";
+import { commandReloadContext, rememberExtensionRunner } from "./core/command-runner.ts";
 import { collectModelCatalog, type ModelCatalogSnapshot } from "./core/model-catalog.ts";
 import { formatAttachmentNotes, materialiseAttachments } from "./core/attachments.ts";
 import { unwrapMcpResult } from "./core/result.ts";
@@ -696,7 +697,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					isIdle: () => ctx.isIdle(),
 					abort: () => ctx.abort(),
 					compact: () => compactWithContext(ctx),
-					reload: () => pi_reload(),
+					reload: () => reloadWithContext(commandReloadContext() ?? (ctx as { reload?: () => Promise<void> })),
 					setThinkingLevel: (level) => pi_setThinking(level),
 					setModel: (modelId) => pi_setModel(modelId),
 					notify: (message) => notify(ctx, message),
@@ -981,6 +982,7 @@ async function enrichBondWithSession(sessionId: string, withAttachContext: boole
 }
 
 export default function (pi: ExtensionAPI) {
+	rememberExtensionRunner();
 	pi_send = (message, mode = "now") => {
 		if (mode === "steer") pi.sendUserMessage(message, { deliverAs: "steer" });
 		else if (mode === "followUp") pi.sendUserMessage(message, { deliverAs: "followUp" });
@@ -993,9 +995,7 @@ export default function (pi: ExtensionAPI) {
 		lastCtx?.compact?.({});
 	};
 	pi_reload = async () => {
-		// reload() is command-context only. Queue the registered command so
-		// Pi runs the same TUI /reload path (docs/extensions.md).
-		pi.sendUserMessage("/devspec.reload", { deliverAs: "followUp" });
+		await reloadWithContext(commandReloadContext() ?? (lastCtx as { reload?: () => Promise<void> } | null));
 	};
 	pi_setThinking = (level) => {
 		pi.setThinkingLevel?.(level as never);

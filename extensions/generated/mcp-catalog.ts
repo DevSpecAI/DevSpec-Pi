@@ -2,11 +2,11 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Fingerprint: 24544a779ae6f5da9dfb4b5734586bb93c9d00975f3ada3922fa7e70e3ee1d14
- * Regenerated: 2026-08-14T20:16:03.771Z
+ * Fingerprint: 4c36804c890a36ae3a2ea99977493e47b6d519a0a66c91358b54070389d5c5bf
+ * Regenerated: 2026-08-14T21:39:39.822Z
  */
-export const MCP_CATALOG_FINGERPRINT = "24544a779ae6f5da9dfb4b5734586bb93c9d00975f3ada3922fa7e70e3ee1d14";
-export const MCP_CATALOG_GENERATED_AT = "2026-08-14T20:16:03.771Z";
+export const MCP_CATALOG_FINGERPRINT = "4c36804c890a36ae3a2ea99977493e47b6d519a0a66c91358b54070389d5c5bf";
+export const MCP_CATALOG_GENERATED_AT = "2026-08-14T21:39:39.822Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -4193,7 +4193,178 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"agent_stats": {
 					"type": "object",
-					"description": "Optional. Your mechanical per-turn telemetry report (v1 shape: { v: 1, model: {provider, id} | null, thinkingLevel: string | null, context: {tokens, window, percent} | null, turn: {input, output, cacheRead, cacheWrite, costUsd, messages}, session: {…same, turns}, at: ISO string }). Report what your host surfaces — tokens, cost, cache, context% — so the room can SEE the agent. Rides this post (no extra call); stored last-known-good on your connection row and shown live in the UI."
+					"description": "Optional mechanical v1 runtime telemetry. contextBudget is privacy-safe size attribution with numeric counts and generated tool-verb identifiers only. The report rides an existing post/heartbeat and is stored last-known-good on the connection row.",
+					"properties": {
+						"v": {
+							"type": "number",
+							"enum": [
+								1
+							]
+						},
+						"model": {
+							"description": "Actual runtime {provider, id}, or null."
+						},
+						"thinkingLevel": {
+							"description": "Actual runtime thinking level, or null."
+						},
+						"context": {
+							"description": "Actual runtime {tokens, window, percent}, or null."
+						},
+						"contextBudget": {
+							"type": "object",
+							"description": "Optional privacy-safe size attribution. Carries numeric counts plus generated tool-verb identifiers only; never prompt text, instructions, context contents, arguments, results, credentials, or provider payloads.",
+							"properties": {
+								"v": {
+									"type": "number",
+									"enum": [
+										1
+									]
+								},
+								"static": {
+									"type": "object",
+									"properties": {
+										"systemPromptChars": {
+											"type": "number"
+										},
+										"activeToolCount": {
+											"type": "number"
+										},
+										"activeToolDefinitionChars": {
+											"type": "number"
+										},
+										"contextFileCount": {
+											"type": "number"
+										},
+										"contextFileChars": {
+											"type": "number"
+										},
+										"skillCount": {
+											"type": "number"
+										},
+										"skillChars": {
+											"type": "number"
+										}
+									}
+								},
+								"injected": {
+									"type": "object",
+									"properties": {
+										"attachChars": {
+											"type": "number"
+										},
+										"roomDigestChars": {
+											"type": "number"
+										},
+										"recallChars": {
+											"type": "number"
+										},
+										"conflictNudgeChars": {
+											"type": "number"
+										},
+										"totalChars": {
+											"type": "number"
+										}
+									}
+								},
+								"toolResults": {
+									"type": "object",
+									"properties": {
+										"calls": {
+											"type": "number"
+										},
+										"chars": {
+											"type": "number"
+										},
+										"maxChars": {
+											"type": "number"
+										},
+										"byVerb": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"verb": {
+														"type": "string"
+													},
+													"calls": {
+														"type": "number"
+													},
+													"chars": {
+														"type": "number"
+													},
+													"maxChars": {
+														"type": "number"
+													}
+												}
+											}
+										}
+									}
+								}
+							},
+							"required": [
+								"v",
+								"static",
+								"injected",
+								"toolResults"
+							]
+						},
+						"turn": {
+							"type": "object",
+							"properties": {
+								"input": {
+									"type": "number"
+								},
+								"output": {
+									"type": "number"
+								},
+								"cacheRead": {
+									"type": "number"
+								},
+								"cacheWrite": {
+									"type": "number"
+								},
+								"costUsd": {
+									"type": "number"
+								},
+								"messages": {
+									"type": "number"
+								}
+							}
+						},
+						"session": {
+							"type": "object",
+							"properties": {
+								"input": {
+									"type": "number"
+								},
+								"output": {
+									"type": "number"
+								},
+								"cacheRead": {
+									"type": "number"
+								},
+								"cacheWrite": {
+									"type": "number"
+								},
+								"costUsd": {
+									"type": "number"
+								},
+								"turns": {
+									"type": "number"
+								}
+							}
+						},
+						"at": {
+							"type": "string",
+							"description": "ISO timestamp."
+						}
+					},
+					"required": [
+						"v",
+						"turn",
+						"session",
+						"at"
+					]
 				},
 				"model": {
 					"type": "object",
@@ -4523,7 +4694,178 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"agent_stats": {
 					"type": "object",
-					"description": "Optional (status=live). Your mechanical per-turn telemetry report (v1 shape) — tokens/cost/cache/context% — riding the heartbeat so it costs no extra call. Stored last-known-good on the connection row and shown live in the UI."
+					"description": "Optional mechanical v1 runtime telemetry. contextBudget is privacy-safe size attribution with numeric counts and generated tool-verb identifiers only. The report rides an existing post/heartbeat and is stored last-known-good on the connection row.",
+					"properties": {
+						"v": {
+							"type": "number",
+							"enum": [
+								1
+							]
+						},
+						"model": {
+							"description": "Actual runtime {provider, id}, or null."
+						},
+						"thinkingLevel": {
+							"description": "Actual runtime thinking level, or null."
+						},
+						"context": {
+							"description": "Actual runtime {tokens, window, percent}, or null."
+						},
+						"contextBudget": {
+							"type": "object",
+							"description": "Optional privacy-safe size attribution. Carries numeric counts plus generated tool-verb identifiers only; never prompt text, instructions, context contents, arguments, results, credentials, or provider payloads.",
+							"properties": {
+								"v": {
+									"type": "number",
+									"enum": [
+										1
+									]
+								},
+								"static": {
+									"type": "object",
+									"properties": {
+										"systemPromptChars": {
+											"type": "number"
+										},
+										"activeToolCount": {
+											"type": "number"
+										},
+										"activeToolDefinitionChars": {
+											"type": "number"
+										},
+										"contextFileCount": {
+											"type": "number"
+										},
+										"contextFileChars": {
+											"type": "number"
+										},
+										"skillCount": {
+											"type": "number"
+										},
+										"skillChars": {
+											"type": "number"
+										}
+									}
+								},
+								"injected": {
+									"type": "object",
+									"properties": {
+										"attachChars": {
+											"type": "number"
+										},
+										"roomDigestChars": {
+											"type": "number"
+										},
+										"recallChars": {
+											"type": "number"
+										},
+										"conflictNudgeChars": {
+											"type": "number"
+										},
+										"totalChars": {
+											"type": "number"
+										}
+									}
+								},
+								"toolResults": {
+									"type": "object",
+									"properties": {
+										"calls": {
+											"type": "number"
+										},
+										"chars": {
+											"type": "number"
+										},
+										"maxChars": {
+											"type": "number"
+										},
+										"byVerb": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"verb": {
+														"type": "string"
+													},
+													"calls": {
+														"type": "number"
+													},
+													"chars": {
+														"type": "number"
+													},
+													"maxChars": {
+														"type": "number"
+													}
+												}
+											}
+										}
+									}
+								}
+							},
+							"required": [
+								"v",
+								"static",
+								"injected",
+								"toolResults"
+							]
+						},
+						"turn": {
+							"type": "object",
+							"properties": {
+								"input": {
+									"type": "number"
+								},
+								"output": {
+									"type": "number"
+								},
+								"cacheRead": {
+									"type": "number"
+								},
+								"cacheWrite": {
+									"type": "number"
+								},
+								"costUsd": {
+									"type": "number"
+								},
+								"messages": {
+									"type": "number"
+								}
+							}
+						},
+						"session": {
+							"type": "object",
+							"properties": {
+								"input": {
+									"type": "number"
+								},
+								"output": {
+									"type": "number"
+								},
+								"cacheRead": {
+									"type": "number"
+								},
+								"cacheWrite": {
+									"type": "number"
+								},
+								"costUsd": {
+									"type": "number"
+								},
+								"turns": {
+									"type": "number"
+								}
+							}
+						},
+						"at": {
+							"type": "string",
+							"description": "ISO timestamp."
+						}
+					},
+					"required": [
+						"v",
+						"turn",
+						"session",
+						"at"
+					]
 				},
 				"runner_session_id": {
 					"type": "string",
@@ -4586,7 +4928,178 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"agent_stats": {
 					"type": "object",
-					"description": "Optional. Your latest mechanical runtime telemetry (including current model and thinking level) riding this long-poll heartbeat. Stored last-known-good on the connection row; no extra keep-alive call is needed."
+					"description": "Optional mechanical v1 runtime telemetry. contextBudget is privacy-safe size attribution with numeric counts and generated tool-verb identifiers only. The report rides an existing post/heartbeat and is stored last-known-good on the connection row.",
+					"properties": {
+						"v": {
+							"type": "number",
+							"enum": [
+								1
+							]
+						},
+						"model": {
+							"description": "Actual runtime {provider, id}, or null."
+						},
+						"thinkingLevel": {
+							"description": "Actual runtime thinking level, or null."
+						},
+						"context": {
+							"description": "Actual runtime {tokens, window, percent}, or null."
+						},
+						"contextBudget": {
+							"type": "object",
+							"description": "Optional privacy-safe size attribution. Carries numeric counts plus generated tool-verb identifiers only; never prompt text, instructions, context contents, arguments, results, credentials, or provider payloads.",
+							"properties": {
+								"v": {
+									"type": "number",
+									"enum": [
+										1
+									]
+								},
+								"static": {
+									"type": "object",
+									"properties": {
+										"systemPromptChars": {
+											"type": "number"
+										},
+										"activeToolCount": {
+											"type": "number"
+										},
+										"activeToolDefinitionChars": {
+											"type": "number"
+										},
+										"contextFileCount": {
+											"type": "number"
+										},
+										"contextFileChars": {
+											"type": "number"
+										},
+										"skillCount": {
+											"type": "number"
+										},
+										"skillChars": {
+											"type": "number"
+										}
+									}
+								},
+								"injected": {
+									"type": "object",
+									"properties": {
+										"attachChars": {
+											"type": "number"
+										},
+										"roomDigestChars": {
+											"type": "number"
+										},
+										"recallChars": {
+											"type": "number"
+										},
+										"conflictNudgeChars": {
+											"type": "number"
+										},
+										"totalChars": {
+											"type": "number"
+										}
+									}
+								},
+								"toolResults": {
+									"type": "object",
+									"properties": {
+										"calls": {
+											"type": "number"
+										},
+										"chars": {
+											"type": "number"
+										},
+										"maxChars": {
+											"type": "number"
+										},
+										"byVerb": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"properties": {
+													"verb": {
+														"type": "string"
+													},
+													"calls": {
+														"type": "number"
+													},
+													"chars": {
+														"type": "number"
+													},
+													"maxChars": {
+														"type": "number"
+													}
+												}
+											}
+										}
+									}
+								}
+							},
+							"required": [
+								"v",
+								"static",
+								"injected",
+								"toolResults"
+							]
+						},
+						"turn": {
+							"type": "object",
+							"properties": {
+								"input": {
+									"type": "number"
+								},
+								"output": {
+									"type": "number"
+								},
+								"cacheRead": {
+									"type": "number"
+								},
+								"cacheWrite": {
+									"type": "number"
+								},
+								"costUsd": {
+									"type": "number"
+								},
+								"messages": {
+									"type": "number"
+								}
+							}
+						},
+						"session": {
+							"type": "object",
+							"properties": {
+								"input": {
+									"type": "number"
+								},
+								"output": {
+									"type": "number"
+								},
+								"cacheRead": {
+									"type": "number"
+								},
+								"cacheWrite": {
+									"type": "number"
+								},
+								"costUsd": {
+									"type": "number"
+								},
+								"turns": {
+									"type": "number"
+								}
+							}
+						},
+						"at": {
+							"type": "string",
+							"description": "ISO timestamp."
+						}
+					},
+					"required": [
+						"v",
+						"turn",
+						"session",
+						"at"
+					]
 				},
 				"agent_name": {
 					"type": "string",

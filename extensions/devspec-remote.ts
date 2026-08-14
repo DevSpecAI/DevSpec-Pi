@@ -332,13 +332,16 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 	const interval = setInterval(trailTick, TRAIL_INTERVAL_MS);
 	if (typeof interval.unref === "function") interval.unref();
 	const next = new TurnTracker();
-	if (t.tracker.userText) next.carryUser(t.tracker.userText);
+	if (t.tracker.userText) next.carryUser(t.tracker.userText, t.tracker);
+	// Keep the live trail across first-answer / closed-answer splits so seq
+	// numbers stay stable and the inspector does not flicker between a
+	// one-line snapshot and the full trail (item 9b66a177).
 	turn = {
 		tracker: next,
-		trail: new TrailBuilder(),
-		dirty: false,
-		posts: 0,
-		lastPostAt: 0,
+		trail: t.trail,
+		dirty: t.dirty,
+		posts: t.posts,
+		lastPostAt: t.lastPostAt,
 		interval,
 	};
 	postWarnedThisTurn = false;

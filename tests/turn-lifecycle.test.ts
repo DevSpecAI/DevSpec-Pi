@@ -344,7 +344,8 @@ test("bg_run then text-only close then [bg completed] posts the wrap-up (6ea9aa4
 	t.userMessage("[bg completed] Typecheck panel tabs", { customType: "background-task-notification" });
 	assert.equal(t.userKind, "remote", "bg completed must not steal the owner turn");
 	assert.equal(t.awaitingBackground, false);
-	assert.equal(shouldPauseSettle(t), false, "resolved bg_run can settle once wrap-up exists");
+	assert.equal(t.lastCloseWasProcess, true);
+	assert.equal(shouldPauseSettle(t), true, "parked wait stays paused until the wrap-up lands");
 
 	const wrapUp = "Ali — slice 1 is actually on origin/staging now, not just announced.";
 	t.assistantFinal(wrapUp, isClosedAnswer({ text: wrapUp, hasToolCalls: false, stopReason: "stop" }));
@@ -368,6 +369,86 @@ test("a text-only close after bg_run is process even without wait wording (6ea9a
 	assert.equal(t.lastCloseWasProcess, true);
 	assert.equal(t.lastAssistantText, "");
 	assert.equal(shouldPauseSettle(t), true);
+});
+
+test("first-answer split preserves parked wait state (9b66a177)", () => {
+	const t = new TurnTracker();
+	t.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\ncontinue");
+	t.noteBackgroundTask();
+	const wait = "Typecheck is still running. I’ll wait for it, then lint from the worktree and ship.";
+	t.assistantFinal(wait, isClosedAnswer({
+		text: wait,
+		hasToolCalls: true,
+		stopReason: "toolUse",
+		awaitingBackground: true,
+	}));
+	assert.equal(t.lastCloseWasProcess, true);
+	assert.equal(t.awaitingBackground, true);
+	const next = new TurnTracker();
+	next.carryUser(t.userText, t);
+	assert.equal(next.awaitingBackground, true);
+	assert.equal(next.lastCloseWasProcess, true);
+	assert.equal(next.lastAssistantText, "");
+	assert.equal(shouldPauseSettle(next), true);
+});
+
+test("empty assistantFinal does not clear lastCloseWasProcess (9b66a177)", () => {
+	const t = new TurnTracker();
+	t.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\ncontinue");
+	t.noteBackgroundTask();
+	const wait = "Typecheck is still running. I’ll wait for it, then lint from the worktree and ship.";
+	t.assistantFinal(wait, false);
+	assert.equal(t.lastCloseWasProcess, true);
+	t.assistantFinal("");
+	t.assistantFinal("\u200B", true);
+	assert.equal(t.lastCloseWasProcess, true);
+	assert.equal(t.lastCloseWasAnswer, false);
+	assert.equal(shouldPauseSettle(t), true);
+});
+
+test("harness [bg completed] keeps lastCloseWasProcess on a live owner turn (9b66a177)", () => {
+	const t = new TurnTracker();
+	t.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\ncontinue");
+	t.noteBackgroundTask();
+	const wait = "Typecheck is still running. I’ll wait for it, then lint from the worktree and ship.";
+	t.assistantFinal(wait, false);
+	assert.equal(t.lastCloseWasProcess, true);
+	t.userMessage("[bg completed] Typecheck header menu", { customType: "background-task-notification" });
+	assert.equal(t.userKind, "remote");
+	assert.equal(t.awaitingBackground, false);
+	assert.equal(t.lastCloseWasProcess, true);
+	assert.equal(shouldPauseSettle(t), true);
+});
+
+test("first-answer + bg_run + wait + empty close + [bg completed] posts the wrap-up (9b66a177)", () => {
+	const t = new TurnTracker();
+	t.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\nAmazing ok let's continue");
+	const opener = "Continuing with the header Agents menu: live headline plus a jump into the Agents tab.";
+	assert.equal(shouldSplitFirstAnswer(t, { text: opener, hasToolCalls: true }), true);
+	t.assistantFinal(opener, true);
+	const next = new TurnTracker();
+	next.carryUser(t.userText, t);
+	next.noteBackgroundTask();
+	const wait = "Selection wiring is already there. Typecheck is running; I’ll wait for it, then lint from the worktree and ship.";
+	next.assistantFinal(wait, isClosedAnswer({
+		text: wait,
+		hasToolCalls: true,
+		stopReason: "toolUse",
+		awaitingBackground: true,
+	}));
+	assert.equal(next.lastAssistantText, "");
+	assert.equal(next.lastCloseWasProcess, true);
+	next.assistantFinal("");
+	assert.equal(next.lastCloseWasProcess, true);
+	assert.equal(shouldPauseSettle(next), true);
+	assert.deepEqual(planSettle(next, true), { kind: "none" });
+	next.userMessage("[bg completed] Typecheck header menu", { customType: "background-task-notification" });
+	assert.equal(next.userKind, "remote");
+	assert.equal(next.lastCloseWasProcess, true);
+	const wrapUp = "Ali — slice 3 is on staging. Header Agents menu now shows a working agent’s live headline.";
+	next.assistantFinal(wrapUp, isClosedAnswer({ text: wrapUp, hasToolCalls: false, stopReason: "stop" }));
+	assert.equal(next.lastCloseWasAnswer, true);
+	assert.deepEqual(planSettle(next, true), { kind: "final", message: wrapUp });
 });
 
 test("leftover-only [bg completed] still posts no answer (56b9a3b4)", () => {

@@ -111,7 +111,6 @@ export class TurnTracker {
 		if (kind === "harness" && this.userKind && this.userKind !== "harness") {
 			// [bg completed] resolves the parked wait; keep the owner turn.
 			this.awaitingBackground = false;
-			this.lastCloseWasProcess = false;
 			return;
 		}
 		this.userText = text;
@@ -121,11 +120,15 @@ export class TurnTracker {
 	}
 
 	/** Copy the user kind onto a continuation segment without re-arming first-answer or remirroring. */
-	carryUser(text: string): void {
+	carryUser(text: string, from?: TurnTracker): void {
 		this.userText = text;
 		this.awaitingFirstAnswer = false;
 		this.userKind = classifyUserKind(text);
 		this.shouldMirrorPrompt = false;
+		if (from) {
+			this.awaitingBackground = from.awaitingBackground;
+			this.lastCloseWasProcess = from.lastCloseWasProcess;
+		}
 	}
 
 	/** A bg_run (or attested sibling) started in this segment. */
@@ -137,17 +140,20 @@ export class TurnTracker {
 		// Zero-width/format characters are not text: a "​" final is not an
 		// answer and must never produce a bubble (857d984c, instance 4).
 		const cleaned = text.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
-		const process = Boolean(cleaned) && isProcessClose({
+		if (!cleaned) {
+			return;
+		}
+		const process = isProcessClose({
 			text: cleaned,
 			awaitingBackground: this.awaitingBackground,
 		});
 		// Wait / bg_run process is trail, not the room answer (15d7aa56 / 6ea9aa47).
-		if (cleaned && !process) {
+		if (!process) {
 			this.lastAssistantText = cleaned;
 			this.awaitingFirstAnswer = false;
 		}
-		// Only a real stored close can be an answer; empty/zw/wait/bg never is.
-		this.lastCloseWasAnswer = Boolean(cleaned) && closedAnswer && !process;
+		// Only a real stored close can be an answer; wait/bg never is.
+		this.lastCloseWasAnswer = closedAnswer && !process;
 		this.lastCloseWasProcess = process;
 	}
 }

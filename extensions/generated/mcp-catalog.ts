@@ -2,11 +2,11 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Fingerprint: b48b37f91daec91e1333b412a29640e254e57fa7a79cd18e2aace7503020d0c2
- * Regenerated: 2026-08-13T22:25:18.871Z
+ * Fingerprint: 376b4c387909c7f781d81755b7e765771e0b46c34aa42bb9a59be41eaa5e8688
+ * Regenerated: 2026-08-14T11:00:55.878Z
  */
-export const MCP_CATALOG_FINGERPRINT = "b48b37f91daec91e1333b412a29640e254e57fa7a79cd18e2aace7503020d0c2";
-export const MCP_CATALOG_GENERATED_AT = "2026-08-13T22:25:18.871Z";
+export const MCP_CATALOG_FINGERPRINT = "376b4c387909c7f781d81755b7e765771e0b46c34aa42bb9a59be41eaa5e8688";
+export const MCP_CATALOG_GENERATED_AT = "2026-08-14T11:00:55.879Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -148,6 +148,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
 		},
@@ -176,6 +180,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
 		},
@@ -315,6 +323,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"description": "Filter by review-signal BUCKET instead of one type: \"action\" = a human must do a specific thing (follow-up required, autopilot failed, deployment failed); \"risk\" = a human must look and judge (possible conflict, possibly stale/superseded, stale in the queue); \"state\" = lifecycle position, not a problem (blocked, implemented-but-unverified). \"action\" is the closest thing to \"what genuinely needs attention\"."
 				},
+				"flagged": {
+					"type": "boolean",
+					"description": "The shorthand every corpus shares (item 17925641): flagged:true returns only items carrying ≥1 live review signal of ANY type — \"show me the flagged ones\". Same param name and meaning on get_resources (artifacts) and the memory tools; terminal-state items (done/dismissed/deferred) never match even with a persisted flag. signal_type/signal_bucket win if both are passed."
+				},
 				"project_id": {
 					"type": "string",
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins."
@@ -322,6 +334,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
 		},
@@ -361,6 +377,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			},
 			"required": [
@@ -403,6 +423,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
 		},
@@ -446,7 +470,16 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "When true, return only artifacts carrying at least one lifecycle review-signal (stale / contradictory / superseded-but-live)."
+					"description": "When true, return only artifacts carrying at least one lifecycle review-signal (stale / contradictory / superseded-but-live). The same shorthand every corpus uses (item 17925641); archived artifacts never match even with a persisted flag."
+				},
+				"signal_type": {
+					"type": "string",
+					"enum": [
+						"superseded_but_live",
+						"possibly_stale",
+						"possibly_contradictory"
+					],
+					"description": "Filter to artifacts carrying a specific review signal — the SAME param name as get_action_items and the memory tools, over the artifact vocabulary. Implies flagged."
 				},
 				"limit": {
 					"type": "number",
@@ -459,6 +492,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
 		},
@@ -509,6 +546,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
 		},
@@ -608,6 +649,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
 		},
@@ -671,6 +716,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "number",
 					"description": "Maximum number of results to return. Defaults to 20."
 				},
+				"flagged": {
+					"type": "boolean",
+					"description": "When true, return only memories carrying ≥1 live review signal (possibly_stale / possibly_contradictory) — the same \"show me the flagged ones\" shorthand every corpus shares (item 17925641). Superseded/retracted memories never match, whatever their rows still carry."
+				},
+				"signal_type": {
+					"type": "string",
+					"enum": [
+						"possibly_contradictory",
+						"possibly_stale"
+					],
+					"description": "Filter to memories carrying a specific review signal — the SAME param name as get_action_items and get_resources, over the memory vocabulary. Implies flagged."
+				},
 				"project_id": {
 					"type": "string",
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins."
@@ -678,6 +735,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			},
 			"required": [
@@ -698,6 +759,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "number",
 					"description": "Maximum number of decisions to return. Defaults to 20."
 				},
+				"flagged": {
+					"type": "boolean",
+					"description": "When true, return only memories carrying ≥1 live review signal (possibly_stale / possibly_contradictory) — the same \"show me the flagged ones\" shorthand every corpus shares (item 17925641). Superseded/retracted memories never match, whatever their rows still carry."
+				},
+				"signal_type": {
+					"type": "string",
+					"enum": [
+						"possibly_contradictory",
+						"possibly_stale"
+					],
+					"description": "Filter to memories carrying a specific review signal — the SAME param name as get_action_items and get_resources, over the memory vocabulary. Implies flagged."
+				},
 				"project_id": {
 					"type": "string",
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins."
@@ -705,6 +778,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
 		},
@@ -722,6 +799,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "number",
 					"description": "Maximum number of conventions to return. Defaults to 20."
 				},
+				"flagged": {
+					"type": "boolean",
+					"description": "When true, return only memories carrying ≥1 live review signal (possibly_stale / possibly_contradictory) — the same \"show me the flagged ones\" shorthand every corpus shares (item 17925641). Superseded/retracted memories never match, whatever their rows still carry."
+				},
+				"signal_type": {
+					"type": "string",
+					"enum": [
+						"possibly_contradictory",
+						"possibly_stale"
+					],
+					"description": "Filter to memories carrying a specific review signal — the SAME param name as get_action_items and get_resources, over the memory vocabulary. Implies flagged."
+				},
 				"project_id": {
 					"type": "string",
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins."
@@ -729,6 +818,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
 		},
@@ -746,6 +839,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "number",
 					"description": "Maximum number of questions to return. Defaults to 20."
 				},
+				"flagged": {
+					"type": "boolean",
+					"description": "When true, return only memories carrying ≥1 live review signal (possibly_stale / possibly_contradictory) — the same \"show me the flagged ones\" shorthand every corpus shares (item 17925641). Superseded/retracted memories never match, whatever their rows still carry."
+				},
+				"signal_type": {
+					"type": "string",
+					"enum": [
+						"possibly_contradictory",
+						"possibly_stale"
+					],
+					"description": "Filter to memories carrying a specific review signal — the SAME param name as get_action_items and get_resources, over the memory vocabulary. Implies flagged."
+				},
 				"project_id": {
 					"type": "string",
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins."
@@ -753,6 +858,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
 		},
@@ -852,6 +961,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
 		},
@@ -872,6 +985,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
 		},
@@ -928,6 +1045,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
 		},
@@ -1075,6 +1196,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
 		},
@@ -1103,6 +1228,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
 		},
@@ -1131,6 +1260,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
 		},
@@ -1163,6 +1296,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
 		},
@@ -1191,6 +1328,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
 		},
@@ -1650,6 +1791,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			},
 			"required": [
@@ -1697,6 +1842,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			},
 			"required": [
@@ -1760,6 +1909,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			},
 			"required": [
@@ -1803,6 +1956,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			},
 			"required": [
@@ -1870,6 +2027,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			},
 			"required": [
@@ -2114,6 +2275,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			},
 			"required": [
@@ -2210,6 +2375,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			},
 			"required": [
@@ -2241,6 +2410,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			},
 			"required": [
@@ -2306,6 +2479,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			},
 			"required": [
@@ -2426,6 +2603,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			},
 			"required": [
@@ -2944,6 +3125,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			},
 			"required": [
@@ -2989,6 +3174,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			},
 			"required": [
@@ -3507,6 +3696,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			},
 			"required": [
@@ -3620,6 +3813,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"inputSchema": {
 			"type": "object",
 			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Optional but STRONGLY preferred when you are a connected agent: your own connection id. It lets the server record who asked for this edit when you are acting on a command from a teammate. It can never name a person by itself — the requester is resolved server-side, never from anything you send."
+				},
 				"id": {
 					"type": "string",
 					"description": "The id of the artifact to update."
@@ -4132,6 +4329,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
 		},
@@ -4191,6 +4392,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			},
 			"required": [
@@ -4660,6 +4865,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			},
 			"required": [
@@ -4745,6 +4954,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"git_remote": {
 					"type": "string",
 					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			},
 			"required": [

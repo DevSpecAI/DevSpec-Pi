@@ -27,7 +27,10 @@ test("needsProjectScope ignores auth and ordinary failures", () => {
 test("resolveGitRemote reads origin and caches per cwd", async () => {
 	clearGitRemoteCache();
 	const url = await resolveGitRemote(process.cwd());
-	assert.equal(url, "git@github.com:DevSpecAI/DevSpec-Pi.git");
+	// Local clones commonly use SSH; actions/checkout uses HTTPS. The resolver
+	// deliberately returns the real remote, so assert repository identity rather
+	// than coupling this test to one transport.
+	assert.match(url ?? "", /github\.com[:/]DevSpecAI\/DevSpec-Pi(?:\.git)?$/);
 	// Cache hit: same answer without re-spawning git (can't easily assert spawn
 	// count — assert stability instead).
 	assert.equal(await resolveGitRemote(process.cwd()), url);
@@ -207,6 +210,6 @@ test("a repo checkout with no pin yields a remote but no pin", async () => {
 	// greenfield folder is the mirror image. The client sends whichever exist.
 	clearGitRemoteCache();
 	clearProjectPinCache();
-	assert.equal(await resolveGitRemote(process.cwd()), "git@github.com:DevSpecAI/DevSpec-Pi.git");
+	assert.match(await resolveGitRemote(process.cwd()) ?? "", /github\.com[:/]DevSpecAI\/DevSpec-Pi(?:\.git)?$/);
 	assert.equal(await resolveProjectPin(process.cwd()), null);
 });

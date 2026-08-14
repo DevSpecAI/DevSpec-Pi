@@ -56,12 +56,12 @@ export function summarizeArgs(args: unknown): string | undefined {
 		const v = a[key];
 		if (typeof v === "string" && v.trim()) {
 			const oneLine = v.replace(/\s+/g, " ").trim();
-			return oneLine.length > 90 ? `${oneLine.slice(0, 90)}…` : oneLine;
+			return oneLine.length > 4000 ? `${oneLine.slice(0, 4000)}…` : oneLine;
 		}
 	}
 	try {
 		const json = JSON.stringify(a);
-		return json.length > 90 ? `${json.slice(0, 90)}…` : json;
+		return json.length > 4000 ? `${json.slice(0, 4000)}…` : json;
 	} catch {
 		return undefined;
 	}
@@ -77,7 +77,7 @@ export function summarizeResult(result: unknown): string | undefined {
 		.replace(/\s+/g, " ")
 		.trim();
 	if (!text) return undefined;
-	return text.length > 90 ? `${text.slice(0, 90)}…` : text;
+	return text.length > 4000 ? `${text.slice(0, 4000)}…` : text;
 }
 
 /** Extract text, thinking, tool-call presence, and stopReason from an assistant message. */

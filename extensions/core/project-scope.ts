@@ -24,8 +24,10 @@
  */
 
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 
 /** Does this server error mean "tell me which project this checkout is"? */
 export function needsProjectScope(message: string): boolean {
@@ -62,20 +64,9 @@ export function clearGitRemoteCache(): void {
 
 const pinCache = new Map<string, string | null>();
 
-/**
- * This folder's DevSpec project pin — `.devspec/project.json`'s `project_id`, or null.
- * Cached per cwd, like the remote.
- *
- * Every failure mode is a plain null: no file, unreadable, malformed JSON, or a
- * `project_id` that isn't a non-empty string. A pin is a convenience for resolving a
- * folder that has no repo; a broken one must never surface as an error on an unrelated
- * call, and must never be sent as a guess.
- */
-export function resolveProjectPin(cwd: string): Promise<string | null> {
-	const hit = pinCache.get(cwd);
-	if (hit !== undefined) return Promise.resolve(hit);
-
-	return readFile(join(cwd, ".devspec", "project.json"), "utf8")
+/** Read one directory's pin. Null for every failure mode — see resolveProjectPin. */
+function readPinAt(dir: string): Promise<string | null> {
+	return readFile(join(dir, ".devspec", "project.json"), "utf8")
 		.then((raw) => {
 			const parsed: unknown = JSON.parse(raw);
 			const id =
@@ -84,11 +75,78 @@ export function resolveProjectPin(cwd: string): Promise<string | null> {
 					: undefined;
 			return typeof id === "string" && id.trim().length > 0 ? id.trim() : null;
 		})
-		.catch(() => null)
-		.then((id) => {
-			pinCache.set(cwd, id);
-			return id;
-		});
+		.catch(() => null);
+}
+
+/**
+ * The directories to check, nearest first (ADR dd0c1cff D12).
+ *
+ * We walk UP because "workspace root" and "current directory" are the same folder right
+ * up until someone launches an agent from a subdirectory — routine in a monorepo. A pin
+ * that works from the root and silently fails one level down is worse than no pin,
+ * because the user believes the folder is anchored.
+ *
+ * Two bounds, and neither is an arbitrary depth cap — each is a real boundary:
+ *   - the git repository root (inclusive): a repo is one tree with one identity, and a
+ *     pin must never resolve from outside the repository that contains it;
+ *   - $HOME (exclusive): `~/.devspec` is the MACHINE-state directory — connections,
+ *     bonds, poller pids. A project.json at or above home would silently capture every
+ *     folder the user owns, which is exactly the guessing 01892cce forbids.
+ */
+function pinSearchDirs(cwd: string, home: string): string[] {
+	const dirs: string[] = [];
+	let dir = resolve(cwd);
+	const stopAbove = resolve(home);
+
+	for (;;) {
+		// Never read AT or above home — that is where machine state lives, not projects.
+		// A checkout outside home (/srv/app) never meets this and stops at .git or /.
+		if (dir === stopAbove) break;
+
+		dirs.push(dir);
+
+		// A repository root is the outermost directory a pin may come from.
+		if (existsSync(join(dir, ".git"))) break;
+
+		const parent = dirname(dir);
+		if (parent === dir) break; // filesystem root
+		dir = parent;
+	}
+
+	return dirs;
+}
+
+/**
+ * This folder's DevSpec project pin — the nearest `.devspec/project.json`'s `project_id`
+ * walking up from `cwd`, or null. Cached per cwd, like the remote.
+ *
+ * Every failure mode is a plain null: no file, unreadable, malformed JSON, or a
+ * `project_id` that isn't a non-empty string. A pin is a convenience for resolving a
+ * folder that has no repo; a broken one must never surface as an error on an unrelated
+ * call, and must never be sent as a guess.
+ */
+export function resolveProjectPin(
+	cwd: string,
+	home: string = homedir(),
+): Promise<string | null> {
+	const hit = pinCache.get(cwd);
+	if (hit !== undefined) return Promise.resolve(hit);
+
+	const dirs = pinSearchDirs(cwd, home);
+
+	// Nearest wins, so an inner folder can deliberately override an outer one.
+	const walk = async (): Promise<string | null> => {
+		for (const dir of dirs) {
+			const id = await readPinAt(dir);
+			if (id) return id;
+		}
+		return null;
+	};
+
+	return walk().then((id) => {
+		pinCache.set(cwd, id);
+		return id;
+	});
 }
 
 /** Test hook. */

@@ -82,6 +82,56 @@ test("resolveProjectPin returns null for a broken pin rather than throwing", asy
 	assert.equal(await resolveProjectPin(await pinnedDir('{"other":"key"}')), null);
 });
 
+/**
+ * The location contract (ADR dd0c1cff D12). Before this, Pi read cwd ONLY while the six
+ * prose plugins said "workspace root" / "repo root" / "project directory" — so the same
+ * pinned folder resolved or failed depending on which agent you happened to run.
+ */
+
+test("finds a pin in an ancestor — a subdirectory of a pinned folder resolves", async () => {
+	clearProjectPinCache();
+	const root = await pinnedDir('{"project_id":"outer-project"}');
+	const deep = join(root, "apps", "web");
+	await mkdir(deep, { recursive: true });
+	// The motivating case: agents in this very monorepo are launched from apps/web.
+	assert.equal(await resolveProjectPin(deep), "outer-project");
+});
+
+test("nearest pin wins, so an inner folder can override an outer one", async () => {
+	clearProjectPinCache();
+	const root = await pinnedDir('{"project_id":"outer-project"}');
+	const inner = join(root, "packages", "thing");
+	await mkdir(join(inner, ".devspec"), { recursive: true });
+	await writeFile(join(inner, ".devspec", "project.json"), '{"project_id":"inner-project"}', "utf8");
+	assert.equal(await resolveProjectPin(inner), "inner-project");
+});
+
+test("the walk stops at the repository root — a pin outside the repo is not used", async () => {
+	// A repo is one tree with one identity. Letting a pin leak in from the parent
+	// directory would capture every clone sitting beside it.
+	clearProjectPinCache();
+	const outer = await pinnedDir('{"project_id":"outer-project"}');
+	const repo = join(outer, "some-clone");
+	await mkdir(join(repo, ".git"), { recursive: true });
+	const sub = join(repo, "src");
+	await mkdir(sub, { recursive: true });
+	assert.equal(await resolveProjectPin(sub), null);
+});
+
+test("a pin at or above $HOME is never read", async () => {
+	// ~/.devspec is the MACHINE-state directory (connections, bonds, poller pids). A
+	// project.json there would silently capture every folder the user owns.
+	clearProjectPinCache();
+	const home = await pinnedDir('{"project_id":"home-project"}');
+	const work = join(home, "work", "thing");
+	await mkdir(work, { recursive: true });
+	assert.equal(await resolveProjectPin(work, home), null);
+
+	// ...and the bound is the only reason: the same tree resolves with home elsewhere.
+	clearProjectPinCache();
+	assert.equal(await resolveProjectPin(work, join(home, "nowhere")), "home-project");
+});
+
 test("a repo checkout with no pin yields a remote but no pin", async () => {
 	// The two anchors are independent: this repo has a remote and no pin file, and a
 	// greenfield folder is the mirror image. The client sends whichever exist.

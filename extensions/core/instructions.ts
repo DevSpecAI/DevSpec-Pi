@@ -10,11 +10,11 @@
  */
 
 /** Bump when the block changes materially; handy for debugging drift reports. */
-export const INSTRUCTIONS_VERSION = 3;
+export const INSTRUCTIONS_VERSION = 4;
 
 export function buildDevspecInstructions(): string {
 	return `## DevSpec
-This project is connected to DevSpec. Everyday verbs are native tools. Less-common verbs go through the \`devspec\` gateway (verb + args). Do not connect a DevSpec MCP server.
+This project is connected to DevSpec. Everyday verbs are active native tools. Find and load less-common verbs with \`search_devspec_tools\`. Do not connect a DevSpec MCP server.
 
 - Track work as action items: one unit of work = one item. Claim staged work with claim_work_item (never force past a possible_conflict rejection — resolve the pair or surface it); create new tracked work with create_action_item.
 - Tag every commit that implements a tracked item: end the commit message with [devspec:<id>].

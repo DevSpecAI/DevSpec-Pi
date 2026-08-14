@@ -15,7 +15,7 @@
  * web UI, item 23f4665f).
  */
 
-import { GATEWAY_TOOL_NAME, HOT_SET, isCallableModelVerb } from "./model-surface.ts";
+import { TOOL_LOADER_NAME, isCallableModelVerb } from "./model-surface.ts";
 import { safeHasUI, withLiveUi } from "./ctx-guard.ts";
 
 export const STATUS_KEY = "devspec-remote";
@@ -134,17 +134,11 @@ export function previewFromText(text: string, max = SESSION_PREVIEW_MAX): string
 }
 
 export function isDevspecVerb(toolName: string): boolean {
-	if (toolName === GATEWAY_TOOL_NAME) return true;
-	if (HOT_SET.has(toolName)) return true;
-	return isCallableModelVerb(toolName);
+	return toolName === TOOL_LOADER_NAME || isCallableModelVerb(toolName);
 }
 
-/** Resolve the verb a tool_execution event is actually running. */
-export function resolveExecutingVerb(toolName: string, args: unknown): string | undefined {
-	if (toolName === GATEWAY_TOOL_NAME) {
-		const verb = args && typeof args === "object" ? (args as { verb?: unknown }).verb : undefined;
-		return typeof verb === "string" && verb.trim() ? verb.trim() : GATEWAY_TOOL_NAME;
-	}
+/** Resolve the DevSpec verb a tool_execution event is running. */
+export function resolveExecutingVerb(toolName: string, _args: unknown): string | undefined {
 	return isDevspecVerb(toolName) ? toolName : undefined;
 }
 

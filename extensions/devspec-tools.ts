@@ -1,10 +1,10 @@
 /**
- * DevSpec Pi — native tools (item 7de79db6).
+ * DevSpec Pi — native tools.
  *
- * The generated catalog is the WIRE map. This file is the model surface:
- * a small hot set of everyday verbs, plus one `devspec` gateway for the
- * rest. Pump/lifecycle verbs stay extension-internal. post_session_message
- * is never registered — conversational delivery is mechanical (cc9e8c43).
+ * The generated catalog is the WIRE map. Every safe model-facing verb is a
+ * real Pi tool, but only a small everyday hot set starts active. One tiny
+ * search tool additively loads less-common tools on demand. Pump/lifecycle
+ * verbs and post_session_message are never registered.
  *
  * Headless: tools work in every mode — errors come back as text the model can
  * act on (e.g. "run /devspec.login"), never as UI-only state.
@@ -19,13 +19,15 @@ import { repoResolver, validateCommitSha } from "./core/commit-ledger.ts";
 import { addFlags, extractFlags } from "./core/conflict-watch.ts";
 import { jsonSchemaToTypebox } from "./core/json-schema.ts";
 import {
-	GATEWAY_DESCRIPTION,
-	GATEWAY_TOOL_NAME,
+	HOT_SET_VERBS,
 	SCOPE_KEY_SET,
-	gatewayInputSchema,
-	modelFacingSurface,
-	rareModelVerbs,
-	resolveGatewayVerb,
+	TOOL_LOADER_DESCRIPTION,
+	TOOL_LOADER_NAME,
+	TOOL_LOADER_PROMPT_METADATA,
+	allModelFacingTools,
+	hotToolPromptMetadata,
+	searchRareModelTools,
+	toolLoaderInputSchema,
 } from "./core/model-surface.ts";
 import { toolErrorResult, toolTextResult, unwrapMcpResult } from "./core/result.ts";
 import {
@@ -137,7 +139,8 @@ function registerCatalogTool(pi: ExtensionAPI, def: CatalogEntry): void {
 		name: def.name,
 		label: def.label,
 		description: def.description,
-		promptSnippet: def.promptSnippet,
+		// Deferred tools must not mutate the system prompt when activated.
+		...hotToolPromptMetadata(def),
 		parameters: jsonSchemaToTypebox(def.inputSchema),
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			return executeVerb(def.name, params as Record<string, unknown>, ctx);
@@ -145,36 +148,60 @@ function registerCatalogTool(pi: ExtensionAPI, def: CatalogEntry): void {
 	});
 }
 
-function registerGateway(pi: ExtensionAPI): void {
-	const rare = rareModelVerbs();
-	if (rare.length === 0) return;
+function registerToolLoader(pi: ExtensionAPI): void {
 	pi.registerTool({
-		name: GATEWAY_TOOL_NAME,
-		label: "DevSpec: other verbs",
-		description: GATEWAY_DESCRIPTION,
-		promptSnippet: GATEWAY_DESCRIPTION,
-		parameters: jsonSchemaToTypebox(gatewayInputSchema()),
-		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			const resolved = resolveGatewayVerb(String((params as { verb?: unknown }).verb ?? ""));
-			if (!resolved.ok) return toolErrorResult(resolved.error);
-			const args = (params as { args?: unknown }).args;
-			const record =
-				args && typeof args === "object" && !Array.isArray(args)
-					? (args as Record<string, unknown>)
-					: {};
-			return executeVerb(resolved.verb, record, ctx);
+		name: TOOL_LOADER_NAME,
+		label: "Search DevSpec tools",
+		description: TOOL_LOADER_DESCRIPTION,
+		...TOOL_LOADER_PROMPT_METADATA,
+		parameters: jsonSchemaToTypebox(toolLoaderInputSchema()),
+		async execute(_toolCallId, params) {
+			const input = params as { query?: unknown; limit?: unknown };
+			const query = String(input.query ?? "").trim();
+			const limit = typeof input.limit === "number" ? input.limit : undefined;
+			const matches = searchRareModelTools(query, limit).map((entry) => entry.name);
+			if (matches.length === 0) {
+				return toolTextResult(`No less-common DevSpec tools found for: ${query}`, {
+					matches: [],
+					added: [],
+				});
+			}
+
+			const active = pi.getActiveTools();
+			const activeSet = new Set(active);
+			const added = matches.filter((name) => !activeSet.has(name));
+			if (added.length > 0) pi.setActiveTools([...active, ...added]);
+			return toolTextResult(
+				added.length > 0
+					? `Loaded DevSpec tools: ${added.join(", ")}`
+					: `Matching DevSpec tools already active: ${matches.join(", ")}`,
+				{ matches, added },
+			);
 		},
 	});
 }
 
-/** Always-on tools the model sees. Not the full catalog. */
+/** Every safe generated model verb, each with its own slim schema. */
 export function modelFacingCatalog(): CatalogEntry[] {
-	return modelFacingSurface();
+	return allModelFacingTools();
+}
+
+/** Preserve non-DevSpec tools while resetting this extension to hot set + loader. */
+export function initialActiveTools(active: readonly string[]): string[] {
+	const devspecVerbs = new Set(modelFacingCatalog().map((entry) => entry.name));
+	return [
+		...new Set([
+			...active.filter((name) => !devspecVerbs.has(name) && name !== TOOL_LOADER_NAME),
+			...HOT_SET_VERBS,
+			TOOL_LOADER_NAME,
+		]),
+	];
 }
 
 export default function (pi: ExtensionAPI) {
-	for (const entry of modelFacingSurface()) {
-		registerCatalogTool(pi, entry);
-	}
-	registerGateway(pi);
+	for (const entry of allModelFacingTools()) registerCatalogTool(pi, entry);
+	registerToolLoader(pi);
+	pi.on("session_start", () => {
+		pi.setActiveTools(initialActiveTools(pi.getActiveTools()));
+	});
 }

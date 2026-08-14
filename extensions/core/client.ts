@@ -9,7 +9,7 @@
  *
  * Two isolated clients per process (item 781886cf):
  *   - "pump"  — poll / heartbeat / trail / bond. Must not wait on a model verb.
- *   - "work"  — native tools, gateway, recall. A hang or parse error dies here.
+ *   - "work"  — native tools and recall. A hang or parse error dies here.
  *
  * The server is stateless, so there is no session to manage; on failure we
  * drop that lane and reconnect lazily on the next call.

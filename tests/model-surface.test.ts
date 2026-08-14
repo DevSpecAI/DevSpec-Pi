@@ -130,10 +130,12 @@ test("natural-language rare-tool search is deterministic and relevance-ranked", 
 		searchRareModelTools("update my personal instructions")[0]?.name,
 		"update_personal_instructions",
 	);
+	const defaultMatches = searchRareModelTools("what database tables exist?");
+	assert.deepEqual(defaultMatches.map((entry) => entry.name), ["get_database_schema"]);
 	const first = searchRareModelTools("review playbook work", 7).map((entry) => entry.name);
 	const second = searchRareModelTools("review playbook work", 7).map((entry) => entry.name);
 	assert.deepEqual(first, second);
-	assert.ok(first.length > 0);
+	assert.ok(first.length > 1, "an explicit larger limit should load a deliberate tool bundle");
 	assert.deepEqual(searchRareModelTools("the and please"), []);
 });
 
@@ -223,7 +225,7 @@ test("registration exposes complete real schemas and loader activation is purely
 
 	const loader = definitions.find((def) => def.name === TOOL_LOADER_NAME);
 	assert.ok(loader);
-	const result = await loader.execute("call-1", { query: "create a reusable playbook", limit: 1 });
+	const result = await loader.execute("call-1", { query: "create a reusable playbook" });
 	assert.deepEqual(result.details?.matches, ["create_playbook"]);
 	assert.deepEqual(result.details?.added, ["create_playbook"]);
 	assert.deepEqual(active.slice(0, beforeLoad.length), beforeLoad, "activation replaced or reordered tools");

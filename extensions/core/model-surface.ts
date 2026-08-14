@@ -61,7 +61,10 @@ export const TOOL_LOADER_PROMPT_METADATA: ToolPromptMetadata = {
 };
 
 const SNIPPET_MAX = 140;
-const DEFAULT_SEARCH_LIMIT = 5;
+// Load one schema by default: deferred loading saves context only when a broad
+// natural-language query cannot activate four merely-adjacent tools. Callers
+// can request a larger bundle explicitly when one task genuinely needs it.
+const DEFAULT_SEARCH_LIMIT = 1;
 const MAX_SEARCH_LIMIT = 10;
 const SEARCH_STOP_WORDS = new Set([
 	"a",

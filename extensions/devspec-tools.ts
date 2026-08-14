@@ -29,7 +29,7 @@ import {
 	searchRareModelTools,
 	toolLoaderInputSchema,
 } from "./core/model-surface.ts";
-import { toolErrorResult, toolTextResult, unwrapMcpResult } from "./core/result.ts";
+import { projectedToolResult, toolErrorResult, toolTextResult, unwrapMcpResult } from "./core/result.ts";
 import {
 	clearPlaybook,
 	clearWork,
@@ -41,11 +41,21 @@ import {
 } from "./core/status-line.ts";
 import type { CatalogEntry } from "./generated/mcp-catalog.ts";
 
-/** Unwrap a DevSpec MCP result, converting isError payloads into thrown errors. */
+/** Unwrap and project a DevSpec result, retaining complete data in details. */
 function unwrapOrThrow(name: string, raw: unknown) {
 	const { text, details, isError } = unwrapMcpResult(raw);
-	if (isError) throw new Error(text || `DevSpec tool ${name} failed.`);
-	return toolTextResult(text || "(empty response)", details ?? {});
+	// Errors intentionally stay full rather than passing through a size-oriented
+	// success projection: the model must see every actionable server detail.
+	if (isError) {
+		let structuredError = "";
+		try {
+			structuredError = details == null ? "" : JSON.stringify(details, null, 2);
+		} catch {
+			/* parsed JSON should be serializable; retain the generic fallback if not */
+		}
+		throw new Error(text || structuredError || `DevSpec tool ${name} failed.`);
+	}
+	return projectedToolResult(name, { text, details, isError });
 }
 
 /** Feed the conflict watch: signals in results become structural flags. */
@@ -76,6 +86,12 @@ function applyWorkStatus(name: string, result: unknown): void {
 		clearPlaybook(extractPlaybookRef(result).runId);
 	}
 	paintStatus();
+}
+
+/** Consume complete structured details for conflict and footer mechanics. */
+export function consumeResultMechanics(name: string, result: unknown): void {
+	watchForSignals(name, result);
+	applyWorkStatus(name, result);
 }
 
 const NOT_CONNECTED =
@@ -125,8 +141,7 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 			timeoutMs: MODEL_TIMEOUT_MS,
 		});
 		const result = unwrapOrThrow(name, raw);
-		watchForSignals(name, result);
-		applyWorkStatus(name, result);
+		consumeResultMechanics(name, result);
 		return result;
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);

@@ -25,7 +25,7 @@
 
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -152,4 +152,79 @@ export function resolveProjectPin(
 /** Test hook. */
 export function clearProjectPinCache(): void {
 	pinCache.clear();
+}
+
+/** What a pin write did, so the caller can tell the user precisely what changed. */
+export interface PinWriteResult {
+	/** Absolute path of the file written. */
+	path: string;
+	/** The project id now pinned. */
+	projectId: string;
+	/** The id this replaced, when the folder was already pinned to something else. */
+	replaced: string | null;
+}
+
+/**
+ * Where a pin BELONGS for this folder (ADR dd0c1cff D13) — the mirror of the read walk.
+ *
+ * Inside a git repo it is the repository ROOT, because that is the only location the read
+ * walk reaches from every subdirectory (it stops at the root), and it is where a
+ * *committed* pin belongs — the whole teammate-onboarding benefit. Writing at the current
+ * directory instead would leave a stray `.devspec/` halfway up the tree that resolves for
+ * one subtree and not its siblings.
+ *
+ * With no repo — the greenfield case this exists for — the working directory IS the
+ * project folder, so that is the target.
+ */
+export function pinTargetDir(cwd: string, home: string = homedir()): string {
+	const dirs = pinSearchDirs(cwd, home);
+	if (dirs.length === 0) return resolve(cwd);
+
+	const outermost = dirs[dirs.length - 1] as string;
+	// pinSearchDirs stops AT a repository root, so the last entry is the repo root when
+	// there is one. Otherwise it is wherever the walk ran out, and cwd is the honest
+	// answer — we must not pin a parent we only passed through.
+	return existsSync(join(outermost, ".git")) ? outermost : resolve(cwd);
+}
+
+/**
+ * Write this folder's pin. Returns what changed; throws only if the filesystem does.
+ *
+ * Deliberately does NOT decide whether writing is appropriate — that is the caller's job,
+ * and the rules are in D9/D13: only when the pin is load-bearing (no remote, or a remote
+ * matching nothing), never silently, and a re-pin is stated before it happens. This
+ * function reports `replaced` so the caller can say what it is about to overwrite rather
+ * than repointing a whole team's committed folder on one person's say-so.
+ *
+ * `projectName` is written for human legibility only and is explicitly NON-authoritative —
+ * readers ignore it (see readPinAt, which reads `project_id` alone). It exists so someone
+ * reviewing the diff knows what the uuid is. Nothing else may go in this file: no path, no
+ * hostname, no user, no token, no timestamp. That rule is what keeps the pin safe to
+ * commit by construction (D10).
+ */
+export async function writeProjectPin(
+	cwd: string,
+	projectId: string,
+	projectName?: string,
+	home: string = homedir(),
+): Promise<PinWriteResult> {
+	const id = projectId.trim();
+	if (!id) throw new Error("writeProjectPin: projectId is required");
+
+	const dir = pinTargetDir(cwd, home);
+	const replaced = await readPinAt(dir);
+
+	const body: { project_id: string; project_name?: string } = { project_id: id };
+	const name = projectName?.trim();
+	if (name) body.project_name = name;
+
+	await mkdir(join(dir, ".devspec"), { recursive: true });
+	const path = join(dir, ".devspec", "project.json");
+	await writeFile(path, `${JSON.stringify(body, null, 2)}\n`, "utf8");
+
+	// The read cache is keyed by the cwd asked about, not by where the file lives, so a
+	// stale miss could survive this write. Clear it wholesale — pins change rarely.
+	pinCache.clear();
+
+	return { path, projectId: id, replaced: replaced === id ? null : replaced };
 }

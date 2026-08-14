@@ -146,12 +146,41 @@ test("get_action_items combines separate briefs and items and preserves real pag
 		relationships: [],
 	};
 	const text = projectModelText({ toolName: "get_action_items", text: JSON.stringify(payload), details: payload });
-	assert.match(text, /11 action item\(s\) plus 1 brief\(s\)/);
+	assert.match(text, /11 results; 1 additional contextual brief card\(s\)/);
 	assert.match(text, /\[brief-1\] Unified review flow/);
 	assert.match(text, /\[item-1\] Render brief hierarchy/);
 	assert.match(text, /parent\/brief: brief-1/);
+	assert.ok(text.indexOf("[item-1]") < text.indexOf("[brief-1]"), "context briefs must not jump ahead of the ordered page");
 	assert.match(text, /open=8/);
 	assert.match(text, /next offset\/page/);
+});
+
+test("compact action-item chronology keeps temporal signals and does not double-count a brief already in the page", () => {
+	const payload = {
+		page: { fields: "compact", total_matching: 2, offset: 0, limit: 100, has_more: false, next_offset: null },
+		items: [
+			{ id: "older", title: "Older work", lifecycle: "done", age: "8mo", last_activity: "3mo" },
+			{ id: "brief-1", title: "Later brief", lifecycle: "open", age: "2d", last_activity: "1h" },
+		],
+		briefs: [{ id: "brief-1", title: "Later brief", lifecycle: "open" }],
+	};
+	const text = projectModelText({ toolName: "get_action_items", text: JSON.stringify(payload), details: payload });
+	assert.match(text, /^get_action_items: 2 results\./);
+	assert.equal(text.match(/\[brief-1\]/g)?.length, 1);
+	assert.ok(text.indexOf("[older]") < text.indexOf("[brief-1]"));
+	assert.match(text, /age 8mo · last activity 3mo/);
+});
+
+test("an off-page brief is contextual and never inflates the server's paginated result total", () => {
+	const payload = {
+		page: { fields: "compact", total_matching: 10, offset: 0, limit: 1, has_more: true, next_offset: 1 },
+		items: [{ id: "item-1", title: "First page item", lifecycle: "open", age: "1d" }],
+		briefs: [{ id: "off-page-brief", title: "Context from outside this page", lifecycle: "open" }],
+	};
+	const text = projectModelText({ toolName: "get_action_items", text: JSON.stringify(payload), details: payload });
+	assert.match(text, /^get_action_items: 10 results; 1 additional contextual brief card\(s\)/);
+	assert.doesNotMatch(text, /11 result/);
+	assert.match(text, /Omitted 9 action-item result\(s\)/);
 });
 
 test("action-item search renders bounded compact cards with an exact fetch path", () => {
@@ -178,6 +207,77 @@ test("action-item search renders bounded compact cards with an exact fetch path"
 	assert.match(text, /get_action_item\(id\)/);
 	assert.doesNotMatch(text, /item-08|embedding|full-description/);
 	assert.deepEqual(result.details, payload);
+});
+
+test("action-item search preserves intent, parent title, and created chronology without full descriptions", () => {
+	const payload = {
+		count: 1,
+		results: [{
+			id: "item-intent",
+			title: "Keep retrieval selective",
+			lifecycle: "implemented",
+			type: "improvement",
+			created_at: "2026-08-14T12:54:36.630085+00:00",
+			intent: "Preserve project awareness without flooding model context.",
+			parent_action_item_id: "brief-1",
+			parent_title: "Pi-native retrieval",
+			description: huge("MUST-NOT-BE-VISIBLE"),
+		}],
+	};
+	const text = projectModelText({ toolName: "search_action_items", text: JSON.stringify(payload), details: payload });
+	assert.match(text, /parent\/brief: Pi-native retrieval/);
+	assert.match(text, /created 2026-08-14T12:54:36.630085\+00:00/);
+	assert.match(text, /Preserve project awareness without flooding model context/);
+	assert.doesNotMatch(text, /MUST-NOT-BE-VISIBLE/);
+});
+
+test("long selection cards preserve parent, chronology, and intent before optional signals", () => {
+	const payload = {
+		count: 1,
+		results: [{
+			id: huge("long-id", 500),
+			title: huge("long-title", 500),
+			lifecycle: huge("long-lifecycle", 200),
+			type: huge("long-type", 200),
+			priority: huge("long-priority", 200),
+			parent_title: huge("LOAD-BEARING-PARENT", 500),
+			created_at: "2026-08-14T12:54:36.630085+00:00",
+			last_activity_at: "2026-08-14T19:54:36.630085+00:00",
+			intent: huge("LOAD-BEARING-INTENT", 1_000),
+			review_signals: [{ type: huge("OPTIONAL-SIGNAL", 500) }],
+		}],
+	};
+	const text = projectModelText({ toolName: "search_action_items", text: JSON.stringify(payload), details: payload });
+	assert.ok(text.length <= PROJECTION_BUDGETS.collection);
+	assert.match(text, /LOAD-BEARING-PARENT/);
+	assert.match(text, /created 2026-08-14T12:54:36.630085\+00:00/);
+	assert.match(text, /last activity 2026-08-14T19:54:36.630085\+00:00/);
+	assert.match(text, /LOAD-BEARING-INTENT/);
+});
+
+test("resource search projects both corpora and their matching passages instead of dropping the hit arrays", () => {
+	const payload = {
+		query: "Pi result shaping",
+		mode: "search",
+		counts: { documents: 2, artifacts: 2 },
+		documents: [
+			{ id: "doc-1", title: "Context study", resource_type: "reference", source: "uploaded", summary: "Study summary", matching_passage: "Measured passage about result costs." },
+			{ id: "doc-2", title: "Second study", resource_type: "reference", source: "uploaded", matching_passage: "Second measured passage." },
+		],
+		artifacts: [
+			{ id: "artifact-1", title: "Projection ADR", resource_type: "adr", source: "ai_generated", summary: "Projection decision." },
+			{ id: "artifact-2", title: "Projection plan", resource_type: "plan", source: "ai_generated", summary: "Projection plan summary." },
+		],
+	};
+	const text = projectModelText({ toolName: "search_resources", text: JSON.stringify(payload), details: payload });
+	assert.ok(text.length <= PROJECTION_BUDGETS.collection);
+	assert.match(text, /^search_resources: 4 results\./);
+	assert.match(text, /\[doc-1\] Context study — reference · uploaded/);
+	assert.match(text, /Measured passage about result costs/);
+	assert.match(text, /\[artifact-1\] Projection ADR — adr · ai_generated/);
+	assert.ok(text.indexOf("[doc-1]") < text.indexOf("[artifact-1]"));
+	assert.ok(text.indexOf("[artifact-1]") < text.indexOf("[doc-2]"), "resource corpora should be interleaved");
+	assert.doesNotMatch(text, /Unrecognized result shape|fallback field/);
 });
 
 test("create/update projections keep decision, reconciliation, conflict, and duplicate gates", () => {

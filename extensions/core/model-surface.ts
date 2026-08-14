@@ -101,6 +101,8 @@ type ModelVerbName = (typeof MODEL_VERB_NAMES)[number];
 
 /** Ordinary-language concepts that do not occur in the corresponding tool contract. */
 const TOOL_SEARCH_ALIASES: Partial<Record<ModelVerbName, readonly string[]>> = {
+	get_action_items: ["list action items", "action items created", "chronological action items", "action item chronology", "browse backlog", "oldest work", "stale work"],
+	surface_session_action_items: ["surface action items", "post action item cards", "re-post action item cards"],
 	release_work_item: ["unclaim", "give up claimed work", "abandon claimed task"],
 	fail_work_item: ["could not finish claimed work", "unable to finish claimed task", "stuck on claimed work"],
 	get_recent_sessions: ["recent activity", "recent conversations"],
@@ -264,7 +266,8 @@ function schemaSearchText(schema: Record<string, unknown>): string {
 
 function searchScore(entry: CatalogEntry, query: string, terms: string[]): number {
 	const name = entry.name.toLowerCase();
-	const nameTokens = new Set(searchTokens(name));
+	const orderedNameTokens = searchTokens(name);
+	const nameTokens = new Set(orderedNameTokens);
 	const labelTokens = new Set(searchTokens(entry.label));
 	const descriptionTokens = new Set(searchTokens(`${entry.description} ${entry.promptSnippet}`));
 	const schemaTokens = new Set(searchTokens(schemaSearchText(entry.inputSchema)));
@@ -273,6 +276,10 @@ function searchScore(entry: CatalogEntry, query: string, terms: string[]): numbe
 	const normalized = query.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 	const normalizedWords = normalized.replace(/_/g, " ");
 	let score = normalized === name ? 1000 : name.includes(normalized) && normalized.length > 2 ? 40 : 0;
+	// An explicit imperative matching the tool-name verb is stronger than topical
+	// overlap. This keeps "surface …" on the surfacing write even when the rest of
+	// the sentence also contains read-oriented words such as oldest/chronological.
+	if (terms[0] && orderedNameTokens[0] === terms[0]) score += 100;
 	if (aliases.some((alias) => normalizedWords.includes(alias))) score += 50;
 	for (const term of terms) {
 		if (nameTokens.has(term)) score += 12;

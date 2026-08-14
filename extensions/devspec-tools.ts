@@ -116,6 +116,41 @@ const AUGMENTS: Record<string, (params: Record<string, unknown>, ctx: CallCtx) =
 	},
 };
 
+/**
+ * This host is Pi. `provider` on these verbs is not a model choice — it is a
+ * fact about which coding agent is running, and DevSpec renders it as the tool
+ * logo on the Agents page, active-agent tiles and provenance chips. A model that
+ * omits it leaves the work unattributed; a model that guesses it attributes Pi's
+ * work to another tool. So it is stamped here, after the model's params, and
+ * always wins — the same treatment the commit ledger gives commit_sha.
+ *
+ * NOT included: create_playbook / update_playbook take `preferred_provider`,
+ * which is "which agent is this playbook written FOR" — a genuine authoring
+ * choice that belongs to the caller, not the host's identity.
+ */
+const HOST_PROVIDER = "pi";
+
+const PROVIDER_STAMPED_VERBS: ReadonlySet<string> = new Set([
+	// Attribution: persisted to action_items.provider.
+	"claim_work_item",
+	"record_implementation",
+	"record_completed_work",
+	// Playbook runs: free-text "your coding agent", used to match a run's
+	// provider constraint and to build the resume affordance.
+	"get_playbook_runs",
+	"claim_playbook_run",
+	"record_playbook_run",
+]);
+
+/** Stamp the host's own provider identity on the verbs that record or filter it. */
+export function stampHostProvider(
+	name: string,
+	params: Record<string, unknown>,
+): Record<string, unknown> {
+	if (!PROVIDER_STAMPED_VERBS.has(name)) return params;
+	return { ...params, provider: HOST_PROVIDER };
+}
+
 /** Drop scope the extension already knows, then stamp bond/cwd values. */
 export function stampKnownScope(params: Record<string, unknown>): Record<string, unknown> {
 	const stamped: Record<string, unknown> = {};
@@ -134,7 +169,9 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 	if (!resolved) return toolErrorResult(NOT_CONNECTED);
 	try {
 		const augment = AUGMENTS[name];
-		const args = stampKnownScope(augment ? augment(params, ctx) : params);
+		const args = stampKnownScope(
+			stampHostProvider(name, augment ? augment(params, ctx) : params),
+		);
 		const raw = await callDevspec(resolved.token, name, args, {
 			cwd: ctx.cwd,
 			lane: "work",

@@ -9,10 +9,16 @@ import { MCP_CATALOG, MCP_CATALOG_FINGERPRINT } from "../extensions/generated/mc
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const EXPLICIT_V2_ROOT = process.env.DEVSPEC_V2_ROOT?.trim() || null;
+const DEFAULT_V2_ROOTS = [
+	resolve(HERE, "../../devspecv2"),
+	resolve(HERE, "../../../devspecv2"),
+];
 const V2_ROOT = EXPLICIT_V2_ROOT
 	? resolve(EXPLICIT_V2_ROOT)
-	: resolve(HERE, "../../../devspecv2");
+	: DEFAULT_V2_ROOTS.find((candidate) => existsSync(resolve(candidate, "apps/web/lib/mcp/tool-definitions.ts")))
+		?? DEFAULT_V2_ROOTS[0]!;
 const DEFINITIONS = resolve(V2_ROOT, "apps/web/lib/mcp/tool-definitions.ts");
+const TSX_BIN = resolve(V2_ROOT, "node_modules/.bin/tsx");
 
 function fingerprint(tools: Array<{ name: string; inputSchema: unknown }>): string {
 	const h = createHash("sha256");
@@ -39,18 +45,12 @@ process.stdout.write(JSON.stringify(tools.map((t) => ({
   inputSchema: t.inputSchema ?? { type: "object", properties: {} },
 }))));
 `;
-	let raw: string;
-	try {
-		raw = execFileSync("npx", ["tsx", "-e", script], {
-			cwd: V2_ROOT,
-			encoding: "utf8",
-			maxBuffer: 20 * 1024 * 1024,
-		});
-	} catch (err) {
-		if (EXPLICIT_V2_ROOT) throw err;
-		t.skip(`could not dump sibling tool surface: ${err instanceof Error ? err.message : String(err)}`);
-		return;
-	}
+	assert.ok(existsSync(TSX_BIN), `paired DevSpecV2 checkout is missing its local tsx binary: ${TSX_BIN}`);
+	const raw = execFileSync(TSX_BIN, ["--tsconfig=apps/web/tsconfig.json", "-e", script], {
+		cwd: V2_ROOT,
+		encoding: "utf8",
+		maxBuffer: 20 * 1024 * 1024,
+	});
 	const live = JSON.parse(raw) as Array<{ name: string; inputSchema: unknown }>;
 	const liveNames = live.map((t) => t.name).sort();
 	const catalogNames = MCP_CATALOG.map((t) => t.name).sort();

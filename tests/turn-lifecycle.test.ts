@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { dispatchImplementationDelivery, formatDispatchMessage, isPlaybookDispatch } from "../extensions/core/dispatch.ts";
+import { assertHydratedAssignmentIdentity, dispatchImplementationDelivery, formatDispatchMessage, isPlaybookDispatch } from "../extensions/core/dispatch.ts";
 import { IMPLEMENTATION_CONTRACT_RESOURCE_URIS, type EffectiveImplementationContext } from "../extensions/core/implementation-contract.ts";
 import { automaticBackgroundTaskId, backgroundTaskNotificationId, classifyUserKind, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, isWaitNarration, isProcessClose, planSettle, shouldPauseSettle, shouldSplitFirstAnswer, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 
@@ -587,6 +587,7 @@ test("formatDispatchMessage carries thin work/mode/contract identity and payload
 		execution_mode: "unattended",
 		implementation_kickoff: {
 			kind: "devspec.implementation_kickoff",
+			schema_version: 1,
 			work: { assignment_id: "as-1", action_item_ids: ["item-1"] },
 			execution_mode: "unattended",
 			implementation_contract: {
@@ -618,4 +619,99 @@ test("formatDispatchMessage carries thin work/mode/contract identity and payload
 	assert.match(msg, /"id": "as-1"/);
 	assert.doesNotMatch(msg, /Run the assignment protocol/);
 	assert.doesNotMatch(msg, /Claim each member with claim_work_item/);
+});
+
+test("canonical dispatch contradictions fail closed instead of broadening work", () => {
+	const canonical = {
+		id: "as-1",
+		execution_mode: "unattended",
+		implementation_kickoff: {
+			kind: "devspec.implementation_kickoff",
+			schema_version: 1,
+			work: { assignment_id: "as-1", action_item_ids: ["item-a"] },
+			execution_mode: "unattended",
+			implementation_contract: {
+				contract_version: "1.0.0",
+				resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.unattended,
+			},
+		},
+		members: [{ action_item_id: "item-a" }],
+	};
+
+	assert.throws(() => dispatchImplementationDelivery({
+		...canonical,
+		implementation_kickoff: { ...canonical.implementation_kickoff, kind: "devspec.implementation_lookalike" },
+	}), /kind was invalid/);
+	assert.throws(() => dispatchImplementationDelivery({
+		...canonical,
+		implementation_kickoff: { ...canonical.implementation_kickoff, schema_version: 2 },
+	}), /schema version was invalid/);
+	assert.throws(() => dispatchImplementationDelivery({
+		...canonical,
+		implementation_kickoff: {
+			...canonical.implementation_kickoff,
+			implementation_contract: {
+				...canonical.implementation_kickoff.implementation_contract,
+				resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.attended,
+			},
+		},
+	}), /resource did not match execution mode/);
+	assert.throws(() => dispatchImplementationDelivery({
+		...canonical,
+		members: [{ action_item_id: "item-a" }, { action_item_id: "item-b" }],
+	}), /contradicted assignment members/);
+	assert.throws(() => dispatchImplementationDelivery({
+		...canonical,
+		execution_mode: "attended",
+	}), /contradicted assignment execution mode/);
+	assert.throws(() => dispatchImplementationDelivery({
+		...canonical,
+		implementation_kickoff: {
+			...canonical.implementation_kickoff,
+			work: { ...canonical.implementation_kickoff.work, assignment_id: "as-other" },
+		},
+	}), /contradicted assignment identity/);
+	assert.throws(() => dispatchImplementationDelivery({
+		...canonical,
+		implementation_kickoff: {
+			...canonical.implementation_kickoff,
+			implementation_contract: {
+				...canonical.implementation_kickoff.implementation_contract,
+				contract_version: " ",
+			},
+		},
+	}), /contract version was invalid/);
+	assert.throws(() => dispatchImplementationDelivery({
+		...canonical,
+		implementation_kickoff: {
+			...canonical.implementation_kickoff,
+			work: { ...canonical.implementation_kickoff.work, action_item_ids: [] },
+		},
+	}), /requires at least one action-item id/);
+});
+
+test("hydration cannot substitute a different assignment than the triggering dispatch", () => {
+	const delivery = dispatchImplementationDelivery({
+		id: "assignment-b",
+		members: [{ action_item_id: "item-b" }],
+	});
+	assert.ok(delivery);
+	assert.throws(
+		() => assertHydratedAssignmentIdentity("assignment-a", delivery),
+		/hydration returned assignment-b while assignment-a was requested/,
+	);
+	assert.doesNotThrow(() => assertHydratedAssignmentIdentity("assignment-b", delivery));
+});
+
+test("canonical kickoff absence preserves the isolated legacy-member compatibility path", () => {
+	assert.deepEqual(dispatchImplementationDelivery({
+		id: "legacy-1",
+		mode: "autopilot",
+		members: [{ action_item_id: "legacy-item" }],
+	}), {
+		assignmentId: "legacy-1",
+		actionItemIds: ["legacy-item"],
+		executionMode: "unattended",
+		reference: { resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.unattended },
+	});
 });

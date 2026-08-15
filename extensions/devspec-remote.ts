@@ -781,11 +781,11 @@ function scheduleDispatchRetry(
 				assertCurrent: () => {
 					if (active.stop || pump !== active) throw new StaleDeliveryError();
 				},
+				withdrawCurrent: () => active.dispatchQueue.invalidateKey(key),
 				enqueueCurrent: (currentDispatch) => enqueueDispatch(active, token, currentDispatch, ctx),
 			}).then((outcome) => {
 				if (outcome === "withdrawn") {
 					active.dispatchRetryAttempts.delete(key);
-					notify(ctx, "DevSpec remote: dispatch is no longer active; local retry cancelled.");
 				} else if (outcome === "retry") {
 					scheduleDispatchRetry(active, key, token, ctx, "dispatch authority is not yet confirmable", true);
 				}

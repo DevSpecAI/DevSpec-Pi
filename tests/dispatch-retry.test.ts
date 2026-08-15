@@ -9,15 +9,18 @@ interface Dispatch {
 
 const identity = (dispatch: Dispatch) => dispatch.id;
 
-test("authoritatively withdrawn work is not enqueued after the dispatch cursor advances", async () => {
+test("authoritatively withdrawn work revokes same-key authority before returning", async () => {
 	const enqueued: Dispatch[] = [];
+	const events: string[] = [];
 	const outcome = await revalidateDispatchRetry({
 		key: "assignment-a",
 		loadCurrentInbox: async () => ({ dispatches: [], identityComplete: true }),
 		identity,
+		withdrawCurrent: () => events.push("revoked"),
 		enqueueCurrent: (dispatch) => enqueued.push(dispatch),
 	});
 	assert.equal(outcome, "withdrawn");
+	assert.deepEqual(events, ["revoked"]);
 	assert.deepEqual(enqueued, [], "withdrawn work must produce no delivery side effect");
 });
 
@@ -37,13 +40,16 @@ test("retry uses the current exact inbox envelope rather than captured authority
 });
 
 test("absence from a legacy, bounded, or partial inbox remains retryable", async () => {
+	let revoked = false;
 	const outcome = await revalidateDispatchRetry({
 		key: "assignment-outside-window",
 		loadCurrentInbox: async () => ({ dispatches: [], identityComplete: false }),
 		identity,
+		withdrawCurrent: () => { revoked = true; },
 		enqueueCurrent: () => assert.fail("unconfirmed absence cannot enqueue"),
 	});
 	assert.equal(outcome, "retry");
+	assert.equal(revoked, false, "partial absence cannot revoke live preparation");
 });
 
 test("a different current identity cannot satisfy an exact retry", async () => {

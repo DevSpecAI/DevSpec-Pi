@@ -26,6 +26,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { hostname } from "node:os";
 import { debugRemote as debug } from "./core/debug.ts";
 import { DeliveryQueue, StaleDeliveryError, nextDeliveryRetryDelayMs, type DeliveryLease } from "./core/delivery-queue.ts";
+import { revalidateDispatchRetry } from "./core/dispatch-retry.ts";
 import {
 	callDevspec,
 	isPermanentServerEnd,
@@ -725,13 +726,44 @@ async function deliverDispatch(
 	if (implementationContext.warning) notify(ctx, implementationContext.warning, "warning");
 }
 
+function dispatchRetryKey(dispatch: unknown): string | undefined {
+	const root = dispatchRecord(dispatch);
+	return (
+		(typeof root?.run_id === "string" && root.run_id) ||
+		dispatchSummary(dispatch).assignmentId ||
+		undefined
+	);
+}
+
+async function loadCurrentDispatchInbox(
+	active: PumpState,
+	key: string,
+	token: string,
+	ctx: ExtensionContext,
+): Promise<{ dispatches: readonly unknown[]; identityComplete: boolean }> {
+	const raw = await callDevspec(
+		token,
+		"get_connection_dispatch",
+		{ connection_id: active.bond.connectionId, dispatch_id: key },
+		{ timeoutMs: MODEL_TIMEOUT_MS, cwd: ctx.cwd, lane: "work" },
+	);
+	const { details, isError, text } = unwrapMcpResult(raw);
+	if (isError) throw new Error(text || "dispatch retry revalidation failed");
+	const payload = details as { dispatches?: unknown[]; dispatch_id?: unknown; identity_complete?: unknown } | null;
+	if (!Array.isArray(payload?.dispatches)) throw new Error("dispatch retry revalidation returned no live inbox");
+	return {
+		dispatches: payload.dispatches,
+		identityComplete: payload.identity_complete === true && payload.dispatch_id === key,
+	};
+}
+
 function scheduleDispatchRetry(
 	active: PumpState,
 	key: string,
 	token: string,
-	dispatch: unknown,
 	ctx: ExtensionContext,
 	error: unknown,
+	quiet = false,
 ): void {
 	if (active.stop || pump !== active) return;
 	const failures = (active.dispatchRetryAttempts.get(key) ?? 0) + 1;
@@ -741,12 +773,30 @@ function scheduleDispatchRetry(
 	if (!active.dispatchRetryTimers.has(key)) {
 		const timer = setTimeout(() => {
 			active.dispatchRetryTimers.delete(key);
-			if (!active.stop && pump === active) enqueueDispatch(active, token, dispatch, ctx);
+			if (active.stop || pump !== active) return;
+			void revalidateDispatchRetry({
+				key,
+				loadCurrentInbox: () => loadCurrentDispatchInbox(active, key, token, ctx),
+				identity: dispatchRetryKey,
+				assertCurrent: () => {
+					if (active.stop || pump !== active) throw new StaleDeliveryError();
+				},
+				enqueueCurrent: (currentDispatch) => enqueueDispatch(active, token, currentDispatch, ctx),
+			}).then((outcome) => {
+				if (outcome === "withdrawn") {
+					active.dispatchRetryAttempts.delete(key);
+					notify(ctx, "DevSpec remote: dispatch is no longer active; local retry cancelled.");
+				} else if (outcome === "retry") {
+					scheduleDispatchRetry(active, key, token, ctx, "dispatch authority is not yet confirmable", true);
+				}
+			}).catch((retryError) => scheduleDispatchRetry(active, key, token, ctx, retryError));
 		}, delayMs);
 		if (typeof timer.unref === "function") timer.unref();
 		active.dispatchRetryTimers.set(key, timer);
 	}
-	notify(ctx, `DevSpec remote: failed to deliver dispatch: ${reason}. Retrying locally in ${Math.ceil(delayMs / 1_000)}s.`, "warning");
+	if (!quiet) {
+		notify(ctx, `DevSpec remote: failed to deliver dispatch: ${reason}. Revalidating in ${Math.ceil(delayMs / 1_000)}s.`, "warning");
+	}
 }
 
 function enqueueDispatch(
@@ -755,10 +805,7 @@ function enqueueDispatch(
 	dispatch: unknown,
 	ctx: ExtensionContext,
 ): void {
-	const root = dispatchRecord(dispatch);
-	const key =
-		(typeof root?.run_id === "string" && root.run_id) ||
-		dispatchSummary(dispatch).assignmentId;
+	const key = dispatchRetryKey(dispatch);
 	if (!key) return;
 	active.dispatchQueue.enqueue(
 		key,
@@ -770,7 +817,7 @@ function enqueueDispatch(
 			active.dispatchRetryTimers.delete(key);
 			if (!active.stop && pump === active) notify(ctx, "DevSpec remote: work dispatch delivered.");
 		},
-		(error) => scheduleDispatchRetry(active, key, token, dispatch, ctx, error),
+		(error) => scheduleDispatchRetry(active, key, token, ctx, error),
 	);
 }
 

@@ -519,7 +519,15 @@ export async function loadImplementationContext(input: {
 	}
 
 	input.assertCurrent?.();
-	const retained = cachedContract(scope, resourceUri, expectedVersion);
+	// A versioned delivery authorizes only its exact immutable cache entry.
+	// Local attended selection may retain the latest canonical contract because
+	// a present user explicitly chose the work. Unversioned unattended delivery
+	// has no authority to guess which cached version the assignment intended.
+	const retained = expectedVersion
+		? cachedContract(scope, resourceUri, expectedVersion)
+		: input.executionMode === "attended"
+			? cachedContract(scope, resourceUri)
+			: null;
 	if (retained) {
 		return {
 			...retained,

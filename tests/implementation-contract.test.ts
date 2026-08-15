@@ -374,6 +374,67 @@ test("compatibility bundle hash inconsistency is rejected", async () => {
 	assert.equal(context.source, "local_safety_fallback");
 });
 
+test("unversioned unattended work cannot assume the latest cached contract during outage", async () => {
+	resetImplementationContractCache();
+	await loadImplementationContext({
+		executionMode: "unattended",
+		reference: {
+			contract_version: "1.0.0",
+			resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.unattended,
+		},
+		loader: loader({ resource: resource("unattended") }),
+	});
+
+	const blocked = await loadImplementationContext({
+		executionMode: "unattended",
+		reference: { resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.unattended },
+		loader: loader({
+			resourceError: new Error("offline"),
+			compatibilityError: new Error("offline"),
+		}),
+	});
+	assert.equal(blocked.source, "local_safety_fallback");
+	assert.throws(() => buildImplementationKickoff({
+		actionItemIds: ["legacy-item"],
+		assignmentId: "legacy-assignment",
+		context: blocked,
+		contractReference: { resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.unattended },
+	}), /remains retryable/);
+});
+
+test("unversioned unattended work may use a fresh canonical read", async () => {
+	resetImplementationContractCache();
+	const context = await loadImplementationContext({
+		executionMode: "unattended",
+		reference: { resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.unattended },
+		loader: loader({ resource: resource("unattended") }),
+	});
+	assert.equal(context.source, "resource");
+	assert.equal(context.contractVersion, "1.0.0");
+});
+
+test("explicit attended selection may retain the latest validated contract during outage", async () => {
+	resetImplementationContractCache();
+	await loadImplementationContext({
+		executionMode: "attended",
+		reference: {
+			contract_version: "1.0.0",
+			resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.attended,
+		},
+		loader: loader({ resource: resource("attended") }),
+	});
+	const retained = await loadImplementationContext({
+		executionMode: "attended",
+		reference: { resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.attended },
+		loader: loader({
+			resourceError: new Error("offline"),
+			compatibilityError: new Error("offline"),
+		}),
+	});
+	assert.equal(retained.source, "cache");
+	assert.match(retained.warning ?? "", /using the retained 1\.0\.0 contract/);
+});
+
 test("a blocked delivery recovers when its exact canonical contract becomes available", async () => {
 	resetImplementationContractCache();
 	const reference = {

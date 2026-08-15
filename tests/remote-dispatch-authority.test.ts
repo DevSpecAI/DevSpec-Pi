@@ -23,11 +23,23 @@ test("remote stop revokes dispatch authority before clearing the pump", () => {
 	assert.ok(clearAt > invalidateAt, "queue authority must be revoked before the pump is cleared");
 });
 
-test("failed asynchronous delivery schedules a local retry after the dispatch cursor advances", () => {
+test("retry re-reads the server-owned current dispatch inbox window", () => {
+	const inboxBody = bodyBetween("async function loadCurrentDispatchInbox", "function scheduleDispatchRetry");
+	assert.match(inboxBody, /"get_connection_dispatch"/);
+	assert.match(inboxBody, /connection_id: active\.bond\.connectionId, dispatch_id: key/);
+	assert.match(inboxBody, /identityComplete: payload\.identity_complete === true && payload\.dispatch_id === key/);
+	assert.doesNotMatch(inboxBody, /poll_connection/, "retry validation must not disturb the transport cursor");
+});
+
+test("failed delivery retries identity only after re-reading the authoritative live inbox", () => {
 	const retryBody = bodyBetween("function scheduleDispatchRetry", "function enqueueDispatch");
 	assert.match(retryBody, /nextDeliveryRetryDelayMs\(failures\)/);
-	assert.match(retryBody, /setTimeout\(\(\) => \{[\s\S]*enqueueDispatch\(active, token, dispatch, ctx\)/);
-	assert.match(source, /\(error\) => scheduleDispatchRetry\(active, key, token, dispatch, ctx, error\)/);
+	assert.match(retryBody, /revalidateDispatchRetry\(\{/);
+	assert.match(retryBody, /loadCurrentInbox: \(\) => loadCurrentDispatchInbox\(active, key, token, ctx\)/);
+	assert.match(retryBody, /enqueueCurrent: \(currentDispatch\) => enqueueDispatch\(active, token, currentDispatch, ctx\)/);
+	assert.match(retryBody, /outcome === "retry"[\s\S]*scheduleDispatchRetry/);
+	assert.doesNotMatch(retryBody, /enqueueDispatch\(active, token, dispatch, ctx\)/, "captured envelopes are not retry authority");
+	assert.match(source, /\(error\) => scheduleDispatchRetry\(active, key, token, ctx, error\)/);
 });
 
 test("real dispatch hydration checkpoints authority and commits mode/send without an await gap", () => {

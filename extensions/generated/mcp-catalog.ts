@@ -2,11 +2,11 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Fingerprint: a95a687ad6ffe745a2bff6de2ef5da8446150fc48d4d52470107946f45a5b694
- * Regenerated: 2026-08-15T13:08:22.755Z
+ * Fingerprint: 65e333b94364284e28692ee34ffc62f07aae0b53ae038c6e2c89c74fac1356f6
+ * Regenerated: 2026-08-15T19:01:45.460Z
  */
-export const MCP_CATALOG_FINGERPRINT = "a95a687ad6ffe745a2bff6de2ef5da8446150fc48d4d52470107946f45a5b694";
-export const MCP_CATALOG_GENERATED_AT = "2026-08-15T13:08:22.755Z";
+export const MCP_CATALOG_FINGERPRINT = "65e333b94364284e28692ee34ffc62f07aae0b53ae038c6e2c89c74fac1356f6";
+export const MCP_CATALOG_GENERATED_AT = "2026-08-15T19:01:45.461Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -1202,7 +1202,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_connection_dispatch",
 		"label": "DevSpec: Get Connection Dispatch",
-		"description": "The session-free dispatch inbox for a connection you own. Returns active/pending assignments addressed directly to the connection and, while attached, assignments addressed to that session. Each assignment carries `delivered_via`, legacy binding `mode`, explicit `execution_mode`, ordered members, and the same compact `implementation_kickoff` returned by get_assignment. Only the token running the connection may read it.",
+		"description": "The session-free dispatch inbox for a connection you own. Returns active/pending assignments addressed directly to the connection and, while attached, assignments addressed to that session. Each assignment carries `delivered_via`, legacy binding `mode`, explicit `execution_mode`, ordered members, and the same compact `implementation_kickoff` returned by get_assignment. Pass dispatch_id to revalidate one previously delivered assignment or playbook run exactly: a successful empty response then authoritatively means it is no longer live for this connection, while source-read failures return an error. Only the token running the connection may read it.",
 		"promptSnippet": "The session-free dispatch inbox for a connection you own.",
 		"inputSchema": {
 			"type": "object",
@@ -1210,6 +1210,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "The connection whose dispatch inbox to read (from register_connection)."
+				},
+				"dispatch_id": {
+					"type": "string",
+					"description": "Optional exact assignment id or playbook run id to revalidate against this connection."
 				}
 			},
 			"required": [

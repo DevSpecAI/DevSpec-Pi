@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatDispatchMessage } from "../extensions/core/dispatch.ts";
+import { dispatchImplementationDelivery, formatDispatchMessage, isPlaybookDispatch } from "../extensions/core/dispatch.ts";
+import { IMPLEMENTATION_CONTRACT_RESOURCE_URIS, type EffectiveImplementationContext } from "../extensions/core/implementation-contract.ts";
 import { automaticBackgroundTaskId, backgroundTaskNotificationId, classifyUserKind, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, isWaitNarration, isProcessClose, planSettle, shouldPauseSettle, shouldSplitFirstAnswer, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 
 function remoteTurn(answer: string): TurnTracker {
@@ -555,12 +556,66 @@ test("leftover-only [bg completed] still posts no answer (56b9a3b4)", () => {
 	assert.deepEqual(planSettle(leftover, true), { kind: "none" });
 });
 
-test("formatDispatchMessage carries the protocol steps and payload", () => {
-	const msg = formatDispatchMessage({ assignment_id: "as-1", title: "Fix flaky test" }, "Wary Wolf");
+test("legacy assignment envelopes remain work (for mechanical hydration), never playbooks", () => {
+	const legacy = { id: "legacy-assignment", mode: "direct" };
+	assert.equal(dispatchImplementationDelivery(legacy), null);
+	assert.equal(isPlaybookDispatch(legacy), false);
+	assert.equal(isPlaybookDispatch({ id: "run-1", kind: "playbook_run" }), true);
+
+	const hydratedLegacy = {
+		id: "legacy-assignment",
+		mode: "direct",
+		members: [{ action_item_id: "legacy-item", title: "Legacy work" }],
+	};
+	const delivery = dispatchImplementationDelivery(hydratedLegacy);
+	assert.ok(delivery);
+	assert.equal(delivery.reference.contract_version, undefined);
+	const context: EffectiveImplementationContext = {
+		executionMode: "attended",
+		contractVersion: "1.0.0",
+		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.attended,
+		source: "resource",
+		coreRules: [{ id: "core.claim-before-edit", requirement: "Claim first." }],
+		modeRules: [],
+	};
+	assert.match(formatDispatchMessage(hydratedLegacy, "Wary Wolf", context, delivery), /"contract_version":"1.0.0"/);
+});
+
+test("formatDispatchMessage carries thin work/mode/contract identity and payload", () => {
+	const dispatch = {
+		id: "as-1",
+		execution_mode: "unattended",
+		implementation_kickoff: {
+			kind: "devspec.implementation_kickoff",
+			work: { assignment_id: "as-1", action_item_ids: ["item-1"] },
+			execution_mode: "unattended",
+			implementation_contract: {
+				contract_version: "1.0.0",
+				resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.unattended,
+			},
+		},
+		members: [{ action_item_id: "item-1", title: "Fix flaky test" }],
+	};
+	const delivery = dispatchImplementationDelivery(dispatch);
+	assert.ok(delivery);
+	const context: EffectiveImplementationContext = {
+		executionMode: "unattended",
+		contractVersion: "1.0.0",
+		contractHash: "sha256:contract",
+		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.unattended,
+		source: "resource",
+		coreRules: [{ id: "core.claim-before-edit", requirement: "Claim first." }],
+		modeRules: [{ id: "unattended.capacity-return", requirement: "Return to capacity." }],
+	};
+	const msg = formatDispatchMessage(dispatch, "Wary Wolf", context, delivery);
 	assert.match(msg, /^\[DevSpec remote — work dispatch to Wary Wolf\]/);
 	assert.match(msg, /Fix flaky test/);
-	assert.match(msg, /get_assignment \(assignment_id: "as-1"\)/);
-	assert.match(msg, /acknowledge_assignment/);
-	assert.match(msg, /resolve_assignment/);
-	assert.match(msg, /"assignment_id": "as-1"/);
+	assert.match(msg, /"execution_mode":"unattended"/);
+	assert.match(msg, /"contract_version":"1.0.0"/);
+	assert.match(msg, /acknowledge assignment as-1/i);
+	assert.match(msg, /resolve that assignment/i);
+	assert.match(msg, /unattended\.capacity-return/);
+	assert.match(msg, /"id": "as-1"/);
+	assert.doesNotMatch(msg, /Run the assignment protocol/);
+	assert.doesNotMatch(msg, /Claim each member with claim_work_item/);
 });

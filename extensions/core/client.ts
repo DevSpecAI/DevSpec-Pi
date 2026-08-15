@@ -283,6 +283,47 @@ export async function callDevspec(
 }
 
 /**
+ * Read one server-owned MCP resource without exposing a resource browser to
+ * the model. Product contracts use this mechanical path at work entry.
+ */
+export async function readDevspecResource(
+	token: string,
+	uri: string,
+	options: Pick<CallOptions, "timeoutMs" | "lane"> = {},
+): Promise<unknown> {
+	const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+	const lane = options.lane ?? "work";
+	let lastError: unknown = null;
+	let rateLimitRetries = 0;
+	for (let attempt = 0; attempt < 2; attempt++) {
+		try {
+			await waitOutCooldown();
+			const client = await connect(token, lane);
+			return await withHardTimeout(
+				client.readResource({ uri }, { timeout: timeoutMs }),
+				timeoutMs,
+				`resource ${uri}`,
+			);
+		} catch (error) {
+			const mapped = mapClientError(error);
+			const retryMs = parseRateLimitRetryMs(mapped.message);
+			if (retryMs !== null) {
+				rateLimitStore().until = Date.now() + retryMs;
+				rateLimitRetries += 1;
+				if (rateLimitRetries > 1) throw new DevspecRateLimitError(mapped.message, retryMs);
+				await new Promise((resolve) => setTimeout(resolve, Math.min(retryMs, MAX_COOLDOWN_WAIT_MS)));
+				attempt--;
+				continue;
+			}
+			lastError = error;
+			resetClientCache(lane);
+			if (mapped instanceof DevspecAuthError) break;
+		}
+	}
+	throw mapClientError(lastError);
+}
+
+/**
  * Verify a token and return the server's identity payload (unwrapMcpResult
  * shape). Used by /devspec.login and the session-start status check.
  */

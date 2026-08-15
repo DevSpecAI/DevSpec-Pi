@@ -1,32 +1,31 @@
 /**
- * DevSpec Pi — /devspec.work and /devspec.help (Phase 3).
+ * DevSpec Pi — explicit attended work selection and package help.
  *
  * /devspec.work [id-or-prefix]
- *   No arg: pull the next staged item from the project queue.
- *   Arg:    resolve an explicit item (full UUID, id prefix, or unique title
- *           fragment against the local completion cache).
- *   The command validates/resolves only — the kickoff prompt it sends drives
- *   the claim (claim guards need the model's judgment, not command side
- *   effects). The turn is a REAL user message via pi.sendUserMessage().
+ *   Arg: resolve one explicit item.
+ *   No arg: present an attended item selector when UI is available. It never
+ *   drains the staged queue; unattended work arrives through remote dispatch.
  *
- *   Argument completion is served synchronously from a cache of open items;
- *   the cache refreshes in the background on session_start and whenever it is
- *   stale (pi's completion API is sync, so the first completion after a
- *   refresh trigger may be one refresh behind).
- *
- * /devspec.help
- *   What this package provides + connection state.
+ * The command mechanically loads/caches the product implementation contract,
+ * installs attended mode for the selected item, and sends one real user
+ * kickoff message. Claim guards remain server-authoritative.
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
+import { createHash } from "node:crypto";
 import { getAdapterGuardState, SUPPRESSION_NOTICE } from "./core/adapter-overlap.ts";
 import { resolveToken } from "./core/auth-store.ts";
 import { callDevspec, MODEL_TIMEOUT_MS } from "./core/client.ts";
+import {
+	buildImplementationKickoff,
+	createImplementationContractLoader,
+	loadImplementationContext,
+} from "./core/implementation-contract.ts";
+import { installImplementationMode, rollbackImplementationMode } from "./core/implementation-mode.ts";
 import { unwrapMcpResult } from "./core/result.ts";
-import { buildWorkPrompt } from "./core/work-prompt.ts";
-import type { WorkTarget } from "./core/work-prompt.ts";
 import { noteWork, paintStatus } from "./core/status-line.ts";
+import { buildWorkPrompt, type WorkTarget } from "./core/work-prompt.ts";
 
 const CACHE_TTL_MS = 60_000;
 
@@ -35,25 +34,44 @@ interface ItemSummary {
 	title: string;
 }
 
-let itemCache: { at: number; items: ItemSummary[] } = { at: 0, items: [] };
+let cacheCwd = process.cwd();
+let itemCache: { at: number; scope: string; items: ItemSummary[] } = { at: 0, scope: "", items: [] };
 
-async function refreshItemCache(): Promise<void> {
+function itemCacheScope(token: string, cwd: string): string {
+	return `${createHash("sha256").update(token, "utf8").digest("hex").slice(0, 24)}:${cwd}`;
+}
+
+async function refreshItemCache(cwd = cacheCwd): Promise<boolean> {
 	const resolved = await resolveToken();
-	if (!resolved) return;
+	if (!resolved) {
+		itemCache = { at: 0, scope: "", items: [] };
+		return false;
+	}
+	const scope = itemCacheScope(resolved.token, cwd);
 	try {
-		const raw = await callDevspec(resolved.token, "get_action_items", { fields: "compact", limit: 100 }, { lane: "work", timeoutMs: MODEL_TIMEOUT_MS });
+		const raw = await callDevspec(
+			resolved.token,
+			"get_action_items",
+			{ fields: "compact", limit: 100 },
+			{ lane: "work", timeoutMs: MODEL_TIMEOUT_MS },
+		);
 		const { details } = unwrapMcpResult(raw);
 		const rows = (details as { items?: Array<{ id?: string; title?: string }> } | null)?.items;
 		if (Array.isArray(rows)) {
 			itemCache = {
 				at: Date.now(),
+				scope,
 				items: rows
-					.filter((r) => typeof r?.id === "string")
-					.map((r) => ({ id: r.id as string, title: typeof r.title === "string" ? r.title : "" })),
+					.filter((row) => typeof row?.id === "string")
+					.map((row) => ({ id: row.id as string, title: typeof row.title === "string" ? row.title : "" })),
 			};
+			return true;
 		}
+		return false;
 	} catch {
-		// Keep serving the stale cache; completion is best-effort.
+		// Stale autocomplete is acceptable only within the same authority/cwd.
+		if (itemCache.scope !== scope) itemCache = { at: 0, scope, items: [] };
+		return false;
 	}
 }
 
@@ -63,64 +81,78 @@ function refreshIfStale(): void {
 
 function completeItemArg(prefix: string): AutocompleteItem[] | null {
 	refreshIfStale();
-	const p = prefix.toLowerCase();
+	const normalized = prefix.toLowerCase();
 	const matches = itemCache.items
-		.filter((i) => i.id.toLowerCase().startsWith(p) || i.title.toLowerCase().includes(p))
+		.filter((item) => item.id.toLowerCase().startsWith(normalized) || item.title.toLowerCase().includes(normalized))
 		.slice(0, 20)
-		.map((i) => ({ value: i.id, label: `${i.id.slice(0, 8)}… ${i.title}`.trim() }));
+		.map((item) => ({ value: item.id, label: `${item.id.slice(0, 8)}… ${item.title}`.trim() }));
 	return matches.length > 0 ? matches : null;
 }
 
-/** Resolve the command argument to an item id, or return an error message. */
 async function resolveItemArg(arg: string): Promise<{ id: string } | { error: string }> {
 	if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(arg)) {
 		return { id: arg };
 	}
-	await refreshItemCache();
-	const p = arg.toLowerCase();
-	const matches = itemCache.items.filter(
-		(i) => i.id.toLowerCase().startsWith(p) || i.title.toLowerCase().includes(p),
-	);
-	if (matches.length === 1) return { id: matches[0].id };
-	if (matches.length > 1) {
-		const listing = matches.slice(0, 5).map((i) => `  ${i.id.slice(0, 8)}… ${i.title}`).join("\n");
-		return { error: `Ambiguous item "${arg}" — matches:\n${listing}\nPass a fuller id.` };
+	if (!await refreshItemCache()) {
+		return { error: "Could not refresh DevSpec action items. No attended work was started." };
 	}
-	return { error: `No open action item matches "${arg}". Try /devspec.work with no argument to pull the queue.` };
+	const normalized = arg.toLowerCase();
+	const matches = itemCache.items.filter(
+		(item) => item.id.toLowerCase().startsWith(normalized) || item.title.toLowerCase().includes(normalized),
+	);
+	if (matches.length === 1) return { id: matches[0]!.id };
+	if (matches.length > 1) {
+		const listing = matches.slice(0, 5).map((item) => `  ${item.id.slice(0, 8)}… ${item.title}`).join("\n");
+		return { error: `Ambiguous item “${arg}” — matches:\n${listing}\nPass a fuller id.` };
+	}
+	return { error: `No open action item matches “${arg}”. Pass an id/title or run /devspec.work to choose explicitly.` };
+}
+
+async function selectExplicitItem(ctx: ExtensionContext): Promise<string | null> {
+	if (!await refreshItemCache(ctx.cwd)) {
+		ctx.ui.notify("Could not refresh DevSpec action items — no attended work was started.", "warning");
+		return null;
+	}
+	if (itemCache.items.length === 0) {
+		ctx.ui.notify("No open DevSpec action items are available to select.", "info");
+		return null;
+	}
+	if (!ctx.hasUI) {
+		ctx.ui.notify("Pass an explicit action-item id to /devspec.work in this mode.", "warning");
+		return null;
+	}
+	const labels = itemCache.items.map((item) => `${item.id.slice(0, 8)}… ${item.title}`.trim());
+	const chosen = await ctx.ui.select("Choose one action item for attended work:", labels);
+	if (!chosen) return null;
+	const index = labels.indexOf(chosen);
+	return index >= 0 ? itemCache.items[index]!.id : null;
 }
 
 async function fetchItemById(id: string): Promise<WorkTarget> {
 	const resolved = await resolveToken();
 	if (!resolved) throw new Error("not connected");
-	const raw = await callDevspec(resolved.token, "get_action_item", { action_item_id: id }, { lane: "work", timeoutMs: MODEL_TIMEOUT_MS });
+	const raw = await callDevspec(
+		resolved.token,
+		"get_action_item",
+		{ action_item_id: id },
+		{ lane: "work", timeoutMs: MODEL_TIMEOUT_MS },
+	);
 	const { details, text, isError } = unwrapMcpResult(raw);
 	if (isError) throw new Error(text || "get_action_item failed");
-	const d = details as { id?: string; title?: string; item?: { id?: string; title?: string } } | null;
-	const item = (d?.item ?? d) as { id?: string; title?: string } | null;
-	return { id: item?.id ?? id, title: item?.title, payload: details ?? text, fromQueue: false };
-}
-
-async function fetchNextFromQueue(): Promise<WorkTarget | null> {
-	const resolved = await resolveToken();
-	if (!resolved) throw new Error("not connected");
-	const raw = await callDevspec(resolved.token, "get_next_work_item", {}, { lane: "work", timeoutMs: MODEL_TIMEOUT_MS });
-	const { details, text, isError } = unwrapMcpResult(raw);
-	if (isError) throw new Error(text || "get_next_work_item failed");
-	const d = details as Record<string, unknown> | null;
-	// Empty queue comes back as an empty object / null-ish payload.
-	const id = (d?.id ?? (d?.item as { id?: string } | undefined)?.id) as string | undefined;
-	if (!d || !id) return null;
-	const title = (d.title ?? (d.item as { title?: string } | undefined)?.title) as string | undefined;
-	return { id, title, payload: d, fromQueue: true };
+	const root = details as { id?: string; title?: string; item?: { id?: string; title?: string } } | null;
+	const item = (root?.item ?? root) as { id?: string; title?: string } | null;
+	return { id: item?.id ?? id, title: item?.title, payload: details ?? text };
 }
 
 export default function (pi: ExtensionAPI) {
-	pi.on("session_start", async (_event, _ctx) => {
-		void refreshItemCache();
+	pi.on("session_start", (_event, ctx) => {
+		cacheCwd = ctx.cwd;
+		itemCache = { at: 0, scope: "", items: [] };
+		void refreshItemCache(ctx.cwd);
 	});
 
 	pi.registerCommand("devspec.work", {
-		description: "Work a DevSpec action item — pick from the queue, or pass an id/title.",
+		description: "Select one explicit DevSpec action item for attended work.",
 		getArgumentCompletions: completeItemArg,
 		handler: async (args, ctx: ExtensionContext) => {
 			const resolved = await resolveToken();
@@ -129,36 +161,54 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 			if (!ctx.isIdle()) {
-				ctx.ui.notify("Agent is busy — /devspec.work when the current turn finishes.", "warning");
+				ctx.ui.notify("Agent is busy — use /devspec.work when the current turn finishes.", "warning");
 				return;
 			}
 
 			const arg = args.trim();
-			let target: WorkTarget | null;
-			try {
-				if (arg) {
-					const r = await resolveItemArg(arg);
-					if ("error" in r) {
-						ctx.ui.notify(r.error, "warning");
-						return;
-					}
-					target = await fetchItemById(r.id);
-				} else {
-					target = await fetchNextFromQueue();
-					if (!target) {
-						ctx.ui.notify("DevSpec queue is empty — nothing staged to work.", "info");
-						return;
-					}
+			let id: string | null = null;
+			if (arg) {
+				const match = await resolveItemArg(arg);
+				if ("error" in match) {
+					ctx.ui.notify(match.error, "warning");
+					return;
 				}
-			} catch (err) {
-				ctx.ui.notify(`DevSpec: ${err instanceof Error ? err.message : String(err)}`, "error");
-				return;
+				id = match.id;
+			} else {
+				id = await selectExplicitItem(ctx);
 			}
+			if (!id) return;
 
-			void refreshItemCache();
-			noteWork({ id: target.id, title: target.title });
-			paintStatus(ctx);
-			pi.sendUserMessage(buildWorkPrompt(target));
+			try {
+				const [target, implementationContext] = await Promise.all([
+					fetchItemById(id),
+					loadImplementationContext({
+						executionMode: "attended",
+						loader: createImplementationContractLoader(resolved.token),
+					}),
+				]);
+				if (implementationContext.source === "local_safety_fallback") {
+					ctx.ui.notify(implementationContext.warning ?? "DevSpec contract unavailable — no attended work was started.", "warning");
+					return;
+				}
+				const kickoff = buildImplementationKickoff({
+					actionItemIds: [target.id],
+					context: implementationContext,
+				});
+				const modeInstallation = installImplementationMode(kickoff, implementationContext);
+				try {
+					pi.sendUserMessage(buildWorkPrompt(target, implementationContext));
+				} catch (error) {
+					rollbackImplementationMode(modeInstallation);
+					throw error;
+				}
+				if (implementationContext.warning) ctx.ui.notify(implementationContext.warning, "warning");
+				void refreshItemCache(ctx.cwd);
+				noteWork({ id: target.id, title: target.title });
+				paintStatus(ctx);
+			} catch (error) {
+				ctx.ui.notify(`DevSpec: ${error instanceof Error ? error.message : String(error)}`, "error");
+			}
 		},
 	});
 
@@ -168,7 +218,7 @@ export default function (pi: ExtensionAPI) {
 			const resolved = await resolveToken();
 			const lines = [
 				"DevSpec commands:",
-				"  /devspec.work [item]  — work an action item (queue pick, or id/title)",
+				"  /devspec.work [item]  — select one attended action item (id/title, or picker)",
 				"  /devspec.remote       — bond as remote capacity (auto on launch; stop | auto on|off)",
 				"  /devspec.reload       — reload this extension (same as /reload)",
 				"  /devspec.login        — connect (token from the DevSpec Connections page)",
@@ -176,7 +226,8 @@ export default function (pi: ExtensionAPI) {
 				"  /devspec.logout       — remove the stored token",
 				"  /devspec.logo         — toggle the duck header",
 				"",
-				`DevSpec tools: native (this package). Foreign MCP servers you connected stay available.`,
+				"Unattended work arrives through DevSpec remote dispatch; this command never drains the staged queue.",
+				"DevSpec tools are native to this package. Foreign MCP servers remain available.",
 				`Connection: ${resolved ? `token from ${resolved.source}` : "not connected — /devspec.login"}`,
 			];
 			const guard = getAdapterGuardState();

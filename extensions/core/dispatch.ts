@@ -57,32 +57,104 @@ export interface DispatchImplementationDelivery {
 	reference: ImplementationContractReference;
 }
 
-/** Read the standardized kickoff, with one isolated compatibility path for pre-618 rows. */
+export function assertHydratedAssignmentIdentity(
+	requestedAssignmentId: string,
+	delivery: DispatchImplementationDelivery,
+): void {
+	if (delivery.assignmentId !== requestedAssignmentId) {
+		throw new Error(
+			`assignment hydration returned ${delivery.assignmentId} while ${requestedAssignmentId} was requested`,
+		);
+	}
+}
+
+function hasOwn(value: Record<string, unknown>, key: string): boolean {
+	return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function strictIds(value: unknown, label: string): string[] {
+	if (!Array.isArray(value) || value.length === 0) throw new Error(`${label} requires at least one action-item id`);
+	const ids = value.map((candidate) => text(candidate));
+	if (ids.some((id) => !id)) throw new Error(`${label} contains an invalid action-item id`);
+	const unique = [...new Set(ids as string[])];
+	if (unique.length !== ids.length) throw new Error(`${label} contains duplicate action-item ids`);
+	return unique;
+}
+
+function sameIdSet(left: readonly string[], right: readonly string[]): boolean {
+	return left.length === right.length && left.every((id) => right.includes(id));
+}
+
+function memberActionItemIds(root: Record<string, unknown>): string[] | null {
+	if (!hasOwn(root, "members")) return null;
+	if (!Array.isArray(root.members)) throw new Error("assignment members must be an array");
+	return strictIds(root.members.map((candidate) => asRecord(candidate)?.action_item_id), "assignment members");
+}
+
+/** Read the canonical kickoff strictly, with one isolated compatibility path for pre-618 rows. */
 export function dispatchImplementationDelivery(dispatch: unknown): DispatchImplementationDelivery | null {
 	const root = asRecord(dispatch);
 	if (!root || isPlaybookDispatch(dispatch)) return null;
-	const kickoff = asRecord(root.implementation_kickoff);
-	const work = asRecord(kickoff?.work);
-	const members = Array.isArray(root.members) ? root.members.map(asRecord).filter(Boolean) as Record<string, unknown>[] : [];
-	const actionItemIds = [...new Set([
-		...(Array.isArray(work?.action_item_ids) ? work.action_item_ids : []),
-		...members.map((member) => member.action_item_id),
-	].map(text).filter((id): id is string => Boolean(id)))];
-	const assignmentId = text(work?.assignment_id) ?? text(root.assignment_id) ?? text(root.id);
-	if (!assignmentId || actionItemIds.length === 0) return null;
-	const explicitMode = text(kickoff?.execution_mode) ?? text(root.execution_mode);
+	const members = memberActionItemIds(root);
+
+	if (hasOwn(root, "implementation_kickoff")) {
+		const kickoff = asRecord(root.implementation_kickoff);
+		if (!kickoff) throw new Error("canonical implementation kickoff must be an object");
+		if (kickoff.kind !== "devspec.implementation_kickoff") {
+			throw new Error("canonical implementation kickoff kind was invalid");
+		}
+		if (kickoff.schema_version !== 1) throw new Error("canonical implementation kickoff schema version was invalid");
+		const work = asRecord(kickoff.work);
+		if (!work) throw new Error("canonical implementation kickoff work identity was invalid");
+		const actionItemIds = strictIds(work.action_item_ids, "canonical implementation kickoff");
+		if (members && !sameIdSet(actionItemIds, members)) {
+			throw new Error("canonical implementation kickoff contradicted assignment members");
+		}
+
+		const assignmentId = text(work.assignment_id);
+		if (!assignmentId) throw new Error("canonical implementation kickoff requires an assignment id");
+		const surroundingIds = [text(root.assignment_id), text(root.id)].filter((id): id is string => Boolean(id));
+		if (surroundingIds.some((id) => id !== assignmentId)) {
+			throw new Error("canonical implementation kickoff contradicted assignment identity");
+		}
+
+		const executionMode = text(kickoff.execution_mode);
+		if (executionMode !== "attended" && executionMode !== "unattended") {
+			throw new Error("canonical implementation kickoff execution mode was invalid");
+		}
+		if (hasOwn(root, "execution_mode") && root.execution_mode !== executionMode) {
+			throw new Error("canonical implementation kickoff contradicted assignment execution mode");
+		}
+		const reference = asRecord(kickoff.implementation_contract);
+		const contractVersion = text(reference?.contract_version);
+		const resourceUri = text(reference?.resource_uri);
+		if (!reference || !contractVersion) throw new Error("canonical implementation kickoff contract version was invalid");
+		if (resourceUri !== IMPLEMENTATION_CONTRACT_RESOURCE_URIS[executionMode]) {
+			throw new Error("canonical implementation kickoff contract resource did not match execution mode");
+		}
+		return {
+			assignmentId,
+			actionItemIds,
+			executionMode,
+			reference: { contract_version: contractVersion, resource_uri: resourceUri },
+		};
+	}
+
+	// Pre-618 compatibility: synthesize only when there is genuinely no canonical kickoff.
+	const assignmentId = text(root.assignment_id) ?? text(root.id);
+	if (!assignmentId || !members || members.length === 0) return null;
+	const explicitMode = text(root.execution_mode);
+	if (hasOwn(root, "execution_mode") && explicitMode !== "attended" && explicitMode !== "unattended") {
+		throw new Error("legacy assignment execution mode was invalid");
+	}
 	const executionMode: ImplementationExecutionMode = explicitMode === "unattended" || explicitMode === "attended"
 		? explicitMode
 		: root.mode === "autopilot" ? "unattended" : "attended";
-	const reference = asRecord(kickoff?.implementation_contract);
 	return {
 		assignmentId,
-		actionItemIds,
+		actionItemIds: members,
 		executionMode,
-		reference: {
-			...(text(reference?.contract_version) ? { contract_version: text(reference?.contract_version) } : {}),
-			resource_uri: text(reference?.resource_uri) ?? IMPLEMENTATION_CONTRACT_RESOURCE_URIS[executionMode],
-		},
+		reference: { resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS[executionMode] },
 	};
 }
 

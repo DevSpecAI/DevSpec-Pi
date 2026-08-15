@@ -60,16 +60,27 @@ interface CachedContract extends Omit<EffectiveImplementationContext, "source" |
 interface ContractCache {
 	byIdentity: Map<string, CachedContract>;
 	latestByResource: Map<string, CachedContract>;
+	/** Parent bundle hashes validated from the full compatibility contract. */
+	verifiedBundleHashes: Map<string, string>;
 }
 
-const CACHE_KEY = Symbol.for("devspec.pi.implementation-contract.v1");
+// v2 invalidates contracts cached by the former permissive parser across Pi /reload.
+const CACHE_KEY = Symbol.for("devspec.pi.implementation-contract.v2");
 
 function cache(): ContractCache {
 	const root = globalThis as typeof globalThis & { [CACHE_KEY]?: ContractCache };
-	if (!root[CACHE_KEY]) {
-		root[CACHE_KEY] = { byIdentity: new Map(), latestByResource: new Map() };
+	const current = root[CACHE_KEY];
+	if (
+		!current || !(current.byIdentity instanceof Map) ||
+		!(current.latestByResource instanceof Map) || !(current.verifiedBundleHashes instanceof Map)
+	) {
+		root[CACHE_KEY] = {
+			byIdentity: new Map(),
+			latestByResource: new Map(),
+			verifiedBundleHashes: new Map(),
+		};
 	}
-	return root[CACHE_KEY];
+	return root[CACHE_KEY]!;
 }
 
 function cacheIdentity(scope: string, resourceUri: string, contractVersion: string): string {
@@ -78,6 +89,10 @@ function cacheIdentity(scope: string, resourceUri: string, contractVersion: stri
 
 function latestIdentity(scope: string, resourceUri: string): string {
 	return `${scope}\u0000${resourceUri}`;
+}
+
+function bundleIdentity(scope: string, contractVersion: string): string {
+	return `${scope}\u0000${contractVersion}`;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -90,21 +105,82 @@ function nonEmptyString(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+const CONTRACT_HASH_PATTERN = /^sha256:[a-f0-9]{64}$/;
+const RULE_PHASES = new Set([
+	"discovery", "claim", "implementation", "verification", "delivery", "completion", "failure", "governance",
+]);
+const RULE_ENFORCEMENTS = new Set(["server", "host", "agent", "human"]);
+const PRODUCT_SOURCE = {
+	authority: "devspec_product",
+	tier: "product_implementation_contract",
+} as const;
+const INSTRUCTION_BOUNDARY = {
+	customer_tiers_excluded: [
+		"project_custom_instructions",
+		"project_agent_rules",
+		"owner_agent_rules",
+		"live_owner_command",
+	],
+	non_overridable: ["all_product_contract_rules"],
+	contextual_precedence_high_to_low: [
+		"live_owner_command",
+		"owner_agent_rules",
+		"project_agent_rules",
+		"project_custom_instructions",
+	],
+	override_policy: {
+		product_contract_rules: "never_override",
+		project_shared_repo_safety: "never_weaken",
+		other_customer_context: "higher_tier_specializes_lower_tier_when_non_conflicting",
+	},
+} as const;
+
+function normalizeForCanonicalJson(value: unknown): unknown {
+	if (Array.isArray(value)) return value.map(normalizeForCanonicalJson);
+	if (value !== null && typeof value === "object") {
+		return Object.fromEntries(
+			Object.entries(value as Record<string, unknown>)
+				.sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+				.map(([key, nested]) => [key, normalizeForCanonicalJson(nested)]),
+		);
+	}
+	return value;
+}
+
+function canonicalJson(value: unknown): string {
+	return JSON.stringify(normalizeForCanonicalJson(value));
+}
+
+export function hashContractValue(value: unknown): string {
+	return `sha256:${createHash("sha256").update(canonicalJson(value), "utf8").digest("hex")}`;
+}
+
+function exactMetadata(value: unknown, expected: unknown): boolean {
+	return canonicalJson(value) === canonicalJson(expected);
+}
+
+function hasExactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
+	const actual = Object.keys(value).sort();
+	const wanted = [...expected].sort();
+	return actual.length === wanted.length && actual.every((key, index) => key === wanted[index]);
+}
+
 function parseRules(value: unknown): ImplementationRule[] | null {
 	const section = asRecord(value);
-	if (!section || !Array.isArray(section.rules)) return null;
+	if (!section || !hasExactKeys(section, ["rules"]) || !Array.isArray(section.rules)) return null;
 	const rules: ImplementationRule[] = [];
 	for (const candidate of section.rules) {
 		const row = asRecord(candidate);
-		const id = nonEmptyString(row?.id);
-		const requirement = nonEmptyString(row?.requirement);
-		if (!id || !requirement) return null;
-		rules.push({
-			id,
-			requirement,
-			...(nonEmptyString(row?.phase) ? { phase: nonEmptyString(row?.phase) } : {}),
-			...(nonEmptyString(row?.enforcement) ? { enforcement: nonEmptyString(row?.enforcement) } : {}),
-		});
+		if (!row || !hasExactKeys(row, ["id", "phase", "requirement", "enforcement"])) return null;
+		const id = nonEmptyString(row.id);
+		const phase = nonEmptyString(row.phase);
+		const requirement = nonEmptyString(row.requirement);
+		const enforcement = nonEmptyString(row.enforcement);
+		if (
+			!id || !phase || !RULE_PHASES.has(phase) || !requirement ||
+			!enforcement || !RULE_ENFORCEMENTS.has(enforcement)
+		) return null;
+		rules.push({ id, phase, requirement, enforcement });
 	}
 	return rules.length > 0 ? rules : null;
 }
@@ -120,36 +196,131 @@ function parseJsonText(value: unknown, expectedResourceUri: string): unknown {
 	return JSON.parse(text);
 }
 
-function effectiveFromPayload(
-	payload: unknown,
+function parseEffectiveContract(
+	root: Record<string, unknown>,
 	executionMode: ImplementationExecutionMode,
 	resourceUri: string,
 ): CachedContract | null {
-	const parsed = parseJsonText(payload, resourceUri);
-	const root = asRecord(parsed);
-	if (!root) return null;
-	const bundle = asRecord(root.implementation_contract) ?? root;
-	const contractVersion = nonEmptyString(bundle.contract_version);
-	const contractHash = nonEmptyString(bundle.contract_hash);
-	if (!contractVersion) return null;
-
-	const effectiveMode = nonEmptyString(bundle.execution_mode);
-	if (effectiveMode && effectiveMode !== executionMode) return null;
-	const coreRules = parseRules(bundle.core_implementation_contract);
-	const modeRules = parseRules(
-		bundle.mode_overlay ??
-			(executionMode === "attended" ? bundle.attended_overlay : bundle.unattended_overlay),
-	);
-	if (!coreRules || !modeRules) return null;
+	if (
+		!hasExactKeys(root, [
+			"kind", "schema_version", "contract_version", "contract_hash", "effective_hash",
+			"execution_mode", "source", "instruction_boundary", "core_implementation_contract", "mode_overlay",
+		]) ||
+		root.kind !== "devspec.product.effective_implementation_contract" ||
+		root.schema_version !== 1 ||
+		root.execution_mode !== executionMode ||
+		!exactMetadata(root.source, PRODUCT_SOURCE) ||
+		!exactMetadata(root.instruction_boundary, INSTRUCTION_BOUNDARY)
+	) return null;
+	const contractVersion = nonEmptyString(root.contract_version);
+	const contractHash = nonEmptyString(root.contract_hash);
+	const effectiveHash = nonEmptyString(root.effective_hash);
+	const coreRules = parseRules(root.core_implementation_contract);
+	const modeRules = parseRules(root.mode_overlay);
+	if (
+		!contractVersion || !contractHash || !CONTRACT_HASH_PATTERN.test(contractHash) ||
+		!effectiveHash || !CONTRACT_HASH_PATTERN.test(effectiveHash) || !coreRules || !modeRules
+	) return null;
+	// Match DevSpecV2 exactly: effective_hash covers the effective payload fields
+	// and deliberately excludes both hash fields; contract_hash identifies the
+	// parent full bundle and is only recomputable from a compatibility bundle.
+	const effectiveHashInput = {
+		kind: root.kind,
+		schema_version: root.schema_version,
+		contract_version: contractVersion,
+		execution_mode: executionMode,
+		source: PRODUCT_SOURCE,
+		instruction_boundary: INSTRUCTION_BOUNDARY,
+		core_implementation_contract: { rules: coreRules },
+		mode_overlay: { rules: modeRules },
+	};
+	if (hashContractValue(effectiveHashInput) !== effectiveHash) return null;
 	return {
 		executionMode,
 		contractVersion,
-		...(contractHash ? { contractHash } : {}),
-		...(nonEmptyString(bundle.effective_hash) ? { effectiveHash: nonEmptyString(bundle.effective_hash) } : {}),
+		contractHash,
+		effectiveHash,
 		resourceUri,
 		coreRules,
 		modeRules,
 	};
+}
+
+function parseContractBundle(
+	root: Record<string, unknown>,
+	executionMode: ImplementationExecutionMode,
+	resourceUri: string,
+): CachedContract | null {
+	if (
+		!hasExactKeys(root, [
+			"kind", "schema_version", "contract_version", "contract_hash", "source", "instruction_boundary",
+			"core_implementation_contract", "attended_overlay", "unattended_overlay",
+		]) ||
+		root.kind !== "devspec.product.implementation_contract" ||
+		root.schema_version !== 1 ||
+		!exactMetadata(root.source, PRODUCT_SOURCE) ||
+		!exactMetadata(root.instruction_boundary, INSTRUCTION_BOUNDARY)
+	) return null;
+	const contractVersion = nonEmptyString(root.contract_version);
+	const contractHash = nonEmptyString(root.contract_hash);
+	const coreRules = parseRules(root.core_implementation_contract);
+	const attendedRules = parseRules(root.attended_overlay);
+	const unattendedRules = parseRules(root.unattended_overlay);
+	if (
+		!contractVersion || !contractHash || !CONTRACT_HASH_PATTERN.test(contractHash) ||
+		!coreRules || !attendedRules || !unattendedRules
+	) return null;
+	const contractHashInput = {
+		kind: root.kind,
+		schema_version: root.schema_version,
+		contract_version: contractVersion,
+		source: PRODUCT_SOURCE,
+		instruction_boundary: INSTRUCTION_BOUNDARY,
+		core_implementation_contract: { rules: coreRules },
+		attended_overlay: { rules: attendedRules },
+		unattended_overlay: { rules: unattendedRules },
+	};
+	if (hashContractValue(contractHashInput) !== contractHash) return null;
+	const modeRules = executionMode === "attended" ? attendedRules : unattendedRules;
+	const effectiveHash = hashContractValue({
+		kind: "devspec.product.effective_implementation_contract",
+		schema_version: 1,
+		contract_version: contractVersion,
+		execution_mode: executionMode,
+		source: PRODUCT_SOURCE,
+		instruction_boundary: INSTRUCTION_BOUNDARY,
+		core_implementation_contract: { rules: coreRules },
+		mode_overlay: { rules: modeRules },
+	});
+	return {
+		executionMode,
+		contractVersion,
+		contractHash,
+		effectiveHash,
+		resourceUri,
+		coreRules,
+		modeRules,
+	};
+}
+
+function effectiveFromResourcePayload(
+	payload: unknown,
+	executionMode: ImplementationExecutionMode,
+	resourceUri: string,
+): CachedContract | null {
+	const root = asRecord(parseJsonText(payload, resourceUri));
+	return root ? parseEffectiveContract(root, executionMode, resourceUri) : null;
+}
+
+function effectiveFromCompatibilityPayload(
+	payload: unknown,
+	executionMode: ImplementationExecutionMode,
+	resourceUri: string,
+): CachedContract | null {
+	const root = asRecord(payload);
+	if (!root) return null;
+	const bundle = asRecord(root.implementation_contract) ?? root;
+	return parseContractBundle(bundle, executionMode, resourceUri);
 }
 
 function localSafetyFallback(
@@ -212,10 +383,17 @@ function validateResourceUri(mode: ImplementationExecutionMode, uri: string): bo
 	return uri === IMPLEMENTATION_CONTRACT_RESOURCE_URIS[mode];
 }
 
-function storeContract(scope: string, value: CachedContract): void {
+function storeContract(scope: string, value: CachedContract, parentHashVerified = false): void {
 	const current = cache();
 	current.byIdentity.set(cacheIdentity(scope, value.resourceUri, value.contractVersion), value);
 	current.latestByResource.set(latestIdentity(scope, value.resourceUri), value);
+	if (parentHashVerified && value.contractHash) {
+		current.verifiedBundleHashes.set(bundleIdentity(scope, value.contractVersion), value.contractHash);
+	}
+}
+
+function verifiedBundleHash(scope: string, contractVersion: string): string | undefined {
+	return cache().verifiedBundleHashes.get(bundleIdentity(scope, contractVersion));
 }
 
 function cachedContract(
@@ -239,11 +417,14 @@ export async function loadImplementationContext(input: {
 	executionMode: ImplementationExecutionMode;
 	reference?: ImplementationContractReference;
 	loader: ImplementationContractLoader;
+	/** Pump/bond authority checkpoint for each asynchronous preparation stage. */
+	assertCurrent?: () => void;
 }): Promise<EffectiveImplementationContext> {
 	const expectedUri = IMPLEMENTATION_CONTRACT_RESOURCE_URIS[input.executionMode];
 	const resourceUri = input.reference?.resource_uri ?? expectedUri;
 	const expectedVersion = nonEmptyString(input.reference?.contract_version);
 	const scope = await input.loader.cacheScope();
+	input.assertCurrent?.();
 	if (!validateResourceUri(input.executionMode, resourceUri)) {
 		return localSafetyFallback(
 			input.executionMode,
@@ -258,38 +439,86 @@ export async function loadImplementationContext(input: {
 	}
 
 	const errors: string[] = [];
+	let resourceContract: CachedContract | null = null;
+	let compatibilityContract: CachedContract | null = null;
+	let compatibilityRead = false;
 	try {
-		const parsed = effectiveFromPayload(
-			await input.loader.readResource(resourceUri),
-			input.executionMode,
-			resourceUri,
-		);
-		if (!parsed) throw new Error("resource payload was not a valid implementation contract");
-		if (expectedVersion && parsed.contractVersion !== expectedVersion) {
-			throw new Error(`resource version ${parsed.contractVersion} did not match kickoff version ${expectedVersion}`);
+		const payload = await input.loader.readResource(resourceUri);
+		input.assertCurrent?.();
+		resourceContract = effectiveFromResourcePayload(payload, input.executionMode, resourceUri);
+		if (!resourceContract) throw new Error("resource payload was not a valid implementation contract");
+		if (expectedVersion && resourceContract.contractVersion !== expectedVersion) {
+			throw new Error(`resource version ${resourceContract.contractVersion} did not match kickoff version ${expectedVersion}`);
 		}
-		storeContract(scope, parsed);
-		return { ...parsed, source: "resource" };
 	} catch (error) {
+		resourceContract = null;
+		input.assertCurrent?.();
 		errors.push(error instanceof Error ? error.message : String(error));
 	}
 
-	try {
-		const parsed = effectiveFromPayload(
-			await input.loader.readCompatibilityBundle(),
-			input.executionMode,
-			resourceUri,
-		);
-		if (!parsed) throw new Error("compatibility payload was not a valid implementation contract");
-		if (expectedVersion && parsed.contractVersion !== expectedVersion) {
-			throw new Error(`compatibility version ${parsed.contractVersion} did not match kickoff version ${expectedVersion}`);
+	if (resourceContract) {
+		const trustedParentHash = verifiedBundleHash(scope, resourceContract.contractVersion);
+		if (trustedParentHash === resourceContract.contractHash) {
+			storeContract(scope, resourceContract);
+			return { ...resourceContract, source: "resource" };
 		}
-		storeContract(scope, parsed);
-		return { ...parsed, source: "compatibility" };
-	} catch (error) {
-		errors.push(error instanceof Error ? error.message : String(error));
+		if (trustedParentHash) {
+			errors.push("resource contract_hash did not match the retained validated parent bundle");
+			resourceContract = null;
+		} else {
+			// effective_hash authenticates the exact mode projection, but DevSpecV2
+			// deliberately excludes the parent contract_hash from that hash input.
+			// Validate the parent hash once per authority/version from the full bundle.
+			try {
+				const payload = await input.loader.readCompatibilityBundle();
+				compatibilityRead = true;
+				input.assertCurrent?.();
+				compatibilityContract = effectiveFromCompatibilityPayload(payload, input.executionMode, resourceUri);
+				if (!compatibilityContract) throw new Error("compatibility payload was not a valid implementation contract");
+				if (expectedVersion && compatibilityContract.contractVersion !== expectedVersion) {
+					throw new Error(`compatibility version ${compatibilityContract.contractVersion} did not match kickoff version ${expectedVersion}`);
+				}
+				if (
+					compatibilityContract.contractHash === resourceContract.contractHash &&
+					compatibilityContract.effectiveHash === resourceContract.effectiveHash
+				) {
+					storeContract(scope, resourceContract, true);
+					return { ...resourceContract, source: "resource" };
+				}
+				errors.push("resource contract identity did not match the validated compatibility bundle");
+				resourceContract = null;
+			} catch (error) {
+				compatibilityContract = null;
+				input.assertCurrent?.();
+				errors.push(error instanceof Error ? error.message : String(error));
+			}
+		}
 	}
 
+	if (!compatibilityContract) {
+		try {
+			const payload = compatibilityRead ? null : await input.loader.readCompatibilityBundle();
+			compatibilityRead = true;
+			input.assertCurrent?.();
+			compatibilityContract = payload === null
+				? null
+				: effectiveFromCompatibilityPayload(payload, input.executionMode, resourceUri);
+			if (!compatibilityContract) throw new Error("compatibility payload was not a valid implementation contract");
+			if (expectedVersion && compatibilityContract.contractVersion !== expectedVersion) {
+				throw new Error(`compatibility version ${compatibilityContract.contractVersion} did not match kickoff version ${expectedVersion}`);
+			}
+		} catch (error) {
+			compatibilityContract = null;
+			input.assertCurrent?.();
+			errors.push(error instanceof Error ? error.message : String(error));
+		}
+	}
+	if (compatibilityContract) {
+		storeContract(scope, compatibilityContract, true);
+		return { ...compatibilityContract, source: "compatibility" };
+	}
+
+	input.assertCurrent?.();
 	const retained = cachedContract(scope, resourceUri, expectedVersion);
 	if (retained) {
 		return {
@@ -330,14 +559,19 @@ export function buildImplementationKickoff(input: {
 	actionItemIds: readonly string[];
 	assignmentId?: string;
 	context: EffectiveImplementationContext;
-	/** Preserve the authenticated server delivery pointer while a local safety fallback is active. */
 	contractReference?: ImplementationContractReference;
 }): ImplementationKickoff {
 	const actionItemIds = [...new Set(input.actionItemIds.map((id) => id.trim()).filter(Boolean))];
 	if (actionItemIds.length === 0) throw new Error("implementation kickoff requires at least one action item id");
+	if (input.context.source === "local_safety_fallback") {
+		throw new Error("canonical implementation contract unavailable; work was not started and remains retryable");
+	}
 	const suppliedVersion = nonEmptyString(input.contractReference?.contract_version);
-	if (input.contractReference && !suppliedVersion && input.context.source === "local_safety_fallback") {
-		throw new Error("legacy implementation kickoff cannot identify a product contract while the server is unavailable");
+	if (suppliedVersion && suppliedVersion !== input.context.contractVersion) {
+		throw new Error("implementation kickoff contract version did not match the loaded canonical contract");
+	}
+	if (input.contractReference?.resource_uri && input.contractReference.resource_uri !== input.context.resourceUri) {
+		throw new Error("implementation kickoff contract resource did not match the loaded canonical contract");
 	}
 	const reference = {
 		contract_version: suppliedVersion ?? input.context.contractVersion,
@@ -386,5 +620,9 @@ export function formatImplementationContext(context: EffectiveImplementationCont
 
 export function resetImplementationContractCache(): void {
 	const root = globalThis as typeof globalThis & { [CACHE_KEY]?: ContractCache };
-	root[CACHE_KEY] = { byIdentity: new Map(), latestByResource: new Map() };
+	root[CACHE_KEY] = {
+		byIdentity: new Map(),
+		latestByResource: new Map(),
+		verifiedBundleHashes: new Map(),
+	};
 }

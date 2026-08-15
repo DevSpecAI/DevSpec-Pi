@@ -25,7 +25,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { hostname } from "node:os";
 import { debugRemote as debug } from "./core/debug.ts";
-import { DeliveryQueue } from "./core/delivery-queue.ts";
+import { DeliveryQueue, StaleDeliveryError, nextDeliveryRetryDelayMs, type DeliveryLease } from "./core/delivery-queue.ts";
 import {
 	callDevspec,
 	isPermanentServerEnd,
@@ -46,6 +46,7 @@ import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, typ
 import { takeContextBudgetReport } from "./core/context-budget.ts";
 import { automaticBackgroundTaskId, backgroundTaskNotificationId, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitFirstAnswer, isHarnessOrigin, shouldPauseSettle, TurnTracker } from "./core/turn-lifecycle.ts";
 import {
+	assertHydratedAssignmentIdentity,
 	dispatchImplementationDelivery,
 	dispatchSummary,
 	formatDispatchMessage,
@@ -92,6 +93,8 @@ const ERROR_BACKOFF_MS = 5_000;
 const MAX_CONSECUTIVE_ERRORS = 10;
 
 interface PumpState {
+	/** Monotonic authority generation; async work may commit only while this pump remains current. */
+	generation: number;
 	bond: BondState;
 	cursor?: string;
 	dispatchCursor?: string;
@@ -130,9 +133,13 @@ interface PumpState {
 	lastSessionEnrichAt?: number;
 	/** Dispatch contract hydration is ordered but never awaited by the pump. */
 	dispatchQueue: DeliveryQueue;
+	/** Local retry survives dispatch-cursor advancement after transient preparation failure. */
+	dispatchRetryAttempts: Map<string, number>;
+	dispatchRetryTimers: Map<string, ReturnType<typeof setTimeout>>;
 }
 
 let pump: PumpState | null = null;
+let nextPumpGeneration = 1;
 /** Cached so a mid-turn poll does not re-read settings.json every lap. */
 let preemptOwnerCached = true;
 
@@ -505,6 +512,9 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	const active = pump;
 	if (!active) return;
 	active.stop = true;
+	active.dispatchQueue.invalidate();
+	for (const timer of active.dispatchRetryTimers.values()) clearTimeout(timer);
+	active.dispatchRetryTimers.clear();
 	active.pushAbort?.abort();
 	if (active.pushReconnectTimer) {
 		clearTimeout(active.pushReconnectTimer);
@@ -627,16 +637,25 @@ function dispatchRecord(value: unknown): Record<string, unknown> | null {
 		: null;
 }
 
+function assertDeliveryAuthority(active: PumpState, lease: DeliveryLease): void {
+	lease.assertCurrent();
+	if (active.stop || pump !== active || pump.generation !== active.generation) {
+		throw new StaleDeliveryError();
+	}
+}
+
 async function deliverDispatch(
 	active: PumpState,
 	token: string,
 	rawDispatch: unknown,
 	ctx: ExtensionContext,
+	lease: DeliveryLease,
 ): Promise<void> {
-	if (active.stop || pump !== active) return;
+	assertDeliveryAuthority(active, lease);
 	if (isPlaybookDispatch(rawDispatch)) {
 		const root = dispatchRecord(rawDispatch);
 		const message = formatPlaybookDispatchMessage(rawDispatch, active.bond.codename ?? "this agent");
+		assertDeliveryAuthority(active, lease);
 		notePlaybook({
 			runId: typeof root?.run_id === "string" ? root.run_id : undefined,
 			id: typeof root?.playbook_id === "string" ? root.playbook_id : undefined,
@@ -660,6 +679,7 @@ async function deliverDispatch(
 			{ assignment_id: assignmentId },
 			{ cwd: ctx.cwd, lane: "work", timeoutMs: MODEL_TIMEOUT_MS },
 		);
+		assertDeliveryAuthority(active, lease);
 		const unwrapped = unwrapMcpResult(raw);
 		if (unwrapped.isError) throw new Error(unwrapped.text || "get_assignment failed");
 		const hydrated = dispatchRecord(unwrapped.details)?.assignment;
@@ -667,13 +687,16 @@ async function deliverDispatch(
 		dispatch = hydrated;
 		delivery = dispatchImplementationDelivery(dispatch);
 		if (!delivery) throw new Error(`assignment ${assignmentId} carried no implementation kickoff or members`);
+		assertHydratedAssignmentIdentity(assignmentId, delivery);
 	}
 
 	const implementationContext = await loadImplementationContext({
 		executionMode: delivery.executionMode,
 		reference: delivery.reference,
 		loader: createImplementationContractLoader(token),
+		assertCurrent: () => assertDeliveryAuthority(active, lease),
 	});
+	assertDeliveryAuthority(active, lease);
 	const kickoff = buildImplementationKickoff({
 		actionItemIds: delivery.actionItemIds,
 		assignmentId: delivery.assignmentId,
@@ -686,6 +709,7 @@ async function deliverDispatch(
 		implementationContext,
 		delivery,
 	);
+	assertDeliveryAuthority(active, lease);
 	const modeInstallation = installImplementationMode(kickoff, implementationContext);
 	try {
 		pi_send(message, ctx.isIdle() ? "now" : "followUp");
@@ -693,10 +717,36 @@ async function deliverDispatch(
 		rollbackImplementationMode(modeInstallation);
 		throw error;
 	}
+	// No await follows the final authority checkpoint above: message, mode and
+	// status commit in one JavaScript turn, so stop/rebond cannot interleave.
 	const summary = dispatchSummary(dispatch);
 	noteWork({ id: summary.assignmentId, title: summary.title });
 	paintStatus(ctx);
 	if (implementationContext.warning) notify(ctx, implementationContext.warning, "warning");
+}
+
+function scheduleDispatchRetry(
+	active: PumpState,
+	key: string,
+	token: string,
+	dispatch: unknown,
+	ctx: ExtensionContext,
+	error: unknown,
+): void {
+	if (active.stop || pump !== active) return;
+	const failures = (active.dispatchRetryAttempts.get(key) ?? 0) + 1;
+	active.dispatchRetryAttempts.set(key, failures);
+	const delayMs = nextDeliveryRetryDelayMs(failures);
+	const reason = error instanceof Error ? error.message : String(error);
+	if (!active.dispatchRetryTimers.has(key)) {
+		const timer = setTimeout(() => {
+			active.dispatchRetryTimers.delete(key);
+			if (!active.stop && pump === active) enqueueDispatch(active, token, dispatch, ctx);
+		}, delayMs);
+		if (typeof timer.unref === "function") timer.unref();
+		active.dispatchRetryTimers.set(key, timer);
+	}
+	notify(ctx, `DevSpec remote: failed to deliver dispatch: ${reason}. Retrying locally in ${Math.ceil(delayMs / 1_000)}s.`, "warning");
 }
 
 function enqueueDispatch(
@@ -712,11 +762,15 @@ function enqueueDispatch(
 	if (!key) return;
 	active.dispatchQueue.enqueue(
 		key,
-		async () => {
-			await deliverDispatch(active, token, dispatch, ctx);
+		async (lease) => {
+			await deliverDispatch(active, token, dispatch, ctx, lease);
+			active.dispatchRetryAttempts.delete(key);
+			const timer = active.dispatchRetryTimers.get(key);
+			if (timer) clearTimeout(timer);
+			active.dispatchRetryTimers.delete(key);
 			if (!active.stop && pump === active) notify(ctx, "DevSpec remote: work dispatch delivered.");
 		},
-		(error) => notify(ctx, `DevSpec remote: failed to deliver dispatch: ${error instanceof Error ? error.message : error}`, "warning"),
+		(error) => scheduleDispatchRetry(active, key, token, dispatch, ctx, error),
 	);
 }
 
@@ -1058,6 +1112,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 	setBond(bond);
 	const attachedAtMs = resolveAttachedAtMs(attachedAtStamp, Date.now());
 	pump = {
+		generation: nextPumpGeneration++,
 		bond,
 		busy: false,
 		stop: false,
@@ -1067,6 +1122,8 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 		pushAttempts: 0,
 		attachedAtMs,
 		dispatchQueue: new DeliveryQueue(),
+		dispatchRetryAttempts: new Map(),
+		dispatchRetryTimers: new Map(),
 	};
 	preemptOwnerCached = (await loadSettings()).preemptOwner;
 	setRemoteStatus(ctx);

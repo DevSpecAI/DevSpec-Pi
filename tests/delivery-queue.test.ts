@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DeliveryQueue, nextDeliveryRetryDelayMs } from "../extensions/core/delivery-queue.ts";
+import { revalidateDispatchRetry } from "../extensions/core/dispatch-retry.ts";
 import {
 	IMPLEMENTATION_CONTRACT_RESOURCE_URIS,
 	buildImplementationKickoff,
@@ -90,6 +91,80 @@ test("canonical-contract outage leaves unattended delivery retryable without mes
 	await queue.idle();
 	assert.deepEqual(messages, ["assignment-retry"]);
 	assert.deepEqual(listImplementationModes().map((mode) => mode.assignmentId), ["assignment-retry"]);
+});
+
+test("authoritative withdrawal revokes same-key preparation already re-enqueued by polling", async () => {
+	resetImplementationMode();
+	const queue = new DeliveryQueue();
+	const key = "assignment-withdrawn";
+	const messages: string[] = [];
+	const statuses: string[] = [];
+	const notifications: string[] = [];
+	let retries = 0;
+
+	queue.enqueue(key, async () => { throw new Error("temporary delivery failure"); }, () => { retries++; });
+	await queue.idle();
+	assert.equal(retries, 1, "the initial transient failure schedules exact revalidation");
+	retries = 0;
+
+	let releasePreparation!: () => void;
+	let markStarted!: () => void;
+	const preparationStarted = new Promise<void>((resolve) => { markStarted = resolve; });
+	const preparationGate = new Promise<void>((resolve) => { releasePreparation = resolve; });
+	const context: EffectiveImplementationContext = {
+		executionMode: "unattended",
+		contractVersion: "1.0.0",
+		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.unattended,
+		source: "resource",
+		coreRules: [],
+		modeRules: [],
+	};
+	assert.equal(queue.enqueue(key, async (lease) => {
+		markStarted();
+		await preparationGate;
+		lease.assertCurrent();
+		const kickoff = buildImplementationKickoff({
+			actionItemIds: ["item-withdrawn"],
+			assignmentId: key,
+			context,
+		});
+		installImplementationMode(kickoff, context);
+		messages.push(key);
+		statuses.push("working");
+		notifications.push("delivered");
+	}, () => {
+		retries++;
+		notifications.push("retry");
+	}), true, "a normal poll may re-offer the key after the transient failure");
+	await preparationStarted;
+	assert.equal(queue.enqueue("assignment-unrelated", async (lease) => {
+		lease.assertCurrent();
+		messages.push("unrelated-delivery");
+	}, () => assert.fail("key-specific withdrawal must not revoke unrelated work")), true);
+
+	const outcome = await revalidateDispatchRetry({
+		key,
+		loadCurrentInbox: async () => ({ dispatches: [], identityComplete: true }),
+		identity: (dispatch: { id: string }) => dispatch.id,
+		withdrawCurrent: () => queue.invalidateKey(key),
+		enqueueCurrent: () => assert.fail("withdrawn authority cannot enqueue"),
+	});
+	assert.equal(outcome, "withdrawn");
+
+	releasePreparation();
+	await queue.idle();
+	assert.deepEqual(messages, ["unrelated-delivery"]);
+	assert.deepEqual(listImplementationModes(), []);
+	assert.deepEqual(statuses, []);
+	assert.deepEqual(notifications, []);
+	assert.equal(retries, 0, "stale preparation cannot schedule another retry");
+
+	assert.equal(queue.enqueue(key, async (lease) => {
+		lease.assertCurrent();
+		messages.push("genuine-redispatch");
+	}, () => assert.fail("a future genuine redispatch must remain deliverable")), true);
+	await queue.idle();
+	assert.deepEqual(messages, ["unrelated-delivery", "genuine-redispatch"]);
 });
 
 test("stopping and rebonding revokes paused preparation before every delivery side effect", async () => {

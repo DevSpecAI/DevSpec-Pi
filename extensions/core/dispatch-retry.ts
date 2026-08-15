@@ -14,12 +14,17 @@ export async function revalidateDispatchRetry<T>(input: {
 	loadCurrentInbox: () => Promise<DispatchRetryInbox<T>>;
 	identity: (dispatch: T) => string | undefined;
 	assertCurrent?: () => void;
+	withdrawCurrent?: () => void;
 	enqueueCurrent: (dispatch: T) => void;
 }): Promise<"enqueued" | "withdrawn" | "retry"> {
 	const inbox = await input.loadCurrentInbox();
 	input.assertCurrent?.();
 	const current = inbox.dispatches.find((dispatch) => input.identity(dispatch) === input.key);
-	if (!current) return inbox.identityComplete ? "withdrawn" : "retry";
+	if (!current) {
+		if (!inbox.identityComplete) return "retry";
+		input.withdrawCurrent?.();
+		return "withdrawn";
+	}
 	input.assertCurrent?.();
 	input.enqueueCurrent(current);
 	return "enqueued";

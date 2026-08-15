@@ -36,9 +36,11 @@ test("failed delivery retries identity only after re-reading the authoritative l
 	assert.match(retryBody, /nextDeliveryRetryDelayMs\(failures\)/);
 	assert.match(retryBody, /revalidateDispatchRetry\(\{/);
 	assert.match(retryBody, /loadCurrentInbox: \(\) => loadCurrentDispatchInbox\(active, key, token, ctx\)/);
+	assert.match(retryBody, /withdrawCurrent: \(\) => active\.dispatchQueue\.invalidateKey\(key\)/);
 	assert.match(retryBody, /enqueueCurrent: \(currentDispatch\) => enqueueDispatch\(active, token, currentDispatch, ctx\)/);
 	assert.match(retryBody, /outcome === "retry"[\s\S]*scheduleDispatchRetry/);
 	assert.doesNotMatch(retryBody, /enqueueDispatch\(active, token, dispatch, ctx\)/, "captured envelopes are not retry authority");
+	assert.doesNotMatch(retryBody, /dispatch is no longer active/, "authoritative cancellation is silent");
 	assert.match(source, /\(error\) => scheduleDispatchRetry\(active, key, token, ctx, error\)/);
 });
 

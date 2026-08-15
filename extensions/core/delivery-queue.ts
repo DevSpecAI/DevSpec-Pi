@@ -7,9 +7,10 @@ export function nextDeliveryRetryDelayMs(
 	return Math.min(baseMs * 2 ** exponent, maxMs);
 }
 
-/** A pump-scoped authority lease for one asynchronously prepared delivery. */
+/** Pump- and dispatch-scoped authority lease for one asynchronous delivery. */
 export interface DeliveryLease {
 	readonly generation: number;
+	readonly keyGeneration: number;
 	isCurrent(): boolean;
 	assertCurrent(): void;
 }
@@ -26,18 +27,29 @@ export class DeliveryQueue {
 	private tail: Promise<void> = Promise.resolve();
 	private seen = new Set<string>();
 	private generation = 1;
+	private keyGenerations = new Map<string, number>();
 	private active = true;
+
+	private keyGeneration(key: string): number {
+		return this.keyGenerations.get(key) ?? 1;
+	}
 
 	/** Returns immediately; tasks execute serially in delivery order. */
 	enqueue(key: string, task: (lease: DeliveryLease) => Promise<void>, onError: (error: unknown) => void): boolean {
 		if (!this.active || !key || this.seen.has(key)) return false;
 		this.seen.add(key);
 		const generation = this.generation;
+		const keyGeneration = this.keyGeneration(key);
+		const isCurrent = () =>
+			this.active &&
+			this.generation === generation &&
+			this.keyGeneration(key) === keyGeneration;
 		const lease: DeliveryLease = {
 			generation,
-			isCurrent: () => this.active && this.generation === generation,
+			keyGeneration,
+			isCurrent,
 			assertCurrent: () => {
-				if (!this.active || this.generation !== generation) throw new StaleDeliveryError();
+				if (!isCurrent()) throw new StaleDeliveryError();
 			},
 		};
 		this.tail = this.tail
@@ -57,12 +69,20 @@ export class DeliveryQueue {
 		return true;
 	}
 
+	/** Revoke in-flight and queued work for one dispatch identity only. */
+	invalidateKey(key: string): void {
+		if (!this.active || !key) return;
+		this.keyGenerations.set(key, this.keyGeneration(key) + 1);
+		this.seen.delete(key);
+	}
+
 	/** Revoke every in-flight and queued delivery owned by this pump generation. */
 	invalidate(): void {
 		if (!this.active) return;
 		this.active = false;
 		this.generation += 1;
 		this.seen.clear();
+		this.keyGenerations.clear();
 	}
 
 	/** Test/shutdown observation only; the pump never awaits contract work. */

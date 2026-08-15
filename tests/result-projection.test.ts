@@ -76,7 +76,7 @@ test("model tool schemas and projection families require an explicit contract-ba
 	const fingerprint = createHash("sha256").update(JSON.stringify(contract)).digest("hex");
 	assert.equal(
 		fingerprint,
-		"e619fddf01d3b03808357618e50f6e857751ef5843598b75af247b90ccbace24",
+		"665865ae5b97c033e5726bccb0032b06deb3a864fbcd2be17e42ac2aceee9523",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

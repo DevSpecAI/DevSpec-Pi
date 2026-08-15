@@ -18,6 +18,7 @@ import { callDevspec, MODEL_TIMEOUT_MS } from "./core/client.ts";
 import { repoResolver, validateCommitSha } from "./core/commit-ledger.ts";
 import { addFlags, extractFlags } from "./core/conflict-watch.ts";
 import { jsonSchemaToTypebox } from "./core/json-schema.ts";
+import { consumeImplementationLifecycle } from "./core/implementation-mode.ts";
 import {
 	HOT_SET_VERBS,
 	SCOPE_KEY_SET,
@@ -93,9 +94,14 @@ function applyWorkStatus(name: string, result: unknown): void {
 }
 
 /** Consume complete structured details for conflict and footer mechanics. */
-export function consumeResultMechanics(name: string, result: unknown): void {
+export function consumeResultMechanics(
+	name: string,
+	result: unknown,
+	args: Record<string, unknown> = {},
+): void {
 	watchForSignals(name, result);
 	applyWorkStatus(name, result);
+	consumeImplementationLifecycle(name, args, result);
 }
 
 const NOT_CONNECTED =
@@ -193,7 +199,7 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 			timeoutMs: MODEL_TIMEOUT_MS,
 		});
 		const result = unwrapOrThrow(name, raw);
-		consumeResultMechanics(name, result);
+		consumeResultMechanics(name, result, args);
 		return measuredToolResult(name, result);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);

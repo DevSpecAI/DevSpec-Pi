@@ -25,9 +25,11 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { hostname } from "node:os";
 import { debugRemote as debug } from "./core/debug.ts";
+import { DeliveryQueue } from "./core/delivery-queue.ts";
 import {
 	callDevspec,
 	isPermanentServerEnd,
+	MODEL_TIMEOUT_MS,
 	shouldEndBondOnPollFailure,
 } from "./core/client.ts";
 import { getBond, setBond, type BondState } from "./core/bond-state.ts";
@@ -43,11 +45,24 @@ import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } f
 import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
 import { takeContextBudgetReport } from "./core/context-budget.ts";
 import { automaticBackgroundTaskId, backgroundTaskNotificationId, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitFirstAnswer, isHarnessOrigin, shouldPauseSettle, TurnTracker } from "./core/turn-lifecycle.ts";
-import { dispatchSummary, formatDispatchMessage } from "./core/dispatch.ts";
+import {
+	dispatchImplementationDelivery,
+	dispatchSummary,
+	formatDispatchMessage,
+	formatPlaybookDispatchMessage,
+	isPlaybookDispatch,
+} from "./core/dispatch.ts";
+import {
+	buildImplementationKickoff,
+	createImplementationContractLoader,
+	loadImplementationContext,
+} from "./core/implementation-contract.ts";
+import { installImplementationMode, rollbackImplementationMode } from "./core/implementation-mode.ts";
 import {
 	firstTextPreview,
 	isRealSessionTitle,
 	noteVerbEnd,
+	notePlaybook,
 	noteVerbStart,
 	noteWork,
 	paintStatus,
@@ -113,6 +128,8 @@ interface PumpState {
 	 *  missing one is retried on a slow cadence, never hot-polled (Ali: a brand-new
 	 *  session may have no title at attach time; check again later). */
 	lastSessionEnrichAt?: number;
+	/** Dispatch contract hydration is ordered but never awaited by the pump. */
+	dispatchQueue: DeliveryQueue;
 }
 
 let pump: PumpState | null = null;
@@ -604,6 +621,105 @@ function startPushChannel(active: PumpState, token: string, endpoint: string): v
 	});
 }
 
+function dispatchRecord(value: unknown): Record<string, unknown> | null {
+	return value !== null && typeof value === "object" && !Array.isArray(value)
+		? value as Record<string, unknown>
+		: null;
+}
+
+async function deliverDispatch(
+	active: PumpState,
+	token: string,
+	rawDispatch: unknown,
+	ctx: ExtensionContext,
+): Promise<void> {
+	if (active.stop || pump !== active) return;
+	if (isPlaybookDispatch(rawDispatch)) {
+		const root = dispatchRecord(rawDispatch);
+		const message = formatPlaybookDispatchMessage(rawDispatch, active.bond.codename ?? "this agent");
+		notePlaybook({
+			runId: typeof root?.run_id === "string" ? root.run_id : undefined,
+			id: typeof root?.playbook_id === "string" ? root.playbook_id : undefined,
+			name: typeof root?.playbook_name === "string" ? root.playbook_name : undefined,
+		});
+		paintStatus(ctx);
+		pi_send(message, ctx.isIdle() ? "now" : "followUp");
+		return;
+	}
+
+	let dispatch = rawDispatch;
+	let delivery = dispatchImplementationDelivery(dispatch);
+	if (!delivery) {
+		// Pre-618/minimal envelopes may carry only the assignment id. Hydrate them
+		// mechanically rather than misclassifying them or making the model discover.
+		const assignmentId = dispatchSummary(dispatch).assignmentId;
+		if (!assignmentId) throw new Error("work dispatch carried no assignment identity");
+		const raw = await callDevspec(
+			token,
+			"get_assignment",
+			{ assignment_id: assignmentId },
+			{ cwd: ctx.cwd, lane: "work", timeoutMs: MODEL_TIMEOUT_MS },
+		);
+		const unwrapped = unwrapMcpResult(raw);
+		if (unwrapped.isError) throw new Error(unwrapped.text || "get_assignment failed");
+		const hydrated = dispatchRecord(unwrapped.details)?.assignment;
+		if (!hydrated) throw new Error(`assignment ${assignmentId} could not be hydrated`);
+		dispatch = hydrated;
+		delivery = dispatchImplementationDelivery(dispatch);
+		if (!delivery) throw new Error(`assignment ${assignmentId} carried no implementation kickoff or members`);
+	}
+
+	const implementationContext = await loadImplementationContext({
+		executionMode: delivery.executionMode,
+		reference: delivery.reference,
+		loader: createImplementationContractLoader(token),
+	});
+	const kickoff = buildImplementationKickoff({
+		actionItemIds: delivery.actionItemIds,
+		assignmentId: delivery.assignmentId,
+		context: implementationContext,
+		contractReference: delivery.reference,
+	});
+	const message = formatDispatchMessage(
+		dispatch,
+		active.bond.codename ?? "this agent",
+		implementationContext,
+		delivery,
+	);
+	const modeInstallation = installImplementationMode(kickoff, implementationContext);
+	try {
+		pi_send(message, ctx.isIdle() ? "now" : "followUp");
+	} catch (error) {
+		rollbackImplementationMode(modeInstallation);
+		throw error;
+	}
+	const summary = dispatchSummary(dispatch);
+	noteWork({ id: summary.assignmentId, title: summary.title });
+	paintStatus(ctx);
+	if (implementationContext.warning) notify(ctx, implementationContext.warning, "warning");
+}
+
+function enqueueDispatch(
+	active: PumpState,
+	token: string,
+	dispatch: unknown,
+	ctx: ExtensionContext,
+): void {
+	const root = dispatchRecord(dispatch);
+	const key =
+		(typeof root?.run_id === "string" && root.run_id) ||
+		dispatchSummary(dispatch).assignmentId;
+	if (!key) return;
+	active.dispatchQueue.enqueue(
+		key,
+		async () => {
+			await deliverDispatch(active, token, dispatch, ctx);
+			if (!active.stop && pump === active) notify(ctx, "DevSpec remote: work dispatch delivered.");
+		},
+		(error) => notify(ctx, `DevSpec remote: failed to deliver dispatch: ${error instanceof Error ? error.message : error}`, "warning"),
+	);
+}
+
 async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 	const active = pump;
 	if (!active) return;
@@ -863,18 +979,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			}
 		}
 		const dispatches = (payload as { dispatches?: unknown[] } | null)?.dispatches ?? [];
-		for (const dispatch of dispatches) {
-			try {
-				const message = formatDispatchMessage(dispatch, active.bond.codename ?? "this agent");
-				const summary = dispatchSummary(dispatch);
-				noteWork({ id: summary.assignmentId, title: summary.title });
-				paintStatus(ctx);
-				pi_send(message, ctx.isIdle() ? "now" : "followUp");
-				notify(ctx, "DevSpec remote: work dispatch delivered.");
-			} catch (err) {
-				notify(ctx, `DevSpec remote: failed to deliver dispatch: ${err instanceof Error ? err.message : err}`, "warning");
-			}
-		}
+		for (const dispatch of dispatches) enqueueDispatch(active, token, dispatch, ctx);
 	}
 }
 
@@ -961,6 +1066,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 		seenOwnerCommands: new SeenOwnerCommands(),
 		pushAttempts: 0,
 		attachedAtMs,
+		dispatchQueue: new DeliveryQueue(),
 	};
 	preemptOwnerCached = (await loadSettings()).preemptOwner;
 	setRemoteStatus(ctx);

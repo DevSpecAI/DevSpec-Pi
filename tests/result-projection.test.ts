@@ -74,9 +74,14 @@ test("model tool schemas and projection families require an explicit contract-ba
 		.filter((entry) => entry.kind === "model")
 		.map(({ name, inputSchema }) => ({ name, inputSchema, family: projectionFamily(name) }));
 	const fingerprint = createHash("sha256").update(JSON.stringify(contract)).digest("hex");
+	// Reviewed 2026-08-17: the only schema change is claim_work_item gaining two
+	// OPTIONAL client-proof inputs (known_instruction_tiers_version/_hash, the
+	// instruction-tier echo that stops a claim paying twice for identical tiers).
+	// Projection families are about tool RESULTS, so an added optional input
+	// changes no family and no quality/budget coverage — baseline updated.
 	assert.equal(
 		fingerprint,
-		"665865ae5b97c033e5726bccb0032b06deb3a864fbcd2be17e42ac2aceee9523",
+		"945a1aef27dfd4b80598e420677c9f892d9153cbc796502be39322adb93a6b02",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

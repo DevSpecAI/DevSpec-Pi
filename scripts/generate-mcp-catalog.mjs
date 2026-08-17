@@ -67,7 +67,11 @@ process.stdout.write(JSON.stringify(tools.map((t) => ({
   inputSchema: t.inputSchema ?? { type: "object", properties: {} },
 }))));
 `;
-	return execFileSync("npx", ["tsx", "-e", script], {
+	// The --tsconfig flag is not optional: apps/web owns the `@/*` path alias, and
+	// without it tsx resolves `@/lib/...` against the monorepo root and dies on the
+	// first aliased import. tests/catalog-drift.test.ts always passed it; this did
+	// not, so the generator could not run at all and the catalog drifted silently.
+	return execFileSync("npx", ["tsx", "--tsconfig=apps/web/tsconfig.json", "-e", script], {
 		cwd: v2Root,
 		encoding: "utf8",
 		maxBuffer: 20 * 1024 * 1024,

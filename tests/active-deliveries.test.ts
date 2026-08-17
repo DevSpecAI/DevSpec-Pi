@@ -62,17 +62,26 @@ test("plural queued dispatches retain independent delivery lifecycle", () => {
 	assert.deepEqual(listActiveDeliveries(), []);
 });
 
-test("resolve_assignment clears only the matching assignment envelope", () => {
+test("a batch clears when its LAST member settles, not by an explicit close call", () => {
+	// `resolve_assignment` was the explicit close, and it is gone (DevSpec item
+	// 1e455001) — a reservation closes itself server-side when its last member
+	// settles. That was always the more reliable signal: an agent could forget to
+	// call the closing verb, and then the batch stayed open for ever.
 	resetActiveDeliveries();
 	const contract = context();
 	recordActiveDelivery(buildImplementationKickoff({
-		actionItemIds: ["item-a"],
+		actionItemIds: ["item-a", "item-b"],
 		assignmentId: "assignment-1",
 		context: contract,
 	}), contract);
-	assert.equal(consumeDeliveryLifecycle("resolve_assignment", { assignment_id: "other" }), false);
+
+	// The retired verb is inert: no delivery is cleared by naming it.
+	assert.equal(consumeDeliveryLifecycle("resolve_assignment", { assignment_id: "assignment-1" }), false);
 	assert.ok(getLatestActiveDelivery());
-	assert.equal(consumeDeliveryLifecycle("resolve_assignment", { assignment_id: "assignment-1" }), true);
+
+	assert.equal(consumeDeliveryLifecycle("record_implementation", { action_item_id: "item-a" }), false);
+	assert.ok(getLatestActiveDelivery(), "one member left, so the batch is still live");
+	assert.equal(consumeDeliveryLifecycle("release_work_item", { action_item_id: "item-b" }), true);
 	assert.equal(getLatestActiveDelivery(), null);
 });
 

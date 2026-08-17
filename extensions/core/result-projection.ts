@@ -57,12 +57,10 @@ const FULL_READ_VERBS = new Set([
 	"get_action_item",
 	"get_memory",
 	"get_resource",
-	"get_next_work_item",
 	"get_testing_brief",
 	"get_action_item_history",
 	"get_action_item_siblings",
 	"get_playbook",
-	"get_assignment",
 	"get_goals",
 	"get_project_goals",
 	"claim_work_item",
@@ -119,8 +117,7 @@ const ACK_VERBS = new Set([
 	"resolve_memory_flag",
 	"surface_session_action_items",
 	"control_connection",
-	"acknowledge_assignment",
-	"resolve_assignment",
+	"reserve_work_items",
 	"write_project_instruction_rule",
 ]);
 

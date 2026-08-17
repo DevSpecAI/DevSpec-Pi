@@ -144,13 +144,6 @@ function itemIdFrom(value: unknown): string | undefined {
 	return undefined;
 }
 
-function assignmentIdFrom(value: unknown): string | undefined {
-	if (!value || typeof value !== "object") return undefined;
-	const root = value as Record<string, unknown>;
-	if (typeof root.assignment_id === "string" && root.assignment_id) return root.assignment_id;
-	return assignmentIdFrom(root.details) ?? assignmentIdFrom(root.assignment);
-}
-
 /**
  * Successful native work-tool results drive the matching delivery's cleanup.
  * Plural queued assignments coexist; no unrelated delivery can be cleared.
@@ -163,12 +156,11 @@ export function consumeDeliveryLifecycle(
 	const current = state();
 	if (current.deliveries.length === 0) return false;
 
-	if (name === "resolve_assignment") {
-		const assignmentId =
-			(typeof args.assignment_id === "string" && args.assignment_id ? args.assignment_id : undefined) ??
-			assignmentIdFrom(result);
-		return assignmentId ? clearActiveDelivery({ assignmentId }) : false;
-	}
+	// `resolve_assignment` used to be watched here as the batch's explicit close.
+	// It is gone (DevSpec item 1e455001): a reservation closes itself server-side
+	// when its last member settles, so the per-member results below are the only
+	// signal — and the only one that was ever reliable, since an agent could always
+	// forget to call the closing verb.
 
 	if (!["record_implementation", "release_work_item", "fail_work_item"].includes(name)) return false;
 	const actionItemId =

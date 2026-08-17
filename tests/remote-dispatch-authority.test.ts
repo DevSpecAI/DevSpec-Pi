@@ -46,7 +46,11 @@ test("failed delivery retries identity only after re-reading the authoritative l
 
 test("real dispatch hydration checkpoints authority and commits record/send without an await gap", () => {
 	const deliveryBody = bodyBetween("async function deliverDispatch", "function enqueueDispatch");
-	assert.match(deliveryBody, /await callDevspec[\s\S]*assertDeliveryAuthority\(active, lease\)/);
+	// It no longer hydrates a thin envelope with get_assignment — that tool is gone
+	// (DevSpec item 1e455001), so a dispatch carrying only an id fails loudly and
+	// precisely instead of calling something that does not exist.
+	assert.doesNotMatch(deliveryBody, /"get_assignment"/);
+	assert.match(deliveryBody, /get_assignment no longer exists to hydrate it/);
 	assert.match(deliveryBody, /loadImplementationContext\(\{[\s\S]*assertCurrent: \(\) => assertDeliveryAuthority\(active, lease\)/);
 	assert.match(deliveryBody, /assertDeliveryAuthority\(active, lease\);\s*const recorded = recordActiveDelivery/);
 	const commit = deliveryBody.match(/const recorded = recordActiveDelivery[\s\S]*?pi_send\(message,[\s\S]*?\);/u)?.[0] ?? "";

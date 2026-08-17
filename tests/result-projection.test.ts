@@ -74,14 +74,16 @@ test("model tool schemas and projection families require an explicit contract-ba
 		.filter((entry) => entry.kind === "model")
 		.map(({ name, inputSchema }) => ({ name, inputSchema, family: projectionFamily(name) }));
 	const fingerprint = createHash("sha256").update(JSON.stringify(contract)).digest("hex");
-	// Reviewed 2026-08-17: the only schema change is claim_work_item gaining two
-	// OPTIONAL client-proof inputs (known_instruction_tiers_version/_hash, the
-	// instruction-tier echo that stops a claim paying twice for identical tiers).
-	// Projection families are about tool RESULTS, so an added optional input
-	// changes no family and no quality/budget coverage — baseline updated.
+	// Reviewed 2026-08-17 (second change of the day, DevSpec item 1e455001): four
+	// model verbs left the catalog — get_next_work_item, get_assignment,
+	// acknowledge_assignment, resolve_assignment — and reserve_work_items arrived.
+	// Its result is a small object (assignment_id, reserved ids, skipped reasons,
+	// one kickoff), so it belongs to the same compact family as the other work
+	// verbs and adds no budget risk; the departures remove families rather than
+	// changing any. Baseline updated deliberately.
 	assert.equal(
 		fingerprint,
-		"945a1aef27dfd4b80598e420677c9f892d9153cbc796502be39322adb93a6b02",
+		"b3c59938f0de065aeeb0be4e6494ee07cabade1f776ed507f1cb56f71ba44f3e",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

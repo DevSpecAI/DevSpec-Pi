@@ -2,11 +2,11 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Fingerprint: bca031800875cb12f930dacb035675e2df8aec0e288ceb32697c64dde38c921b
- * Regenerated: 2026-08-17T07:07:31.422Z
+ * Fingerprint: 1142f4ad96aa6166b3f39a1c7ce93d467b8d2f68ea656cb6f939ae6d167ee9c4
+ * Regenerated: 2026-08-17T08:05:28.947Z
  */
-export const MCP_CATALOG_FINGERPRINT = "bca031800875cb12f930dacb035675e2df8aec0e288ceb32697c64dde38c921b";
-export const MCP_CATALOG_GENERATED_AT = "2026-08-17T07:07:31.422Z";
+export const MCP_CATALOG_FINGERPRINT = "1142f4ad96aa6166b3f39a1c7ce93d467b8d2f68ea656cb6f939ae6d167ee9c4";
+export const MCP_CATALOG_GENERATED_AT = "2026-08-17T08:05:28.947Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -58,11 +58,9 @@ export const MODEL_VERB_NAMES = [
 	"get_testing_brief",
 	"get_goals",
 	"get_project_goals",
-	"get_next_work_item",
 	"get_action_item_history",
 	"get_action_item_siblings",
 	"devspec_help_search",
-	"get_assignment",
 	"get_playbook_runs",
 	"get_playbooks",
 	"get_playbook",
@@ -82,6 +80,7 @@ export const MODEL_VERB_NAMES = [
 	"update_playbook",
 	"delete_playbook",
 	"create_resource",
+	"reserve_work_items",
 	"claim_work_item",
 	"release_work_item",
 	"record_implementation",
@@ -109,8 +108,6 @@ export const MODEL_VERB_NAMES = [
 	"surface_session_action_items",
 	"create_session",
 	"control_connection",
-	"acknowledge_assignment",
-	"resolve_assignment",
 	"write_project_instruction_rule",
 	"import_instruction_rules",
 	"update_personal_instructions"
@@ -258,7 +255,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"assigned_to": {
 					"type": "string",
-					"description": "Filter by assignee (multi-assignee join table; ownership v1). Pass \"me\" or a user UUID to return items assigned to that user OR unassigned (the grab-bag pool). Pass \"anyone\" to disable the filter and include items assigned to other users. Omit to disable the filter for the list view (unlike get_next_work_item, which defaults to \"me\")."
+					"description": "Filter by assignee (multi-assignee join table; ownership v1). Pass \"me\" or a user UUID to return items assigned to that user OR unassigned (the grab-bag pool). Pass \"anyone\" to disable the filter and include items assigned to other users. Omit to disable the filter for the list view."
 				},
 				"parent_id": {
 					"type": "string",
@@ -1048,66 +1045,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"kind": "model"
 	},
 	{
-		"name": "get_next_work_item",
-		"label": "DevSpec: Get Next Work Item",
-		"description": "Get the next highest-priority staged action item with full context for autonomous implementation. Returns the item's description, ai_instructions, affected_files, related items, recent activity, and workflow rules. ALSO returns relevant_memories + relevant_artifacts — read these BEFORE implementing: they are the project decisions, conventions (binding constraints, not suggestions), and linked plans/ADRs for this work. If a recorded decision contradicts what the code needs, surface it (raise it / propose a memory supersede) rather than silently deviating. The payload also carries `review_signals` + `unresolved_conflicts`. NOTE: items with an unresolved possible_conflict are automatically held OUT of this queue (so you won't be handed work that would undo a teammate's change); the field is present for transparency. It also returns a `repos` array — each tracked repo with the `target_branch` DevSpec follows for it (null falls back to `default_branch`) — so you push each repo to its own branch. It also returns a `database_targets` array — each connected database with its non-secret `identity` (e.g. the Supabase project ref), declared `environment`, and the `branch_name` whose migrations target it. If your work includes a database migration, do NOT guess the database from your local tooling's default: find the target whose `branch_name` matches the repo `target_branch` you push to (or `branch_name: null` = all branches), point your own db tooling at that `identity` (for Supabase, the project ref), and if you cannot reach it, STOP and report rather than applying to the wrong database. Returns remaining count. Returns empty when no items are available (stop signal). The payload also carries the project instruction tiers — `project_custom_instructions` (team principles) and `project_agent_rules` (team execution mechanics: which checks to run before pushing, how to handle branches, what a commit may contain) — so you do not need a separate call to learn the rules for the work you were just handed. Treat both as mandatory while implementing.",
-		"promptSnippet": "Get the next highest-priority staged action item with full context for autonomous implementation.",
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"priority": {
-					"type": "string",
-					"enum": [
-						"low",
-						"medium",
-						"high",
-						"critical"
-					],
-					"description": "Optional: only items of this priority"
-				},
-				"type": {
-					"type": "string",
-					"enum": [
-						"bug",
-						"feature",
-						"improvement",
-						"task",
-						"query"
-					],
-					"description": "Optional: only items of this type"
-				},
-				"tags": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					},
-					"description": "Optional: items matching any of these tags"
-				},
-				"created_by": {
-					"type": "string",
-					"description": "Optional: restrict to items CREATED by a specific user (action_items.user_id). Pass \"me\" to resolve to the authenticated caller, or a user UUID for a teammate. When omitted, items from any creator are eligible (subject to the default assignment rules)."
-				},
-				"assigned_to": {
-					"type": "string",
-					"description": "Filter by assignee using the multi-assignee join table (ownership v1). \"me\" (default when omitted) restricts to items assigned to the caller OR unassigned — the runner picks up its own work plus the grab-bag pool. \"anyone\" disables the filter (shared-queue mode). A UUID restricts to that user's pool with the same OR-unassigned semantic. created_by stays available for caller-authored filtering and is additive with assigned_to."
-				},
-				"project_id": {
-					"type": "string",
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins."
-				},
-				"git_remote": {
-					"type": "string",
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
-				},
-				"pinned_project_id": {
-					"type": "string",
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
-				}
-			}
-		},
-		"kind": "model"
-	},
-	{
 		"name": "get_action_item_history",
 		"label": "DevSpec: Get Action Item History",
 		"description": "Get the full traceability view of an action item: details, activity timeline, relationships, linked PRs, commit references, and linked session messages with quotes. Use to understand \"where did this come from?\" and \"what happened?\".",
@@ -1180,30 +1117,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"kind": "pump"
 	},
 	{
-		"name": "get_assignment",
-		"label": "DevSpec: Get Assignment",
-		"description": "Fetch an owner-scoped DevSpec work assignment. Each batch returns legacy binding `mode`, ordered members, and one compact `implementation_kickoff` carrying assignment/action-item identity plus the versioned implementation-contract resource pointer. Pass assignment_id to fetch one; session_id to fetch active work for a connection session; or neither to list active/pending assignments. Native hosts should install the referenced contract mechanically for this assignment.",
-		"promptSnippet": "Fetch an owner-scoped DevSpec work assignment.",
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"assignment_id": {
-					"type": "string",
-					"description": "UUID of a specific assignment to fetch (the reference carried in the dispatch message). Optional."
-				},
-				"session_id": {
-					"type": "string",
-					"description": "Fetch the active/pending assignment dispatched to this connection session. Optional."
-				}
-			}
-		},
-		"kind": "model"
-	},
-	{
 		"name": "get_connection_dispatch",
 		"label": "DevSpec: Get Connection Dispatch",
-		"description": "The session-free dispatch inbox for a connection you own. Returns active/pending assignments addressed directly to the connection and, while attached, assignments addressed to that session. Each assignment carries `delivered_via`, legacy binding `mode`, ordered members, and the same compact `implementation_kickoff` returned by get_assignment. Pass dispatch_id to revalidate one previously delivered assignment or playbook run exactly: a successful empty response then authoritatively means it is no longer live for this connection, while source-read failures return an error. Only the token running the connection may read it.",
-		"promptSnippet": "The session-free dispatch inbox for a connection you own.",
+		"description": "The session-free dispatch inbox for a connection you own — PLAYBOOK RUNS ONLY. Work assignments are not dispatched to anyone any more (item 1e455001): an agent reserves the items it was asked to work with reserve_work_items, so nothing hands it a batch, and its own reservation is not an inbox entry. Pass dispatch_id to revalidate one previously delivered playbook run exactly: a successful empty response then authoritatively means it is no longer live for this connection, while source-read failures return an error. Only the token running the connection may read it.",
+		"promptSnippet": "The session-free dispatch inbox for a connection you own — PLAYBOOK RUNS ONLY.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -1397,7 +1314,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_personal_instructions",
 		"label": "DevSpec: Get Personal Instructions",
-		"description": "Read YOUR OWN personal instruction tiers — the two settings on the calling token's account: `personal_agent_rules` (Account → Personal Agent Rules: this machine and how this person works locally — installed tools, local ports, personal workflow; agents only, never shown to the in-session AI) and `chat_response_style` (Account → Chat Response Style: personal conversational tone). Null means the user has not set that one. Scope comes from the token, so there is no way to read another user's personal tiers here, and no project is involved. Use this before amending them with update_personal_instructions, or when the user asks what their current rules say. Note the team tiers are separate and are NOT here: project principles and project agent rules arrive with the project context (get_project_summary, claim_work_item, get_next_work_item).",
+		"description": "Read YOUR OWN personal instruction tiers — the two settings on the calling token's account: `personal_agent_rules` (Account → Personal Agent Rules: this machine and how this person works locally — installed tools, local ports, personal workflow; agents only, never shown to the in-session AI) and `chat_response_style` (Account → Chat Response Style: personal conversational tone). Null means the user has not set that one. Scope comes from the token, so there is no way to read another user's personal tiers here, and no project is involved. Use this before amending them with update_personal_instructions, or when the user asks what their current rules say. Note the team tiers are separate and are NOT here: project principles and project agent rules arrive with the project context (get_project_summary, claim_work_item).",
 		"promptSnippet": "Read YOUR OWN personal instruction tiers — the two settings on the calling token's account: `personal_agent_rules` (Account → Personal Agent Rules: this mach…",
 		"inputSchema": {
 			"type": "object",
@@ -2674,6 +2591,48 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"kind": "pump"
 	},
 	{
+		"name": "reserve_work_items",
+		"label": "DevSpec: Reserve Work Items",
+		"description": "Reserve the ordered set of action items you are about to work, so no other agent takes them while you do. This is the ONLY way to acquire work: nothing is dispatched, routed or sent to an agent, so there is nothing to acknowledge and nothing to resolve. Pass action_item_ids in the order you will work them — position 0 first — and claim them ONE AT A TIME with claim_work_item as you reach each. Pass connection_id when you are running as a connection (the Agents page): it is the identity every reservation gate checks, and one connection holds one reservation at a time. Items already held by another agent are SKIPPED with a reason naming who holds them rather than failing the whole batch — read `skipped` and say so, never assume you hold what you asked for. The response carries one compact `implementation_kickoff` naming the product implementation contract to read before you touch anything. The batch closes itself when its last member is recorded, failed or released — there is nothing to resolve.",
+		"promptSnippet": "Reserve the ordered set of action items you are about to work, so no other agent takes them while you do.",
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"action_item_ids": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "The action item ids to reserve, IN THE ORDER you will work them. Duplicates are ignored."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, when you are running as one. The reservation is bound to it, and only that connection may claim, release or fail its members. Omit if you have no connection — the reservation then belongs to your user, which is a weaker identity because a DevSpec token is account-wide."
+				},
+				"runner_session_id": {
+					"type": "string",
+					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
+				},
+				"project_id": {
+					"type": "string",
+					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins."
+				},
+				"git_remote": {
+					"type": "string",
+					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
+				}
+			},
+			"required": [
+				"action_item_ids"
+			]
+		},
+		"kind": "model"
+	},
+	{
 		"name": "claim_work_item",
 		"label": "DevSpec: Claim Work Item",
 		"description": "Atomically claim a staged action item for implementation (staged → in_progress). Sets agent_claimed_at and agent_branch. Fails if the item is no longer available (another agent claimed it). The claim is also REJECTED when the item has an unresolved possible_conflict (the error names the conflicting item + reason) — that means the pair must be resolved before it is worked — call resolve_action_item_conflict (verdicts: supersedes · related · not_a_conflict · discuss) with the user's agreed verdict, then claim again. Do not force past it just to proceed. Pass force: true with a reason to take over an already-claimed item or override a conflict/dependency hold — this writes a force_claimed activity row and surfaces a warning. Returns the claimed item with full context, including the project instruction tiers — `project_custom_instructions` (team principles) and `project_agent_rules` (team execution mechanics: which checks to run before pushing, how to handle branches, what a commit may contain). They arrive WITH the claim, so no separate call is needed to learn the rules before you start; treat both as mandatory while implementing. If you already read these tiers this run (get_project_summary returns `instruction_tiers_version` + `instruction_tiers_hash`), echo both back as `known_instruction_tiers_version` / `known_instruction_tiers_hash` — matching values return `instructions_unchanged: true` and omit the duplicate texts, which is ~4,800 characters a typical work run pays twice for nothing. Send neither and you receive every tier in full, exactly as before.",
@@ -2721,6 +2680,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Early stamp for Resume: local coding-agent chat/session id (Cursor: prompt stamp from `agent create-chat`, or IDE/`cursor-agent` env `CURSOR_CONVERSATION_ID`; Claude: CLAUDE_SESSION_ID). Defaults machine_user_id to the caller. Prefer stamping here AND again on record_implementation."
 				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, when you are running as one. This is the identity the reservation gate checks: only the agent holding a reservation may act on its members, and \"same user\" cannot tell two of your agents apart because a DevSpec token is account-wide."
+				},
 				"force": {
 					"type": "boolean",
 					"description": "Bypass the file-conflict, possible_conflict, dependency, assignee, and current-claim guards to take ownership. Requires reason when true. Prefer resolving a possible_conflict over forcing past it."
@@ -2744,8 +2707,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "release_work_item",
 		"label": "DevSpec: Release Work Item",
-		"description": "Release the current claim on an action item that is being implemented without completing it. Clears agent_activity (back to staged only if the item still carries its staging stamp, else idle), agent_claimed_at, and agent_branch, and writes a released activity row. Only the current claimant can release; another runner that wants to take over must call claim_work_item with force: true. Does not touch the assignees join table.",
-		"promptSnippet": "Release the current claim on an action item that is being implemented without completing it.",
+		"description": "Release the current claim on an action item without completing it. Clears agent_activity back to idle, agent_claimed_at and agent_branch, releases the reservation member holding it IN THE SAME TRANSACTION (the item and its reservation are one fact — see item 1e455001), and writes a released activity row. Only the agent holding it may release it. A STALE hold — an agent that died mid-run — is released with force: true plus a reason, which is always allowed and is recorded as a forced release naming who took it back, so a takeover never reads like the holder handing work back. Does not touch the assignees join table.",
+		"promptSnippet": "Release the current claim on an action item without completing it.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -2755,7 +2718,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"reason": {
 					"type": "string",
-					"description": "Optional free-form note about why the claim is being released; recorded on the released activity row."
+					"description": "Free-form note about why the claim is being released; recorded on the released activity row. REQUIRED when force is true."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, when you are running as one. This is the identity the reservation gate checks: only the agent holding a reservation may act on its members, and \"same user\" cannot tell two of your agents apart because a DevSpec token is account-wide."
+				},
+				"force": {
+					"type": "boolean",
+					"description": "Release a claim you do not hold — for a stale reservation whose agent is gone. Requires reason. Recorded as a forced release with the releasing identity, so it is distinguishable from an ordinary release by the holder."
 				},
 				"runner_session_id": {
 					"type": "string",
@@ -2943,8 +2914,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "fail_work_item",
 		"label": "DevSpec: Fail Work Item",
-		"description": "Mark a claimed action item as failed. Records error details and partial work notes.",
-		"promptSnippet": "Mark a claimed action item as failed.",
+		"description": "Mark a claimed action item as failed — the truthful handoff when work genuinely cannot be done safely. Records the error and any partial-work notes, and releases the reservation holding the item in the same transaction, so a failed item nobody is working can be reserved again. Only the agent holding it may fail it: failing another agent's in-flight work is indistinguishable from sabotage in the record. To take work back from a stale agent, use release_work_item with force and a reason instead.",
+		"promptSnippet": "Mark a claimed action item as failed — the truthful handoff when work genuinely cannot be done safely.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -2988,6 +2959,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"description": "Human-readable explanation of what conflicted and why"
 						}
 					}
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, when you are running as one. This is the identity the reservation gate checks: only the agent holding a reservation may act on its members, and \"same user\" cannot tell two of your agents apart because a DevSpec token is account-wide."
 				},
 				"runner_session_id": {
 					"type": "string",
@@ -5384,65 +5359,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"kind": "model"
 	},
 	{
-		"name": "acknowledge_assignment",
-		"label": "DevSpec: Acknowledge Assignment",
-		"description": "Acknowledge a dispatched assignment you own — the durable server receipt that you have picked it up (pending → acknowledged). Distinct from the presentational \"pending\" pickup indicator: acknowledge is the authoritative state, so never treat merely having read the dispatch message as acknowledgement. Also clears the connection's pending indicator. Call it once, right after get_assignment, before you start claiming members.",
-		"promptSnippet": "Acknowledge a dispatched assignment you own — the durable server receipt that you have picked it up (pending → acknowledged).",
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"assignment_id": {
-					"type": "string",
-					"description": "UUID of the assignment to acknowledge (owner-scoped — must be one you created)."
-				},
-				"runner_session_id": {
-					"type": "string",
-					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
-				}
-			},
-			"required": [
-				"assignment_id"
-			]
-		},
-		"kind": "model"
-	},
-	{
-		"name": "resolve_assignment",
-		"label": "DevSpec: Resolve Assignment",
-		"description": "Close out an assignment you own once you are done with the batch. outcome \"completed\" marks your claimed members completed and the batch completed (any members you never claimed are released back to the pool). outcome \"released\" hands the whole batch back unworked (reserved members released; a member you already claimed stays governed by the normal claim lifecycle / claim recovery). This is the final step of the assignment protocol — record each item's actual work with record_implementation as usual; resolve_assignment only closes the batch envelope.",
-		"promptSnippet": "Close out an assignment you own once you are done with the batch.",
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"assignment_id": {
-					"type": "string",
-					"description": "UUID of the assignment to resolve (owner-scoped)."
-				},
-				"outcome": {
-					"type": "string",
-					"enum": [
-						"completed",
-						"released"
-					],
-					"description": "completed = batch finished; released = handed back unworked."
-				},
-				"reason": {
-					"type": "string",
-					"description": "Optional free-form note recorded with the resolution."
-				},
-				"runner_session_id": {
-					"type": "string",
-					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
-				}
-			},
-			"required": [
-				"assignment_id",
-				"outcome"
-			]
-		},
-		"kind": "model"
-	},
-	{
 		"name": "write_project_instruction_rule",
 		"label": "DevSpec: Write Project Instruction Rule",
 		"description": "Add, amend or retract ONE of this project's TEAM instruction rules. These govern EVERY agent on the project, including agents belonging to people not in this conversation, so authority is enforced server-side: a maintainer's change commits immediately; a contributor's or guest's is QUEUED as a proposal for a maintainer; an unattended run always queues. READ THE `outcome` FIELD AND REPORT IT HONESTLY — `committed` means live now, `queued_for_review` means NOT IN EFFECT and awaiting a human, and telling the user their team's rules changed when they were only queued is the failure this tool exists to avoid. Rule-level by design: there is no way to replace a whole tier's text, because that is what let two people silently overwrite each other. Before committing, show the user the exact rule text and get their agreement. The safety class (rules every agent is told it may not work around) is maintainer-only and needs confirm_safety_change. For the caller's OWN machine rules use update_personal_instructions instead.",
@@ -5644,8 +5560,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 90,
-	model: 77,
+	total: 87,
+	model: 74,
 	pump: 12,
 	never_model: 1,
 } as const;

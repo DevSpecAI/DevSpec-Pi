@@ -670,25 +670,21 @@ async function deliverDispatch(
 	let dispatch = rawDispatch;
 	let delivery = dispatchImplementationDelivery(dispatch);
 	if (!delivery) {
-		// Pre-618/minimal envelopes may carry only the assignment id. Hydrate them
-		// mechanically rather than misclassifying them or making the model discover.
+		// A minimal envelope carrying only an assignment id used to be hydrated with
+		// get_assignment. That tool is gone (DevSpec item 1e455001) and so is the
+		// dispatch model behind it: work is not sent to an agent, it is reserved by
+		// one. So an envelope this thin cannot be resolved into work any more, and
+		// pretending otherwise would mean guessing at members.
+		//
+		// This is a loud, precise failure ON PURPOSE. It means the server sent
+		// something this plugin's version cannot understand, which is worth reporting
+		// rather than papering over.
 		const assignmentId = dispatchSummary(dispatch).assignmentId;
-		if (!assignmentId) throw new Error("work dispatch carried no assignment identity");
-		const raw = await callDevspec(
-			token,
-			"get_assignment",
-			{ assignment_id: assignmentId },
-			{ cwd: ctx.cwd, lane: "work", timeoutMs: MODEL_TIMEOUT_MS },
+		throw new Error(
+			assignmentId
+				? `dispatch ${assignmentId} carried no implementation kickoff or members, and get_assignment no longer exists to hydrate it — reserve work with reserve_work_items instead`
+				: "work dispatch carried no assignment identity",
 		);
-		assertDeliveryAuthority(active, lease);
-		const unwrapped = unwrapMcpResult(raw);
-		if (unwrapped.isError) throw new Error(unwrapped.text || "get_assignment failed");
-		const hydrated = dispatchRecord(unwrapped.details)?.assignment;
-		if (!hydrated) throw new Error(`assignment ${assignmentId} could not be hydrated`);
-		dispatch = hydrated;
-		delivery = dispatchImplementationDelivery(dispatch);
-		if (!delivery) throw new Error(`assignment ${assignmentId} carried no implementation kickoff or members`);
-		assertHydratedAssignmentIdentity(assignmentId, delivery);
 	}
 
 	const implementationContext = await loadImplementationContext({

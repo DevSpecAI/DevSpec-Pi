@@ -598,14 +598,14 @@ test("DevSpec help projection keeps citeable URLs and bounded section content", 
 		section: `Configure workflow ${index + 1}`,
 		url: `https://docs.devspec.ai/guides/workflows#section-${index + 1}`,
 		category: "workflows",
-		content: `${index === 0 ? "Authoritative answer: use staged work and record implementation." : `Supporting section ${index + 1}.`}\n\n${huge(`HELP-${index}`, 2_000)}`,
+		content: `${index === 0 ? "Authoritative answer: reserve the work and record implementation." : `Supporting section ${index + 1}.`}\n\n${huge(`HELP-${index}`, 2_000)}`,
 	}));
-	const payload = { query: "how do staged workflows complete", count: results.length, results };
+	const payload = { query: "how does work complete", count: results.length, results };
 	const text = projectModelText({ toolName: "devspec_help_search", text: JSON.stringify(payload), details: payload });
 	assert.ok(text.length <= PROJECTION_BUDGETS.help);
 	assert.match(text, /Guide 1 — Configure workflow 1 \[workflows\]/);
 	assert.match(text, /URL: https:\/\/docs\.devspec\.ai\/guides\/workflows#section-1/);
-	assert.match(text, /Authoritative answer: use staged work and record implementation/);
+	assert.match(text, /Authoritative answer: reserve the work and record implementation/);
 	assert.match(text, /section character\(s\) omitted/);
 	assert.match(text, /narrower query/);
 	assert.match(text, /Omitted 4 lower-ranked section/);

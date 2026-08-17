@@ -25,6 +25,15 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /\[devspec:<id>\]/);
 	assert.match(text, /record_implementation/);
 	assert.match(text, /never mark items done/i);
+	// It must NOT restate who may verify. "a human verifies" was true until
+	// evidence promotion shipped, and then quietly became a lie in six of seven
+	// hosts for months (48d53ea3, memory d4e62185). The boundary belongs to the
+	// served contract; this block points at it.
+	assert.doesNotMatch(text, /a human verifies/i);
+	// The acquisition shape every host now teaches: reserve what you were asked
+	// to work, claim in order. Nothing arrives by assignment (item 3b601ffa).
+	assert.match(text, /reserve_work_items/);
+	assert.doesNotMatch(text, /arrives by assignment/i);
 	assert.match(text, /claim_work_item/);
 	assert.match(text, /possible_conflict/);
 	assert.match(text, /record_memory/);

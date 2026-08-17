@@ -59,10 +59,12 @@ export class DeliveryQueue {
 			})
 			.catch((error) => {
 				// A stopped/replaced bond owns neither warnings nor retries. The new
-				// pump has a new queue and receives any still-live assignment itself.
+				// pump has a new queue and receives any still-live delivery itself.
 				if (!lease.isCurrent() || error instanceof StaleDeliveryError) return;
-				// Live assignment inboxes may offer the same work again after a
-				// transient contract/hydration/send failure.
+				// A live inbox may offer the same delivery again after a transient
+				// contract/hydration/send failure. This queue carries playbook runs
+				// and owner commands — action items are never delivered, an agent
+				// reserves those itself (item 3b601ffa).
 				this.seen.delete(key);
 				onError(error);
 			});

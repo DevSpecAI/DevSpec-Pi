@@ -17,6 +17,7 @@ import {
 	type ToolTrailEvent,
 } from "./trail-events.ts";
 import { projectTrailArgs, projectTrailResult, safeTrailLabel } from "./trail-projection.ts";
+import type { SubagentFleetSnapshot } from "./subagent-fleet.ts";
 
 /**
  * Render cap for one trail snapshot. The server folds sliding-window snapshots
@@ -47,6 +48,7 @@ interface ToolLine {
 	ok?: boolean;
 	resultSummary?: string;
 	subagentChildren?: SubagentTrailChild[];
+	subagentSummary?: string;
 	startedAt: number;
 	startedAtIso: string;
 	completedAtIso?: string;
@@ -116,6 +118,36 @@ function subagentChildren(value: unknown): SubagentTrailChild[] {
 				...(isoFromMs(item.lastActivityAt) ? { lastActivityAt: isoFromMs(item.lastActivityAt) } : {}),
 				...(typeof item.durationMs === "number" ? { durationMs: item.durationMs } : {}),
 			} satisfies SubagentTrailChild];
+		});
+	}
+	const completions = Array.isArray(details.completions) ? details.completions : [];
+	if (completions.length > 0) {
+		let childIndex = 0;
+		return completions.slice(0, 24).flatMap((rawCompletion) => {
+			const completion = asRecord(rawCompletion);
+			if (!completion) return [];
+			const results = Array.isArray(completion.results) ? completion.results : [];
+			const candidates = results.length > 0 ? results : [completion];
+			return candidates.flatMap((rawChild) => {
+				const child = asRecord(rawChild);
+				const agent = safeChildField(child?.agent);
+				if (!child || !agent) return [];
+				const rawState = child.success === false
+					? "failed"
+					: child.success === true
+						? "completed"
+						: completion.state;
+				const status = statusForChild(rawState) === "pending" ? "completed" : statusForChild(rawState);
+				const model = safeChildField(child.model, 120);
+				return [{
+					// Do not reuse completion.runId: terminal identity remains local to
+					// pi-subagents. Order is enough inside this one terminal snapshot.
+					key: `completed-${childIndex++}`,
+					agent,
+					status,
+					...(model ? { model } : {}),
+				} satisfies SubagentTrailChild];
+			});
 		});
 	}
 	const graph = asRecord(details.workflowGraph);
@@ -246,11 +278,31 @@ export class TrailBuilder {
 			const e = this.entries[i];
 			if (e.kind === "tool" && e.line.toolCallId === toolCallId) {
 				if (e.line.name === "subagent" || e.line.name === "subagent_wait") {
-					e.line.subagentChildren = subagentChildren(partialResult);
+					const children = subagentChildren(partialResult);
+					// subagent_wait currently streams human-readable status with an
+					// empty details projection. Do not erase the independently sourced
+					// public fleet snapshot on every textual progress update.
+					if (children.length > 0) {
+						e.line.subagentChildren = children;
+						e.line.subagentSummary = undefined;
+					}
 				}
 				return;
 			}
 		}
+	}
+
+	/** Overlay pi-subagents' public active-fleet projection onto an open wait. */
+	applySubagentFleet(toolCallId: string, snapshot: SubagentFleetSnapshot): boolean {
+		for (let i = this.entries.length - 1; i >= 0; i--) {
+			const e = this.entries[i];
+			if (e.kind !== "tool" || e.line.toolCallId !== toolCallId) continue;
+			if (!e.line.open || e.line.name !== "subagent_wait") return false;
+			e.line.subagentChildren = snapshot.children;
+			e.line.subagentSummary = snapshot.summary;
+			return true;
+		}
+		return false;
 	}
 
 	toolEnd(toolCallId: string, name: string, ok: boolean, result?: unknown): void {
@@ -268,7 +320,12 @@ export class TrailBuilder {
 				};
 				e.line.resultSummary = summarizeResult(name, result);
 				if (name === "subagent" || name === "subagent_wait") {
-					e.line.subagentChildren = subagentChildren(result);
+					const children = subagentChildren(result);
+					// A terminal tool result owns the terminal child projection. Clear
+					// a prior active-only fleet snapshot when it provides no structured
+					// children so a finished wait never leaves a child spinning.
+					e.line.subagentChildren = children;
+					e.line.subagentSummary = undefined;
 				}
 				e.line.durationMs = Math.max(0, completedAt - e.line.startedAt);
 				e.line.completedAtIso = new Date(completedAt).toISOString();
@@ -308,14 +365,15 @@ export class TrailBuilder {
 					const ev: SubagentTrailEvent = {
 						seq: e.seq,
 						kind: "subagent",
-						correlationId: e.line.toolCallId,
 						name: e.line.name,
 						status,
 						children,
 						...timing,
-						...(children.length > 0
-							? { summary: running > 0 ? `${running} of ${children.length} agents active` : `${children.length} agents` }
-							: {}),
+						...(e.line.subagentSummary
+							? { summary: e.line.subagentSummary }
+							: children.length > 0
+								? { summary: running > 0 ? `${running} of ${children.length} agents active` : `${children.length} agents` }
+								: {}),
 						...(e.line.durationMs != null ? { durationMs: e.line.durationMs } : {}),
 					};
 					out.push(ev);

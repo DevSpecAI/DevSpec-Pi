@@ -43,6 +43,7 @@ import { formatAttachmentNotes, materialiseAttachments } from "./core/attachment
 import { unwrapMcpResult } from "./core/result.ts";
 import { buildAttachBlock, shapeRoomAgenda, shapeTranscript } from "./core/attach-context.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
+import { SubagentFleetClient } from "./core/subagent-fleet.ts";
 import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
 import { takeContextBudgetReport } from "./core/context-budget.ts";
 import { automaticBackgroundTaskId, backgroundTaskNotificationId, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitFirstAnswer, isHarnessOrigin, shouldPauseSettle, TurnTracker } from "./core/turn-lifecycle.ts";
@@ -1258,6 +1259,15 @@ async function enrichBondWithSession(sessionId: string, withAttachContext: boole
 
 export default function (pi: ExtensionAPI) {
 	rememberExtensionRunner();
+	const subagentFleet = new SubagentFleetClient(pi.events);
+	const refreshSubagentFleet = (toolCallId: string, trackedTurn: TurnState | null) => {
+		if (!trackedTurn) return;
+		void subagentFleet.refresh().then((snapshot) => {
+			// A late optional-RPC reply must never mutate a later delivery segment.
+			if (!snapshot || turn !== trackedTurn) return;
+			if (trackedTurn.trail.applySubagentFleet(toolCallId, snapshot)) trackedTurn.dirty = true;
+		});
+	};
 	pi_send = (message, mode = "now") => {
 		if (mode === "steer") pi.sendUserMessage(message, { deliverAs: "steer" });
 		else if (mode === "followUp") pi.sendUserMessage(message, { deliverAs: "followUp" });
@@ -1438,6 +1448,7 @@ export default function (pi: ExtensionAPI) {
 		if (!turn) return;
 		turn.trail.toolStart(event.toolCallId, event.toolName, event.args);
 		turn.dirty = true;
+		if (event.toolName === "subagent_wait") refreshSubagentFleet(event.toolCallId, turn);
 	});
 
 	pi.on("tool_execution_update", (event, ctx) => {
@@ -1445,6 +1456,9 @@ export default function (pi: ExtensionAPI) {
 		if (!turn) return;
 		turn.trail.toolUpdate(event.toolCallId, event.partialResult);
 		turn.dirty = true;
+		// Reuse the host tool's existing progress cadence; the client deduplicates
+		// overlapping requests, so this creates no independent polling loop.
+		if (event.toolName === "subagent_wait") refreshSubagentFleet(event.toolCallId, turn);
 	});
 
 	pi.on("tool_execution_end", (event, ctx) => {
@@ -1462,6 +1476,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", async () => {
+		subagentFleet.dispose();
 		if (runtimeStampTimer) {
 			clearTimeout(runtimeStampTimer);
 			runtimeStampTimer = null;

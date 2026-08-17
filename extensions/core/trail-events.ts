@@ -82,7 +82,8 @@ export interface SubagentTrailChild {
 export interface SubagentTrailEvent extends TimedTrailEvent {
 	seq: number;
 	kind: "subagent";
-	correlationId: string;
+	/** Intentionally omitted for public fleet-backed events; child/run ids stay local. */
+	correlationId?: string;
 	name: string;
 	status: TrailEventStatus;
 	summary?: string;

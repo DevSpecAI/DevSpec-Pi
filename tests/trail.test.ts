@@ -448,6 +448,73 @@ test("TrailBuilder.events emits stable seqs and classifies domain tools", () => 
 	}
 });
 
+test("live fleet snapshots enrich an open subagent wait and never leave terminal children spinning", () => {
+	const t = new TrailBuilder();
+	t.toolStart("wait-1", "subagent_wait", {});
+	assert.equal(t.applySubagentFleet("wait-1", {
+		children: [{ key: "child-1", agent: "worker", status: "running", model: "gpt-5.6-sol", thinking: "high", durationMs: 2_000 }],
+		totalActive: 1,
+		omitted: 0,
+		observedAt: Date.now(),
+		summary: "1 child agent active",
+	}), true);
+	let event = t.events()[0];
+	assert.equal(event?.kind, "subagent");
+	if (event?.kind === "subagent") {
+		assert.equal(event.status, "running");
+		assert.equal(event.summary, "1 child agent active");
+		assert.equal(event.children[0]?.agent, "worker");
+	}
+
+	// pi-subagents' wait update currently has text only and details.results=[];
+	// that empty structured projection must not erase the public fleet snapshot.
+	t.toolUpdate("wait-1", { details: { mode: "management", results: [] } });
+	event = t.events()[0];
+	assert.equal(event?.kind === "subagent" ? event.children.length : -1, 1);
+
+	// Terminal completion details are a separate public contract. Preserve the
+	// child outcome without copying its run id or artifact paths.
+	t.toolEnd("wait-1", "subagent_wait", true, {
+		details: {
+			mode: "management",
+			results: [],
+			completions: [{
+				runId: "private-run-id",
+				state: "complete",
+				results: [{ agent: "worker", success: true, model: "gpt-5.6-sol", artifactPaths: { output: "/private/output" } }],
+			}],
+		},
+	});
+	event = t.events()[0];
+	assert.equal(event?.kind, "subagent");
+	if (event?.kind === "subagent") {
+		assert.equal(event.status, "ok");
+		assert.equal(event.children[0]?.status, "completed");
+		assert.equal(event.children[0]?.agent, "worker");
+		assert.equal(event.correlationId, undefined);
+		assert.ok(!JSON.stringify(event).includes("private-run-id"));
+		assert.ok(!JSON.stringify(event).includes("/private/output"));
+	}
+	assert.equal(t.applySubagentFleet("wait-1", {
+		children: [{ key: "child-1", agent: "worker", status: "running" }],
+		totalActive: 1,
+		omitted: 0,
+		observedAt: Date.now(),
+	}), false, "a late RPC reply cannot reopen a terminal wait");
+
+	const noTerminalProjection = new TrailBuilder();
+	noTerminalProjection.toolStart("wait-2", "subagent_wait", {});
+	noTerminalProjection.applySubagentFleet("wait-2", {
+		children: [{ key: "child-1", agent: "worker", status: "running" }],
+		totalActive: 1,
+		omitted: 0,
+		observedAt: Date.now(),
+	});
+	noTerminalProjection.toolEnd("wait-2", "subagent_wait", true, { details: { mode: "management", results: [] } });
+	const cleared = noTerminalProjection.events()[0];
+	assert.equal(cleared?.kind === "subagent" ? cleared.children.length : -1, 0);
+});
+
 test("structured Activity excludes assistant speech and captures nested subagents", () => {
 	const t = new TrailBuilder();
 	t.setText("I understand — I’ll inspect the activity contract first.");

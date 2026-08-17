@@ -398,9 +398,14 @@ current contract, adopted here first, migrated to other hosts only if proven.
    design cover MCP server credentials, or only env-var secrets?
 6. **OAuth device flow:** new endpoint family per environment (staging dev
    Clerk vs prod). When scheduled, this package is the reference client.
-7. **Autopilot verb retirement:** which MCP verbs/settings die with the old
-   autopilot cutover, and what (if anything) replaces `stale_claim_timeout`
-   etc. under the capacity model?
+7. ~~**Autopilot verb retirement:**~~ **Answered 2026-08-17.** The dispatch
+   verbs are gone (`get_next_work_item`, `get_assignment`,
+   `acknowledge_assignment`, `resolve_assignment`) and `reserve_work_items` +
+   `claim_work_item` are the whole acquisition surface. The orchestration
+   settings — `enabled`, `poll_interval_seconds`, `idle_detection`,
+   `stale_claim_timeout` — are deleted rather than replaced: nothing polls, so
+   there is no interval, and DevSpec expires orphaned claims itself rather than
+   exposing a window to configure (DevSpec items 1e455001, 8fe6c939).
 8. **`provider: 'pi'`:** `claim_work_item.provider` is an enum of known hosts
    (claude_code … opencode) — pi isn't in it, so our claims stamp no provider
    (the active-agents UI shows no logo while we work). Add `pi` server-side.

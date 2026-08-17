@@ -1,14 +1,15 @@
 /**
- * DevSpec Pi — explicit attended work selection and package help.
+ * DevSpec Pi — explicit work selection and package help.
  *
  * /devspec.work [id-or-prefix]
  *   Arg: resolve one explicit item.
- *   No arg: present an attended item selector when UI is available. It never
- *   drains the staged queue; unattended work arrives through remote dispatch.
+ *   No arg: present an item selector when UI is available. It never drains a
+ *   queue; other work arrives through remote dispatch.
  *
  * The command mechanically loads/caches the product implementation contract,
- * installs attended mode for the selected item, and sends one real user
- * kickoff message. Claim guards remain server-authoritative.
+ * records the delivery for the selected item, and sends one real user kickoff
+ * message. Claim guards remain server-authoritative. There is no execution mode
+ * to select — DevSpec item 6d085535 deleted the concept.
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -22,7 +23,7 @@ import {
 	createImplementationContractLoader,
 	loadImplementationContext,
 } from "./core/implementation-contract.ts";
-import { installImplementationMode, rollbackImplementationMode } from "./core/implementation-mode.ts";
+import { recordActiveDelivery, rollbackActiveDelivery } from "./core/active-deliveries.ts";
 import { unwrapMcpResult } from "./core/result.ts";
 import { noteWork, paintStatus } from "./core/status-line.ts";
 import { buildWorkPrompt, type WorkTarget } from "./core/work-prompt.ts";
@@ -94,7 +95,7 @@ async function resolveItemArg(arg: string): Promise<{ id: string } | { error: st
 		return { id: arg };
 	}
 	if (!await refreshItemCache()) {
-		return { error: "Could not refresh DevSpec action items. No attended work was started." };
+		return { error: "Could not refresh DevSpec action items. No work was started." };
 	}
 	const normalized = arg.toLowerCase();
 	const matches = itemCache.items.filter(
@@ -110,7 +111,7 @@ async function resolveItemArg(arg: string): Promise<{ id: string } | { error: st
 
 async function selectExplicitItem(ctx: ExtensionContext): Promise<string | null> {
 	if (!await refreshItemCache(ctx.cwd)) {
-		ctx.ui.notify("Could not refresh DevSpec action items — no attended work was started.", "warning");
+		ctx.ui.notify("Could not refresh DevSpec action items — no work was started.", "warning");
 		return null;
 	}
 	if (itemCache.items.length === 0) {
@@ -122,7 +123,7 @@ async function selectExplicitItem(ctx: ExtensionContext): Promise<string | null>
 		return null;
 	}
 	const labels = itemCache.items.map((item) => `${item.id.slice(0, 8)}… ${item.title}`.trim());
-	const chosen = await ctx.ui.select("Choose one action item for attended work:", labels);
+	const chosen = await ctx.ui.select("Choose one action item to work on:", labels);
 	if (!chosen) return null;
 	const index = labels.indexOf(chosen);
 	return index >= 0 ? itemCache.items[index]!.id : null;
@@ -152,7 +153,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("devspec.work", {
-		description: "Select one explicit DevSpec action item for attended work.",
+		description: "Select one explicit DevSpec action item to work on.",
 		getArgumentCompletions: completeItemArg,
 		handler: async (args, ctx: ExtensionContext) => {
 			const resolved = await resolveToken();
@@ -183,23 +184,22 @@ export default function (pi: ExtensionAPI) {
 				const [target, implementationContext] = await Promise.all([
 					fetchItemById(id),
 					loadImplementationContext({
-						executionMode: "attended",
 						loader: createImplementationContractLoader(resolved.token),
 					}),
 				]);
 				if (implementationContext.source === "local_safety_fallback") {
-					ctx.ui.notify(implementationContext.warning ?? "DevSpec contract unavailable — no attended work was started.", "warning");
+					ctx.ui.notify(implementationContext.warning ?? "DevSpec contract unavailable — no work was started.", "warning");
 					return;
 				}
 				const kickoff = buildImplementationKickoff({
 					actionItemIds: [target.id],
 					context: implementationContext,
 				});
-				const modeInstallation = installImplementationMode(kickoff, implementationContext);
+				const delivery = recordActiveDelivery(kickoff, implementationContext);
 				try {
 					pi.sendUserMessage(buildWorkPrompt(target, implementationContext));
 				} catch (error) {
-					rollbackImplementationMode(modeInstallation);
+					rollbackActiveDelivery(delivery);
 					throw error;
 				}
 				if (implementationContext.warning) ctx.ui.notify(implementationContext.warning, "warning");
@@ -218,7 +218,7 @@ export default function (pi: ExtensionAPI) {
 			const resolved = await resolveToken();
 			const lines = [
 				"DevSpec commands:",
-				"  /devspec.work [item]  — select one attended action item (id/title, or picker)",
+				"  /devspec.work [item]  — select one action item to work (id/title, or picker)",
 				"  /devspec.remote       — bond as remote capacity (auto on launch; stop | auto on|off)",
 				"  /devspec.reload       — reload this extension (same as /reload)",
 				"  /devspec.login        — connect (token from the DevSpec Connections page)",
@@ -226,7 +226,7 @@ export default function (pi: ExtensionAPI) {
 				"  /devspec.logout       — remove the stored token",
 				"  /devspec.logo         — toggle the duck header",
 				"",
-				"Unattended work arrives through DevSpec remote dispatch; this command never drains the staged queue.",
+				"Dispatched work arrives through DevSpec remote control; this command never drains a queue.",
 				"DevSpec tools are native to this package. Foreign MCP servers remain available.",
 				`Connection: ${resolved ? `token from ${resolved.source}` : "not connected — /devspec.login"}`,
 			];

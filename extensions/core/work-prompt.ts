@@ -1,17 +1,17 @@
 /**
- * DevSpec Pi — explicit attended work delivery (pure, unit-tested).
+ * DevSpec Pi — explicitly selected work delivery (pure, unit-tested).
  *
  * The command resolves the selected item and mechanically loads the product
- * contract. This formatter carries only work/mode/contract identity, the
- * effective contract, and the selected item payload. It does not maintain a
- * second implementation workflow in prose.
+ * contract. This formatter carries only work and contract identity, the contract
+ * itself, and the selected item payload. It does not maintain a second
+ * implementation workflow in prose, and there is no execution mode to carry.
  */
 
 import {
 	buildImplementationKickoff,
 	formatImplementationContext,
 	formatImplementationKickoffHeader,
-	type EffectiveImplementationContext,
+	type ImplementationContractContext,
 } from "./implementation-contract.ts";
 
 export interface WorkTarget {
@@ -23,7 +23,7 @@ export interface WorkTarget {
 
 export function buildWorkPrompt(
 	item: WorkTarget,
-	context: EffectiveImplementationContext,
+	context: ImplementationContractContext,
 ): string {
 	const kickoff = buildImplementationKickoff({
 		actionItemIds: [item.id],
@@ -32,7 +32,7 @@ export function buildWorkPrompt(
 	return [
 		formatImplementationKickoffHeader(kickoff),
 		"",
-		`Work DevSpec action item ${item.id}${item.title ? ` — “${item.title}”` : ""}. This is an explicit attended selection.`,
+		`Work DevSpec action item ${item.id}${item.title ? ` — “${item.title}”` : ""}. This item was explicitly selected here.`,
 		"",
 		formatImplementationContext(context),
 		"",

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-	IMPLEMENTATION_CONTRACT_RESOURCE_URIS,
-	type EffectiveImplementationContext,
+	IMPLEMENTATION_CONTRACT_RESOURCE_URI,
+	type ImplementationContractContext,
 } from "../extensions/core/implementation-contract.ts";
 import { buildWorkPrompt, type WorkTarget } from "../extensions/core/work-prompt.ts";
 
@@ -12,27 +12,29 @@ const item: WorkTarget = {
 	payload: { id: "e10f3ad1-c2ce-4d56-a87f-8f00d6c6384d", description: "..." },
 };
 
-const contract: EffectiveImplementationContext = {
-	executionMode: "attended",
-	contractVersion: "1.0.0",
+const contract: ImplementationContractContext = {
+	contractVersion: "2.0.0",
 	contractHash: "sha256:contract",
-	resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.attended,
+	resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 	source: "resource",
-	coreRules: [{ id: "core.claim-before-edit", requirement: "Claim before editing." }],
-	modeRules: [{ id: "attended.no-implicit-queue-drain", requirement: "Do not drain a queue." }],
+	rules: [
+		{ id: "core.claim-before-edit", requirement: "Claim before editing." },
+		{ id: "core.truthful-handoff", requirement: "Hand work back truthfully." },
+	],
 };
 
-test("buildWorkPrompt carries thin work/mode/contract identity and mechanically loaded rules", () => {
+test("buildWorkPrompt carries thin work/contract identity and mechanically loaded rules", () => {
 	const prompt = buildWorkPrompt(item, contract);
 	assert.match(prompt, /^DevSpec work kickoff: /);
 	assert.match(prompt, /"action_item_ids":\["e10f3ad1-c2ce-4d56-a87f-8f00d6c6384d"\]/);
-	assert.match(prompt, /"execution_mode":"attended"/);
-	assert.match(prompt, /"contract_version":"1.0.0"/);
-	assert.match(prompt, /devspec:\/\/product\/implementation-contract\/attended/);
+	assert.match(prompt, /"contract_version":"2.0.0"/);
+	assert.match(prompt, /devspec:\/\/product\/implementation-contract"/);
 	assert.match(prompt, /core\.claim-before-edit/);
-	assert.match(prompt, /attended\.no-implicit-queue-drain/);
-	assert.match(prompt, /explicit attended selection/);
+	assert.match(prompt, /core\.truthful-handoff/);
+	assert.match(prompt, /explicitly selected here/);
 	assert.match(prompt, /```json/);
+	// No mode rides on the prompt, and no mode-specific resource is named.
+	assert.doesNotMatch(prompt, /execution_mode|attended|unattended/);
 });
 
 test("buildWorkPrompt does not maintain a second detailed workflow", () => {

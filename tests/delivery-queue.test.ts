@@ -3,15 +3,15 @@ import { test } from "node:test";
 import { DeliveryQueue, nextDeliveryRetryDelayMs } from "../extensions/core/delivery-queue.ts";
 import { revalidateDispatchRetry } from "../extensions/core/dispatch-retry.ts";
 import {
-	IMPLEMENTATION_CONTRACT_RESOURCE_URIS,
+	IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 	buildImplementationKickoff,
-	type EffectiveImplementationContext,
+	type ImplementationContractContext,
 } from "../extensions/core/implementation-contract.ts";
 import {
-	installImplementationMode,
-	listImplementationModes,
-	resetImplementationMode,
-} from "../extensions/core/implementation-mode.ts";
+	listActiveDeliveries,
+	recordActiveDelivery,
+	resetActiveDeliveries,
+} from "../extensions/core/active-deliveries.ts";
 
 test("delivery retry backoff is bounded and deterministic", () => {
 	assert.equal(nextDeliveryRetryDelayMs(1), 5_000);
@@ -52,31 +52,29 @@ test("a transient delivery failure can be retried from the live inbox", async ()
 	await queue.idle();
 });
 
-test("canonical-contract outage leaves unattended delivery retryable without message or mode", async () => {
-	resetImplementationMode();
+test("canonical-contract outage leaves a delivery retryable with no message and nothing recorded", async () => {
+	resetActiveDeliveries();
 	const queue = new DeliveryQueue();
 	const messages: string[] = [];
 	let failures = 0;
-	const fallback: EffectiveImplementationContext = {
-		executionMode: "unattended",
+	const fallback: ImplementationContractContext = {
 		contractVersion: "pi-local-safety-v1",
-		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.unattended,
+		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 		source: "local_safety_fallback",
-		coreRules: [],
-		modeRules: [],
+		rules: [],
 	};
-	const deliver = (context: EffectiveImplementationContext) => async (lease: { assertCurrent(): void }) => {
+	const deliver = (context: ImplementationContractContext) => async (lease: { assertCurrent(): void }) => {
 		lease.assertCurrent();
 		const kickoff = buildImplementationKickoff({
 			actionItemIds: ["item-retry"],
 			assignmentId: "assignment-retry",
 			context,
 			contractReference: {
-				contract_version: "1.0.0",
-				resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.unattended,
+				contract_version: "2.0.0",
+				resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 			},
 		});
-		installImplementationMode(kickoff, context);
+		recordActiveDelivery(kickoff, context);
 		messages.push("assignment-retry");
 	};
 
@@ -84,17 +82,17 @@ test("canonical-contract outage leaves unattended delivery retryable without mes
 	await queue.idle();
 	assert.equal(failures, 1);
 	assert.deepEqual(messages, []);
-	assert.deepEqual(listImplementationModes(), []);
+	assert.deepEqual(listActiveDeliveries(), []);
 
-	const canonical: EffectiveImplementationContext = { ...fallback, contractVersion: "1.0.0", source: "resource" };
+	const canonical: ImplementationContractContext = { ...fallback, contractVersion: "2.0.0", source: "resource" };
 	assert.equal(queue.enqueue("assignment-retry", deliver(canonical), () => assert.fail("recovery must deliver")), true);
 	await queue.idle();
 	assert.deepEqual(messages, ["assignment-retry"]);
-	assert.deepEqual(listImplementationModes().map((mode) => mode.assignmentId), ["assignment-retry"]);
+	assert.deepEqual(listActiveDeliveries().map((delivery) => delivery.assignmentId), ["assignment-retry"]);
 });
 
 test("authoritative withdrawal revokes same-key preparation already re-enqueued by polling", async () => {
-	resetImplementationMode();
+	resetActiveDeliveries();
 	const queue = new DeliveryQueue();
 	const key = "assignment-withdrawn";
 	const messages: string[] = [];
@@ -111,13 +109,11 @@ test("authoritative withdrawal revokes same-key preparation already re-enqueued 
 	let markStarted!: () => void;
 	const preparationStarted = new Promise<void>((resolve) => { markStarted = resolve; });
 	const preparationGate = new Promise<void>((resolve) => { releasePreparation = resolve; });
-	const context: EffectiveImplementationContext = {
-		executionMode: "unattended",
-		contractVersion: "1.0.0",
-		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.unattended,
+	const context: ImplementationContractContext = {
+		contractVersion: "2.0.0",
+		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 		source: "resource",
-		coreRules: [],
-		modeRules: [],
+		rules: [],
 	};
 	assert.equal(queue.enqueue(key, async (lease) => {
 		markStarted();
@@ -128,7 +124,7 @@ test("authoritative withdrawal revokes same-key preparation already re-enqueued 
 			assignmentId: key,
 			context,
 		});
-		installImplementationMode(kickoff, context);
+		recordActiveDelivery(kickoff, context);
 		messages.push(key);
 		statuses.push("working");
 		notifications.push("delivered");
@@ -154,7 +150,7 @@ test("authoritative withdrawal revokes same-key preparation already re-enqueued 
 	releasePreparation();
 	await queue.idle();
 	assert.deepEqual(messages, ["unrelated-delivery"]);
-	assert.deepEqual(listImplementationModes(), []);
+	assert.deepEqual(listActiveDeliveries(), []);
 	assert.deepEqual(statuses, []);
 	assert.deepEqual(notifications, []);
 	assert.equal(retries, 0, "stale preparation cannot schedule another retry");
@@ -168,18 +164,16 @@ test("authoritative withdrawal revokes same-key preparation already re-enqueued 
 });
 
 test("stopping and rebonding revokes paused preparation before every delivery side effect", async () => {
-	resetImplementationMode();
+	resetActiveDeliveries();
 	const generationOne = new DeliveryQueue();
 	const generationTwo = new DeliveryQueue();
 	const messages: string[] = [];
 	const statuses: string[] = [];
-	const context: EffectiveImplementationContext = {
-		executionMode: "unattended",
-		contractVersion: "1.0.0",
-		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.unattended,
+	const context: ImplementationContractContext = {
+		contractVersion: "2.0.0",
+		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 		source: "resource",
-		coreRules: [],
-		modeRules: [],
+		rules: [],
 	};
 	let releaseContract!: () => void;
 	const contractGate = new Promise<void>((resolve) => { releaseContract = resolve; });
@@ -193,7 +187,7 @@ test("stopping and rebonding revokes paused preparation before every delivery si
 			assignmentId: "assignment-old",
 			context,
 		});
-		installImplementationMode(kickoff, context);
+		recordActiveDelivery(kickoff, context);
 		messages.push("assignment-old");
 		statuses.push("assignment-old");
 	}, () => assert.fail("revoked generation must not report a live delivery error"));
@@ -212,7 +206,7 @@ test("stopping and rebonding revokes paused preparation before every delivery si
 			assignmentId: "assignment-new",
 			context,
 		});
-		installImplementationMode(kickoff, context);
+		recordActiveDelivery(kickoff, context);
 		messages.push("assignment-new");
 		statuses.push(`new:delivered:${lease.generation}`);
 	}, () => assert.fail("new generation must deliver"));
@@ -222,6 +216,6 @@ test("stopping and rebonding revokes paused preparation before every delivery si
 	await generationOne.idle();
 	assert.equal(queuedOldStarted, false, "queued work from the stopped generation never started");
 	assert.deepEqual(messages, ["assignment-new"], "the stopped generation injected no user message");
-	assert.deepEqual(listImplementationModes().map((mode) => mode.assignmentId), ["assignment-new"], "the stopped generation installed no mode");
+	assert.deepEqual(listActiveDeliveries().map((delivery) => delivery.assignmentId), ["assignment-new"], "the stopped generation recorded no delivery");
 	assert.deepEqual(statuses, ["old:prepare:1", "new:delivered:1"], "the stopped generation recorded no work status");
 });

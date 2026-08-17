@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { assertHydratedAssignmentIdentity, dispatchImplementationDelivery, formatDispatchMessage, isPlaybookDispatch } from "../extensions/core/dispatch.ts";
-import { IMPLEMENTATION_CONTRACT_RESOURCE_URIS, type EffectiveImplementationContext } from "../extensions/core/implementation-contract.ts";
+import { IMPLEMENTATION_CONTRACT_RESOURCE_URI, type ImplementationContractContext } from "../extensions/core/implementation-contract.ts";
 import { automaticBackgroundTaskId, backgroundTaskNotificationId, classifyUserKind, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, isWaitNarration, isProcessClose, planSettle, shouldPauseSettle, shouldSplitFirstAnswer, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 
 function remoteTurn(answer: string): TurnTracker {
@@ -570,69 +570,65 @@ test("legacy assignment envelopes remain work (for mechanical hydration), never 
 	const delivery = dispatchImplementationDelivery(hydratedLegacy);
 	assert.ok(delivery);
 	assert.equal(delivery.reference.contract_version, undefined);
-	const context: EffectiveImplementationContext = {
-		executionMode: "attended",
-		contractVersion: "1.0.0",
-		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.attended,
+	const context: ImplementationContractContext = {
+		contractVersion: "2.0.0",
+		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 		source: "resource",
-		coreRules: [{ id: "core.claim-before-edit", requirement: "Claim first." }],
-		modeRules: [],
+		rules: [{ id: "core.claim-before-edit", requirement: "Claim first." }],
 	};
-	assert.match(formatDispatchMessage(hydratedLegacy, "Wary Wolf", context, delivery), /"contract_version":"1.0.0"/);
+	assert.match(formatDispatchMessage(hydratedLegacy, "Wary Wolf", context, delivery), /"contract_version":"2.0.0"/);
 });
 
-test("formatDispatchMessage carries thin work/mode/contract identity and payload", () => {
+test("formatDispatchMessage carries thin work/contract identity and payload", () => {
 	const dispatch = {
 		id: "as-1",
-		execution_mode: "unattended",
 		implementation_kickoff: {
 			kind: "devspec.implementation_kickoff",
 			schema_version: 1,
 			work: { assignment_id: "as-1", action_item_ids: ["item-1"] },
-			execution_mode: "unattended",
 			implementation_contract: {
-				contract_version: "1.0.0",
-				resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.unattended,
+				contract_version: "2.0.0",
+				resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 			},
 		},
 		members: [{ action_item_id: "item-1", title: "Fix flaky test" }],
 	};
 	const delivery = dispatchImplementationDelivery(dispatch);
 	assert.ok(delivery);
-	const context: EffectiveImplementationContext = {
-		executionMode: "unattended",
-		contractVersion: "1.0.0",
+	const context: ImplementationContractContext = {
+		contractVersion: "2.0.0",
 		contractHash: "sha256:contract",
-		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.unattended,
+		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 		source: "resource",
-		coreRules: [{ id: "core.claim-before-edit", requirement: "Claim first." }],
-		modeRules: [{ id: "unattended.capacity-return", requirement: "Return to capacity." }],
+		rules: [
+			{ id: "core.claim-before-edit", requirement: "Claim first." },
+			{ id: "core.stay-available", requirement: "Return to capacity." },
+		],
 	};
 	const msg = formatDispatchMessage(dispatch, "Wary Wolf", context, delivery);
 	assert.match(msg, /^\[DevSpec remote — work dispatch to Wary Wolf\]/);
 	assert.match(msg, /Fix flaky test/);
-	assert.match(msg, /"execution_mode":"unattended"/);
-	assert.match(msg, /"contract_version":"1.0.0"/);
+	assert.match(msg, /"contract_version":"2.0.0"/);
 	assert.match(msg, /acknowledge assignment as-1/i);
 	assert.match(msg, /resolve that assignment/i);
-	assert.match(msg, /unattended\.capacity-return/);
+	assert.match(msg, /core\.stay-available/);
 	assert.match(msg, /"id": "as-1"/);
 	assert.doesNotMatch(msg, /Run the assignment protocol/);
 	assert.doesNotMatch(msg, /Claim each member with claim_work_item/);
+	// No mode on the kickoff header, and no mode-specific resource named.
+	assert.doesNotMatch(msg.split("\n")[1] ?? "", /execution_mode|attended/);
 });
 
 test("canonical dispatch contradictions fail closed instead of broadening work", () => {
 	const canonical = {
 		id: "as-1",
-		execution_mode: "unattended",
 		implementation_kickoff: {
 			kind: "devspec.implementation_kickoff",
 			schema_version: 1,
 			work: { assignment_id: "as-1", action_item_ids: ["item-a"] },
-			execution_mode: "unattended",
 			implementation_contract: {
-				contract_version: "1.0.0",
-				resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.unattended,
+				contract_version: "2.0.0",
+				resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 			},
 		},
 		members: [{ action_item_id: "item-a" }],
@@ -652,18 +648,24 @@ test("canonical dispatch contradictions fail closed instead of broadening work",
 			...canonical.implementation_kickoff,
 			implementation_contract: {
 				...canonical.implementation_kickoff.implementation_contract,
-				resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.attended,
+				resource_uri: "devspec://product/implementation-contract/attended",
 			},
 		},
-	}), /resource did not match execution mode/);
+	}), /named a contract resource Pi does not serve/);
 	assert.throws(() => dispatchImplementationDelivery({
 		...canonical,
 		members: [{ action_item_id: "item-a" }, { action_item_id: "item-b" }],
 	}), /contradicted assignment members/);
+	// A mode on the assignment or the kickoff is a server that has not caught up:
+	// refuse it rather than work under a shape whose meaning was deleted.
 	assert.throws(() => dispatchImplementationDelivery({
 		...canonical,
 		execution_mode: "attended",
-	}), /contradicted assignment execution mode/);
+	}), /carried a retired execution mode/);
+	assert.throws(() => dispatchImplementationDelivery({
+		...canonical,
+		implementation_kickoff: { ...canonical.implementation_kickoff, execution_mode: "unattended" },
+	}), /carried a retired execution mode/);
 	assert.throws(() => dispatchImplementationDelivery({
 		...canonical,
 		implementation_kickoff: {
@@ -704,6 +706,8 @@ test("hydration cannot substitute a different assignment than the triggering dis
 });
 
 test("canonical kickoff absence preserves the isolated legacy-member compatibility path", () => {
+	// A legacy `mode: autopilot` row used to synthesize an unattended delivery.
+	// There is nothing to synthesize onto now, so it is simply ignored.
 	assert.deepEqual(dispatchImplementationDelivery({
 		id: "legacy-1",
 		mode: "autopilot",
@@ -711,7 +715,6 @@ test("canonical kickoff absence preserves the isolated legacy-member compatibili
 	}), {
 		assignmentId: "legacy-1",
 		actionItemIds: ["legacy-item"],
-		executionMode: "unattended",
-		reference: { resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS.unattended },
+		reference: { resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI },
 	});
 });

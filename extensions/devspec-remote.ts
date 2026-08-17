@@ -59,7 +59,7 @@ import {
 	createImplementationContractLoader,
 	loadImplementationContext,
 } from "./core/implementation-contract.ts";
-import { installImplementationMode, rollbackImplementationMode } from "./core/implementation-mode.ts";
+import { recordActiveDelivery, rollbackActiveDelivery } from "./core/active-deliveries.ts";
 import {
 	firstTextPreview,
 	isRealSessionTitle,
@@ -692,7 +692,6 @@ async function deliverDispatch(
 	}
 
 	const implementationContext = await loadImplementationContext({
-		executionMode: delivery.executionMode,
 		reference: delivery.reference,
 		loader: createImplementationContractLoader(token),
 		assertCurrent: () => assertDeliveryAuthority(active, lease),
@@ -711,14 +710,14 @@ async function deliverDispatch(
 		delivery,
 	);
 	assertDeliveryAuthority(active, lease);
-	const modeInstallation = installImplementationMode(kickoff, implementationContext);
+	const recorded = recordActiveDelivery(kickoff, implementationContext);
 	try {
 		pi_send(message, ctx.isIdle() ? "now" : "followUp");
 	} catch (error) {
-		rollbackImplementationMode(modeInstallation);
+		rollbackActiveDelivery(recorded);
 		throw error;
 	}
-	// No await follows the final authority checkpoint above: message, mode and
+	// No await follows the final authority checkpoint above: message, delivery and
 	// status commit in one JavaScript turn, so stop/rebond cannot interleave.
 	const summary = dispatchSummary(dispatch);
 	noteWork({ id: summary.assignmentId, title: summary.title });

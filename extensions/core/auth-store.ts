@@ -64,7 +64,7 @@ export async function clearAuth(): Promise<void> {
 }
 
 /**
- * Resolve the effective token. Env always wins so unattended/headless runs
+ * Resolve the effective token. Env always wins so headless runs
  * never depend on interactive login state.
  */
 export async function resolveToken(): Promise<ResolvedToken | null> {

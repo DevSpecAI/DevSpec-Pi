@@ -44,12 +44,12 @@ test("failed delivery retries identity only after re-reading the authoritative l
 	assert.match(source, /\(error\) => scheduleDispatchRetry\(active, key, token, ctx, error\)/);
 });
 
-test("real dispatch hydration checkpoints authority and commits mode/send without an await gap", () => {
+test("real dispatch hydration checkpoints authority and commits record/send without an await gap", () => {
 	const deliveryBody = bodyBetween("async function deliverDispatch", "function enqueueDispatch");
 	assert.match(deliveryBody, /await callDevspec[\s\S]*assertDeliveryAuthority\(active, lease\)/);
 	assert.match(deliveryBody, /loadImplementationContext\(\{[\s\S]*assertCurrent: \(\) => assertDeliveryAuthority\(active, lease\)/);
-	assert.match(deliveryBody, /assertDeliveryAuthority\(active, lease\);\s*const modeInstallation = installImplementationMode/);
-	const commit = deliveryBody.match(/const modeInstallation = installImplementationMode[\s\S]*?pi_send\(message,[\s\S]*?\);/u)?.[0] ?? "";
-	assert.ok(commit, "mode installation and Pi delivery transaction was not found");
-	assert.doesNotMatch(commit, /\bawait\b/, "stop/rebond must not interleave between mode installation and Pi send");
+	assert.match(deliveryBody, /assertDeliveryAuthority\(active, lease\);\s*const recorded = recordActiveDelivery/);
+	const commit = deliveryBody.match(/const recorded = recordActiveDelivery[\s\S]*?pi_send\(message,[\s\S]*?\);/u)?.[0] ?? "";
+	assert.ok(commit, "delivery record and Pi send transaction was not found");
+	assert.doesNotMatch(commit, /\bawait\b/, "stop/rebond must not interleave between recording a delivery and the Pi send");
 });

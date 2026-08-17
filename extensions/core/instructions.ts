@@ -17,7 +17,7 @@ export function buildDevspecInstructions(): string {
 This project is connected to DevSpec. Everyday verbs are active native tools. Find and load less-common verbs with \`search_devspec_tools\`. Do not connect a DevSpec MCP server.
 
 - Track work as action items: one unit of work = one item. Claim with claim_work_item (never force past a possible_conflict rejection — resolve the pair or surface it); create a new item only when none covers the work.
-- Work entry mechanically installs the product implementation contract and an explicit attended/unattended mode. Attended selection is one explicit item; unattended work arrives by assignment, never by draining a global queue.
+- Work entry mechanically loads the product implementation contract. There is no execution mode: whether to ask is a judgement from the item's intent and criteria, and work is either selected here or arrives by assignment — never by draining a global queue.
 - Tag every commit that implements a tracked item: end the commit message with [devspec:<id>].
 - After pushing, call record_implementation with the final commit SHA, affected_files, testing_notes, and completion_summary. Then report "implemented" and stop — never mark items done; a human verifies. Vocabulary: implemented → verified → done.
 - Project conventions and decisions (get_memory for the full body) are BINDING — if one contradicts what the code needs, surface it and propose a supersede rather than silently deviating.

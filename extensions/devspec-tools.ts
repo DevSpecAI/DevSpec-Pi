@@ -18,7 +18,7 @@ import { callDevspec, MODEL_TIMEOUT_MS } from "./core/client.ts";
 import { repoResolver, validateCommitSha } from "./core/commit-ledger.ts";
 import { addFlags, extractFlags } from "./core/conflict-watch.ts";
 import { jsonSchemaToTypebox } from "./core/json-schema.ts";
-import { consumeImplementationLifecycle } from "./core/implementation-mode.ts";
+import { consumeDeliveryLifecycle } from "./core/active-deliveries.ts";
 import {
 	HOT_SET_VERBS,
 	SCOPE_KEY_SET,
@@ -101,7 +101,7 @@ export function consumeResultMechanics(
 ): void {
 	watchForSignals(name, result);
 	applyWorkStatus(name, result);
-	consumeImplementationLifecycle(name, args, result);
+	consumeDeliveryLifecycle(name, args, result);
 }
 
 const NOT_CONNECTED =

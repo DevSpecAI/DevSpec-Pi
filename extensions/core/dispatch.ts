@@ -1,20 +1,19 @@
 /**
  * DevSpec Pi — thin work-assignment delivery (pure, unit-tested).
  *
- * The server dispatch already carries work identity, explicit execution mode,
- * and a contract pointer. Pi loads that contract mechanically and injects the
- * effective rules here. This file does not duplicate the implementation
- * workflow.
+ * The server dispatch carries work identity and a contract pointer — there is no
+ * execution mode, and there never was one that described anything real. Pi loads
+ * that contract mechanically and injects its rules here. This file does not
+ * duplicate the implementation workflow.
  */
 
 import {
 	buildImplementationKickoff,
 	formatImplementationContext,
 	formatImplementationKickoffHeader,
-	IMPLEMENTATION_CONTRACT_RESOURCE_URIS,
-	type EffectiveImplementationContext,
+	IMPLEMENTATION_CONTRACT_RESOURCE_URI,
+	type ImplementationContractContext,
 	type ImplementationContractReference,
-	type ImplementationExecutionMode,
 	type ImplementationKickoff,
 } from "./implementation-contract.ts";
 import { DISPATCH_PREFIX } from "./turn-lifecycle.ts";
@@ -53,7 +52,6 @@ export function isPlaybookDispatch(dispatch: unknown): boolean {
 export interface DispatchImplementationDelivery {
 	assignmentId: string;
 	actionItemIds: string[];
-	executionMode: ImplementationExecutionMode;
 	reference: ImplementationContractReference;
 }
 
@@ -118,24 +116,22 @@ export function dispatchImplementationDelivery(dispatch: unknown): DispatchImple
 			throw new Error("canonical implementation kickoff contradicted assignment identity");
 		}
 
-		const executionMode = text(kickoff.execution_mode);
-		if (executionMode !== "attended" && executionMode !== "unattended") {
-			throw new Error("canonical implementation kickoff execution mode was invalid");
-		}
-		if (hasOwn(root, "execution_mode") && root.execution_mode !== executionMode) {
-			throw new Error("canonical implementation kickoff contradicted assignment execution mode");
+		// A mode on either the kickoff or the assignment is a server that has not
+		// caught up. Refuse it rather than silently working under a shape whose
+		// meaning was deleted (DevSpec item 6d085535).
+		if (hasOwn(kickoff, "execution_mode") || hasOwn(root, "execution_mode")) {
+			throw new Error("canonical implementation kickoff carried a retired execution mode");
 		}
 		const reference = asRecord(kickoff.implementation_contract);
 		const contractVersion = text(reference?.contract_version);
 		const resourceUri = text(reference?.resource_uri);
 		if (!reference || !contractVersion) throw new Error("canonical implementation kickoff contract version was invalid");
-		if (resourceUri !== IMPLEMENTATION_CONTRACT_RESOURCE_URIS[executionMode]) {
-			throw new Error("canonical implementation kickoff contract resource did not match execution mode");
+		if (resourceUri !== IMPLEMENTATION_CONTRACT_RESOURCE_URI) {
+			throw new Error("canonical implementation kickoff named a contract resource Pi does not serve");
 		}
 		return {
 			assignmentId,
 			actionItemIds,
-			executionMode,
 			reference: { contract_version: contractVersion, resource_uri: resourceUri },
 		};
 	}
@@ -143,25 +139,19 @@ export function dispatchImplementationDelivery(dispatch: unknown): DispatchImple
 	// Pre-618 compatibility: synthesize only when there is genuinely no canonical kickoff.
 	const assignmentId = text(root.assignment_id) ?? text(root.id);
 	if (!assignmentId || !members || members.length === 0) return null;
-	const explicitMode = text(root.execution_mode);
-	if (hasOwn(root, "execution_mode") && explicitMode !== "attended" && explicitMode !== "unattended") {
-		throw new Error("legacy assignment execution mode was invalid");
-	}
-	const executionMode: ImplementationExecutionMode = explicitMode === "unattended" || explicitMode === "attended"
-		? explicitMode
-		: root.mode === "autopilot" ? "unattended" : "attended";
+	// A legacy row may still carry `execution_mode`; it is ignored rather than
+	// mapped, because there is nothing left to map it onto.
 	return {
 		assignmentId,
 		actionItemIds: members,
-		executionMode,
-		reference: { resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URIS[executionMode] },
+		reference: { resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI },
 	};
 }
 
 export function formatDispatchMessage(
 	dispatch: unknown,
 	codename: string,
-	context: EffectiveImplementationContext,
+	context: ImplementationContractContext,
 	delivery: DispatchImplementationDelivery,
 ): string {
 	const { title } = dispatchSummary(dispatch);

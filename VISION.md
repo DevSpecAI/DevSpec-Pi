@@ -252,11 +252,13 @@ What Pi opens up (mechanical, zero-token, no model compliance):
 ### Remote control: native-runtime family, done right
 
 **Context — autopilot is dead, capacity is the model.** The old Claude-Code-only
-"autopilot" (unattended work via special skills/commands) is being retired
+"autopilot" (unattended work via special skills/commands) has been retired
 server-side in favor of the connection-native remote system: agents are simply
-*available capacity*, and interactive vs. unattended is an **instruction-tier**
-difference (agent_rules vs. custom_instructions), not a separate system with
-separate verbs. This package inherits none of the autopilot machinery — it is
+*available capacity*. There is no interactive/unattended distinction at all — not
+a separate system, not separate verbs, and not (as an earlier draft of this
+section had it) an instruction-tier difference. DevSpec item `6d085535` deleted
+the execution mode outright and replaced it with nothing: whether to ask is a
+judgement from the item's intent and acceptance criteria. This package inherits none of the autopilot machinery — it is
 designed for the capacity model from the start, and is the place to push it
 further than the current contract does.
 
@@ -290,8 +292,8 @@ honored, not ported around:
 - **Authority:** act only on `commands[]` addressed to this `connection_id`
   with owner authority; advisory/room context never wakes or executes.
 - **Permissions:** stock Pi has no permission popups, so the approval-hook
-  machinery other hosts need is unnecessary. Unattended runs get our own
-  destructive-command gate instead.
+  machinery other hosts need is unnecessary. Our own destructive-command gate
+  applies to every run, since no run can claim someone is watching it.
 - **Headless:** all of the above runs under `pi -p` / RPC / SDK unchanged.
 
 ### Auth
@@ -398,7 +400,7 @@ current contract, adopted here first, migrated to other hosts only if proven.
    Clerk vs prod). When scheduled, this package is the reference client.
 7. **Autopilot verb retirement:** which MCP verbs/settings die with the old
    autopilot cutover, and what (if anything) replaces `stale_claim_timeout`
-   etc. for capacity-model unattended runs?
+   etc. under the capacity model?
 8. **`provider: 'pi'`:** `claim_work_item.provider` is an enum of known hosts
    (claude_code … opencode) — pi isn't in it, so our claims stamp no provider
    (the active-agents UI shows no logo while we work). Add `pi` server-side.

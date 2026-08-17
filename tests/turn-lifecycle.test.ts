@@ -180,6 +180,7 @@ test("typed slash commands stay local — we do not filter a leading /", () => {
 test("leftover [bg completed] / customType is harness: no remirror, no answer", () => {
 	assert.equal(isHarnessOrigin("[bg completed] Isolated lint (abc123)"), true);
 	assert.equal(isHarnessOrigin("hello", "background-task-notification"), true);
+	assert.equal(isHarnessOrigin("synthetic extension content", "future-extension-message"), true);
 	assert.equal(isHarnessOrigin("Also just to confirm that the Pi package doesn't use MCP"), false);
 
 	const xml = new TurnTracker();
@@ -211,6 +212,54 @@ test("leftover [bg completed] / customType is harness: no remirror, no answer", 
 	assert.equal(leftover.userKind, "harness");
 	assert.equal(leftover.shouldMirrorPrompt, false);
 	assert.deepEqual(planSettle(leftover, true), { kind: "none" });
+});
+
+test("pi-subagents completion notifications are synthetic, not owner prompts", () => {
+	const completion = [
+		"Background task completed: **workflow**",
+		"",
+		"Workflow completed with 1 child run(s). Return: {",
+		'  "runId": "39192d20",',
+		'  "artifactPaths": ["/private/subagent-artifacts/owner-dispatch.md"]',
+		"}",
+	].join("\n");
+
+	assert.equal(isHarnessOrigin(completion, "subagent-notify"), true);
+	assert.equal(classifyUserKind(completion, "subagent-notify"), "harness");
+	assert.equal(isHarnessOrigin(completion), true, "rendered-text backstop survives missing customType");
+	assert.equal(isHarnessOrigin("Background tasks completed (2): **worker**, **reviewer**\n\n1. worker\ncomplete"), true);
+	assert.equal(isHarnessOrigin("Detached foreground task failed: **worker**\n\nprocess failed"), true);
+	assert.equal(isHarnessOrigin("Background task completed: **workflow** — why did this appear?"), false, "a typed question that quotes only the heading stays local");
+
+	const notification = new TurnTracker();
+	notification.userMessage(completion, { customType: "subagent-notify" });
+	notification.assistantFinal("That completion receipt was from the discarded fixture. No action needed.");
+	assert.equal(notification.userKind, "harness");
+	assert.equal(notification.shouldMirrorPrompt, false);
+	const notificationPlan = planSettle(notification, true);
+	assert.deepEqual(notificationPlan, { kind: "none" });
+	assert.doesNotMatch(JSON.stringify(notificationPlan), /39192d20|subagent-artifacts|owner-dispatch\.md/);
+
+	const remote = "[DevSpec remote — message from Ali Price to Ivory Koala]\nWhy is this attributed to me?";
+	assert.equal(isHarnessOrigin(remote, "future-remote-envelope"), false);
+	assert.equal(classifyUserKind(remote, "future-remote-envelope"), "remote");
+	const dispatch = "[DevSpec remote — work dispatch from Ali Price]\nImplement the fix.";
+	assert.equal(isHarnessOrigin(dispatch, "future-dispatch-envelope"), false);
+	assert.equal(classifyUserKind(dispatch, "future-dispatch-envelope"), "dispatch");
+
+	const activeOwner = new TurnTracker();
+	activeOwner.userMessage(remote);
+	activeOwner.assistantFinal("I found the attribution boundary and am checking it.", true);
+	assert.equal(isDeliveryBoundary(activeOwner), true);
+	activeOwner.noteBackgroundTask("unrelated-bg-task");
+	activeOwner.userMessage(completion, { customType: "subagent-notify" });
+	assert.equal(activeOwner.userKind, "remote", "synthetic receipt cannot overwrite the owner turn");
+	assert.deepEqual(activeOwner.pendingBackgroundTasks(), ["unrelated-bg-task"], "unrelated ownership is untouched");
+	assert.equal(activeOwner.resolveBackgroundTask("unrelated-bg-task"), true);
+	activeOwner.assistantFinal("The synthetic-origin fix is complete.");
+	const ownerPlan = planSettle(activeOwner, true);
+	assert.deepEqual(ownerPlan, { kind: "final", message: "The synthetic-origin fix is complete." });
+	assert.doesNotMatch(JSON.stringify(ownerPlan), /39192d20|subagent-artifacts|owner-dispatch\.md/);
 });
 
 test("display:false DevSpec context injections never remirror as local prompts", () => {

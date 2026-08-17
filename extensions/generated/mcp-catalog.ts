@@ -2,11 +2,11 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Fingerprint: 1142f4ad96aa6166b3f39a1c7ce93d467b8d2f68ea656cb6f939ae6d167ee9c4
- * Regenerated: 2026-08-17T08:05:28.947Z
+ * Fingerprint: 9959e076d1c976c54f719fc45632c222f6b7906e44ad2584a1a48545bd3848da
+ * Regenerated: 2026-08-17T10:54:20.782Z
  */
-export const MCP_CATALOG_FINGERPRINT = "1142f4ad96aa6166b3f39a1c7ce93d467b8d2f68ea656cb6f939ae6d167ee9c4";
-export const MCP_CATALOG_GENERATED_AT = "2026-08-17T08:05:28.947Z";
+export const MCP_CATALOG_FINGERPRINT = "9959e076d1c976c54f719fc45632c222f6b7906e44ad2584a1a48545bd3848da";
+export const MCP_CATALOG_GENERATED_AT = "2026-08-17T10:54:20.782Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -133,7 +133,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_project_summary",
 		"label": "DevSpec: Get Project Summary",
-		"description": "Get a high-level summary of a project including repo count, indexed file count, recent session activity, connected integrations, and project members. The response includes a `members` array with user IDs and display names — use this to resolve named assignees when assigning action items to a specific person's runner. It also returns a `repos` array — each tracked repo with the `target_branch` DevSpec follows for it (null falls back to `default_branch`) — so an agent pushes each repo to its own branch instead of one global branch. It also returns a `database_targets` array — each connected database with its non-secret `identity` (e.g. the Supabase project ref), declared `environment`, and the `branch_name` whose migrations target it — so when work involves a migration you point your OWN db tooling at the right database (match `branch_name` to the repo `target_branch`) instead of whatever your local tooling defaults to. It also returns an `execution` object — the unified, on-by-default execution settings (`branch_prefix`, `commit_message_prefix`, `custom_instructions`, `agent_rules`, `test_commands`, `protected_paths`, `auto_push`, `auto_merge`) that apply to every run; read these to decide push/merge and which test commands to run. Note the two instruction tiers: `custom_instructions` is the team PRINCIPLES (philosophy/standards — you and the in-session AI both follow these) and `agent_rules` is the team EXECUTION MECHANICS for coding agents like you (e.g. which checks to run before pushing, how to handle branches, what a commit may contain) — treat both as mandatory during implementation. The response also returns `owner_agent_rules` — the CALLING user's personal machine/tooling rules (their installed tools, ports, local workflow); apply it alongside the team `agent_rules`. The `autopilot` object now carries orchestration only (enabled, poll_interval_seconds, stale_claim_timeout_minutes, idle_detection, deploy_fix_auto_stage). Prefer the `execution` object: the legacy `local_plugin_settings` object and the execution fields on `autopilot` are deprecated aliases of the same values.",
+		"description": "Get a high-level summary of a project including repo count, indexed file count, recent session activity, connected integrations, and project members. The response includes a `members` array with user IDs and display names — use this to resolve named assignees when assigning action items to a specific person's runner. It also returns a `repos` array — each tracked repo with the `target_branch` DevSpec follows for it (null falls back to `default_branch`) — so an agent pushes each repo to its own branch instead of one global branch. It also returns a `database_targets` array — each connected database with its non-secret `identity` (e.g. the Supabase project ref), declared `environment`, and the `branch_name` whose migrations target it — so when work involves a migration you point your OWN db tooling at the right database (match `branch_name` to the repo `target_branch`) instead of whatever your local tooling defaults to. It also returns an `execution` object — the unified, on-by-default execution settings (`branch_prefix`, `commit_message_prefix`, `custom_instructions`, `agent_rules`, `test_commands`, `protected_paths`, `auto_push`, `auto_merge`) that apply to every run; read these to decide push/merge and which test commands to run. Note the two instruction tiers: `custom_instructions` is the team PRINCIPLES (philosophy/standards — you and the in-session AI both follow these) and `agent_rules` is the team EXECUTION MECHANICS for coding agents like you (e.g. which checks to run before pushing, how to handle branches, what a commit may contain) — treat both as mandatory during implementation. The response also returns `owner_agent_rules` — the CALLING user's personal machine/tooling rules (their installed tools, ports, local workflow); apply it alongside the team `agent_rules`. Read the `execution` object: the legacy `local_plugin_settings` and `autopilot` objects are deprecated aliases of the same values, kept for older plugins. There are no orchestration settings — nothing polls, stages or schedules unattended runs.",
 		"promptSnippet": "Get a high-level summary of a project including repo count, indexed file count, recent session activity, connected integrations, and project members.",
 		"inputSchema": {
 			"type": "object",
@@ -245,7 +245,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"enum": [
 						"idle",
-						"staged",
 						"implementing",
 						"reporting",
 						"finished",
@@ -301,15 +300,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"enum": [
 						"followup_required",
-						"autopilot_failed",
+						"agent_run_failed",
 						"deployment_failed",
 						"possible_conflict",
 						"possibly_stale",
-						"stale_in_queue",
 						"blocked",
 						"implemented_unverified"
 					],
-					"description": "Filter to items carrying a specific REVIEW SIGNAL — the same vocabulary the web UI and the in-session assistant use, so all three return the same set. This is how you answer \"what needs review?\" rather than guessing from lifecycle. Notably `possible_conflict` lists the work being HELD OUT of the autopilot queue by an unresolved conflict flag (those items cannot be claimed until the pair is settled with resolve_action_item_conflict). Mutually exclusive with signal_bucket; signal_type wins if both are passed."
+					"description": "Filter to items carrying a specific REVIEW SIGNAL — the same vocabulary the web UI and the in-session assistant use, so all three return the same set. This is how you answer \"what needs review?\" rather than guessing from lifecycle. Notably `possible_conflict` lists the work an unresolved conflict flag is HOLDING OUT of the pool (those items cannot be claimed until the pair is settled with resolve_action_item_conflict). Mutually exclusive with signal_bucket; signal_type wins if both are passed."
 				},
 				"signal_bucket": {
 					"type": "string",
@@ -318,7 +316,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"risk",
 						"state"
 					],
-					"description": "Filter by review-signal BUCKET instead of one type: \"action\" = a human must do a specific thing (follow-up required, autopilot failed, deployment failed); \"risk\" = a human must look and judge (possible conflict, possibly stale/superseded, stale in the queue); \"state\" = lifecycle position, not a problem (blocked, implemented-but-unverified). \"action\" is the closest thing to \"what genuinely needs attention\"."
+					"description": "Filter by review-signal BUCKET instead of one type: \"action\" = a human must do a specific thing (follow-up required, agent run failed, deployment failed); \"risk\" = a human must look and judge (possible conflict, possibly stale/superseded); \"state\" = lifecycle position, not a problem (blocked, implemented-but-unverified). \"action\" is the closest thing to \"what genuinely needs attention\"."
 				},
 				"flagged": {
 					"type": "boolean",
@@ -1364,7 +1362,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_action_item",
 		"label": "DevSpec: Update Action Item",
-		"description": "Update an existing action item lifecycle, agent_activity, and optionally link a commit. Supports atomic claiming (staged→implementing) with conditional update.",
+		"description": "Update an existing action item lifecycle, agent_activity, and optionally link a commit. Supports atomic claiming (idle→implementing) with conditional update.",
 		"promptSnippet": "Update an existing action item lifecycle, agent_activity, and optionally link a commit.",
 		"inputSchema": {
 			"type": "object",
@@ -1372,6 +1370,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"action_item_id": {
 					"type": "string",
 					"description": "Action item ID"
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, when you are running as one. This is the identity the reservation gate checks: only the agent holding a reservation may act on its members, and \"same user\" cannot tell two of your agents apart because a DevSpec token is account-wide."
 				},
 				"title": {
 					"type": "string",
@@ -1511,7 +1513,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"enum": [
 						"idle",
-						"staged",
 						"implementing",
 						"reporting",
 						"finished",
@@ -2635,8 +2636,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "claim_work_item",
 		"label": "DevSpec: Claim Work Item",
-		"description": "Atomically claim a staged action item for implementation (staged → in_progress). Sets agent_claimed_at and agent_branch. Fails if the item is no longer available (another agent claimed it). The claim is also REJECTED when the item has an unresolved possible_conflict (the error names the conflicting item + reason) — that means the pair must be resolved before it is worked — call resolve_action_item_conflict (verdicts: supersedes · related · not_a_conflict · discuss) with the user's agreed verdict, then claim again. Do not force past it just to proceed. Pass force: true with a reason to take over an already-claimed item or override a conflict/dependency hold — this writes a force_claimed activity row and surfaces a warning. Returns the claimed item with full context, including the project instruction tiers — `project_custom_instructions` (team principles) and `project_agent_rules` (team execution mechanics: which checks to run before pushing, how to handle branches, what a commit may contain). They arrive WITH the claim, so no separate call is needed to learn the rules before you start; treat both as mandatory while implementing. If you already read these tiers this run (get_project_summary returns `instruction_tiers_version` + `instruction_tiers_hash`), echo both back as `known_instruction_tiers_version` / `known_instruction_tiers_hash` — matching values return `instructions_unchanged: true` and omit the duplicate texts, which is ~4,800 characters a typical work run pays twice for nothing. Send neither and you receive every tier in full, exactly as before.",
-		"promptSnippet": "Atomically claim a staged action item for implementation (staged → in_progress).",
+		"description": "Atomically claim an action item for implementation (idle → in_progress). Sets agent_claimed_at and agent_branch. Fails if the item is no longer available (another agent claimed it). The claim is also REJECTED when the item has an unresolved possible_conflict (the error names the conflicting item + reason) — that means the pair must be resolved before it is worked — call resolve_action_item_conflict (verdicts: supersedes · related · not_a_conflict · discuss) with the user's agreed verdict, then claim again. Do not force past it just to proceed. Pass force: true with a reason to take over an already-claimed item or override a conflict/dependency hold — this writes a force_claimed activity row and surfaces a warning. Returns the claimed item with full context, including the project instruction tiers — `project_custom_instructions` (team principles) and `project_agent_rules` (team execution mechanics: which checks to run before pushing, how to handle branches, what a commit may contain). They arrive WITH the claim, so no separate call is needed to learn the rules before you start; treat both as mandatory while implementing. If you already read these tiers this run (get_project_summary returns `instruction_tiers_version` + `instruction_tiers_hash`), echo both back as `known_instruction_tiers_version` / `known_instruction_tiers_hash` — matching values return `instructions_unchanged: true` and omit the duplicate texts, which is ~4,800 characters a typical work run pays twice for nothing. Send neither and you receive every tier in full, exactly as before.",
+		"promptSnippet": "Atomically claim an action item for implementation (idle → in_progress).",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -2750,6 +2751,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"action_item_id": {
 					"type": "string",
 					"description": "Action item ID"
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, when you are running as one. This is the identity the reservation gate checks: only the agent holding a reservation may act on its members, and \"same user\" cannot tell two of your agents apart because a DevSpec token is account-wide."
 				},
 				"commit_sha": {
 					"type": "string",

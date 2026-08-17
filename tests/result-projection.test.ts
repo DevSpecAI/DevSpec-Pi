@@ -74,16 +74,22 @@ test("model tool schemas and projection families require an explicit contract-ba
 		.filter((entry) => entry.kind === "model")
 		.map(({ name, inputSchema }) => ({ name, inputSchema, family: projectionFamily(name) }));
 	const fingerprint = createHash("sha256").update(JSON.stringify(contract)).digest("hex");
-	// Reviewed 2026-08-17 (second change of the day, DevSpec item 1e455001): four
-	// model verbs left the catalog — get_next_work_item, get_assignment,
-	// acknowledge_assignment, resolve_assignment — and reserve_work_items arrived.
-	// Its result is a small object (assignment_id, reserved ids, skipped reasons,
-	// one kickoff), so it belongs to the same compact family as the other work
-	// verbs and adds no budget risk; the departures remove families rather than
-	// changing any. Baseline updated deliberately.
+	// Reviewed 2026-08-17 (third change of the day, DevSpec items 9abba068 +
+	// 2e1c9d98). No verb arrived or left and no family changed — this is schema
+	// shrinkage plus one new parameter:
+	//   * `staged` is gone from every agent_activity enum, and `stale_in_queue`
+	//     from every signal_type enum: both named a state the database can no
+	//     longer store, so offering them was offering a filter that returns
+	//     nothing.
+	//   * `autopilot_failed` → `agent_run_failed` in the signal vocabulary.
+	//   * `connection_id` added to record_implementation and update_action_item,
+	//     which already GATED on it — the holder of a reservation could not prove
+	//     it was the holder, so recording its own work was refused.
+	// Budget impact is a rounding error (one optional string on two verbs, minus
+	// two enum members), and every projection family is unchanged.
 	assert.equal(
 		fingerprint,
-		"b3c59938f0de065aeeb0be4e6494ee07cabade1f776ed507f1cb56f71ba44f3e",
+		"5a20116997325a6eb627e492a5b90fb65b92bee5166c18fe2f31f47d42e33ec3",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

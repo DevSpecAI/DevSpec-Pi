@@ -102,6 +102,7 @@ const ACK_VERBS = new Set([
 	"reopen_action_item",
 	"spin_off_action_item",
 	"resolve_action_item_conflict",
+	"resolve_action_item_decision_flag",
 	"link_action_items",
 	"unlink_action_items",
 	"verify_action_item",

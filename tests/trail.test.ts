@@ -419,6 +419,10 @@ test("TrailBuilder.events emits stable seqs and classifies domain tools", () => 
 		domain: "action_item",
 		action: "created",
 	});
+	assert.deepEqual(classifyDomainTool("resolve_action_item_decision_flag"), {
+		domain: "conflict",
+		action: "resolved",
+	});
 	assert.equal(classifyDomainTool("devspec", { verb: "record_memory" }), null);
 	assert.equal(classifyDomainTool("bash"), null);
 

@@ -110,6 +110,7 @@ const DOMAIN_BY_NAME: Record<string, DomainSpec> = {
 	record_implementation: { domain: "implementation", action: "recorded" },
 	record_criterion_verdicts: { domain: "criterion", action: "recorded" },
 	resolve_action_item_conflict: { domain: "conflict", action: "resolved" },
+	resolve_action_item_decision_flag: { domain: "conflict", action: "resolved" },
 	record_memory: { domain: "memory", action: "recorded" },
 	supersede_memory: { domain: "memory", action: "superseded" },
 	retract_memory: { domain: "memory", action: "retracted" },

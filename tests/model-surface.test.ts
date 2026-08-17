@@ -156,6 +156,8 @@ test("colloquial requests route across materially different rare tool families",
 		["show my recurring automations", "get_playbooks"],
 		["what objectives are we working toward?", "get_project_goals"],
 		["what team policies should agents follow?", "get_project_instruction_rules"],
+		["resolve an action item contradiction against a decision memory", "resolve_action_item_decision_flag"],
+		["clear a contradicts_decision flag on an action item", "resolve_action_item_decision_flag"],
 	] as const;
 	for (const [query, expected] of cases) {
 		const match = searchRareModelTools(query, 1)[0];

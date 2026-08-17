@@ -156,6 +156,7 @@ const VERB_LABELS: Record<string, string> = {
 	search_resources: "searching docs",
 	get_resource: "reading doc",
 	resolve_action_item_conflict: "resolving conflict",
+	resolve_action_item_decision_flag: "resolving decision flag",
 	record_criterion_verdicts: "recording verdicts",
 	get_session_transcript: "reading transcript",
 	get_project_summary: "reading project",

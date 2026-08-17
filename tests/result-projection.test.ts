@@ -74,22 +74,16 @@ test("model tool schemas and projection families require an explicit contract-ba
 		.filter((entry) => entry.kind === "model")
 		.map(({ name, inputSchema }) => ({ name, inputSchema, family: projectionFamily(name) }));
 	const fingerprint = createHash("sha256").update(JSON.stringify(contract)).digest("hex");
-	// Reviewed 2026-08-17 (third change of the day, DevSpec items 9abba068 +
-	// 2e1c9d98). No verb arrived or left and no family changed — this is schema
-	// shrinkage plus one new parameter:
-	//   * `staged` is gone from every agent_activity enum, and `stale_in_queue`
-	//     from every signal_type enum: both named a state the database can no
-	//     longer store, so offering them was offering a filter that returns
-	//     nothing.
-	//   * `autopilot_failed` → `agent_run_failed` in the signal vocabulary.
-	//   * `connection_id` added to record_implementation and update_action_item,
-	//     which already GATED on it — the holder of a reservation could not prove
-	//     it was the holder, so recording its own work was refused.
-	// Budget impact is a rounding error (one optional string on two verbs, minus
-	// two enum members), and every projection family is unchanged.
+	// Reviewed 2026-08-17 (DevSpec item ccaf2095). The server added
+	// `resolve_action_item_decision_flag`, an acknowledgement-shaped mutation
+	// with the same bounded response contract as the existing item, resource,
+	// and memory flag resolvers. It deliberately stays deferred rather than
+	// joining the hot set. The signal filter also gained `contradicts_decision`,
+	// matching the now-resolvable server vocabulary. No scope, lifecycle, or
+	// authority policy is restated here; the generated wire schema owns it.
 	assert.equal(
 		fingerprint,
-		"5a20116997325a6eb627e492a5b90fb65b92bee5166c18fe2f31f47d42e33ec3",
+		"45eb8226afee46e70a7df0f43bad784c4e6638e98fc2a2c3139268b21db5b4ad",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -707,6 +701,12 @@ test("full details still drive conflict flags and work status", () => {
 	consumeResultMechanics("claim_work_item", claim);
 	assert.equal(getStatusSnapshot().workId, "work-789");
 	assert.equal(listFlags()[0]?.key, "item_conflict:work-older");
+	const decisionResolution = projectedToolResult(
+		"resolve_action_item_decision_flag",
+		unwrapMcpResult(mcpJson({ ok: true, action_item_id: "work-789", marks_cleared: { actionItem: 1 } })),
+	);
+	consumeResultMechanics("resolve_action_item_decision_flag", decisionResolution);
+	assert.equal(getStatusSnapshot().workId, "work-789", "a flag ruling is not a work-status transition");
 	consumeResultMechanics("record_implementation", result);
 	assert.equal(getStatusSnapshot().workId, undefined);
 	clearAllFlags();

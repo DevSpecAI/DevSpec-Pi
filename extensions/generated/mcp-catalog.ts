@@ -2,11 +2,11 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Fingerprint: 9959e076d1c976c54f719fc45632c222f6b7906e44ad2584a1a48545bd3848da
- * Regenerated: 2026-08-17T10:54:20.782Z
+ * Fingerprint: 47c15bd39941f6faf36cb2ac154a025bfcadedb16cddfa8963c46ada2f92d12a
+ * Regenerated: 2026-08-17T14:03:50.624Z
  */
-export const MCP_CATALOG_FINGERPRINT = "9959e076d1c976c54f719fc45632c222f6b7906e44ad2584a1a48545bd3848da";
-export const MCP_CATALOG_GENERATED_AT = "2026-08-17T10:54:20.782Z";
+export const MCP_CATALOG_FINGERPRINT = "47c15bd39941f6faf36cb2ac154a025bfcadedb16cddfa8963c46ada2f92d12a";
+export const MCP_CATALOG_GENERATED_AT = "2026-08-17T14:03:50.624Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -92,6 +92,7 @@ export const MODEL_VERB_NAMES = [
 	"reopen_action_item",
 	"spin_off_action_item",
 	"resolve_action_item_conflict",
+	"resolve_action_item_decision_flag",
 	"link_action_items",
 	"unlink_action_items",
 	"verify_action_item",
@@ -304,6 +305,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"deployment_failed",
 						"possible_conflict",
 						"possibly_stale",
+						"contradicts_decision",
 						"blocked",
 						"implemented_unverified"
 					],
@@ -3405,6 +3407,57 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"kind": "model"
 	},
 	{
+		"name": "resolve_action_item_decision_flag",
+		"label": "DevSpec: Resolve Action Item Decision Flag",
+		"description": "Resolve a `contradicts_decision` flag between an ACTION ITEM and a DECIDED MEMORY. This is deliberately separate from resolve_action_item_conflict: the counterpart is project knowledge, not another work item, and an action item cannot silently supersede a decision merely by being filed. Read both records in full, then use `related` when the item is compatible with and genuinely bears on the decision, or `not_a_conflict` when the detector inverted problem-statement prose or otherwise found no real clash. Record the basis so the ruling is auditable. If the decision itself has changed, use supersede_memory instead; once the old memory leaves the active decided corpus the gate recomputes affected items. The ruling is evidence-scoped and can re-raise when either record's content changes. Autonomous callers receive a proposal and commit nothing.",
+		"promptSnippet": "Resolve a `contradicts_decision` flag between an ACTION ITEM and a DECIDED MEMORY.",
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"action_item_id": {
+					"type": "string",
+					"description": "The flagged action item."
+				},
+				"decision_memory_id": {
+					"type": "string",
+					"description": "The decided memory named by the flag detail.decision_memory_id."
+				},
+				"verdict": {
+					"type": "string",
+					"enum": [
+						"related",
+						"not_a_conflict"
+					],
+					"description": "related = both stand and are compatible; not_a_conflict = there is no actual contradiction. Supersedes is intentionally absent — use supersede_memory to revise a decision."
+				},
+				"basis_kind": {
+					"type": "string",
+					"enum": [
+						"human_confirmed",
+						"cited_authorisation",
+						"factual_grounds"
+					],
+					"description": "How the ruling is justified. Defaults to factual_grounds."
+				},
+				"basis": {
+					"type": "string",
+					"description": "Required audit basis: observable facts, or a quote of the user words authorizing the ruling."
+				},
+				"runner_session_id": {
+					"type": "string",
+					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
+				}
+			},
+			"required": [
+				"action_item_id",
+				"decision_memory_id",
+				"verdict",
+				"basis"
+			]
+		},
+		"kind": "model"
+	},
+	{
 		"name": "link_action_items",
 		"label": "DevSpec: Link Action Items",
 		"description": "Record a relationship edge between two action items, so it appears in the `relationships` array and on both items in the UI. Types: `caused_by` (this was caused by the target), `blocks` (this blocks the target), `related_to` (general link), `supersedes` (this replaces the target). Relationships are DIRECTIONAL: action_item_id is the source, related_to_id the target. Use this for genuine graph links — do NOT write cross-references into ai_instructions as prose, which no surface can read. For `supersedes` prefer resolve_action_item_conflict instead: a bare supersedes edge records the relationship but leaves both items' marks lit and never closes the superseded item, which is a half-resolution that looks complete. An autonomous run (runner_session_id stamped) gets a proposal back and commits nothing.",
@@ -5565,8 +5618,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 87,
-	model: 74,
+	total: 88,
+	model: 75,
 	pump: 12,
 	never_model: 1,
 } as const;

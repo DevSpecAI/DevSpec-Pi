@@ -226,7 +226,7 @@ export default function (pi: ExtensionAPI) {
 				"  /devspec.logout       — remove the stored token",
 				"  /devspec.logo         — toggle the duck header",
 				"",
-				"Dispatched work arrives through DevSpec remote control; this command never drains a queue.",
+				"Your owner can also send you work through DevSpec remote control; you reserve it yourself. Nothing is ever pushed to you, and this command never drains a queue.",
 				"DevSpec tools are native to this package. Foreign MCP servers remain available.",
 				`Connection: ${resolved ? `token from ${resolved.source}` : "not connected — /devspec.login"}`,
 			];

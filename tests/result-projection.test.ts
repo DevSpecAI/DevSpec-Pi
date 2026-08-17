@@ -74,16 +74,27 @@ test("model tool schemas and projection families require an explicit contract-ba
 		.filter((entry) => entry.kind === "model")
 		.map(({ name, inputSchema }) => ({ name, inputSchema, family: projectionFamily(name) }));
 	const fingerprint = createHash("sha256").update(JSON.stringify(contract)).digest("hex");
-	// Reviewed 2026-08-17 (DevSpec item ccaf2095). The server added
-	// `resolve_action_item_decision_flag`, an acknowledgement-shaped mutation
-	// with the same bounded response contract as the existing item, resource,
-	// and memory flag resolvers. It deliberately stays deferred rather than
-	// joining the hot set. The signal filter also gained `contradicts_decision`,
-	// matching the now-resolvable server vocabulary. No scope, lifecycle, or
-	// authority policy is restated here; the generated wire schema owns it.
+	// Reviewed 2026-08-17 (DevSpec item c1b4d3e7, brief 746dd709). The server
+	// enriched four tool DESCRIPTIONS as the nine plugin commands were deleted:
+	// record_completed_work (infer fields from git rather than interrogating),
+	// its implementation_summary field (renders as markdown), the tool
+	// generate_commit_message (commit the message verbatim), devspec_help_search
+	// (answer from returned content, cite the url), and add_commit_reference
+	// (short-or-full sha). Codex's verify branch also went, so no tool claims
+	// verify support.
+	//
+	// BUDGET: none of those four is in HOT_SET_VERBS — every one is deferred, so
+	// Pi's initial model surface is byte-identical and the ~6.1k benchmark does
+	// not move. The added text is paid only if a run actually reaches for one of
+	// them, which is the shape that made schema the right home for it rather
+	// than a tool response.
+	//
+	// QUALITY: no verb was added or removed, no projection family changed, and
+	// no scope, lifecycle or authority policy is restated here — the generated
+	// wire schema owns it, exactly as before.
 	assert.equal(
 		fingerprint,
-		"45eb8226afee46e70a7df0f43bad784c4e6638e98fc2a2c3139268b21db5b4ad",
+		"0abf65493091f9a0da5d49ad0be73048160d4b22bcffce09d14c81ce495327f1",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

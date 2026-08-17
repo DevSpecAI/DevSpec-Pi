@@ -2,11 +2,11 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Fingerprint: 47c15bd39941f6faf36cb2ac154a025bfcadedb16cddfa8963c46ada2f92d12a
- * Regenerated: 2026-08-17T14:03:50.624Z
+ * Fingerprint: 7db9cc9422f8cc99da3a8586da292f25db09f8751bd21d4f04b8e0f0622a38d4
+ * Regenerated: 2026-08-17T15:50:54.180Z
  */
-export const MCP_CATALOG_FINGERPRINT = "47c15bd39941f6faf36cb2ac154a025bfcadedb16cddfa8963c46ada2f92d12a";
-export const MCP_CATALOG_GENERATED_AT = "2026-08-17T14:03:50.624Z";
+export const MCP_CATALOG_FINGERPRINT = "7db9cc9422f8cc99da3a8586da292f25db09f8751bd21d4f04b8e0f0622a38d4";
+export const MCP_CATALOG_GENERATED_AT = "2026-08-17T15:50:54.180Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -920,7 +920,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "generate_commit_message",
 		"label": "DevSpec: Generate Commit Message",
-		"description": "Generate a properly formatted git commit message for work linked to an action item. The message includes the [devspec:<id>] tag that lets DevSpec link the resulting deployment back to the action item; without it the deployment will not be linked. Use this whenever committing work related to an action item.",
+		"description": "Generate a properly formatted git commit message for work linked to an action item. The message includes the [devspec:<id>] tag that lets DevSpec link the resulting deployment back to the action item; without it the deployment will not be linked. Use this whenever committing work related to an action item.\n\nCommit what this returns verbatim rather than composing your own in its shape — the tag format is what the deployment matcher reads, and a hand-written near-miss links nothing while looking correct. Stage your changes first: this generates a message, it does not commit.",
 		"promptSnippet": "Generate a properly formatted git commit message for work linked to an action item.",
 		"inputSchema": {
 			"type": "object",
@@ -1085,8 +1085,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "devspec_help_search",
 		"label": "DevSpec: Devspec Help Search",
-		"description": "Search DevSpec's own product help documentation — how to USE the DevSpec platform (projects, sessions, autopilot, integrations, billing, MCP setup, etc.). Returns the most relevant doc sections with their text and a deep link (url) you can cite. This is GLOBAL product help, not the user's project docs, and is available to any DevSpec token. Use it to answer \"how do I … in DevSpec?\" questions, then synthesise an answer from the returned sections.",
-		"promptSnippet": "Search DevSpec's own product help documentation — how to USE the DevSpec platform (projects, sessions, autopilot, integrations, billing, MCP setup, etc.).",
+		"description": "Search DevSpec's own product help documentation — how to USE the DevSpec platform (projects, sessions, integrations, billing, MCP setup, etc.). Returns the most relevant doc sections with their text and a deep link (url) you can cite. This is GLOBAL product help, not the user's project docs, and is available to any DevSpec token. Use it to answer \\\"how do I … in DevSpec?\\\" questions, then synthesise an answer from the returned sections.\n\nAnswer from the returned content only, and cite the `url` of each section you used. If the results cover the question only partly, say so and answer the part they cover — the failure mode here is filling the gap with a plausible invented setting, which is indistinguishable from a real one to the person asking.",
+		"promptSnippet": "Search DevSpec's own product help documentation — how to USE the DevSpec platform (projects, sessions, integrations, billing, MCP setup, etc.).",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -1548,7 +1548,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"session_id": {
 					"type": "string",
-					"description": "Chat-session attribution: the DevSpec chat session this update happens on behalf of (e.g. a /devspec.session-brainstorm handoff gave you a session_id). The change is recorded as made-in-that-session, so it surfaces in the session's \"This session\" panel and the item's history. Omit for updates with no chat-session context (autopilot, terminal). Must be a session of this project. NOT the autopilot runner_session_id and NOT local_session_id."
+					"description": "Chat-session attribution: the DevSpec chat session this update happens on behalf of (a handoff from a DevSpec session gave you a session_id). The change is recorded as made-in-that-session, so it surfaces in the session's \"This session\" panel and the item's history. Omit for updates with no chat-session context, e.g. a terminal run. Must be a session of this project. NOT the autopilot runner_session_id and NOT local_session_id."
 				},
 				"assigned_to": {
 					"type": "string",
@@ -1739,7 +1739,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"session_id": {
 					"type": "string",
-					"description": "Chat-session ownership: the DevSpec chat session this item originates from. The item becomes owned by that session — it appears in the session's transcript as an action-item card and in its \"This session\" side panel. ALWAYS pass this when you are working on a session's behalf (e.g. a /devspec.session-brainstorm handoff gave you a session_id). Omit for items with no chat-session origin (terminal-created, autopilot). Must be a session of this project. NOT the autopilot runner_session_id."
+					"description": "Chat-session ownership: the DevSpec chat session this item originates from. The item becomes owned by that session — it appears in the session's transcript as an action-item card and in its \"This session\" side panel. ALWAYS pass this when you are working on a session's behalf (a handoff from a DevSpec session gave you a session_id). Omit for items with no chat-session origin, e.g. terminal-created. Must be a session of this project. NOT the autopilot runner_session_id."
 				},
 				"connection_id": {
 					"type": "string",
@@ -1789,11 +1789,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"commit_sha": {
 					"type": "string",
-					"description": "Git commit SHA"
+					"description": "Git commit SHA — short or full, both are accepted."
 				},
 				"commit_message": {
 					"type": "string",
-					"description": "Optional: commit message"
+					"description": "Optional: commit message. If you omit it, read it off the sha (`git log --format=%s -1 <sha>`) rather than leaving the reference unlabelled — the message is what makes the link legible later."
 				},
 				"session_id": {
 					"type": "string",
@@ -3038,7 +3038,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_completed_work",
 		"label": "DevSpec: Record Completed Work",
-		"description": "Record work that was implemented outside DevSpec's queue (e.g. ad-hoc in Claude Code) as an action item. Creates the item written as a requirement, adds an implementation note with what was done, links commits, and lands it at lifecycle 'implemented' with a pending human verification — it does NOT mark it done. A person still verifies it (verify_action_item) to reach 'done'. Use this at the end of a piece of work to give DevSpec visibility into ad-hoc changes.",
+		"description": "Record work that was implemented outside DevSpec's queue (e.g. ad-hoc in Claude Code) as an action item. Creates the item written as a requirement, adds an implementation note with what was done, links commits, and lands it at lifecycle 'implemented' with a pending human verification — it does NOT mark it done. A person still verifies it (verify_action_item) to reach 'done'. Use this at the end of a piece of work to give DevSpec visibility into ad-hoc changes.\n\nInfer the fields from what you just did — the git log, the diff, the branch — rather than interrogating the user about type, priority and tags at the end of a job they have already finished. They can edit any of it afterwards, and a recorded item they correct beats an interview they abandon.",
 		"promptSnippet": "Record work that was implemented outside DevSpec's queue (e.g.",
 		"inputSchema": {
 			"type": "object",
@@ -3080,7 +3080,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"implementation_summary": {
 					"type": "string",
-					"description": "What was actually done. Describe the implementation, decisions made, and any trade-offs. This becomes an implementation note on the action item."
+					"description": "What was actually done. Describe the implementation, decisions made, and any trade-offs. This becomes an implementation note on the action item, and it is rendered as markdown — use bold for key terms, a bullet list for distinct changes, inline code for file and function names, and blank lines between sections. A single wall of prose is technically accepted and reads as one."
 				},
 				"commits": {
 					"type": "array",

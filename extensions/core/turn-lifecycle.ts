@@ -46,30 +46,30 @@ export type UserKind = "remote" | "dispatch" | "local" | "harness";
 
 export const REMOTE_PREFIX = "[DevSpec remote — message from";
 export const DISPATCH_PREFIX = "[DevSpec remote — work dispatch";
-export const HARNESS_BG_CUSTOM_TYPE = "background-task-notification";
-export const CONTEXT_CUSTOM_TYPES = new Set([
-	"devspec-proactive",
-	"devspec-attach-context",
-	"devspec-room-orientation",
-]);
 const CONTEXT_TEXT_PREFIXES = [
 	"### DevSpec memory — auto-recall",
 	"[DevSpec remote — bond context",
 	"[DevSpec remote — room orientation",
 ];
+const SUBAGENT_NOTIFICATION_PREFIX = /^(?:Background task (?:completed|failed|paused|stopped)|Detached foreground task (?:completed|failed|paused|stopped)): \*\*[^\n]+\*\*(?: \([^\n]*\))?\n\n/;
+const GROUPED_SUBAGENT_NOTIFICATION_PREFIX = /^Background tasks completed \(\d+\):[^\n]*\n\n1\. /;
 
 /**
- * Leftover / injected origin (items 56b9a3b4, 4f801a67). Prefer Pi's
- * customType, then known injected text, then leftover bg receipts.
+ * Leftover / injected origin (items 56b9a3b4, 4f801a67, 71dc7d84).
+ * Explicit DevSpec conversation envelopes win. Every other Pi customType is
+ * extension-authored, never proof that the local human typed the content.
+ * Text checks are compatibility backstops for hosts that drop customType.
  * A typed `/bg-update` is NOT harness — slash commands stay first-class local.
  */
 export function isHarnessOrigin(text: string, customType?: string | null): boolean {
-	if (customType === HARNESS_BG_CUSTOM_TYPE) return true;
-	if (customType && CONTEXT_CUSTOM_TYPES.has(customType)) return true;
+	if (text.startsWith(REMOTE_PREFIX) || text.startsWith(DISPATCH_PREFIX)) return false;
+	if (typeof customType === "string" && customType.trim()) return true;
 	const t = text.trim();
 	if (!t) return false;
 	if (CONTEXT_TEXT_PREFIXES.some((prefix) => t.startsWith(prefix))) return true;
 	if (t.includes("<background-task-notification")) return true;
+	if (SUBAGENT_NOTIFICATION_PREFIX.test(t)) return true;
+	if (GROUPED_SUBAGENT_NOTIFICATION_PREFIX.test(t)) return true;
 	// CONTROL reload queues this command; it is not a typed local prompt.
 	if (t === "/devspec.reload") return true;
 	return /^\[bg (completed|failed|killed)\]/m.test(t);

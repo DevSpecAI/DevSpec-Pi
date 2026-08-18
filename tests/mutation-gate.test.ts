@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
+	canonicalRepoRoot,
 	claimAuthorityScope,
 	clearClaimAuthorities,
 	hasClaimAuthority,
@@ -52,6 +53,17 @@ function scope(sessionId: string, cwd: string): ClaimAuthorityScope {
 	const value = claimAuthorityScope(sessionId, cwd);
 	assert.ok(value);
 	return value;
+}
+
+function repoWithLinkedWorktree(t: { after(fn: () => void): void }): { main: string; linked: string } {
+	const root = mkdtempSync(join(tmpdir(), "devspec-pi-worktree-scope-"));
+	const main = join(root, "main");
+	const linked = join(root, "linked");
+	execFileSync("git", ["init", "-q", main]);
+	execFileSync("git", ["-C", main, "-c", "user.name=DevSpec Test", "-c", "user.email=test@devspec.local", "commit", "--allow-empty", "-q", "-m", "init"]);
+	execFileSync("git", ["-C", main, "worktree", "add", "--detach", "-q", linked]);
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	return { main, linked };
 }
 
 function reset(): void {
@@ -123,6 +135,57 @@ test("authority is isolated by Pi session and canonical repository", (t) => {
 	assert.equal(mutationGateDecision("write", { path: "inside.ts" }, runtime("session-a", repoB))?.block, true);
 });
 
+test("claim authority follows one session between a repository and its linked worktrees", (t) => {
+	reset();
+	const { main, linked } = repoWithLinkedWorktree(t);
+	const mainScope = scope("session-a", main);
+	const linkedScope = scope("session-a", linked);
+	assert.equal(linkedScope.repoRoot, mainScope.repoRoot, "linked worktrees must share one repository identity");
+
+	observeSuccessfulWorkResult("claim_work_item", { action_item_id: ITEM_A }, successfulClaim(ITEM_A), mainScope);
+	assert.equal(mutationGateDecision("write", { path: "from-linked.ts" }, runtime("session-a", linked)), undefined);
+	assert.equal(mutationGateDecision("write", { path: "other-session.ts" }, runtime("session-b", linked))?.block, true);
+
+	reset();
+	observeSuccessfulWorkResult("claim_work_item", { action_item_id: ITEM_A }, successfulClaim(ITEM_A), linkedScope);
+	assert.equal(mutationGateDecision("write", { path: "from-main.ts" }, runtime("session-a", main)), undefined);
+});
+
+test("non-Git directories retain a canonical cwd claim scope", (t) => {
+	reset();
+	const cwd = mkdtempSync(join(tmpdir(), "devspec-pi-non-git-scope-"));
+	t.after(() => rmSync(cwd, { recursive: true, force: true }));
+	const authority = scope("session-a", cwd);
+	assert.equal(authority.repoRoot, cwd);
+	observeSuccessfulWorkResult("claim_work_item", { action_item_id: ITEM_A }, successfulClaim(ITEM_A), authority);
+	assert.equal(mutationGateDecision("write", { path: join(cwd, "note.txt") }, runtime("session-a", cwd)), undefined);
+});
+
+test("a claim survives initializing Git in a previously non-Git project", (t) => {
+	reset();
+	const cwd = mkdtempSync(join(tmpdir(), "devspec-pi-greenfield-scope-"));
+	t.after(() => rmSync(cwd, { recursive: true, force: true }));
+	const beforeInit = scope("session-a", cwd);
+	observeSuccessfulWorkResult("claim_work_item", { action_item_id: ITEM_A }, successfulClaim(ITEM_A), beforeInit);
+
+	execFileSync("git", ["init", "-q"], { cwd });
+	const afterInit = scope("session-a", cwd);
+	assert.equal(afterInit.repoRoot, beforeInit.repoRoot, "git init must not change the project identity");
+	assert.equal(mutationGateDecision("write", { path: join(cwd, "first.ts") }, runtime("session-a", cwd)), undefined);
+});
+
+test("common Git directory remains the identity fallback when worktree enumeration fails", (t) => {
+	const cwd = repo(t);
+	const commonDirectory = execFileSync("git", ["-C", cwd, "rev-parse", "--path-format=absolute", "--git-common-dir"])
+		.toString()
+		.trim();
+	const identity = canonicalRepoRoot(cwd, (args) => {
+		if (args[0] === "worktree") throw new Error("simulated unsupported worktree listing");
+		return commonDirectory;
+	});
+	assert.equal(identity, commonDirectory);
+});
+
 test("terminal cleanup requires a matching item and realistic explicit success", (t) => {
 	reset();
 	const cwd = repo(t);
@@ -160,7 +223,7 @@ test("terminal cleanup requires a matching item and realistic explicit success",
 	assert.equal(hasClaimAuthority(authority), false);
 });
 
-test("session lifecycle clears only that session+repo runtime", (t) => {
+test("scoped cleanup clears only that session+repo runtime", (t) => {
 	reset();
 	const repoA = repo(t);
 	const repoB = repo(t);
@@ -216,6 +279,78 @@ test("preclaim permits read-only work and returns recoverable denials for known 
 		const denial = mutationGateDecision(toolName, {}, ctx);
 		assert.equal(denial?.block, true, toolName);
 		assert.equal(denial?.terminate, undefined, `${toolName} must not terminate the model turn`);
+	}
+});
+
+test("preclaim permits narrow inspection-support commands but not product mutations", (t) => {
+	reset();
+	const cwd = repo(t);
+	execFileSync("git", ["remote", "add", "origin", "https://example.invalid/project.git"], { cwd });
+	const ctx = runtime("session-a", cwd);
+	for (const command of [
+		"git fetch",
+		"git fetch --prune origin",
+		"git fetch --tags --quiet origin",
+		"git ls-remote origin",
+		"git rev-list --left-right --count HEAD...origin/main",
+		"npm ls @devspec/pi-plugin pi-subagents --depth=0",
+		"npm --prefix /tmp/pi-agent/npm list --depth=0",
+		"npm view pi-subagents version",
+		"gh api repos/DevSpecAliPrice/pi-subagents",
+		"gh api --method GET repos/DevSpecAliPrice/pi-subagents --jq .fork",
+		"sha256sum package.json",
+		"sort input.txt",
+		"uniq input.txt",
+		"git status --short 2>/dev/null",
+		"git fetch --prune origin 2>/dev/null",
+		"npm ls --depth=0 >/dev/null",
+	]) {
+		assert.equal(isReadOnlyShellCommand(command, cwd), true, command);
+		assert.equal(mutationGateDecision("bash", { command }, ctx), undefined, command);
+	}
+
+	for (const command of [
+		"git fetch origin main",
+		"git fetch origin main:main",
+		"git fetch sibling",
+		"git fetch --recurse-submodules origin main",
+		"git fetch https://example.com/repo.git",
+		"git fetch --update-head-ok origin",
+		"npm install left-pad",
+		"npm run build",
+		"gh api --method POST repos/example/project/issues",
+		"gh api repos/example/project/issues -f title=mutation",
+		"gh api repos/example/project/issues -ftitle=mutation",
+		"gh api repos/example/project/issues -Ftitle=mutation",
+		"git -c 'diff.external=touch gate-bypass' diff",
+		"git --config-env=diff.external=EVIL diff",
+		"git config -- devspec.review-test -blocked",
+		"git grep --open-files-in-pager='touch gate-bypass' needle",
+		"git grep -O'touch gate-bypass' needle",
+		"git ls-remote --upload-pack='touch gate-bypass' origin",
+		"GIT_TRACE=./trace git status",
+		"npm_config_cache=./.npm-cache npm view pi-subagents version",
+		"F=-ftitle=mutation; gh api repos/example/project/issues $F",
+		"OPTS='--method POST'; gh api repos/example/project/issues $OPTS",
+		"OPTS='--cache ./.npm-cache'; npm view pi-subagents version $OPTS",
+		"OPTS='--prefer-online --cache ./.npm-cache'; npm view pi-subagents version $OPTS",
+		"npm view pi-subagents version --cache ./.npm-cache",
+		"npm view pi-subagents version --cache=./.npm-cache",
+		"sort input.txt -ogenerated.txt",
+		"sort input.txt -o=generated.txt",
+		"sort --out=generated.txt input.txt",
+		"sort -rogenerated.txt input.txt",
+		"sort --compress-program='touch gate-bypass' input.txt",
+		"sort -T. input.txt",
+		"uniq input.txt generated.txt",
+		"uniq - generated.txt",
+		"uniq -- -input.txt generated.txt",
+		"sha256sum package.json > digest.txt",
+		"git status 3>gate-bypass",
+		"node -p 'process.version'",
+	]) {
+		assert.equal(isReadOnlyShellCommand(command, cwd), false, command);
+		assert.equal(mutationGateDecision("bash", { command }, ctx)?.block, true, command);
 	}
 });
 
@@ -331,7 +466,7 @@ test("a project-level claim permits direct and shell mutation across repository 
 	assert.equal(mutationGateDecision("bash", { command: `git -C ${outside} checkout -b work/cross-repo` }, ctx), undefined);
 });
 
-test("registered headless handlers clear only their own session on start and shutdown", (t) => {
+test("registered headless handlers clear every repository authority for their session", (t) => {
 	reset();
 	const cwd = repo(t);
 	const otherRepo = repo(t);
@@ -347,7 +482,7 @@ test("registered headless handlers clear only their own session on start and shu
 	handlers.get("session_start")?.({}, runtime("session-a", cwd));
 	assert.equal(hasClaimAuthority(first), false);
 	assert.equal(hasClaimAuthority(second), true);
-	assert.equal(hasClaimAuthority(sameSessionOtherRepo), true);
+	assert.equal(hasClaimAuthority(sameSessionOtherRepo), false, "session start must revoke stale authority from every repository");
 	assert.equal((handlers.get("tool_call")?.({ toolName: "write", input: { path: "x" } }, runtime("session-a", cwd)) as { block?: boolean })?.block, true);
 	handlers.get("session_shutdown")?.({}, runtime("session-b", cwd));
 	assert.equal(hasClaimAuthority(second), false);

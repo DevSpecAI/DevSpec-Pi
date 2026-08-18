@@ -1,6 +1,6 @@
 /**
  * Mechanical claim-before-mutation gate. Claim evidence is scoped to the
- * current Pi session and launch repository so it cannot leak between runtimes.
+ * current Pi session and canonical repository so it cannot leak between runtimes.
  * The claim is provenance authority, not a filesystem sandbox: one project
  * action item may legitimately span several repositories.
  *
@@ -9,10 +9,12 @@
  * unknown; those tools retain their own authorization contracts.
  */
 
+import { execFileSync } from "node:child_process";
+import { isAbsolute, resolve } from "node:path";
 import type { ExtensionAPI, ToolCallEventResult } from "@earendil-works/pi-coding-agent";
 import {
 	claimAuthorityScope,
-	clearClaimAuthorities,
+	clearSessionClaimAuthorities,
 	hasClaimAuthority,
 } from "./core/claim-authority.ts";
 import { TOOL_LOADER_NAME, isCallableModelVerb } from "./core/model-surface.ts";
@@ -62,6 +64,7 @@ const SIMPLE_READ_COMMANDS = new Set([
 	"pwd",
 	"readlink",
 	"realpath",
+	"sha256sum",
 	"stat",
 	"tail",
 	"test",
@@ -85,9 +88,11 @@ const READ_ONLY_GIT_SUBCOMMANDS = new Set([
 	"grep",
 	"log",
 	"ls-files",
+	"ls-remote",
 	"ls-tree",
 	"merge-base",
 	"name-rev",
+	"rev-list",
 	"rev-parse",
 	"shortlog",
 	"show",
@@ -146,13 +151,15 @@ function shellTokens(command: string): string[] | null {
 			continue;
 		}
 		if (";|&()<>".includes(char)) {
-			flush();
+			const descriptor = (char === ">" || char === "<") && /^\d+$/u.test(token) ? token : "";
+			if (descriptor) token = "";
+			else flush();
 			const next = command[index + 1];
 			if ((char === "&" || char === "|" || char === "<" || char === ">") && next === char) {
-				tokens.push(char + next);
+				tokens.push(descriptor + char + next);
 				index++;
 			} else {
-				tokens.push(char);
+				tokens.push(descriptor + char);
 			}
 			continue;
 		}
@@ -185,23 +192,116 @@ function gitTagIsReadOnly(args: string[]): boolean {
 }
 
 function gitConfigIsReadOnly(args: string[]): boolean {
-	if (args.some((arg) => /^(?:-e|--(?:edit|add|replace-all|unset|unset-all|rename-section|remove-section)|--file=|--blob=)/u.test(arg))) {
+	if (args.some((arg) => /^(?:-e|--(?:edit|add|replace-all|unset|unset-all|rename-section|remove-section)|--file=|--blob=)/u.test(arg)) ||
+		["set", "set-all", "unset", "unset-all", "rename-section", "remove-section"].includes(args[0] ?? "")) {
 		return false;
 	}
-	const positionals = args.filter((arg) => !arg.startsWith("-"));
-	return positionals.length <= 1 || args.some((arg) => /^(?:-l|--list|--get|--get-all|--get-regexp|get|get-all|get-regexp)$/u.test(arg));
+	const readOperations = new Set([
+		"-l", "--list", "--get", "--get-all", "--get-regexp", "--get-urlmatch",
+		"list", "get", "get-all", "get-regexp", "get-urlmatch",
+	]);
+	if (args.some((arg) => readOperations.has(arg))) return true;
+
+	const safeFlags = new Set([
+		"--global", "--system", "--local", "--worktree", "--fixed-value",
+		"--name-only", "--null", "-z", "--show-origin", "--show-scope",
+		"--includes", "--no-includes",
+	]);
+	let optionsEnded = false;
+	let positionals = 0;
+	for (let index = 0; index < args.length; index++) {
+		const arg = args[index]!;
+		if (!optionsEnded && arg === "--") {
+			optionsEnded = true;
+			continue;
+		}
+		if (positionals > 0 || optionsEnded) {
+			positionals++;
+			continue;
+		}
+		if (safeFlags.has(arg)) continue;
+		if (arg === "--type") {
+			if (index + 1 >= args.length) return false;
+			index++;
+			continue;
+		}
+		if (arg.startsWith("--type=")) continue;
+		if (arg.startsWith("-")) return false;
+		positionals++;
+	}
+	return positionals <= 1;
 }
 
-function gitCommandIsReadOnly(args: string[]): boolean {
+const SAFE_FETCH_FLAGS = new Set([
+	"--all", "-a", "--append", "--atomic", "--dry-run", "--force", "-f",
+	"--keep", "-k", "--no-recurse-submodules", "--no-show-forced-updates",
+	"--no-tags", "-n", "--no-write-fetch-head", "--prefetch", "--prune", "-p",
+	"--prune-tags", "--quiet", "-q", "--recurse-submodules", "--show-forced-updates",
+	"--tags", "-t", "--verbose", "-v", "--write-fetch-head",
+]);
+const SAFE_FETCH_VALUE_OPTIONS = new Set([
+	"--deepen", "--depth", "--filter", "--jobs", "-j", "--negotiation-tip",
+	"--server-option", "--shallow-exclude", "--shallow-since",
+]);
+
+function configuredGitRemotes(cwd: string | undefined): Set<string> | null {
+	if (!cwd) return null;
+	try {
+		return new Set(execFileSync("git", ["remote"], {
+			cwd,
+			stdio: ["ignore", "pipe", "ignore"],
+		}).toString().split(/\r?\n/u).filter(Boolean));
+	} catch {
+		return null;
+	}
+}
+
+/** Fetch may refresh Git metadata, but cannot name a URL or explicit refspec. */
+function gitFetchIsInspectionOnly(args: string[], cwd: string | undefined): boolean {
+	const positionals: string[] = [];
+	for (let index = 0; index < args.length; index++) {
+		const arg = args[index]!;
+		if (arg === "--") {
+			positionals.push(...args.slice(index + 1));
+			break;
+		}
+		if (SAFE_FETCH_FLAGS.has(arg)) continue;
+		if (SAFE_FETCH_VALUE_OPTIONS.has(arg)) {
+			if (index + 1 >= args.length) return false;
+			index++;
+			continue;
+		}
+		if ([...SAFE_FETCH_VALUE_OPTIONS].some((option) => arg.startsWith(`${option}=`)) || arg.startsWith("--recurse-submodules=")) continue;
+		if (arg.startsWith("-")) return false;
+		positionals.push(arg);
+	}
+	if (positionals.length === 0) return true;
+	if (positionals.length !== 1 || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(positionals[0]!)) return false;
+	return configuredGitRemotes(cwd)?.has(positionals[0]!) === true;
+}
+
+function gitCommandIsReadOnly(args: string[], cwd: string | undefined): boolean {
+	let effectiveCwd = cwd;
+	let customRepository = false;
 	let index = 0;
 	while (index < args.length) {
 		const arg = args[index]!;
-		if (["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env"].includes(arg)) {
+		if (arg === "-c" || arg === "--config-env" || /^(?:-c.+|--config-env=)/u.test(arg)) return false;
+		if (arg === "-C") {
 			if (index + 1 >= args.length) return false;
+			const directory = args[index + 1]!;
+			effectiveCwd = effectiveCwd ? resolve(effectiveCwd, directory) : isAbsolute(directory) ? directory : undefined;
 			index += 2;
 			continue;
 		}
-		if (/^(?:--git-dir|--work-tree|--namespace|--config-env)=/u.test(arg)) {
+		if (["--git-dir", "--work-tree", "--namespace"].includes(arg)) {
+			if (index + 1 >= args.length) return false;
+			customRepository = true;
+			index += 2;
+			continue;
+		}
+		if (/^(?:--git-dir|--work-tree|--namespace)=/u.test(arg)) {
+			customRepository = true;
 			index++;
 			continue;
 		}
@@ -214,8 +314,13 @@ function gitCommandIsReadOnly(args: string[]): boolean {
 	const subcommand = args[index];
 	if (!subcommand) return false;
 	const subcommandArgs = args.slice(index + 1);
-	if (subcommandArgs.some((arg) => ["--ext-diff", "--textconv", "--lost-found", "--output"].includes(arg) || arg.startsWith("--output="))) return false;
+	if (subcommandArgs.some((arg) =>
+		["--exec", "--ext-diff", "--filters", "--textconv", "--lost-found", "--output", "--open-files-in-pager", "--upload-pack"].includes(arg) ||
+		/^(?:--exec|--filters|--output|--open-files-in-pager|--upload-pack)=/u.test(arg)
+	)) return false;
+	if (subcommand === "grep" && subcommandArgs.some((arg) => /^-O/u.test(arg))) return false;
 	if (READ_ONLY_GIT_SUBCOMMANDS.has(subcommand)) return true;
+	if (subcommand === "fetch") return !customRepository && gitFetchIsInspectionOnly(subcommandArgs, effectiveCwd);
 	if (subcommand === "branch") return gitBranchIsReadOnly(subcommandArgs);
 	if (subcommand === "config") return gitConfigIsReadOnly(subcommandArgs);
 	if (subcommand === "reflog") return subcommandArgs.length === 0 || subcommandArgs[0] === "show" || subcommandArgs[0] === "exists";
@@ -225,28 +330,147 @@ function gitCommandIsReadOnly(args: string[]): boolean {
 	return false;
 }
 
-function simpleCommandIsReadOnly(tokens: string[]): boolean {
+function npmCommandIsInspectionOnly(args: string[]): boolean {
+	if (args.some((arg) => /^(?:--cache|--logs-dir)(?:$|=|\s)/u.test(arg) || arg === "--timing")) return false;
 	let index = 0;
-	while (index < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/u.test(tokens[index]!)) index++;
-	if (index === tokens.length) return true;
-	const command = tokens[index]!;
-	const args = tokens.slice(index + 1);
-	if (command === "git") return gitCommandIsReadOnly(args);
+	while (index < args.length) {
+		const arg = args[index]!;
+		if (["--prefix", "-C", "--workspace", "-w"].includes(arg)) {
+			if (index + 1 >= args.length) return false;
+			index += 2;
+			continue;
+		}
+		if (/^--(?:prefix|workspace)=/u.test(arg) || arg === "--global" || arg === "-g") {
+			index++;
+			continue;
+		}
+		break;
+	}
+	return new Set(["info", "la", "list", "ll", "ls", "show", "view"]).has(args[index] ?? "");
+}
+
+function ghCommandIsInspectionOnly(args: string[]): boolean {
+	if (args[0] !== "api") return false;
+	let method = "GET";
+	for (let index = 1; index < args.length; index++) {
+		const arg = args[index]!;
+		if (arg === "--method" || arg === "-X") {
+			if (index + 1 >= args.length) return false;
+			method = args[++index]!.toUpperCase();
+			continue;
+		}
+		if (arg.startsWith("--method=")) {
+			method = arg.slice("--method=".length).toUpperCase();
+			continue;
+		}
+		if (/^-X.+/u.test(arg)) {
+			method = arg.slice(2).toUpperCase();
+			continue;
+		}
+		if ((arg.startsWith("-") && /\s/u.test(arg)) || /^(?:-[fF](?:$|.+)|--(?:field|raw-field|input)(?:$|=))/u.test(arg)) return false;
+	}
+	return method === "GET" && !args.includes("graphql");
+}
+
+function simpleCommandIsReadOnly(tokens: string[], cwd: string | undefined): boolean {
+	if (tokens.length === 0) return false;
+	const command = tokens[0]!;
+	const args = tokens.slice(1);
+	if (command === "git") return gitCommandIsReadOnly(args, cwd);
+	if (command === "gh") return ghCommandIsInspectionOnly(args);
+	if (command === "npm") return npmCommandIsInspectionOnly(args);
 	if (command === "find") {
 		return !args.some((arg) => /^(?:-delete|-exec|-execdir|-ok|-okdir|-fprint|-fprint0|-fprintf|-fls)$/u.test(arg));
 	}
 	if (command === "rg") return !args.some((arg) => arg === "--pre" || arg.startsWith("--pre="));
-	if (command === "sort") return !args.some((arg) => arg === "-o" || arg === "--output" || arg.startsWith("--output="));
+	if (command === "sort") return !args.some((arg) =>
+		/^-[^-]*o/u.test(arg) || arg.startsWith("--o") ||
+		arg === "-T" || /^-T.+/u.test(arg) || arg === "--temporary-directory" || arg.startsWith("--temporary-directory=") ||
+		arg === "--compress-program" || arg.startsWith("--compress-program=")
+	);
+	if (command === "uniq") {
+		const valueOptions = new Set(["-f", "--skip-fields", "-s", "--skip-chars", "-w", "--check-chars"]);
+		let optionsEnded = false;
+		let positionals = 0;
+		for (let index = 0; index < args.length; index++) {
+			const arg = args[index]!;
+			if (!optionsEnded && arg === "--") {
+				optionsEnded = true;
+				continue;
+			}
+			if (!optionsEnded && valueOptions.has(arg)) {
+				if (index + 1 >= args.length) return false;
+				index++;
+				continue;
+			}
+			if (!optionsEnded && /^(?:-[fsw].+|--(?:skip-fields|skip-chars|check-chars)=)/u.test(arg)) continue;
+			if (!optionsEnded && arg.startsWith("-") && arg !== "-") continue;
+			positionals++;
+		}
+		return positionals <= 1;
+	}
 	return SIMPLE_READ_COMMANDS.has(command);
 }
 
-/** Conservative shell classifier: every command in a compound expression must be read-only. */
-export function isReadOnlyShellCommand(command: unknown): boolean {
-	if (typeof command !== "string" || /`|\$\(/u.test(command)) return false;
-	const tokens = shellTokens(command);
-	if (!tokens || tokens.length === 0) return false;
-	if (tokens.some((token) => ["&", "(", ")", "<", "<<", ">", ">>"].includes(token))) return false;
+function stripNullOutputRedirections(tokens: string[]): string[] | null {
+	const stripped: string[] = [];
+	for (let index = 0; index < tokens.length; index++) {
+		const token = tokens[index]!;
+		if (/^\d*>{1,2}$/u.test(token)) {
+			if (tokens[index + 1] !== "/dev/null") return null;
+			index++;
+			continue;
+		}
+		if (/^\d*<{1,2}$/u.test(token) || ["&", "(", ")"].includes(token)) return null;
+		stripped.push(token);
+	}
+	return stripped;
+}
 
+function expandShellToken(token: string, variables: Map<string, string>): string | null {
+	let unresolved = false;
+	const expanded = token.replace(/\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))/gu, (_match, braced, plain) => {
+		const value = variables.get(braced ?? plain);
+		if (value === undefined || value.trim().split(/\s+/u).some((part) => part.startsWith("-"))) unresolved = true;
+		return value ?? "";
+	});
+	return unresolved || expanded.includes("$") ? null : expanded;
+}
+
+function segmentIsInspectionOnly(segment: string[], variables: Map<string, string>, cwd: string | undefined): boolean {
+	const assignments: Array<[string, string]> = [];
+	let index = 0;
+	while (index < segment.length) {
+		const match = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/u.exec(segment[index]!);
+		if (!match) break;
+		const value = expandShellToken(match[2]!, variables);
+		if (value === null) return false;
+		assignments.push([match[1]!, value]);
+		index++;
+	}
+	if (index < segment.length && assignments.length > 0) return false;
+	if (index === segment.length) {
+		for (const [name, value] of assignments) variables.set(name, value);
+		return assignments.length > 0;
+	}
+	const expanded: string[] = [];
+	for (const token of segment) {
+		const value = expandShellToken(token, variables);
+		if (value === null) return false;
+		expanded.push(value);
+	}
+	return simpleCommandIsReadOnly(expanded, cwd);
+}
+
+/** Conservative shell classifier: every command in a compound expression must be inspection-only. */
+export function isReadOnlyShellCommand(command: unknown, cwd?: string): boolean {
+	if (typeof command !== "string" || /`|\$\(/u.test(command)) return false;
+	const parsed = shellTokens(command);
+	if (!parsed || parsed.length === 0) return false;
+	const tokens = stripNullOutputRedirections(parsed);
+	if (!tokens || tokens.length === 0) return false;
+
+	const variables = new Map<string, string>();
 	let sawCommand = false;
 	let segment: string[] = [];
 	for (const token of tokens) {
@@ -255,13 +479,13 @@ export function isReadOnlyShellCommand(command: unknown): boolean {
 			continue;
 		}
 		if (segment.length > 0) {
-			if (!simpleCommandIsReadOnly(segment)) return false;
+			if (!segmentIsInspectionOnly(segment, variables, cwd)) return false;
 			sawCommand = true;
 			segment = [];
 		}
 	}
 	if (segment.length > 0) {
-		if (!simpleCommandIsReadOnly(segment)) return false;
+		if (!segmentIsInspectionOnly(segment, variables, cwd)) return false;
 		sawCommand = true;
 	}
 	return sawCommand;
@@ -276,7 +500,7 @@ export function mutationGateDecision(
 	if (isNativeDevspecVerb(toolName) || READ_ONLY_TOOLS.has(toolName)) return undefined;
 
 	const isFileMutation = FILE_MUTATORS.has(toolName);
-	const isShellMutation = SHELL_MUTATORS.has(toolName) && !isReadOnlyShellCommand(input.command);
+	const isShellMutation = SHELL_MUTATORS.has(toolName) && !isReadOnlyShellCommand(input.command, runtime.cwd);
 	if (!isFileMutation && !isShellMutation) return undefined;
 	if (isTrustedSubagentProcess(environment)) return undefined;
 
@@ -290,8 +514,7 @@ export function mutationGateDecision(
 
 export default function (pi: ExtensionAPI): void {
 	const clearRuntime = (_event: unknown, ctx: RuntimeContext) => {
-		const scope = claimAuthorityScope(ctx.sessionManager.getSessionId(), ctx.cwd);
-		if (scope) clearClaimAuthorities(scope);
+		clearSessionClaimAuthorities(ctx.sessionManager.getSessionId());
 	};
 	pi.on("session_start", clearRuntime);
 	pi.on("session_shutdown", clearRuntime);

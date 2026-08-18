@@ -21,7 +21,7 @@ interface ClaimAuthorityStore {
 	claims: Map<string, ClaimAuthority>;
 }
 
-const CLAIM_AUTHORITY_KEY = Symbol.for("devspec.pi.claim-authority.v2");
+const CLAIM_AUTHORITY_KEY = Symbol.for("devspec.pi.claim-authority.v3");
 const FULL_ACTION_ITEM_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TERMINAL_WORK_VERBS = new Set([
 	"record_implementation",
@@ -46,16 +46,51 @@ function exactNonEmpty(value: unknown): string | undefined {
 	return typeof value === "string" && value.length > 0 && value === value.trim() ? value : undefined;
 }
 
-/** Resolve the repository identity without invoking a shell, then canonicalize symlinks. */
-export function canonicalRepoRoot(cwd: string): string | null {
+type GitQuery = (args: string[], cwd: string) => string;
+
+const queryGit: GitQuery = (args, cwd) => execFileSync("git", args, {
+	cwd,
+	stdio: ["ignore", "pipe", "ignore"],
+}).toString();
+
+/**
+ * Resolve one identity for the repository shared by its main checkout and all
+ * linked worktrees. Git's documented porcelain list names the main worktree
+ * first; using that canonical path also keeps a greenfield folder stable across
+ * `git init`. The absolute common directory remains the repository fallback for
+ * bare or damaged worktree metadata. Outside Git, use the canonical cwd.
+ */
+export function canonicalRepoRoot(cwd: string, gitQuery: GitQuery = queryGit): string | null {
+	let commonDirectory: string | null = null;
 	try {
-		const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+		commonDirectory = gitQuery(
+			["rev-parse", "--path-format=absolute", "--git-common-dir"],
 			cwd,
-			stdio: ["ignore", "pipe", "ignore"],
-		})
-			.toString()
-			.trim();
-		return root ? realpathSync(root) : null;
+		).trim() || null;
+	} catch {
+		// Non-Git directories intentionally fall through to their canonical cwd.
+	}
+
+	if (commonDirectory) {
+		try {
+			const worktreeRecords = gitQuery(
+				["worktree", "list", "--porcelain", "-z"],
+				cwd,
+			).split("\0");
+			const mainWorktree = worktreeRecords.find((record) => record.startsWith("worktree "))?.slice("worktree ".length);
+			if (mainWorktree) return realpathSync(mainWorktree);
+		} catch {
+			// Use the common directory when worktree metadata is unavailable.
+		}
+		try {
+			return realpathSync(commonDirectory);
+		} catch {
+			// A vanished common directory falls through to the canonical cwd.
+		}
+	}
+
+	try {
+		return realpathSync(cwd);
 	} catch {
 		return null;
 	}
@@ -163,7 +198,7 @@ export function observeSuccessfulWorkResult(
 	return store().claims.delete(authorityKey(scope, actionItemId));
 }
 
-/** Session lifecycle cleanup revokes only this session+repository runtime. */
+/** Revoke one exact session+repository scope without disturbing sibling scopes. */
 export function clearClaimAuthorities(scope: ClaimAuthorityScope): number {
 	let cleared = 0;
 	for (const [key, claim] of store().claims) {
@@ -174,7 +209,20 @@ export function clearClaimAuthorities(scope: ClaimAuthorityScope): number {
 	return cleared;
 }
 
-/** Test-only whole-process reset; production lifecycle uses the scoped clear above. */
+/** Session lifecycle cleanup revokes stale authority across every repository. */
+export function clearSessionClaimAuthorities(sessionId: string): number {
+	const exactSessionId = exactNonEmpty(sessionId);
+	if (!exactSessionId) return 0;
+	let cleared = 0;
+	for (const [key, claim] of store().claims) {
+		if (claim.sessionId !== exactSessionId) continue;
+		store().claims.delete(key);
+		cleared++;
+	}
+	return cleared;
+}
+
+/** Test-only whole-process reset; production lifecycle uses session-wide cleanup. */
 export function resetClaimAuthoritiesForTests(): void {
 	store().claims.clear();
 }

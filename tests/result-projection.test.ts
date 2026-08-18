@@ -9,6 +9,7 @@ import { clearAllFlags, extractFlags, listFlags } from "../extensions/core/confl
 import { PROJECTION_BUDGETS, projectModelText, projectionFamily } from "../extensions/core/result-projection.ts";
 import { projectedToolResult, unwrapMcpResult } from "../extensions/core/result.ts";
 import { extractItemRef, getStatusSnapshot, resetStatus } from "../extensions/core/status-line.ts";
+import { claimAuthorityScope, resetClaimAuthoritiesForTests } from "../extensions/core/claim-authority.ts";
 import { consumeResultMechanics } from "../extensions/devspec-tools.ts";
 import { MCP_CATALOG, MODEL_VERB_NAMES } from "../extensions/generated/mcp-catalog.ts";
 
@@ -694,13 +695,15 @@ test("unknown structured fallback omits whole fields and non-JSON fallback is tr
 });
 
 test("full details still drive conflict flags and work status", () => {
+	const itemId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 	const payload = {
-		item: { id: "work-789", title: "Shape lifecycle response", lifecycle: "implemented" },
-		action_item_id: "work-789",
+		claim_success: true,
+		item: { id: itemId, title: "Shape lifecycle response", lifecycle: "implemented" },
+		action_item_id: itemId,
 		unresolved_conflicts: [{ conflicting_item_id: "work-older", reason: "Potentially superseded" }],
 	};
 	const result = projectedToolResult("record_implementation", unwrapMcpResult(mcpJson(payload)));
-	assert.deepEqual(extractItemRef(result), { id: "work-789", title: "Shape lifecycle response" });
+	assert.deepEqual(extractItemRef(result), { id: itemId, title: "Shape lifecycle response" });
 	assert.deepEqual(extractFlags("record_implementation", result.details), [{
 		key: "item_conflict:work-older",
 		kind: "item_conflict",
@@ -708,17 +711,20 @@ test("full details still drive conflict flags and work status", () => {
 	}]);
 	clearAllFlags();
 	resetStatus();
+	resetClaimAuthoritiesForTests();
+	const authorityScope = claimAuthorityScope("projection-test-session", process.cwd());
+	assert.ok(authorityScope);
 	const claim = projectedToolResult("claim_work_item", unwrapMcpResult(mcpJson(payload)));
-	consumeResultMechanics("claim_work_item", claim);
-	assert.equal(getStatusSnapshot().workId, "work-789");
+	consumeResultMechanics("claim_work_item", claim, { action_item_id: itemId }, authorityScope);
+	assert.equal(getStatusSnapshot().workId, itemId);
 	assert.equal(listFlags()[0]?.key, "item_conflict:work-older");
 	const decisionResolution = projectedToolResult(
 		"resolve_action_item_decision_flag",
-		unwrapMcpResult(mcpJson({ ok: true, action_item_id: "work-789", marks_cleared: { actionItem: 1 } })),
+		unwrapMcpResult(mcpJson({ ok: true, action_item_id: itemId, marks_cleared: { actionItem: 1 } })),
 	);
 	consumeResultMechanics("resolve_action_item_decision_flag", decisionResolution);
-	assert.equal(getStatusSnapshot().workId, "work-789", "a flag ruling is not a work-status transition");
-	consumeResultMechanics("record_implementation", result);
+	assert.equal(getStatusSnapshot().workId, itemId, "a flag ruling is not a work-status transition");
+	consumeResultMechanics("record_implementation", result, { action_item_id: itemId }, authorityScope);
 	assert.equal(getStatusSnapshot().workId, undefined);
 	clearAllFlags();
 	resetStatus();

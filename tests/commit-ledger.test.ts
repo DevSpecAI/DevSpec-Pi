@@ -1,14 +1,22 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import {
 	captureGitCommit,
 	parseCommitOutput,
 	recentCommits,
+	repoResolver,
 	validateCommitSha,
 	type GitResolver,
 } from "../extensions/core/commit-ledger.ts";
 
 const FULL = "fbe44cdd05c52551e70119e28fdf3d8cb6e47e3a";
+const FULL_A = "aaa111105c52551e70119e28fdf3d8cb6e47e3a";
+const FULL_B = "bbb222205c52551e70119e28fdf3d8cb6e47e3a";
+const FULL_C = "ccc333305c52551e70119e28fdf3d8cb6e47e3a";
 const resolverReturning = (sha: string | null): GitResolver => () => sha;
 
 test("parseCommitOutput reads the [branch shortsha] summary line", () => {
@@ -44,11 +52,11 @@ test("non-git commands and no-op writes never populate the ledger (no false cand
 });
 
 test("validate: an exact ledger SHA passes; a prefix resolves to the full SHA", () => {
-	captureGitCommit("git commit -m x", "[feat/a aaa1111] x", resolverReturning("aaa111105c52551e70119e28fdf3d8cb6e47e3a000"));
-	const exact = validateCommitSha("aaa111105c52551e70119e28fdf3d8cb6e47e3a000", resolverReturning(null));
-	assert.deepEqual(exact, { ok: true, sha: "aaa111105c52551e70119e28fdf3d8cb6e47e3a000", autoFilled: false });
+	captureGitCommit("git commit -m x", "[feat/a aaa1111] x", resolverReturning(FULL_A));
+	const exact = validateCommitSha(FULL_A, resolverReturning(null));
+	assert.deepEqual(exact, { ok: true, sha: FULL_A, autoFilled: false });
 	const prefix = validateCommitSha("aaa1111", resolverReturning(null));
-	assert.deepEqual(prefix, { ok: true, sha: "aaa111105c52551e70119e28fdf3d8cb6e47e3a000", autoFilled: false });
+	assert.deepEqual(prefix, { ok: true, sha: FULL_A, autoFilled: false });
 });
 
 test("validate: a SHA that resolves nowhere is REFUSED with the candidate list", () => {
@@ -61,8 +69,8 @@ test("validate: a SHA that resolves nowhere is REFUSED with the candidate list",
 });
 
 test("validate: a SHA unknown to the ledger but real in the repo passes (resolved full)", () => {
-	const verdict = validateCommitSha("bbb2222", resolverReturning("bbb222205c52551e70119e28fdf3d8cb6e47e3a0000"));
-	assert.deepEqual(verdict, { ok: true, sha: "bbb222205c52551e70119e28fdf3d8cb6e47e3a0000", autoFilled: false });
+	const verdict = validateCommitSha("bbb2222", resolverReturning(FULL_B));
+	assert.deepEqual(verdict, { ok: true, sha: FULL_B, autoFilled: false });
 });
 
 function resetLedger(): void {
@@ -71,9 +79,9 @@ function resetLedger(): void {
 
 test("validate: omitted SHA auto-fills when exactly one recent commit exists", () => {
 	resetLedger();
-	captureGitCommit("git commit -m y", "[feat/b ccc3333] y", resolverReturning("ccc333305c52551e70119e28fdf3d8cb6e47e3a00000"));
+	captureGitCommit("git commit -m y", "[feat/b ccc3333] y", resolverReturning(FULL_C));
 	const verdict = validateCommitSha(undefined, resolverReturning(null));
-	assert.deepEqual(verdict, { ok: true, sha: "ccc333305c52551e70119e28fdf3d8cb6e47e3a00000", autoFilled: true });
+	assert.deepEqual(verdict, { ok: true, sha: FULL_C, autoFilled: true });
 });
 
 test("validate: omitted SHA with no or multiple candidates is an honest error", () => {
@@ -83,12 +91,43 @@ test("validate: omitted SHA with no or multiple candidates is an honest error", 
 	if (!none.ok) assert.match(none.error, /none observed this session/);
 
 	resetLedger();
-	captureGitCommit("git commit -m a", "[feat/a aaa1111] a", resolverReturning("aaa111105c52551e70119e28fdf3d8cb6e47e3a000"));
-	captureGitCommit("git commit -m b", "[feat/b bbb2222] b", resolverReturning("bbb222205c52551e70119e28fdf3d8cb6e47e3a0000"));
+	captureGitCommit("git commit -m a", "[feat/a aaa1111] a", resolverReturning(FULL_A));
+	captureGitCommit("git commit -m b", "[feat/b bbb2222] b", resolverReturning(FULL_B));
 	const several = validateCommitSha(undefined, resolverReturning(null));
 	assert.equal(several.ok, false);
 	if (!several.ok) {
 		assert.match(several.error, /aaa1111/);
 		assert.match(several.error, /bbb2222/);
 	}
+});
+
+test("repo resolver rejects revision-shell injection before spawning git", (t) => {
+	const cwd = mkdtempSync(join(tmpdir(), "devspec-ledger-injection-"));
+	t.after(() => rmSync(cwd, { recursive: true, force: true }));
+	execFileSync("git", ["init", "-q"], { cwd });
+	const marker = join(cwd, "injected");
+	const malicious = `HEAD;touch ${marker}`;
+	assert.equal(repoResolver(cwd)(malicious), null);
+	assert.equal(existsSync(marker), false);
+	const verdict = validateCommitSha(malicious, repoResolver(cwd));
+	assert.equal(verdict.ok, false);
+	if (!verdict.ok) assert.match(verdict.error, /lowercase hexadecimal/);
+	assert.equal(existsSync(marker), false);
+	assert.equal(validateCommitSha(` ${FULL}`, repoResolver(cwd)).ok, false, "padded revisions are invalid");
+	assert.equal(validateCommitSha(`${FULL} `, repoResolver(cwd)).ok, false, "padded revisions are invalid");
+});
+
+test("repo resolver accepts only HEAD or strict hexadecimal commit revisions", (t) => {
+	const cwd = mkdtempSync(join(tmpdir(), "devspec-ledger-revision-"));
+	t.after(() => rmSync(cwd, { recursive: true, force: true }));
+	execFileSync("git", ["init", "-q"], { cwd });
+	const resolve = repoResolver(cwd);
+	for (const revision of ["main", "HEAD@{0}", "HEAD --help", "abc", "ABCDEF1", `${FULL}^{tree}`]) {
+		assert.equal(resolve(revision), null, revision);
+	}
+	// A hostile alias/config entry cannot replace the rev-parse builtin and no
+	// shell is involved in argument handling.
+	execFileSync("git", ["config", "alias.rev-parse", "!touch hostile-config-ran"], { cwd });
+	assert.equal(resolve("HEAD"), null, "an unborn repository has no HEAD");
+	assert.equal(existsSync(join(cwd, "hostile-config-ran")), false);
 });

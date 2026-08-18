@@ -249,10 +249,12 @@ test("stampKnownScope drops model-supplied scope and adds the bond", () => {
 		git_remote: "git@example.com:nope.git",
 		project_id: "should-not-pass",
 		session_id: "model-invented",
+		local_session_id: "model-invented-local",
 	});
 	assert.equal(stamped.title, "hello");
 	assert.equal(stamped.git_remote, undefined);
 	assert.equal(stamped.project_id, undefined);
+	assert.equal(stamped.local_session_id, undefined);
 	assert.equal(stamped.session_id, "sess-1");
 	assert.equal(stamped.connection_id, "conn-1");
 	setBond(null);

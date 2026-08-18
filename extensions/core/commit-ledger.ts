@@ -14,7 +14,7 @@
  * (jiti gives every extension file a fresh module graph).
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 
 export interface LedgerCommit {
 	/** Full SHA when the repo resolved it; the short SHA otherwise. */
@@ -56,10 +56,20 @@ export type GitResolver = (rev: string) => string | null;
 
 /** The real resolver: ask the repo at `cwd`. Worktrees share the object
  *  store, so a commit made in a linked worktree resolves from the main one. */
+const GIT_REVISION = /^(?:HEAD|[0-9a-f]{7,40}(?:\^\{commit\})?)$/;
+const COMMIT_SHA_INPUT = /^[0-9a-f]{7,40}$/;
+
 export function repoResolver(cwd: string): GitResolver {
 	return (rev: string) => {
+		// rev-parse accepts revision syntax powerful enough to reach reflogs and,
+		// when interpolated into a shell, arbitrary commands. This resolver needs
+		// only HEAD or a hexadecimal commit candidate with an optional peel.
+		if (!GIT_REVISION.test(rev)) return null;
 		try {
-			const out = execSync(`git rev-parse --verify ${rev}`, { cwd, stdio: ["ignore", "pipe", "ignore"] })
+			const out = execFileSync("git", ["rev-parse", "--verify", rev], {
+				cwd,
+				stdio: ["ignore", "pipe", "ignore"],
+			})
 				.toString()
 				.trim();
 			return /^[0-9a-f]{40}$/.test(out) ? out : null;
@@ -134,8 +144,14 @@ export function validateCommitSha(input: string | undefined, resolve: GitResolve
 		};
 	}
 
-	const sha = input.trim();
-	const hit = recent.find((c) => c.sha === sha || c.sha.startsWith(sha) || sha.startsWith(c.shortSha));
+	const sha = input;
+	if (sha !== sha.trim() || !COMMIT_SHA_INPUT.test(sha)) {
+		return {
+			ok: false,
+			error: "commit_sha must be 7–40 lowercase hexadecimal characters; revision syntax and shell text are not accepted.",
+		};
+	}
+	const hit = recent.find((c) => c.sha === sha || c.sha.startsWith(sha));
 	if (hit) return { ok: true, sha: hit.sha, autoFilled: false };
 
 	const resolved = resolve(`${sha}^{commit}`);

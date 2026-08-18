@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { stampHostProvider } from "../extensions/devspec-tools.ts";
+import { stampHostLocalSession, stampHostProvider } from "../extensions/devspec-tools.ts";
 import { MCP_CATALOG } from "../extensions/generated/mcp-catalog.ts";
 
 const ATTRIBUTION_VERBS = ["claim_work_item", "record_implementation", "record_completed_work"];
 const PLAYBOOK_VERBS = ["get_playbook_runs", "claim_playbook_run", "record_playbook_run"];
+const LOCAL_SESSION_VERBS = ["update_action_item", "record_playbook_run", "claim_work_item", "record_implementation"];
 
 test("every attribution verb is stamped with provider=pi", () => {
 	for (const name of [...ATTRIBUTION_VERBS, ...PLAYBOOK_VERBS]) {
@@ -19,6 +20,32 @@ test("the host's identity wins over anything the model supplied", () => {
 		const stamped = stampHostProvider(name, { provider: "claude_code", action_item_id: "abc" });
 		assert.equal(stamped.provider, "pi");
 		assert.equal(stamped.action_item_id, "abc", "unrelated params must survive");
+	}
+});
+
+test("the host local session wins over model-supplied resume identity", () => {
+	for (const name of LOCAL_SESSION_VERBS) {
+		const stamped = stampHostLocalSession(name, {
+			local_session_id: "model-invented",
+			action_item_id: "abc",
+		}, "pi-runtime-session");
+		assert.equal(stamped.local_session_id, "pi-runtime-session");
+		assert.equal(stamped.action_item_id, "abc", "unrelated params must survive");
+	}
+});
+
+test("verbs that do not carry local session attribution are untouched", () => {
+	const params = { local_session_id: "caller-owned" };
+	assert.equal(stampHostLocalSession("create_action_item", params, "pi-runtime-session"), params);
+});
+
+test("every generated local_session_id input is host stamped", () => {
+	const accepting = MCP_CATALOG
+		.filter((entry) => Object.hasOwn(entry.inputSchema.properties ?? {}, "local_session_id"))
+		.map((entry) => entry.name);
+	assert.deepEqual(accepting, LOCAL_SESSION_VERBS);
+	for (const name of accepting) {
+		assert.equal(stampHostLocalSession(name, {}, "pi-runtime-session").local_session_id, "pi-runtime-session");
 	}
 });
 

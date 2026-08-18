@@ -20,6 +20,11 @@ import { addFlags, extractFlags } from "./core/conflict-watch.ts";
 import { jsonSchemaToTypebox } from "./core/json-schema.ts";
 import { consumeDeliveryLifecycle } from "./core/active-deliveries.ts";
 import {
+	claimAuthorityScope,
+	observeSuccessfulWorkResult,
+	type ClaimAuthorityScope,
+} from "./core/claim-authority.ts";
+import {
 	HOT_SET_VERBS,
 	SCOPE_KEY_SET,
 	TOOL_LOADER_DESCRIPTION,
@@ -79,10 +84,12 @@ function claimFlag(result: unknown): unknown {
 	return root.details && typeof root.details === "object" ? root.details.claimed : root.claimed;
 }
 
-function applyWorkStatus(name: string, result: unknown): void {
+function applyWorkStatus(name: string, result: unknown, claimArmed: boolean): void {
 	const ref = extractItemRef(result);
 	if (name === "claim_work_item") {
-		noteWork(ref);
+		// Footer state is a view of authority, never its source. A rejected claim
+		// must not look active or accidentally become mutation permission.
+		if (claimArmed) noteWork(ref);
 	} else if (name === "record_implementation" || name === "release_work_item" || name === "fail_work_item") {
 		clearWork(ref.id);
 	} else if (name === "claim_playbook_run") {
@@ -98,9 +105,15 @@ export function consumeResultMechanics(
 	name: string,
 	result: unknown,
 	args: Record<string, unknown> = {},
+	authorityScope?: ClaimAuthorityScope,
 ): void {
 	watchForSignals(name, result);
-	applyWorkStatus(name, result);
+	// executeVerb calls this only after unwrapOrThrow has established MCP success.
+	// This is the sole bridge from server result to scoped mutation authority.
+	const claimArmed = authorityScope
+		? observeSuccessfulWorkResult(name, args, result, authorityScope) && name === "claim_work_item"
+		: false;
+	applyWorkStatus(name, result, claimArmed);
 	consumeDeliveryLifecycle(name, args, result);
 }
 
@@ -121,21 +134,34 @@ function measuredToolResult<T extends PiToolResult>(name: string, result: T): T 
 	return result;
 }
 
-/** Per-verb argument stamps that cannot live in the generated catalog. */
+/** Per-verb argument transforms that cannot live in the generated catalog. */
 const AUGMENTS: Record<string, (params: Record<string, unknown>, ctx: CallCtx) => Record<string, unknown>> = {
-	claim_work_item: (params, ctx) => ({
-		local_session_id: ctx.sessionManager.getSessionId(),
-		...params,
-	}),
 	record_implementation: (params, ctx) => {
 		// The ledger guard (item efe7e0a7): never let a transcribed SHA reach
 		// the server unverified. Throws → the model gets the candidate list
 		// back as the tool error and corrects immediately.
 		const verdict = validateCommitSha(params.commit_sha as string | undefined, repoResolver(ctx.cwd));
 		if (!verdict.ok) throw new Error(verdict.error);
-		return { local_session_id: ctx.sessionManager.getSessionId(), ...params, commit_sha: verdict.sha };
+		return { ...params, commit_sha: verdict.sha };
 	},
 };
+
+const LOCAL_SESSION_STAMPED_VERBS: ReadonlySet<string> = new Set([
+	"update_action_item",
+	"record_playbook_run",
+	"claim_work_item",
+	"record_implementation",
+]);
+
+/** The current Pi runtime, never model parameters, owns local resume identity. */
+export function stampHostLocalSession(
+	name: string,
+	params: Record<string, unknown>,
+	localSessionId: string,
+): Record<string, unknown> {
+	if (!LOCAL_SESSION_STAMPED_VERBS.has(name)) return params;
+	return { ...params, local_session_id: localSessionId };
+}
 
 /**
  * This host is Pi. `provider` on these verbs is not a model choice — it is a
@@ -190,16 +216,21 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 	if (!resolved) return measuredToolResult(name, toolErrorResult(NOT_CONNECTED));
 	try {
 		const augment = AUGMENTS[name];
-		const args = stampKnownScope(
-			stampHostProvider(name, augment ? augment(params, ctx) : params),
+		const scopedParams = stampKnownScope(params);
+		const augmentedParams = augment ? augment(scopedParams, ctx) : scopedParams;
+		const args = stampHostLocalSession(
+			name,
+			stampHostProvider(name, augmentedParams),
+			ctx.sessionManager.getSessionId(),
 		);
+		const authorityScope = claimAuthorityScope(ctx.sessionManager.getSessionId(), ctx.cwd);
 		const raw = await callDevspec(resolved.token, name, args, {
 			cwd: ctx.cwd,
 			lane: "work",
 			timeoutMs: MODEL_TIMEOUT_MS,
 		});
 		const result = unwrapOrThrow(name, raw);
-		consumeResultMechanics(name, result, args);
+		consumeResultMechanics(name, result, args, authorityScope ?? undefined);
 		return measuredToolResult(name, result);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);

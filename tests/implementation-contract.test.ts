@@ -31,10 +31,21 @@ function coreSection() {
 	};
 }
 
-/**
- * The served document, which is now the ONLY shape: one contract, hashing its own
- * entire content, with no overlay to project and no mode to select.
- */
+function workEntrySection() {
+	return {
+		schema_version: 1,
+		mutation_boundary: "A successful claim_work_item result is required before mutation.",
+		explicit_request_authority: "Explicit requests select work but do not replace a server claim.",
+		ordered_decisions: [
+			{ outcome: "claim_active", requirement: "Claim the active item." },
+			{ outcome: "reopen_incomplete", requirement: "Reopen incomplete work rather than duplicating it." },
+			{ outcome: "create_linked_follow_up", requirement: "Link follow-up work to its predecessor." },
+			{ outcome: "create_new", requirement: "Create only genuinely new work." },
+		],
+	} as const;
+}
+
+/** One self-hashing contract; v3 adds its exact work-entry decision contract. */
 function bundle(version = "2.0.0") {
 	const input = {
 		kind: "devspec.product.implementation_contract",
@@ -43,7 +54,8 @@ function bundle(version = "2.0.0") {
 		source: SOURCE,
 		instruction_boundary: INSTRUCTION_BOUNDARY,
 		core_implementation_contract: coreSection(),
-	} as const;
+		...(version === "3.0.0" ? { work_entry_contract: workEntrySection() } : {}),
+	};
 	return { ...input, contract_hash: hashContractValue(input) };
 }
 
@@ -101,7 +113,7 @@ test("mechanically reads, validates, formats, and caches an exact versioned cont
 	assert.equal(counts.resource, 1, "an exact immutable version is served from the prefix-safe cache");
 });
 
-test("cache v3 ignores anything retained against the retired mode-specific resources", async () => {
+test("cache v5 ignores anything retained by older parser generations", async () => {
 	resetImplementationContractCache();
 	const root = globalThis as typeof globalThis & Record<symbol, unknown>;
 	const poison = {
@@ -109,7 +121,12 @@ test("cache v3 ignores anything retained against the retired mode-specific resou
 		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 		rules: [{ id: "poison", requirement: "unvalidated" }],
 	};
-	for (const legacy of ["devspec.pi.implementation-contract.v1", "devspec.pi.implementation-contract.v2"]) {
+	for (const legacy of [
+		"devspec.pi.implementation-contract.v1",
+		"devspec.pi.implementation-contract.v2",
+		"devspec.pi.implementation-contract.v3",
+		"devspec.pi.implementation-contract.v4",
+	]) {
 		const legacyKey = Symbol.for(legacy);
 		root[legacyKey] = {
 			byIdentity: new Map([[`test-authority ${IMPLEMENTATION_CONTRACT_RESOURCE_URI} 2.0.0`, poison]]),
@@ -129,6 +146,8 @@ test("cache v3 ignores anything retained against the retired mode-specific resou
 	} finally {
 		delete root[Symbol.for("devspec.pi.implementation-contract.v1")];
 		delete root[Symbol.for("devspec.pi.implementation-contract.v2")];
+		delete root[Symbol.for("devspec.pi.implementation-contract.v3")];
+		delete root[Symbol.for("devspec.pi.implementation-contract.v4")];
 	}
 });
 
@@ -278,6 +297,144 @@ test("authority revocation during a paused resource read aborts before compatibi
 	});
 	assert.equal(next.source, "resource");
 	assert.equal(counts.resource, 1, "revoked preparation must not seed the cache");
+});
+
+test("v3 parses and hashes the exact top-level work-entry contract", async () => {
+	resetImplementationContractCache();
+	const context = await loadImplementationContext({
+		reference: { contract_version: "3.0.0", resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI },
+		loader: loader({ resource: resource("3.0.0") }),
+	});
+	assert.equal(context.source, "resource");
+	assert.deepEqual(context.workEntryContract, workEntrySection());
+	assert.deepEqual(
+		context.workEntryContract?.ordered_decisions.map((decision) => decision.outcome),
+		["claim_active", "reopen_incomplete", "create_linked_follow_up", "create_new"],
+	);
+});
+
+test("v2 remains compatible without synthesizing a work-entry section", async () => {
+	resetImplementationContractCache();
+	const context = await loadImplementationContext({
+		reference: { contract_version: "2.0.0", resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI },
+		loader: loader({ resource: resource("2.0.0") }),
+	});
+	assert.equal(context.source, "resource");
+	assert.equal(context.workEntryContract, undefined);
+});
+
+test("v3 rejects malformed, reordered, unhashed, or extra work-entry fields", async (t) => {
+	const cases: Array<[string, (section: Record<string, unknown>, root: Record<string, unknown>) => void]> = [
+		["missing section", (_section, root) => { delete root.work_entry_contract; }],
+		["wrong schema", (section) => { section.schema_version = 2; }],
+		["empty mutation boundary", (section) => { section.mutation_boundary = " "; }],
+		["empty explicit authority", (section) => { section.explicit_request_authority = ""; }],
+		["reordered decisions", (section) => {
+			const decisions = section.ordered_decisions as unknown[];
+			[decisions[0], decisions[1]] = [decisions[1], decisions[0]];
+		}],
+		["missing decision", (section) => { (section.ordered_decisions as unknown[]).pop(); }],
+		["unknown outcome", (section) => {
+			(section.ordered_decisions as Array<Record<string, unknown>>)[0]!.outcome = "delivery_selected";
+		}],
+		["empty requirement", (section) => {
+			(section.ordered_decisions as Array<Record<string, unknown>>)[2]!.requirement = "";
+		}],
+		["extra section field", (section) => { section.mutable_prose = true; }],
+		["extra decision field", (section) => {
+			(section.ordered_decisions as Array<Record<string, unknown>>)[0]!.extra = true;
+		}],
+	];
+	for (const [name, mutate] of cases) {
+		await t.test(name, async () => {
+			resetImplementationContractCache();
+			const malformed = JSON.parse(JSON.stringify(bundle("3.0.0"))) as Record<string, unknown>;
+			mutate(malformed.work_entry_contract as Record<string, unknown>, malformed);
+			// Leave the original hash in place: exact parsing and whole-document hash
+			// must both prevent mutable lifecycle prose from drifting independently.
+			const context = await loadImplementationContext({
+				reference: { contract_version: "3.0.0", resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI },
+				loader: loader({
+					resource: resource("3.0.0", malformed),
+					compatibilityError: new Error("compatibility unavailable"),
+				}),
+			});
+			assert.equal(context.source, "local_safety_fallback");
+		});
+	}
+});
+
+test("unsupported contract versions fail closed even with internally consistent hashes", async (t) => {
+	for (const version of ["1.9.9", "2.0.1", "3.0.1", "4.0.0"]) {
+		await t.test(version, async () => {
+			resetImplementationContractCache();
+			const context = await loadImplementationContext({
+				reference: { contract_version: version, resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI },
+				loader: loader({
+					resource: resource(version),
+					compatibilityError: new Error("compatibility unavailable"),
+				}),
+			});
+			assert.equal(context.source, "local_safety_fallback");
+		});
+	}
+});
+
+test("padded contract values are rejected and never normalized before hashing", async (t) => {
+	const cases: Array<[string, (payload: Record<string, unknown>) => void]> = [
+		["version", (payload) => { payload.contract_version = " 2.0.0"; }],
+		["rule id", (payload) => {
+			const rules = (payload.core_implementation_contract as { rules: Array<Record<string, unknown>> }).rules;
+			rules[0]!.id = ` ${String(rules[0]!.id)}`;
+		}],
+		["rule requirement", (payload) => {
+			const rules = (payload.core_implementation_contract as { rules: Array<Record<string, unknown>> }).rules;
+			rules[0]!.requirement = `${String(rules[0]!.requirement)} `;
+		}],
+		["v3 mutation boundary", (payload) => {
+			(payload.work_entry_contract as Record<string, unknown>).mutation_boundary = " padded ";
+		}],
+		["v3 decision requirement", (payload) => {
+			const decisions = (payload.work_entry_contract as { ordered_decisions: Array<Record<string, unknown>> }).ordered_decisions;
+			decisions[0]!.requirement = " padded ";
+		}],
+	];
+	for (const [name, mutate] of cases) {
+		await t.test(name, async () => {
+			resetImplementationContractCache();
+			const version = name.startsWith("v3") ? "3.0.0" : "2.0.0";
+			const malformed = JSON.parse(JSON.stringify(bundle(version))) as Record<string, unknown>;
+			mutate(malformed);
+			malformed.contract_hash = hashContractValue(Object.fromEntries(
+				Object.entries(malformed).filter(([key]) => key !== "contract_hash"),
+			));
+			const context = await loadImplementationContext({
+				reference: { contract_version: version, resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI },
+				loader: loader({
+					resource: resource(version, malformed),
+					compatibilityError: new Error("compatibility unavailable"),
+				}),
+			});
+			assert.equal(context.source, "local_safety_fallback");
+		});
+	}
+});
+
+test("v2 rejects a v3 work-entry section instead of silently ignoring it", async () => {
+	resetImplementationContractCache();
+	const malformed = JSON.parse(JSON.stringify(bundle("2.0.0"))) as Record<string, unknown>;
+	malformed.work_entry_contract = workEntrySection();
+	malformed.contract_hash = hashContractValue(Object.fromEntries(
+		Object.entries(malformed).filter(([key]) => key !== "contract_hash"),
+	));
+	const context = await loadImplementationContext({
+		reference: { contract_version: "2.0.0", resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI },
+		loader: loader({
+			resource: resource("2.0.0", malformed),
+			compatibilityError: new Error("compatibility unavailable"),
+		}),
+	});
+	assert.equal(context.source, "local_safety_fallback");
 });
 
 test("malformed canonical metadata and inconsistent hashes are rejected and never cached", async (t) => {

@@ -219,6 +219,34 @@ test("preclaim permits read-only work and returns recoverable denials for known 
 	}
 });
 
+test("only a fully recognized pi-subagents child is trusted to mutate without its own claim", (t) => {
+	reset();
+	const cwd = repo(t);
+	const ctx = runtime("child-session", cwd);
+	const decide = mutationGateDecision;
+	const parentSession = "11111111-2222-3333-4444-555555555555";
+	const trusted = { PI_SUBAGENT_CHILD: "1", PI_SUBAGENT_PARENT_SESSION: parentSession };
+
+	assert.equal(decide("write", { path: "child.ts" }, ctx, trusted), undefined);
+	assert.equal(decide("bash", { command: "touch child.ts" }, ctx, trusted), undefined);
+
+	for (const environment of [
+		{},
+		{ PI_SUBAGENT_CHILD: "1" },
+		{ PI_SUBAGENT_PARENT_SESSION: parentSession },
+		{ PI_SUBAGENT_CHILD: "true", PI_SUBAGENT_PARENT_SESSION: parentSession },
+		{ PI_SUBAGENT_CHILD: "1", PI_SUBAGENT_PARENT_SESSION: "" },
+		{ PI_SUBAGENT_CHILD: "1", PI_SUBAGENT_PARENT_SESSION: ` ${parentSession}` },
+		{ PI_SUBAGENT_CHILD: "1", PI_SUBAGENT_PARENT_SESSION: `${parentSession}\n` },
+		{ PI_SUBAGENT_CHILD: "1", PI_SUBAGENT_PARENT_SESSION: "not-a-pi-session" },
+		{ PI_SUBAGENT_CHILD: "1", PI_SUBAGENT_PARENT_SESSION: "a".repeat(300) },
+	]) {
+		assert.equal(decide("write", { path: "child.ts" }, ctx, environment)?.block, true, JSON.stringify(environment));
+	}
+	assert.equal(decide("read", { path: "child.ts" }, ctx, trusted), undefined);
+	assert.equal(decide("future_custom_tool", {}, ctx, trusted), undefined);
+});
+
 test("a claim opens known mutation while unclassified extension tools keep their own contracts", (t) => {
 	reset();
 	const cwd = repo(t);

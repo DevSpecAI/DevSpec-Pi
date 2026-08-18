@@ -20,6 +20,20 @@ import { TOOL_LOADER_NAME, isCallableModelVerb } from "./core/model-surface.ts";
 const BLOCK_REASON =
 	"DevSpec mutation gate: mutation requires a successful claim_work_item result for this Pi session. Claim the covering item and retry; read-only investigation remains available.";
 
+const SUBAGENT_CHILD_ENV = "PI_SUBAGENT_CHILD";
+const SUBAGENT_PARENT_SESSION_ENV = "PI_SUBAGENT_PARENT_SESSION";
+const PI_SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+
+/**
+ * Upstream pi-subagents stamps both values into child processes. This is an
+ * intentional cooperative provenance exception, not cryptographic claim
+ * inheritance or a security boundary against locally controlled processes.
+ */
+export function isTrustedSubagentProcess(environment: NodeJS.ProcessEnv = process.env): boolean {
+	return environment[SUBAGENT_CHILD_ENV] === "1" &&
+		PI_SESSION_ID.test(environment[SUBAGENT_PARENT_SESSION_ENV] ?? "");
+}
+
 const READ_ONLY_TOOLS = new Set(["read", "grep", "find", "ls"]);
 const FILE_MUTATORS = new Set(["write", "edit", "notebook", "apply_patch"]);
 const SHELL_MUTATORS = new Set(["bash", "shell"]);
@@ -257,12 +271,14 @@ export function mutationGateDecision(
 	toolName: string,
 	input: Record<string, unknown>,
 	runtime: RuntimeContext,
+	environment: NodeJS.ProcessEnv = process.env,
 ): ToolCallEventResult | undefined {
 	if (isNativeDevspecVerb(toolName) || READ_ONLY_TOOLS.has(toolName)) return undefined;
 
 	const isFileMutation = FILE_MUTATORS.has(toolName);
 	const isShellMutation = SHELL_MUTATORS.has(toolName) && !isReadOnlyShellCommand(input.command);
 	if (!isFileMutation && !isShellMutation) return undefined;
+	if (isTrustedSubagentProcess(environment)) return undefined;
 
 	const scope = claimAuthorityScope(runtime.sessionManager.getSessionId(), runtime.cwd);
 	if (scope && hasClaimAuthority(scope)) return undefined;

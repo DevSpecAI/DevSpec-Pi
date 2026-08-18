@@ -1,31 +1,85 @@
 /**
- * Mechanical claim-before-mutation gate. Authority is scoped to the current Pi
- * session and canonical repository; UI state and model text are never inputs.
+ * Mechanical claim-before-mutation gate. Claim evidence is scoped to the
+ * current Pi session and launch repository so it cannot leak between runtimes.
+ * The claim is provenance authority, not a filesystem sandbox: one project
+ * action item may legitimately span several repositories.
  *
- * This is a host gate, not an OS sandbox. It contains direct file tools and
- * rejects obvious bash scope escapes, but an already-authorized arbitrary
- * process can still mutate outside the repository through opaque program logic.
+ * This host gate covers Pi's known file and shell mutation surfaces. Unknown
+ * extension tools are not guessed to be mutators merely because they are
+ * unknown; those tools retain their own authorization contracts.
  */
 
 import type { ExtensionAPI, ToolCallEventResult } from "@earendil-works/pi-coding-agent";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
-import { existsSync, realpathSync } from "node:fs";
 import {
 	claimAuthorityScope,
 	clearClaimAuthorities,
 	hasClaimAuthority,
-	type ClaimAuthorityScope,
 } from "./core/claim-authority.ts";
 import { TOOL_LOADER_NAME, isCallableModelVerb } from "./core/model-surface.ts";
 
 const BLOCK_REASON =
-	"DevSpec mutation gate: this tool requires a successful claim_work_item result for the current Pi session and repository.";
-const SCOPE_REASON =
-	"DevSpec mutation gate: the requested target or shell scope is outside the claimed canonical repository.";
+	"DevSpec mutation gate: mutation requires a successful claim_work_item result for this Pi session. Claim the covering item and retry; read-only investigation remains available.";
 
 const READ_ONLY_TOOLS = new Set(["read", "grep", "find", "ls"]);
-const FILE_MUTATORS = new Set(["write", "edit", "notebook"]);
+const FILE_MUTATORS = new Set(["write", "edit", "notebook", "apply_patch"]);
 const SHELL_MUTATORS = new Set(["bash", "shell"]);
+const COMMAND_SEPARATORS = new Set([";", "&&", "||", "|"]);
+const SIMPLE_READ_COMMANDS = new Set([
+	"[",
+	"basename",
+	"cat",
+	"cd",
+	"cmp",
+	"comm",
+	"cut",
+	"df",
+	"dirname",
+	"du",
+	"echo",
+	"false",
+	"file",
+	"grep",
+	"head",
+	"jq",
+	"ls",
+	"popd",
+	"printf",
+	"pushd",
+	"pwd",
+	"readlink",
+	"realpath",
+	"stat",
+	"tail",
+	"test",
+	"tr",
+	"true",
+	"type",
+	"uniq",
+	"wc",
+	"which",
+]);
+const READ_ONLY_GIT_SUBCOMMANDS = new Set([
+	"blame",
+	"cat-file",
+	"count-objects",
+	"describe",
+	"diff",
+	"diff-files",
+	"diff-index",
+	"diff-tree",
+	"for-each-ref",
+	"grep",
+	"log",
+	"ls-files",
+	"ls-tree",
+	"merge-base",
+	"name-rev",
+	"rev-parse",
+	"shortlog",
+	"show",
+	"status",
+	"whatchanged",
+]);
 
 type RuntimeContext = {
 	cwd: string;
@@ -34,39 +88,6 @@ type RuntimeContext = {
 
 function isNativeDevspecVerb(toolName: string): boolean {
 	return toolName === TOOL_LOADER_NAME || isCallableModelVerb(toolName);
-}
-
-/** Closed-state bootstrap intentionally supports no config-reading helper. */
-export function isReadOnlyShellCommand(command: unknown): boolean {
-	return typeof command === "string" && command === "pwd";
-}
-
-function isContained(repoRoot: string, candidate: string): boolean {
-	const rel = relative(repoRoot, candidate);
-	return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
-}
-
-/** Canonicalize the nearest existing ancestor so symlinked parents cannot escape. */
-export function targetIsInsideRepo(target: unknown, cwd: string, repoRoot: string): boolean {
-	if (
-		typeof target !== "string" || !target || target !== target.trim() ||
-		target === "~" || target.startsWith("~/") || target.includes("$") || target.includes("`")
-	) return false;
-	try {
-		const canonicalCwd = realpathSync(cwd);
-		const candidate = isAbsolute(target) ? resolve(target) : resolve(canonicalCwd, target);
-		let ancestor = candidate;
-		while (!existsSync(ancestor)) {
-			const parent = dirname(ancestor);
-			if (parent === ancestor) return false;
-			ancestor = parent;
-		}
-		const canonicalAncestor = realpathSync(ancestor);
-		const canonicalCandidate = resolve(canonicalAncestor, relative(ancestor, candidate));
-		return isContained(repoRoot, canonicalCandidate);
-	} catch {
-		return false;
-	}
 }
 
 function shellTokens(command: string): string[] | null {
@@ -79,8 +100,11 @@ function shellTokens(command: string): string[] | null {
 		if (token) tokens.push(token);
 		token = "";
 	};
-	for (const char of command) {
+
+	for (let index = 0; index < command.length; index++) {
+		const char = command[index]!;
 		if (escaped) {
+			if (char === "\n") return null;
 			token += char;
 			escaped = false;
 			continue;
@@ -98,9 +122,24 @@ function shellTokens(command: string): string[] | null {
 			quote = char;
 			continue;
 		}
-		if (/\s/u.test(char) || ";|&()<>".includes(char)) {
+		if (char === "\n") {
 			flush();
-			if (";|&()<>".includes(char)) tokens.push(char);
+			tokens.push(";");
+			continue;
+		}
+		if (/\s/u.test(char)) {
+			flush();
+			continue;
+		}
+		if (";|&()<>".includes(char)) {
+			flush();
+			const next = command[index + 1];
+			if ((char === "&" || char === "|" || char === "<" || char === ">") && next === char) {
+				tokens.push(char + next);
+				index++;
+			} else {
+				tokens.push(char);
+			}
 			continue;
 		}
 		token += char;
@@ -110,49 +149,108 @@ function shellTokens(command: string): string[] | null {
 	return tokens;
 }
 
-function pathValue(token: string): string | null {
-	if (token === "~" || token.startsWith("~/") || /\$(?:\{)?(?:HOME|TMPDIR|PWD)(?:\})?/u.test(token)) return token;
-	const equals = token.indexOf("=");
-	const value = equals >= 0 ? token.slice(equals + 1) : token;
-	if (value.includes("://")) return null;
-	if (
-		isAbsolute(value) || value === ".." || value.startsWith("../") ||
-		value.includes("/../") || value.endsWith("/..") || value.includes("/")
-	) return value;
-	return null;
-}
-
-/** Reject statically visible cwd/repository/absolute-target escapes. */
-export function bashCommandStaysInRepo(command: unknown, cwd: string, repoRoot: string): boolean {
-	if (typeof command !== "string") return false;
-	const tokens = shellTokens(command);
-	if (!tokens) return false;
-	for (let index = 0; index < tokens.length; index++) {
-		const token = tokens[index]!;
-		if (token === "cd" || token === "pushd") {
-			const target = tokens[++index];
-			if (!target || !targetIsInsideRepo(target, cwd, repoRoot)) return false;
-			continue;
-		}
-		if (token === "-C" || token === "--work-tree" || token === "--git-dir") {
-			const target = tokens[++index];
-			if (!target || !targetIsInsideRepo(target, cwd, repoRoot)) return false;
-			continue;
-		}
-		for (const prefix of ["-C", "--work-tree=", "--git-dir="] as const) {
-			if (token.startsWith(prefix) && token.length > prefix.length) {
-				if (!targetIsInsideRepo(token.slice(prefix.length), cwd, repoRoot)) return false;
-			}
-		}
-		const visiblePath = pathValue(token);
-		if (visiblePath && !targetIsInsideRepo(visiblePath, cwd, repoRoot)) return false;
+function gitBranchIsReadOnly(args: string[]): boolean {
+	if (args.some((arg) => /^(?:-[dDmMcC]|--(?:delete|move|copy|edit-description|set-upstream-to|unset-upstream))(?:$|=)/u.test(arg))) {
+		return false;
 	}
-	return true;
+	const allowsPatterns = args.includes("--list");
+	return args.every((arg) => arg.startsWith("-") || allowsPatterns);
 }
 
-function mutationTarget(toolName: string, input: Record<string, unknown>): unknown {
-	if (toolName === "notebook") return input.notebook_path ?? input.path ?? input.file_path;
-	return input.path ?? input.file_path;
+function gitRemoteIsReadOnly(args: string[]): boolean {
+	if (args.length === 0 || args.every((arg) => arg === "-v" || arg === "--verbose")) return true;
+	return args[0] === "get-url" || args[0] === "show";
+}
+
+function gitTagIsReadOnly(args: string[]): boolean {
+	if (args.length === 0) return true;
+	if (args.some((arg) => /^(?:-[adfsu]|--(?:delete|annotate|force|sign|local-user|message|file))(?:$|=)/u.test(arg))) {
+		return false;
+	}
+	return args[0] === "--list" || args[0] === "-l" || args[0] === "--verify" || args[0] === "-v";
+}
+
+function gitConfigIsReadOnly(args: string[]): boolean {
+	if (args.some((arg) => /^(?:-e|--(?:edit|add|replace-all|unset|unset-all|rename-section|remove-section)|--file=|--blob=)/u.test(arg))) {
+		return false;
+	}
+	const positionals = args.filter((arg) => !arg.startsWith("-"));
+	return positionals.length <= 1 || args.some((arg) => /^(?:-l|--list|--get|--get-all|--get-regexp|get|get-all|get-regexp)$/u.test(arg));
+}
+
+function gitCommandIsReadOnly(args: string[]): boolean {
+	let index = 0;
+	while (index < args.length) {
+		const arg = args[index]!;
+		if (["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env"].includes(arg)) {
+			if (index + 1 >= args.length) return false;
+			index += 2;
+			continue;
+		}
+		if (/^(?:--git-dir|--work-tree|--namespace|--config-env)=/u.test(arg)) {
+			index++;
+			continue;
+		}
+		if (["--no-pager", "--paginate", "-p", "--no-replace-objects", "--literal-pathspecs", "--glob-pathspecs", "--noglob-pathspecs", "--icase-pathspecs"].includes(arg)) {
+			index++;
+			continue;
+		}
+		break;
+	}
+	const subcommand = args[index];
+	if (!subcommand) return false;
+	const subcommandArgs = args.slice(index + 1);
+	if (subcommandArgs.some((arg) => ["--ext-diff", "--textconv", "--lost-found", "--output"].includes(arg) || arg.startsWith("--output="))) return false;
+	if (READ_ONLY_GIT_SUBCOMMANDS.has(subcommand)) return true;
+	if (subcommand === "branch") return gitBranchIsReadOnly(subcommandArgs);
+	if (subcommand === "config") return gitConfigIsReadOnly(subcommandArgs);
+	if (subcommand === "reflog") return subcommandArgs.length === 0 || subcommandArgs[0] === "show" || subcommandArgs[0] === "exists";
+	if (subcommand === "remote") return gitRemoteIsReadOnly(subcommandArgs);
+	if (subcommand === "tag") return gitTagIsReadOnly(subcommandArgs);
+	if (subcommand === "worktree") return subcommandArgs[0] === "list";
+	return false;
+}
+
+function simpleCommandIsReadOnly(tokens: string[]): boolean {
+	let index = 0;
+	while (index < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/u.test(tokens[index]!)) index++;
+	if (index === tokens.length) return true;
+	const command = tokens[index]!;
+	const args = tokens.slice(index + 1);
+	if (command === "git") return gitCommandIsReadOnly(args);
+	if (command === "find") {
+		return !args.some((arg) => /^(?:-delete|-exec|-execdir|-ok|-okdir|-fprint|-fprint0|-fprintf|-fls)$/u.test(arg));
+	}
+	if (command === "rg") return !args.some((arg) => arg === "--pre" || arg.startsWith("--pre="));
+	if (command === "sort") return !args.some((arg) => arg === "-o" || arg === "--output" || arg.startsWith("--output="));
+	return SIMPLE_READ_COMMANDS.has(command);
+}
+
+/** Conservative shell classifier: every command in a compound expression must be read-only. */
+export function isReadOnlyShellCommand(command: unknown): boolean {
+	if (typeof command !== "string" || /`|\$\(/u.test(command)) return false;
+	const tokens = shellTokens(command);
+	if (!tokens || tokens.length === 0) return false;
+	if (tokens.some((token) => ["&", "(", ")", "<", "<<", ">", ">>"].includes(token))) return false;
+
+	let sawCommand = false;
+	let segment: string[] = [];
+	for (const token of tokens) {
+		if (!COMMAND_SEPARATORS.has(token)) {
+			segment.push(token);
+			continue;
+		}
+		if (segment.length > 0) {
+			if (!simpleCommandIsReadOnly(segment)) return false;
+			sawCommand = true;
+			segment = [];
+		}
+	}
+	if (segment.length > 0) {
+		if (!simpleCommandIsReadOnly(segment)) return false;
+		sawCommand = true;
+	}
+	return sawCommand;
 }
 
 export function mutationGateDecision(
@@ -162,31 +260,16 @@ export function mutationGateDecision(
 ): ToolCallEventResult | undefined {
 	if (isNativeDevspecVerb(toolName) || READ_ONLY_TOOLS.has(toolName)) return undefined;
 
+	const isFileMutation = FILE_MUTATORS.has(toolName);
+	const isShellMutation = SHELL_MUTATORS.has(toolName) && !isReadOnlyShellCommand(input.command);
+	if (!isFileMutation && !isShellMutation) return undefined;
+
 	const scope = claimAuthorityScope(runtime.sessionManager.getSessionId(), runtime.cwd);
-	const claimed = scope ? hasClaimAuthority(scope) : false;
-	if (!claimed) {
-		if (toolName === "bash" && isReadOnlyShellCommand(input.command)) return undefined;
-		// Unknown/custom tools fail closed too: apply_patch, notebook, shell,
-		// deploy and future mutators cannot bypass the known write/edit names.
-		return { block: true, reason: BLOCK_REASON, terminate: true };
-	}
+	if (scope && hasClaimAuthority(scope)) return undefined;
 
-	if (FILE_MUTATORS.has(toolName)) {
-		if (!targetIsInsideRepo(mutationTarget(toolName, input), runtime.cwd, scope!.repoRoot)) {
-			return { block: true, reason: SCOPE_REASON, terminate: true };
-		}
-		return undefined;
-	}
-	if (SHELL_MUTATORS.has(toolName)) {
-		if (!bashCommandStaysInRepo(input.command, runtime.cwd, scope!.repoRoot)) {
-			return { block: true, reason: SCOPE_REASON, terminate: true };
-		}
-		return undefined;
-	}
-
-	// A claim opens only the audited mutators above. It must never grant ambient
-	// authority to a custom tool or to a mutator introduced in a future Pi release.
-	return { block: true, reason: BLOCK_REASON, terminate: true };
+	// Deliberately non-terminating: Pi returns the reason to the model so it can
+	// claim and retry, or continue with a read-only investigation path.
+	return { block: true, reason: BLOCK_REASON };
 }
 
 export default function (pi: ExtensionAPI): void {

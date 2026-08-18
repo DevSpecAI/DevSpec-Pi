@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -20,10 +20,8 @@ import {
 } from "../extensions/core/implementation-contract.ts";
 import { recordActiveDelivery, resetActiveDeliveries } from "../extensions/core/active-deliveries.ts";
 import mutationGateExtension, {
-	bashCommandStaysInRepo,
 	isReadOnlyShellCommand,
 	mutationGateDecision,
-	targetIsInsideRepo,
 } from "../extensions/devspec-mutation-gate.ts";
 import { consumeResultMechanics } from "../extensions/devspec-tools.ts";
 
@@ -178,36 +176,63 @@ test("session lifecycle clears only that session+repo runtime", (t) => {
 	assert.equal(hasClaimAuthority(siblingRepo), true);
 });
 
-test("preclaim permits exact read tools, native DevSpec verbs, and pwd only", (t) => {
+test("preclaim permits read-only work and returns recoverable denials for known mutation", (t) => {
 	reset();
 	const cwd = repo(t);
 	const ctx = runtime("session-a", cwd);
-	for (const toolName of ["read", "grep", "find", "ls", "get_action_item", "claim_work_item", "record_memory", "devspec_help_search"]) {
-		assert.equal(mutationGateDecision(toolName, {}, ctx), undefined, toolName);
+	for (const toolName of ["read", "grep", "find", "ls", "get_action_item", "claim_work_item", "record_memory", "devspec_help_search", "deploy", "future_custom_tool", "subagent"]) {
+		assert.equal(mutationGateDecision(toolName, { path: join(tmpdir(), "outside-read") }, ctx), undefined, toolName);
 	}
-	assert.equal(isReadOnlyShellCommand("pwd"), true);
-	for (const command of ["pwd -P", "git status", "rg needle .", "find . -type f", "env", "npm test"]) {
+	for (const command of [
+		"pwd -P",
+		"git status --short --branch",
+		"rg needle .",
+		"find . -type f",
+		"cd ../sibling && git status --short",
+		"git branch -a | rg 'work/' || true",
+		"printf '%s\\n' 'status'; git log --oneline -8",
+	]) {
+		assert.equal(isReadOnlyShellCommand(command), true, command);
+		assert.equal(mutationGateDecision("bash", { command }, ctx), undefined, command);
+	}
+	for (const command of [
+		"npm test",
+		"touch new-file",
+		"git reset --hard HEAD",
+		"git status; touch hidden-mutation",
+		"find . -delete",
+		"printf \"$(touch hidden-substitution)\"",
+		"git config --global --edit",
+		"git reflog delete HEAD@{0}",
+		"printf x > file",
+	]) {
 		assert.equal(isReadOnlyShellCommand(command), false, command);
-		assert.equal(mutationGateDecision("bash", { command }, ctx)?.block, true, command);
+		const denial = mutationGateDecision("bash", { command }, ctx);
+		assert.equal(denial?.block, true, command);
+		assert.equal(denial?.terminate, undefined, `${command} must not terminate the model turn`);
+		assert.match(denial?.reason ?? "", /Claim the covering item and retry/u);
 	}
-	for (const toolName of ["write", "edit", "apply_patch", "notebook", "shell", "deploy", "future_custom_tool"]) {
-		assert.equal(mutationGateDecision(toolName, {}, ctx)?.block, true, toolName);
+	for (const toolName of ["write", "edit", "apply_patch", "notebook", "shell"]) {
+		const denial = mutationGateDecision(toolName, {}, ctx);
+		assert.equal(denial?.block, true, toolName);
+		assert.equal(denial?.terminate, undefined, `${toolName} must not terminate the model turn`);
 	}
-	assert.equal(mutationGateDecision("bash", { command: "pwd" }, ctx), undefined);
 });
 
-test("a claim opens only exact audited mutators, never unknown or future tools", (t) => {
+test("a claim opens known mutation while unclassified extension tools keep their own contracts", (t) => {
 	reset();
 	const cwd = repo(t);
 	const authority = scope("session-a", cwd);
 	observeSuccessfulWorkResult("claim_work_item", { action_item_id: ITEM_A }, successfulClaim(ITEM_A), authority);
 	const ctx = runtime("session-a", cwd);
-	for (const toolName of ["apply_patch", "deploy", "future_custom_tool", "write_v2", "bash_v2"]) {
-		assert.equal(mutationGateDecision(toolName, { path: "inside.ts", command: "pwd" }, ctx)?.block, true, toolName);
+	for (const toolName of ["write", "edit", "apply_patch", "notebook"]) {
+		assert.equal(mutationGateDecision(toolName, { path: "inside.ts" }, ctx), undefined, toolName);
 	}
-	for (const toolName of ["read", "grep", "find", "ls", "get_action_item", "record_memory"]) {
+	for (const toolName of ["read", "grep", "find", "ls", "get_action_item", "record_memory", "deploy", "future_custom_tool", "subagent"]) {
 		assert.equal(mutationGateDecision(toolName, {}, ctx), undefined, toolName);
 	}
+	assert.equal(mutationGateDecision("bash", { command: "npm test" }, ctx), undefined);
+	assert.equal(mutationGateDecision("shell", { command: "touch changed" }, ctx), undefined);
 });
 
 test("fresh module graphs share claim observations globally but isolate runtimes", async (t) => {
@@ -241,56 +266,41 @@ test("fresh module graphs share claim observations globally but isolate runtimes
 	assert.equal(freshGate.mutationGateDecision("write", { path: "inside.ts" }, runtime("runtime-a", repoB))?.block, true);
 });
 
-test("claimed direct file tools remain inside the canonical repo across traversal and symlinks", (t) => {
+test("the reported compound cross-repository Git inspection is read-only before claim", (t) => {
 	reset();
 	const cwd = repo(t);
-	const outside = mkdtempSync(join(tmpdir(), "devspec-pi-outside-"));
-	t.after(() => rmSync(outside, { recursive: true, force: true }));
-	mkdirSync(join(cwd, "src"));
-	symlinkSync(outside, join(cwd, "escape"));
-	const authority = scope("session-a", cwd);
-	observeSuccessfulWorkResult("claim_work_item", { action_item_id: ITEM_A }, successfulClaim(ITEM_A), authority);
-	const ctx = runtime("session-a", join(cwd, "src"));
-	assert.equal(targetIsInsideRepo("inside.ts", join(cwd, "src"), authority.repoRoot), true);
-	assert.equal(mutationGateDecision("write", { path: "inside.ts" }, ctx), undefined);
-	assert.equal(mutationGateDecision("edit", { path: join(cwd, "src", "inside.ts") }, ctx), undefined);
-	assert.equal(mutationGateDecision("notebook", { notebook_path: "notes.ipynb" }, ctx), undefined);
-	for (const target of ["../../outside.ts", join(outside, "absolute.ts"), "../escape/new.ts"]) {
-		assert.equal(targetIsInsideRepo(target, join(cwd, "src"), authority.repoRoot), false, target);
-		assert.equal(mutationGateDecision("write", { path: target }, ctx)?.block, true, target);
-	}
-	assert.equal(mutationGateDecision("notebook", { notebook_path: "../escape/n.ipynb" }, ctx)?.block, true);
-	assert.equal(mutationGateDecision("edit", {}, ctx)?.block, true);
+	const outside = repo(t);
+	const inspection = [
+		`WT=${outside}`,
+		"printf '%s\\n' '--- status ---'",
+		"git -C \"$WT\" status --short --branch",
+		"printf '%s\\n' '--- diff stat ---'",
+		"git -C \"$WT\" diff --stat",
+		"printf '%s\\n' '--- changed files ---'",
+		"git -C \"$WT\" diff --name-status",
+		"printf '%s\\n' '--- untracked ---'",
+		"git -C \"$WT\" ls-files --others --exclude-standard",
+		"printf '%s\\n' '--- recent branch log ---'",
+		"git -C \"$WT\" log --oneline --decorate -8",
+	].join("\n");
+	assert.equal(isReadOnlyShellCommand(inspection), true);
+	assert.equal(mutationGateDecision("bash", { command: inspection }, runtime("session-a", cwd)), undefined);
 });
 
-test("claimed bash blocks obvious cross-repo cwd, git -C, traversal, and absolute targets", (t) => {
+test("a project-level claim permits direct and shell mutation across repository boundaries", (t) => {
 	reset();
 	const cwd = repo(t);
-	const outside = mkdtempSync(join(tmpdir(), "devspec-pi-shell-outside-"));
-	t.after(() => rmSync(outside, { recursive: true, force: true }));
-	mkdirSync(join(cwd, "src"));
-	symlinkSync(outside, join(cwd, "escape"));
+	const outside = repo(t);
 	const authority = scope("session-a", cwd);
-	observeSuccessfulWorkResult("claim_work_item", { action_item_id: ITEM_A }, successfulClaim(ITEM_A), authority);
 	const ctx = runtime("session-a", cwd);
-	for (const command of ["npm test", "cd src && npm test", "git -C src status", "touch src/new.ts"]) {
-		assert.equal(bashCommandStaysInRepo(command, cwd, authority.repoRoot), true, command);
-		assert.equal(mutationGateDecision("bash", { command }, ctx), undefined, command);
-	}
-	for (const command of [
-		"cd .. && touch escaped",
-		`cd ${outside} && touch escaped`,
-		"git -C .. status",
-		`git --work-tree=${outside} status`,
-		`touch ${join(outside, "escaped")}`,
-		"touch ../escaped",
-		"touch src/../../../escaped",
-		"touch escape/escaped",
-		"cd $HOME",
-	]) {
-		assert.equal(bashCommandStaysInRepo(command, cwd, authority.repoRoot), false, command);
-		assert.equal(mutationGateDecision("bash", { command }, ctx)?.block, true, command);
-	}
+	assert.equal(mutationGateDecision("write", { path: join(outside, "before.ts") }, ctx)?.block, true);
+	assert.equal(mutationGateDecision("bash", { command: `touch ${join(outside, "before.ts")}` }, ctx)?.block, true);
+
+	observeSuccessfulWorkResult("claim_work_item", { action_item_id: ITEM_A }, successfulClaim(ITEM_A), authority);
+	assert.equal(mutationGateDecision("write", { path: join(outside, "after.ts") }, ctx), undefined);
+	assert.equal(mutationGateDecision("edit", { path: join(outside, "after.ts") }, ctx), undefined);
+	assert.equal(mutationGateDecision("notebook", { notebook_path: join(outside, "after.ipynb") }, ctx), undefined);
+	assert.equal(mutationGateDecision("bash", { command: `git -C ${outside} checkout -b work/cross-repo` }, ctx), undefined);
 });
 
 test("registered headless handlers clear only their own session on start and shutdown", (t) => {

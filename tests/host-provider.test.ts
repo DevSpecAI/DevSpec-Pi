@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { stampHostLocalSession, stampHostProvider } from "../extensions/devspec-tools.ts";
+import {
+	applyCommitLedgerVerdict,
+	stampKnownScope,
+	stampHostLocalSession,
+	stampHostProvider,
+} from "../extensions/devspec-tools.ts";
 import { MCP_CATALOG } from "../extensions/generated/mcp-catalog.ts";
 
 const ATTRIBUTION_VERBS = ["claim_work_item", "record_implementation", "record_completed_work"];
@@ -47,6 +52,33 @@ test("every generated local_session_id input is host stamped", () => {
 	for (const name of accepting) {
 		assert.equal(stampHostLocalSession(name, {}, "pi-runtime-session").local_session_id, "pi-runtime-session");
 	}
+});
+
+test("the ledger owns SHA/message while Pi conservatively omits source attribution", () => {
+	const stamped = applyCommitLedgerVerdict({
+		commit_sha: "model-sha",
+		commit_message: "model message",
+		commit_provenance_source: "plugin_stamped",
+	}, {
+		ok: true,
+		sha: "a".repeat(40),
+		autoFilled: true,
+		commitMessage: "actual commit\n\n[devspec:aaaaaaaa]",
+	});
+	assert.equal(stamped.commit_sha, "a".repeat(40));
+	assert.equal(stamped.commit_message, "actual commit\n\n[devspec:aaaaaaaa]");
+	assert.equal(stamped.commit_provenance_source, undefined, "the model cannot invent a host source report");
+});
+
+test("models cannot submit either provenance-source reporting field", () => {
+	const stamped = stampKnownScope({
+		provenance_source: "plugin_stamped",
+		commit_provenance_source: "agent_authored",
+		commit_sha: "abc1234",
+	});
+	assert.equal(stamped.provenance_source, undefined);
+	assert.equal(stamped.commit_provenance_source, undefined);
+	assert.equal(stamped.commit_sha, "abc1234");
 });
 
 test("verbs that do not carry provider are untouched", () => {

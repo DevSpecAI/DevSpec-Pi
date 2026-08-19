@@ -13,8 +13,7 @@ test("/devspec.work is one explicit selection and has no independent queue drain
 	assert.doesNotMatch(source, /fetchNextFromQueue/);
 	assert.match(source, /Choose one action item to work on/);
 	assert.match(source, /Select one explicit DevSpec action item to work on/);
-	assert.match(source, /implementationContext\.source === "local_safety_fallback"/);
-	assert.match(source, /no work was started/i);
+	assert.doesNotMatch(source, /implementationContext\.source === "local_safety_fallback"/);
 	// No execution mode is passed to the loader, because there is none to pass.
 	assert.doesNotMatch(source, /executionMode/);
 });

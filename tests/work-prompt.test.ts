@@ -13,12 +13,12 @@ const item: WorkTarget = {
 };
 
 const contract: ImplementationContractContext = {
-	contractVersion: "2.0.0",
+	contractVersion: "4.0.0",
 	contractHash: "sha256:contract",
 	resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 	source: "resource",
 	rules: [
-		{ id: "core.claim-before-edit", requirement: "Claim before editing." },
+		{ id: "core.claim-early", requirement: "Claim early; missing claims never block local work." },
 		{ id: "core.truthful-handoff", requirement: "Hand work back truthfully." },
 	],
 };
@@ -27,9 +27,9 @@ test("buildWorkPrompt carries thin work/contract identity and mechanically loade
 	const prompt = buildWorkPrompt(item, contract);
 	assert.match(prompt, /^DevSpec work kickoff: /);
 	assert.match(prompt, /"action_item_ids":\["e10f3ad1-c2ce-4d56-a87f-8f00d6c6384d"\]/);
-	assert.match(prompt, /"contract_version":"2.0.0"/);
+	assert.match(prompt, /"contract_version":"4.0.0"/);
 	assert.match(prompt, /devspec:\/\/product\/implementation-contract"/);
-	assert.match(prompt, /core\.claim-before-edit/);
+	assert.match(prompt, /core\.claim-early/);
 	assert.match(prompt, /core\.truthful-handoff/);
 	assert.match(prompt, /explicitly selected here/);
 	assert.match(prompt, /```json/);

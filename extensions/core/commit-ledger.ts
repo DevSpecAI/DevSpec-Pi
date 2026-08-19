@@ -4,13 +4,14 @@
  * An agent that commits through the bash tool should never TRANSCRIBE a commit
  * SHA — it should HAVE it. Ali watched a hand-typed SHA land wrong past the
  * short prefix (2026-08-12): "it should be mechanical, impossible to get
- * wrong." So: the extension sees every git commit/merge the agent makes, keeps
- * the SHAs itself, and record_implementation is validated against that ledger
+ * wrong." So: the extension recognizes ordinary Git commit/merge result output,
+ * keeps the resulting SHAs, and record_implementation is validated against that ledger
  * (plus the repo's own object store) before anything reaches the server.
  *
- * Same principle class as mechanical-only delivery (cc9e8c43): the system
- * knows it, so the system says it — never the model's job to remember or
- * transcribe. Like all cross-extension state, the ledger lives on globalThis
+ * Same principle class as mechanical-only delivery (cc9e8c43): when the system
+ * knows the SHA, it says it — never the model's job to remember or transcribe.
+ * This is accuracy assistance, not provenance-source proof. Like all cross-extension
+ * state, the ledger lives on globalThis
  * (jiti gives every extension file a fresh module graph).
  */
 
@@ -22,6 +23,8 @@ export interface LedgerCommit {
 	shortSha: string;
 	branch: string;
 	at: number;
+	/** Actual commit-object message observed after a recognized Pi Bash commit. */
+	commitMessage?: string;
 }
 
 const GLOBAL_KEY = "__devspecPiCommitLedger";
@@ -40,7 +43,7 @@ function store(): LedgerStore {
 }
 
 export function recentCommits(): LedgerCommit[] {
-	return [...store().commits];
+	return store().commits.map((commit) => ({ ...commit }));
 }
 
 function noteCommit(entry: LedgerCommit): void {
@@ -79,6 +82,27 @@ export function repoResolver(cwd: string): GitResolver {
 	};
 }
 
+/** Read the immutable commit object's message without a shell. */
+export function repoCommitMessage(cwd: string, sha: string): string | null {
+	if (!/^[0-9a-f]{40}$/u.test(sha)) return null;
+	try {
+		return execFileSync("git", ["show", "-s", "--format=%B", sha], {
+			cwd,
+			stdio: ["ignore", "pipe", "ignore"],
+		}).toString().replace(/\n+$/u, "");
+	} catch {
+		return null;
+	}
+}
+
+/** Attach the immutable commit message to one already captured ledger entry. */
+export function annotateCommitMessage(sha: string, message: string): LedgerCommit | null {
+	const entry = store().commits.find((commit) => commit.sha === sha);
+	if (!entry) return null;
+	entry.commitMessage = message;
+	return { ...entry };
+}
+
 const COMMIT_LINE = /^\[([^\s\]]+)\s+([0-9a-f]{7,10})\]/m;
 const GIT_WRITE = /\bgit\s+(commit|merge)\b/;
 const NO_NEW_COMMIT = /Already up to date|nothing to commit|nothing added to commit/i;
@@ -107,13 +131,9 @@ export function captureGitCommit(command: string, output: string, resolve: GitRe
 		return entry;
 	}
 
-	// Merges print no SHA ("Merge made by the 'ort' strategy") — HEAD is it.
-	const head = resolve("HEAD");
-	if (head) {
-		const entry: LedgerCommit = { sha: head, shortSha: head.slice(0, 7), branch: "(merge)", at: Date.now() };
-		noteCommit(entry);
-		return entry;
-	}
+	// Merge output does not identify the resulting object. Without a first-class
+	// Git hook or a before/after observation, resolving HEAD could capture an old
+	// commit after arbitrary Bash text. Fail open: require an explicit SHA later.
 	return null;
 }
 
@@ -122,7 +142,21 @@ function formatCandidates(commits: LedgerCommit[]): string {
 	return commits.map((c) => `${c.shortSha} (${c.branch})`).join(", ");
 }
 
-export type CommitShaVerdict = { ok: true; sha: string; autoFilled: boolean } | { ok: false; error: string };
+export type CommitShaVerdict = {
+	ok: true;
+	sha: string;
+	autoFilled: boolean;
+	commitMessage?: string;
+} | { ok: false; error: string };
+
+function ledgerVerdict(commit: LedgerCommit, autoFilled: boolean): CommitShaVerdict {
+	return {
+		ok: true,
+		sha: commit.sha,
+		autoFilled,
+		...(commit.commitMessage ? { commitMessage: commit.commitMessage } : {}),
+	};
+}
 
 /**
  * Validate (or fill) the commit_sha for record_implementation — BEFORE the
@@ -135,7 +169,7 @@ export function validateCommitSha(input: string | undefined, resolve: GitResolve
 	const recent = recentCommits().filter((c) => now - c.at <= RECENT_MS);
 
 	if (!input || !input.trim()) {
-		if (recent.length === 1) return { ok: true, sha: recent[0].sha, autoFilled: true };
+		if (recent.length === 1) return ledgerVerdict(recent[0], true);
 		return {
 			ok: false,
 			error:
@@ -152,7 +186,7 @@ export function validateCommitSha(input: string | undefined, resolve: GitResolve
 		};
 	}
 	const hit = recent.find((c) => c.sha === sha || c.sha.startsWith(sha));
-	if (hit) return { ok: true, sha: hit.sha, autoFilled: false };
+	if (hit) return ledgerVerdict(hit, false);
 
 	const resolved = resolve(`${sha}^{commit}`);
 	if (resolved) return { ok: true, sha: resolved, autoFilled: false };

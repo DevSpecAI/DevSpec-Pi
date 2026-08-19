@@ -620,12 +620,12 @@ test("legacy assignment envelopes remain work (for mechanical hydration), never 
 	assert.ok(delivery);
 	assert.equal(delivery.reference.contract_version, undefined);
 	const context: ImplementationContractContext = {
-		contractVersion: "2.0.0",
+		contractVersion: "4.0.0",
 		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 		source: "resource",
-		rules: [{ id: "core.claim-before-edit", requirement: "Claim first." }],
+		rules: [{ id: "core.claim-early", requirement: "Claim early; missing claims never block work." }],
 	};
-	assert.match(formatDispatchMessage(hydratedLegacy, "Wary Wolf", context, delivery), /"contract_version":"2.0.0"/);
+	assert.match(formatDispatchMessage(hydratedLegacy, "Wary Wolf", context, delivery), /"contract_version":"4.0.0"/);
 });
 
 test("formatDispatchMessage carries thin work/contract identity and payload", () => {
@@ -636,7 +636,7 @@ test("formatDispatchMessage carries thin work/contract identity and payload", ()
 			schema_version: 1,
 			work: { assignment_id: "as-1", action_item_ids: ["item-1"] },
 			implementation_contract: {
-				contract_version: "2.0.0",
+				contract_version: "4.0.0",
 				resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 			},
 		},
@@ -645,19 +645,19 @@ test("formatDispatchMessage carries thin work/contract identity and payload", ()
 	const delivery = dispatchImplementationDelivery(dispatch);
 	assert.ok(delivery);
 	const context: ImplementationContractContext = {
-		contractVersion: "2.0.0",
+		contractVersion: "4.0.0",
 		contractHash: "sha256:contract",
 		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 		source: "resource",
 		rules: [
-			{ id: "core.claim-before-edit", requirement: "Claim first." },
+			{ id: "core.claim-early", requirement: "Claim early; missing claims never block work." },
 			{ id: "core.stay-available", requirement: "Return to capacity." },
 		],
 	};
 	const msg = formatDispatchMessage(dispatch, "Wary Wolf", context, delivery);
 	assert.match(msg, /^\[DevSpec remote — work dispatch to Wary Wolf\]/);
 	assert.match(msg, /Fix flaky test/);
-	assert.match(msg, /"contract_version":"2.0.0"/);
+	assert.match(msg, /"contract_version":"4.0.0"/);
 	assert.match(msg, /acknowledge assignment as-1/i);
 	assert.match(msg, /resolve that assignment/i);
 	assert.match(msg, /core\.stay-available/);
@@ -676,7 +676,7 @@ test("canonical dispatch contradictions fail closed instead of broadening work",
 			schema_version: 1,
 			work: { assignment_id: "as-1", action_item_ids: ["item-a"] },
 			implementation_contract: {
-				contract_version: "2.0.0",
+				contract_version: "4.0.0",
 				resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 			},
 		},

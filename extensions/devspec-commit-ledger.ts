@@ -1,14 +1,19 @@
 /**
  * DevSpec Pi — the commit-ledger watcher (item efe7e0a7).
  *
- * Sees every successful bash git commit/merge the agent makes and captures
- * the SHA into the ledger (core/commit-ledger.ts) — so record_implementation
- * never depends on the model transcribing a SHA by hand. Zero tokens, no
- * model involvement: capture at the source, validate at the write.
+ * Recognizes successful Bash Git commit/merge output and captures the resulting
+ * SHA into the ledger (core/commit-ledger.ts), then reads the immutable commit
+ * message without a shell. This improves record_implementation accuracy but is
+ * not a first-class Git hook and therefore never claims source attribution.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { captureGitCommit, repoResolver } from "./core/commit-ledger.ts";
+import {
+	annotateCommitMessage,
+	captureGitCommit,
+	repoCommitMessage,
+	repoResolver,
+} from "./core/commit-ledger.ts";
 import { debugRemote } from "./core/debug.ts";
 
 function commandOf(args: unknown): string {
@@ -44,6 +49,9 @@ export default function (pi: ExtensionAPI) {
 		pending.delete(event.toolCallId);
 		if (!command || event.isError) return;
 		const captured = captureGitCommit(command, outputOf(event.result), repoResolver(ctx.cwd));
-		if (captured) debugRemote("commit ledger captured");
+		if (!captured) return;
+		const message = repoCommitMessage(ctx.cwd, captured.sha);
+		if (message !== null) annotateCommitMessage(captured.sha, message);
+		debugRemote("commit ledger captured");
 	});
 }

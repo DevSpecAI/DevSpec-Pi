@@ -9,7 +9,7 @@ import { clearAllFlags, extractFlags, listFlags } from "../extensions/core/confl
 import { PROJECTION_BUDGETS, projectModelText, projectionFamily } from "../extensions/core/result-projection.ts";
 import { projectedToolResult, unwrapMcpResult } from "../extensions/core/result.ts";
 import { extractItemRef, getStatusSnapshot, resetStatus } from "../extensions/core/status-line.ts";
-import { claimAuthorityScope, resetClaimAuthoritiesForTests } from "../extensions/core/claim-authority.ts";
+import { resetWorkStateForTests } from "../extensions/core/work-state.ts";
 import { consumeResultMechanics } from "../extensions/devspec-tools.ts";
 import { MCP_CATALOG, MODEL_VERB_NAMES } from "../extensions/generated/mcp-catalog.ts";
 
@@ -75,8 +75,11 @@ test("model tool schemas and projection families require an explicit contract-ba
 		.filter((entry) => entry.kind === "model")
 		.map(({ name, inputSchema }) => ({ name, inputSchema, family: projectionFamily(name) }));
 	const fingerprint = createHash("sha256").update(JSON.stringify(contract)).digest("hex");
-	// Reviewed 2026-08-17 (DevSpec item c1b4d3e7, brief 746dd709). The server
-	// enriched four tool DESCRIPTIONS as the nine plugin commands were deleted:
+	// Reviewed 2026-08-19 for the commit-provenance v4 cutover (dc5d8b64).
+	// validate_commit_reference is a deferred exact read: its small local/online
+	// outcome must remain lossless. record_implementation and add_commit_reference
+	// gained host-reported provenance-source fields; neither joins the hot set.
+	// Previously reviewed descriptions remain unchanged:
 	// record_completed_work (infer fields from git rather than interrogating),
 	// its implementation_summary field (renders as markdown), the tool
 	// generate_commit_message (commit the message verbatim), devspec_help_search
@@ -90,12 +93,11 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// them, which is the shape that made schema the right home for it rather
 	// than a tool response.
 	//
-	// QUALITY: no verb was added or removed, no projection family changed, and
-	// no scope, lifecycle or authority policy is restated here — the generated
-	// wire schema owns it, exactly as before.
+	// QUALITY: the one added verb is intentionally lossless; policy stays in the
+	// generated wire schema and served contract rather than this projection map.
 	assert.equal(
 		fingerprint,
-		"0abf65493091f9a0da5d49ad0be73048160d4b22bcffce09d14c81ce495327f1",
+		"86b3d1a9bc7b169ee37e37aa87f761322783a19ba8e04c16f9c34e293af8f3c9",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -711,11 +713,10 @@ test("full details still drive conflict flags and work status", () => {
 	}]);
 	clearAllFlags();
 	resetStatus();
-	resetClaimAuthoritiesForTests();
-	const authorityScope = claimAuthorityScope("projection-test-session", process.cwd());
-	assert.ok(authorityScope);
+	resetWorkStateForTests();
+	const sessionId = "projection-test-session";
 	const claim = projectedToolResult("claim_work_item", unwrapMcpResult(mcpJson(payload)));
-	consumeResultMechanics("claim_work_item", claim, { action_item_id: itemId }, authorityScope);
+	consumeResultMechanics("claim_work_item", claim, { action_item_id: itemId }, sessionId);
 	assert.equal(getStatusSnapshot().workId, itemId);
 	assert.equal(listFlags()[0]?.key, "item_conflict:work-older");
 	const decisionResolution = projectedToolResult(
@@ -724,7 +725,7 @@ test("full details still drive conflict flags and work status", () => {
 	);
 	consumeResultMechanics("resolve_action_item_decision_flag", decisionResolution);
 	assert.equal(getStatusSnapshot().workId, itemId, "a flag ruling is not a work-status transition");
-	consumeResultMechanics("record_implementation", result, { action_item_id: itemId }, authorityScope);
+	consumeResultMechanics("record_implementation", result, { action_item_id: itemId }, sessionId);
 	assert.equal(getStatusSnapshot().workId, undefined);
 	clearAllFlags();
 	resetStatus();

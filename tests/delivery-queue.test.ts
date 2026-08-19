@@ -52,43 +52,37 @@ test("a transient delivery failure can be retried from the live inbox", async ()
 	await queue.idle();
 });
 
-test("canonical-contract outage leaves a delivery retryable with no message and nothing recorded", async () => {
+test("canonical-contract outage delivers with fail-open guidance instead of blocking work", async () => {
 	resetActiveDeliveries();
 	const queue = new DeliveryQueue();
 	const messages: string[] = [];
 	let failures = 0;
 	const fallback: ImplementationContractContext = {
-		contractVersion: "pi-local-safety-v1",
+		contractVersion: "pi-local-fail-open-v1",
 		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 		source: "local_safety_fallback",
 		rules: [],
 	};
-	const deliver = (context: ImplementationContractContext) => async (lease: { assertCurrent(): void }) => {
+	const deliver = async (lease: { assertCurrent(): void }) => {
 		lease.assertCurrent();
 		const kickoff = buildImplementationKickoff({
-			actionItemIds: ["item-retry"],
-			assignmentId: "assignment-retry",
-			context,
+			actionItemIds: ["item-offline"],
+			assignmentId: "assignment-offline",
+			context: fallback,
 			contractReference: {
-				contract_version: "2.0.0",
+				contract_version: "4.0.0",
 				resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 			},
 		});
-		recordActiveDelivery(kickoff, context);
-		messages.push("assignment-retry");
+		recordActiveDelivery(kickoff, fallback);
+		messages.push("assignment-offline");
 	};
 
-	assert.equal(queue.enqueue("assignment-retry", deliver(fallback), () => { failures++; }), true);
+	assert.equal(queue.enqueue("assignment-offline", deliver, () => { failures++; }), true);
 	await queue.idle();
-	assert.equal(failures, 1);
-	assert.deepEqual(messages, []);
-	assert.deepEqual(listActiveDeliveries(), []);
-
-	const canonical: ImplementationContractContext = { ...fallback, contractVersion: "2.0.0", source: "resource" };
-	assert.equal(queue.enqueue("assignment-retry", deliver(canonical), () => assert.fail("recovery must deliver")), true);
-	await queue.idle();
-	assert.deepEqual(messages, ["assignment-retry"]);
-	assert.deepEqual(listActiveDeliveries().map((delivery) => delivery.assignmentId), ["assignment-retry"]);
+	assert.equal(failures, 0);
+	assert.deepEqual(messages, ["assignment-offline"]);
+	assert.deepEqual(listActiveDeliveries().map((delivery) => delivery.assignmentId), ["assignment-offline"]);
 });
 
 test("authoritative withdrawal revokes same-key preparation already re-enqueued by polling", async () => {
@@ -110,7 +104,7 @@ test("authoritative withdrawal revokes same-key preparation already re-enqueued 
 	const preparationStarted = new Promise<void>((resolve) => { markStarted = resolve; });
 	const preparationGate = new Promise<void>((resolve) => { releasePreparation = resolve; });
 	const context: ImplementationContractContext = {
-		contractVersion: "2.0.0",
+		contractVersion: "4.0.0",
 		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 		source: "resource",
 		rules: [],
@@ -170,7 +164,7 @@ test("stopping and rebonding revokes paused preparation before every delivery si
 	const messages: string[] = [];
 	const statuses: string[] = [];
 	const context: ImplementationContractContext = {
-		contractVersion: "2.0.0",
+		contractVersion: "4.0.0",
 		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 		source: "resource",
 		rules: [],

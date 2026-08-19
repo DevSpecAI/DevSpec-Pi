@@ -17,7 +17,7 @@ import {
 
 function context(): ImplementationContractContext {
 	return {
-		contractVersion: "2.0.0",
+		contractVersion: "4.0.0",
 		contractHash: "sha256:contract",
 		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 		source: "resource",

@@ -187,10 +187,6 @@ export default function (pi: ExtensionAPI) {
 						loader: createImplementationContractLoader(resolved.token),
 					}),
 				]);
-				if (implementationContext.source === "local_safety_fallback") {
-					ctx.ui.notify(implementationContext.warning ?? "DevSpec contract unavailable — no work was started.", "warning");
-					return;
-				}
 				const kickoff = buildImplementationKickoff({
 					actionItemIds: [target.id],
 					context: implementationContext,
@@ -222,6 +218,7 @@ export default function (pi: ExtensionAPI) {
 				"  /devspec.remote       — bond as remote capacity (auto on launch; stop | auto on|off)",
 				"  /devspec.reload       — reload this extension (same as /reload)",
 				"  /devspec.login        — connect (token from the DevSpec Connections page)",
+				"  /devspec.pin <id>     — explicitly associate this folder with a DevSpec project",
 				"  /devspec.status       — connection state",
 				"  /devspec.logout       — remove the stored token",
 				"  /devspec.logo         — toggle the duck header",

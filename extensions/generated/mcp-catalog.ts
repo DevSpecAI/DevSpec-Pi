@@ -2,11 +2,11 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Fingerprint: 7db9cc9422f8cc99da3a8586da292f25db09f8751bd21d4f04b8e0f0622a38d4
- * Regenerated: 2026-08-17T15:50:54.180Z
+ * Fingerprint: 07f41cda86a6da1b47cafd229971d3053c143d69bb82633bee157c7806e882f8
+ * Regenerated: 2026-08-19T15:05:04.083Z
  */
-export const MCP_CATALOG_FINGERPRINT = "7db9cc9422f8cc99da3a8586da292f25db09f8751bd21d4f04b8e0f0622a38d4";
-export const MCP_CATALOG_GENERATED_AT = "2026-08-17T15:50:54.180Z";
+export const MCP_CATALOG_FINGERPRINT = "07f41cda86a6da1b47cafd229971d3053c143d69bb82633bee157c7806e882f8";
+export const MCP_CATALOG_GENERATED_AT = "2026-08-19T15:05:04.083Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -55,6 +55,7 @@ export const MODEL_VERB_NAMES = [
 	"get_conventions",
 	"get_unresolved_questions",
 	"generate_commit_message",
+	"validate_commit_reference",
 	"get_testing_brief",
 	"get_goals",
 	"get_project_goals",
@@ -408,8 +409,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_workflow_rules",
 		"label": "DevSpec: Get Workflow Rules",
-		"description": "Get the project verifier allowlist and optionally the complete product implementation contract. Existing calls return exactly `{ verifiers }`; pass `include_implementation_contract: true` when an MCP client cannot read the resource. The contract is ONE product-owned document — there is no attended/unattended split and no mode to select — and it does not include or replace project/owner instruction tiers. Native hosts should read `devspec://product/implementation-contract` mechanically when work begins rather than relying on a model to remember this call.",
-		"promptSnippet": "Get the project verifier allowlist and optionally the complete product implementation contract.",
+		"description": "Get the project verifier allowlist and optionally the complete product implementation contract, including its hash-covered structured work-entry contract. Existing calls return exactly `{ verifiers }`; pass `include_implementation_contract: true` when an MCP client cannot read the resource. The contract is ONE product-owned document — there is no attended/unattended split and no mode to select — and it does not include or replace project/owner instruction tiers. Native hosts should read `devspec://product/implementation-contract` mechanically before any implementation mutation rather than relying on copied lifecycle prose.",
+		"promptSnippet": "Get the project verifier allowlist and optionally the complete product implementation contract, including its hash-covered structured work-entry contract.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -955,6 +956,37 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"required": [
 				"action_item_id",
 				"summary"
+			]
+		},
+		"kind": "model"
+	},
+	{
+		"name": "validate_commit_reference",
+		"label": "DevSpec: Validate Commit Reference",
+		"description": "Inspect a commit message for exactly one well-formed DevSpec reference and, when local shape is valid, check whether it resolves in the selected project. Returns separate local and online outcomes from the canonical `devspec://product/implementation-contract` provenance contract. `not_found` is definitive; `unavailable` and `indeterminate` are fail-open outcomes and must never be collapsed into not-found. This validates link identity, not current claim state.",
+		"promptSnippet": "Inspect a commit message for exactly one well-formed DevSpec reference and, when local shape is valid, check whether it resolves in the selected project.",
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"commit_message": {
+					"type": "string",
+					"description": "The directly observed commit message bytes. Do not reconstruct this from an opaque or compound shell command."
+				},
+				"project_id": {
+					"type": "string",
+					"description": "Optional explicit DevSpec project association. Prefer the local folder pin or verified git remote when the host supplies them mechanically."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project id read from an existing .devspec/project.json. A missing or unusable pin is non-blocking."
+				},
+				"git_remote": {
+					"type": "string",
+					"description": "Optional git remote used for positive project jurisdiction. A verified remote outranks a stale local pin."
+				}
+			},
+			"required": [
+				"commit_message"
 			]
 		},
 		"kind": "model"
@@ -1619,6 +1651,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"runner_session_id": {
 					"type": "string",
 					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
+				},
+				"provenance_ref": {
+					"type": "string",
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Required when this connection has more than one active command; never send a requester user id."
 				}
 			},
 			"required": [
@@ -1630,7 +1666,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "create_action_item",
 		"label": "DevSpec: Create Action Item",
-		"description": "Create a new action item in the project. Can be a top-level item or attached to an existing brief (parent) via parent_action_item_id. The response includes a system-computed `related_candidates` array (possibly-related or duplicate items, each with why it matched) — you MUST review it: if an existing item already covers this, prefer updating that one instead of creating a duplicate, and if this work would contradict/undo another item, raise it rather than proceeding silently. Creating also kicks off a background conflict check that may attach a possible_conflict signal.",
+		"description": "Create a new action item in the project. For implementation entry, creation authority and ordering come only from `devspec://product/implementation-contract` → `work_entry_contract`; do not use this tool description as a mutable copy of that policy. Can be a top-level item or attached to an existing brief (parent) via parent_action_item_id. The response includes a system-computed `related_candidates` array (possibly-related or duplicate items, each with why it matched) — you MUST review it, and if this work would contradict/undo another item, raise it rather than proceeding silently. Creating also kicks off a background conflict check that may attach a possible_conflict signal.",
 		"promptSnippet": "Create a new action item in the project.",
 		"inputSchema": {
 			"type": "object",
@@ -1760,6 +1796,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
 				},
+				"provenance_ref": {
+					"type": "string",
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Required when this connection has more than one active command; never send a requester user id."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "Opaque work_claim_ref returned by claim_work_item. Preserve it on writes produced by that work so requester attribution survives reconnects and cleared command state."
+				},
 				"project_id": {
 					"type": "string",
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins."
@@ -1806,6 +1850,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"memory_id": {
 					"type": "string",
 					"description": "Optional: link to memory entry"
+				},
+				"provenance_source": {
+					"type": "string",
+					"enum": [
+						"agent_authored",
+						"plugin_stamped",
+						"server_linked"
+					],
+					"description": "Host-reported measurement of how the action-item link was observed; this is not an authentication or authorization signal. Pass plugin_stamped only when the host itself appended and reported the tag; never infer agent compliance from a tagged commit. Defaults to server_linked."
 				},
 				"runner_session_id": {
 					"type": "string",
@@ -2201,6 +2254,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"antigravity",
 						"grok_build",
 						"opencode",
+						"codex",
 						"pi"
 					],
 					"description": "Optional coding agent this playbook is written for. On a run we look for a MATCHING available agent and otherwise launch one — we never substitute a different agent."
@@ -2305,6 +2359,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"antigravity",
 						"grok_build",
 						"opencode",
+						"codex",
 						"pi"
 					],
 					"description": "Change the coding agent it is written for."
@@ -2447,6 +2502,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"runner_session_id": {
 					"type": "string",
 					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
+				},
+				"provenance_ref": {
+					"type": "string",
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Required when this connection has more than one active command; never send a requester user id."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "Opaque work_claim_ref returned by claim_work_item. Preserve it on writes produced by that work so requester attribution survives reconnects and cleared command state."
 				},
 				"project_id": {
 					"type": "string",
@@ -2596,8 +2659,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "reserve_work_items",
 		"label": "DevSpec: Reserve Work Items",
-		"description": "Reserve the ordered set of action items you are about to work, so no other agent takes them while you do. This is the ONLY way to acquire work: nothing is dispatched, routed or sent to an agent, so there is nothing to acknowledge and nothing to resolve. Pass action_item_ids in the order you will work them — position 0 first — and claim them ONE AT A TIME with claim_work_item as you reach each. Pass connection_id when you are running as a connection (the Agents page): it is the identity every reservation gate checks, and one connection holds one reservation at a time. Items already held by another agent are SKIPPED with a reason naming who holds them rather than failing the whole batch — read `skipped` and say so, never assume you hold what you asked for. The response carries one compact `implementation_kickoff` naming the product implementation contract to read before you touch anything. The batch closes itself when its last member is recorded, failed or released — there is nothing to resolve.",
-		"promptSnippet": "Reserve the ordered set of action items you are about to work, so no other agent takes them while you do.",
+		"description": "Reserve an ordered set of already-selected action items before claiming them one at a time. Work-entry selection and mutation authority are defined only by the `implementation_kickoff` pointer to `devspec://product/implementation-contract` → `work_entry_contract`, not by this tool description. Nothing is dispatched, routed or sent to an agent, so there is nothing to acknowledge or resolve. Pass action_item_ids IN THE ORDER you will work them and connection_id when running as a connection. Items held by another agent are SKIPPED with a reason. The batch closes itself when its last member is recorded, failed or released.",
+		"promptSnippet": "Reserve an ordered set of already-selected action items before claiming them one at a time.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -2615,6 +2678,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"runner_session_id": {
 					"type": "string",
 					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
+				},
+				"provenance_ref": {
+					"type": "string",
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Required when this connection has more than one active command; never send a requester user id."
 				},
 				"project_id": {
 					"type": "string",
@@ -2638,7 +2705,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "claim_work_item",
 		"label": "DevSpec: Claim Work Item",
-		"description": "Atomically claim an action item for implementation (idle → in_progress). Sets agent_claimed_at and agent_branch. Fails if the item is no longer available (another agent claimed it). The claim is also REJECTED when the item has an unresolved possible_conflict (the error names the conflicting item + reason) — that means the pair must be resolved before it is worked — call resolve_action_item_conflict (verdicts: supersedes · related · not_a_conflict · discuss) with the user's agreed verdict, then claim again. Do not force past it just to proceed. Pass force: true with a reason to take over an already-claimed item or override a conflict/dependency hold — this writes a force_claimed activity row and surfaces a warning. Returns the claimed item with full context, including the project instruction tiers — `project_custom_instructions` (team principles) and `project_agent_rules` (team execution mechanics: which checks to run before pushing, how to handle branches, what a commit may contain). They arrive WITH the claim, so no separate call is needed to learn the rules before you start; treat both as mandatory while implementing. If you already read these tiers this run (get_project_summary returns `instruction_tiers_version` + `instruction_tiers_hash`), echo both back as `known_instruction_tiers_version` / `known_instruction_tiers_hash` — matching values return `instructions_unchanged: true` and omit the duplicate texts, which is ~4,800 characters a typical work run pays twice for nothing. Send neither and you receive every tier in full, exactly as before.",
+		"description": "Atomically claim an action item for implementation (idle → in_progress). Which item may be claimed at work entry is defined by `devspec://product/implementation-contract` → `work_entry_contract`; this description defines only claim mechanics. Sets agent_claimed_at and agent_branch and fails when unavailable. An unresolved possible_conflict rejects the claim until resolve_action_item_conflict settles the pair; do not force past it merely to proceed. force:true requires a reason and audits the override. The response includes project instruction tiers. If you retained their version/hash from get_project_summary, send both known values to omit unchanged text; otherwise the complete tiers are returned.",
 		"promptSnippet": "Atomically claim an action item for implementation (idle → in_progress).",
 		"inputSchema": {
 			"type": "object",
@@ -2675,6 +2742,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"antigravity",
 						"grok_build",
 						"opencode",
+						"codex",
 						"pi"
 					],
 					"description": "Which coding tool is claiming this item. Persisted to action_items.provider so the active-agents UI can show the correct logo WHILE the item is being worked — not just after it is recorded as implemented."
@@ -2698,6 +2766,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"runner_session_id": {
 					"type": "string",
 					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
+				},
+				"provenance_ref": {
+					"type": "string",
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Required when this connection has more than one active command; never send a requester user id."
 				}
 			},
 			"required": [
@@ -2734,6 +2806,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"runner_session_id": {
 					"type": "string",
 					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
+				},
+				"provenance_ref": {
+					"type": "string",
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Required when this connection has more than one active command; never send a requester user id."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "Opaque work_claim_ref returned by claim_work_item. Preserve it on writes produced by that work so requester attribution survives reconnects and cleared command state."
 				}
 			},
 			"required": [
@@ -2745,8 +2825,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_implementation",
 		"label": "DevSpec: Record Implementation",
-		"description": "Record that a claimed action item has been IMPLEMENTED — the work is written and pushed. Lands the item at lifecycle 'implemented', NOT 'done'. Creates the commit reference, implementation note, and activity entries, and links the PR if the branch matches. Reaching 'done' is a separate, human step: a present person (or an agent acting on that person's explicit instruction) verifies it via verify_action_item. After recording implementation, report \"implemented\" plus the item's check status and STOP — never offer to mark it done. One canonical vocabulary: implemented → verified → done.\n\nTHE RESPONSE MAY CARRY `own_criteria_follow_through` — READ IT AND ACT ON IT BEFORE YOU REPORT. It lists this item's acceptance criteria that nobody has checked, and asks you to go and check the ones you can. You are the only party who ever holds all three of the repo, the fresh change and a shell at once; ten minutes from now that criterion is waiting on a person who was never there. Observing what you built is PART OF IMPLEMENTING IT, not a separate review someone else does later. Record what you observe with record_criterion_verdicts, naming what you RAN or QUERIED and what CAME BACK — reading your own diff is inference and settles nothing. \"unknown\" is honest and blocks nothing; lines it marks as needing a person are not yours to settle.\n\nIF THE ITEM BELONGS TO A BRIEF, the response may carry `brief_follow_through` — read it and act on it before you report. A brief carries its own feature-level acceptance criteria, which are NOT the sum of its children's. The prompt tells you which of them nobody has checked, and how much of the brief is now resolved. When you have just closed the LAST open child it is asking you to go and check them, because you are the last person holding the context and nothing else will. Record what you observe with record_criterion_verdicts against the BRIEF's action_item_id, not the child's.",
-		"promptSnippet": "Record that a claimed action item has been IMPLEMENTED — the work is written and pushed.",
+		"description": "Record implementation evidence for a claimed action item after the work is written and pushed. Creates the commit reference, implementation note, and activity entries, links the PR when the branch matches, and returns the resulting lifecycle and verification status. Lifecycle/completion authority is defined only by `devspec://product/implementation-contract`; report the returned state without substituting human-only or copied done rules.\n\nTHE RESPONSE MAY CARRY `own_criteria_follow_through` — READ IT AND ACT ON IT BEFORE YOU REPORT. It lists this item's acceptance criteria that nobody has checked, and asks you to go and check the ones you can. You are the only party who ever holds all three of the repo, the fresh change and a shell at once; ten minutes from now that criterion is waiting on a person who was never there. Observing what you built is PART OF IMPLEMENTING IT, not a separate review someone else does later. Record what you observe with record_criterion_verdicts, naming what you RAN or QUERIED and what CAME BACK — reading your own diff is inference and settles nothing. \"unknown\" is honest and blocks nothing; lines it marks as needing a person are not yours to settle.\n\nIF THE ITEM BELONGS TO A BRIEF, the response may carry `brief_follow_through` — read it and act on it before you report. A brief carries its own feature-level acceptance criteria, which are NOT the sum of its children's. The prompt tells you which of them nobody has checked, and how much of the brief is now resolved. When you have just closed the LAST open child it is asking you to go and check them, because you are the last person holding the context and nothing else will. Record what you observe with record_criterion_verdicts against the BRIEF's action_item_id, not the child's.",
+		"promptSnippet": "Record implementation evidence for a claimed action item after the work is written and pushed.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -2765,6 +2845,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"commit_message": {
 					"type": "string",
 					"description": "Optional: commit message"
+				},
+				"commit_provenance_source": {
+					"type": "string",
+					"enum": [
+						"agent_authored",
+						"plugin_stamped",
+						"server_linked"
+					],
+					"description": "Host-reported measurement of the action-item link origin; this is not an authentication or authorization signal. A host may report plugin_stamped only when it appended the tag itself; omit when unknown and the record is counted as authoritative server linkage."
 				},
 				"agent_merged": {
 					"type": "boolean",
@@ -2895,6 +2984,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"antigravity",
 						"grok_build",
 						"opencode",
+						"codex",
 						"pi"
 					],
 					"description": "Which tool completed this work."
@@ -2910,6 +3000,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"runner_session_id": {
 					"type": "string",
 					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
+				},
+				"provenance_ref": {
+					"type": "string",
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Required when this connection has more than one active command; never send a requester user id."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "Opaque work_claim_ref returned by claim_work_item. Preserve it on writes produced by that work so requester attribution survives reconnects and cleared command state."
 				}
 			},
 			"required": [
@@ -2974,6 +3072,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"runner_session_id": {
 					"type": "string",
 					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
+				},
+				"provenance_ref": {
+					"type": "string",
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Required when this connection has more than one active command; never send a requester user id."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "Opaque work_claim_ref returned by claim_work_item. Preserve it on writes produced by that work so requester attribution survives reconnects and cleared command state."
 				}
 			},
 			"required": [
@@ -3038,8 +3144,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_completed_work",
 		"label": "DevSpec: Record Completed Work",
-		"description": "Record work that was implemented outside DevSpec's queue (e.g. ad-hoc in Claude Code) as an action item. Creates the item written as a requirement, adds an implementation note with what was done, links commits, and lands it at lifecycle 'implemented' with a pending human verification — it does NOT mark it done. A person still verifies it (verify_action_item) to reach 'done'. Use this at the end of a piece of work to give DevSpec visibility into ad-hoc changes.\n\nInfer the fields from what you just did — the git log, the diff, the branch — rather than interrogating the user about type, priority and tags at the end of a job they have already finished. They can edit any of it afterwards, and a recorded item they correct beats an interview they abandon.",
-		"promptSnippet": "Record work that was implemented outside DevSpec's queue (e.g.",
+		"description": "Record work implemented outside DevSpec's queue as an action item, with its requirement, implementation note, commits, and returned lifecycle/verification status. Completion authority is defined only by `devspec://product/implementation-contract`; this tool description does not impose a human-only done path. Use this at the end of ad-hoc work to give DevSpec visibility into the change.\n\nInfer the fields from what you just did — the git log, the diff, the branch — rather than interrogating the user about type, priority and tags at the end of a job they have already finished. They can edit any of it afterwards, and a recorded item they correct beats an interview they abandon.",
+		"promptSnippet": "Record work implemented outside DevSpec's queue as an action item, with its requirement, implementation note, commits, and returned lifecycle/verification st…",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -3124,6 +3230,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"antigravity",
 						"grok_build",
 						"opencode",
+						"codex",
 						"pi"
 					],
 					"description": "Which tool created this work."
@@ -3168,6 +3275,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"runner_session_id": {
 					"type": "string",
 					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
+				},
+				"provenance_ref": {
+					"type": "string",
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Required when this connection has more than one active command; never send a requester user id."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "Opaque work_claim_ref returned by claim_work_item. Preserve it on writes produced by that work so requester attribution survives reconnects and cleared command state."
 				},
 				"project_id": {
 					"type": "string",
@@ -3285,8 +3400,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "reopen_action_item",
 		"label": "DevSpec: Reopen Action Item",
-		"description": "Reopen an action item that was previously completed, implemented, dismissed, or blocked. Inserts an action_item_reopens row; the database increments the work-round counter, marks the prior round's reviews/tests as stale, and transitions the item back to open at idle — a human stages it for autopilot separately (briefs return to in_progress). Requires a structured reason_code (one of two values) and a note (>= 20 chars) explaining why. Use this instead of informal re-prompting when work needs another round — it preserves the prior round's findings as context for the next review. IMPORTANT: Always confirm with the user before calling this tool — state which item you are reopening, the reason code, and the note.",
-		"promptSnippet": "Reopen an action item that was previously completed, implemented, dismissed, or blocked.",
+		"description": "Reopen an action item with an audited new work round. For implementation entry, whether reopen is the correct outcome is defined only by `devspec://product/implementation-contract` → `work_entry_contract`; this description defines mechanics. The tool inserts an action_item_reopens row, increments the work-round counter, stales prior-round reviews/tests, and returns the item to open at idle (briefs return to in_progress). A structured reason_code and note (>=20 chars) are required.",
+		"promptSnippet": "Reopen an action item with an audited new work round.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -3791,6 +3906,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
 				},
+				"provenance_ref": {
+					"type": "string",
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Required when this connection has more than one active command; never send a requester user id."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "Opaque work_claim_ref returned by claim_work_item. Preserve it on writes produced by that work so requester attribution survives reconnects and cleared command state."
+				},
 				"project_id": {
 					"type": "string",
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins."
@@ -3870,6 +3993,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"runner_session_id": {
 					"type": "string",
 					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
+				},
+				"provenance_ref": {
+					"type": "string",
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Required when this connection has more than one active command; never send a requester user id."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "Opaque work_claim_ref returned by claim_work_item. Preserve it on writes produced by that work so requester attribution survives reconnects and cleared command state."
 				}
 			},
 			"required": [
@@ -3970,6 +4101,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"runner_session_id": {
 					"type": "string",
 					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
+				},
+				"provenance_ref": {
+					"type": "string",
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Required when this connection has more than one active command; never send a requester user id."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "Opaque work_claim_ref returned by claim_work_item. Preserve it on writes produced by that work so requester attribution survives reconnects and cleared command state."
 				}
 			},
 			"required": [
@@ -4023,6 +4162,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"runner_session_id": {
 					"type": "string",
 					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
+				},
+				"provenance_ref": {
+					"type": "string",
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Required when this connection has more than one active command; never send a requester user id."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "Opaque work_claim_ref returned by claim_work_item. Preserve it on writes produced by that work so requester attribution survives reconnects and cleared command state."
 				}
 			},
 			"required": [
@@ -5618,8 +5765,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 88,
-	model: 75,
+	total: 89,
+	model: 76,
 	pump: 12,
 	never_model: 1,
 } as const;

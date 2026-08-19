@@ -5,9 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import {
+	annotateCommitMessage,
 	captureGitCommit,
 	parseCommitOutput,
 	recentCommits,
+	repoCommitMessage,
 	repoResolver,
 	validateCommitSha,
 	type GitResolver,
@@ -37,10 +39,15 @@ test("a successful git commit is captured with the resolved full SHA", () => {
 	assert.ok(recentCommits().some((c) => c.sha === FULL));
 });
 
-test("a merge captures HEAD (merges print no SHA)", () => {
-	const entry = captureGitCommit("git merge --no-ff feat/x", "Merge made by the 'ort' strategy.", resolverReturning(FULL));
-	assert.ok(entry);
-	assert.equal(entry.sha, FULL);
+test("merge output without an object id fails open instead of guessing HEAD", () => {
+	assert.equal(
+		captureGitCommit("git merge --no-ff feat/x", "Merge made by the 'ort' strategy.", resolverReturning(FULL)),
+		null,
+	);
+	assert.equal(
+		captureGitCommit("printf 'git merge\\nMerge made by the ort strategy'", "Merge made by the ort strategy", resolverReturning(FULL)),
+		null,
+	);
 });
 
 test("non-git commands and no-op writes never populate the ledger (no false candidates)", () => {
@@ -48,7 +55,22 @@ test("non-git commands and no-op writes never populate the ledger (no false cand
 	assert.equal(captureGitCommit("npm test", "87 passing", resolverReturning(FULL)), null);
 	assert.equal(captureGitCommit("git status", "On branch main", resolverReturning(FULL)), null);
 	assert.equal(captureGitCommit("git merge feat/x", "Already up to date.", resolverReturning(FULL)), null);
+	assert.equal(captureGitCommit("echo git commit", "git commit", resolverReturning(FULL)), null);
+	assert.equal(captureGitCommit("printf 'git merge'", "unrelated output", resolverReturning(FULL)), null);
 	assert.equal(recentCommits().length, before);
+});
+
+test("recognized commit output attaches the actual object message without claiming its source", () => {
+	resetLedger();
+	captureGitCommit("git commit -m x", "[feat/a aaa1111] x", resolverReturning(FULL_A));
+	const message = `feat: linked\n\n[devspec:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee]`;
+	assert.equal(annotateCommitMessage(FULL_A, message)?.commitMessage, message);
+	assert.deepEqual(validateCommitSha(FULL_A, resolverReturning(null)), {
+		ok: true,
+		sha: FULL_A,
+		autoFilled: false,
+		commitMessage: message,
+	});
 });
 
 test("validate: an exact ledger SHA passes; a prefix resolves to the full SHA", () => {
@@ -99,6 +121,17 @@ test("validate: omitted SHA with no or multiple candidates is an honest error", 
 		assert.match(several.error, /aaa1111/);
 		assert.match(several.error, /bbb2222/);
 	}
+});
+
+test("repoCommitMessage reads immutable bytes for a strict full SHA", (t) => {
+	const cwd = mkdtempSync(join(tmpdir(), "devspec-ledger-message-"));
+	t.after(() => rmSync(cwd, { recursive: true, force: true }));
+	execFileSync("git", ["init", "-q"], { cwd });
+	execFileSync("git", ["-c", "user.name=DevSpec Test", "-c", "user.email=test@devspec.local", "commit", "--allow-empty", "-q", "-m", "feat: actual", "-m", "[devspec:aaaaaaaa]"], { cwd });
+	const sha = repoResolver(cwd)("HEAD");
+	assert.ok(sha);
+	assert.equal(repoCommitMessage(cwd, sha), "feat: actual\n\n[devspec:aaaaaaaa]");
+	assert.equal(repoCommitMessage(cwd, `${sha};touch bad`), null);
 });
 
 test("repo resolver rejects revision-shell injection before spawning git", (t) => {

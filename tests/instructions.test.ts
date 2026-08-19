@@ -36,6 +36,10 @@ test("instructions carry the load-bearing rules", () => {
 	assert.doesNotMatch(text, /arrives by assignment/i);
 	assert.match(text, /claim_work_item/);
 	assert.match(text, /possible_conflict/);
+	assert.match(text, /missing claim never blocks edits, execution, tests, worktrees, delegation, or follow-through/i);
+	assert.match(text, /commit_provenance_contract/);
+	assert.match(text, /server reconciliation/);
+	assert.doesNotMatch(text, /trusted subprocess|trusted child/i);
 	assert.match(text, /record_memory/);
 	assert.match(text, /git_remote/);
 	assert.match(text, /extension already knows/i);

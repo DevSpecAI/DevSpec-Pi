@@ -19,11 +19,7 @@ import { repoResolver, validateCommitSha } from "./core/commit-ledger.ts";
 import { addFlags, extractFlags } from "./core/conflict-watch.ts";
 import { jsonSchemaToTypebox } from "./core/json-schema.ts";
 import { consumeDeliveryLifecycle } from "./core/active-deliveries.ts";
-import {
-	claimAuthorityScope,
-	observeSuccessfulWorkResult,
-	type ClaimAuthorityScope,
-} from "./core/claim-authority.ts";
+import { observeSuccessfulWorkResult } from "./core/work-state.ts";
 import {
 	HOT_SET_VERBS,
 	SCOPE_KEY_SET,
@@ -87,8 +83,8 @@ function claimFlag(result: unknown): unknown {
 function applyWorkStatus(name: string, result: unknown, claimArmed: boolean): void {
 	const ref = extractItemRef(result);
 	if (name === "claim_work_item") {
-		// Footer state is a view of authority, never its source. A rejected claim
-		// must not look active or accidentally become mutation permission.
+		// Footer state is a view of observed coordination, never its source. A
+		// rejected claim must not look active.
 		if (claimArmed) noteWork(ref);
 	} else if (name === "record_implementation" || name === "release_work_item" || name === "fail_work_item") {
 		clearWork(ref.id);
@@ -105,13 +101,13 @@ export function consumeResultMechanics(
 	name: string,
 	result: unknown,
 	args: Record<string, unknown> = {},
-	authorityScope?: ClaimAuthorityScope,
+	sessionId?: string,
 ): void {
 	watchForSignals(name, result);
 	// executeVerb calls this only after unwrapOrThrow has established MCP success.
-	// This is the sole bridge from server result to scoped mutation authority.
-	const claimArmed = authorityScope
-		? observeSuccessfulWorkResult(name, args, result, authorityScope) && name === "claim_work_item"
+	// This observation drives status and nudge suppression only; it grants no permission.
+	const claimArmed = sessionId
+		? observeSuccessfulWorkResult(name, args, result, sessionId) && name === "claim_work_item"
 		: false;
 	applyWorkStatus(name, result, claimArmed);
 	consumeDeliveryLifecycle(name, args, result);
@@ -134,6 +130,22 @@ function measuredToolResult<T extends PiToolResult>(name: string, result: T): T 
 	return result;
 }
 
+export function applyCommitLedgerVerdict(
+	params: Record<string, unknown>,
+	verdict: Extract<ReturnType<typeof validateCommitSha>, { ok: true }>,
+): Record<string, unknown> {
+	// Provenance source is a host observation, never a model-authored parameter.
+	const { commit_provenance_source: _modelSource, ...hostSafeParams } = params;
+	return {
+		...hostSafeParams,
+		commit_sha: verdict.sha,
+		// Pi can mechanically attach a recognized commit object's message, but
+		// cannot prove that a Bash surface authored its DevSpec reference. Source
+		// therefore stays absent and the server records conservative linkage.
+		...(verdict.commitMessage ? { commit_message: verdict.commitMessage } : {}),
+	};
+}
+
 /** Per-verb argument transforms that cannot live in the generated catalog. */
 const AUGMENTS: Record<string, (params: Record<string, unknown>, ctx: CallCtx) => Record<string, unknown>> = {
 	record_implementation: (params, ctx) => {
@@ -142,7 +154,7 @@ const AUGMENTS: Record<string, (params: Record<string, unknown>, ctx: CallCtx) =
 		// back as the tool error and corrects immediately.
 		const verdict = validateCommitSha(params.commit_sha as string | undefined, repoResolver(ctx.cwd));
 		if (!verdict.ok) throw new Error(verdict.error);
-		return { ...params, commit_sha: verdict.sha };
+		return applyCommitLedgerVerdict(params, verdict);
 	},
 };
 
@@ -223,14 +235,14 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 			stampHostProvider(name, augmentedParams),
 			ctx.sessionManager.getSessionId(),
 		);
-		const authorityScope = claimAuthorityScope(ctx.sessionManager.getSessionId(), ctx.cwd);
+		const localSessionId = ctx.sessionManager.getSessionId();
 		const raw = await callDevspec(resolved.token, name, args, {
 			cwd: ctx.cwd,
 			lane: "work",
 			timeoutMs: MODEL_TIMEOUT_MS,
 		});
 		const result = unwrapOrThrow(name, raw);
-		consumeResultMechanics(name, result, args, authorityScope ?? undefined);
+		consumeResultMechanics(name, result, args, localSessionId);
 		return measuredToolResult(name, result);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);

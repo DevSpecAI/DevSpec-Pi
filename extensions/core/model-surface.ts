@@ -44,6 +44,8 @@ export const SCOPE_KEYS = [
 	"runner_session_id",
 	"connection_id",
 	"local_session_id",
+	"commit_provenance_source",
+	"provenance_source",
 ] as const;
 
 export const SCOPE_KEY_SET = new Set<string>(SCOPE_KEYS);

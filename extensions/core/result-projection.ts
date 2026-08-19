@@ -69,6 +69,7 @@ const FULL_READ_VERBS = new Set([
 	"get_project_instruction_rules",
 	"get_personal_instructions",
 	"get_workflow_rules",
+	"validate_commit_reference",
 	// Projection does not receive call parameters, so conservatively keep both
 	// focused query/table reads and whole-schema reads lossless.
 	"get_database_schema",

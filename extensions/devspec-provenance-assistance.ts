@@ -44,9 +44,10 @@ export async function unclaimedEditNudge(
 		customType: "devspec-provenance-nudge",
 		content:
 			`DevSpec provenance note: this folder is explicitly associated with project ${projectId}, ` +
-			"but this Pi session has not observed an active claim. Continue this edit—do not stop or retry. " +
-			"When practical, search/reuse/create the smallest covering item and claim it before later implementation; " +
-			"commit linkage and server reconciliation remain authoritative.",
+			"but this Pi session has not observed an active claim. Continue this edit—editing is never blocked. " +
+			"Before committing, use search_action_items to find and claim the covering item; if none exists, " +
+			"create and claim a thin last-mile item. Pi cannot add the [devspec:<full-uuid>] commit reference for you, " +
+			"so include it in the commit message yourself.",
 		display: true,
 		details: { projectId },
 	};

@@ -31,7 +31,13 @@ test("only reliable first-class edit events can emit the one advisory nudge", as
 	}
 	const first = await unclaimedEditNudge("edit", runtime(), resolvePin);
 	assert.ok(first);
-	assert.match(first.content, /Continue this edit—do not stop or retry/);
+	assert.equal(first.customType, "devspec-provenance-nudge");
+	assert.equal(first.display, true, "custom message stays visible as well as model-visible");
+	assert.match(first.content, /Continue this edit—editing is never blocked/);
+	assert.match(first.content, /search_action_items/);
+	assert.match(first.content, /thin last-mile item/);
+	assert.match(first.content, /Pi cannot add the \[devspec:<full-uuid>\] commit reference for you/);
+	assert.doesNotMatch(first.content, /refus|analy[sz]er|reconcil|safety net/i);
 	assert.equal(first.details.projectId, PROJECT);
 	for (const tool of ["write", "edit", "apply_patch", "notebook"]) {
 		assert.equal(await unclaimedEditNudge(tool, runtime(), resolvePin), null, `${tool} must not re-nudge`);
@@ -77,12 +83,13 @@ test("post-record follow-through remains writable and may receive only the advis
 	const followThrough = await unclaimedEditNudge("edit", runtime(), async () => PROJECT);
 	assert.ok(followThrough);
 	assert.match(followThrough.content, /Continue this edit/);
+	assert.match(followThrough.content, /claim the covering item/);
 });
 
-test("registered tool handler always returns undefined and sends at most one steer message", async () => {
+test("registered tool handler injects one model-visible steer without blocking", async () => {
 	resetWorkStateForTests();
 	const handlers = new Map<string, (...args: any[]) => unknown>();
-	const sent: unknown[] = [];
+	const sent: Array<{ message: any; options: any }> = [];
 	const commands = new Map<string, { handler: (...args: any[]) => unknown }>();
 	const pi = {
 		on(event: string, handler: (...args: any[]) => unknown) { handlers.set(event, handler); },
@@ -98,6 +105,17 @@ test("registered tool handler always returns undefined and sends at most one ste
 		assert.equal(await handlers.get("tool_call")?.({ toolName: "bash", input: { command: "touch x" } }, ctx), undefined);
 		assert.equal(await handlers.get("tool_call")?.({ toolName: "write", input: { path: "x" } }, ctx), undefined);
 		assert.equal(sent.length, 0, "an unpinned folder has no positive local jurisdiction");
+
+		await commands.get("devspec.pin")?.handler(PROJECT, { cwd, ui: { notify() {} } });
+		assert.equal(await handlers.get("tool_call")?.({ toolName: "edit", input: { path: "x" } }, ctx), undefined);
+		assert.equal(sent.length, 1);
+		assert.equal(sent[0]?.message.customType, "devspec-provenance-nudge");
+		assert.equal(sent[0]?.message.display, true);
+		assert.deepEqual(sent[0]?.options, { deliverAs: "steer", triggerTurn: false });
+		assert.match(sent[0]?.message.content, /claim the covering item/);
+
+		assert.equal(await handlers.get("tool_call")?.({ toolName: "write", input: { path: "y" } }, ctx), undefined);
+		assert.equal(sent.length, 1, "the same session/project is nudged only once");
 	} finally {
 		rmSync(cwd, { recursive: true, force: true });
 	}

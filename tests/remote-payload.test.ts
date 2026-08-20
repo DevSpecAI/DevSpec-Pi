@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+	MAX_ATTACHMENTS,
+	MAX_ATTACHMENT_BYTES,
+	MAX_TOTAL_ATTACHMENT_BYTES,
+} from "../extensions/core/attachment-limits.ts";
+import {
 	formatCanonicalDeliveryContext,
 	formatInboundBundleMessage,
 	formatIngressAdvisoryContext,
@@ -184,6 +189,96 @@ test("metadata resource attachments remain stable accepted references", () => {
 	const command = parsePollPayload(payload, ME).ownerBundle!.commands[0];
 	assert.equal(command.attachments?.[0].resource_id, IDS.resource);
 	assert.equal(command.attachments?.[0].mime_type, "text/plain");
+});
+
+test("canonical attachment count is rejected before hydration", () => {
+	const attachment = {
+		materialization: "metadata",
+		filename: "notes.txt",
+		mime_type: "text/plain",
+		type: "text",
+		size_bytes: 1,
+		resource_id: IDS.resource,
+	};
+	const payload = canonicalPoll({ attachments: Array.from({ length: MAX_ATTACHMENTS + 1 }, () => ({ ...attachment })) });
+	const pkg = parsePollPayload(payload, ME);
+	assert.equal(pkg.canonicalState, "invalid");
+	assert.match(pkg.canonicalError ?? "", /attachment count exceeds safe bound/);
+	assert.equal(pkg.ownerBundle, undefined);
+});
+
+test("canonical declared per-file attachment size is bounded by type", () => {
+	const payload = canonicalPoll({
+		attachments: [{
+			materialization: "metadata",
+			filename: "notes.txt",
+			mime_type: "text/plain",
+			type: "text",
+			size_bytes: MAX_ATTACHMENT_BYTES.text + 1,
+			resource_id: IDS.resource,
+		}],
+	});
+	const pkg = parsePollPayload(payload, ME);
+	assert.equal(pkg.canonicalState, "invalid");
+	assert.match(pkg.canonicalError ?? "", /declared text attachment exceeds safe bound/);
+});
+
+test("canonical declared attachment total is bounded across the multi-command bundle", () => {
+	const each = Math.floor(MAX_TOTAL_ATTACHMENT_BYTES / 2) + 1;
+	const attachment = (index: number) => ({
+		materialization: "metadata",
+		filename: `doc-${index}.docx`,
+		mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		type: "document",
+		size_bytes: each,
+		resource_id: IDS.resource,
+	});
+	const payload = canonicalPoll({
+		bodies: ["first", "second"],
+		attachmentsByCommand: [[attachment(0)], [attachment(1)]],
+	});
+	const pkg = parsePollPayload(payload, ME);
+	assert.equal(pkg.canonicalState, "invalid");
+	assert.match(pkg.canonicalError ?? "", /declared attachment total exceeds safe bound across command bundle/);
+});
+
+test("canonical attachment count is bounded across commands rather than independently", () => {
+	const attachment = (index: number) => ({
+		materialization: "metadata",
+		filename: `notes-${index}.txt`,
+		mime_type: "text/plain",
+		type: "text",
+		size_bytes: 1,
+		resource_id: IDS.resource,
+	});
+	const payload = canonicalPoll({
+		bodies: ["first", "second"],
+		attachmentsByCommand: [
+			Array.from({ length: 6 }, (_, index) => attachment(index)),
+			Array.from({ length: 5 }, (_, index) => attachment(index + 6)),
+		],
+	});
+	const pkg = parsePollPayload(payload, ME);
+	assert.equal(pkg.canonicalState, "invalid");
+	assert.match(pkg.canonicalError ?? "", /attachment count exceeds safe bound across command bundle/);
+});
+
+test("canonical v1 retains arbitrary types plus nullable and zero sizes", () => {
+	for (const [type, size_bytes] of [["future-native-type", null], ["text", 0]] as const) {
+		const pkg = parsePollPayload(canonicalPoll({
+			attachments: [{
+				materialization: "metadata",
+				filename: "future.bin",
+				mime_type: "application/octet-stream",
+				type,
+				size_bytes,
+				resource_id: IDS.resource,
+			}],
+		}), ME);
+		assert.equal(pkg.canonicalState, "valid");
+		assert.equal(pkg.ownerBundle?.commands[0]?.attachments?.[0]?.type, type);
+		assert.equal(pkg.ownerBundle?.commands[0]?.attachments?.[0]?.size_bytes, size_bytes);
+	}
 });
 
 test("command id validation is safely bounded before command parsing", () => {

@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 1aba79309420fdb1ffe90ac0bba2013a714489aafdd832407bf752689fd5fb68
- * Description fingerprint: a7ebebe8eb24a0bedefea6964536560c4f3c76de97ee7bff23e629be6ada55d1
- * Regenerated: 2026-08-20T14:23:44.956Z
+ * Schema fingerprint: aeca9c50059904fd9b76ac340c030ce36c4623a4cd101e62d035d9a21eb745b9
+ * Description fingerprint: 99bd3762c2543fcc20240d6bba552aed0f2d2d8146184075ab18d697002165d8
+ * Regenerated: 2026-08-20T18:33:00.249Z
  */
-export const MCP_CATALOG_FINGERPRINT = "1aba79309420fdb1ffe90ac0bba2013a714489aafdd832407bf752689fd5fb68";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "a7ebebe8eb24a0bedefea6964536560c4f3c76de97ee7bff23e629be6ada55d1";
-export const MCP_CATALOG_GENERATED_AT = "2026-08-20T14:23:44.957Z";
+export const MCP_CATALOG_FINGERPRINT = "aeca9c50059904fd9b76ac340c030ce36c4623a4cd101e62d035d9a21eb745b9";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "99bd3762c2543fcc20240d6bba552aed0f2d2d8146184075ab18d697002165d8";
+export const MCP_CATALOG_GENERATED_AT = "2026-08-20T18:33:00.250Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -193,8 +193,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_action_items",
 		"label": "DevSpec: Get Action Items",
-		"description": "List action items as a project SUMMARY plus a token-bounded, queue-ordered page — designed to reconcile with what the DevSpec UI shows (no silent truncation). The response is an object: `summary` carries lifecycle counts (`ui_buckets` matches the UI counts; `lifecycle_breakdown` is the literal lifecycle distribution) and `assignment_lanes` (assigned_to_me / unassigned grab-bag / assigned_to_others within the active filter); `page` carries pagination (total_matching, offset, limit, has_more, next_offset); `items` is the ordered page (each with a truncated description_preview + assignment_lane — call get_action_item for full text); `briefs` lists parent briefs with rolled-up child counts; `relationships` lists links (blocks / caused_by / supersedes) among the returned items. IMPORTANT — `items` is a single PAGE, not the whole list: report HOW MANY items exist from `summary.ui_buckets` (e.g. open / implemented-awaiting-verify / done), never from `items.length`. When `page.has_more` is true there are more than returned — page with offset/next_offset, or (for triage / \"where do I start\" / dedup / \"are any redundant\") pass `fields: \"compact\"` to scan a much larger slice cheaply. To find items by topic/keyword, prefer search_action_items. The page is sorted by project queue priority by default; pass order_by (\"created\"/\"last_activity\") + order_dir to reorder — e.g. order_by:\"created\", order_dir:\"asc\" for an oldest-first backlog-age audit, or order_by:\"last_activity\", order_dir:\"asc\" to surface the most stale (longest-untouched) items. Briefs are hidden from the page by default; pass include_briefs: true to include them as rows.",
-		"promptSnippet": "List action items as a project SUMMARY plus a token-bounded, queue-ordered page — designed to reconcile with what the DevSpec UI shows (no silent truncation).",
+		"description": "List action items as a project SUMMARY plus a token-bounded, priority-ordered page — designed to reconcile with what the DevSpec UI shows (no silent truncation). The response is an object: `summary` carries lifecycle counts (`ui_buckets` matches the UI counts; `lifecycle_breakdown` is the literal lifecycle distribution) and `assignment_lanes` (assigned_to_me / unassigned grab-bag / assigned_to_others within the active filter); `page` carries pagination (total_matching, offset, limit, has_more, next_offset); `items` is the ordered page (each with a truncated description_preview + assignment_lane — call get_action_item for full text); `briefs` lists parent briefs with rolled-up child counts; `relationships` lists links (blocks / caused_by / supersedes) among the returned items. IMPORTANT — `items` is a single PAGE, not the whole list: report HOW MANY items exist from `summary.ui_buckets` (e.g. open / implemented-awaiting-verify / done), never from `items.length`. When `page.has_more` is true there are more than returned — page with offset/next_offset, or (for triage / \"where do I start\" / dedup / \"are any redundant\") pass `fields: \"compact\"` to scan a much larger slice cheaply. To find items by topic/keyword, prefer search_action_items. The page is sorted by project queue priority by default; pass order_by (\"created\"/\"last_activity\") + order_dir to reorder — e.g. order_by:\"created\", order_dir:\"asc\" for an oldest-first backlog-age audit, or order_by:\"last_activity\", order_dir:\"asc\" to surface the most stale (longest-untouched) items. Briefs are hidden from the page by default; pass include_briefs: true to include them as rows.",
+		"promptSnippet": "List action items as a project SUMMARY plus a token-bounded, priority-ordered page — designed to reconcile with what the DevSpec UI shows (no silent truncati…",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -243,7 +243,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"offset": {
 					"type": "number",
-					"description": "Pagination offset into the queue-ordered result set. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
+					"description": "Pagination offset into the priority-ordered result set. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
 				},
 				"agent_activity": {
 					"type": "string",
@@ -673,7 +673,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "This poller's own agent_connections id. Pass it so the server can resolve exact-target owner/delegated command authority for this connection; only a matching target authorized by the connection's command_authority receives remote_control.is_controller_instruction=true. Older callers may omit it for wire compatibility, but new pollers must identify their connection."
+					"description": "Remote pollers must pass their own agent_connections id so the server can resolve exact-target owner/delegated command authority. Without connection_id, transcript content is still returned normally but every message remains advisory: remote_control.is_controller_instruction is never true because sibling targets cannot be distinguished."
 				}
 			},
 			"required": [

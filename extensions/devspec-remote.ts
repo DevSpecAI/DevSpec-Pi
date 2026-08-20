@@ -45,7 +45,17 @@ import { compactWithContext, executeControlCommand, parseControlCommand, reloadW
 import { withLiveUi } from "./core/ctx-guard.ts";
 import { commandReloadContext, rememberExtensionRunner } from "./core/command-runner.ts";
 import { collectModelCatalog, type ModelCatalogSnapshot } from "./core/model-catalog.ts";
-import { formatAttachmentNotes, materialiseAttachments, requireMaterialisedAttachments } from "./core/attachments.ts";
+import {
+	AttachmentDeliveryLease,
+	cleanupMaterialisedAttachments,
+	createAttachmentHydrationBudget,
+	formatAttachmentNotes,
+	materialiseAttachments,
+	requireMaterialisedAttachments,
+	sanitizeAttachmentFailureReason,
+	type AttachmentHydrationBudget,
+	type MaterialisedAttachment,
+} from "./core/attachments.ts";
 import { unwrapMcpResult } from "./core/result.ts";
 import { shapeTranscript } from "./core/attach-context.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
@@ -132,6 +142,8 @@ interface PumpState {
 	/** Exact-target retry survives cursor advancement after a transient send failure. */
 	playbookRetryAttempts: Map<string, number>;
 	playbookRetryTimers: Map<string, ReturnType<typeof setTimeout>>;
+	/** Unchanged canonical cursors retry attachment hydration only after bounded delay. */
+	attachmentRetryAttempts: Map<string, number>;
 }
 
 let pump: PumpState | null = null;
@@ -493,8 +505,12 @@ function setRemoteStatus(ctx: ExtensionContext | null): void {
 	paintStatus(ctx);
 }
 
-async function withMaterialisedAttachments(cmd: OwnerCommand, connectionId: string): Promise<OwnerCommand> {
-	if (!cmd.attachments || cmd.attachments.length === 0) return cmd;
+async function withMaterialisedAttachments(
+	cmd: OwnerCommand,
+	connectionId: string,
+	budget: AttachmentHydrationBudget,
+): Promise<{ command: OwnerCommand; materialised: MaterialisedAttachment[] }> {
+	if (!cmd.attachments || cmd.attachments.length === 0) return { command: cmd, materialised: [] };
 	const token = (await resolveToken())?.token;
 	if (!token) throw new Error("attachment hydration requires an authenticated connection");
 	const materialised = await materialiseAttachments(
@@ -505,17 +521,32 @@ async function withMaterialisedAttachments(cmd: OwnerCommand, connectionId: stri
 			getResource: (t, args) => callDevspec(t, "get_resource", args, { lane: "pump" }),
 		},
 		cmd.id,
+		budget,
 	);
 	requireMaterialisedAttachments(materialised, cmd.attachments.length);
-	return { ...cmd, attachmentNotes: formatAttachmentNotes(materialised) };
+	return { command: { ...cmd, attachmentNotes: formatAttachmentNotes(materialised) }, materialised };
 }
 
-async function hydrateOwnerBundle(bundle: OwnerCommandBundle, connectionId: string): Promise<OwnerCommandBundle> {
+async function hydrateOwnerBundle(
+	bundle: OwnerCommandBundle,
+	connectionId: string,
+): Promise<{ bundle: OwnerCommandBundle; materialised: MaterialisedAttachment[] }> {
 	const commands: OwnerCommand[] = [];
-	for (const command of bundle.commands) commands.push(await withMaterialisedAttachments(command, connectionId));
-	const primaryCommand = commands.find((command) => command.id === bundle.primaryCommand.id);
-	if (!primaryCommand) throw new Error("canonical primary command was lost during hydration");
-	return { ...bundle, commands, primaryCommand };
+	const materialised: MaterialisedAttachment[] = [];
+	const budget = createAttachmentHydrationBudget(bundle.commands.map((command) => command.attachments ?? []));
+	try {
+		for (const command of bundle.commands) {
+			const hydrated = await withMaterialisedAttachments(command, connectionId, budget);
+			commands.push(hydrated.command);
+			materialised.push(...hydrated.materialised);
+		}
+		const primaryCommand = commands.find((command) => command.id === bundle.primaryCommand.id);
+		if (!primaryCommand) throw new Error("canonical primary command was lost during hydration");
+		return { bundle: { ...bundle, commands, primaryCommand }, materialised };
+	} catch (error) {
+		await cleanupMaterialisedAttachments(materialised);
+		throw error;
+	}
 }
 
 function untitledAttached(): boolean {
@@ -995,10 +1026,12 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		}
 
 		let commandDeliveryFailed = false;
+		let commandRetryDelayMs = 0;
 		if (pkg.rejectedBundle) {
 			const reservation = active.seenOwnerCommands.reserveBundle(pkg.rejectedBundle.commands);
 			if (reservation === "conflict") commandDeliveryFailed = true;
 			else if (reservation === "reserved") {
+				active.attachmentRetryAttempts.delete(pkg.rejectedBundle.commandTurnId);
 				// One unavailable attachment rejects and commits the whole turn before
 				// hydration, preemption, context injection, or user-message send.
 				active.seenOwnerCommands.commitBundle(pkg.rejectedBundle.commands);
@@ -1011,10 +1044,13 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (reservation === "conflict") {
 				commandDeliveryFailed = true;
 			} else if (reservation === "reserved") {
+				let attachmentLease: AttachmentDeliveryLease | undefined;
 				try {
-					// Hydrate every command before deciding/performing preemption. The
-					// envelope has no partial model-visible or seen state.
-					const hydrated = await hydrateOwnerBundle(pkg.ownerBundle, active.bond.connectionId);
+					// Hydrate every command before deciding/performing preemption. File
+					// ownership remains with delivery until Pi accepts the sole queue item.
+					const hydration = await hydrateOwnerBundle(pkg.ownerBundle, active.bond.connectionId);
+					const hydrated = hydration.bundle;
+					attachmentLease = new AttachmentDeliveryLease(hydration.materialised);
 					const mode = decideOwnerDelivery({
 						idle: ctx.isIdle(),
 						preemptEnabled: preemptOwnerCached,
@@ -1053,6 +1089,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 							: `DevSpec remote: delivered canonical command turn (${requester}).`;
 					}
 					pi_send(formatted, sendMode, hydrated.commandTurnId, primary.id, queueItem);
+					attachmentLease.accept();
+					active.attachmentRetryAttempts.delete(hydrated.commandTurnId);
 					// Commit immediately after Pi accepts the sole queue item; later UI
 					// bookkeeping cannot turn an accepted send into a replay.
 					active.seenOwnerCommands.commitBundle(hydrated.commands);
@@ -1063,9 +1101,14 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 						if (active.bond.sessionId) scheduleTitleRefresh(active.bond.sessionId);
 					}
 				} catch (err) {
+					await attachmentLease?.cleanupIfPending();
 					commandDeliveryFailed = true;
 					active.seenOwnerCommands.releaseBundle(pkg.ownerBundle.commands);
-					notify(ctx, `DevSpec remote: failed to deliver canonical command turn: ${err instanceof Error ? err.message : err}`, "warning");
+					const failures = (active.attachmentRetryAttempts.get(pkg.ownerBundle.commandTurnId) ?? 0) + 1;
+					active.attachmentRetryAttempts.set(pkg.ownerBundle.commandTurnId, failures);
+					commandRetryDelayMs = nextDeliveryRetryDelayMs(failures);
+					const reason = sanitizeAttachmentFailureReason(err, "delivery failed");
+					notify(ctx, `DevSpec remote: failed to deliver canonical command turn: ${reason}. Retrying in ${Math.ceil(commandRetryDelayMs / 1_000)}s.`, "warning");
 				}
 			}
 		}
@@ -1076,6 +1119,10 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		const dispatches = (payload as { dispatches?: unknown[] } | null)?.dispatches ?? [];
 		for (const dispatch of dispatches) enqueuePlaybookRun(active, token, dispatch, ctx);
 		if (pkg.dispatchCursor) active.dispatchCursor = pkg.dispatchCursor;
+		if (commandRetryDelayMs > 0 && pump === active && !active.stop) {
+			await new Promise((resolve) => setTimeout(resolve, commandRetryDelayMs));
+			if (pump === active && !active.stop) signalWake(active);
+		}
 	}
 }
 
@@ -1163,6 +1210,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 		playbookQueue: new DeliveryQueue(),
 		playbookRetryAttempts: new Map(),
 		playbookRetryTimers: new Map(),
+		attachmentRetryAttempts: new Map(),
 	};
 	preemptOwnerCached = (await loadSettings()).preemptOwner;
 	setRemoteStatus(ctx);

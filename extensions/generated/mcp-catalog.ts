@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: aeca9c50059904fd9b76ac340c030ce36c4623a4cd101e62d035d9a21eb745b9
- * Description fingerprint: 99bd3762c2543fcc20240d6bba552aed0f2d2d8146184075ab18d697002165d8
- * Regenerated: 2026-08-20T18:33:00.249Z
+ * Schema fingerprint: 5452e2cfb5c25822f23bef328b46b7a4a9394c334353863a1b9521b7cc7f2005
+ * Description fingerprint: 305436c9a6e7874e27689a7365c3dafda1f362e5927673dc57f76a46811b68ee
+ * Regenerated: 2026-08-20T21:24:56.546Z
  */
-export const MCP_CATALOG_FINGERPRINT = "aeca9c50059904fd9b76ac340c030ce36c4623a4cd101e62d035d9a21eb745b9";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "99bd3762c2543fcc20240d6bba552aed0f2d2d8146184075ab18d697002165d8";
-export const MCP_CATALOG_GENERATED_AT = "2026-08-20T18:33:00.250Z";
+export const MCP_CATALOG_FINGERPRINT = "5452e2cfb5c25822f23bef328b46b7a4a9394c334353863a1b9521b7cc7f2005";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "305436c9a6e7874e27689a7365c3dafda1f362e5927673dc57f76a46811b68ee";
+export const MCP_CATALOG_GENERATED_AT = "2026-08-20T21:24:56.546Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -33,7 +33,8 @@ export const PUMP_VERBS = [
 	"attach_connection",
 	"detach_connection",
 	"verify_agent_connection",
-	"report_connection_check"
+	"report_connection_check",
+	"report_commit_provenance"
 ] as const;
 export const NEVER_MODEL_VERBS = [
 	"post_session_message"
@@ -5494,6 +5495,38 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"kind": "pump"
 	},
 	{
+		"name": "report_commit_provenance",
+		"label": "DevSpec: Report Commit Provenance",
+		"description": "MECHANICAL, host-called. Report that THIS connection made a commit (item 27fab61a). Call it from the host's post-commit hook for EVERY commit the plugin observes — whether or not the message carried a [devspec:<uuid>] reference, and whether or not its shape was readable. It is not a model-facing tool and needs no reasoning: the plugin already watched the commit go past, and this is where it says so.\n\nWHY IT EXISTS: `commits` carries only the git author, which is the machine's git config — every agent on one machine commits as the same person, so nothing could tell two of your own agents apart. Without this, an auto-created action item cannot be attributed to the agent that did the work, and nothing can be told that its commit produced an item.\n\nIt is a MEASUREMENT, not a claim of authority: reporting a commit grants no capability and changes no lifecycle. Idempotent per (project, commit) — a retry or reconnect updates in place. Best-effort by contract: never let a failure here affect the commit or the turn.",
+		"promptSnippet": "MECHANICAL, host-called.",
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "The connection that made the commit — yours."
+				},
+				"commit_sha": {
+					"type": "string",
+					"description": "The FULL 40-character sha. Short forms are refused: they cannot be compared reliably."
+				},
+				"branch": {
+					"type": "string",
+					"description": "Optional branch the commit landed on."
+				},
+				"runner_session_id": {
+					"type": "string",
+					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
+				}
+			},
+			"required": [
+				"connection_id",
+				"commit_sha"
+			]
+		},
+		"kind": "pump"
+	},
+	{
 		"name": "report_keepalive",
 		"label": "DevSpec: Report Keepalive",
 		"description": "CONNECTION activity state machine (a16abcbd). Refresh the working lease on the attempt you are running — assert \"still working\" so it does not expire. Re-call periodically while a turn runs (mechanical keep-alive, consumes no LLM tokens). Normally pass just connection_id: the server refreshes this connection’s current working attempt. Optionally pass a specific attempt_id to refresh exactly that one. Only refreshes a currently-working attempt; it NEVER starts working (call report_pickup first). No-op if there is no working attempt.",
@@ -5818,8 +5851,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 89,
+	total: 90,
 	model: 76,
-	pump: 12,
+	pump: 13,
 	never_model: 1,
 } as const;

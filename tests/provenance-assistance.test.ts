@@ -144,5 +144,7 @@ test("checked-in capability table names every required fail-open surface", () =>
 		"Project association", "DevSpec unavailable", "Post-implementation tools", "Subagents/unattended work",
 	]) assert.match(table, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
 	assert.match(table, /instructions plus DevSpec's universal commit ingestion\/analyzer/i);
-	assert.match(table, /never deny, stamp, or report/i);
+	assert.match(table, /Never deny or stamp/i);
+	assert.match(table, /post-commit `plugin_observed` measurement/i);
+	assert.match(table, /does \*\*not\*\* currently observe every successful commit/i);
 });

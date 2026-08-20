@@ -77,5 +77,6 @@ provider payloads. The same aggregate rides the existing `agent_stats` report;
 ## Relationship to other DevSpec plugins
 
 Independent implementation, per the plugin-independence ADR
-(`b98a39a9`). What binds all DevSpec plugins is the remote-control contract
-and the MCP tool surface — never shared files.
+(`b98a39a9`). What binds all DevSpec plugins is the canonical contract served
+at `devspec://product/remote-ingress-contract` and the MCP tool surface — never
+shared files.

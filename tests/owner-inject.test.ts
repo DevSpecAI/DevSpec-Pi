@@ -26,15 +26,23 @@ test("sync-lap commands are recorded and skipped later", () => {
 	]);
 	assert.deepEqual(next.map((c) => c.id), ["m-new"]);
 	assert.equal(seen.has("m-old"), true);
+	assert.equal(seen.has("m-new"), false, "reservation is not replay commitment");
+	assert.equal(seen.isInFlight("m-new"), true);
+	seen.commit(next[0]);
 	assert.equal(seen.has("m-new"), true);
 });
 
-test("duplicate command ids are not delivered twice", () => {
+test("in-flight commands cannot duplicate, while failed delivery can retry transactionally", () => {
 	const seen = new SeenOwnerCommands();
-	const first = seen.takeUnseen([{ text: "hi", id: "m1" }]);
-	const second = seen.takeUnseen([{ text: "hi", id: "m1" }]);
+	const command = { text: "hi", id: "m1" };
+	const first = seen.takeUnseen([command]);
+	const duplicateWhileInflight = seen.takeUnseen([command]);
 	assert.equal(first.length, 1);
-	assert.equal(second.length, 0);
+	assert.equal(duplicateWhileInflight.length, 0);
+	seen.release(command);
+	assert.deepEqual(seen.takeUnseen([command]).map((item) => item.id), ["m1"]);
+	seen.commit(command);
+	assert.equal(seen.takeUnseen([command]).length, 0);
 });
 
 test("sendMode is never now when not idle", () => {
@@ -86,6 +94,7 @@ test("historical sync-lap ids stay skipped; live ids are still deliverable", () 
 	seen.remember(split.historical);
 	const delivered = seen.takeUnseen(split.live);
 	assert.deepEqual(delivered.map((c) => c.id), ["live"]);
+	seen.commit(delivered[0]);
 	assert.equal(seen.has("old"), true);
 	assert.deepEqual(
 		seen.takeUnseen([{ id: "old", text: "already answered" }]).map((c) => c.id),

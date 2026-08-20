@@ -276,9 +276,10 @@ honored, not ported around:
   (Pi mints stable session ids; bond on conversation id, never cwd/shell).
   Server-side revive within the 24h `BOND_REVIVE_WINDOW_MS` is relied upon —
   we always pass the same `local_id`.
-- **Tick:** one held `poll_connection` long-poll per bond (heartbeat +
-  commands + advisory + dispatches), matching the server contract. Multi-bond:
-  one pump iterating all bonds in the process.
+- **Tick:** one held `poll_connection` long-poll per bond, negotiating numeric
+  `ingress_version: 1`. Canonical semantics are served at
+  `devspec://product/remote-ingress-contract`; this document does not restate
+  mutable server policy.
 - **Ingress:** owner commands arrive as **real user messages** via
   `pi.sendUserMessage()` — with correct steer/followUp semantics while busy,
   appearing in the transcript as if typed. Slash-command text is never
@@ -289,8 +290,8 @@ honored, not ported around:
   mirroring only as the contract's sanctioned last-resort. We ship that —
   while treating richer egress (streaming, structured progress) as an
   open design space per principle 4. Chrome stays terminal-only.
-- **Authority:** act only on `commands[]` addressed to this `connection_id`
-  with owner authority; advisory/room context never wakes or executes.
+- **Authority:** canonical `ingress` is the only conversational command/context
+  source after negotiation; legacy top-level arrays are ignored by Pi.
 - **Permissions:** stock Pi has no permission popups, so the approval-hook
   machinery other hosts need is unnecessary. Our own destructive-command gate
   applies to every run, since no run can claim someone is watching it.

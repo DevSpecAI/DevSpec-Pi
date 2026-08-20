@@ -23,6 +23,8 @@ const DEBUG_FIELDS = {
 	"adapter guard set active tools failed": ["errorPresent"],
 	"adapter guard turn failed": ["errorPresent"],
 	"attachment adopted from server": ["attached"],
+	"canonical ingress rejected": ["errors", "errorPresent"],
+	"canonical ingress synced": ["cursorPresent"],
 	"commit ledger captured": [],
 	"context budget": ["staticChars", "injectedChars", "resultCalls", "resultChars"],
 	"control completed": ["resultPresent"],

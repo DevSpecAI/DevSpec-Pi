@@ -4,14 +4,12 @@
  *   /devspec.remote [--session <id>]   bond this pi session as DevSpec capacity
  *   /devspec.remote stop               end the bond (sticky 'local_stop')
  *
- * Design (VISION.md + the delivery contract):
- * - Bond key = the pi session id (conversation id — never cwd/shell). The
- *   server revives the same (owner, local_id) bond within its 24h window, so
- *   `pi -c` keeps the same connection and codename.
- * - ONE held poll_connection long-poll (25s) carries heartbeat + commands +
- *   advisory; owner commands arrive as REAL user messages (sendUserMessage).
- *   Mid-turn owner arrivals PREEMPT (abort the running turn, then deliver) —
- *   item f5bbc8f8. Advisory tiers never wake or abort.
+ * Design (VISION.md):
+ * - Bond key = the pi session id (conversation id — never cwd/shell).
+ * - ONE negotiated poll_connection long-poll carries heartbeat and canonical
+ *   ingress; commands arrive as REAL user messages (sendUserMessage).
+ * - Runtime ingress semantics are served at
+ *   devspec://product/remote-ingress-contract rather than duplicated here.
  * - Egress is runtime-mechanical (item cc9e8c43): the extension delivers
  *   assistant text as session answers. A text-only close is a finished
  *   bubble with complete_turn:false (work may continue); settle / a new
@@ -34,15 +32,21 @@ import {
 	shouldEndBondOnPollFailure,
 } from "./core/client.ts";
 import { getBond, setBond, type BondState } from "./core/bond-state.ts";
-import { formatInboundMessage, parsePollPayload, type OwnerCommand } from "./core/remote-payload.ts";
+import {
+	formatInboundMessage,
+	formatIngressAdvisoryContext,
+	parsePollPayload,
+	type IngressAdvisoryContext,
+	type OwnerCommand,
+} from "./core/remote-payload.ts";
 import { CommandTurnBindings } from "./core/command-turn.ts";
 import { compactWithContext, executeControlCommand, parseControlCommand, reloadWithContext, runReloadLap } from "./core/control.ts";
 import { withLiveUi } from "./core/ctx-guard.ts";
 import { commandReloadContext, rememberExtensionRunner } from "./core/command-runner.ts";
 import { collectModelCatalog, type ModelCatalogSnapshot } from "./core/model-catalog.ts";
-import { formatAttachmentNotes, materialiseAttachments } from "./core/attachments.ts";
+import { formatAttachmentNotes, materialiseAttachments, requireMaterialisedAttachments } from "./core/attachments.ts";
 import { unwrapMcpResult } from "./core/result.ts";
-import { buildAttachBlock, shapeRoomAgenda, shapeTranscript } from "./core/attach-context.ts";
+import { shapeTranscript } from "./core/attach-context.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { SubagentFleetClient } from "./core/subagent-fleet.ts";
 import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
@@ -75,17 +79,13 @@ import {
 	setSessionPreview,
 	syncBondIntoStatus,
 } from "./core/status-line.ts";
-import { buildRoomDigest } from "./core/orientation.ts";
 import { openPushChannel, nextPushReconnectDelayMs } from "./core/push-channel.ts";
 import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
 import { loadSettings, saveSettings } from "./core/settings.ts";
 import { decideOwnerDelivery, PREEMPT_TAIL, waitUntil } from "./core/preempt.ts";
 import {
 	SeenOwnerCommands,
-	resolveAttachedAtMs,
 	sendModeAtSendTime,
-	shouldCompleteSync,
-	splitCatchUpCommands,
 } from "./core/owner-inject.ts";
 
 const AGENT_NAME = "Pi";
@@ -120,8 +120,8 @@ interface PumpState {
 	 */
 	synced: boolean;
 	seenOwnerCommands: SeenOwnerCommands;
-	/** Epoch-ms this bond attached / the pump started. First-sync history cutoff. */
-	attachedAtMs: number;
+	/** Latest bounded advisory-only ingress, carried to the next exact command. */
+	advisoryCarry: IngressAdvisoryContext[];
 	// Push channel state (SSE wake mode; falls back to held long-poll).
 	pushAbort?: AbortController;
 	pushClosed?: boolean;
@@ -490,6 +490,7 @@ async function ackControl(
 ): Promise<void> {
 	await callDevspec(token, "poll_connection", {
 		connection_id: connectionId,
+		ingress_version: 1,
 		control_ack: controlId,
 		wait_ms: 0,
 		...(catalog ? { model_catalog: catalog } : {}),
@@ -504,16 +505,7 @@ function setRemoteStatus(ctx: ExtensionContext | null): void {
 async function withMaterialisedAttachments(cmd: OwnerCommand, connectionId: string): Promise<OwnerCommand> {
 	if (!cmd.attachments || cmd.attachments.length === 0) return cmd;
 	const token = (await resolveToken())?.token;
-	if (!token) {
-		const notes = cmd.attachments.map((a) => {
-			const name =
-				a && typeof a === "object" && typeof (a as { filename?: unknown }).filename === "string"
-					? (a as { filename: string }).filename
-					: "attachment";
-			return `- ${name} was attached and could not be opened (not signed in).`;
-		});
-		return { ...cmd, attachmentNotes: notes.join("\n") };
-	}
+	if (!token) throw new Error("attachment hydration requires an authenticated connection");
 	const materialised = await materialiseAttachments(
 		cmd.attachments,
 		{
@@ -523,6 +515,7 @@ async function withMaterialisedAttachments(cmd: OwnerCommand, connectionId: stri
 		},
 		cmd.id,
 	);
+	requireMaterialisedAttachments(materialised, cmd.attachments.length);
 	return { ...cmd, attachmentNotes: formatAttachmentNotes(materialised) };
 }
 
@@ -542,7 +535,7 @@ function scheduleTitleRefresh(sessionId: string, delayMs = 8_000): void {
 		if (!current || current.bond.sessionId !== sessionId) return;
 		if (isRealSessionTitle(current.bond.sessionTitle)) return;
 		current.lastSessionEnrichAt = Date.now();
-		void enrichBondWithSession(sessionId, false);
+		void enrichBondWithSession(sessionId);
 	}, delayMs);
 	if (typeof timer.unref === "function") timer.unref();
 }
@@ -903,7 +896,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				"poll_connection",
 				{
 					connection_id: active.bond.connectionId,
-					cursor: active.cursor,
+					ingress_version: 1,
+					cursor_v2: active.cursor,
 					dispatch_cursor: active.dispatchCursor,
 					wait_ms: pushMode ? 0 : POLL_WAIT_MS,
 					busy: active.busy,
@@ -972,15 +966,14 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				sessionTitle: undefined,
 				ownerName: undefined,
 				attachContext: undefined,
+				roomDigest: undefined,
 			};
 			active.bond = next;
 			setBond(next);
 			setRemoteStatus(ctx);
 			debug("attachment adopted from server", { attached: Boolean(serverSessionId) });
-			// Attach-time bond context (item 9dcbd157): one bounded fetch learns the
-			// room's identity — title, owner name, recent tail — so a fresh bond
-			// attached-then-messaged within seconds never starts blind.
-			if (serverSessionId) void enrichBondWithSession(serverSessionId, true);
+			// Refresh display identity only. Command-turn context is canonical ingress.
+			if (serverSessionId) void enrichBondWithSession(serverSessionId);
 		}
 
 		// Titles are job-generated from the first substantial message: an attach
@@ -990,13 +983,23 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			const last = active.lastSessionEnrichAt ?? 0;
 			if (Date.now() - last > 60_000) {
 				active.lastSessionEnrichAt = Date.now();
-				void enrichBondWithSession(active.bond.sessionId, false);
+				void enrichBondWithSession(active.bond.sessionId);
 			}
 		}
 
 		const pkg = parsePollPayload(payload, active.bond.connectionId);
-		if (pkg.cursor) active.cursor = pkg.cursor;
-		if (pkg.dispatchCursor) active.dispatchCursor = pkg.dispatchCursor;
+		if (pkg.canonicalState === "invalid") {
+			// A negotiated changed response without a valid known ingress envelope
+			// has no executable or contextual meaning. Keep the canonical cursor
+			// unchanged so a corrected response can be retried.
+			const dispatches = (payload as { dispatches?: unknown[] } | null)?.dispatches ?? [];
+			for (const dispatch of dispatches) enqueueDispatch(active, token, dispatch, ctx);
+			if (pkg.dispatchCursor) active.dispatchCursor = pkg.dispatchCursor;
+			active.errors += 1;
+			debug("canonical ingress rejected", { errors: active.errors, errorPresent: Boolean(pkg.canonicalError) });
+			await new Promise((resolve) => setTimeout(resolve, ERROR_BACKOFF_MS));
+			continue;
+		}
 
 		const control = parseControlCommand(pkg.control);
 		if (control) {
@@ -1044,51 +1047,45 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			}
 		}
 
-		// Cold-start orientation: cursors adopted above. Pre-attach commands
-		// are history (remember, do not inject). Live post-attach commands
-		// fall through and deliver on this same lap.
-		let ownerCommands = pkg.ownerCommands;
-		if (!active.synced) {
-			const { historical, live } = splitCatchUpCommands(ownerCommands, active.attachedAtMs);
-			active.seenOwnerCommands.remember(historical);
-			if (!shouldCompleteSync(pkg)) {
-				debug("sync deferred: empty wake, still cursor-less");
-				continue;
-			}
+		// Canonical replay/reseed semantics replace timestamp inference: history is
+		// inactive at the server boundary and can never enter ownerCommands.
+		if (!active.synced && pkg.canonicalState === "valid") {
 			active.synced = true;
-			// Room orientation: the catch-up window's ambient context becomes a
-			// one-shot digest (injected by devspec-context on the next turn) so
-			// the agent sees what it missed — including its own prior answers —
-			// without anything being replayed as an instruction.
-			const digest = buildRoomDigest(payload, active.bond.codename ?? "this agent");
-			if (digest) {
-				setBond({ ...active.bond, roomDigest: digest });
-				debug("synced with room digest", { digestChars: digest.length, historical: historical.length, live: live.length });
-			} else {
-				debug("synced", { cursorPresent: Boolean(active.cursor), historical: historical.length, live: live.length });
-			}
-			ownerCommands = live;
+			debug("canonical ingress synced", { cursorPresent: Boolean(pkg.cursorV2) });
+		}
+		if (pkg.advisoryContext && pkg.ownerCommands.length === 0) {
+			// Preserve the latest honestly bounded advisory window. It is delivered
+			// only beside the next exact command and never wakes by itself.
+			active.advisoryCarry = [pkg.advisoryContext];
 		}
 
-		for (const cmd of active.seenOwnerCommands.takeUnseen(ownerCommands)) {
+		let commandDeliveryFailed = false;
+		for (const rejected of active.seenOwnerCommands.takeUnseen(pkg.rejectedCommands)) {
+			// Canonical `unavailable` is a permanent fail-closed command result.
+			active.seenOwnerCommands.commit(rejected);
+			void reportComplete("delivery_unavailable", rejected.commandTurnId, rejected.id);
+		}
+
+		for (const cmd of active.seenOwnerCommands.takeUnseen(pkg.ownerCommands)) {
 			let deliveryMessage: string | undefined;
 			try {
+				// Hydrate before deciding/performing preemption. A failure must occur
+				// before abort or any Pi model/user message side effect.
+				const hydrated = await withMaterialisedAttachments(cmd, active.bond.connectionId);
 				const mode = decideOwnerDelivery({
 					idle: ctx.isIdle(),
 					preemptEnabled: preemptOwnerCached,
 					hasOwnerCommand: true,
 				});
 				const formatted = formatInboundMessage(
-					await withMaterialisedAttachments(cmd, active.bond.connectionId),
+					hydrated,
 					active.bond.codename ?? "this agent",
 					active.bond,
 				);
+				const contexts = [...active.advisoryCarry, cmd.advisoryContext]
+					.filter((bundle, index, all) => all.findIndex((candidate) => candidate.envelopeId === bundle.envelopeId) === index);
 				if (pump !== active || active.stop) throw new Error("Remote bond changed before owner delivery.");
 				if (mode === "preempt") {
-					// Pause the running turn. Wait for settle, then send as a fresh
-					// idle turn — that is the path whose answer is posted to the room.
-					// Steering into the aborted run produced a terminal-only reply
-					// (live miss 2, Ali 2026-08-13).
 					debug("preempt: aborting running turn for owner instruction");
 					deliveryMessage = `${formatted}\n\n${PREEMPT_TAIL}`;
 					pi_abort();
@@ -1099,32 +1096,37 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					const sendMode = sendModeAtSendTime(mode, ctx.isIdle(), settled);
 					debug("preempt", { settled, immediate: sendMode === "now" });
 					if (pump !== active || active.stop) throw new Error("Remote bond changed during owner preemption.");
-					pi_send(deliveryMessage, sendMode, cmd.commandTurnId, cmd.id);
+					pi_send(deliveryMessage, sendMode, cmd.commandTurnId, cmd.id, contexts);
 					notify(ctx, `DevSpec remote: interrupted — ${cmd.userName ?? "owner"} first.`);
 				} else {
 					const sendMode = sendModeAtSendTime(mode, ctx.isIdle());
 					deliveryMessage = formatted;
 					if (pump !== active || active.stop) throw new Error("Remote bond changed before owner send.");
-					pi_send(deliveryMessage, sendMode, cmd.commandTurnId, cmd.id);
+					pi_send(deliveryMessage, sendMode, cmd.commandTurnId, cmd.id, contexts);
 					notify(ctx, mode === "queue" || sendMode === "followUp"
 						? `DevSpec remote: queued owner message (${cmd.userName ?? "owner"}).`
 						: `DevSpec remote: delivered owner message (${cmd.userName ?? "owner"}).`);
 				}
+				active.seenOwnerCommands.commit(cmd);
 				if (untitledAttached()) {
 					setSessionPreview(previewFromText(cmd.text));
 					paintStatus(ctx);
 					if (active.bond.sessionId) scheduleTitleRefresh(active.bond.sessionId);
 				}
 			} catch (err) {
-				if (deliveryMessage) {
-					commandTurnBindings.forget(deliveryMessage, cmd.commandTurnId, cmd.id);
-					void reportComplete("delivery_failed", cmd.commandTurnId, cmd.id);
-				}
+				commandDeliveryFailed = true;
+				active.seenOwnerCommands.release(cmd);
+				if (deliveryMessage) commandTurnBindings.forget(deliveryMessage, cmd.commandTurnId, cmd.id);
 				notify(ctx, `DevSpec remote: failed to deliver owner message: ${err instanceof Error ? err.message : err}`, "warning");
 			}
 		}
+		if (!commandDeliveryFailed) {
+			if (pkg.cursorV2) active.cursor = pkg.cursorV2;
+			if (pkg.ownerCommands.length > 0) active.advisoryCarry = [];
+		}
 		const dispatches = (payload as { dispatches?: unknown[] } | null)?.dispatches ?? [];
 		for (const dispatch of dispatches) enqueueDispatch(active, token, dispatch, ctx);
+		if (pkg.dispatchCursor) active.dispatchCursor = pkg.dispatchCursor;
 	}
 }
 
@@ -1179,7 +1181,6 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 	};
 
 	let attached = false;
-	let attachedAtStamp: unknown = d.attached_at ?? d.attachedAt;
 	if (sessionArg) {
 		try {
 			const attRaw = await callDevspec(resolved.token, "attach_connection", {
@@ -1192,7 +1193,6 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 			} else {
 				const ad = (att.details ?? {}) as Record<string, unknown>;
 				bond.sessionId = (ad.session_id as string | undefined) ?? bond.sessionId;
-				attachedAtStamp = ad.attached_at ?? ad.attachedAt ?? attachedAtStamp;
 				attached = true;
 			}
 		} catch (err) {
@@ -1201,7 +1201,6 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 	}
 
 	setBond(bond);
-	const attachedAtMs = resolveAttachedAtMs(attachedAtStamp, Date.now());
 	pump = {
 		generation: nextPumpGeneration++,
 		bond,
@@ -1210,8 +1209,8 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 		errors: 0,
 		synced: false,
 		seenOwnerCommands: new SeenOwnerCommands(),
+		advisoryCarry: [],
 		pushAttempts: 0,
-		attachedAtMs,
 		dispatchQueue: new DeliveryQueue(),
 		dispatchRetryAttempts: new Map(),
 		dispatchRetryTimers: new Map(),
@@ -1221,17 +1220,21 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 	// Initial runtime identity must be visible before this agent has completed a
 	// turn. The first long-poll below carries this report with its heartbeat.
 	latestAgentStats = runtimeAgentStats(ctx);
-	// Revive/register can already be attached (same session_id on the
-	// connection row). The pump only rebuilds attachContext on a sessionId
-	// *transition*, so a stop→remote into the same room would otherwise
-	// skip the room-agenda card. Fetch it here as a genuine attach.
-	if (bond.sessionId) void enrichBondWithSession(bond.sessionId, true);
+	// Revive/register can already be attached. Refresh title/owner display
+	// identity; canonical ingress remains the only model-context source.
+	if (bond.sessionId) void enrichBondWithSession(bond.sessionId);
 	void pumpLoop(ctx);
 	return { ok: true, codename: bond.codename, attached };
 }
 
 // Late-bound so the loop can reference the ExtensionAPI closure.
-let pi_send: (message: string, mode?: "now" | "steer" | "followUp", commandTurnId?: string, commandMessageId?: string) => void = () => {};
+let pi_send: (
+	message: string,
+	mode?: "now" | "steer" | "followUp",
+	commandTurnId?: string,
+	commandMessageId?: string,
+	contexts?: readonly IngressAdvisoryContext[],
+) => void = () => {};
 let pi_abort: () => void = () => {};
 let pi_compact: () => void = () => {};
 let pi_reload: () => Promise<void> = async () => {};
@@ -1239,15 +1242,11 @@ let pi_setThinking: (level: string) => void = () => {};
 let pi_setModel: (modelId: string) => Promise<boolean> = async () => false;
 
 /**
- * Attach-time bond context (item 9dcbd157). One bounded transcript fetch
- * learns the room's identity — title, owner name, recent tail — and caches it
- * on the bond so the attach block and every owner envelope can carry it.
- *
- * withAttachContext is true only for a genuine attach transition: a title
- * refresh (titles are job-generated, so an early fetch can find none) must
- * never re-inject the context block.
+ * Refresh display identity only. Conversational/model context is accepted
+ * exclusively from negotiated canonical ingress; transcript reads never
+ * become command-turn context or trigger model recovery.
  */
-async function enrichBondWithSession(sessionId: string, withAttachContext: boolean): Promise<void> {
+async function enrichBondWithSession(sessionId: string): Promise<void> {
 	const resolved = await resolveToken();
 	if (!resolved) return;
 	try {
@@ -1258,25 +1257,6 @@ async function enrichBondWithSession(sessionId: string, withAttachContext: boole
 			return;
 		}
 		const shaped = shapeTranscript(sessionId, unwrapped.details);
-		if (withAttachContext) {
-			try {
-				const agendaRaw = await callDevspec(resolved.token, "get_action_items", {
-					source_session_id: sessionId,
-					fields: "compact",
-					limit: 20,
-					include_briefs: true,
-					lifecycle: "all",
-				}, { lane: "pump" });
-				const agendaUnwrapped = unwrapMcpResult(agendaRaw);
-				if (!agendaUnwrapped.isError) {
-					shaped.agenda = shapeRoomAgenda(agendaUnwrapped.details);
-				} else {
-					debug("session agenda fetch failed", { resultChars: agendaUnwrapped.text.length });
-				}
-			} catch (err) {
-				debug("session agenda error", { errorPresent: Boolean(err) });
-			}
-		}
 		const active = pump;
 		// The attachment may have moved on (or detached) while the fetch flew.
 		if (!active?.bond || active.bond.sessionId !== sessionId) return;
@@ -1289,9 +1269,6 @@ async function enrichBondWithSession(sessionId: string, withAttachContext: boole
 					: undefined,
 			ownerName: shaped.ownerName ?? active.bond.ownerName,
 		};
-		if (withAttachContext) {
-			next.attachContext = buildAttachBlock(shaped, active.bond.codename ?? "this agent");
-		}
 		active.bond = next;
 		setBond(next);
 		if (!isRealSessionTitle(next.sessionTitle)) {
@@ -1299,7 +1276,7 @@ async function enrichBondWithSession(sessionId: string, withAttachContext: boole
 			if (preview) setSessionPreview(preview);
 		}
 		setRemoteStatus(lastCtx);
-		debug("session enriched", { titlePresent: Boolean(shaped.title), ownerPresent: Boolean(shaped.ownerName), tail: shaped.tail.length, agenda: shaped.agenda.length, attachContext: withAttachContext });
+		debug("session enriched", { titlePresent: Boolean(shaped.title), ownerPresent: Boolean(shaped.ownerName), tail: 0, agenda: 0, attachContext: false });
 	} catch (err) {
 		debug("session enrich error", { errorPresent: Boolean(err) });
 	}
@@ -1316,9 +1293,29 @@ export default function (pi: ExtensionAPI) {
 			if (trackedTurn.trail.applySubagentFleet(toolCallId, snapshot)) trackedTurn.dirty = true;
 		});
 	};
-	pi_send = (message, mode = "now", commandTurnId, commandMessageId) => {
-		commandTurnBindings.remember(message, commandTurnId, commandMessageId);
+	pi_send = (message, mode = "now", commandTurnId, commandMessageId, contexts = []) => {
 		try {
+			for (const context of contexts) {
+				const custom = {
+					customType: "devspec-remote-ingress-context",
+					content: formatIngressAdvisoryContext(context, {
+						id: commandMessageId ?? "unbound",
+						commandTurnId: commandTurnId ?? "unbound",
+					}),
+					display: false,
+					details: {
+						envelope_id: context.envelopeId,
+						command_message_id: commandMessageId,
+						command_turn_id: commandTurnId,
+						context: context.context,
+						window: context.window,
+					},
+				};
+				if (mode === "steer") pi.sendMessage(custom, { triggerTurn: false, deliverAs: "steer" });
+				else if (mode === "followUp") pi.sendMessage(custom, { triggerTurn: false, deliverAs: "followUp" });
+				else pi.sendMessage(custom, { triggerTurn: false });
+			}
+			commandTurnBindings.remember(message, commandTurnId, commandMessageId);
 			if (mode === "steer") pi.sendUserMessage(message, { deliverAs: "steer" });
 			else if (mode === "followUp") pi.sendUserMessage(message, { deliverAs: "followUp" });
 			else pi.sendUserMessage(message);

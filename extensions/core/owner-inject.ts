@@ -18,28 +18,44 @@
 import type { OwnerCommand } from "./remote-payload.ts";
 import { sendModeFor, type OwnerDeliveryMode, type OwnerSendMode } from "./preempt.ts";
 
+type OwnerCommandIdentity = Pick<OwnerCommand, "id" | "text"> & Partial<Pick<OwnerCommand, "createdAt" | "userName">>;
+
 export class SeenOwnerCommands {
 	private readonly ids = new Set<string>();
+	private readonly inFlight = new Set<string>();
 
-	remember(commands: readonly OwnerCommand[]): void {
-		for (const cmd of commands) {
-			if (cmd.id) this.ids.add(cmd.id);
-		}
+	remember(commands: readonly OwnerCommandIdentity[]): void {
+		for (const cmd of commands) this.ids.add(cmd.id);
 	}
 
-	/** Commands that have not been seen. Marks them seen. */
-	takeUnseen(commands: readonly OwnerCommand[]): OwnerCommand[] {
-		const out: OwnerCommand[] = [];
+	/** Reserve unseen commands without committing replay state yet. */
+	takeUnseen<T extends OwnerCommandIdentity>(commands: readonly T[]): T[] {
+		const out: T[] = [];
 		for (const cmd of commands) {
-			if (cmd.id && this.ids.has(cmd.id)) continue;
-			if (cmd.id) this.ids.add(cmd.id);
+			if (this.ids.has(cmd.id) || this.inFlight.has(cmd.id)) continue;
+			this.inFlight.add(cmd.id);
 			out.push(cmd);
 		}
 		return out;
 	}
 
+	/** Commit only after hidden context + hydrated command were accepted by Pi. */
+	commit(command: Pick<OwnerCommandIdentity, "id">): void {
+		this.inFlight.delete(command.id);
+		this.ids.add(command.id);
+	}
+
+	/** Release a failure so the unchanged canonical cursor can retry it. */
+	release(command: Pick<OwnerCommandIdentity, "id">): void {
+		this.inFlight.delete(command.id);
+	}
+
 	has(id: string): boolean {
 		return this.ids.has(id);
+	}
+
+	isInFlight(id: string): boolean {
+		return this.inFlight.has(id);
 	}
 
 	get size(): number {
@@ -64,12 +80,12 @@ export function resolveAttachedAtMs(value: unknown, fallbackMs: number): number 
  * Missing/unparseable created_at is live — dropping an instruction is worse
  * than a possible replay.
  */
-export function splitCatchUpCommands(
-	commands: readonly OwnerCommand[],
+export function splitCatchUpCommands<T extends OwnerCommandIdentity>(
+	commands: readonly T[],
 	attachedAtMs: number,
-): { historical: OwnerCommand[]; live: OwnerCommand[] } {
-	const historical: OwnerCommand[] = [];
-	const live: OwnerCommand[] = [];
+): { historical: T[]; live: T[] } {
+	const historical: T[] = [];
+	const live: T[] = [];
 	for (const cmd of commands) {
 		const createdMs = parseTimestampMs(cmd.createdAt);
 		if (createdMs !== null && createdMs < attachedAtMs) historical.push(cmd);

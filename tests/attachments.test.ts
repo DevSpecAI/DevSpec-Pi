@@ -5,9 +5,10 @@ import {
 	hasLegacyInlineBytes,
 	materialiseAttachment,
 	materialiseAttachments,
+	requireMaterialisedAttachments,
 	safeAttachmentName,
 } from "../extensions/core/attachments.ts";
-import { extractOwnerCommands, formatInboundMessage } from "../extensions/core/remote-payload.ts";
+import { formatInboundMessage } from "../extensions/core/remote-payload.ts";
 
 const ME = "conn-123";
 
@@ -15,36 +16,6 @@ test("safeAttachmentName never escapes the attachment dir", () => {
 	assert.equal(safeAttachmentName("../../etc/passwd"), "passwd");
 	assert.equal(safeAttachmentName(""), "attachment");
 	assert.equal(safeAttachmentName("Screenshot 2026.png"), "Screenshot_2026.png");
-});
-
-test("extractOwnerCommands keeps attachments and attachment-only commands", () => {
-	const cmds = extractOwnerCommands(
-		{
-			commands: [
-				{
-					id: "m1",
-					command_turn: { id: "turn-1" },
-					content: "can you see this?" ,
-					attachments: [{ filename: "shot.png", mimeType: "image/png", type: "image", sizeBytes: 12, resource_id: "res-1" }],
-					addressed_to: { connection_id: ME },
-					authority: { kind: "owner" },
-				},
-				{
-					id: "m2",
-					command_turn: { id: "turn-1" },
-					content: "",
-					attachments: [{ filename: "only.png", resource_id: "res-2" }],
-					addressed_to: { connection_id: ME },
-					authority: { kind: "owner" },
-				},
-			],
-		},
-		ME,
-	);
-	assert.equal(cmds.length, 2);
-	assert.equal(cmds[0].attachments?.length, 1);
-	assert.equal(cmds[1].text, "");
-	assert.equal((cmds[1].attachments?.[0] as { filename: string }).filename, "only.png");
 });
 
 test("formatInboundMessage appends local-file notes, never bytes or URLs", () => {
@@ -143,7 +114,7 @@ test("resource_id fetches a signed URL then discards it", async () => {
 	assert.doesNotMatch(notes, /signed/);
 });
 
-test("a failed fetch names the filename and the reason", async () => {
+test("a failed fetch is unavailable and cannot pass atomic command hydration", async () => {
 	const out = await materialiseAttachment(
 		{ filename: "notes.txt", mimeType: "text/plain", type: "text", resource_id: "res-x" },
 		{
@@ -158,11 +129,12 @@ test("a failed fetch names the filename and the reason", async () => {
 	assert.equal(out?.delivery, "unavailable");
 	assert.match(out!.note, /notes\.txt/);
 	assert.match(out!.note, /not found/);
+	assert.throws(() => requireMaterialisedAttachments([out!]), /attachment hydration failed: notes\.txt/);
 });
 
-test("legacy unavailable payload is named, not omitted", async () => {
+test("canonical unavailable payload is named, not omitted by the materializer", async () => {
 	const out = await materialiseAttachments(
-		[{ filename: "old.png", type: "image", payload: "unavailable", reason: "legacy_inline_payload" }],
+		[{ filename: "old.png", mime_type: "image/png", type: "image", size_bytes: null, materialization: "unavailable", reason: "legacy_inline_payload" }],
 		{ token: "tok", connectionId: ME },
 		"m",
 	);

@@ -21,9 +21,12 @@ export type AttachmentDelivery = "file" | "unavailable";
 export interface RawAttachment {
 	filename?: unknown;
 	mimeType?: unknown;
+	mime_type?: unknown;
 	type?: unknown;
 	sizeBytes?: unknown;
+	size_bytes?: unknown;
 	resource_id?: unknown;
+	materialization?: unknown;
 	content?: unknown;
 	dataUrl?: unknown;
 	payload?: unknown;
@@ -72,11 +75,13 @@ function metaOf(a: RawAttachment): {
 	type: string;
 	sizeBytes: number | null;
 } {
+	const mimeType = typeof a.mime_type === "string" ? a.mime_type : a.mimeType;
+	const sizeBytes = typeof a.size_bytes === "number" ? a.size_bytes : a.sizeBytes;
 	return {
 		filename: safeAttachmentName(a.filename),
-		mimeType: typeof a.mimeType === "string" && a.mimeType.trim() ? a.mimeType : "application/octet-stream",
+		mimeType: typeof mimeType === "string" && mimeType.trim() ? mimeType : "application/octet-stream",
 		type: typeof a.type === "string" && a.type.trim() ? a.type : "document",
-		sizeBytes: typeof a.sizeBytes === "number" && Number.isFinite(a.sizeBytes) ? a.sizeBytes : null,
+		sizeBytes: typeof sizeBytes === "number" && Number.isFinite(sizeBytes) ? sizeBytes : null,
 	};
 }
 
@@ -160,7 +165,7 @@ export async function materialiseAttachment(
 	const a = raw as RawAttachment;
 	const meta = metaOf(a);
 
-	if (a.payload === "unavailable") {
+	if (a.materialization === "unavailable" || a.payload === "unavailable") {
 		const reason = typeof a.reason === "string" && a.reason.trim() ? a.reason : "unavailable";
 		return unavailable(meta, reason);
 	}
@@ -214,6 +219,20 @@ export async function materialiseAttachments(
 		if (one) out.push(one);
 	}
 	return out;
+}
+
+/**
+ * Canonical command attachments are atomic with their command. Hydration must
+ * succeed before Pi is aborted, steered, or sent a user message; a failure is
+ * transport state, never model-recovery prose.
+ */
+export function requireMaterialisedAttachments(
+	attachments: readonly MaterialisedAttachment[],
+	expectedCount = attachments.length,
+): void {
+	if (attachments.length !== expectedCount) throw new Error("attachment hydration was incomplete");
+	const failed = attachments.find((attachment) => attachment.delivery !== "file" || !attachment.path);
+	if (failed) throw new Error(`attachment hydration failed: ${failed.filename}`);
 }
 
 /** Prompt text: paths and reasons only. Never bytes, never a URL. */

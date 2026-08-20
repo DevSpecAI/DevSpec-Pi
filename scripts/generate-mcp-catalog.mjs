@@ -39,6 +39,7 @@ export const PUMP_VERBS = [
 	"detach_connection",
 	"verify_agent_connection",
 	"report_connection_check",
+	"report_commit_provenance",
 ];
 
 /**

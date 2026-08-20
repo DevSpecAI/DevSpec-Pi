@@ -10,7 +10,7 @@ import {
 	PUMP_VERBS,
 } from "../extensions/generated/mcp-catalog.ts";
 
-test("catalog classifies the 12 pump verbs as non-model", () => {
+test("catalog classifies every host-only pump verb as non-model", () => {
 	for (const name of PUMP_VERBS) {
 		const entry = MCP_CATALOG.find((e) => e.name === name);
 		assert.ok(entry, `missing pump verb ${name}`);
@@ -18,6 +18,7 @@ test("catalog classifies the 12 pump verbs as non-model", () => {
 		assert.ok(!MODEL_VERB_NAMES.includes(name as (typeof MODEL_VERB_NAMES)[number]));
 	}
 	assert.equal(CATALOG_COUNTS.pump, PUMP_VERBS.length);
+	assert.ok(PUMP_VERBS.includes("report_commit_provenance"));
 });
 
 test("post_session_message is never a model-facing tool", () => {

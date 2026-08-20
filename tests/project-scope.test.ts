@@ -8,7 +8,8 @@ import {
 	clearProjectPinCache,
 	writeProjectPin,
 } from "../extensions/core/project-scope.ts";
-import { mkdtemp, mkdir, writeFile, readFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -52,6 +53,10 @@ async function pinnedDir(contents: string): Promise<string> {
 	await mkdir(join(dir, ".devspec"), { recursive: true });
 	await writeFile(join(dir, ".devspec", "project.json"), contents, "utf8");
 	return dir;
+}
+
+function git(cwd: string, args: string[]): void {
+	execFileSync("git", args, { cwd, stdio: "pipe" });
 }
 
 test("resolveProjectPin reads project_id and caches per cwd", async () => {
@@ -120,6 +125,120 @@ test("the walk stops at the repository root — a pin outside the repo is not us
 	const sub = join(repo, "src");
 	await mkdir(sub, { recursive: true });
 	assert.equal(await resolveProjectPin(sub), null);
+});
+
+test("a linked worktree inherits an untracked pin from the main checkout", async (t) => {
+	clearProjectPinCache();
+	const root = await mkdtemp(join(tmpdir(), "devspec-pin-worktree-"));
+	const main = join(root, "main");
+	const linked = join(root, "linked");
+	t.after(async () => {
+		clearProjectPinCache();
+		await rm(root, { recursive: true, force: true });
+	});
+
+	await mkdir(main, { recursive: true });
+	git(main, ["init", "--quiet"]);
+	git(main, ["config", "user.email", "test@example.com"]);
+	git(main, ["config", "user.name", "DevSpec test"]);
+	await writeFile(join(main, "README.md"), "seed\n", "utf8");
+	git(main, ["add", "README.md"]);
+	git(main, ["commit", "--quiet", "-m", "seed"]);
+	git(main, ["worktree", "add", "--quiet", "-b", "linked-test", linked]);
+
+	// Write after creating the worktree so this pin exists only in the main checkout.
+	await mkdir(join(main, ".devspec"), { recursive: true });
+	await writeFile(
+		join(main, ".devspec", "project.json"),
+		'{"project_id":"11111111-1111-4111-8111-111111111111"}',
+		"utf8",
+	);
+
+	assert.equal(
+		await resolveProjectPin(linked, join(root, "not-home")),
+		"11111111-1111-4111-8111-111111111111",
+	);
+
+	// The repository fallback remains last: an explicit linked-worktree pin wins.
+	await mkdir(join(linked, ".devspec"), { recursive: true });
+	await writeFile(
+		join(linked, ".devspec", "project.json"),
+		'{"project_id":"22222222-2222-4222-8222-222222222222"}',
+		"utf8",
+	);
+	clearProjectPinCache();
+	assert.equal(
+		await resolveProjectPin(linked, join(root, "not-home")),
+		"22222222-2222-4222-8222-222222222222",
+	);
+});
+
+test("a linked worktree never inherits a main checkout pin at or above $HOME", async (t) => {
+	clearProjectPinCache();
+	const root = await mkdtemp(join(tmpdir(), "devspec-pin-home-boundary-"));
+	const main = join(root, "main");
+	const home = join(main, "home");
+	const linked = join(home, "linked");
+	t.after(async () => {
+		clearProjectPinCache();
+		await rm(root, { recursive: true, force: true });
+	});
+
+	await mkdir(main, { recursive: true });
+	git(main, ["init", "--quiet"]);
+	git(main, ["config", "user.email", "test@example.com"]);
+	git(main, ["config", "user.name", "DevSpec test"]);
+	await writeFile(join(main, "README.md"), "seed\n", "utf8");
+	git(main, ["add", "README.md"]);
+	git(main, ["commit", "--quiet", "-m", "seed"]);
+	await mkdir(home, { recursive: true });
+	git(main, ["worktree", "add", "--quiet", "-b", "home-boundary-test", linked]);
+	await mkdir(join(main, ".devspec"), { recursive: true });
+	await writeFile(
+		join(main, ".devspec", "project.json"),
+		'{"project_id":"above-home-project"}',
+		"utf8",
+	);
+
+	assert.equal(await resolveProjectPin(linked, home), null);
+});
+
+test("an unusual separate Git directory fails open instead of guessing a checkout", async (t) => {
+	clearProjectPinCache();
+	const root = await mkdtemp(join(tmpdir(), "devspec-pin-separate-git-"));
+	const main = join(root, "main");
+	const metadata = join(root, "metadata");
+	const gitDirectory = join(metadata, "repository.git");
+	const linked = join(root, "linked");
+	t.after(async () => {
+		clearProjectPinCache();
+		await rm(root, { recursive: true, force: true });
+	});
+
+	await mkdir(metadata, { recursive: true });
+	git(root, ["init", "--quiet", `--separate-git-dir=${gitDirectory}`, main]);
+	git(main, ["config", "user.email", "test@example.com"]);
+	git(main, ["config", "user.name", "DevSpec test"]);
+	await writeFile(join(main, "README.md"), "seed\n", "utf8");
+	git(main, ["add", "README.md"]);
+	git(main, ["commit", "--quiet", "-m", "seed"]);
+	git(main, ["worktree", "add", "--quiet", "-b", "separate-git-test", linked]);
+
+	// Neither Git's separate metadata path nor the undiscoverable checkout path
+	// is guessed as repository jurisdiction from the linked worktree.
+	await mkdir(join(gitDirectory, ".devspec"), { recursive: true });
+	await writeFile(
+		join(gitDirectory, ".devspec", "project.json"),
+		'{"project_id":"metadata-is-not-a-worktree"}',
+		"utf8",
+	);
+	await mkdir(join(main, ".devspec"), { recursive: true });
+	await writeFile(
+		join(main, ".devspec", "project.json"),
+		'{"project_id":"undiscoverable-main-worktree"}',
+		"utf8",
+	);
+	assert.equal(await resolveProjectPin(linked, join(root, "not-home")), null);
 });
 
 test("a pin at or above $HOME is never read", async () => {

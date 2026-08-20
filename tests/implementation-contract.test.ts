@@ -73,7 +73,9 @@ function provenanceSection() {
 	} as const;
 }
 
-function bundle(version = "4.0.0") {
+const CURRENT_CONTRACT_VERSION = "4.2.0";
+
+function bundle(version = CURRENT_CONTRACT_VERSION) {
 	const input = {
 		kind: "devspec.product.implementation_contract",
 		schema_version: 1,
@@ -115,11 +117,11 @@ function loader(input: {
 }
 
 const REFERENCE = {
-	contract_version: "4.0.0",
+	contract_version: CURRENT_CONTRACT_VERSION,
 	resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 };
 
-test("mechanically reads, validates, formats, and caches the exact v4 provenance contract", async () => {
+test("mechanically reads, validates, formats, and caches the current v4.2 provenance contract", async () => {
 	resetImplementationContractCache();
 	const counts = { resource: 0, compatibility: 0 };
 	const first = await loadImplementationContext({
@@ -127,7 +129,7 @@ test("mechanically reads, validates, formats, and caches the exact v4 provenance
 		loader: loader({ resource: resource(), counts }),
 	});
 	assert.equal(first.source, "resource");
-	assert.equal(first.contractVersion, "4.0.0");
+	assert.equal(first.contractVersion, CURRENT_CONTRACT_VERSION);
 	assert.equal(first.contractHash, bundle().contract_hash);
 	assert.deepEqual(first.workEntryContract, workEntrySection());
 	assert.deepEqual(first.commitProvenanceContract, provenanceSection());
@@ -161,7 +163,7 @@ test("cache v6 ignores every pre-cutover parser generation", async () => {
 	assert.doesNotMatch(context.rules.map((rule) => rule.id).join(","), /poison/);
 });
 
-test("resource fallback accepts only the same exact v4 compatibility bundle", async () => {
+test("resource fallback accepts only the same exact v4-compatible bundle", async () => {
 	resetImplementationContractCache();
 	const context = await loadImplementationContext({
 		reference: REFERENCE,
@@ -174,8 +176,19 @@ test("resource fallback accepts only the same exact v4 compatibility bundle", as
 	assert.equal(context.contractHash, bundle().contract_hash);
 });
 
-test("v2, v3, and near-v4 documents are rejected by the clean cutover", async (t) => {
-	for (const version of ["2.0.0", "3.0.0", "4.0.1"]) {
+test("older compatible v4 contract versions remain dynamically consumable", async () => {
+	resetImplementationContractCache();
+	const version = "4.0.0";
+	const context = await loadImplementationContext({
+		reference: { ...REFERENCE, contract_version: version },
+		loader: loader({ resource: resource(bundle(version)) }),
+	});
+	assert.equal(context.source, "resource");
+	assert.equal(context.contractVersion, version);
+});
+
+test("non-v4 and malformed versions are rejected by the schema-v1 compatibility boundary", async (t) => {
+	for (const version of ["2.0.0", "3.0.0", "5.0.0", "4.2", " 4.2.0"]) {
 		await t.test(version, async () => {
 			resetImplementationContractCache();
 			const context = await loadImplementationContext({
@@ -238,16 +251,15 @@ test("offline fallback is fail-open and still builds the immutable work kickoff"
 	assert.match(requirements, /server reconciliation/i);
 	assert.doesNotMatch(requirements, /Do not edit until|stop and retry/i);
 	const kickoff = buildImplementationKickoff({
-		actionItemIds: ["item-remote"],
-		assignmentId: "assignment-remote",
+		actionItemIds: ["item-local"],
 		context,
 		contractReference: REFERENCE,
 	});
-	assert.equal(kickoff.implementation_contract.contract_version, "4.0.0");
+	assert.equal(kickoff.implementation_contract.contract_version, CURRENT_CONTRACT_VERSION);
 	assert.match(formatImplementationContext(context), /Local fail-open fallback/);
 });
 
-test("an unversioned delivery retains the latest exact v4 contract during an outage", async () => {
+test("an unversioned local delivery retains the latest compatible v4 contract during an outage", async () => {
 	resetImplementationContractCache();
 	await loadImplementationContext({ reference: REFERENCE, loader: loader({ resource: resource() }) });
 	const retained = await loadImplementationContext({
@@ -255,14 +267,14 @@ test("an unversioned delivery retains the latest exact v4 contract during an out
 		loader: loader({ resourceError: new Error("offline"), compatibilityError: new Error("offline") }),
 	});
 	assert.equal(retained.source, "cache");
-	assert.match(retained.warning ?? "", /retained 4\.0\.0 contract/);
+	assert.match(retained.warning ?? "", /retained 4\.2\.0 contract/);
 });
 
 test("wrong resource pointers never become trusted but remain non-blocking guidance", async () => {
 	resetImplementationContractCache();
 	const context = await loadImplementationContext({
 		reference: {
-			contract_version: "4.0.0",
+			contract_version: CURRENT_CONTRACT_VERSION,
 			resource_uri: "devspec://product/implementation-contract/unattended",
 		},
 		loader: loader({ resource: resource() }),
@@ -273,7 +285,7 @@ test("wrong resource pointers never become trusted but remain non-blocking guida
 
 test("kickoff validates canonical resource/version and carries no execution mode", () => {
 	const context = {
-		contractVersion: "4.0.0",
+		contractVersion: CURRENT_CONTRACT_VERSION,
 		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 		source: "resource" as const,
 		rules: [],
@@ -281,14 +293,13 @@ test("kickoff validates canonical resource/version and carries no execution mode
 	assert.throws(() => buildImplementationKickoff({
 		actionItemIds: ["item-1"],
 		context,
-		contractReference: { ...REFERENCE, contract_version: "4.0.1" },
+		contractReference: { ...REFERENCE, contract_version: "4.2.1" },
 	}), /version did not match/);
 	const kickoff = buildImplementationKickoff({
 		actionItemIds: ["item-1", "item-1"],
-		assignmentId: "assignment-1",
 		context,
 	});
-	assert.deepEqual(kickoff.work, { action_item_ids: ["item-1"], assignment_id: "assignment-1" });
-	assert.equal(kickoff.implementation_contract.contract_version, "4.0.0");
-	assert.doesNotMatch(JSON.stringify(kickoff), /attended|execution_mode/);
+	assert.deepEqual(kickoff.work, { action_item_ids: ["item-1"] });
+	assert.equal(kickoff.implementation_contract.contract_version, CURRENT_CONTRACT_VERSION);
+	assert.doesNotMatch(JSON.stringify(kickoff), /assignment|attended|execution_mode/);
 });

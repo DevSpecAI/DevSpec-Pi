@@ -45,18 +45,22 @@ test("catalog remains the complete wire map", () => {
 	assert.ok(!modelFacingSurface().some((e) => e.name === "classify_criterion"));
 });
 
-test("connection catalog describes playbook-only delivery with no work routing", () => {
+test("connection catalog matches server authority: exact commands and playbook-only delivery", () => {
 	const transcript = MCP_CATALOG.find((entry) => entry.name === "get_session_transcript");
 	const inbox = MCP_CATALOG.find((entry) => entry.name === "get_connection_dispatch");
 	const register = MCP_CATALOG.find((entry) => entry.name === "register_connection");
 	const poll = MCP_CATALOG.find((entry) => entry.name === "poll_connection");
 	assert.ok(transcript && inbox && register && poll);
+	assert.match(transcript.description, /is_controller_instruction/);
+	assert.match(transcript.description, /owner or delegated human command/);
 	assert.match(inbox.description, /PLAYBOOK RUNS ONLY/);
-	assert.match(inbox.description, /owner-scoped/);
+	assert.match(inbox.description, /never contain action-item work/);
 	assert.match(poll.description, /owner-scoped waiting playbook runs only/);
-	assert.match(register.description, /never assigns? or routes?|does not assign or route/);
+	assert.match(poll.description, /never routed through this array/);
+	assert.match(register.description, /registration never routes or assigns action-item work/);
+	assert.match(register.description, /server alone stamps exact-target command authority and immutable requester provenance/i);
 	const catalogText = JSON.stringify(MCP_CATALOG);
-	assert.doesNotMatch(catalogText, /local_agent_dispatch|exact assignment id|ready to receive connection-native work dispatches|assignment routing hints/i);
+	assert.doesNotMatch(catalogText, /exact assignment id|ready to receive connection-native work dispatches|assignment routing hints/i);
 });
 
 test("every catalog entry has a schema and a name", () => {

@@ -13,7 +13,7 @@ const item: WorkTarget = {
 };
 
 const contract: ImplementationContractContext = {
-	contractVersion: "4.0.0",
+	contractVersion: "4.2.0",
 	contractHash: "sha256:contract",
 	resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 	source: "resource",
@@ -27,7 +27,8 @@ test("buildWorkPrompt carries thin work/contract identity and mechanically loade
 	const prompt = buildWorkPrompt(item, contract);
 	assert.match(prompt, /^DevSpec work kickoff: /);
 	assert.match(prompt, /"action_item_ids":\["e10f3ad1-c2ce-4d56-a87f-8f00d6c6384d"\]/);
-	assert.match(prompt, /"contract_version":"4.0.0"/);
+	assert.match(prompt, /"contract_version":"4.2.0"/);
+	assert.doesNotMatch(prompt, /assignment_id|assignmentId/);
 	assert.match(prompt, /devspec:\/\/product\/implementation-contract"/);
 	assert.match(prompt, /core\.claim-early/);
 	assert.match(prompt, /core\.truthful-handoff/);

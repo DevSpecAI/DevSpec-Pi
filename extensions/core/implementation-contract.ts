@@ -38,7 +38,6 @@ export interface ImplementationKickoff {
 	schema_version: 1;
 	work: {
 		action_item_ids: string[];
-		assignment_id?: string;
 	};
 	implementation_contract: {
 		contract_version: string;
@@ -159,6 +158,8 @@ function exactContractString(value: unknown): string | undefined {
 }
 
 const CONTRACT_HASH_PATTERN = /^sha256:[a-f0-9]{64}$/;
+/** Schema v1 contracts remain compatible within the product's v4 major line. */
+const CONTRACT_VERSION_PATTERN = /^4\.\d+\.\d+$/;
 const RULE_PHASES = new Set([
 	"discovery", "claim", "implementation", "verification", "delivery", "completion", "failure", "governance",
 ]);
@@ -330,7 +331,7 @@ function parseJsonText(value: unknown, expectedResourceUri: string): unknown {
  */
 function parseContractBundle(root: Record<string, unknown>, resourceUri: string): CachedContract | null {
 	const contractVersion = exactContractString(root.contract_version);
-	if (contractVersion !== "4.0.0") return null;
+	if (!contractVersion || !CONTRACT_VERSION_PATTERN.test(contractVersion)) return null;
 	const expectedKeys = [
 		"kind", "schema_version", "contract_version", "contract_hash", "source", "instruction_boundary",
 		"core_implementation_contract", "work_entry_contract", "commit_provenance_contract",
@@ -544,7 +545,6 @@ export function createImplementationContractLoader(token: string): Implementatio
 
 export function buildImplementationKickoff(input: {
 	actionItemIds: readonly string[];
-	assignmentId?: string;
 	context: ImplementationContractContext;
 	contractReference?: ImplementationContractReference;
 }): ImplementationKickoff {
@@ -575,7 +575,6 @@ export function buildImplementationKickoff(input: {
 		schema_version: 1,
 		work: {
 			action_item_ids: actionItemIds,
-			...(input.assignmentId?.trim() ? { assignment_id: input.assignmentId.trim() } : {}),
 		},
 		implementation_contract: {
 			contract_version: contractVersion,

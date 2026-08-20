@@ -109,8 +109,20 @@ function fingerprint(tools) {
 	return h.digest("hex");
 }
 
+function descriptionFingerprint(tools) {
+	const h = createHash("sha256");
+	for (const t of tools) {
+		h.update(t.name);
+		h.update("\0");
+		h.update(String(t.description ?? ""));
+		h.update("\n");
+	}
+	return h.digest("hex");
+}
+
 function emitTs(tools) {
 	const fp = fingerprint(tools);
+	const descriptionFp = descriptionFingerprint(tools);
 	const entries = tools.map((t) => ({
 		name: t.name,
 		label: `DevSpec: ${titleCase(t.name)}`,
@@ -127,10 +139,12 @@ function emitTs(tools) {
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Fingerprint: ${fp}
+ * Schema fingerprint: ${fp}
+ * Description fingerprint: ${descriptionFp}
  * Regenerated: ${new Date().toISOString()}
  */
 export const MCP_CATALOG_FINGERPRINT = ${JSON.stringify(fp)};
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = ${JSON.stringify(descriptionFp)};
 export const MCP_CATALOG_GENERATED_AT = ${JSON.stringify(new Date().toISOString())};
 
 export type CatalogKind = "model" | "pump" | "never_model";

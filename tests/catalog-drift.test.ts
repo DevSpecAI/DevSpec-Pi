@@ -5,7 +5,11 @@ import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { MCP_CATALOG, MCP_CATALOG_FINGERPRINT } from "../extensions/generated/mcp-catalog.ts";
+import {
+	MCP_CATALOG,
+	MCP_CATALOG_DESCRIPTION_FINGERPRINT,
+	MCP_CATALOG_FINGERPRINT,
+} from "../extensions/generated/mcp-catalog.ts";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const EXPLICIT_V2_ROOT = process.env.DEVSPEC_V2_ROOT?.trim() || null;
@@ -31,6 +35,17 @@ function fingerprint(tools: Array<{ name: string; inputSchema: unknown }>): stri
 	return h.digest("hex");
 }
 
+function descriptionFingerprint(tools: Array<{ name: string; description?: string }>): string {
+	const h = createHash("sha256");
+	for (const t of tools) {
+		h.update(t.name);
+		h.update("\0");
+		h.update(t.description ?? "");
+		h.update("\n");
+	}
+	return h.digest("hex");
+}
+
 test("checked-in catalog matches the sibling DevSpecV2 verb surface when present", (t) => {
 	if (!existsSync(DEFINITIONS)) {
 		if (EXPLICIT_V2_ROOT) assert.fail(`DEVSPEC_V2_ROOT was supplied but tool definitions are missing: ${DEFINITIONS}`);
@@ -42,6 +57,7 @@ import { getMcpAllTools } from ${JSON.stringify(DEFINITIONS)};
 const tools = getMcpAllTools();
 process.stdout.write(JSON.stringify(tools.map((t) => ({
   name: t.name,
+  description: t.description ?? "",
   inputSchema: t.inputSchema ?? { type: "object", properties: {} },
 }))));
 `;
@@ -51,7 +67,7 @@ process.stdout.write(JSON.stringify(tools.map((t) => ({
 		encoding: "utf8",
 		maxBuffer: 20 * 1024 * 1024,
 	});
-	const live = JSON.parse(raw) as Array<{ name: string; inputSchema: unknown }>;
+	const live = JSON.parse(raw) as Array<{ name: string; description: string; inputSchema: unknown }>;
 	const liveNames = live.map((t) => t.name).sort();
 	const catalogNames = MCP_CATALOG.map((t) => t.name).sort();
 	assert.deepEqual(
@@ -59,5 +75,10 @@ process.stdout.write(JSON.stringify(tools.map((t) => ({
 		liveNames,
 		"extensions/generated/mcp-catalog.ts is stale — run node scripts/generate-mcp-catalog.mjs --devspec-v2 <path>",
 	);
-	assert.equal(fingerprint(live), MCP_CATALOG_FINGERPRINT);
+	assert.equal(fingerprint(live), MCP_CATALOG_FINGERPRINT, "generated catalog schemas drifted from DevSpecV2");
+	assert.equal(
+		descriptionFingerprint(live),
+		MCP_CATALOG_DESCRIPTION_FINGERPRINT,
+		"generated catalog descriptions drifted from DevSpecV2",
+	);
 });

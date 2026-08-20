@@ -35,6 +35,7 @@ import {
 } from "./core/client.ts";
 import { getBond, setBond, type BondState } from "./core/bond-state.ts";
 import { formatInboundMessage, parsePollPayload, type OwnerCommand } from "./core/remote-payload.ts";
+import { CommandTurnBindings } from "./core/command-turn.ts";
 import { compactWithContext, executeControlCommand, parseControlCommand, reloadWithContext, runReloadLap } from "./core/control.ts";
 import { withLiveUi } from "./core/ctx-guard.ts";
 import { commandReloadContext, rememberExtensionRunner } from "./core/command-runner.ts";
@@ -102,6 +103,8 @@ interface PumpState {
 	dispatchCursor?: string;
 	busy: boolean;
 	stop: boolean;
+	/** Shutdown blocks intake but still permits exact terminal fallback posts. */
+	closing?: boolean;
 	errors: number;
 	/**
 	 * False until the first package has been processed. The cold-start poll
@@ -151,6 +154,10 @@ let preemptOwnerCached = true;
 interface TurnState {
 	tracker: TurnTracker;
 	trail: TrailBuilder;
+	/** Immutable poll-delivered command generation this segment answers. */
+	commandTurnId?: string;
+	/** Exact owner command/source message this transcript segment answers. */
+	commandMessageId?: string;
 	dirty: boolean;
 	interval: ReturnType<typeof setInterval> | null;
 	/** Trail posts so far this run — drives the adaptive cadence. */
@@ -173,6 +180,8 @@ export function nextTrailDelayMs(postsSoFar: number): number {
 let postWarnedThisTurn = false;
 
 let turn: TurnState | null = null;
+const pendingTerminalPosts = new Set<Promise<void>>();
+const commandTurnBindings = new CommandTurnBindings();
 let lastCtx: ExtensionContext | null = null;
 const TRAIL_INTERVAL_MS = 1_000;
 
@@ -253,16 +262,21 @@ function settleTelemetry(): AgentStatsReport {
 	return latestAgentStats;
 }
 
-async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; workTrail?: string; trailEvents?: unknown; agentStats?: AgentStatsReport } = {}): Promise<boolean> {
+async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; workTrail?: string; trailEvents?: unknown; agentStats?: AgentStatsReport } = {}): Promise<boolean> {
+	const active = pump;
 	const bond = getBond();
-	if (!bond?.sessionId) return false;
+	if (!active || !bond?.sessionId) return false;
 	const resolved = await resolveToken();
 	if (!resolved) return false;
+	if (pump !== active || (active.stop && !active.closing)) return false;
 	try {
 		await callDevspec(resolved.token, "post_session_message", {
 			connection_id: bond.connectionId,
 			message,
 			agent_name: AGENT_NAME,
+			...(opts.commandTurnId ? { command_turn_id: opts.commandTurnId } : {}),
+			...(opts.commandMessageId ? { command_message_id: opts.commandMessageId } : {}),
+			...(opts.commandTurnUnbound ? { command_turn_unbound: true } : {}),
 			...(opts.phase ? { phase: opts.phase } : {}),
 			...(opts.completeTurn === true ? { complete_turn: true } : opts.completeTurn === false ? { complete_turn: false } : {}),
 			...(opts.turnKind ? { turn_kind: opts.turnKind } : {}),
@@ -283,6 +297,21 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 	}
 }
 
+function trackTerminalPost(post: Promise<void>): void {
+	pendingTerminalPosts.add(post);
+	void post.then(
+		() => pendingTerminalPosts.delete(post),
+		() => pendingTerminalPosts.delete(post),
+	);
+}
+
+function isCommandTurnUnbound(t: TurnState): boolean {
+	// Every actionable remote command now has BOTH ids (extractor fails closed).
+	// No ids therefore means a genuinely local/synthetic segment, even if its
+	// text happens to resemble the remote envelope prefix.
+	return !t.commandTurnId && !t.commandMessageId;
+}
+
 function trailTick(): void {
 	if (!turn?.dirty) return;
 	const now = Date.now();
@@ -296,7 +325,7 @@ function trailTick(): void {
 	turn.dirty = false;
 	turn.posts += 1;
 	turn.lastPostAt = now;
-	void postToSession(rendered, { phase: "trail", trailEvents: activityEvents });
+	void postToSession(rendered, { phase: "trail", commandTurnId: turn.commandTurnId, commandMessageId: turn.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(turn), trailEvents: activityEvents });
 }
 
 /**
@@ -307,15 +336,19 @@ function trailTick(): void {
  * otherwise strand the Working indicator until lease expiry. report_complete
  * is the explicit channel; idempotent when the attempt already closed.
  */
-async function reportComplete(reason: string): Promise<void> {
+async function reportComplete(reason: string, commandTurnId?: string, commandMessageId?: string, commandTurnUnbound = false): Promise<void> {
 	const active = pump;
-	if (!active || active.stop) return;
+	if (!active || (active.stop && !active.closing)) return;
 	const resolved = await resolveToken();
 	if (!resolved) return;
+	if (pump !== active || (active.stop && !active.closing)) return;
 	try {
 		await callDevspec(resolved.token, "report_complete", {
 			connection_id: active.bond.connectionId,
 			reason,
+			...(commandTurnId ? { command_turn_id: commandTurnId } : {}),
+			...(commandMessageId ? { command_message_id: commandMessageId } : {}),
+			...(commandTurnUnbound ? { command_turn_unbound: true } : {}),
 		}, { timeoutMs: 10_000, lane: "pump" });
 	} catch {
 		/* best-effort — lease expiry + the disconnect paths are the backstop */
@@ -349,13 +382,13 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 	if (t.tracker.userKind === "harness") return false;
 	if (plan.kind === "final") {
 		// phase 'answer' closes the trail bubble (preserved as "Show work").
-		return await postToSession(plan.message, { phase: "answer", completeTurn, workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
+		return await postToSession(plan.message, { phase: "answer", completeTurn, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
 	} else if (plan.kind === "local_mirror") {
 		await postToSession(plan.prompt, { turnKind: "local_prompt" });
-		return await postToSession(plan.answer, { phase: "answer", completeTurn, workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
+		return await postToSession(plan.answer, { phase: "answer", completeTurn, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
 	}
 	if (t.dirty && activityTrail) {
-		await postToSession(activityTrail, { phase: "trail", trailEvents: finalEvents });
+		await postToSession(activityTrail, { phase: "trail", commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), trailEvents: finalEvents });
 	}
 	return false;
 }
@@ -366,7 +399,7 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
  * attempt itself); false means the run ended silently (aborted/empty/failed
  * post) and the caller must close the attempt explicitly via reportComplete.
  */
-async function settleTurn(agentStats: AgentStatsReport | null): Promise<boolean> {
+async function settleTurn(agentStats: AgentStatsReport | null, completeTurn = true): Promise<boolean> {
 	const t = turn;
 	if (!t) { debug("settleTurn: no turn state"); return false; }
 	// Wait / unresolved bg_run: park the owner tracker. The next
@@ -377,7 +410,7 @@ async function settleTurn(agentStats: AgentStatsReport | null): Promise<boolean>
 	}
 	turn = null;
 	if (t.interval) clearInterval(t.interval);
-	return await postSegmentAnswer(t, agentStats, "run_end");
+	return await postSegmentAnswer(t, agentStats, "run_end", completeTurn);
 }
 
 /**
@@ -404,6 +437,8 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 	turn = {
 		tracker: next,
 		trail: new TrailBuilder(),
+		commandTurnId: t.commandTurnId,
+		commandMessageId: t.commandMessageId,
 		dirty: false,
 		posts: 0,
 		lastPostAt: 0,
@@ -411,7 +446,9 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 	};
 	postWarnedThisTurn = false;
 	debug("delivery boundary", { completeTurn });
-	void postSegmentAnswer(t, null, why, completeTurn);
+	trackTerminalPost(postSegmentAnswer(t, null, why, completeTurn).then(async (posted) => {
+		if (completeTurn && !posted) await reportComplete(why, t.commandTurnId, t.commandMessageId, isCommandTurnUnbound(t));
+	}));
 }
 
 /**
@@ -528,6 +565,7 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 		w();
 	}
 	pump = null;
+	commandTurnBindings.clear();
 	setBond(null);
 	setRemoteStatus(ctx);
 	if (serverAlreadyEnded) return;
@@ -1033,6 +1071,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		}
 
 		for (const cmd of active.seenOwnerCommands.takeUnseen(ownerCommands)) {
+			let deliveryMessage: string | undefined;
 			try {
 				const mode = decideOwnerDelivery({
 					idle: ctx.isIdle(),
@@ -1044,12 +1083,14 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					active.bond.codename ?? "this agent",
 					active.bond,
 				);
+				if (pump !== active || active.stop) throw new Error("Remote bond changed before owner delivery.");
 				if (mode === "preempt") {
 					// Pause the running turn. Wait for settle, then send as a fresh
 					// idle turn — that is the path whose answer is posted to the room.
 					// Steering into the aborted run produced a terminal-only reply
 					// (live miss 2, Ali 2026-08-13).
 					debug("preempt: aborting running turn for owner instruction");
+					deliveryMessage = `${formatted}\n\n${PREEMPT_TAIL}`;
 					pi_abort();
 					const settled = await waitUntil(() => ctx.isIdle(), {
 						timeoutMs: 8_000,
@@ -1057,11 +1098,14 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					});
 					const sendMode = sendModeAtSendTime(mode, ctx.isIdle(), settled);
 					debug("preempt", { settled, immediate: sendMode === "now" });
-					pi_send(`${formatted}\n\n${PREEMPT_TAIL}`, sendMode);
+					if (pump !== active || active.stop) throw new Error("Remote bond changed during owner preemption.");
+					pi_send(deliveryMessage, sendMode, cmd.commandTurnId, cmd.id);
 					notify(ctx, `DevSpec remote: interrupted — ${cmd.userName ?? "owner"} first.`);
 				} else {
 					const sendMode = sendModeAtSendTime(mode, ctx.isIdle());
-					pi_send(formatted, sendMode);
+					deliveryMessage = formatted;
+					if (pump !== active || active.stop) throw new Error("Remote bond changed before owner send.");
+					pi_send(deliveryMessage, sendMode, cmd.commandTurnId, cmd.id);
 					notify(ctx, mode === "queue" || sendMode === "followUp"
 						? `DevSpec remote: queued owner message (${cmd.userName ?? "owner"}).`
 						: `DevSpec remote: delivered owner message (${cmd.userName ?? "owner"}).`);
@@ -1072,6 +1116,10 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					if (active.bond.sessionId) scheduleTitleRefresh(active.bond.sessionId);
 				}
 			} catch (err) {
+				if (deliveryMessage) {
+					commandTurnBindings.forget(deliveryMessage, cmd.commandTurnId, cmd.id);
+					void reportComplete("delivery_failed", cmd.commandTurnId, cmd.id);
+				}
 				notify(ctx, `DevSpec remote: failed to deliver owner message: ${err instanceof Error ? err.message : err}`, "warning");
 			}
 		}
@@ -1183,7 +1231,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 }
 
 // Late-bound so the loop can reference the ExtensionAPI closure.
-let pi_send: (message: string, mode?: "now" | "steer" | "followUp") => void = () => {};
+let pi_send: (message: string, mode?: "now" | "steer" | "followUp", commandTurnId?: string, commandMessageId?: string) => void = () => {};
 let pi_abort: () => void = () => {};
 let pi_compact: () => void = () => {};
 let pi_reload: () => Promise<void> = async () => {};
@@ -1268,10 +1316,16 @@ export default function (pi: ExtensionAPI) {
 			if (trackedTurn.trail.applySubagentFleet(toolCallId, snapshot)) trackedTurn.dirty = true;
 		});
 	};
-	pi_send = (message, mode = "now") => {
-		if (mode === "steer") pi.sendUserMessage(message, { deliverAs: "steer" });
-		else if (mode === "followUp") pi.sendUserMessage(message, { deliverAs: "followUp" });
-		else pi.sendUserMessage(message);
+	pi_send = (message, mode = "now", commandTurnId, commandMessageId) => {
+		commandTurnBindings.remember(message, commandTurnId, commandMessageId);
+		try {
+			if (mode === "steer") pi.sendUserMessage(message, { deliverAs: "steer" });
+			else if (mode === "followUp") pi.sendUserMessage(message, { deliverAs: "followUp" });
+			else pi.sendUserMessage(message);
+		} catch (error) {
+			commandTurnBindings.forget(message, commandTurnId, commandMessageId);
+			throw error;
+		}
 	};
 	pi_abort = () => {
 		if (lastCtx && !lastCtx.isIdle()) lastCtx.abort();
@@ -1313,6 +1367,11 @@ export default function (pi: ExtensionAPI) {
 	});
 	pi.on("agent_settled", (_event, ctx) => {
 		lastCtx = ctx;
+		// Capture before settleTurn releases the segment; terminal fallback must
+		// never complete a newer owner command that arrived during this settle.
+		const commandTurnId = turn?.commandTurnId;
+		const commandMessageId = turn?.commandMessageId;
+		const commandTurnUnbound = turn ? isCommandTurnUnbound(turn) : false;
 		// Settle telemetry FIRST (pure, instant) so the idle heartbeat and the
 		// answer post carry this turn's report, not the previous one's.
 		const agentStats = settleTelemetry();
@@ -1323,13 +1382,13 @@ export default function (pi: ExtensionAPI) {
 		if (untitledAttached() && pump?.bond.sessionId) {
 			scheduleTitleRefresh(pump.bond.sessionId);
 		}
-		void (async () => {
-			const posted = await settleTurn(agentStats);
+		trackTerminalPost((async () => {
+			const posted = await settleTurn(agentStats, true);
 			// Pause (wait/bg_run) keeps the tracker and the working attempt.
 			// No complete_turn post landed (aborted/empty turn, or the post
 			// failed) — close the working attempt explicitly (item 2c20337a).
-			if (!posted) await reportComplete("turn_end");
-		})();
+			if (!posted) await reportComplete("turn_end", commandTurnId, commandMessageId, commandTurnUnbound);
+		})());
 	});
 
 	// ---- Turn lifecycle events (mechanical trail + final answer) ------------
@@ -1378,10 +1437,34 @@ export default function (pi: ExtensionAPI) {
 		const customType = typeof msg?.customType === "string" ? msg.customType : null;
 		const harness = isHarnessOrigin(text, customType);
 		if (msg?.role === "user" || msg?.role === "custom" || harness) {
+			const isRealUserMessage = msg?.role === "user" && !harness;
+			const incomingCommand = isRealUserMessage ? commandTurnBindings.take(text) : undefined;
 			// A mid-run OWNER/LOCAL user message is a delivery boundary
 			// (b1fb756a). Context/harness injections stay on this turn so
 			// they cannot complete_turn a working sentence (item 60cf5f00).
-			if (!harness && isDeliveryBoundary(turn.tracker)) splitTurnAtBoundary();
+			// The old segment posts its own exact command_message_id. The server
+			// completes that activity but keeps the shared command generation open
+			// while a newer command in it is still pending/working.
+			if (isRealUserMessage && isDeliveryBoundary(turn.tracker)) {
+				splitTurnAtBoundary();
+			} else if (isRealUserMessage && (turn.commandMessageId || isCommandTurnUnbound(turn))) {
+				// A pure tool-call/no-text segment is not a display boundary, but its
+				// activity identity still must terminate before the new user segment
+				// replaces it (notably a preemption-timeout steer).
+				trackTerminalPost(reportComplete(
+					"turn_end",
+					turn.commandTurnId,
+					turn.commandMessageId,
+					isCommandTurnUnbound(turn),
+				));
+			}
+			// Harness context belongs to the current owner generation. A real user
+			// message starts a new segment: bind the server turn id retained when the
+			// poller injected it, or clear the old binding for a local prompt.
+			if (isRealUserMessage) {
+				turn.commandTurnId = incomingCommand?.turnId;
+				turn.commandMessageId = incomingCommand?.commandMessageId;
+			}
 			turn.tracker.userMessage(text, {
 				customType,
 				backgroundTaskId: harness ? backgroundTaskNotificationId(text, msg?.details) : null,
@@ -1488,6 +1571,7 @@ export default function (pi: ExtensionAPI) {
 		turn = null;
 		const active = pump;
 		if (!active) return;
+		active.closing = true;
 		active.stop = true;
 		active.pushAbort?.abort();
 		if (active.pushReconnectTimer) clearTimeout(active.pushReconnectTimer);
@@ -1496,11 +1580,17 @@ export default function (pi: ExtensionAPI) {
 			active.wakeWaiter = null;
 			w();
 		}
+		// Let detached boundary/settle posts finish while pump authority still
+		// exists, so their failure fallback can report the exact segment.
+		if (pendingTerminalPosts.size > 0) {
+			await Promise.allSettled([...pendingTerminalPosts]);
+		}
 		// Close the activity attempt while the bond is still on the wire.
 		if (openTurn) {
-			try { await reportComplete("process_exit"); } catch { /* best-effort */ }
+			try { await reportComplete("process_exit", openTurn.commandTurnId, openTurn.commandMessageId, isCommandTurnUnbound(openTurn)); } catch { /* best-effort */ }
 		}
 		pump = null;
+		commandTurnBindings.clear();
 		setBond(null);
 		resetStatus();
 		paintStatus(lastCtx);

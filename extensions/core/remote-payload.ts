@@ -16,6 +16,8 @@ export interface OwnerCommand {
 	id?: string;
 	/** ISO timestamp from the session_messages row, when the server provides it. */
 	createdAt?: string;
+	/** Immutable server command generation; echoed on every post/terminal close. */
+	commandTurnId?: string;
 	/** Server attachment objects — materialised to disk before inject. */
 	attachments?: unknown[];
 	/** Local-file notes appended after materialisation. Never contains bytes or URLs. */
@@ -35,6 +37,7 @@ interface RawCommand {
 	createdAt?: unknown;
 	addressed_to?: { connection_id?: unknown } | unknown;
 	authority?: { kind?: unknown } | unknown;
+	command_turn?: { id?: unknown } | unknown;
 	attachments?: unknown;
 }
 
@@ -100,11 +103,19 @@ export function extractOwnerCommands(payload: unknown, connectionId: string): Ow
 		const attachments = Array.isArray(cmd.attachments) ? cmd.attachments : [];
 		// An attachment-only command is still a command — do not drop it.
 		if (!text && attachments.length === 0) continue;
+		const id = typeof cmd.id === "string" ? cmd.id.trim() : "";
+		const rawCommandTurnId = (cmd.command_turn as { id?: unknown } | undefined)?.id;
+		const commandTurnId = typeof rawCommandTurnId === "string" ? rawCommandTurnId.trim() : "";
+		// Generation-safe egress requires BOTH immutable identities. Executing a
+		// legacy/incomplete envelope would make its delayed completion fall back to
+		// whatever command happens to be current, so fail closed at ingress.
+		if (!id || !commandTurnId) continue;
 		out.push({
 			text: text ?? "",
 			userName: commandSender(cmd),
-			id: typeof cmd.id === "string" ? cmd.id : undefined,
+			id,
 			createdAt: commandCreatedAt(cmd),
+			commandTurnId,
 			...(attachments.length > 0 ? { attachments } : {}),
 		});
 	}
@@ -149,7 +160,11 @@ export function formatInboundMessage(cmd: OwnerCommand, codename: string, bond?:
 	const sessionStamp = bond?.sessionId
 		? ` · ${bond.sessionTitle ? `“${bond.sessionTitle.length > 26 ? `${bond.sessionTitle.slice(0, 25)}…` : bond.sessionTitle}” ` : ""}(${bond.sessionId.slice(0, 8)})`
 		: "";
-	const header = `[DevSpec remote — message from ${who} to ${codename}${sessionStamp}]`;
+	// Full immutable command identity makes the injected text unique. If Pi's
+	// void sendUserMessage API swallows an async rejection, its stale out-of-band
+	// binding cannot match a later command that happens to have identical prose.
+	const commandStamp = cmd.id ? ` · command:${cmd.id}` : "";
+	const header = `[DevSpec remote — message from ${who} to ${codename}${sessionStamp}${commandStamp}]`;
 	const notes = cmd.attachmentNotes?.trim();
 	const body = notes ? (cmd.text ? `${cmd.text}\n\n${notes}` : notes) : cmd.text;
 	// The TUI previews a queued follow-up by its FIRST line only — so line one

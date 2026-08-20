@@ -23,13 +23,15 @@ test("extractOwnerCommands keeps attachments and attachment-only commands", () =
 			commands: [
 				{
 					id: "m1",
-					content: "can you see this?",
+					command_turn: { id: "turn-1" },
+					content: "can you see this?" ,
 					attachments: [{ filename: "shot.png", mimeType: "image/png", type: "image", sizeBytes: 12, resource_id: "res-1" }],
 					addressed_to: { connection_id: ME },
 					authority: { kind: "owner" },
 				},
 				{
 					id: "m2",
+					command_turn: { id: "turn-1" },
 					content: "",
 					attachments: [{ filename: "only.png", resource_id: "res-2" }],
 					addressed_to: { connection_id: ME },

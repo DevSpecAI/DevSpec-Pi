@@ -1,0 +1,44 @@
+/**
+ * Mechanical binding between a poll-delivered owner command and the exact Pi
+ * user message that starts its model turn.
+ *
+ * Pi's sendUserMessage API does not accept opaque metadata, so the adapter
+ * retains immutable server identity out-of-band until Pi emits the exact user
+ * message back through message_start. Matching the complete text (not a preview
+ * or content hash) keeps repeated owner messages as separate segments.
+ */
+export interface CommandTurnBinding {
+	turnId: string;
+	commandMessageId: string;
+}
+
+export class CommandTurnBindings {
+	private pending: Array<{ message: string; binding: CommandTurnBinding }> = [];
+
+	remember(message: string, turnId: string | undefined, commandMessageId: string | undefined): void {
+		if (!turnId || !commandMessageId) return;
+		this.pending.push({ message, binding: { turnId, commandMessageId } });
+		if (this.pending.length > 128) this.pending.shift();
+	}
+
+	take(message: string): CommandTurnBinding | undefined {
+		const index = this.pending.findIndex((entry) => entry.message === message);
+		if (index === -1) return undefined;
+		const [entry] = this.pending.splice(index, 1);
+		return entry?.binding;
+	}
+
+	forget(message: string, turnId: string | undefined, commandMessageId: string | undefined): void {
+		if (!turnId || !commandMessageId) return;
+		const index = this.pending.findIndex((entry) =>
+			entry.message === message &&
+			entry.binding.turnId === turnId &&
+			entry.binding.commandMessageId === commandMessageId
+		);
+		if (index !== -1) this.pending.splice(index, 1);
+	}
+
+	clear(): void {
+		this.pending = [];
+	}
+}

@@ -11,10 +11,11 @@ const ME = "conn-123";
 test("extracts only owner commands addressed to this connection", () => {
 	const payload = {
 		commands: [
-			{ id: "m1", content: "fix the flaky test", user_name: "Ali", addressed_to: { connection_id: ME }, authority: { kind: "owner" } },
+			{ id: "m1", content: "fix the flaky test", user_name: "Ali", command_turn: { id: "turn-1" }, addressed_to: { connection_id: ME }, authority: { kind: "owner" } },
 			{ id: "m2", content: "not for me", addressed_to: { connection_id: "other" }, authority: { kind: "owner" } },
 			{ id: "m3", content: "advisory only", addressed_to: { connection_id: ME }, authority: { kind: "controller_other_connection" } },
 			{ id: "m4", content: "missing stamps — fail closed" },
+			{ id: "m5", content: "missing turn identity", addressed_to: { connection_id: ME }, authority: { kind: "owner" } },
 		],
 	};
 	const cmds = extractOwnerCommands(payload, ME);
@@ -22,6 +23,7 @@ test("extracts only owner commands addressed to this connection", () => {
 	assert.equal(cmds[0].text, "fix the flaky test");
 	assert.equal(cmds[0].userName, "Ali");
 	assert.equal(cmds[0].id, "m1");
+	assert.equal(cmds[0].commandTurnId, "turn-1");
 });
 
 test("acts on a delegated command, but still refuses an unknown authority kind", () => {
@@ -30,7 +32,7 @@ test("acts on a delegated command, but still refuses an unknown authority kind",
 	// name goes on the work, not what the work may be.
 	const payload = {
 		commands: [
-			{ id: "d1", content: "check why staging is red", user_name: "Brandon", addressed_to: { connection_id: ME }, authority: { kind: "delegated" } },
+			{ id: "d1", command_turn: { id: "turn-d" }, content: "check why staging is red", user_name: "Brandon", addressed_to: { connection_id: ME }, authority: { kind: "delegated" } },
 			// A kind we have never heard of must still fail closed, so a future
 			// server value cannot switch itself on here.
 			{ id: "d2", content: "escalate", addressed_to: { connection_id: ME }, authority: { kind: "superuser" } },
@@ -50,6 +52,7 @@ test("extractOwnerCommands stamps created_at from the poll payload", () => {
 			commands: [
 				{
 					id: "m1",
+					command_turn: { id: "turn-1" },
 					content: "can you pick up from here?",
 					created_at: "2026-08-13T14:02:55.257Z",
 					addressed_to: { connection_id: ME },
@@ -65,10 +68,10 @@ test("extractOwnerCommands stamps created_at from the poll payload", () => {
 test("text can live in message/text/body fields", () => {
 	const payload = {
 		commands: [
-			{ message: "via message", addressed_to: { connection_id: ME }, authority: { kind: "owner" } },
-			{ text: "via text", addressed_to: { connection_id: ME }, authority: { kind: "owner" } },
-			{ body: "via body", addressed_to: { connection_id: ME }, authority: { kind: "owner" } },
-			{ content: "   ", addressed_to: { connection_id: ME }, authority: { kind: "owner" } },
+			{ id: "m1", command_turn: { id: "turn-1" }, message: "via message", addressed_to: { connection_id: ME }, authority: { kind: "owner" } },
+			{ id: "m2", command_turn: { id: "turn-1" }, text: "via text", addressed_to: { connection_id: ME }, authority: { kind: "owner" } },
+			{ id: "m3", command_turn: { id: "turn-1" }, body: "via body", addressed_to: { connection_id: ME }, authority: { kind: "owner" } },
+			{ id: "m4", command_turn: { id: "turn-1" }, content: "   ", addressed_to: { connection_id: ME }, authority: { kind: "owner" } },
 		],
 	};
 	const cmds = extractOwnerCommands(payload, ME);
@@ -82,7 +85,7 @@ test("parsePollPayload pulls cursors, dispatch count, and changed flag", () => {
 			cursor: "cur-9",
 			dispatch_cursor: "dcur-4",
 			dispatches: [{}, {}],
-			commands: [{ content: "hi", addressed_to: { connection_id: ME }, authority: { kind: "owner" } }],
+			commands: [{ id: "m1", command_turn: { id: "turn-1" }, content: "hi", addressed_to: { connection_id: ME }, authority: { kind: "owner" } }],
 		},
 		ME,
 	);
@@ -113,6 +116,14 @@ test("formatInboundMessage tags sender and codename", () => {
 	);
 });
 
+test("poll-delivered envelopes carry full immutable command identity", () => {
+	const msg = formatInboundMessage({ text: "same prose", id: "5bba7ff3-e3ea-40c9-9b08-0e098b8328dc" }, "Ivory Panda");
+	assert.equal(
+		msg,
+		"[DevSpec remote — message from owner to Ivory Panda · command:5bba7ff3-e3ea-40c9-9b08-0e098b8328dc] same prose",
+	);
+});
+
 test("the envelope's first line always carries content (2b072496 — the queued-follow-up preview)", () => {
 	// Single-line: body rides the header line, which is all the TUI preview shows.
 	const short = formatInboundMessage({ text: "looks good, ship it", userName: "Ali" }, "Jolly Toucan");
@@ -133,9 +144,9 @@ test("empty commands never become turns (the extractor drops them)", () => {
 	const payload = {
 		changed: true,
 		commands: [
-			{ id: "1", addressed_to: { connection_id: "c1" }, authority: { kind: "owner" }, content: "" },
-			{ id: "2", addressed_to: { connection_id: "c1" }, authority: { kind: "owner" }, content: "   " },
-			{ id: "3", addressed_to: { connection_id: "c1" }, authority: { kind: "owner" }, content: "real" },
+			{ id: "1", command_turn: { id: "turn-1" }, addressed_to: { connection_id: "c1" }, authority: { kind: "owner" }, content: "" },
+			{ id: "2", command_turn: { id: "turn-1" }, addressed_to: { connection_id: "c1" }, authority: { kind: "owner" }, content: "   " },
+			{ id: "3", command_turn: { id: "turn-1" }, addressed_to: { connection_id: "c1" }, authority: { kind: "owner" }, content: "real" },
 		],
 	};
 	const cmds = extractOwnerCommands(payload, "c1");

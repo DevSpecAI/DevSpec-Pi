@@ -75,29 +75,19 @@ test("model tool schemas and projection families require an explicit contract-ba
 		.filter((entry) => entry.kind === "model")
 		.map(({ name, inputSchema }) => ({ name, inputSchema, family: projectionFamily(name) }));
 	const fingerprint = createHash("sha256").update(JSON.stringify(contract)).digest("hex");
-	// Reviewed 2026-08-19 for the commit-provenance v4 cutover (dc5d8b64).
-	// validate_commit_reference is a deferred exact read: its small local/online
-	// outcome must remain lossless. record_implementation and add_commit_reference
-	// gained host-reported provenance-source fields; neither joins the hot set.
-	// Previously reviewed descriptions remain unchanged:
-	// record_completed_work (infer fields from git rather than interrogating),
-	// its implementation_summary field (renders as markdown), the tool
-	// generate_commit_message (commit the message verbatim), devspec_help_search
-	// (answer from returned content, cite the url), and add_commit_reference
-	// (short-or-full sha). Codex's verify branch also went, so no tool claims
-	// verify support.
+	// Reviewed 2026-08-20 after the canonical-ingress/provenance server cutover
+	// and exact Pi command-segment lifecycle binding (5fd75f1e). The catalog now
+	// exposes lossless transcript continuation/fetch ids and updated provenance
+	// guidance. command_turn_id / command_message_id / command_turn_unbound live
+	// only on pump/never-model verbs, so they do not enlarge the model surface.
 	//
-	// BUDGET: none of those four is in HOT_SET_VERBS — every one is deferred, so
-	// Pi's initial model surface is byte-identical and the ~6.1k benchmark does
-	// not move. The added text is paid only if a run actually reaches for one of
-	// them, which is the shape that made schema the right home for it rather
-	// than a tool response.
-	//
-	// QUALITY: the one added verb is intentionally lossless; policy stays in the
-	// generated wire schema and served contract rather than this projection map.
+	// BUDGET: the only hot model-schema delta is bounded transcript continuation
+	// metadata; the benchmark below remains the authoritative initial-prefix cap.
+	// QUALITY: all affected verbs keep their existing explicit projection family;
+	// exact reads remain lossless and no new verb falls through accidentally.
 	assert.equal(
 		fingerprint,
-		"86b3d1a9bc7b169ee37e37aa87f761322783a19ba8e04c16f9c34e293af8f3c9",
+		"f6f2a0b01f686107f65675745e4dc705c3a83963a2e83655360978bcbef1297a",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

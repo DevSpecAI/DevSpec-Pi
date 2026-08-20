@@ -27,7 +27,7 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 /** Does this server error mean "tell me which project this checkout is"? */
 export function needsProjectScope(message: string): boolean {
@@ -64,6 +64,46 @@ export function clearGitRemoteCache(): void {
 
 const pinCache = new Map<string, string | null>();
 
+/** Run one bounded Git metadata query. Every unavailable/error state is null. */
+function gitOutput(cwd: string, args: string[]): Promise<string | null> {
+	return new Promise((done) => {
+		execFile("git", args, { cwd, timeout: 3000 }, (err, stdout) => {
+			done(!err && stdout ? stdout : null);
+		});
+	});
+}
+
+/**
+ * The repository's main working tree, shared by every linked worktree, or null.
+ *
+ * Git's absolute common directory identifies the repository. Its porcelain
+ * worktree metadata then names the actual main checkout without guessing that
+ * the common directory must be `<main-worktree>/.git` — an assumption that is
+ * false for bare repositories and `--separate-git-dir` layouts.
+ */
+async function resolveRepositoryMainWorktree(cwd: string): Promise<string | null> {
+	const commonDirectory = await gitOutput(cwd, [
+		"rev-parse",
+		"--path-format=absolute",
+		"--git-common-dir",
+	]);
+	if (!commonDirectory?.trim()) return null;
+	const absoluteCommonDirectory = resolve(commonDirectory.trim());
+	if (basename(absoluteCommonDirectory) !== ".git") return null;
+
+	const listing = await gitOutput(cwd, ["worktree", "list", "--porcelain", "-z"]);
+	if (!listing) return null;
+
+	const firstRecord = listing.split("\0\0", 1)[0];
+	if (!firstRecord) return null;
+	const fields = firstRecord.split("\0");
+	if (fields.includes("bare")) return null;
+	const worktree = fields.find((field) => field.startsWith("worktree "));
+	if (!worktree) return null;
+	const mainWorktree = resolve(worktree.slice("worktree ".length));
+	return mainWorktree === dirname(absoluteCommonDirectory) ? mainWorktree : null;
+}
+
 /** Read one directory's pin. Null for every failure mode — see resolveProjectPin. */
 function readPinAt(dir: string): Promise<string | null> {
 	return readFile(join(dir, ".devspec", "project.json"), "utf8")
@@ -93,6 +133,14 @@ function readPinAt(dir: string): Promise<string | null> {
  *     bonds, poller pids. A project.json at or above home would silently capture every
  *     folder the user owns, which is exactly the guessing 01892cce forbids.
  */
+function isAtOrAbove(dir: string, boundary: string): boolean {
+	const fromDir = relative(resolve(dir), resolve(boundary));
+	return (
+		fromDir === "" ||
+		(fromDir !== ".." && !fromDir.startsWith(`..${sep}`) && !isAbsolute(fromDir))
+	);
+}
+
 function pinSearchDirs(cwd: string, home: string): string[] {
 	const dirs: string[] = [];
 	let dir = resolve(cwd);
@@ -135,10 +183,23 @@ export function resolveProjectPin(
 	const dirs = pinSearchDirs(cwd, home);
 
 	// Nearest wins, so an inner folder can deliberately override an outer one.
+	// A linked worktree's cwd chain ends at its `.git` pointer, not at the main
+	// checkout. Add the repository's main working tree as the final candidate so
+	// repository-local jurisdiction follows Git identity across every worktree.
 	const walk = async (): Promise<string | null> => {
 		for (const dir of dirs) {
 			const id = await readPinAt(dir);
 			if (id) return id;
+		}
+
+		const repositoryRoot = await resolveRepositoryMainWorktree(cwd);
+		if (
+			repositoryRoot &&
+			!dirs.includes(repositoryRoot) &&
+			!isAtOrAbove(repositoryRoot, home) &&
+			pinSearchDirs(repositoryRoot, home)[0] === repositoryRoot
+		) {
+			return readPinAt(repositoryRoot);
 		}
 		return null;
 	};

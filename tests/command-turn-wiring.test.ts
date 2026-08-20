@@ -5,7 +5,7 @@ import { test } from "node:test";
 const source = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 
 test("Pi carries immutable turn + command identity through every activity output path", () => {
-	assert.match(source, /commandTurnBindings\.remember\(message, commandTurnId, commandMessageId\)/);
+	assert.match(source, /commandTurnBindings\.remember\(message, commandTurnId, commandMessageId, canonicalQueueItem\)/);
 	assert.match(source, /turn\.commandTurnId = incomingCommand\?\.turnId/);
 	assert.match(source, /turn\.commandMessageId = incomingCommand\?\.commandMessageId/);
 	assert.match(source, /command_turn_id: opts\.commandTurnId/);

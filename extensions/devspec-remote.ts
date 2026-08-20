@@ -33,13 +33,14 @@ import {
 } from "./core/client.ts";
 import { getBond, setBond, type BondState } from "./core/bond-state.ts";
 import {
-	formatInboundMessage,
-	formatIngressAdvisoryContext,
+	formatCanonicalDeliveryContext,
+	formatInboundBundleMessage,
 	parsePollPayload,
 	type IngressAdvisoryContext,
 	type OwnerCommand,
+	type OwnerCommandBundle,
 } from "./core/remote-payload.ts";
-import { CommandTurnBindings } from "./core/command-turn.ts";
+import { CommandTurnBindings, type CanonicalQueueItem } from "./core/command-turn.ts";
 import { compactWithContext, executeControlCommand, parseControlCommand, reloadWithContext, runReloadLap } from "./core/control.ts";
 import { withLiveUi } from "./core/ctx-guard.ts";
 import { commandReloadContext, rememberExtensionRunner } from "./core/command-runner.ts";
@@ -82,7 +83,7 @@ import {
 import { openPushChannel, nextPushReconnectDelayMs } from "./core/push-channel.ts";
 import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
 import { loadSettings, saveSettings } from "./core/settings.ts";
-import { decideOwnerDelivery, PREEMPT_TAIL, waitUntil } from "./core/preempt.ts";
+import { decideOwnerDelivery, waitUntil } from "./core/preempt.ts";
 import {
 	SeenOwnerCommands,
 	sendModeAtSendTime,
@@ -517,6 +518,14 @@ async function withMaterialisedAttachments(cmd: OwnerCommand, connectionId: stri
 	);
 	requireMaterialisedAttachments(materialised, cmd.attachments.length);
 	return { ...cmd, attachmentNotes: formatAttachmentNotes(materialised) };
+}
+
+async function hydrateOwnerBundle(bundle: OwnerCommandBundle, connectionId: string): Promise<OwnerCommandBundle> {
+	const commands: OwnerCommand[] = [];
+	for (const command of bundle.commands) commands.push(await withMaterialisedAttachments(command, connectionId));
+	const primaryCommand = commands.find((command) => command.id === bundle.primaryCommand.id);
+	if (!primaryCommand) throw new Error("canonical primary command was lost during hydration");
+	return { ...bundle, commands, primaryCommand };
 }
 
 function untitledAttached(): boolean {
@@ -1053,76 +1062,90 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			active.synced = true;
 			debug("canonical ingress synced", { cursorPresent: Boolean(pkg.cursorV2) });
 		}
-		if (pkg.advisoryContext && pkg.ownerCommands.length === 0) {
-			// Preserve the latest honestly bounded advisory window. It is delivered
-			// only beside the next exact command and never wakes by itself.
+		if (pkg.advisoryContext && !pkg.ownerBundle && !pkg.rejectedBundle) {
+			// Carry at most one server-bounded advisory window. It joins the next
+			// command's model turn but is never an independently queued message.
 			active.advisoryCarry = [pkg.advisoryContext];
 		}
 
 		let commandDeliveryFailed = false;
-		for (const rejected of active.seenOwnerCommands.takeUnseen(pkg.rejectedCommands)) {
-			// Canonical `unavailable` is a permanent fail-closed command result.
-			active.seenOwnerCommands.commit(rejected);
-			void reportComplete("delivery_unavailable", rejected.commandTurnId, rejected.id);
+		if (pkg.rejectedBundle) {
+			const reservation = active.seenOwnerCommands.reserveBundle(pkg.rejectedBundle.commands);
+			if (reservation === "conflict") commandDeliveryFailed = true;
+			else if (reservation === "reserved") {
+				// One unavailable attachment rejects and commits the whole turn before
+				// hydration, preemption, context injection, or user-message send.
+				active.seenOwnerCommands.commitBundle(pkg.rejectedBundle.commands);
+				void reportComplete("delivery_unavailable", pkg.rejectedBundle.commandTurnId, pkg.rejectedBundle.primaryCommand.id);
+			}
 		}
 
-		for (const cmd of active.seenOwnerCommands.takeUnseen(pkg.ownerCommands)) {
-			let deliveryMessage: string | undefined;
-			try {
-				// Hydrate before deciding/performing preemption. A failure must occur
-				// before abort or any Pi model/user message side effect.
-				const hydrated = await withMaterialisedAttachments(cmd, active.bond.connectionId);
-				const mode = decideOwnerDelivery({
-					idle: ctx.isIdle(),
-					preemptEnabled: preemptOwnerCached,
-					hasOwnerCommand: true,
-				});
-				const formatted = formatInboundMessage(
-					hydrated,
-					active.bond.codename ?? "this agent",
-					active.bond,
-				);
-				const contexts = [...active.advisoryCarry, cmd.advisoryContext]
-					.filter((bundle, index, all) => all.findIndex((candidate) => candidate.envelopeId === bundle.envelopeId) === index);
-				if (pump !== active || active.stop) throw new Error("Remote bond changed before owner delivery.");
-				if (mode === "preempt") {
-					debug("preempt: aborting running turn for owner instruction");
-					deliveryMessage = `${formatted}\n\n${PREEMPT_TAIL}`;
-					pi_abort();
-					const settled = await waitUntil(() => ctx.isIdle(), {
-						timeoutMs: 8_000,
-						intervalMs: 50,
-					});
-					const sendMode = sendModeAtSendTime(mode, ctx.isIdle(), settled);
-					debug("preempt", { settled, immediate: sendMode === "now" });
-					if (pump !== active || active.stop) throw new Error("Remote bond changed during owner preemption.");
-					pi_send(deliveryMessage, sendMode, cmd.commandTurnId, cmd.id, contexts);
-					notify(ctx, `DevSpec remote: interrupted — ${cmd.userName ?? "owner"} first.`);
-				} else {
-					const sendMode = sendModeAtSendTime(mode, ctx.isIdle());
-					deliveryMessage = formatted;
-					if (pump !== active || active.stop) throw new Error("Remote bond changed before owner send.");
-					pi_send(deliveryMessage, sendMode, cmd.commandTurnId, cmd.id, contexts);
-					notify(ctx, mode === "queue" || sendMode === "followUp"
-						? `DevSpec remote: queued owner message (${cmd.userName ?? "owner"}).`
-						: `DevSpec remote: delivered owner message (${cmd.userName ?? "owner"}).`);
-				}
-				active.seenOwnerCommands.commit(cmd);
-				if (untitledAttached()) {
-					setSessionPreview(previewFromText(cmd.text));
-					paintStatus(ctx);
-					if (active.bond.sessionId) scheduleTitleRefresh(active.bond.sessionId);
-				}
-			} catch (err) {
+		if (pkg.ownerBundle) {
+			const reservation = active.seenOwnerCommands.reserveBundle(pkg.ownerBundle.commands);
+			if (reservation === "conflict") {
 				commandDeliveryFailed = true;
-				active.seenOwnerCommands.release(cmd);
-				if (deliveryMessage) commandTurnBindings.forget(deliveryMessage, cmd.commandTurnId, cmd.id);
-				notify(ctx, `DevSpec remote: failed to deliver owner message: ${err instanceof Error ? err.message : err}`, "warning");
+			} else if (reservation === "reserved") {
+				try {
+					// Hydrate every command before deciding/performing preemption. The
+					// envelope has no partial model-visible or seen state.
+					const hydrated = await hydrateOwnerBundle(pkg.ownerBundle, active.bond.connectionId);
+					const mode = decideOwnerDelivery({
+						idle: ctx.isIdle(),
+						preemptEnabled: preemptOwnerCached,
+						hasOwnerCommand: true,
+					});
+					const formatted = formatInboundBundleMessage(hydrated);
+					const contextByEnvelope = new Map(
+						[...active.advisoryCarry, hydrated.advisoryContext].map((context) => [context.envelopeId, context]),
+					);
+					const contexts = [...contextByEnvelope.values()];
+					const queueItem = {
+						hiddenContent: formatCanonicalDeliveryContext(hydrated, contexts),
+						details: { bundle: hydrated, contexts },
+					};
+					const primary = hydrated.primaryCommand;
+					const requester = primary.requester.display_name ?? primary.requester.user_id;
+					if (pump !== active || active.stop) throw new Error("Remote bond changed before owner delivery.");
+					let sendMode: "now" | "steer" | "followUp";
+					let deliveryNotice: string;
+					if (mode === "preempt") {
+						debug("preempt: aborting running turn for owner instruction");
+						pi_abort();
+						const settled = await waitUntil(() => ctx.isIdle(), {
+							timeoutMs: 8_000,
+							intervalMs: 50,
+						});
+						sendMode = sendModeAtSendTime(mode, ctx.isIdle(), settled);
+						debug("preempt", { settled, immediate: sendMode === "now" });
+						if (pump !== active || active.stop) throw new Error("Remote bond changed during owner preemption.");
+						deliveryNotice = `DevSpec remote: interrupted — ${requester} first.`;
+					} else {
+						sendMode = sendModeAtSendTime(mode, ctx.isIdle());
+						if (pump !== active || active.stop) throw new Error("Remote bond changed before owner send.");
+						deliveryNotice = mode === "queue" || sendMode === "followUp"
+							? `DevSpec remote: queued canonical command turn (${requester}).`
+							: `DevSpec remote: delivered canonical command turn (${requester}).`;
+					}
+					pi_send(formatted, sendMode, hydrated.commandTurnId, primary.id, queueItem);
+					// Commit immediately after Pi accepts the sole queue item; later UI
+					// bookkeeping cannot turn an accepted send into a replay.
+					active.seenOwnerCommands.commitBundle(hydrated.commands);
+					notify(ctx, deliveryNotice);
+					if (untitledAttached()) {
+						setSessionPreview(previewFromText(primary.text));
+						paintStatus(ctx);
+						if (active.bond.sessionId) scheduleTitleRefresh(active.bond.sessionId);
+					}
+				} catch (err) {
+					commandDeliveryFailed = true;
+					active.seenOwnerCommands.releaseBundle(pkg.ownerBundle.commands);
+					notify(ctx, `DevSpec remote: failed to deliver canonical command turn: ${err instanceof Error ? err.message : err}`, "warning");
+				}
 			}
 		}
 		if (!commandDeliveryFailed) {
 			if (pkg.cursorV2) active.cursor = pkg.cursorV2;
-			if (pkg.ownerCommands.length > 0) active.advisoryCarry = [];
+			if (pkg.ownerBundle) active.advisoryCarry = [];
 		}
 		const dispatches = (payload as { dispatches?: unknown[] } | null)?.dispatches ?? [];
 		for (const dispatch of dispatches) enqueueDispatch(active, token, dispatch, ctx);
@@ -1233,7 +1256,7 @@ let pi_send: (
 	mode?: "now" | "steer" | "followUp",
 	commandTurnId?: string,
 	commandMessageId?: string,
-	contexts?: readonly IngressAdvisoryContext[],
+	canonicalQueueItem?: CanonicalQueueItem,
 ) => void = () => {};
 let pi_abort: () => void = () => {};
 let pi_compact: () => void = () => {};
@@ -1293,29 +1316,11 @@ export default function (pi: ExtensionAPI) {
 			if (trackedTurn.trail.applySubagentFleet(toolCallId, snapshot)) trackedTurn.dirty = true;
 		});
 	};
-	pi_send = (message, mode = "now", commandTurnId, commandMessageId, contexts = []) => {
+	pi_send = (message, mode = "now", commandTurnId, commandMessageId, canonicalQueueItem) => {
+		commandTurnBindings.remember(message, commandTurnId, commandMessageId, canonicalQueueItem);
 		try {
-			for (const context of contexts) {
-				const custom = {
-					customType: "devspec-remote-ingress-context",
-					content: formatIngressAdvisoryContext(context, {
-						id: commandMessageId ?? "unbound",
-						commandTurnId: commandTurnId ?? "unbound",
-					}),
-					display: false,
-					details: {
-						envelope_id: context.envelopeId,
-						command_message_id: commandMessageId,
-						command_turn_id: commandTurnId,
-						context: context.context,
-						window: context.window,
-					},
-				};
-				if (mode === "steer") pi.sendMessage(custom, { triggerTurn: false, deliverAs: "steer" });
-				else if (mode === "followUp") pi.sendMessage(custom, { triggerTurn: false, deliverAs: "followUp" });
-				else pi.sendMessage(custom, { triggerTurn: false });
-			}
-			commandTurnBindings.remember(message, commandTurnId, commandMessageId);
+			// Exactly one Pi queue item. before_agent_start injects its hidden typed
+			// data into this same model turn after Pi accepts the user message.
 			if (mode === "steer") pi.sendUserMessage(message, { deliverAs: "steer" });
 			else if (mode === "followUp") pi.sendUserMessage(message, { deliverAs: "followUp" });
 			else pi.sendUserMessage(message);
@@ -1401,11 +1406,20 @@ export default function (pi: ExtensionAPI) {
 	// background-task-notification) and may then replay the last typed prompt
 	// as a user message. Stamp harness origin here so that replay cannot
 	// remirror (item 56b9a3b4). Typed /commands never take this path.
-	pi.on("before_agent_start", (_event, ctx) => {
+	pi.on("before_agent_start", (event, ctx) => {
+		const canonicalQueueItem = commandTurnBindings.peek(event.prompt)?.canonicalQueueItem;
+		const injected = canonicalQueueItem ? {
+			message: {
+				customType: "devspec-remote-ingress-context",
+				content: canonicalQueueItem.hiddenContent,
+				display: false,
+				details: canonicalQueueItem.details,
+			},
+		} : undefined;
 		ensureTurn();
-		if (!turn) return;
+		if (!turn) return injected;
 		const leaf = ctx.sessionManager.getLeafEntry();
-		if (!leaf || leaf.type !== "custom_message") return;
+		if (!leaf || leaf.type !== "custom_message") return injected;
 		const customType = leaf.customType;
 		const content = typeof leaf.content === "string"
 			? leaf.content
@@ -1415,7 +1429,7 @@ export default function (pi: ExtensionAPI) {
 					.map((b) => b.text)
 					.join("\n")
 				: "";
-		if (!isHarnessOrigin(content, customType)) return;
+		if (!isHarnessOrigin(content, customType)) return injected;
 		// Context/harness may wake the model. Do not close the live owner
 		// turn as complete (item 60cf5f00). A terminal task notification
 		// resolves only its matching owner-started task (item 15cb0983).
@@ -1424,6 +1438,7 @@ export default function (pi: ExtensionAPI) {
 			customType,
 			backgroundTaskId: backgroundTaskNotificationId(content, details),
 		});
+		return injected;
 	});
 
 	pi.on("message_start", (event, ctx) => {

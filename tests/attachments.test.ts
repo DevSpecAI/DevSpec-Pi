@@ -8,7 +8,8 @@ import {
 	requireMaterialisedAttachments,
 	safeAttachmentName,
 } from "../extensions/core/attachments.ts";
-import { formatInboundMessage } from "../extensions/core/remote-payload.ts";
+import { formatCanonicalDeliveryContext, formatInboundBundleMessage, parsePollPayload } from "../extensions/core/remote-payload.ts";
+import { canonicalPoll, IDS } from "./canonical-ingress-fixture.ts";
 
 const ME = "conn-123";
 
@@ -18,20 +19,16 @@ test("safeAttachmentName never escapes the attachment dir", () => {
 	assert.equal(safeAttachmentName("Screenshot 2026.png"), "Screenshot_2026.png");
 });
 
-test("formatInboundMessage appends local-file notes, never bytes or URLs", () => {
-	const msg = formatInboundMessage(
-		{
-			text: "can you see the screenshot?",
-			userName: "Ali",
-			attachmentNotes:
-				"Attached files (open the local paths — they are part of the command):\n- shot.png (image/png, 12 bytes) → /tmp/shot.png\n  Image saved locally — Read this path to see it. It is part of the command, not decoration.",
-		},
-		"Golden Possum",
-	);
-	assert.match(msg, /can you see the screenshot\?/);
-	assert.match(msg, /\/tmp\/shot\.png/);
-	assert.doesNotMatch(msg, /iVBORw0KGgo/);
-	assert.doesNotMatch(msg, /https:\/\//);
+test("attachment paths stay in hidden typed framing and never mutate the visible command body", () => {
+	const bundle = parsePollPayload(canonicalPoll({ body: "can you see the screenshot?" }), IDS.connection).ownerBundle!;
+	bundle.commands[0].attachmentNotes =
+		"Attached files (open the local paths — they are part of the command):\n- shot.png (image/png, 12 bytes) → /tmp/shot.png";
+	const visible = formatInboundBundleMessage(bundle);
+	const hidden = formatCanonicalDeliveryContext(bundle, [bundle.advisoryContext]);
+	assert.match(visible, /can you see the screenshot\?/);
+	assert.doesNotMatch(visible, /\/tmp\/shot\.png/);
+	assert.match(hidden, /\/tmp\/shot\.png/);
+	assert.doesNotMatch(hidden, /iVBORw0KGgo|https:\/\//);
 });
 
 test("legacy inline bytes decode to a file and never stay in the note", async () => {

@@ -45,6 +45,20 @@ test("in-flight commands cannot duplicate, while failed delivery can retry trans
 	assert.equal(seen.takeUnseen([command]).length, 0);
 });
 
+test("multi-command reservation, rollback, and commit are all-or-none", () => {
+	const seen = new SeenOwnerCommands();
+	const bundle = [{ id: "m1" }, { id: "m2" }];
+	assert.equal(seen.reserveBundle(bundle), "reserved");
+	assert.equal(seen.reserveBundle(bundle), "conflict");
+	seen.releaseBundle(bundle);
+	assert.equal(seen.reserveBundle(bundle), "reserved", "failed send releases every id");
+	seen.commitBundle(bundle);
+	assert.equal(seen.has("m1"), true);
+	assert.equal(seen.has("m2"), true);
+	assert.equal(seen.reserveBundle(bundle), "seen");
+	assert.equal(seen.reserveBundle([{ id: "m2" }, { id: "m3" }]), "conflict", "mixed replay/live bundles fail closed");
+});
+
 test("sendMode is never now when not idle", () => {
 	assert.equal(sendModeAtSendTime("immediate", false), "steer");
 	assert.equal(sendModeAtSendTime("immediate", true), "now");

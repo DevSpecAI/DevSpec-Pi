@@ -11,48 +11,56 @@ function bodyBetween(start: string, end: string): string {
 	return source.slice(from, to);
 }
 
-test("every Pi poll negotiates numeric canonical ingress v1 and uses cursor_v2", () => {
+test("every Pi poll negotiates v1 and only top-level cursor_v2 drives live progress", () => {
 	const calls = [...source.matchAll(/callDevspec\([^]*?"poll_connection"[^]*?\{([^]*?)\}, \{/gu)];
 	assert.equal(calls.length, 2, "expected control ack and pump poll only");
 	for (const call of calls) assert.match(call[1], /ingress_version: 1/);
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
 	assert.match(pump, /cursor_v2: active\.cursor/);
-	assert.doesNotMatch(pump, /\bcursor: active\.cursor/);
+	assert.match(pump, /if \(!commandDeliveryFailed\)[^]*active\.cursor = pkg\.cursorV2/);
+	assert.doesNotMatch(pump, /active\.cursor\s*=\s*[^;]*next_cursor|\bcursor: active\.cursor/);
 });
 
-test("canonical parser output is the only owner/control/context delivery source", () => {
+test("canonical parser output stays independent from playbook dispatch and control paths", () => {
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
 	assert.match(pump, /parsePollPayload\(payload, active\.bond\.connectionId\)/);
-	assert.match(pump, /pkg\.ownerCommands/);
+	assert.match(pump, /pkg\.ownerBundle/);
 	assert.match(pump, /pkg\.control/);
-	assert.doesNotMatch(pump, /payload[^\n]*commands/);
-	assert.doesNotMatch(pump, /buildRoomDigest|owner_ambient|room_context/);
+	assert.match(pump, /for \(const dispatch of dispatches\) enqueueDispatch/);
+	assert.doesNotMatch(pump, /payload[^\n]*commands|buildRoomDigest|owner_ambient|room_context/);
 });
 
-test("attachment hydration fails before preemption/send and retry state stays transactional", () => {
-	const delivery = bodyBetween("for (const cmd of active.seenOwnerCommands.takeUnseen(pkg.ownerCommands))", "const dispatches =");
-	const hydrated = delivery.indexOf("await withMaterialisedAttachments");
+test("multi-command hydration, send, seen state, and rollback are envelope-atomic", () => {
+	const delivery = bodyBetween("if (pkg.ownerBundle)", "const dispatches =");
+	assert.match(delivery, /reserveBundle\(pkg\.ownerBundle\.commands\)/);
+	assert.match(delivery, /await hydrateOwnerBundle\(pkg\.ownerBundle/);
+	assert.equal((delivery.match(/\bpi_send\(/g) ?? []).length, 1, "one send site for the whole envelope");
+	assert.doesNotMatch(delivery, /for \(const cmd|takeUnseen/);
+	assert.match(delivery, /pi_send\([^;]+;\s*\/\/ Commit immediately[^]*commitBundle\(hydrated\.commands\)/);
+	assert.match(delivery, /catch \(err\)[^]*releaseBundle\(pkg\.ownerBundle\.commands\)/);
+	assert.doesNotMatch(delivery, /reportComplete\("delivery_failed"/);
+});
+
+test("attachment failure precedes preemption and no host prose mutates the canonical prompt", () => {
+	const delivery = bodyBetween("if (pkg.ownerBundle)", "const dispatches =");
+	const hydrated = delivery.indexOf("await hydrateOwnerBundle");
 	const decide = delivery.indexOf("decideOwnerDelivery");
 	const abort = delivery.indexOf("pi_abort()");
 	const send = delivery.indexOf("pi_send(");
 	assert.ok(hydrated >= 0 && hydrated < decide && decide < abort && abort < send);
-	assert.match(delivery, /active\.seenOwnerCommands\.commit\(cmd\)/);
-	assert.match(delivery, /catch \(err\)[^]*active\.seenOwnerCommands\.release\(cmd\)/);
-	assert.doesNotMatch(delivery, /reportComplete\("delivery_failed"/);
-	const cursorCommit = source.indexOf("if (!commandDeliveryFailed)");
-	assert.ok(cursorCommit > source.indexOf("active.seenOwnerCommands.release(cmd)"));
+	assert.doesNotMatch(delivery, /PREEMPT_TAIL|deliveryMessage\s*=|formatted\s*\+=/);
 });
 
-test("hidden canonical context is queued immediately before the exact user message in every mode", () => {
+test("hidden typed context is injected by before_agent_start into the accepted user queue item", () => {
 	const sender = bodyBetween("pi_send =", "pi_abort =");
-	const hidden = sender.indexOf("pi.sendMessage(custom");
-	const binding = sender.indexOf("commandTurnBindings.remember");
-	const user = sender.indexOf("pi.sendUserMessage");
-	assert.ok(hidden >= 0 && hidden < binding && binding < user);
-	assert.match(sender, /customType: "devspec-remote-ingress-context"/);
-	assert.match(sender, /display: false/);
-	assert.match(sender, /deliverAs: "steer"/);
-	assert.match(sender, /deliverAs: "followUp"/);
-	assert.match(sender, /command_message_id: commandMessageId/);
-	assert.match(sender, /command_turn_id: commandTurnId/);
+	assert.match(sender, /commandTurnBindings\.remember\(message, commandTurnId, commandMessageId, canonicalQueueItem\)/);
+	assert.match(sender, /pi\.sendUserMessage/);
+	assert.doesNotMatch(sender, /pi\.sendMessage/);
+	assert.match(sender, /catch \(error\)[^]*commandTurnBindings\.forget/);
+
+	const beforeStart = bodyBetween('pi.on("before_agent_start"', 'pi.on("message_start"');
+	assert.match(beforeStart, /commandTurnBindings\.peek\(event\.prompt\)/);
+	assert.match(beforeStart, /customType: "devspec-remote-ingress-context"/);
+	assert.match(beforeStart, /content: canonicalQueueItem\.hiddenContent/);
+	assert.match(beforeStart, /display: false/);
 });

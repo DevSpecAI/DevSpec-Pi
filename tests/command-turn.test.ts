@@ -23,6 +23,19 @@ test("identical command text remains FIFO and incomplete identity is never retai
 	assert.equal(bindings.take("local text"), undefined);
 });
 
+test("hidden canonical data peeks for the same turn without consuming identity", () => {
+	const bindings = new CommandTurnBindings();
+	const canonicalQueueItem = { hiddenContent: "typed context + exact commands", details: { envelope: "e1" } };
+	bindings.remember("atomic bundle", "turn-1", "message-primary", canonicalQueueItem);
+	assert.deepEqual(bindings.peek("atomic bundle")?.canonicalQueueItem, canonicalQueueItem);
+	assert.deepEqual(bindings.take("atomic bundle"), {
+		turnId: "turn-1",
+		commandMessageId: "message-primary",
+		canonicalQueueItem,
+	});
+	assert.equal(bindings.peek("atomic bundle"), undefined);
+});
+
 test("a rejected send can forget only its exact queued command", () => {
 	const bindings = new CommandTurnBindings();
 	bindings.remember("same", "turn-1", "message-1");

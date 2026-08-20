@@ -18,14 +18,44 @@
 import type { OwnerCommand } from "./remote-payload.ts";
 import { sendModeFor, type OwnerDeliveryMode, type OwnerSendMode } from "./preempt.ts";
 
-type OwnerCommandIdentity = Pick<OwnerCommand, "id" | "text"> & Partial<Pick<OwnerCommand, "createdAt" | "userName">>;
+type OwnerCommandIdentity = Pick<OwnerCommand, "id"> & Partial<Pick<OwnerCommand, "text" | "createdAt" | "userName">>;
+
+export type BundleReservation = "reserved" | "seen" | "conflict";
 
 export class SeenOwnerCommands {
 	private readonly ids = new Set<string>();
 	private readonly inFlight = new Set<string>();
 
+	private addSeen(id: string): void {
+		// Stable ids are never evicted during this pump generation: cursor state is
+		// primary, but replay defense must not become time/volume dependent.
+		this.ids.add(id);
+	}
+
 	remember(commands: readonly OwnerCommandIdentity[]): void {
-		for (const cmd of commands) this.ids.add(cmd.id);
+		for (const cmd of commands) this.addSeen(cmd.id);
+	}
+
+	/** Reserve all ids in one canonical turn or none of them. */
+	reserveBundle(commands: readonly OwnerCommandIdentity[]): BundleReservation {
+		if (commands.length === 0) return "conflict";
+		const ids = commands.map((command) => command.id);
+		const seenCount = ids.filter((id) => this.ids.has(id)).length;
+		if (seenCount === ids.length) return "seen";
+		if (seenCount > 0 || ids.some((id) => this.inFlight.has(id))) return "conflict";
+		for (const id of ids) this.inFlight.add(id);
+		return "reserved";
+	}
+
+	commitBundle(commands: readonly OwnerCommandIdentity[]): void {
+		for (const command of commands) {
+			this.inFlight.delete(command.id);
+			this.addSeen(command.id);
+		}
+	}
+
+	releaseBundle(commands: readonly OwnerCommandIdentity[]): void {
+		for (const command of commands) this.inFlight.delete(command.id);
 	}
 
 	/** Reserve unseen commands without committing replay state yet. */
@@ -42,7 +72,7 @@ export class SeenOwnerCommands {
 	/** Commit only after hidden context + hydrated command were accepted by Pi. */
 	commit(command: Pick<OwnerCommandIdentity, "id">): void {
 		this.inFlight.delete(command.id);
-		this.ids.add(command.id);
+		this.addSeen(command.id);
 	}
 
 	/** Release a failure so the unchanged canonical cursor can retry it. */

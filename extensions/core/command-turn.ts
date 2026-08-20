@@ -7,18 +7,33 @@
  * message back through message_start. Matching the complete text (not a preview
  * or content hash) keeps repeated owner messages as separate segments.
  */
+export interface CanonicalQueueItem {
+	hiddenContent: string;
+	details: unknown;
+}
+
 export interface CommandTurnBinding {
 	turnId: string;
 	commandMessageId: string;
+	canonicalQueueItem?: CanonicalQueueItem;
 }
 
 export class CommandTurnBindings {
 	private pending: Array<{ message: string; binding: CommandTurnBinding }> = [];
 
-	remember(message: string, turnId: string | undefined, commandMessageId: string | undefined): void {
+	remember(
+		message: string,
+		turnId: string | undefined,
+		commandMessageId: string | undefined,
+		canonicalQueueItem?: CanonicalQueueItem,
+	): void {
 		if (!turnId || !commandMessageId) return;
-		this.pending.push({ message, binding: { turnId, commandMessageId } });
+		this.pending.push({ message, binding: { turnId, commandMessageId, ...(canonicalQueueItem ? { canonicalQueueItem } : {}) } });
 		if (this.pending.length > 128) this.pending.shift();
+	}
+
+	peek(message: string): CommandTurnBinding | undefined {
+		return this.pending.find((entry) => entry.message === message)?.binding;
 	}
 
 	take(message: string): CommandTurnBinding | undefined {

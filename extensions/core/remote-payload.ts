@@ -7,6 +7,13 @@
  * policy is served at devspec://product/remote-ingress-contract.
  */
 
+import {
+	MAX_ATTACHMENTS,
+	MAX_ATTACHMENT_BYTES,
+	MAX_TOTAL_ATTACHMENT_BYTES,
+	isAttachmentType,
+} from "./attachment-limits.ts";
+
 const SCHEMA_VERSION = 1;
 const CONTRACT_VERSION = "1.1.0";
 const POLICY_VERSION = "2026-08-19.2";
@@ -223,11 +230,18 @@ function sameAddressee(a: OwnerCommand["addressee"], b: OwnerCommand["addressee"
 function attachment(value: unknown, path: string): IngressAttachment {
 	const row = record(value, path);
 	const materialization = oneOf(row.materialization, ["metadata", "unavailable"] as const, `${path}.materialization`);
+	const type = string(row.type, `${path}.type`);
+	const sizeBytes = row.size_bytes === null
+		? null
+		: integer(row.size_bytes, `${path}.size_bytes`);
+	if (sizeBytes !== null && isAttachmentType(type) && sizeBytes > MAX_ATTACHMENT_BYTES[type]) {
+		fail(`${path}.size_bytes`, `declared ${type} attachment exceeds safe bound`);
+	}
 	const common = {
 		filename: string(row.filename, `${path}.filename`),
 		mime_type: string(row.mime_type, `${path}.mime_type`),
-		type: string(row.type, `${path}.type`),
-		size_bytes: row.size_bytes === null ? null : integer(row.size_bytes, `${path}.size_bytes`),
+		type,
+		size_bytes: sizeBytes,
 	};
 	if (materialization === "metadata") {
 		exactKeys(row, ["materialization", "filename", "mime_type", "type", "size_bytes", "resource_id"], path);
@@ -338,7 +352,17 @@ function boundedMetadata(value: unknown, path: string): IngressBoundedMetadata {
 	return parsed;
 }
 
-function command(value: unknown, connection: OwnerCommand["addressee"], path: string): OwnerCommand {
+interface AttachmentBundleBounds {
+	count: number;
+	declaredBytes: number;
+}
+
+function command(
+	value: unknown,
+	connection: OwnerCommand["addressee"],
+	path: string,
+	attachmentBounds: AttachmentBundleBounds,
+): OwnerCommand {
 	const row = record(value, path);
 	exactKeys(row, ["message_id", "order", "content", "attachments", "requester", "authority", "addressee", "delivery"], path);
 	const messageId = uuid(row.message_id, `${path}.message_id`);
@@ -349,7 +373,15 @@ function command(value: unknown, connection: OwnerCommand["addressee"], path: st
 	if (content.mode !== "full" || content.complete !== true) fail(`${path}.content`, "command content must be full and complete");
 	const body = string(content.body, `${path}.content.body`, false);
 	if (!Array.isArray(row.attachments)) fail(`${path}.attachments`, "expected array");
+	if (attachmentBounds.count + row.attachments.length > MAX_ATTACHMENTS) {
+		fail(`${path}.attachments`, "attachment count exceeds safe bound across command bundle");
+	}
+	attachmentBounds.count += row.attachments.length;
 	const attachments = row.attachments.map((item, index) => attachment(item, `${path}.attachments[${index}]`));
+	attachmentBounds.declaredBytes += attachments.reduce((total, item) => total + (item.size_bytes ?? 0), 0);
+	if (attachmentBounds.declaredBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
+		fail(`${path}.attachments`, "declared attachment total exceeds safe bound across command bundle");
+	}
 	const requesterRow = record(row.requester, `${path}.requester`);
 	exactKeys(requesterRow, ["user_id", "display_name"], `${path}.requester`);
 	const requester = {
@@ -451,7 +483,8 @@ function parseEnvelope(value: unknown, connectionId: string): ParsedEnvelope {
 	if (commandIdSet.size !== commandIds.length) fail("ingress.command_message_ids", "command ids must be deduplicated");
 	if (!Array.isArray(row.commands)) fail("ingress.commands", "expected array");
 	if (row.commands.length > MAX_COMMANDS_PER_ENVELOPE) fail("ingress.commands", "command set exceeds safe bound");
-	const commands = row.commands.map((item, index) => command(item, connection, `ingress.commands[${index}]`));
+	const attachmentBounds: AttachmentBundleBounds = { count: 0, declaredBytes: 0 };
+	const commands = row.commands.map((item, index) => command(item, connection, `ingress.commands[${index}]`, attachmentBounds));
 	assertStrictOrder(commands, "ingress.commands");
 	const parsedCommandIds = new Set(commands.map((item) => item.id));
 	if (commands.length !== commandIds.length || parsedCommandIds.size !== commands.length || commands.some((item) => !commandIdSet.has(item.id))) {

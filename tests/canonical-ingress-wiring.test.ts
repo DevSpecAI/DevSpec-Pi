@@ -36,8 +36,11 @@ test("multi-command hydration, send, seen state, and rollback are envelope-atomi
 	assert.match(delivery, /await hydrateOwnerBundle\(pkg\.ownerBundle/);
 	assert.equal((delivery.match(/\bpi_send\(/g) ?? []).length, 1, "one send site for the whole envelope");
 	assert.doesNotMatch(delivery, /for \(const cmd|takeUnseen/);
-	assert.match(delivery, /pi_send\([^;]+;\s*\/\/ Commit immediately[^]*commitBundle\(hydrated\.commands\)/);
-	assert.match(delivery, /catch \(err\)[^]*releaseBundle\(pkg\.ownerBundle\.commands\)/);
+	assert.match(delivery, /pi_send\([^;]+;\s*attachmentLease\.accept\(\);[^]*commitBundle\(hydrated\.commands\)/);
+	assert.match(delivery, /catch \(err\)[^]*attachmentLease\?\.cleanupIfPending\(\)[^]*releaseBundle\(pkg\.ownerBundle\.commands\)/);
+	assert.match(delivery, /attachmentRetryAttempts[^]*nextDeliveryRetryDelayMs[^]*commandRetryDelayMs/);
+	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
+	assert.match(pump, /if \(commandRetryDelayMs > 0[^]*await new Promise[^]*setTimeout\(resolve, commandRetryDelayMs\)[^]*signalWake\(active\)/);
 	assert.doesNotMatch(delivery, /reportComplete\("delivery_failed"/);
 });
 
@@ -49,6 +52,18 @@ test("attachment failure precedes preemption and no host prose mutates the canon
 	const send = delivery.indexOf("pi_send(");
 	assert.ok(hydrated >= 0 && hydrated < decide && decide < abort && abort < send);
 	assert.doesNotMatch(delivery, /PREEMPT_TAIL|deliveryMessage\s*=|formatted\s*\+=/);
+});
+
+test("hydrated file ownership survives formatting and preemption but is cleaned on every pre-send failure", () => {
+	const delivery = bodyBetween("if (pkg.ownerBundle)", "const dispatches =");
+	const lease = delivery.indexOf("new AttachmentDeliveryLease");
+	const formatted = delivery.indexOf("formatInboundBundleMessage");
+	const abort = delivery.indexOf("pi_abort()");
+	const send = delivery.indexOf("pi_send(");
+	const accept = delivery.indexOf("attachmentLease.accept()");
+	const cleanup = delivery.indexOf("attachmentLease?.cleanupIfPending()");
+	assert.ok(lease >= 0 && lease < formatted && formatted < abort && abort < send && send < accept);
+	assert.ok(cleanup > accept, "the catch owns cleanup for any throw before synchronous send acceptance");
 });
 
 test("hidden typed context is injected by before_agent_start into the accepted user queue item", () => {

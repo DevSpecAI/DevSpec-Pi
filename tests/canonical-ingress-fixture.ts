@@ -52,6 +52,7 @@ export function canonicalPoll(options: {
 	wakeKind?: "conversational_command" | "advisory_update" | "history_reseed" | "idle";
 	deliveryState?: "live" | "replay" | "reseed";
 	attachments?: unknown[];
+	attachmentsByCommand?: unknown[][];
 	connectionId?: string;
 	context?: Partial<Record<"human_context" | "agent_context" | "ai_context" | "system_context", unknown[]>>;
 	window?: Record<string, unknown>;
@@ -68,7 +69,7 @@ export function canonicalPoll(options: {
 		message_id: messageIds[index] ?? `f${String(index).padStart(7, "0")}-ffff-4fff-8fff-${String(index).padStart(12, "0")}`,
 		order: stamp(5 + index, messageIds[index] ?? `f${String(index).padStart(7, "0")}-ffff-4fff-8fff-${String(index).padStart(12, "0")}`),
 		content: { mode: "full", body, complete: true },
-		attachments: index === 0 ? options.attachments ?? [] : [],
+		attachments: options.attachmentsByCommand?.[index] ?? (index === 0 ? options.attachments ?? [] : []),
 		requester: {
 			user_id: delegated ? IDS.delegate : IDS.owner,
 			display_name: options.requesterName === undefined

@@ -75,10 +75,10 @@ test("model tool schemas and projection families require an explicit contract-ba
 		.filter((entry) => entry.kind === "model")
 		.map(({ name, inputSchema }) => ({ name, inputSchema, family: projectionFamily(name) }));
 	const fingerprint = createHash("sha256").update(JSON.stringify(contract)).digest("hex");
-	// Reviewed against finalized DevSpecV2 A5 commit c0a056889. The catalog now
-	// carries server-authored exact-target owner/delegated command descriptions,
-	// immutable requester provenance, and playbook-only dispatch semantics. Wire
-	// fields and projection-family assignments remain unchanged.
+	// Reviewed against DevSpecV2 staging c5bfc2d22 during D7. The refreshed
+	// catalog makes action-item ordering and connection-less transcript advisory
+	// behavior explicit. Wire fields and projection-family assignments remain
+	// unchanged; only server-authored descriptions moved.
 	//
 	// BUDGET: description-only schema deltas stay within the benchmark below;
 	// no verb or input field was added to the initial model surface.
@@ -86,7 +86,7 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// through accidentally.
 	assert.equal(
 		fingerprint,
-		"605924b1197b33f7e73f48687a6fff87e37529ce1a145b03b1da690edcef01d7",
+		"d6042bbcb17d540d2fb77def9947e7368ff28986387006eac5e588808e7a0162",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

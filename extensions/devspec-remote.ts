@@ -24,7 +24,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { hostname } from "node:os";
 import { debugRemote as debug } from "./core/debug.ts";
 import { DeliveryQueue, StaleDeliveryError, nextDeliveryRetryDelayMs, type DeliveryLease } from "./core/delivery-queue.ts";
-import { revalidateDispatchRetry } from "./core/dispatch-retry.ts";
+import { revalidatePlaybookRunRetry } from "./core/playbook-run-retry.ts";
 import {
 	callDevspec,
 	isPermanentServerEnd,
@@ -54,26 +54,16 @@ import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, typ
 import { takeContextBudgetReport } from "./core/context-budget.ts";
 import { automaticBackgroundTaskId, backgroundTaskNotificationId, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitFirstAnswer, isHarnessOrigin, shouldPauseSettle, TurnTracker } from "./core/turn-lifecycle.ts";
 import {
-	assertHydratedAssignmentIdentity,
-	dispatchImplementationDelivery,
-	dispatchSummary,
-	formatDispatchMessage,
-	formatPlaybookDispatchMessage,
-	isPlaybookDispatch,
+	formatPlaybookRunMessage,
+	isPlaybookRunEnvelope,
+	playbookRunId,
 } from "./core/dispatch.ts";
-import {
-	buildImplementationKickoff,
-	createImplementationContractLoader,
-	loadImplementationContext,
-} from "./core/implementation-contract.ts";
-import { recordActiveDelivery, rollbackActiveDelivery } from "./core/active-deliveries.ts";
 import {
 	firstTextPreview,
 	isRealSessionTitle,
 	noteVerbEnd,
 	notePlaybook,
 	noteVerbStart,
-	noteWork,
 	paintStatus,
 	previewFromText,
 	resetStatus,
@@ -137,11 +127,11 @@ interface PumpState {
 	 *  missing one is retried on a slow cadence, never hot-polled (Ali: a brand-new
 	 *  session may have no title at attach time; check again later). */
 	lastSessionEnrichAt?: number;
-	/** Dispatch contract hydration is ordered but never awaited by the pump. */
-	dispatchQueue: DeliveryQueue;
-	/** Local retry survives dispatch-cursor advancement after transient preparation failure. */
-	dispatchRetryAttempts: Map<string, number>;
-	dispatchRetryTimers: Map<string, ReturnType<typeof setTimeout>>;
+	/** Typed playbook-run delivery stays ordered without blocking the pump. */
+	playbookQueue: DeliveryQueue;
+	/** Exact-target retry survives cursor advancement after a transient send failure. */
+	playbookRetryAttempts: Map<string, number>;
+	playbookRetryTimers: Map<string, ReturnType<typeof setTimeout>>;
 }
 
 let pump: PumpState | null = null;
@@ -553,9 +543,9 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	const active = pump;
 	if (!active) return;
 	active.stop = true;
-	active.dispatchQueue.invalidate();
-	for (const timer of active.dispatchRetryTimers.values()) clearTimeout(timer);
-	active.dispatchRetryTimers.clear();
+	active.playbookQueue.invalidate();
+	for (const timer of active.playbookRetryTimers.values()) clearTimeout(timer);
+	active.playbookRetryTimers.clear();
 	active.pushAbort?.abort();
 	if (active.pushReconnectTimer) {
 		clearTimeout(active.pushReconnectTimer);
@@ -673,7 +663,7 @@ function startPushChannel(active: PumpState, token: string, endpoint: string): v
 	});
 }
 
-function dispatchRecord(value: unknown): Record<string, unknown> | null {
+function playbookRecord(value: unknown): Record<string, unknown> | null {
 	return value !== null && typeof value === "object" && !Array.isArray(value)
 		? value as Record<string, unknown>
 		: null;
@@ -686,92 +676,27 @@ function assertDeliveryAuthority(active: PumpState, lease: DeliveryLease): void 
 	}
 }
 
-async function deliverDispatch(
+async function deliverPlaybookRun(
 	active: PumpState,
-	token: string,
-	rawDispatch: unknown,
+	value: unknown,
 	ctx: ExtensionContext,
 	lease: DeliveryLease,
 ): Promise<void> {
 	assertDeliveryAuthority(active, lease);
-	if (isPlaybookDispatch(rawDispatch)) {
-		const root = dispatchRecord(rawDispatch);
-		const message = formatPlaybookDispatchMessage(rawDispatch, active.bond.codename ?? "this agent");
-		assertDeliveryAuthority(active, lease);
-		notePlaybook({
-			runId: typeof root?.run_id === "string" ? root.run_id : undefined,
-			id: typeof root?.playbook_id === "string" ? root.playbook_id : undefined,
-			name: typeof root?.playbook_name === "string" ? root.playbook_name : undefined,
-		});
-		paintStatus(ctx);
-		pi_send(message, ctx.isIdle() ? "now" : "followUp");
-		return;
-	}
-
-	let dispatch = rawDispatch;
-	let delivery = dispatchImplementationDelivery(dispatch);
-	if (!delivery) {
-		// A minimal envelope carrying only an assignment id used to be hydrated with
-		// get_assignment. That tool is gone (DevSpec item 1e455001) and so is the
-		// dispatch model behind it: work is not sent to an agent, it is reserved by
-		// one. So an envelope this thin cannot be resolved into work any more, and
-		// pretending otherwise would mean guessing at members.
-		//
-		// This is a loud, precise failure ON PURPOSE. It means the server sent
-		// something this plugin's version cannot understand, which is worth reporting
-		// rather than papering over.
-		const assignmentId = dispatchSummary(dispatch).assignmentId;
-		throw new Error(
-			assignmentId
-				? `dispatch ${assignmentId} carried no implementation kickoff or members, and get_assignment no longer exists to hydrate it — reserve work with reserve_work_items instead`
-				: "work dispatch carried no assignment identity",
-		);
-	}
-
-	const implementationContext = await loadImplementationContext({
-		reference: delivery.reference,
-		loader: createImplementationContractLoader(token),
-		assertCurrent: () => assertDeliveryAuthority(active, lease),
-	});
+	if (!isPlaybookRunEnvelope(value)) return;
+	const root = playbookRecord(value);
+	const message = formatPlaybookRunMessage(value, active.bond.codename ?? "this agent");
 	assertDeliveryAuthority(active, lease);
-	const kickoff = buildImplementationKickoff({
-		actionItemIds: delivery.actionItemIds,
-		assignmentId: delivery.assignmentId,
-		context: implementationContext,
-		contractReference: delivery.reference,
+	notePlaybook({
+		runId: typeof root?.run_id === "string" ? root.run_id : undefined,
+		id: typeof root?.playbook_id === "string" ? root.playbook_id : undefined,
+		name: typeof root?.playbook_name === "string" ? root.playbook_name : undefined,
 	});
-	const message = formatDispatchMessage(
-		dispatch,
-		active.bond.codename ?? "this agent",
-		implementationContext,
-		delivery,
-	);
-	assertDeliveryAuthority(active, lease);
-	const recorded = recordActiveDelivery(kickoff, implementationContext);
-	try {
-		pi_send(message, ctx.isIdle() ? "now" : "followUp");
-	} catch (error) {
-		rollbackActiveDelivery(recorded);
-		throw error;
-	}
-	// No await follows the final authority checkpoint above: message, delivery and
-	// status commit in one JavaScript turn, so stop/rebond cannot interleave.
-	const summary = dispatchSummary(dispatch);
-	noteWork({ id: summary.assignmentId, title: summary.title });
 	paintStatus(ctx);
-	if (implementationContext.warning) notify(ctx, implementationContext.warning, "warning");
+	pi_send(message, ctx.isIdle() ? "now" : "followUp");
 }
 
-function dispatchRetryKey(dispatch: unknown): string | undefined {
-	const root = dispatchRecord(dispatch);
-	return (
-		(typeof root?.run_id === "string" && root.run_id) ||
-		dispatchSummary(dispatch).assignmentId ||
-		undefined
-	);
-}
-
-async function loadCurrentDispatchInbox(
+async function loadCurrentPlaybookInbox(
 	active: PumpState,
 	key: string,
 	token: string,
@@ -784,16 +709,16 @@ async function loadCurrentDispatchInbox(
 		{ timeoutMs: MODEL_TIMEOUT_MS, cwd: ctx.cwd, lane: "work" },
 	);
 	const { details, isError, text } = unwrapMcpResult(raw);
-	if (isError) throw new Error(text || "dispatch retry revalidation failed");
+	if (isError) throw new Error(text || "playbook run retry revalidation failed");
 	const payload = details as { dispatches?: unknown[]; dispatch_id?: unknown; identity_complete?: unknown } | null;
-	if (!Array.isArray(payload?.dispatches)) throw new Error("dispatch retry revalidation returned no live inbox");
+	if (!Array.isArray(payload?.dispatches)) throw new Error("playbook run retry revalidation returned no live inbox");
 	return {
 		dispatches: payload.dispatches,
 		identityComplete: payload.identity_complete === true && payload.dispatch_id === key,
 	};
 }
 
-function scheduleDispatchRetry(
+function schedulePlaybookRetry(
 	active: PumpState,
 	key: string,
 	token: string,
@@ -802,58 +727,59 @@ function scheduleDispatchRetry(
 	quiet = false,
 ): void {
 	if (active.stop || pump !== active) return;
-	const failures = (active.dispatchRetryAttempts.get(key) ?? 0) + 1;
-	active.dispatchRetryAttempts.set(key, failures);
+	const failures = (active.playbookRetryAttempts.get(key) ?? 0) + 1;
+	active.playbookRetryAttempts.set(key, failures);
 	const delayMs = nextDeliveryRetryDelayMs(failures);
 	const reason = error instanceof Error ? error.message : String(error);
-	if (!active.dispatchRetryTimers.has(key)) {
+	if (!active.playbookRetryTimers.has(key)) {
 		const timer = setTimeout(() => {
-			active.dispatchRetryTimers.delete(key);
+			active.playbookRetryTimers.delete(key);
 			if (active.stop || pump !== active) return;
-			void revalidateDispatchRetry({
+			void revalidatePlaybookRunRetry({
 				key,
-				loadCurrentInbox: () => loadCurrentDispatchInbox(active, key, token, ctx),
-				identity: dispatchRetryKey,
+				loadCurrentInbox: () => loadCurrentPlaybookInbox(active, key, token, ctx),
+				identity: playbookRunId,
 				assertCurrent: () => {
 					if (active.stop || pump !== active) throw new StaleDeliveryError();
 				},
-				withdrawCurrent: () => active.dispatchQueue.invalidateKey(key),
-				enqueueCurrent: (currentDispatch) => enqueueDispatch(active, token, currentDispatch, ctx),
+				withdrawCurrent: () => active.playbookQueue.invalidateKey(key),
+				enqueueCurrent: (currentRun) => enqueuePlaybookRun(active, token, currentRun, ctx),
 			}).then((outcome) => {
 				if (outcome === "withdrawn") {
-					active.dispatchRetryAttempts.delete(key);
+					active.playbookRetryAttempts.delete(key);
 				} else if (outcome === "retry") {
-					scheduleDispatchRetry(active, key, token, ctx, "dispatch authority is not yet confirmable", true);
+					schedulePlaybookRetry(active, key, token, ctx, "playbook run authority is not yet confirmable", true);
 				}
-			}).catch((retryError) => scheduleDispatchRetry(active, key, token, ctx, retryError));
+			}).catch((retryError) => schedulePlaybookRetry(active, key, token, ctx, retryError));
 		}, delayMs);
 		if (typeof timer.unref === "function") timer.unref();
-		active.dispatchRetryTimers.set(key, timer);
+		active.playbookRetryTimers.set(key, timer);
 	}
 	if (!quiet) {
-		notify(ctx, `DevSpec remote: failed to deliver dispatch: ${reason}. Revalidating in ${Math.ceil(delayMs / 1_000)}s.`, "warning");
+		notify(ctx, `DevSpec remote: failed to deliver playbook run: ${reason}. Revalidating in ${Math.ceil(delayMs / 1_000)}s.`, "warning");
 	}
 }
 
-function enqueueDispatch(
+function enqueuePlaybookRun(
 	active: PumpState,
 	token: string,
-	dispatch: unknown,
+	value: unknown,
 	ctx: ExtensionContext,
 ): void {
-	const key = dispatchRetryKey(dispatch);
+	if (!isPlaybookRunEnvelope(value)) return;
+	const key = playbookRunId(value);
 	if (!key) return;
-	active.dispatchQueue.enqueue(
+	active.playbookQueue.enqueue(
 		key,
 		async (lease) => {
-			await deliverDispatch(active, token, dispatch, ctx, lease);
-			active.dispatchRetryAttempts.delete(key);
-			const timer = active.dispatchRetryTimers.get(key);
+			await deliverPlaybookRun(active, value, ctx, lease);
+			active.playbookRetryAttempts.delete(key);
+			const timer = active.playbookRetryTimers.get(key);
 			if (timer) clearTimeout(timer);
-			active.dispatchRetryTimers.delete(key);
-			if (!active.stop && pump === active) notify(ctx, "DevSpec remote: work dispatch delivered.");
+			active.playbookRetryTimers.delete(key);
+			if (!active.stop && pump === active) notify(ctx, "DevSpec remote: playbook run delivered.");
 		},
-		(error) => scheduleDispatchRetry(active, key, token, ctx, error),
+		(error) => schedulePlaybookRetry(active, key, token, ctx, error),
 	);
 }
 
@@ -1002,7 +928,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			// has no executable or contextual meaning. Keep the canonical cursor
 			// unchanged so a corrected response can be retried.
 			const dispatches = (payload as { dispatches?: unknown[] } | null)?.dispatches ?? [];
-			for (const dispatch of dispatches) enqueueDispatch(active, token, dispatch, ctx);
+			for (const dispatch of dispatches) enqueuePlaybookRun(active, token, dispatch, ctx);
 			if (pkg.dispatchCursor) active.dispatchCursor = pkg.dispatchCursor;
 			active.errors += 1;
 			debug("canonical ingress rejected", { errors: active.errors, errorPresent: Boolean(pkg.canonicalError) });
@@ -1148,7 +1074,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (pkg.ownerBundle) active.advisoryCarry = [];
 		}
 		const dispatches = (payload as { dispatches?: unknown[] } | null)?.dispatches ?? [];
-		for (const dispatch of dispatches) enqueueDispatch(active, token, dispatch, ctx);
+		for (const dispatch of dispatches) enqueuePlaybookRun(active, token, dispatch, ctx);
 		if (pkg.dispatchCursor) active.dispatchCursor = pkg.dispatchCursor;
 	}
 }
@@ -1234,9 +1160,9 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 		seenOwnerCommands: new SeenOwnerCommands(),
 		advisoryCarry: [],
 		pushAttempts: 0,
-		dispatchQueue: new DeliveryQueue(),
-		dispatchRetryAttempts: new Map(),
-		dispatchRetryTimers: new Map(),
+		playbookQueue: new DeliveryQueue(),
+		playbookRetryAttempts: new Map(),
+		playbookRetryTimers: new Map(),
 	};
 	preemptOwnerCached = (await loadSettings()).preemptOwner;
 	setRemoteStatus(ctx);

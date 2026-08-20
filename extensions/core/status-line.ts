@@ -3,7 +3,7 @@
  *
  * The footer already showed the bond codename. This module adds the rest of
  * what the process already knows: which room we are in, whether that room
- * still has a generated title, the claimed/dispatched item, a claimed
+ * still has a generated title, the locally selected/claimed item, a claimed
  * playbook, and the DevSpec verb currently executing. paintStatus also
  * retitles the OS terminal tab (session → playbook → untitled stand-in →
  * current action item → codename). Pure formatter + globalThis store — pi
@@ -184,7 +184,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 		: null;
 }
 
-/** Best-effort id/title from a claim / get_action_item / dispatch payload. */
+/** Best-effort id/title from a claim or get_action_item payload. */
 export function extractItemRef(value: unknown): { id?: string; title?: string } {
 	const root = asRecord(value);
 	if (!root) return {};

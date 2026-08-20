@@ -75,19 +75,18 @@ test("model tool schemas and projection families require an explicit contract-ba
 		.filter((entry) => entry.kind === "model")
 		.map(({ name, inputSchema }) => ({ name, inputSchema, family: projectionFamily(name) }));
 	const fingerprint = createHash("sha256").update(JSON.stringify(contract)).digest("hex");
-	// Reviewed 2026-08-20 after the canonical-ingress/provenance server cutover
-	// and exact Pi command-segment lifecycle binding (5fd75f1e). The catalog now
-	// exposes lossless transcript continuation/fetch ids and updated provenance
-	// guidance. command_turn_id / command_message_id / command_turn_unbound live
-	// only on pump/never-model verbs, so they do not enlarge the model surface.
+	// Reviewed for the A5 authority cleanup (0dc3a6f2). The catalog removes the
+	// retired local_agent_dispatch/work-routing language and describes immutable
+	// exact-target command reads plus owner-scoped playbook runs. The wire fields
+	// and projection-family assignments are unchanged.
 	//
-	// BUDGET: the only hot model-schema delta is bounded transcript continuation
-	// metadata; the benchmark below remains the authoritative initial-prefix cap.
-	// QUALITY: all affected verbs keep their existing explicit projection family;
-	// exact reads remain lossless and no new verb falls through accidentally.
+	// BUDGET: description-only schema deltas stay within the benchmark below;
+	// no verb or input field was added to the initial model surface.
+	// QUALITY: exact transcript reads remain lossless and no new verb falls
+	// through accidentally.
 	assert.equal(
 		fingerprint,
-		"f6f2a0b01f686107f65675745e4dc705c3a83963a2e83655360978bcbef1297a",
+		"3ba86f39378b3870b8aec340915790e6a28d7bfa99c6c0e5effd3757804e3758",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

@@ -4,7 +4,7 @@
  * /devspec.work [id-or-prefix]
  *   Arg: resolve one explicit item.
  *   No arg: present an item selector when UI is available. It never drains a
- *   queue; other work arrives through remote dispatch.
+ *   queue; action-item work is selected directly and reserved by the agent.
  *
  * The command mechanically loads/caches the product implementation contract,
  * records the delivery for the selected item, and sends one real user kickoff
@@ -223,7 +223,7 @@ export default function (pi: ExtensionAPI) {
 				"  /devspec.logout       — remove the stored token",
 				"  /devspec.logo         — toggle the duck header",
 				"",
-				"Your owner can also send you work through DevSpec remote control; you reserve it yourself. Nothing is ever pushed to you, and this command never drains a queue.",
+				"Your owner can ask you to take work through DevSpec remote control; you reserve the selected items yourself. Nothing is pushed to you, and this command never drains a queue.",
 				"DevSpec tools are native to this package. Foreign MCP servers remain available.",
 				`Connection: ${resolved ? `token from ${resolved.source}` : "not connected — /devspec.login"}`,
 			];

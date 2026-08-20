@@ -6,7 +6,7 @@
  * must not flip — the next cursor-less poll is still catch-up.
  *
  * Only PRE-ATTACH commands on that lap are history. A live owner
- * dispatch created at/after this bond attached must still be delivered
+ * command created at/after this bond attached must still be delivered
  * even when it rides the cursor-less window (live miss: Ali 2026-08-13,
  * “can you pick up from here?” swallowed on Rapid Quokka’s first sync).
  *

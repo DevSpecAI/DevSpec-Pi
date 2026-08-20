@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { assertHydratedAssignmentIdentity, dispatchImplementationDelivery, formatDispatchMessage, isPlaybookDispatch } from "../extensions/core/dispatch.ts";
-import { IMPLEMENTATION_CONTRACT_RESOURCE_URI, type ImplementationContractContext } from "../extensions/core/implementation-contract.ts";
+import { formatPlaybookRunMessage, isPlaybookRunEnvelope, playbookRunId } from "../extensions/core/dispatch.ts";
 import { automaticBackgroundTaskId, backgroundTaskNotificationId, classifyUserKind, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, isWaitNarration, isProcessClose, planSettle, shouldPauseSettle, shouldSplitFirstAnswer, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 
 function remoteTurn(answer: string): TurnTracker {
@@ -11,13 +10,13 @@ function remoteTurn(answer: string): TurnTracker {
 	return t;
 }
 
-test("userMessage classifies remote / dispatch / local", () => {
+test("userMessage classifies remote / playbook / local", () => {
 	const t = new TurnTracker();
 	t.userMessage("[DevSpec remote — message from Ali to Wary Wolf]\nhi");
 	assert.equal(t.userKind, "remote");
-	const d = new TurnTracker();
-	d.userMessage("[DevSpec remote — work dispatch to Wary Wolf]\n…");
-	assert.equal(d.userKind, "dispatch");
+	const playbook = new TurnTracker();
+	playbook.userMessage("[DevSpec remote — playbook run to Wary Wolf]\n…");
+	assert.equal(playbook.userKind, "playbook");
 	const l = new TurnTracker();
 	l.userMessage("just typing locally");
 	assert.equal(l.userKind, "local");
@@ -243,9 +242,9 @@ test("pi-subagents completion notifications are synthetic, not owner prompts", (
 	const remote = "[DevSpec remote — message from Ali Price to Ivory Koala]\nWhy is this attributed to me?";
 	assert.equal(isHarnessOrigin(remote, "future-remote-envelope"), false);
 	assert.equal(classifyUserKind(remote, "future-remote-envelope"), "remote");
-	const dispatch = "[DevSpec remote — work dispatch from Ali Price]\nImplement the fix.";
-	assert.equal(isHarnessOrigin(dispatch, "future-dispatch-envelope"), false);
-	assert.equal(classifyUserKind(dispatch, "future-dispatch-envelope"), "dispatch");
+	const playbook = "[DevSpec remote — playbook run to Ivory Koala]\nRun the supplied playbook.";
+	assert.equal(isHarnessOrigin(playbook, "future-playbook-envelope"), false);
+	assert.equal(classifyUserKind(playbook, "future-playbook-envelope"), "playbook");
 
 	const activeOwner = new TurnTracker();
 	activeOwner.userMessage(remote);
@@ -605,165 +604,30 @@ test("leftover-only [bg completed] still posts no answer (56b9a3b4)", () => {
 	assert.deepEqual(planSettle(leftover, true), { kind: "none" });
 });
 
-test("legacy assignment envelopes remain work (for mechanical hydration), never playbooks", () => {
-	const legacy = { id: "legacy-assignment", mode: "direct" };
-	assert.equal(dispatchImplementationDelivery(legacy), null);
-	assert.equal(isPlaybookDispatch(legacy), false);
-	assert.equal(isPlaybookDispatch({ id: "run-1", kind: "playbook_run" }), true);
-
-	const hydratedLegacy = {
-		id: "legacy-assignment",
-		mode: "direct",
-		members: [{ action_item_id: "legacy-item", title: "Legacy work" }],
-	};
-	const delivery = dispatchImplementationDelivery(hydratedLegacy);
-	assert.ok(delivery);
-	assert.equal(delivery.reference.contract_version, undefined);
-	const context: ImplementationContractContext = {
-		contractVersion: "4.0.0",
-		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
-		source: "resource",
-		rules: [{ id: "core.claim-early", requirement: "Claim early; missing claims never block work." }],
-	};
-	assert.match(formatDispatchMessage(hydratedLegacy, "Wary Wolf", context, delivery), /"contract_version":"4.0.0"/);
+test("only typed playbook-run envelopes have remote run identity", () => {
+	const playbook = { kind: "playbook_run", run_id: "run-1", playbook_name: "Deploy recovery" };
+	assert.equal(isPlaybookRunEnvelope(playbook), true);
+	assert.equal(playbookRunId(playbook), "run-1");
+	assert.equal(isPlaybookRunEnvelope({ id: "legacy-envelope", members: [{ action_item_id: "item-1" }] }), false);
+	assert.equal(playbookRunId({ kind: "assignment", id: "legacy-envelope" }), undefined);
+	assert.equal(playbookRunId({ kind: "playbook_run" }), undefined);
 });
 
-test("formatDispatchMessage carries thin work/contract identity and payload", () => {
-	const dispatch = {
-		id: "as-1",
-		implementation_kickoff: {
-			kind: "devspec.implementation_kickoff",
-			schema_version: 1,
-			work: { assignment_id: "as-1", action_item_ids: ["item-1"] },
-			implementation_contract: {
-				contract_version: "4.0.0",
-				resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
-			},
-		},
-		members: [{ action_item_id: "item-1", title: "Fix flaky test" }],
+test("playbook message has a playbook-only model-visible envelope", () => {
+	const value = {
+		kind: "playbook_run",
+		run_id: "run-1",
+		playbook_id: "playbook-1",
+		playbook_name: "Deploy recovery",
 	};
-	const delivery = dispatchImplementationDelivery(dispatch);
-	assert.ok(delivery);
-	const context: ImplementationContractContext = {
-		contractVersion: "4.0.0",
-		contractHash: "sha256:contract",
-		resourceUri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
-		source: "resource",
-		rules: [
-			{ id: "core.claim-early", requirement: "Claim early; missing claims never block work." },
-			{ id: "core.stay-available", requirement: "Return to capacity." },
-		],
-	};
-	const msg = formatDispatchMessage(dispatch, "Wary Wolf", context, delivery);
-	assert.match(msg, /^\[DevSpec remote — work dispatch to Wary Wolf\]/);
-	assert.match(msg, /Fix flaky test/);
-	assert.match(msg, /"contract_version":"4.0.0"/);
-	assert.match(msg, /acknowledge assignment as-1/i);
-	assert.match(msg, /resolve that assignment/i);
-	assert.match(msg, /core\.stay-available/);
-	assert.match(msg, /"id": "as-1"/);
-	assert.doesNotMatch(msg, /Run the assignment protocol/);
-	assert.doesNotMatch(msg, /Claim each member with claim_work_item/);
-	// No mode on the kickoff header, and no mode-specific resource named.
-	assert.doesNotMatch(msg.split("\n")[1] ?? "", /execution_mode|attended/);
-});
-
-test("canonical dispatch contradictions fail closed instead of broadening work", () => {
-	const canonical = {
-		id: "as-1",
-		implementation_kickoff: {
-			kind: "devspec.implementation_kickoff",
-			schema_version: 1,
-			work: { assignment_id: "as-1", action_item_ids: ["item-a"] },
-			implementation_contract: {
-				contract_version: "4.0.0",
-				resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
-			},
-		},
-		members: [{ action_item_id: "item-a" }],
-	};
-
-	assert.throws(() => dispatchImplementationDelivery({
-		...canonical,
-		implementation_kickoff: { ...canonical.implementation_kickoff, kind: "devspec.implementation_lookalike" },
-	}), /kind was invalid/);
-	assert.throws(() => dispatchImplementationDelivery({
-		...canonical,
-		implementation_kickoff: { ...canonical.implementation_kickoff, schema_version: 2 },
-	}), /schema version was invalid/);
-	assert.throws(() => dispatchImplementationDelivery({
-		...canonical,
-		implementation_kickoff: {
-			...canonical.implementation_kickoff,
-			implementation_contract: {
-				...canonical.implementation_kickoff.implementation_contract,
-				resource_uri: "devspec://product/implementation-contract/attended",
-			},
-		},
-	}), /named a contract resource Pi does not serve/);
-	assert.throws(() => dispatchImplementationDelivery({
-		...canonical,
-		members: [{ action_item_id: "item-a" }, { action_item_id: "item-b" }],
-	}), /contradicted assignment members/);
-	// A mode on the assignment or the kickoff is a server that has not caught up:
-	// refuse it rather than work under a shape whose meaning was deleted.
-	assert.throws(() => dispatchImplementationDelivery({
-		...canonical,
-		execution_mode: "attended",
-	}), /carried a retired execution mode/);
-	assert.throws(() => dispatchImplementationDelivery({
-		...canonical,
-		implementation_kickoff: { ...canonical.implementation_kickoff, execution_mode: "unattended" },
-	}), /carried a retired execution mode/);
-	assert.throws(() => dispatchImplementationDelivery({
-		...canonical,
-		implementation_kickoff: {
-			...canonical.implementation_kickoff,
-			work: { ...canonical.implementation_kickoff.work, assignment_id: "as-other" },
-		},
-	}), /contradicted assignment identity/);
-	assert.throws(() => dispatchImplementationDelivery({
-		...canonical,
-		implementation_kickoff: {
-			...canonical.implementation_kickoff,
-			implementation_contract: {
-				...canonical.implementation_kickoff.implementation_contract,
-				contract_version: " ",
-			},
-		},
-	}), /contract version was invalid/);
-	assert.throws(() => dispatchImplementationDelivery({
-		...canonical,
-		implementation_kickoff: {
-			...canonical.implementation_kickoff,
-			work: { ...canonical.implementation_kickoff.work, action_item_ids: [] },
-		},
-	}), /requires at least one action-item id/);
-});
-
-test("hydration cannot substitute a different assignment than the triggering dispatch", () => {
-	const delivery = dispatchImplementationDelivery({
-		id: "assignment-b",
-		members: [{ action_item_id: "item-b" }],
-	});
-	assert.ok(delivery);
+	const message = formatPlaybookRunMessage(value, "Wary Wolf");
+	assert.match(message, /^\[DevSpec remote — playbook run to Wary Wolf\]/);
+	assert.match(message, /DevSpec playbook run run-1 is ready/);
+	assert.match(message, /claim_playbook_run/);
+	assert.match(message, /Playbook run envelope:/);
+	assert.doesNotMatch(message, /work dispatch|assignment|local_agent_dispatch|been dispatched/i);
 	assert.throws(
-		() => assertHydratedAssignmentIdentity("assignment-a", delivery),
-		/hydration returned assignment-b while assignment-a was requested/,
+		() => formatPlaybookRunMessage({ kind: "playbook_run" }, "Wary Wolf"),
+		/requires a run id/,
 	);
-	assert.doesNotThrow(() => assertHydratedAssignmentIdentity("assignment-b", delivery));
-});
-
-test("canonical kickoff absence preserves the isolated legacy-member compatibility path", () => {
-	// A legacy `mode: autopilot` row used to synthesize an unattended delivery.
-	// There is nothing to synthesize onto now, so it is simply ignored.
-	assert.deepEqual(dispatchImplementationDelivery({
-		id: "legacy-1",
-		mode: "autopilot",
-		members: [{ action_item_id: "legacy-item" }],
-	}), {
-		assignmentId: "legacy-1",
-		actionItemIds: ["legacy-item"],
-		reference: { resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI },
-	});
 });

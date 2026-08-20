@@ -7,7 +7,7 @@ export function nextDeliveryRetryDelayMs(
 	return Math.min(baseMs * 2 ** exponent, maxMs);
 }
 
-/** Pump- and dispatch-scoped authority lease for one asynchronous delivery. */
+/** Pump- and playbook-run-scoped authority lease for one asynchronous delivery. */
 export interface DeliveryLease {
 	readonly generation: number;
 	readonly keyGeneration: number;
@@ -22,7 +22,7 @@ export class StaleDeliveryError extends Error {
 	}
 }
 
-/** Ordered, non-blocking dispatch preparation outside the remote pump loop. */
+/** Ordered, non-blocking playbook delivery outside the remote pump loop. */
 export class DeliveryQueue {
 	private tail: Promise<void> = Promise.resolve();
 	private seen = new Set<string>();
@@ -61,17 +61,15 @@ export class DeliveryQueue {
 				// A stopped/replaced bond owns neither warnings nor retries. The new
 				// pump has a new queue and receives any still-live delivery itself.
 				if (!lease.isCurrent() || error instanceof StaleDeliveryError) return;
-				// A live inbox may offer the same delivery again after a transient
-				// contract/hydration/send failure. This queue carries playbook runs
-				// and owner commands — action items are never delivered, an agent
-				// reserves those itself (item 3b601ffa).
+				// A live inbox may offer the same playbook run again after a transient
+				// send failure. Action-item work never enters this queue.
 				this.seen.delete(key);
 				onError(error);
 			});
 		return true;
 	}
 
-	/** Revoke in-flight and queued work for one dispatch identity only. */
+	/** Revoke in-flight and queued delivery for one playbook-run identity only. */
 	invalidateKey(key: string): void {
 		if (!this.active || !key) return;
 		this.keyGenerations.set(key, this.keyGeneration(key) + 1);
@@ -87,7 +85,7 @@ export class DeliveryQueue {
 		this.keyGenerations.clear();
 	}
 
-	/** Test/shutdown observation only; the pump never awaits contract work. */
+	/** Test/shutdown observation only; the pump never awaits this queue. */
 	idle(): Promise<void> {
 		return this.tail;
 	}

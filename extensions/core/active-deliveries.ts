@@ -7,17 +7,15 @@ import type { ImplementationContractContext, ImplementationKickoff } from "./imp
  * duration of a delivery. There is no execution mode (DevSpec item 6d085535):
  * nothing is installed for the duration of a batch and nothing needs clearing when
  * one resolves. What is genuinely worth tracking is narrower and survives the
- * rename — WHICH items went out with WHICH contract, so the footer can say so, a
- * failed send can be rolled back, and a re-dispatch of the same work replaces its
- * predecessor instead of accumulating.
+ * rename — WHICH locally selected items went out with WHICH contract, so the footer
+ * can say so and a failed direct send can be rolled back.
  *
- * Plural deliveries coexist on purpose: two queued assignments must not clear each
- * other, so a lifecycle result only ever touches the delivery holding that item.
+ * Plural direct deliveries coexist on purpose, so a lifecycle result only ever
+ * touches the delivery holding that item.
  */
 
 export interface ActiveDelivery {
 	deliveryKey: string;
-	assignmentId?: string;
 	actionItemIds: string[];
 	terminalActionItemIds: string[];
 	contractVersion: string;
@@ -52,9 +50,7 @@ function unique(values: readonly string[]): string[] {
 }
 
 function kickoffKey(kickoff: ImplementationKickoff): string {
-	return kickoff.work.assignment_id
-		? `assignment:${kickoff.work.assignment_id}`
-		: `items:${[...kickoff.work.action_item_ids].sort().join(",")}`;
+	return `items:${[...kickoff.work.action_item_ids].sort().join(",")}`;
 }
 
 function copy(active: ActiveDelivery): ActiveDelivery {
@@ -65,7 +61,7 @@ function copy(active: ActiveDelivery): ActiveDelivery {
 	};
 }
 
-/** Record exactly one explicit delivery; a delivery is not connection identity. */
+/** Record exactly one locally selected delivery; a delivery is not connection identity. */
 export function recordActiveDelivery(
 	kickoff: ImplementationKickoff,
 	context: ImplementationContractContext,
@@ -78,7 +74,6 @@ export function recordActiveDelivery(
 	const actionItemIds = unique(kickoff.work.action_item_ids);
 	const next: ActiveDelivery = {
 		deliveryKey,
-		...(kickoff.work.assignment_id ? { assignmentId: kickoff.work.assignment_id } : {}),
 		actionItemIds,
 		terminalActionItemIds: previous?.terminalActionItemIds.filter((id) => actionItemIds.includes(id)) ?? [],
 		contractVersion: context.contractVersion,
@@ -108,12 +103,11 @@ export function listActiveDeliveries(): ActiveDelivery[] {
 	return state().deliveries.map(copy);
 }
 
-export function clearActiveDelivery(input: { assignmentId?: string; deliveryKey?: string }): boolean {
+export function clearActiveDelivery(input: { deliveryKey: string }): boolean {
 	const current = state();
-	const key = input.deliveryKey ?? (input.assignmentId ? `assignment:${input.assignmentId}` : undefined);
-	if (!key) return false;
+	if (!input.deliveryKey) return false;
 	const before = current.deliveries.length;
-	current.deliveries = current.deliveries.filter((entry) => entry.deliveryKey !== key);
+	current.deliveries = current.deliveries.filter((entry) => entry.deliveryKey !== input.deliveryKey);
 	return current.deliveries.length !== before;
 }
 
@@ -146,7 +140,7 @@ function itemIdFrom(value: unknown): string | undefined {
 
 /**
  * Successful native work-tool results drive the matching delivery's cleanup.
- * Plural queued assignments coexist; no unrelated delivery can be cleared.
+ * Plural local selections coexist; no unrelated delivery can be cleared.
  */
 export function consumeDeliveryLifecycle(
 	name: string,
@@ -155,12 +149,6 @@ export function consumeDeliveryLifecycle(
 ): boolean {
 	const current = state();
 	if (current.deliveries.length === 0) return false;
-
-	// `resolve_assignment` used to be watched here as the batch's explicit close.
-	// It is gone (DevSpec item 1e455001): a reservation closes itself server-side
-	// when its last member settles, so the per-member results below are the only
-	// signal — and the only one that was ever reliable, since an agent could always
-	// forget to call the closing verb.
 
 	if (!["record_implementation", "release_work_item", "fail_work_item"].includes(name)) return false;
 	const actionItemId =

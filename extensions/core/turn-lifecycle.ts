@@ -42,10 +42,10 @@
  *   text (e.g. a run that was pure tool calls with no closing message).
  */
 
-export type UserKind = "remote" | "dispatch" | "local" | "harness";
+export type UserKind = "remote" | "playbook" | "local" | "harness";
 
 export const REMOTE_PREFIX = "[DevSpec remote — message from";
-export const DISPATCH_PREFIX = "[DevSpec remote — work dispatch";
+export const PLAYBOOK_RUN_PREFIX = "[DevSpec remote — playbook run";
 const CONTEXT_TEXT_PREFIXES = [
 	"### DevSpec memory — auto-recall",
 	"[DevSpec remote — bond context",
@@ -62,7 +62,7 @@ const GROUPED_SUBAGENT_NOTIFICATION_PREFIX = /^Background tasks completed \(\d+\
  * A typed `/bg-update` is NOT harness — slash commands stay first-class local.
  */
 export function isHarnessOrigin(text: string, customType?: string | null): boolean {
-	if (text.startsWith(REMOTE_PREFIX) || text.startsWith(DISPATCH_PREFIX)) return false;
+	if (text.startsWith(REMOTE_PREFIX) || text.startsWith(PLAYBOOK_RUN_PREFIX)) return false;
 	if (typeof customType === "string" && customType.trim()) return true;
 	const t = text.trim();
 	if (!t) return false;
@@ -77,7 +77,7 @@ export function isHarnessOrigin(text: string, customType?: string | null): boole
 
 export function classifyUserKind(text: string, customType?: string | null): UserKind {
 	if (text.startsWith(REMOTE_PREFIX)) return "remote";
-	if (text.startsWith(DISPATCH_PREFIX)) return "dispatch";
+	if (text.startsWith(PLAYBOOK_RUN_PREFIX)) return "playbook";
 	if (isHarnessOrigin(text, customType)) return "harness";
 	return "local";
 }
@@ -105,13 +105,13 @@ export class TurnTracker {
 		const kind = classifyUserKind(text, origin?.customType);
 		// A leftover wake may replay the last typed prompt as a user message.
 		// Once this segment is harness, stay harness — do not remirror that prompt.
-		if (this.userKind === "harness" && kind !== "remote" && kind !== "dispatch") {
+		if (this.userKind === "harness" && kind !== "remote" && kind !== "playbook") {
 			this.awaitingFirstAnswer = false;
 			this.shouldMirrorPrompt = false;
 			return;
 		}
 		// Mid-turn context/harness (auto-recall, leftover receipts) must not
-		// steal an already-started remote/local/dispatch turn (item 60cf5f00).
+		// steal an already-started remote/local/playbook turn (item 60cf5f00).
 		if (kind === "harness" && this.userKind && this.userKind !== "harness") {
 			// A terminal notification resolves only the task it names. This is
 			// deliberately idempotent because before_agent_start + message_start
@@ -380,6 +380,6 @@ export function planSettle(tracker: TurnTracker, attached: boolean): SettlePlan 
 	if (tracker.userKind === "local" && tracker.shouldMirrorPrompt) {
 		return { kind: "local_mirror", prompt: tracker.userText, answer: tracker.lastAssistantText };
 	}
-	// remote/dispatch, local continuations, and unknowns with an answer: post the final.
+	// Remote/playbook, local continuations, and unknowns with an answer: post the final.
 	return { kind: "final", message: tracker.lastAssistantText };
 }

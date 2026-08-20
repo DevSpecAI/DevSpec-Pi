@@ -15,45 +15,42 @@ function bodyBetween(start: string, end: string): string {
 	return source.slice(from, to);
 }
 
-test("remote stop revokes dispatch authority before clearing the pump", () => {
+test("remote stop revokes playbook authority before clearing the pump", () => {
 	const stopBody = bodyBetween("async function stopPump", "/** Wake the pump's SSE waiter");
-	const invalidateAt = stopBody.indexOf("active.dispatchQueue.invalidate()");
+	const invalidateAt = stopBody.indexOf("active.playbookQueue.invalidate()");
 	const clearAt = stopBody.indexOf("pump = null");
-	assert.ok(invalidateAt >= 0, "stop must invalidate the dispatch queue");
+	assert.ok(invalidateAt >= 0, "stop must invalidate the playbook queue");
 	assert.ok(clearAt > invalidateAt, "queue authority must be revoked before the pump is cleared");
 });
 
-test("retry re-reads the server-owned current dispatch inbox window", () => {
-	const inboxBody = bodyBetween("async function loadCurrentDispatchInbox", "function scheduleDispatchRetry");
-	assert.match(inboxBody, /"get_connection_dispatch"/);
-	assert.match(inboxBody, /connection_id: active\.bond\.connectionId, dispatch_id: key/);
-	assert.match(inboxBody, /identityComplete: payload\.identity_complete === true && payload\.dispatch_id === key/);
-	assert.doesNotMatch(inboxBody, /poll_connection/, "retry validation must not disturb the transport cursor");
+test("non-playbook transport entries are inert before queueing or injection", () => {
+	const enqueue = bodyBetween("function enqueuePlaybookRun", "async function pumpLoop");
+	const rejectAt = enqueue.indexOf("if (!isPlaybookRunEnvelope(value)) return");
+	const keyAt = enqueue.indexOf("const key = playbookRunId(value)");
+	const queueAt = enqueue.indexOf("active.playbookQueue.enqueue");
+	assert.ok(rejectAt >= 0 && rejectAt < keyAt && keyAt < queueAt);
+	assert.doesNotMatch(enqueue.slice(0, queueAt), /pi_send|sendUserMessage|noteWork|recordActiveDelivery/);
+
+	const delivery = bodyBetween("async function deliverPlaybookRun", "async function loadCurrentPlaybookInbox");
+	assert.match(delivery, /if \(!isPlaybookRunEnvelope\(value\)\) return/);
+	assert.match(delivery, /formatPlaybookRunMessage/);
+	assert.doesNotMatch(delivery, /implementation|assignment|noteWork|recordActiveDelivery/);
 });
 
-test("failed delivery retries identity only after re-reading the authoritative live inbox", () => {
-	const retryBody = bodyBetween("function scheduleDispatchRetry", "function enqueueDispatch");
-	assert.match(retryBody, /nextDeliveryRetryDelayMs\(failures\)/);
-	assert.match(retryBody, /revalidateDispatchRetry\(\{/);
-	assert.match(retryBody, /loadCurrentInbox: \(\) => loadCurrentDispatchInbox\(active, key, token, ctx\)/);
-	assert.match(retryBody, /withdrawCurrent: \(\) => active\.dispatchQueue\.invalidateKey\(key\)/);
-	assert.match(retryBody, /enqueueCurrent: \(currentDispatch\) => enqueueDispatch\(active, token, currentDispatch, ctx\)/);
-	assert.match(retryBody, /outcome === "retry"[\s\S]*scheduleDispatchRetry/);
-	assert.doesNotMatch(retryBody, /enqueueDispatch\(active, token, dispatch, ctx\)/, "captured envelopes are not retry authority");
-	assert.doesNotMatch(retryBody, /dispatch is no longer active/, "authoritative cancellation is silent");
-	assert.match(source, /\(error\) => scheduleDispatchRetry\(active, key, token, ctx, error\)/);
+test("retry re-reads the exact server-owned playbook inbox target", () => {
+	const inbox = bodyBetween("async function loadCurrentPlaybookInbox", "function schedulePlaybookRetry");
+	assert.match(inbox, /"get_connection_dispatch"/);
+	assert.match(inbox, /connection_id: active\.bond\.connectionId, dispatch_id: key/);
+	assert.match(inbox, /identityComplete: payload\.identity_complete === true && payload\.dispatch_id === key/);
+	assert.doesNotMatch(inbox, /poll_connection/, "retry validation must not disturb the transport cursor");
 });
 
-test("real dispatch hydration checkpoints authority and commits record/send without an await gap", () => {
-	const deliveryBody = bodyBetween("async function deliverDispatch", "function enqueueDispatch");
-	// It no longer hydrates a thin envelope with get_assignment — that tool is gone
-	// (DevSpec item 1e455001), so a dispatch carrying only an id fails loudly and
-	// precisely instead of calling something that does not exist.
-	assert.doesNotMatch(deliveryBody, /"get_assignment"/);
-	assert.match(deliveryBody, /get_assignment no longer exists to hydrate it/);
-	assert.match(deliveryBody, /loadImplementationContext\(\{[\s\S]*assertCurrent: \(\) => assertDeliveryAuthority\(active, lease\)/);
-	assert.match(deliveryBody, /assertDeliveryAuthority\(active, lease\);\s*const recorded = recordActiveDelivery/);
-	const commit = deliveryBody.match(/const recorded = recordActiveDelivery[\s\S]*?pi_send\(message,[\s\S]*?\);/u)?.[0] ?? "";
-	assert.ok(commit, "delivery record and Pi send transaction was not found");
-	assert.doesNotMatch(commit, /\bawait\b/, "stop/rebond must not interleave between recording a delivery and the Pi send");
+test("failed playbook delivery retries only current exact server authority", () => {
+	const retry = bodyBetween("function schedulePlaybookRetry", "function enqueuePlaybookRun");
+	assert.match(retry, /revalidatePlaybookRunRetry\(\{/);
+	assert.match(retry, /loadCurrentInbox: \(\) => loadCurrentPlaybookInbox\(active, key, token, ctx\)/);
+	assert.match(retry, /identity: playbookRunId/);
+	assert.match(retry, /withdrawCurrent: \(\) => active\.playbookQueue\.invalidateKey\(key\)/);
+	assert.match(retry, /enqueueCurrent: \(currentRun\) => enqueuePlaybookRun\(active, token, currentRun, ctx\)/);
+	assert.doesNotMatch(retry, /enqueuePlaybookRun\(active, token, value, ctx\)/, "captured envelopes are not retry authority");
 });

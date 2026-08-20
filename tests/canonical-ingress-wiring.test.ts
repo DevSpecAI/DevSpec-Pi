@@ -26,7 +26,7 @@ test("canonical parser output stays independent from playbook dispatch and contr
 	assert.match(pump, /parsePollPayload\(payload, active\.bond\.connectionId\)/);
 	assert.match(pump, /pkg\.ownerBundle/);
 	assert.match(pump, /pkg\.control/);
-	assert.match(pump, /for \(const dispatch of dispatches\) enqueueDispatch/);
+	assert.match(pump, /for \(const dispatch of dispatches\) enqueuePlaybookRun/);
 	assert.doesNotMatch(pump, /payload[^\n]*commands|buildRoomDigest|owner_ambient|room_context/);
 });
 

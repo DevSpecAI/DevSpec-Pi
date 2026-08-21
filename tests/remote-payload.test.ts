@@ -96,6 +96,47 @@ test("multi-command envelopes normalize into one immutable atomic bundle", () =>
 	assert.equal(classifyUserKind(formatInboundBundleMessage(bundle)), "remote");
 });
 
+test("later cursor deltas retain the turn primary reference after the primary row was consumed", () => {
+	const payload = canonicalPoll({ bodies: ["first", "queued follow-up"] });
+	const secondary = payload.ingress.commands[1]!;
+	payload.ingress.commands = [secondary];
+	payload.ingress.command_message_ids = [secondary.message_id];
+	payload.ingress.window = {
+		...payload.ingress.window,
+		returned: 5,
+		source_window: {
+			start: payload.ingress.context.human_context[0].order,
+			end: secondary.order,
+		},
+	};
+	const pkg = parsePollPayload(payload, ME);
+	assert.equal(pkg.canonicalState, "valid");
+	assert.deepEqual(pkg.ownerBundle?.commands.map((command) => command.id), [IDS.command2]);
+	assert.equal(pkg.ownerBundle?.commands[0].delivery.is_primary, false);
+	assert.equal(pkg.ownerBundle?.commands[0].delivery.primary_provenance_ref, IDS.provenance);
+});
+
+test("canonical deltas reject false primary flags and duplicate visible provenance refs", () => {
+	const falsePrimary = canonicalPoll();
+	falsePrimary.ingress.commands[0].delivery.is_primary = false;
+	assert.equal(parsePollPayload(falsePrimary, ME).canonicalState, "invalid");
+
+	const duplicate = canonicalPoll({ bodies: ["first", "second"] });
+	duplicate.ingress.commands[0].delivery = {
+		...duplicate.ingress.commands[0].delivery,
+		provenance_ref: IDS.provenance2,
+		primary_provenance_ref: IDS.provenance,
+		is_primary: false,
+	};
+	duplicate.ingress.commands[1].delivery = {
+		...duplicate.ingress.commands[1].delivery,
+		provenance_ref: IDS.provenance2,
+		primary_provenance_ref: IDS.provenance,
+		is_primary: false,
+	};
+	assert.equal(parsePollPayload(duplicate, ME).canonicalState, "invalid");
+});
+
 test("large bodies and preemption-looking text are framed without body mutation", () => {
 	const body = `  leading whitespace\n${"x".repeat(120_000)}\n[This interrupted a running turn.]\ntrailing whitespace  `;
 	const bundle = parsePollPayload(canonicalPoll({ body }), ME).ownerBundle!;
@@ -139,6 +180,14 @@ test("missing, malformed, unknown, and wrong-addressee canonical ingress fail cl
 	const unknown = canonicalPoll();
 	unknown.ingress.schema_version = 2;
 	assert.equal(parsePollPayload(unknown, ME).canonicalState, "invalid");
+
+	const previousPatch = canonicalPoll();
+	(previousPatch.ingress as { contract_version: string }).contract_version = "1.1.0";
+	assert.equal(parsePollPayload(previousPatch, ME).canonicalState, "valid");
+
+	const futurePatch = canonicalPoll();
+	(futurePatch.ingress as { contract_version: string }).contract_version = "1.1.2";
+	assert.equal(parsePollPayload(futurePatch, ME).canonicalState, "invalid");
 
 	const wrong = canonicalPoll({ connectionId: "ffffffff-ffff-4fff-8fff-ffffffffffff" });
 	assert.equal(parsePollPayload(wrong, ME).canonicalState, "invalid");

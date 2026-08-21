@@ -30,18 +30,26 @@ test("canonical parser output stays independent from playbook dispatch and contr
 	assert.doesNotMatch(pump, /payload[^\n]*commands|buildRoomDigest|owner_ambient|room_context/);
 });
 
-test("multi-command hydration, send, seen state, and rollback are envelope-atomic", () => {
+test("multi-command hydration, send, seen state, and rollback are atomic for the unseen subset", () => {
 	const delivery = bodyBetween("if (pkg.ownerBundle)", "const dispatches =");
-	assert.match(delivery, /reserveBundle\(pkg\.ownerBundle\.commands\)/);
-	assert.match(delivery, /await hydrateOwnerBundle\(pkg\.ownerBundle/);
-	assert.equal((delivery.match(/\bpi_send\(/g) ?? []).length, 1, "one send site for the whole envelope");
-	assert.doesNotMatch(delivery, /for \(const cmd|takeUnseen/);
-	assert.match(delivery, /pi_send\([^;]+;\s*attachmentLease\.accept\(\);[^]*commitBundle\(hydrated\.commands\)/);
-	assert.match(delivery, /catch \(err\)[^]*attachmentLease\?\.cleanupIfPending\(\)[^]*releaseBundle\(pkg\.ownerBundle\.commands\)/);
+	assert.match(delivery, /takeUnseen\(pkg\.ownerBundle\.commands\)/);
+	assert.match(delivery, /ownerBundleSubset\(pkg\.ownerBundle, unseen\)/);
+	assert.match(delivery, /await hydrateOwnerBundle\(selectedBundle/);
+	assert.equal((delivery.match(/\bpi_send\(/g) ?? []).length, 1, "one send site for the unseen subset");
+	assert.match(delivery, /pi_send\([^;]+;\s*attachmentLease\.accept\(\);[^]*commitBundle\(unseen\)/);
+	assert.match(delivery, /catch \(err\)[^]*attachmentLease\?\.cleanupIfPending\(\)[^]*releaseBundle\(unseen\)/);
 	assert.match(delivery, /attachmentRetryAttempts[^]*nextDeliveryRetryDelayMs[^]*commandRetryDelayMs/);
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
 	assert.match(pump, /if \(commandRetryDelayMs > 0[^]*await new Promise[^]*setTimeout\(resolve, commandRetryDelayMs\)[^]*signalWake\(active\)/);
 	assert.doesNotMatch(delivery, /reportComplete\("delivery_failed"/);
+});
+
+test("terminal attachment rejection commits only after report_complete acknowledgement", () => {
+	const rejected = bodyBetween("if (pkg.rejectedBundle)", "if (pkg.ownerBundle)");
+	assert.match(rejected, /const reported = await reportComplete\("delivery_unavailable"/);
+	assert.match(rejected, /if \(reported\)[^]*attachmentRetryAttempts\.delete\(rejected\.commandTurnId\)[^]*commitBundle\(unseen\)/);
+	assert.match(rejected, /else[^]*releaseBundle\(unseen\)[^]*commandDeliveryFailed = true/);
+	assert.match(rejected, /nextDeliveryRetryDelayMs/);
 });
 
 test("attachment failure precedes preemption and no host prose mutates the canonical prompt", () => {

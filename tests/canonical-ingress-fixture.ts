@@ -126,7 +126,7 @@ export function canonicalPoll(options: {
 		ingress: {
 			kind: "devspec.remote_ingress",
 			schema_version: 1,
-			contract_version: "1.1.0",
+			contract_version: "1.1.1",
 			policy_version: "2026-08-19.2",
 			envelope_id: IDS.envelope,
 			connection: { connection_id: connectionId, agent_name: "Pi", codename: "Amber Hawk", label: options.addresseeLabel ?? "Amber Hawk" },

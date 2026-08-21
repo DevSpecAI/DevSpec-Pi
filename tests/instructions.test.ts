@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { buildDevspecInstructions, INSTRUCTIONS_VERSION } from "../extensions/core/instructions.ts";
 import { HOT_SET, TOOL_LOADER_NAME, rareModelVerbs } from "../extensions/core/model-surface.ts";
@@ -46,6 +47,14 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /search_devspec_tools/);
 	assert.match(text, /concise user-facing sentence/);
 	assert.match(text, /never narrate individual tools/);
+});
+
+test("bonded remote prose distinguishes delegated scope and points to served policy", () => {
+	const source = readFileSync(new URL("../extensions/devspec-context.ts", import.meta.url), "utf8");
+	assert.match(source, /Owner authority and delegated project scope differ/);
+	assert.match(source, /devspec:\/\/product\/remote-ingress-contract/);
+	assert.doesNotMatch(source, /owner instructions delivered via the bond/);
+	assert.doesNotMatch(source, /sandbox|mechanical(?:ly)? enforce/i);
 });
 
 test("instructions do not dump search-first or the 76-verb map", () => {

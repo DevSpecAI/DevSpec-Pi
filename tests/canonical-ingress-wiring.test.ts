@@ -11,10 +11,13 @@ function bodyBetween(start: string, end: string): string {
 	return source.slice(from, to);
 }
 
-test("every Pi poll negotiates v1 and only top-level cursor_v2 drives live progress", () => {
+test("every Pi poll negotiates canonical ingress and delegated project scope while only top-level cursor_v2 drives live progress", () => {
 	const calls = [...source.matchAll(/callDevspec\([^]*?"poll_connection"[^]*?\{([^]*?)\}, \{/gu)];
 	assert.equal(calls.length, 2, "expected control ack and pump poll only");
-	for (const call of calls) assert.match(call[1], /ingress_version: 1/);
+	for (const call of calls) {
+		assert.match(call[1], /ingress_version: 1/);
+		assert.match(call[1], /delegated_scope_version: 1/);
+	}
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
 	assert.match(pump, /cursor_v2: active\.cursor/);
 	assert.match(pump, /if \(!commandDeliveryFailed\)[^]*active\.cursor = pkg\.cursorV2/);
@@ -74,10 +77,17 @@ test("hydrated file ownership survives formatting and preemption but is cleaned 
 	assert.ok(cleanup > accept, "the catch owns cleanup for any throw before synchronous send acceptance");
 });
 
-test("hidden typed context is injected by before_agent_start into the accepted user queue item", () => {
+test("all send modes use the same visible bundle binding and idle retains hidden typed context", () => {
+	const delivery = bodyBetween("if (pkg.ownerBundle)", "const dispatches =");
+	assert.equal((delivery.match(/formatInboundBundleMessage\(/g) ?? []).length, 1);
+	assert.match(delivery, /const formatted = formatInboundBundleMessage\(hydrated\)/);
+	assert.match(delivery, /pi_send\(formatted, sendMode, hydrated\.commandTurnId, primary\.id, queueItem\)/);
+
 	const sender = bodyBetween("pi_send =", "pi_abort =");
 	assert.match(sender, /commandTurnBindings\.remember\(message, commandTurnId, commandMessageId, canonicalQueueItem\)/);
-	assert.match(sender, /pi\.sendUserMessage/);
+	assert.match(sender, /if \(mode === "steer"\) pi\.sendUserMessage\(message, \{ deliverAs: "steer" \}\)/);
+	assert.match(sender, /else if \(mode === "followUp"\) pi\.sendUserMessage\(message, \{ deliverAs: "followUp" \}\)/);
+	assert.match(sender, /else pi\.sendUserMessage\(message\)/);
 	assert.doesNotMatch(sender, /pi\.sendMessage/);
 	assert.match(sender, /catch \(error\)[^]*commandTurnBindings\.forget/);
 

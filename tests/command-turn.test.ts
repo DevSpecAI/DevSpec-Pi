@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CommandTurnBindings } from "../extensions/core/command-turn.ts";
+import { formatCanonicalDeliveryContext, formatInboundBundleMessage, parsePollPayload } from "../extensions/core/remote-payload.ts";
+import { canonicalPoll, DELEGATED_PROJECT_INSTRUCTION, IDS } from "./canonical-ingress-fixture.ts";
 
 test("retains immutable turn and command ids until the exact injected message starts", () => {
 	const bindings = new CommandTurnBindings();
@@ -34,6 +36,37 @@ test("hidden canonical data peeks for the same turn without consuming identity",
 		canonicalQueueItem,
 	});
 	assert.equal(bindings.peek("atomic bundle"), undefined);
+});
+
+test("idle, steer, and followUp retain delegated scope without crossing into an owner bundle", () => {
+	const bindings = new CommandTurnBindings();
+	const delegatedBundle = parsePollPayload(canonicalPoll({ delegated: true, body: "same exact body" }), IDS.connection).ownerBundle!;
+	const ownerBundle = parsePollPayload(canonicalPoll({ body: "same exact body" }), IDS.connection).ownerBundle!;
+	const delegatedMessage = formatInboundBundleMessage(delegatedBundle);
+	const ownerMessage = formatInboundBundleMessage(ownerBundle);
+	assert.ok(delegatedMessage.includes(DELEGATED_PROJECT_INSTRUCTION));
+	assert.ok(!ownerMessage.includes(DELEGATED_PROJECT_INSTRUCTION));
+	assert.notEqual(delegatedMessage, ownerMessage, "visible scope framing prevents delegated and owner turns with the same body from aliasing");
+
+	for (const [index, mode] of ["now", "steer", "followUp"].entries()) {
+		bindings.remember(delegatedMessage, `turn-${mode}`, `message-${index}`, {
+			hiddenContent: formatCanonicalDeliveryContext(delegatedBundle, []),
+			details: { mode },
+		});
+	}
+	bindings.remember(ownerMessage, "turn-owner", "message-owner", {
+		hiddenContent: formatCanonicalDeliveryContext(ownerBundle, []),
+		details: { mode: "owner" },
+	});
+
+	const owner = bindings.take(ownerMessage)?.canonicalQueueItem;
+	assert.deepEqual(owner?.details, { mode: "owner" });
+	assert.ok(!owner?.hiddenContent.includes(DELEGATED_PROJECT_INSTRUCTION));
+	for (const mode of ["now", "steer", "followUp"]) {
+		const delegated = bindings.take(delegatedMessage)?.canonicalQueueItem;
+		assert.deepEqual(delegated?.details, { mode });
+		assert.ok(delegated?.hiddenContent.includes(DELEGATED_PROJECT_INSTRUCTION));
+	}
 });
 
 test("a rejected send can forget only its exact queued command", () => {

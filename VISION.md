@@ -276,12 +276,14 @@ honored, not ported around:
   (Pi mints stable session ids; bond on conversation id, never cwd/shell).
   Server-side revive within the 24h `BOND_REVIVE_WINDOW_MS` is relied upon —
   we always pass the same `local_id`.
-- **Tick:** one held `poll_connection` long-poll per bond, negotiating numeric
-  `ingress_version: 1`. Canonical semantics are served at
-  `devspec://product/remote-ingress-contract`; this document does not restate
-  mutable server policy.
-- **Ingress:** owner commands arrive as **real user messages** via
-  `pi.sendUserMessage()` — with correct steer/followUp semantics while busy,
+- **Tick:** an SSE wake listener normally triggers no-hold `poll_connection`
+  package fetches, with a held long-poll as transport fallback. Every poll
+  negotiates numeric `ingress_version: 1` and `delegated_scope_version: 1`.
+  Canonical semantics are served at `devspec://product/remote-ingress-contract`;
+  this document does not restate mutable server policy.
+- **Ingress:** server-authorized owner and delegated commands arrive as **real
+  user messages** via `pi.sendUserMessage()` — with correct steer/followUp
+  semantics while busy,
   appearing in the transcript as if typed. Slash-command text is never
   injected as a prompt.
 - **Egress:** the DevSpec UI must never diverge from or invent what the
@@ -291,7 +293,13 @@ honored, not ported around:
   while treating richer egress (streaming, structured progress) as an
   open design space per principle 4. Chrome stays terminal-only.
 - **Authority:** canonical `ingress` is the only conversational command/context
-  source after negotiation; legacy top-level arrays are ignored by Pi.
+  source after negotiation; legacy top-level arrays are ignored by Pi. Owner
+  authority retains machine scope and omits project-scope framing. Delegated
+  authority places the exact server-owned project instruction in the visible
+  canonical bundle immediately before its exact command body, so busy steer and
+  followUp delivery cannot miss it. Hidden typed command-turn metadata remains
+  additional context when Pi emits `before_agent_start` (including idle turns).
+  Mutable runtime policy remains at `devspec://product/remote-ingress-contract`.
 - **Permissions:** stock Pi has no permission popups, so the approval-hook
   machinery other hosts need is unnecessary. Our own destructive-command gate
   applies to every run, since no run can claim someone is watching it.
@@ -426,9 +434,10 @@ current contract, adopted here first, migrated to other hosts only if proven.
    `/devspec.help`; reactive git_remote project scoping)
 4. **Remote control** — bond, pump, ingress/egress per contract. **Slice 1 ✅**
    (`/devspec.remote [--session id] | stop`; register/revive with local_id =
-   pi session id; one held 25s `poll_connection` per bond; owner commands →
-   real user messages; mechanical egress — the extension delivers the run's
-   final assistant message; bonded-mode instruction block incl. the four
+   pi session id; SSE wakes plus no-hold package fetches with held-poll fallback;
+   server-authorized commands → real user messages; mechanical egress — the
+   extension delivers the run's final assistant message; bonded-mode instruction
+   block incl. the four
    instruction tiers; headless RPC e2e in `scripts/e2e-remote.mjs`.
    Remaining ingress leg — owner message from the web UI — is the human
    acceptance step.)

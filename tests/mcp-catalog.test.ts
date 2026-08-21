@@ -58,6 +58,13 @@ test("connection catalog matches server authority: exact commands and playbook-o
 	assert.match(inbox.description, /never contain action-item work/);
 	assert.match(poll.description, /owner-scoped waiting playbook runs only/);
 	assert.match(poll.description, /never routed through this array/);
+	const pollProperties = (poll.inputSchema as { properties?: Record<string, unknown> }).properties;
+	assert.ok(pollProperties?.delegated_scope_version, "poll_connection must advertise delegated scope negotiation");
+	assert.deepEqual(pollProperties.delegated_scope_version, {
+		type: "integer",
+		enum: [1],
+		description: "Explicit delegated project-scope capability negotiation. Version 1 enables delegated commands with per-command project_scope and selects canonical contract 1.2.0 / policy 2026-08-19.3. Omit for the 1.1.0 / 2026-08-19.2 owner-command-compatible shape; a package containing delegated authority returns a retryable upgrade-required tool error before opening any delivery or consuming the prior cursor. Unknown versions fail closed.",
+	});
 	assert.match(register.description, /registration never routes or assigns action-item work/);
 	assert.match(register.description, /server alone stamps exact-target command authority and immutable requester provenance/i);
 	const catalogText = JSON.stringify(MCP_CATALOG);

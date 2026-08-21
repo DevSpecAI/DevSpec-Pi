@@ -15,7 +15,8 @@ import {
 } from "./attachment-limits.ts";
 
 const SCHEMA_VERSION = 1;
-const CONTRACT_VERSION = "1.1.0";
+const CONTRACT_VERSION = "1.1.1";
+const SUPPORTED_CONTRACT_VERSIONS = new Set(["1.1.0", CONTRACT_VERSION]);
 const POLICY_VERSION = "2026-08-19.2";
 const MAX_COMMANDS_PER_ENVELOPE = 128;
 const MAX_CONTEXT_ENTRIES_PER_BUCKET = 500;
@@ -116,6 +117,7 @@ export interface OwnerCommand {
 export interface OwnerCommandBundle {
 	envelopeId: string;
 	commands: OwnerCommand[];
+	/** Visible turn anchor: the primary when present, otherwise the first command in this cursor delta. */
 	primaryCommand: OwnerCommand;
 	commandTurnId: string;
 	advisoryContext: IngressAdvisoryContext;
@@ -461,7 +463,7 @@ function parseEnvelope(value: unknown, connectionId: string): ParsedEnvelope {
 	exactKeys(row, ["kind", "schema_version", "contract_version", "policy_version", "envelope_id", "connection", "wake", "delivery_state", "command_message_ids", "commands", "control", "context", "window"], "ingress");
 	if (row.kind !== "devspec.remote_ingress") fail("ingress.kind", "unknown ingress kind");
 	if (row.schema_version !== SCHEMA_VERSION) fail("ingress.schema_version", "unknown schema version");
-	if (row.contract_version !== CONTRACT_VERSION) fail("ingress.contract_version", "unknown contract version");
+	if (!SUPPORTED_CONTRACT_VERSIONS.has(row.contract_version as string)) fail("ingress.contract_version", "unknown contract version");
 	if (row.policy_version !== POLICY_VERSION) fail("ingress.policy_version", "unknown policy version");
 	const envelopeId = uuid(row.envelope_id, "ingress.envelope_id");
 	const connection = addressee(row.connection, "ingress.connection");
@@ -492,11 +494,15 @@ function parseEnvelope(value: unknown, connectionId: string): ParsedEnvelope {
 	}
 	if (wakeKind === "conversational_command" && commands.length === 0) fail("ingress.commands", "command wake requires complete command");
 	if (commands.length > 0) {
-		const primaries = commands.filter((item) => item.delivery.is_primary);
 		const turnIds = new Set(commands.map((item) => item.delivery.turn_id));
 		const primaryRefs = new Set(commands.map((item) => item.delivery.primary_provenance_ref));
-		if (primaries.length !== 1 || turnIds.size !== 1 || primaryRefs.size !== 1 || primaries[0]?.delivery.provenance_ref !== primaries[0]?.delivery.primary_provenance_ref) {
-			fail("ingress.commands", "command turn requires one immutable primary");
+		const provenanceRefs = commands.map((item) => item.delivery.provenance_ref);
+		const sharedPrimaryRef = commands[0]?.delivery.primary_provenance_ref;
+		const primaryFlagsMatch = commands.every((item) =>
+			item.delivery.is_primary === (item.delivery.provenance_ref === sharedPrimaryRef));
+		if (turnIds.size !== 1 || primaryRefs.size !== 1 ||
+			new Set(provenanceRefs).size !== provenanceRefs.length || !primaryFlagsMatch) {
+			fail("ingress.commands", "command delta must preserve one immutable turn primary");
 		}
 	}
 	let parsedControl: unknown;
@@ -550,12 +556,16 @@ export function parsePollPayload(payload: unknown, connectionId: string): PollPa
 		let ownerBundle: OwnerCommandBundle | undefined;
 		let rejectedBundle: OwnerCommandBundle | undefined;
 		if (actionableCommand) {
-			const primaryCommand = envelope.commands.find((item) => item.delivery.is_primary)!;
+			// Cursor deltas may contain only later commands from an already-open turn.
+			// Keep the visible primary when present; otherwise anchor rendering and Pi's
+			// queue identity to the first exact command while retaining the server-owned
+			// primary_provenance_ref on every command delivery.
+			const primaryCommand = envelope.commands.find((item) => item.delivery.is_primary) ?? envelope.commands[0]!;
 			const bundle: OwnerCommandBundle = {
 				envelopeId: envelope.envelopeId,
 				commands: envelope.commands,
 				primaryCommand,
-				commandTurnId: primaryCommand.commandTurnId,
+				commandTurnId: envelope.commands[0]!.commandTurnId,
 				advisoryContext: envelope.advisoryContext,
 			};
 			if (bundle.commands.some((item) => item.attachments?.some((attachment) => attachment.materialization === "unavailable"))) rejectedBundle = bundle;

@@ -339,12 +339,12 @@ function trailTick(): void {
  * otherwise strand the Working indicator until lease expiry. report_complete
  * is the explicit channel; idempotent when the attempt already closed.
  */
-async function reportComplete(reason: string, commandTurnId?: string, commandMessageId?: string, commandTurnUnbound = false): Promise<void> {
+async function reportComplete(reason: string, commandTurnId?: string, commandMessageId?: string, commandTurnUnbound = false): Promise<boolean> {
 	const active = pump;
-	if (!active || (active.stop && !active.closing)) return;
+	if (!active || (active.stop && !active.closing)) return false;
 	const resolved = await resolveToken();
-	if (!resolved) return;
-	if (pump !== active || (active.stop && !active.closing)) return;
+	if (!resolved) return false;
+	if (pump !== active || (active.stop && !active.closing)) return false;
 	try {
 		await callDevspec(resolved.token, "report_complete", {
 			connection_id: active.bond.connectionId,
@@ -353,8 +353,10 @@ async function reportComplete(reason: string, commandTurnId?: string, commandMes
 			...(commandMessageId ? { command_message_id: commandMessageId } : {}),
 			...(commandTurnUnbound ? { command_turn_unbound: true } : {}),
 		}, { timeoutMs: 10_000, lane: "pump" });
+		return true;
 	} catch {
-		/* best-effort — lease expiry + the disconnect paths are the backstop */
+		/* lease expiry + disconnect remain backstops for best-effort callers */
+		return false;
 	}
 }
 
@@ -525,6 +527,20 @@ async function withMaterialisedAttachments(
 	);
 	requireMaterialisedAttachments(materialised, cmd.attachments.length);
 	return { command: { ...cmd, attachmentNotes: formatAttachmentNotes(materialised) }, materialised };
+}
+
+function ownerBundleSubset(
+	bundle: OwnerCommandBundle,
+	commands: readonly OwnerCommand[],
+): OwnerCommandBundle {
+	if (commands.length === 0) throw new Error("canonical command subset cannot be empty");
+	const primaryCommand = commands.find((command) => command.delivery.is_primary) ?? commands[0]!;
+	return {
+		...bundle,
+		commands: [...commands],
+		primaryCommand,
+		commandTurnId: commands[0]!.commandTurnId,
+	};
 }
 
 async function hydrateOwnerBundle(
@@ -1028,27 +1044,36 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		let commandDeliveryFailed = false;
 		let commandRetryDelayMs = 0;
 		if (pkg.rejectedBundle) {
-			const reservation = active.seenOwnerCommands.reserveBundle(pkg.rejectedBundle.commands);
-			if (reservation === "conflict") commandDeliveryFailed = true;
-			else if (reservation === "reserved") {
-				active.attachmentRetryAttempts.delete(pkg.rejectedBundle.commandTurnId);
-				// One unavailable attachment rejects and commits the whole turn before
-				// hydration, preemption, context injection, or user-message send.
-				active.seenOwnerCommands.commitBundle(pkg.rejectedBundle.commands);
-				void reportComplete("delivery_unavailable", pkg.rejectedBundle.commandTurnId, pkg.rejectedBundle.primaryCommand.id);
+			const unseen = active.seenOwnerCommands.takeUnseen(pkg.rejectedBundle.commands);
+			if (unseen.length > 0) {
+				const rejected = ownerBundleSubset(pkg.rejectedBundle, unseen);
+				// Unavailable attachments are terminal for this immutable envelope, but
+				// consume them only after the server acknowledges the explicit rejection.
+				// A reporting failure releases the unseen subset and retains the cursor.
+				const reported = await reportComplete("delivery_unavailable", rejected.commandTurnId, rejected.primaryCommand.id);
+				if (reported) {
+					active.attachmentRetryAttempts.delete(rejected.commandTurnId);
+					active.seenOwnerCommands.commitBundle(unseen);
+				} else {
+					active.seenOwnerCommands.releaseBundle(unseen);
+					commandDeliveryFailed = true;
+					const failures = (active.attachmentRetryAttempts.get(rejected.commandTurnId) ?? 0) + 1;
+					active.attachmentRetryAttempts.set(rejected.commandTurnId, failures);
+					commandRetryDelayMs = nextDeliveryRetryDelayMs(failures);
+				}
+
 			}
 		}
 
 		if (pkg.ownerBundle) {
-			const reservation = active.seenOwnerCommands.reserveBundle(pkg.ownerBundle.commands);
-			if (reservation === "conflict") {
-				commandDeliveryFailed = true;
-			} else if (reservation === "reserved") {
+			const unseen = active.seenOwnerCommands.takeUnseen(pkg.ownerBundle.commands);
+			if (unseen.length > 0) {
+				const selectedBundle = ownerBundleSubset(pkg.ownerBundle, unseen);
 				let attachmentLease: AttachmentDeliveryLease | undefined;
 				try {
-					// Hydrate every command before deciding/performing preemption. File
-					// ownership remains with delivery until Pi accepts the sole queue item.
-					const hydration = await hydrateOwnerBundle(pkg.ownerBundle, active.bond.connectionId);
+					// Hydrate the exact unseen subset atomically before deciding/performing
+					// preemption. Overlapping retry windows cannot replay earlier commands.
+					const hydration = await hydrateOwnerBundle(selectedBundle, active.bond.connectionId);
 					const hydrated = hydration.bundle;
 					attachmentLease = new AttachmentDeliveryLease(hydration.materialised);
 					const mode = decideOwnerDelivery({
@@ -1093,7 +1118,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					active.attachmentRetryAttempts.delete(hydrated.commandTurnId);
 					// Commit immediately after Pi accepts the sole queue item; later UI
 					// bookkeeping cannot turn an accepted send into a replay.
-					active.seenOwnerCommands.commitBundle(hydrated.commands);
+					active.seenOwnerCommands.commitBundle(unseen);
 					notify(ctx, deliveryNotice);
 					if (untitledAttached()) {
 						setSessionPreview(previewFromText(primary.text));
@@ -1103,9 +1128,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				} catch (err) {
 					await attachmentLease?.cleanupIfPending();
 					commandDeliveryFailed = true;
-					active.seenOwnerCommands.releaseBundle(pkg.ownerBundle.commands);
-					const failures = (active.attachmentRetryAttempts.get(pkg.ownerBundle.commandTurnId) ?? 0) + 1;
-					active.attachmentRetryAttempts.set(pkg.ownerBundle.commandTurnId, failures);
+					active.seenOwnerCommands.releaseBundle(unseen);
+					const failures = (active.attachmentRetryAttempts.get(selectedBundle.commandTurnId) ?? 0) + 1;
+					active.attachmentRetryAttempts.set(selectedBundle.commandTurnId, failures);
 					commandRetryDelayMs = nextDeliveryRetryDelayMs(failures);
 					const reason = sanitizeAttachmentFailureReason(err, "delivery failed");
 					notify(ctx, `DevSpec remote: failed to deliver canonical command turn: ${reason}. Retrying in ${Math.ceil(commandRetryDelayMs / 1_000)}s.`, "warning");
@@ -1442,7 +1467,7 @@ export default function (pi: ExtensionAPI) {
 					turn.commandTurnId,
 					turn.commandMessageId,
 					isCommandTurnUnbound(turn),
-				));
+				).then(() => undefined));
 			}
 			// Harness context belongs to the current owner generation. A real user
 			// message starts a new segment: bind the server turn id retained when the

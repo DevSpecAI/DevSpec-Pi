@@ -15,9 +15,9 @@ import {
 } from "./attachment-limits.ts";
 
 const SCHEMA_VERSION = 1;
-const CONTRACT_VERSION = "1.1.1";
-const SUPPORTED_CONTRACT_VERSIONS = new Set(["1.1.0", CONTRACT_VERSION]);
-const POLICY_VERSION = "2026-08-19.2";
+const CONTRACT_VERSION = "1.2.0";
+const POLICY_VERSION = "2026-08-19.3";
+const DELEGATED_PROJECT_POLICY_ID = "delegated_project_v1";
 const MAX_COMMANDS_PER_ENVELOPE = 128;
 const MAX_CONTEXT_ENTRIES_PER_BUCKET = 500;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -85,6 +85,14 @@ export interface IngressAdvisoryContext {
 	window: IngressBoundedMetadata;
 }
 
+export interface DelegatedProjectScope {
+	kind: "devspec_project";
+	policy_id: typeof DELEGATED_PROJECT_POLICY_ID;
+	project_id: string;
+	/** Exact server-owned instruction. Never reconstructed or normalized locally. */
+	instruction: string;
+}
+
 export interface OwnerCommand {
 	/** Exact complete canonical command body. Never trimmed or reconstructed. */
 	text: string;
@@ -104,6 +112,8 @@ export interface OwnerCommand {
 		connection_owner_user_id: string;
 		decision_source: "server";
 	};
+	/** Null for owner authority; exact server-owned project scope for delegated authority. */
+	project_scope: DelegatedProjectScope | null;
 	addressee: { connection_id: string; agent_name: string | null; codename: string | null; label: string };
 	delivery: {
 		provenance_ref: string;
@@ -275,6 +285,25 @@ function authority(value: unknown, path: string): OwnerCommand["authority"] {
 	return parsed;
 }
 
+function projectScope(
+	value: unknown,
+	parsedAuthority: OwnerCommand["authority"],
+	path: string,
+): DelegatedProjectScope | null {
+	if (parsedAuthority.kind === "owner") {
+		if (value !== null) fail(path, "owner authority requires null project scope");
+		return null;
+	}
+	const row = record(value, path);
+	exactKeys(row, ["kind", "policy_id", "project_id", "instruction"], path);
+	return {
+		kind: oneOf(row.kind, ["devspec_project"] as const, `${path}.kind`),
+		policy_id: oneOf(row.policy_id, [DELEGATED_PROJECT_POLICY_ID] as const, `${path}.policy_id`),
+		project_id: uuid(row.project_id, `${path}.project_id`),
+		instruction: string(row.instruction, `${path}.instruction`),
+	};
+}
+
 function actor(value: unknown, expectedKind: IngressActorKind, path: string): IngressActor {
 	const row = record(value, path);
 	exactKeys(row, ["kind", "user_id", "display_name", "agent_tool", "model"], path);
@@ -366,7 +395,7 @@ function command(
 	attachmentBounds: AttachmentBundleBounds,
 ): OwnerCommand {
 	const row = record(value, path);
-	exactKeys(row, ["message_id", "order", "content", "attachments", "requester", "authority", "addressee", "delivery"], path);
+	exactKeys(row, ["message_id", "order", "content", "attachments", "requester", "authority", "project_scope", "addressee", "delivery"], path);
 	const messageId = uuid(row.message_id, `${path}.message_id`);
 	const order = orderPoint(row.order, `${path}.order`);
 	if (messageId !== order.message_id) fail(`${path}.order.message_id`, "command order identity mismatch");
@@ -392,6 +421,7 @@ function command(
 	};
 	const parsedAuthority = authority(row.authority, `${path}.authority`);
 	if (requester.user_id !== parsedAuthority.requested_by_user_id) fail(`${path}.requester.user_id`, "requester must match server authority decision");
+	const parsedProjectScope = projectScope(row.project_scope, parsedAuthority, `${path}.project_scope`);
 	const parsedAddressee = addressee(row.addressee, `${path}.addressee`);
 	if (!sameAddressee(parsedAddressee, connection)) fail(`${path}.addressee`, "exact addressee mismatch");
 	const deliveryRow = record(row.delivery, `${path}.delivery`);
@@ -413,6 +443,7 @@ function command(
 		order,
 		requester,
 		authority: parsedAuthority,
+		project_scope: parsedProjectScope,
 		addressee: parsedAddressee,
 		delivery,
 		advisoryContext: undefined as never,
@@ -463,7 +494,7 @@ function parseEnvelope(value: unknown, connectionId: string): ParsedEnvelope {
 	exactKeys(row, ["kind", "schema_version", "contract_version", "policy_version", "envelope_id", "connection", "wake", "delivery_state", "command_message_ids", "commands", "control", "context", "window"], "ingress");
 	if (row.kind !== "devspec.remote_ingress") fail("ingress.kind", "unknown ingress kind");
 	if (row.schema_version !== SCHEMA_VERSION) fail("ingress.schema_version", "unknown schema version");
-	if (!SUPPORTED_CONTRACT_VERSIONS.has(row.contract_version as string)) fail("ingress.contract_version", "unknown contract version");
+	if (row.contract_version !== CONTRACT_VERSION) fail("ingress.contract_version", "unknown contract version");
 	if (row.policy_version !== POLICY_VERSION) fail("ingress.policy_version", "unknown policy version");
 	const envelopeId = uuid(row.envelope_id, "ingress.envelope_id");
 	const connection = addressee(row.connection, "ingress.connection");
@@ -643,8 +674,15 @@ export function formatInboundBundleMessage(bundle: OwnerCommandBundle): string {
 		`[DevSpec remote — message from ${requesterLabel(primary)} to ${primary.addressee.label} · canonical turn:${bundle.commandTurnId}]`,
 	];
 	for (const [index, command] of bundle.commands.entries()) {
+		lines.push(`--- command ${index + 1}/${bundle.commands.length} · message:${command.id} · from ${requesterLabel(command)} · to ${command.addressee.label} ---`);
+		if (command.project_scope) {
+			lines.push(
+				`--- delegated project scope instruction for command:${command.id} ---`,
+				command.project_scope.instruction,
+				`--- end delegated project scope instruction for command:${command.id} · exact command body follows ---`,
+			);
+		}
 		lines.push(
-			`--- command ${index + 1}/${bundle.commands.length} · message:${command.id} · from ${requesterLabel(command)} · to ${command.addressee.label} ---`,
 			command.text,
 			`--- end command:${command.id} ---`,
 		);
@@ -670,10 +708,22 @@ export function formatCanonicalDeliveryContext(
 			attachments: command.attachments ?? [],
 			requester: command.requester,
 			authority: command.authority,
+			...(command.project_scope ? { project_scope: {
+				kind: command.project_scope.kind,
+				policy_id: command.project_scope.policy_id,
+				project_id: command.project_scope.project_id,
+			} } : {}),
 			addressee: command.addressee,
 			delivery: command.delivery,
 			local_attachment_notes: command.attachmentNotes ?? null,
 		})}`);
+		if (command.project_scope) {
+			lines.push(
+				`delegated_project_instruction_for:${command.id}:`,
+				command.project_scope.instruction,
+				`end_delegated_project_instruction_for:${command.id}`,
+			);
+		}
 	}
 	for (const context of contexts) lines.push(formatIngressAdvisoryContext(context, bundle.primaryCommand));
 	return lines.join("\n");

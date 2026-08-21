@@ -496,6 +496,7 @@ async function ackControl(
 	await callDevspec(token, "poll_connection", {
 		connection_id: connectionId,
 		ingress_version: 1,
+		delegated_scope_version: 1,
 		control_ack: controlId,
 		wait_ms: 0,
 		...(catalog ? { model_catalog: catalog } : {}),
@@ -879,6 +880,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				{
 					connection_id: active.bond.connectionId,
 					ingress_version: 1,
+					delegated_scope_version: 1,
 					cursor_v2: active.cursor,
 					dispatch_cursor: active.dispatchCursor,
 					wait_ms: pushMode ? 0 : POLL_WAIT_MS,
@@ -1318,8 +1320,9 @@ export default function (pi: ExtensionAPI) {
 	pi_send = (message, mode = "now", commandTurnId, commandMessageId, canonicalQueueItem) => {
 		commandTurnBindings.remember(message, commandTurnId, commandMessageId, canonicalQueueItem);
 		try {
-			// Exactly one Pi queue item. before_agent_start injects its hidden typed
-			// data into this same model turn after Pi accepts the user message.
+			// Exactly one Pi queue item. Delegated scope is already in its visible
+			// canonical framing; idle turns additionally receive hidden typed data
+			// when Pi emits before_agent_start.
 			if (mode === "steer") pi.sendUserMessage(message, { deliverAs: "steer" });
 			else if (mode === "followUp") pi.sendUserMessage(message, { deliverAs: "followUp" });
 			else pi.sendUserMessage(message);

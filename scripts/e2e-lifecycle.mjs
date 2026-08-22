@@ -200,6 +200,54 @@ try {
 	}
 	console.log("overlapping background tasks: final recap once, process closes silent ✔");
 
+	// Phase 4 (item 6f4424bd): pending background ownership from an older
+	// segment must not swallow the first substantive answer to a NEW genuine
+	// local prompt. The immediate answer is a finished bubble with work left
+	// open; the task completion later posts a separate final recap. The typed
+	// prompt mirrors exactly once and the parked process close stays silent.
+	const speechTask = `speech-bg-${Date.now()}`;
+	const speechParked = `speech-parked-${Date.now()}`;
+	const speechAnswer = `speech-answer-${Date.now()}`;
+	const speechRecap = `speech-recap-${Date.now()}`;
+	send({
+		id: "speech-bg",
+		type: "prompt",
+		message: [
+			"Call bg_run exactly once with these exact arguments:",
+			`{\"id\":\"${speechTask}\",\"delay_ms\":14000,\"completion_instruction\":\"Task completed. Reply with exactly ${speechRecap} and nothing else.\"}`,
+			`After the tool returns, reply with exactly ${speechParked} and nothing else.`,
+			"Do not call any other tools.",
+		].join("\n"),
+	});
+	await waitFor((e) => assistantText(e).includes(speechParked), 120_000, "speech parked close");
+	// Pi is settled/parked but the automatic task is still pending. This is a
+	// fresh terminal-local user command, not a background harness injection.
+	send({
+		id: "speech-command",
+		type: "prompt",
+		message: `Reply with exactly ${speechAnswer} and nothing else.`,
+	});
+	await waitFor((e) => assistantText(e).includes(speechAnswer), 120_000, "speech immediate answer");
+	await waitFor((e) => assistantText(e).includes(speechRecap), 120_000, "speech final recap");
+	await new Promise((r) => setTimeout(r, 15000));
+
+	const tx4 = unwrapMcpResult(
+		await callDevspec(token, "get_session_transcript", { session_id: sessionId }, { cwd }),
+	);
+	if (tx4.isError) fail(`speech transcript: ${tx4.text.slice(0, 300)}`);
+	const messages4 = tx4.details?.messages ?? [];
+	const mirrored = messages4.filter((m) => m.message_type === "local_user_prompt" && typeof m.content === "string" && m.content.includes(speechAnswer));
+	const answerRows = messages4.filter((m) => m.message_type === "external_agent" && typeof m.content === "string" && m.content.includes(speechAnswer));
+	const recap4 = messages4.filter((m) => m.message_type === "external_agent" && typeof m.content === "string" && m.content.includes(speechRecap));
+	if (mirrored.length !== 1) fail(`expected the interrupted local prompt once; found ${mirrored.length}`);
+	if (answerRows.length !== 1) fail(`expected the immediate substantive answer once; found ${answerRows.length}`);
+	if (recap4.length !== 1) fail(`expected the final background recap once; found ${recap4.length}`);
+	if (messages4.some((m) => m.message_type === "external_agent" && typeof m.content === "string" && m.content.includes(speechParked))) {
+		fail("parked background process close became a room answer");
+	}
+	if (answerRows[0].id === recap4[0].id) fail("immediate answer and recap collapsed onto one row");
+	console.log("pending-bg interruption: local prompt once, immediate answer + later recap ✔");
+
 	send({ id: "stop", type: "prompt", message: "/devspec.remote stop" });
 	await waitFor((e) => e.type === "response" && e.id === "stop", 15_000, "stop ack");
 	console.log("E2E PASS");

@@ -92,6 +92,15 @@ export class TurnTracker {
 	awaitingFirstAnswer = false;
 	/** True only for a freshly typed local prompt — never after carryUser. */
 	shouldMirrorPrompt = false;
+	/**
+	 * A genuine new conversational command arrived while older background work
+	 * remains pending. Its first substantive speech outranks the generic
+	 * "text-only while bg pending = process" rule and closes as an intermediate
+	 * answer; the continuation segment keeps the task ownership.
+	 */
+	firstAnswerOverridesBackground = false;
+	/** Captured segment may post before its pending tasks continue elsewhere. */
+	answerClosesBeforeBackgroundContinuation = false;
 	/** Owner-started automatic-wake tasks that have not reached terminal state. */
 	private pendingBackgroundTaskIds = new Set<string>();
 	/** Compatibility/readability projection used by lifecycle predicates. */
@@ -103,6 +112,9 @@ export class TurnTracker {
 
 	userMessage(text: string, origin?: { customType?: string | null; backgroundTaskId?: string | null }): void {
 		const kind = classifyUserKind(text, origin?.customType);
+		const replacesConversationalCommand =
+			kind !== "harness" && this.userKind !== null && this.userKind !== "harness";
+		const interruptsPendingBackground = this.awaitingBackground && replacesConversationalCommand;
 		// A leftover wake may replay the last typed prompt as a user message.
 		// Once this segment is harness, stay harness — do not remirror that prompt.
 		if (this.userKind === "harness" && kind !== "remote" && kind !== "playbook") {
@@ -124,6 +136,8 @@ export class TurnTracker {
 		this.awaitingFirstAnswer = true;
 		this.userKind = kind;
 		this.shouldMirrorPrompt = kind === "local";
+		this.firstAnswerOverridesBackground = interruptsPendingBackground;
+		this.answerClosesBeforeBackgroundContinuation = false;
 	}
 
 	/** Copy the user kind onto a continuation segment without re-arming first-answer or remirroring. */
@@ -132,6 +146,8 @@ export class TurnTracker {
 		this.awaitingFirstAnswer = false;
 		this.userKind = classifyUserKind(text);
 		this.shouldMirrorPrompt = false;
+		this.firstAnswerOverridesBackground = false;
+		this.answerClosesBeforeBackgroundContinuation = false;
 		if (from) {
 			this.pendingBackgroundTaskIds = new Set(from.pendingBackgroundTaskIds);
 			this.lastCloseWasProcess = from.lastCloseWasProcess;
@@ -161,14 +177,22 @@ export class TurnTracker {
 		if (!cleaned) {
 			return;
 		}
+		const firstAnswerToBackgroundInterrupt =
+			this.awaitingFirstAnswer
+			&& this.firstAnswerOverridesBackground
+			&& !isWaitNarration(cleaned);
 		const process = isProcessClose({
 			text: cleaned,
-			awaitingBackground: this.awaitingBackground,
+			// Background ownership belongs to the continuation. It must not erase
+			// the first substantive answer to the newer human command.
+			awaitingBackground: this.awaitingBackground && !firstAnswerToBackgroundInterrupt,
 		});
 		// Wait / bg_run process is trail, not the room answer (15d7aa56 / 6ea9aa47).
 		if (!process) {
 			this.lastAssistantText = cleaned;
 			this.awaitingFirstAnswer = false;
+			this.firstAnswerOverridesBackground = false;
+			this.answerClosesBeforeBackgroundContinuation = firstAnswerToBackgroundInterrupt;
 		}
 		// Only a real stored close can be an answer; wait/bg never is.
 		this.lastCloseWasAnswer = closedAnswer && !process;
@@ -274,7 +298,12 @@ export function shouldSplitFirstAnswer(
 ): boolean {
 	if (!tracker.awaitingFirstAnswer) return false;
 	const cleaned = input.text.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
-	if (!cleaned || isProcessClose({ text: cleaned, awaitingBackground: tracker.awaitingBackground })) {
+	if (!cleaned || isWaitNarration(cleaned)) return false;
+	// A newer genuine user command can interrupt a parked background segment.
+	// Its first substantive speech must land immediately even if text-only;
+	// pending tasks continue behind a complete_turn=false boundary.
+	if (tracker.firstAnswerOverridesBackground) return true;
+	if (isProcessClose({ text: cleaned, awaitingBackground: tracker.awaitingBackground })) {
 		return false;
 	}
 	// Same-message tools: this line is the answer; later tools get a new trail.
@@ -307,14 +336,19 @@ export function isWaitNarration(text: string): boolean {
 	if (/\bindependent work is done\b/i.test(cleaned)) return true;
 	// Owner-directed waits are real answers ("I'll wait for your go-ahead").
 	if (/\?/.test(cleaned)) return false;
-	if (/\b(you|your|Ali)\b/i.test(cleaned)) return false;
 	const waitingOnWork =
 		/\bI(?:'ll| will) wait (?:for|until)\b/i.test(cleaned) &&
-		/\b(test|tests|typecheck|suite|task|results?|notification|build|lint)\b/i.test(cleaned);
+		/\b(test|tests|typecheck|suite|task|results?|notification|build|lint|ci)\b/i.test(cleaned);
 	if (waitingOnWork) return true;
 	// "Typecheck is still running. I'll push after." — process even without "wait".
-	return /\b(typecheck|lint|test|tests|suite|build|ci)\b/i.test(cleaned) &&
+	const runningWork = /\b(typecheck|lint|test|tests|suite|build|ci)\b/i.test(cleaned) &&
 		/\b(still running|is running)\b/i.test(cleaned);
+	if (runningWork) return true;
+	// A person's name in a work-status sentence does not turn process narration
+	// into an answer ("CI is still running, Ali"). Non-work waits addressed to
+	// the owner remain conversational.
+	if (/\b(you|your|Ali)\b/i.test(cleaned)) return false;
+	return false;
 }
 
 /**
@@ -339,6 +373,12 @@ export function isProcessClose(input: {
  */
 export function shouldPauseSettle(tracker: TurnTracker): boolean {
 	if (!tracker.userKind || tracker.userKind === "harness") return false;
+	// A delivery-boundary segment may speak now while its copied continuation
+	// retains the pending task ids. Do not let the old segment's background set
+	// suppress the answer it was created to deliver.
+	if (tracker.lastCloseWasAnswer && tracker.answerClosesBeforeBackgroundContinuation) {
+		return false;
+	}
 	return tracker.lastCloseWasProcess || tracker.awaitingBackground;
 }
 

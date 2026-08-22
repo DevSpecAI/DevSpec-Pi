@@ -423,6 +423,76 @@ test("a text-only close after bg_run is process even without wait wording (6ea9a
 	assert.equal(shouldPauseSettle(t), true);
 });
 
+test("new command speech outranks inherited background wait, then recap continues (6f4424bd)", () => {
+	const t = new TurnTracker();
+	t.userMessage("[DevSpec remote — message from Ali Price to Honest Crocodile]\nShip the sync fix.");
+	t.noteBackgroundTask("staging-ci");
+	const parked = "CI is still running. I’ll wait for it before closing the item.";
+	t.assistantFinal(parked, false);
+	assert.equal(t.lastCloseWasProcess, true);
+
+	const command = "[DevSpec remote — message from Ali Price to Honest Crocodile]\nExplain the NUL item.";
+	t.userMessage(command);
+	assert.equal(t.firstAnswerOverridesBackground, true);
+	const answer = "It is unrelated housekeeping and does not change the Features work.";
+	assert.equal(shouldSplitFirstAnswer(t, { text: answer, hasToolCalls: false }), true);
+	t.assistantFinal(answer, true);
+	assert.equal(t.answerClosesBeforeBackgroundContinuation, true);
+	assert.equal(shouldPauseSettle(t), false, "captured answer segment must post now");
+	assert.deepEqual(planSettle(t, true), { kind: "final", message: answer });
+
+	const continuation = new TurnTracker();
+	continuation.carryUser(t.userText, t);
+	assert.deepEqual(continuation.pendingBackgroundTasks(), ["staging-ci"]);
+	assert.equal(continuation.answerClosesBeforeBackgroundContinuation, false);
+	assert.equal(shouldPauseSettle(continuation), true, "same working attempt remains parked");
+	continuation.userMessage("[bg completed] staging CI", {
+		customType: "background-task-notification",
+		backgroundTaskId: "staging-ci",
+	});
+	const recap = "The housekeeping item is now done and staging CI is green.";
+	continuation.assistantFinal(recap, true);
+	assert.deepEqual(planSettle(continuation, true), { kind: "final", message: recap });
+});
+
+test("background-interrupted local and playbook commands use the same speech boundary (6f4424bd)", () => {
+	const local = new TurnTracker();
+	local.userMessage("Start the long check.");
+	local.noteBackgroundTask("local-check");
+	local.userMessage("What does that result mean?");
+	const localAnswer = "It means the runtime behavior is unchanged.";
+	assert.equal(shouldSplitFirstAnswer(local, { text: localAnswer, hasToolCalls: false }), true);
+	local.assistantFinal(localAnswer, true);
+	assert.deepEqual(planSettle(local, true), {
+		kind: "local_mirror",
+		prompt: "What does that result mean?",
+		answer: localAnswer,
+	});
+
+	const playbook = new TurnTracker();
+	playbook.userMessage("[DevSpec remote — playbook run Alpha]\nStart checks.");
+	playbook.noteBackgroundTask("playbook-check");
+	playbook.userMessage("[DevSpec remote — playbook run Beta]\nExplain status.");
+	const playbookAnswer = "The first gate passed; the second remains active.";
+	assert.equal(shouldSplitFirstAnswer(playbook, { text: playbookAnswer, hasToolCalls: false }), true);
+	playbook.assistantFinal(playbookAnswer, true);
+	assert.deepEqual(planSettle(playbook, true), { kind: "final", message: playbookAnswer });
+});
+
+test("explicit wait narration after a new command remains process-only (6f4424bd)", () => {
+	const t = new TurnTracker();
+	t.userMessage("[DevSpec remote — message from Ali Price to Honest Crocodile]\nStart checks.");
+	t.noteBackgroundTask("ci");
+	t.userMessage("[DevSpec remote — message from Ali Price to Honest Crocodile]\nAny update?");
+	const wait = "CI is still running, Ali. I’ll wait for it, then report the result.";
+	assert.equal(t.firstAnswerOverridesBackground, true);
+	assert.equal(isWaitNarration(wait), true, "addressing Ali does not make a work wait conversational");
+	assert.equal(shouldSplitFirstAnswer(t, { text: wait, hasToolCalls: false }), false);
+	t.assistantFinal(wait, false);
+	assert.equal(t.lastCloseWasProcess, true);
+	assert.deepEqual(planSettle(t, true), { kind: "none" });
+});
+
 test("first-answer split preserves parked wait state (9b66a177)", () => {
 	const t = new TurnTracker();
 	t.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\ncontinue");

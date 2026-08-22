@@ -40,6 +40,7 @@ export const HOT_SET = new Set<string>(HOT_SET_VERBS);
 export const SCOPE_KEYS = [
 	"git_remote",
 	"project_id",
+	"pinned_project_id",
 	"session_id",
 	"runner_session_id",
 	"connection_id",
@@ -51,6 +52,9 @@ export const SCOPE_KEYS = [
 export const SCOPE_KEY_SET = new Set<string>(SCOPE_KEYS);
 
 export const TOOL_LOADER_NAME = "search_devspec_tools";
+export const PLAN_TOOL_NAME = "manage_plan";
+/** Native tools whose lifecycle is mechanical, never loader/search driven. */
+export const ACTIVATION_ONLY_VERBS = new Set<string>([PLAN_TOOL_NAME]);
 export const TOOL_LOADER_DESCRIPTION =
 	"Find and load less-common DevSpec tools for a task described in natural language.";
 
@@ -193,11 +197,15 @@ export function allModelFacingTools(): CatalogEntry[] {
 
 /** Slimmed, searchable tools that stay inactive at session start. */
 export function rareModelSurface(): CatalogEntry[] {
-	return allModelFacingTools().filter((entry) => !HOT_SET.has(entry.name));
+	return allModelFacingTools().filter((entry) =>
+		!HOT_SET.has(entry.name) && !ACTIVATION_ONLY_VERBS.has(entry.name)
+	);
 }
 
 export function rareModelVerbs(): string[] {
-	return MODEL_VERB_NAMES.filter((name) => !HOT_SET.has(name));
+	return MODEL_VERB_NAMES.filter((name) =>
+		!HOT_SET.has(name) && !ACTIVATION_ONLY_VERBS.has(name)
+	);
 }
 
 export function isCallableModelVerb(name: string): boolean {
@@ -307,7 +315,9 @@ export function searchRareModelTools(query: string, limit = DEFAULT_SEARCH_LIMIT
 	const terms = searchTokens(query);
 	if (terms.length === 0) return [];
 	const boundedLimit = Math.max(1, Math.min(MAX_SEARCH_LIMIT, Math.trunc(limit) || DEFAULT_SEARCH_LIMIT));
-	return MCP_CATALOG.filter((entry) => entry.kind === "model" && !HOT_SET.has(entry.name))
+	return MCP_CATALOG.filter((entry) =>
+		entry.kind === "model" && !HOT_SET.has(entry.name) && !ACTIVATION_ONLY_VERBS.has(entry.name)
+	)
 		.map((entry, index) => ({ entry, index, score: searchScore(entry, query, terms) }))
 		.filter(({ score }) => score > 0)
 		.sort((a, b) => b.score - a.score || a.index - b.index)
@@ -376,6 +386,24 @@ export function estimatePrefixChars(instructions: string): number {
 		instructions.length +
 		promptContribution.length
 	);
+}
+
+/** Serialized model-prefix delta paid only while plan management is active. */
+export function estimatePlanToolChars(): number {
+	const entry = catalogEntry(PLAN_TOOL_NAME);
+	if (!entry || entry.kind !== "model") return 0;
+	const slimmed = slimCatalogEntry(entry);
+	return JSON.stringify({
+		name: slimmed.name,
+		description: slimmed.description,
+		inputSchema: slimmed.inputSchema,
+	}).length;
+}
+
+/** Add/remove only the plan schema while preserving every unrelated active tool. */
+export function withPlanToolActive(active: readonly string[], enabled: boolean): string[] {
+	const withoutPlan = active.filter((name) => name !== PLAN_TOOL_NAME);
+	return enabled ? [...withoutPlan, PLAN_TOOL_NAME] : withoutPlan;
 }
 
 /** Conservative token estimate (chars/4). Target band is 2–8k. */

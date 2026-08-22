@@ -28,7 +28,10 @@ and binds all implementation decisions in this repo.
 **Phase 2 complete**: embedded MCP transport, `/devspec.login` / `/devspec.logout`
 / `/devspec.status`. Everyday DevSpec work is a small active native hot set;
 less-common native tools are loaded on demand with `search_devspec_tools`. The
-generated MCP catalog is the wire map, not the initial model surface. See VISION.md.
+generated MCP catalog is the wire map, not the initial model surface. Shared session
+plans are native: qualifying bonded work activates only `manage_plan`, and strict
+remote-ingress 1.3 resumes active plans at the current delivery tail without
+invalidating the stable prompt prefix. See VISION.md.
 
 ## Development
 
@@ -48,8 +51,9 @@ Production (`devspec.ai`) is the default when no override is set.
 ### Regression and context-budget workflow
 
 GitHub Actions runs `npm run check` on every pull request and push to `main`.
-The suite enforces the 2–8k-token initial DevSpec surface, per-family model-visible
-result budgets, lossless exact reads, privacy boundaries, deferred-tool routing,
+The suite enforces the 2–8k-token initial DevSpec surface, measured one-tool plan
+activation delta, per-family model-visible result budgets, lossless exact reads,
+privacy boundaries, deferred-tool routing,
 and provider serialization. A checked-in fingerprint makes every model-facing
 schema or projection-family change an explicit review event. `npm run
 benchmark:context` exercises every bounded projection family with deterministic

@@ -11,12 +11,13 @@ function bodyBetween(start: string, end: string): string {
 	return source.slice(from, to);
 }
 
-test("every Pi poll negotiates canonical ingress and delegated project scope while only top-level cursor_v2 drives live progress", () => {
+test("every Pi poll negotiates canonical ingress, delegated scope, and active plans while only top-level cursor_v2 drives live progress", () => {
 	const calls = [...source.matchAll(/callDevspec\([^]*?"poll_connection"[^]*?\{([^]*?)\}, \{/gu)];
 	assert.equal(calls.length, 2, "expected control ack and pump poll only");
 	for (const call of calls) {
 		assert.match(call[1], /ingress_version: 1/);
 		assert.match(call[1], /delegated_scope_version: 1/);
+		assert.match(call[1], /active_plan_projection_version: 1/);
 	}
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
 	assert.match(pump, /cursor_v2: active\.cursor/);
@@ -93,7 +94,37 @@ test("all send modes use the same visible bundle binding and idle retains hidden
 
 	const beforeStart = bodyBetween('pi.on("before_agent_start"', 'pi.on("message_start"');
 	assert.match(beforeStart, /commandTurnBindings\.peek\(event\.prompt\)/);
-	assert.match(beforeStart, /customType: "devspec-remote-ingress-context"/);
-	assert.match(beforeStart, /content: canonicalQueueItem\.hiddenContent/);
+	assert.match(beforeStart, /appendActivePlanTail\(canonicalQueueItem\?\.hiddenContent \?\? "", planTail\)/);
+	assert.match(beforeStart, /customType: canonicalQueueItem \? "devspec-remote-ingress-context" : "devspec-active-session-plans"/);
+	assert.match(beforeStart, /content: hiddenContent/);
 	assert.match(beforeStart, /display: false/);
+});
+
+test("attached bonds activate only native plan management and detach/stop removes it", () => {
+	const bond = bodyBetween("async function bondNow", "// Late-bound");
+	assert.match(bond, /pi_setPlanToolActive\(Boolean\(bond\.sessionId\)\)/);
+	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
+	assert.match(pump, /pi_setPlanToolActive\(Boolean\(serverSessionId\)\)/);
+	assert.match(pump, /pi_setPlanToolActive\(Boolean\(active\.bond\.sessionId \|\| planTail\)\)/);
+	assert.match(pump, /authoritativeActivePlanTransitionTail\([^]*active\.awarenessKey[^]*active\.activePlanTail[^]*""/,
+		"detach/replacement consults persistent injected awareness");
+	assert.match(bond, /awarenessKey: localId/);
+	const stop = bodyBetween("async function stopPump", "/** Wake the pump's SSE waiter");
+	assert.doesNotMatch(stop, /clearActivePlanAwareness|resetActivePlanAwareness/, "stop preserves injected awareness for rebond");
+	const setter = bodyBetween("pi_setPlanToolActive =", 'pi.on("model_select"');
+	assert.match(setter, /withPlanToolActive\(pi\.getActiveTools\(\), enabled\)/);
+	assert.doesNotMatch(setter, /MODEL_VERB_NAMES|allModelFacingTools|searchRareModelTools/);
+});
+
+test("validated plan projection appends at the canonical delivery tail without rewriting visible owner text", () => {
+	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
+	assert.match(pump, /serializeActiveSessionPlansProjection\(pkg\.activeSessionPlans, active\.bond\.connectionId\)/);
+	const delivery = bodyBetween("if (pkg.ownerBundle)", "const dispatches =");
+	assert.match(delivery, /hiddenContent: formatCanonicalDeliveryContext\(hydrated, contexts\)/);
+	assert.match(delivery, /pi_send\(formatted/);
+	assert.doesNotMatch(delivery, /formatted\s*=\s*appendActivePlanTail|hiddenContent: appendActivePlanTail|event\.systemPrompt/);
+	const beforeStart = bodyBetween('pi.on("before_agent_start"', 'pi.on("message_start"');
+	assert.match(beforeStart, /activePlanTailForDelivery\([^]*Boolean\(canonicalQueueItem\)[^]*active\?\.activePlanTail[^]*active\?\.pendingActivePlanTail[^]*appendActivePlanTail\(canonicalQueueItem\?\.hiddenContent \?\? "", planTail\)/);
+	assert.match(beforeStart, /planTail === ACTIVE_PLAN_CLEAR_TOMBSTONE\) clearActivePlanAwareness\(active\.awarenessKey\)/);
+	assert.match(beforeStart, /markActivePlanAwareness\(active\.awarenessKey, planTail\)/);
 });

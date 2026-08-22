@@ -335,6 +335,37 @@ test("domain events keep identity and safe outcome but discard private bodies", 
 	assert.equal(events.filter((event) => event.kind === "domain").length, 3);
 });
 
+test("manage_plan trail keeps safe revision mechanics and discards plan bodies", () => {
+	const secret = "PLAN_PRIVATE_SENTINEL_f7e1";
+	const t = new TrailBuilder();
+	t.toolStart("plan-1", "manage_plan", {
+		action: "advance",
+		plan_id: "12121212-1212-4121-8121-121212121212",
+		expected_revision: 7,
+		current_step_id: "14141414-1414-4141-8141-141414141414",
+		steps: [{ title: secret, description: secret }],
+	});
+	t.toolEnd("plan-1", "manage_plan", true, {
+		content: [{ type: "text", text: `authoritative snapshot ${secret}` }],
+		details: {
+			plan: {
+				id: "12121212-1212-4121-8121-121212121212",
+				title: secret,
+				status: "active",
+				revision: 8,
+				steps: [{ title: secret }],
+			},
+		},
+	});
+	const serialized = `${t.render()}\n${JSON.stringify(t.events())}`;
+	assert.match(serialized, /action=advance/);
+	assert.match(serialized, /plan_id=12121212-1212-4121-8121-121212121212/);
+	assert.match(serialized, /expected_revision=7/);
+	assert.match(serialized, /status=active/);
+	assert.match(serialized, /revision=8/);
+	assert.ok(!serialized.includes(secret), serialized);
+});
+
 test("realistic domain wrappers preserve safe lifecycle outcomes and markdown-safe labels", () => {
 	const secret = "TITLE_URL_SENTINEL_5bc9";
 	const t = new TrailBuilder();

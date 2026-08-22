@@ -33,9 +33,18 @@ function coreSection() {
 
 function workEntrySection() {
 	return {
-		schema_version: 1,
-		mutation_boundary: "An explicit implementation request authorizes work independently of claim state.",
+		schema_version: 2,
+		mutation_boundary: "Choose the tracking shape before implementation mutation.",
 		explicit_request_authority: "Explicit current requests select implementation work.",
+		tracking_basis: "Choose from durable outcome and material session progress only.",
+		tracking_decisions: [
+			{ outcome: "both", durable_outcome_required: true, material_session_progress_value: true, requirement: "Track durable work and useful session progress.", examples: ["Durable migration with handoff phases."] },
+			{ outcome: "action_item", durable_outcome_required: true, material_session_progress_value: false, requirement: "Track durable work without a session plan.", examples: ["One bounded product fix."] },
+			{ outcome: "session_plan", durable_outcome_required: false, material_session_progress_value: true, requirement: "Track material session-only progress.", examples: ["Administrative reconciliation phases."] },
+			{ outcome: "neither", durable_outcome_required: false, material_session_progress_value: false, requirement: "Do not track routine work.", examples: ["Read and answer."] },
+		],
+		plan_threshold: "Create a plan only when material_session_progress_value is true.",
+		plan_lifecycle: "Advance atomically, then complete, hand off/adopt, or abandon explicitly.",
 		ordered_decisions: [
 			{ outcome: "claim_active", requirement: "Continue the active item." },
 			{ outcome: "reopen_incomplete", requirement: "Reopen incomplete work rather than duplicating it." },
@@ -73,7 +82,7 @@ function provenanceSection() {
 	} as const;
 }
 
-const CURRENT_CONTRACT_VERSION = "4.2.0";
+const CURRENT_CONTRACT_VERSION = "4.3.0";
 
 function bundle(version = CURRENT_CONTRACT_VERSION) {
 	const input = {
@@ -121,7 +130,7 @@ const REFERENCE = {
 	resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI,
 };
 
-test("mechanically reads, validates, formats, and caches the current v4.2 provenance contract", async () => {
+test("mechanically reads, validates, formats, and caches the current v4.3 tracking/plan contract", async () => {
 	resetImplementationContractCache();
 	const counts = { resource: 0, compatibility: 0 };
 	const first = await loadImplementationContext({
@@ -134,6 +143,8 @@ test("mechanically reads, validates, formats, and caches the current v4.2 proven
 	assert.deepEqual(first.workEntryContract, workEntrySection());
 	assert.deepEqual(first.commitProvenanceContract, provenanceSection());
 	assert.match(formatImplementationContext(first), /core\.claim-early/);
+	assert.match(formatImplementationContext(first), /material_session_progress_value/);
+	assert.match(formatImplementationContext(first), /plan_threshold/);
 	assert.equal(counts.compatibility, 0, "the self-hashing resource needs no compatibility read");
 
 	const second = await loadImplementationContext({
@@ -144,10 +155,10 @@ test("mechanically reads, validates, formats, and caches the current v4.2 proven
 	assert.equal(counts.resource, 1);
 });
 
-test("cache v6 ignores every pre-cutover parser generation", async () => {
+test("cache v7 ignores every pre-cutover parser generation", async () => {
 	resetImplementationContractCache();
 	const root = globalThis as typeof globalThis & Record<symbol, unknown>;
-	for (const version of ["v1", "v2", "v3", "v4", "v5"]) {
+	for (const version of ["v1", "v2", "v3", "v4", "v5", "v6"]) {
 		root[Symbol.for(`devspec.pi.implementation-contract.${version}`)] = {
 			byIdentity: new Map([["poison", { contractVersion: "3.0.0", rules: [{ id: "poison" }] }]]),
 			latestByResource: new Map(),
@@ -236,6 +247,28 @@ test("malformed, reordered, or extra provenance fields fail exact parsing", asyn
 	}
 });
 
+test("work-entry v2 tracking axes, plan threshold, and lifecycle fail exact parsing when altered", async (t) => {
+	const cases: Array<[string, (section: Record<string, unknown>) => void]> = [
+		["missing plan threshold", (section) => { delete section.plan_threshold; }],
+		["extra tracking outcome", (section) => { (section.tracking_decisions as unknown[]).push({}); }],
+		["reordered outcomes", (section) => { (section.tracking_decisions as unknown[]).reverse(); }],
+		["contradictory axis", (section) => { ((section.tracking_decisions as Record<string, unknown>[])[0]!).durable_outcome_required = false; }],
+		["empty example", (section) => { ((section.tracking_decisions as Record<string, unknown>[])[0]!).examples = [""]; }],
+	];
+	for (const [name, mutate] of cases) {
+		await t.test(name, async () => {
+			resetImplementationContractCache();
+			const malformed = JSON.parse(JSON.stringify(bundle())) as Record<string, unknown>;
+			mutate(malformed.work_entry_contract as Record<string, unknown>);
+			const context = await loadImplementationContext({
+				reference: REFERENCE,
+				loader: loader({ resource: resource(malformed), compatibilityError: new Error("unavailable") }),
+			});
+			assert.equal(context.source, "local_safety_fallback");
+		});
+	}
+});
+
 test("offline fallback is fail-open and still builds the immutable work kickoff", async () => {
 	resetImplementationContractCache();
 	const context = await loadImplementationContext({
@@ -267,7 +300,7 @@ test("an unversioned local delivery retains the latest compatible v4 contract du
 		loader: loader({ resourceError: new Error("offline"), compatibilityError: new Error("offline") }),
 	});
 	assert.equal(retained.source, "cache");
-	assert.match(retained.warning ?? "", /retained 4\.2\.0 contract/);
+	assert.match(retained.warning ?? "", /retained 4\.3\.0 contract/);
 });
 
 test("wrong resource pointers never become trusted but remain non-blocking guidance", async () => {

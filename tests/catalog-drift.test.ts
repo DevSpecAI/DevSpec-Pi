@@ -75,6 +75,10 @@ process.stdout.write(JSON.stringify(tools.map((t) => ({
 		liveNames,
 		"extensions/generated/mcp-catalog.ts is stale — run node scripts/generate-mcp-catalog.mjs --devspec-v2 <path>",
 	);
+	const livePlan = live.find((tool) => tool.name === "manage_plan");
+	const generatedPlan = MCP_CATALOG.find((tool) => tool.name === "manage_plan");
+	assert.ok(livePlan && generatedPlan, "manage_plan must exist in both server and Pi wire maps");
+	assert.deepEqual(generatedPlan.inputSchema, livePlan.inputSchema, "manage_plan native schema drifted from the server");
 	assert.equal(fingerprint(live), MCP_CATALOG_FINGERPRINT, "generated catalog schemas drifted from DevSpecV2");
 	assert.equal(
 		descriptionFingerprint(live),

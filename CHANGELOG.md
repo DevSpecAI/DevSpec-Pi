@@ -1,0 +1,16 @@
+# Changelog
+
+## 0.2.0 — 2026-08-22
+
+### Added
+
+- Native, schema-complete `manage_plan` backed by the generated DevSpec MCP wire map.
+- Hidden connection-capability v1 negotiation and transport-header stamping; models never provide trusted connection, session, project, or capability identity.
+- Strict canonical remote-ingress 1.3 active-session-plan parsing and deterministic delivery-tail projection for resume, handoff, adoption, completion, and abandonment.
+- Narrow plan-tool activation for attached bonds while unrelated deferred schemas remain cold.
+- Work-entry contract v2 validation so the canonical implementation contract owns action-item/session-plan selection and the high plan threshold.
+
+### Validation
+
+- Added strict parser, scope/capability, activation, prefix-budget, reconnect, handoff/adoption, no-plan, lossless result, and privacy-safe trail coverage.
+- Regenerated and drift-checked the 91-verb server wire catalog.

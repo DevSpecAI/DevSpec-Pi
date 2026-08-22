@@ -21,7 +21,7 @@ import { resolveEndpoint } from "./auth-store.ts";
 import { needsProjectScope, resolveGitRemote, resolveProjectPin } from "./project-scope.ts";
 
 const CLIENT_NAME = "devspec-pi";
-const CLIENT_VERSION = "0.1.0";
+const CLIENT_VERSION = "0.2.0";
 const DEFAULT_TIMEOUT_MS = 60_000;
 /** Hard cap for model-facing verbs. The SDK timeout alone did not fire on the
  *  live Streamable-HTTP parse hang (~90s, session d8883a49). */
@@ -72,6 +72,8 @@ async function waitOutCooldown(): Promise<void> {
 interface CacheEntry {
 	token: string;
 	url: string;
+	/** Hidden connection capability bound into this transport's request headers. */
+	connectionCapability?: string;
 	client: Client;
 }
 
@@ -108,19 +110,26 @@ export function resetClientCache(lane?: ClientLane): void {
 	store[lane] = null;
 }
 
-async function connect(token: string, lane: ClientLane): Promise<Client> {
+async function connect(token: string, lane: ClientLane, connectionCapability?: string): Promise<Client> {
 	const url = await resolveEndpoint();
 	const store = cacheStore();
 	const cached = store[lane];
-	if (cached && cached.token === token && cached.url === url) return cached.client;
+	if (cached && cached.token === token && cached.url === url && cached.connectionCapability === connectionCapability) {
+		return cached.client;
+	}
 
 	resetClientCache(lane);
 	const transport = new StreamableHTTPClientTransport(new URL(url), {
-		requestInit: { headers: { authorization: `Bearer ${token}` } },
+		requestInit: {
+			headers: {
+				authorization: `Bearer ${token}`,
+				...(connectionCapability ? { "x-devspec-connection-capability": connectionCapability } : {}),
+			},
+		},
 	});
 	const client = new Client({ name: CLIENT_NAME, version: CLIENT_VERSION }, { capabilities: {} });
 	await client.connect(transport);
-	store[lane] = { token, url, client };
+	store[lane] = { token, url, ...(connectionCapability ? { connectionCapability } : {}), client };
 	return client;
 }
 
@@ -166,6 +175,8 @@ export function isPermanentServerEnd(status?: string | null, endReason?: string 
 export interface CallOptions {
 	/** Request timeout (default 60s). Long-poll callers pass hold + margin. */
 	timeoutMs?: number;
+	/** Hidden host-held capability. It is stamped as a transport header, never an argument. */
+	connectionCapability?: string;
 	/**
 	 * Working directory for reactive project scoping: when the server can't
 	 * resolve the project (multi-project token) and no git_remote was passed,
@@ -215,7 +226,7 @@ export async function callDevspec(
 	for (let attempt = 0; attempt < 2; attempt++) {
 		try {
 			await waitOutCooldown();
-			const client = await connect(token, lane);
+			const client = await connect(token, lane, options.connectionCapability);
 			const raw = await withHardTimeout(
 				client.callTool({ name, arguments: callArgs }, undefined, { timeout: timeoutMs }),
 				timeoutMs,

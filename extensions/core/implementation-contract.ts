@@ -58,10 +58,24 @@ export type WorkEntryOutcome =
 	| "create_linked_follow_up"
 	| "create_new";
 
+export type TrackingDecisionOutcome = "action_item" | "session_plan" | "both" | "neither";
+
+export interface TrackingDecision {
+	outcome: TrackingDecisionOutcome;
+	durable_outcome_required: boolean;
+	material_session_progress_value: boolean;
+	requirement: string;
+	examples: string[];
+}
+
 export interface WorkEntryContract {
-	schema_version: 1;
+	schema_version: 1 | 2;
 	mutation_boundary: string;
 	explicit_request_authority: string;
+	tracking_basis?: string;
+	tracking_decisions?: TrackingDecision[];
+	plan_threshold?: string;
+	plan_lifecycle?: string;
 	ordered_decisions: Array<{
 		outcome: WorkEntryOutcome;
 		requirement: string;
@@ -119,8 +133,9 @@ interface ContractCache {
 	latestByResource: Map<string, CachedContract>;
 }
 
-// v6 is the clean v4 provenance-contract cutover; v2/v3 cache entries are invalid.
-const CACHE_KEY = Symbol.for("devspec.pi.implementation-contract.v6");
+// v7 adds the canonical work-entry v2 tracking/plan boundary. Older parser
+// caches cannot authorize it because they did not validate or carry those axes.
+const CACHE_KEY = Symbol.for("devspec.pi.implementation-contract.v7");
 
 function cache(): ContractCache {
 	const root = globalThis as typeof globalThis & { [CACHE_KEY]?: ContractCache };
@@ -247,9 +262,12 @@ function parseRules(value: unknown): ImplementationRule[] | null {
 
 function parseWorkEntryContract(value: unknown): WorkEntryContract | null {
 	const section = asRecord(value);
-	if (!section || !hasExactKeys(section, [
-		"schema_version", "mutation_boundary", "explicit_request_authority", "ordered_decisions",
-	]) || section.schema_version !== 1 || !Array.isArray(section.ordered_decisions)) return null;
+	if (!section || (section.schema_version !== 1 && section.schema_version !== 2)) return null;
+	const v2 = section.schema_version === 2;
+	const expectedKeys = v2
+		? ["schema_version", "mutation_boundary", "explicit_request_authority", "tracking_basis", "tracking_decisions", "plan_threshold", "plan_lifecycle", "ordered_decisions"]
+		: ["schema_version", "mutation_boundary", "explicit_request_authority", "ordered_decisions"];
+	if (!hasExactKeys(section, expectedKeys) || !Array.isArray(section.ordered_decisions)) return null;
 	const mutationBoundary = exactContractString(section.mutation_boundary);
 	const explicitRequestAuthority = exactContractString(section.explicit_request_authority);
 	if (!mutationBoundary || !explicitRequestAuthority || section.ordered_decisions.length !== WORK_ENTRY_OUTCOMES.length) {
@@ -264,10 +282,54 @@ function parseWorkEntryContract(value: unknown): WorkEntryContract | null {
 		if (outcome !== WORK_ENTRY_OUTCOMES[index] || !requirement) return null;
 		orderedDecisions.push({ outcome, requirement });
 	}
+	if (!v2) {
+		return {
+			schema_version: 1,
+			mutation_boundary: mutationBoundary,
+			explicit_request_authority: explicitRequestAuthority,
+			ordered_decisions: orderedDecisions,
+		};
+	}
+
+	const trackingBasis = exactContractString(section.tracking_basis);
+	const planThreshold = exactContractString(section.plan_threshold);
+	const planLifecycle = exactContractString(section.plan_lifecycle);
+	if (!trackingBasis || !planThreshold || !planLifecycle || !Array.isArray(section.tracking_decisions)) return null;
+	const expectedTracking = [
+		["both", true, true],
+		["action_item", true, false],
+		["session_plan", false, true],
+		["neither", false, false],
+	] as const;
+	if (section.tracking_decisions.length !== expectedTracking.length) return null;
+	const trackingDecisions: TrackingDecision[] = [];
+	for (const [index, candidate] of section.tracking_decisions.entries()) {
+		const row = asRecord(candidate);
+		if (!row || !hasExactKeys(row, [
+			"outcome", "durable_outcome_required", "material_session_progress_value", "requirement", "examples",
+		])) return null;
+		const [outcome, durable, progress] = expectedTracking[index]!;
+		const requirement = exactContractString(row.requirement);
+		if (row.outcome !== outcome || row.durable_outcome_required !== durable ||
+			row.material_session_progress_value !== progress || !requirement || !Array.isArray(row.examples)) return null;
+		const examples = row.examples.map(exactContractString);
+		if (examples.length === 0 || examples.some((entry) => !entry)) return null;
+		trackingDecisions.push({
+			outcome,
+			durable_outcome_required: durable,
+			material_session_progress_value: progress,
+			requirement,
+			examples: examples as string[],
+		});
+	}
 	return {
-		schema_version: 1,
+		schema_version: 2,
 		mutation_boundary: mutationBoundary,
 		explicit_request_authority: explicitRequestAuthority,
+		tracking_basis: trackingBasis,
+		tracking_decisions: trackingDecisions,
+		plan_threshold: planThreshold,
+		plan_lifecycle: planLifecycle,
 		ordered_decisions: orderedDecisions,
 	};
 }
@@ -596,6 +658,10 @@ export function formatImplementationContext(context: ImplementationContractConte
 	return [
 		`${context.source === "local_safety_fallback" ? "Local fail-open fallback (the referenced product contract was unavailable)" : "Product implementation contract"} (${identity})`,
 		...(context.warning ? [`Availability notice: ${context.warning}`] : []),
+		...(context.workEntryContract ? [
+			"Canonical work entry contract (the only action-item/session-plan boundary):",
+			JSON.stringify(context.workEntryContract),
+		] : []),
 		"Rules:",
 		...context.rules.map((rule) => `- [${rule.id}] ${rule.requirement}`),
 	].join("\n");

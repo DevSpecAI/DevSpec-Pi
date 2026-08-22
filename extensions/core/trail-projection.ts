@@ -25,10 +25,12 @@ const DEVSPEC_ID_KEYS = [
 	"goal_id",
 	"id",
 	"memory_id",
+	"plan_id",
 	"project_id",
 	"resource_id",
 	"session_id",
 	"signal_id",
+	"step_id",
 ] as const;
 
 const SECRET_NAME = /(?:^|[_-])(?:access[_-]?token|api[_-]?key|apikey|auth|authorization|bearer|client[_-]?secret|credential|jwt|password|passwd|private[_-]?key|secret|session[_-]?token|token)(?:$|[_-])/i;
@@ -243,6 +245,16 @@ function devspecArgs(name: string, args: Record<string, unknown>): string | unde
 		const id = safeTrailId(args[key]);
 		if (id) parts.push(`${key}=${id}`);
 	}
+	if (name === "manage_plan") {
+		const action = typeof args.action === "string" && /^(?:create|list|get|update|start_step|complete_step|skip_step|fail_step|advance|complete|abandon|adopt)$/.test(args.action)
+			? args.action
+			: undefined;
+		const revision = typeof args.expected_revision === "number" && Number.isSafeInteger(args.expected_revision) && args.expected_revision > 0
+			? args.expected_revision
+			: undefined;
+		return [action ? `action=${action}` : null, ...parts, revision ? `expected_revision=${revision}` : null]
+			.filter(Boolean).slice(0, 4).join("; ") || undefined;
+	}
 	if (name === "search_devspec_tools") {
 		const limit = typeof args.limit === "number" ? Math.max(0, Math.floor(args.limit)) : undefined;
 		return limit == null ? "capability search" : `capability search; limit=${limit}`;
@@ -303,6 +315,7 @@ function wrappedEntity(parsed: Record<string, unknown>): Record<string, unknown>
 	return asRecord(parsed.action_item)
 		?? asRecord(parsed.resource)
 		?? asRecord(parsed.memory)
+		?? asRecord(parsed.plan)
 		?? asRecord(item?.action_item)
 		?? asRecord(item?.resource)
 		?? asRecord(item?.memory)
@@ -329,7 +342,7 @@ function safeOutcome(result: unknown): string | undefined {
 		const value = parsed[key] ?? nested[key];
 		if (typeof value === "boolean") parts.push(`${key}=${String(value)}`);
 	}
-	for (const key of ["affected_items", "created_count", "updated_count", "count"] as const) {
+	for (const key of ["affected_items", "created_count", "updated_count", "count", "revision"] as const) {
 		const value = parsed[key] ?? nested[key];
 		if (typeof value === "number" && Number.isFinite(value)) parts.push(`${key}=${value}`);
 	}
@@ -339,7 +352,7 @@ function safeOutcome(result: unknown): string | undefined {
 /** Select safe output metadata. Raw tool text is never copied into the trail. */
 export function projectTrailResult(name: string, result: unknown): string | undefined {
 	if (!DEVSPEC_TOOLS.has(name)) return undefined;
-	if (/^(?:create_|update_|claim_|record_|resolve_|supersede_|retract_|archive_)/.test(name)) {
+	if (name === "manage_plan" || /^(?:create_|update_|claim_|record_|resolve_|supersede_|retract_|archive_)/.test(name)) {
 		return safeOutcome(result);
 	}
 	if (name.startsWith("search_") || name.startsWith("list_")) {

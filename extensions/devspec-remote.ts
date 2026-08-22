@@ -31,7 +31,7 @@ import {
 	MODEL_TIMEOUT_MS,
 	shouldEndBondOnPollFailure,
 } from "./core/client.ts";
-import { getBond, setBond, type BondState } from "./core/bond-state.ts";
+import { connectionCapabilityFromResult, getBond, setBond, type BondState } from "./core/bond-state.ts";
 import {
 	formatCanonicalDeliveryContext,
 	formatInboundBundleMessage,
@@ -81,6 +81,16 @@ import {
 	syncBondIntoStatus,
 } from "./core/status-line.ts";
 import { openPushChannel, nextPushReconnectDelayMs } from "./core/push-channel.ts";
+import {
+	ACTIVE_PLAN_CLEAR_TOMBSTONE,
+	activePlanTailForDelivery,
+	authoritativeActivePlanTransitionTail,
+	appendActivePlanTail,
+	clearActivePlanAwareness,
+	markActivePlanAwareness,
+	serializeActiveSessionPlansProjection,
+} from "./core/active-session-plans.ts";
+import { withPlanToolActive } from "./core/model-surface.ts";
 import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
 import { loadSettings, saveSettings } from "./core/settings.ts";
 import { decideOwnerDelivery, waitUntil } from "./core/preempt.ts";
@@ -144,6 +154,11 @@ interface PumpState {
 	playbookRetryTimers: Map<string, ReturnType<typeof setTimeout>>;
 	/** Unchanged canonical cursors retry attachment hydration only after bounded delay. */
 	attachmentRetryAttempts: Map<string, number>;
+	/** Pi local session identity scopes minimal awareness across reload/rebond. */
+	awarenessKey: string;
+	/** Latest validated 1.3 projection tail and its not-yet-injected revision. */
+	activePlanTail: string;
+	pendingActivePlanTail: string;
 }
 
 let pump: PumpState | null = null;
@@ -497,6 +512,7 @@ async function ackControl(
 		connection_id: connectionId,
 		ingress_version: 1,
 		delegated_scope_version: 1,
+		active_plan_projection_version: 1,
 		control_ack: controlId,
 		wait_ms: 0,
 		...(catalog ? { model_catalog: catalog } : {}),
@@ -607,6 +623,7 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	pump = null;
 	commandTurnBindings.clear();
 	setBond(null);
+	pi_setPlanToolActive(false);
 	setRemoteStatus(ctx);
 	if (serverAlreadyEnded) return;
 	const resolved = await resolveToken();
@@ -881,6 +898,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					connection_id: active.bond.connectionId,
 					ingress_version: 1,
 					delegated_scope_version: 1,
+					active_plan_projection_version: 1,
 					cursor_v2: active.cursor,
 					dispatch_cursor: active.dispatchCursor,
 					wait_ms: pushMode ? 0 : POLL_WAIT_MS,
@@ -953,7 +971,15 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				roomDigest: undefined,
 			};
 			active.bond = next;
+			const detachTail = authoritativeActivePlanTransitionTail(
+				active.awarenessKey,
+				active.activePlanTail,
+				"",
+			);
+			if (detachTail) active.pendingActivePlanTail = detachTail;
+			active.activePlanTail = "";
 			setBond(next);
+			pi_setPlanToolActive(Boolean(serverSessionId));
 			setRemoteStatus(ctx);
 			debug("attachment adopted from server", { attached: Boolean(serverSessionId) });
 			// Refresh display identity only. Command-turn context is canonical ingress.
@@ -983,6 +1009,18 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			debug("canonical ingress rejected", { errors: active.errors, errorPresent: Boolean(pkg.canonicalError) });
 			await new Promise((resolve) => setTimeout(resolve, ERROR_BACKOFF_MS));
 			continue;
+		}
+
+		if (pkg.activeSessionPlans !== undefined) {
+			const planTail = serializeActiveSessionPlansProjection(pkg.activeSessionPlans, active.bond.connectionId);
+			const transitionTail = authoritativeActivePlanTransitionTail(
+				active.awarenessKey,
+				active.activePlanTail,
+				planTail,
+			);
+			if (transitionTail) active.pendingActivePlanTail = transitionTail;
+			active.activePlanTail = planTail;
+			pi_setPlanToolActive(Boolean(active.bond.sessionId || planTail));
 		}
 
 		const control = parseControlCommand(pkg.control);
@@ -1174,17 +1212,22 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 	const localId = ctx.sessionManager.getSessionId();
 	let regText: string;
 	let d: Record<string, unknown>;
+	let connectionCapability: string;
 	try {
 		const regRaw = await callDevspec(resolved.token, "register_connection", {
 			local_id: localId,
 			agent_name: AGENT_NAME,
 			machine_hostname: hostname(),
 			cwd: ctx.cwd,
+			connection_capability_version: 1,
 		}, { cwd: ctx.cwd, lane: "pump" });
 		const reg = unwrapMcpResult(regRaw);
 		if (reg.isError) return { ok: false, error: `register failed: ${reg.text}`, errorKind: "api" };
 		regText = reg.text;
 		d = (reg.details ?? {}) as Record<string, unknown>;
+		const negotiatedCapability = connectionCapabilityFromResult(regRaw);
+		if (!negotiatedCapability) throw new Error("register_connection did not return negotiated connection capability v1 metadata");
+		connectionCapability = negotiatedCapability;
 	} catch (err) {
 		return { ok: false, error: err instanceof Error ? err.message : String(err), errorKind: "api" };
 	}
@@ -1193,6 +1236,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 
 	const bond: BondState = {
 		connectionId,
+		connectionCapability,
 		codename: typeof d.codename === "string" ? d.codename : undefined,
 		sessionId: (d.session_id as string | undefined) ?? undefined,
 		instructions: {
@@ -1238,7 +1282,11 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 		playbookRetryAttempts: new Map(),
 		playbookRetryTimers: new Map(),
 		attachmentRetryAttempts: new Map(),
+		awarenessKey: localId,
+		activePlanTail: "",
+		pendingActivePlanTail: "",
 	};
+	pi_setPlanToolActive(Boolean(bond.sessionId));
 	preemptOwnerCached = (await loadSettings()).preemptOwner;
 	setRemoteStatus(ctx);
 	// Initial runtime identity must be visible before this agent has completed a
@@ -1264,6 +1312,7 @@ let pi_compact: () => void = () => {};
 let pi_reload: () => Promise<void> = async () => {};
 let pi_setThinking: (level: string) => void = () => {};
 let pi_setModel: (modelId: string) => Promise<boolean> = async () => false;
+let pi_setPlanToolActive: (enabled: boolean) => void = () => {};
 
 /**
  * Refresh display identity only. Conversational/model context is accepted
@@ -1352,6 +1401,10 @@ export default function (pi: ExtensionAPI) {
 		if (!model) return false;
 		return Boolean(await pi.setModel?.(model));
 	};
+	pi_setPlanToolActive = (enabled) => {
+		const next = withPlanToolActive(pi.getActiveTools(), enabled);
+		if (next.join("\0") !== pi.getActiveTools().join("\0")) pi.setActiveTools(next);
+	};
 
 	pi.on("model_select", (_event, ctx) => {
 		scheduleRuntimeStamp(ctx);
@@ -1410,12 +1463,28 @@ export default function (pi: ExtensionAPI) {
 	// remirror (item 56b9a3b4). Typed /commands never take this path.
 	pi.on("before_agent_start", (event, ctx) => {
 		const canonicalQueueItem = commandTurnBindings.peek(event.prompt)?.canonicalQueueItem;
-		const injected = canonicalQueueItem ? {
+		const active = pump;
+		// A queued owner turn may start after a newer projection arrived. Bind its
+		// immutable canonical prefix to the latest validated tail exactly once.
+		const planTail = activePlanTailForDelivery(
+			Boolean(canonicalQueueItem),
+			active?.activePlanTail ?? "",
+			active?.pendingActivePlanTail ?? "",
+		);
+		if (active && planTail) {
+			active.pendingActivePlanTail = "";
+			if (planTail === ACTIVE_PLAN_CLEAR_TOMBSTONE) clearActivePlanAwareness(active.awarenessKey);
+			else if (active.activePlanTail && planTail === active.activePlanTail) {
+				markActivePlanAwareness(active.awarenessKey, planTail);
+			}
+		}
+		const hiddenContent = appendActivePlanTail(canonicalQueueItem?.hiddenContent ?? "", planTail);
+		const injected = hiddenContent ? {
 			message: {
-				customType: "devspec-remote-ingress-context",
-				content: canonicalQueueItem.hiddenContent,
+				customType: canonicalQueueItem ? "devspec-remote-ingress-context" : "devspec-active-session-plans",
+				content: hiddenContent,
 				display: false,
-				details: canonicalQueueItem.details,
+				...(canonicalQueueItem ? { details: canonicalQueueItem.details } : {}),
 			},
 		} : undefined;
 		ensureTurn();
@@ -1606,6 +1675,7 @@ export default function (pi: ExtensionAPI) {
 		pump = null;
 		commandTurnBindings.clear();
 		setBond(null);
+		pi_setPlanToolActive(false);
 		resetStatus();
 		paintStatus(lastCtx);
 

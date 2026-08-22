@@ -60,15 +60,38 @@ test("connection catalog matches server authority: exact commands and playbook-o
 	assert.match(poll.description, /never routed through this array/);
 	const pollProperties = (poll.inputSchema as { properties?: Record<string, unknown> }).properties;
 	assert.ok(pollProperties?.delegated_scope_version, "poll_connection must advertise delegated scope negotiation");
+	assert.ok(pollProperties?.active_plan_projection_version, "poll_connection must advertise active-plan projection negotiation");
 	assert.deepEqual(pollProperties.delegated_scope_version, {
 		type: "integer",
 		enum: [1],
 		description: "Explicit delegated project-scope capability negotiation. Version 1 enables delegated commands with per-command project_scope and selects canonical contract 1.2.0 / policy 2026-08-19.3. Omit for the 1.1.0 / 2026-08-19.2 owner-command-compatible shape; a package containing delegated authority returns a retryable upgrade-required tool error before opening any delivery or consuming the prior cursor. Unknown versions fail closed.",
 	});
+	const registerProperties = (register.inputSchema as { properties?: Record<string, unknown> }).properties;
+	assert.deepEqual(registerProperties?.connection_capability_version, {
+		type: "number",
+		enum: [1],
+		description: "Mechanical host negotiation. Version 1 returns a rotated per-connection capability in MCP result _meta; never expose that value to the model.",
+	});
 	assert.match(register.description, /registration never routes or assigns action-item work/);
 	assert.match(register.description, /server alone stamps exact-target command authority and immutable requester provenance/i);
 	const catalogText = JSON.stringify(MCP_CATALOG);
 	assert.doesNotMatch(catalogText, /exact assignment id|ready to receive connection-native work dispatches|assignment routing hints/i);
+});
+
+test("generated manage_plan wire map is schema-complete and model-facing", () => {
+	const plan = MCP_CATALOG.find((entry) => entry.name === "manage_plan");
+	assert.ok(plan);
+	assert.equal(plan.kind, "model");
+	const properties = (plan.inputSchema as { properties?: Record<string, Record<string, unknown>> }).properties;
+	assert.deepEqual(properties?.action.enum, ["create", "list", "get", "update", "start_step", "complete_step", "skip_step", "fail_step", "advance", "complete", "abandon", "adopt"]);
+	for (const field of ["plan_id", "expected_revision", "title", "steps", "step_id", "current_step_id", "next_step_id", "reason", "retryable"]) {
+		assert.ok(properties?.[field], `manage_plan missing ${field}`);
+	}
+	assert.match(plan.description, /capability negotiated by the host/);
+	assert.match(plan.description, /Omit plan_id to target this connection's own active plan/);
+	assert.match(plan.description, /supplying plan_id explicitly marks intentional cross-plan targeting/);
+	assert.match(plan.description, /Use advance to complete the current milestone, optionally amend, and start the next atomically/);
+	assert.match(plan.description, /Adoption succeeds only for an orphaned same-owner plan/);
 });
 
 test("every catalog entry has a schema and a name", () => {

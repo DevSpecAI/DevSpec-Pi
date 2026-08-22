@@ -180,7 +180,10 @@ a **Pi-shaped surface**, not a 1:1 dump of `tool-definitions.ts`:
 - always-on hot set (~15 everyday verbs) with short snippets and slimmed schemas
 - safe rare verbs registered as real, initially inactive Pi tools with slimmed schemas
 - one tiny `search_devspec_tools` loader additively activates relevant rare tools
-- extension stamps `git_remote` / project / session / bond ids — the model is never asked
+- one schema-complete `manage_plan` tool activates only for an attached bond (and
+  automatically on active-plan resume); unrelated rare schemas remain cold
+- extension stamps `git_remote` / project / session / bond ids and the hidden
+  per-connection capability transport header — the model is never asked
 - target initial prefix for DevSpec tools + workflow block: **2–8k tokens**, not ~60k
 
 The generated catalog (`523f1512`) stays the wire map + drift test, not the
@@ -278,7 +281,10 @@ honored, not ported around:
   we always pass the same `local_id`.
 - **Tick:** an SSE wake listener normally triggers no-hold `poll_connection`
   package fetches, with a held long-poll as transport fallback. Every poll
-  negotiates numeric `ingress_version: 1` and `delegated_scope_version: 1`.
+  negotiates numeric `ingress_version: 1`, `delegated_scope_version: 1`, and
+  `active_plan_projection_version: 1`. Strict contract 1.3 validates the complete
+  active-plan inventory and appends it only at the newest delivery tail; stable
+  system/history bytes are never rewritten.
   Canonical semantics are served at `devspec://product/remote-ingress-contract`;
   this document does not restate mutable server policy.
 - **Ingress:** server-authorized owner and delegated commands arrive as **real
@@ -471,6 +477,12 @@ current contract, adopted here first, migrated to other hosts only if proven.
    - `pending_context_wipe`: surfaced as a notification only (never
      auto-wipes). Debug: `DEVSPEC_DEBUG_REMOTE=1` writes privacy-safe metadata
      to `devspec-remote-debug.log` under the platform's temporary directory.
+   **Shared session plans ✅ (0.2.0)** — register negotiates a hidden rotated
+   connection capability; the generated wire map exposes schema-complete native
+   `manage_plan`; attached bonds activate only that cold schema; poll ingress 1.3
+   validates and tail-injects plural active plans for resume/handoff/adoption.
+   The canonical implementation contract owns the high plan threshold and the
+   action-item/session-plan tracking boundary.
 5. **Memory recall/capture engine + compaction survival.**
 6. **Onboarding polish, theme, embedded user-MCP support.**
 7. **Headless worker CLI** (cloud primitive, dogfooded locally first).

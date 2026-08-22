@@ -13,10 +13,14 @@ import {
 	MAX_TOTAL_ATTACHMENT_BYTES,
 	isAttachmentType,
 } from "./attachment-limits.ts";
+import {
+	parseActiveSessionPlansProjection,
+	type ActiveSessionPlansProjection,
+} from "./active-session-plans.ts";
 
 const SCHEMA_VERSION = 1;
-const CONTRACT_VERSION = "1.2.0";
-const POLICY_VERSION = "2026-08-19.3";
+const CONTRACT_VERSION = "1.3.0";
+const POLICY_VERSION = "2026-08-21.1";
 const DELEGATED_PROJECT_POLICY_ID = "delegated_project_v1";
 const MAX_COMMANDS_PER_ENVELOPE = 128;
 const MAX_CONTEXT_ENTRIES_PER_BUCKET = 500;
@@ -143,6 +147,8 @@ export interface PollPackage {
 	rejectedBundle?: OwnerCommandBundle;
 	dispatchCount: number;
 	control?: unknown;
+	/** Strict negotiated 1.3 inventory. Null means authoritative no active plans. */
+	activeSessionPlans?: ActiveSessionPlansProjection | null;
 	canonicalState: "idle" | "valid" | "invalid";
 	canonicalError?: string;
 	advisoryContext?: IngressAdvisoryContext;
@@ -486,12 +492,19 @@ interface ParsedEnvelope {
 	deliveryState: "live" | "replay" | "reseed";
 	commands: OwnerCommand[];
 	control?: unknown;
+	activeSessionPlans: ActiveSessionPlansProjection | null;
 	advisoryContext: IngressAdvisoryContext;
 }
 
 function parseEnvelope(value: unknown, connectionId: string): ParsedEnvelope {
 	const row = record(value, "ingress");
-	exactKeys(row, ["kind", "schema_version", "contract_version", "policy_version", "envelope_id", "connection", "wake", "delivery_state", "command_message_ids", "commands", "control", "context", "window"], "ingress");
+	exactKeys(
+		row,
+		row.active_session_plans === undefined
+			? ["kind", "schema_version", "contract_version", "policy_version", "envelope_id", "connection", "wake", "delivery_state", "command_message_ids", "commands", "control", "context", "window"]
+			: ["kind", "schema_version", "contract_version", "policy_version", "envelope_id", "connection", "wake", "delivery_state", "command_message_ids", "commands", "control", "context", "active_session_plans", "window"],
+		"ingress",
+	);
 	if (row.kind !== "devspec.remote_ingress") fail("ingress.kind", "unknown ingress kind");
 	if (row.schema_version !== SCHEMA_VERSION) fail("ingress.schema_version", "unknown schema version");
 	if (row.contract_version !== CONTRACT_VERSION) fail("ingress.contract_version", "unknown contract version");
@@ -554,9 +567,12 @@ function parseEnvelope(value: unknown, connectionId: string): ParsedEnvelope {
 	if (allRows.length > 0 && (!start || !end || allRows.some((item) => compareOrder(item.order, start) < 0 || compareOrder(item.order, end) > 0))) {
 		fail("ingress.window.source_window", "window does not contain delivered rows");
 	}
+	const activeSessionPlans = row.active_session_plans === undefined
+		? null
+		: parseActiveSessionPlansProjection(row.active_session_plans);
 	const advisoryContext = { envelopeId, context, window };
 	for (const item of commands) item.advisoryContext = advisoryContext;
-	return { envelopeId, wakeKind, wakeActive, deliveryState, commands, control: parsedControl, advisoryContext };
+	return { envelopeId, wakeKind, wakeActive, deliveryState, commands, control: parsedControl, activeSessionPlans, advisoryContext };
 }
 
 function contextEntryCount(context: IngressTypedContext): number {
@@ -610,6 +626,7 @@ export function parsePollPayload(payload: unknown, connectionId: string): PollPa
 			...(rejectedBundle ? { rejectedBundle } : {}),
 			dispatchCount,
 			control: actionableControl ? envelope.control : undefined,
+			activeSessionPlans: envelope.activeSessionPlans,
 			canonicalState: "valid",
 			...(contextEntryCount(envelope.advisoryContext.context) > 0 ? { advisoryContext: envelope.advisoryContext } : {}),
 		};

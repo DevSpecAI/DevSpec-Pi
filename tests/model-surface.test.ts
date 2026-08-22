@@ -5,8 +5,10 @@ import { setBond } from "../extensions/core/bond-state.ts";
 import { buildDevspecInstructions } from "../extensions/core/instructions.ts";
 import { jsonSchemaToTypebox } from "../extensions/core/json-schema.ts";
 import {
+	ACTIVATION_ONLY_VERBS,
 	HOT_SET,
 	HOT_SET_VERBS,
+	PLAN_TOOL_NAME,
 	PREFIX_TOKEN_MAX,
 	PREFIX_TOKEN_MIN,
 	SCOPE_KEY_SET,
@@ -14,6 +16,7 @@ import {
 	TOOL_LOADER_NAME,
 	TOOL_LOADER_PROMPT_METADATA,
 	allModelFacingTools,
+	estimatePlanToolChars,
 	estimatePrefixChars,
 	estimatePrefixTokens,
 	isCallableModelVerb,
@@ -24,6 +27,7 @@ import {
 	searchRareModelTools,
 	slimSchema,
 	toolLoaderInputSchema,
+	withPlanToolActive,
 } from "../extensions/core/model-surface.ts";
 import registerDevspecTools, {
 	initialActiveTools,
@@ -83,10 +87,14 @@ test("rare verbs are searchable but not in the initial hot set", () => {
 		assert.ok(rareModelVerbs().includes(name), `${name} missing from deferred tools`);
 		assert.ok(isCallableModelVerb(name));
 	}
-	assert.equal(rareModelSurface().length, MODEL_VERB_NAMES.length - HOT_SET_VERBS.length);
+	assert.equal(rareModelSurface().length, MODEL_VERB_NAMES.length - HOT_SET_VERBS.length - ACTIVATION_ONLY_VERBS.size);
+	assert.ok(!rareModelVerbs().includes(PLAN_TOOL_NAME), "manage_plan is activation-only, not a searchable rare tool");
+	assert.ok(!rareModelSurface().some((entry) => entry.name === PLAN_TOOL_NAME));
+	assert.ok(!searchRareModelTools("manage plan shared session execution", 10).some((entry) => entry.name === PLAN_TOOL_NAME));
 });
 
 test("slimmed schemas never ask for stamped scope keys", () => {
+	assert.ok(SCOPE_KEY_SET.has("pinned_project_id"), "folder pins are host scope, never model identity");
 	for (const entry of allModelFacingTools()) {
 		const props = (entry.inputSchema.properties ?? {}) as Record<string, unknown>;
 		for (const key of SCOPE_KEY_SET) assert.ok(!(key in props), `${entry.name} still exposes ${key}`);
@@ -174,6 +182,30 @@ test("initial activation preserves other tools and contains hot set plus loader 
 	for (const name of HOT_SET_VERBS) assert.ok(initial.includes(name));
 	for (const name of rareModelVerbs()) assert.ok(!initial.includes(name), `${name} initially active`);
 	assert.equal(initial.length, new Set(initial).size);
+	assert.ok(!initial.includes(PLAN_TOOL_NAME), "plan schema stays cold until a bonded session or resume projection activates it");
+});
+
+test("plan activation changes only one real schema and reports its before/after prefix cost", () => {
+	const before = ["read", "bash", ...HOT_SET_VERBS, TOOL_LOADER_NAME];
+	const active = withPlanToolActive(before, true);
+	assert.deepEqual(active.slice(0, before.length), before);
+	assert.equal(active.at(-1), PLAN_TOOL_NAME);
+	assert.deepEqual(withPlanToolActive(active, true), active, "activation is idempotent");
+	assert.deepEqual(withPlanToolActive(active, false), before);
+
+	const plan = allModelFacingTools().find((entry) => entry.name === PLAN_TOOL_NAME);
+	assert.ok(plan, "generated manage_plan must be a real model tool");
+	const properties = plan.inputSchema.properties as Record<string, Record<string, unknown>>;
+	assert.deepEqual(properties.action.enum, ["create", "list", "get", "update", "start_step", "complete_step", "skip_step", "fail_step", "advance", "complete", "abandon", "adopt"]);
+	assert.ok(properties.steps);
+	assert.ok(properties.expected_revision);
+	for (const identity of ["project_id", "session_id", "connection_id", "local_session_id"]) {
+		assert.equal(properties[identity], undefined, `${identity} must be host/server-derived`);
+	}
+	const beforeChars = estimatePrefixChars(buildDevspecInstructions());
+	const delta = estimatePlanToolChars();
+	assert.ok(delta > 1_000, `schema-complete plan delta unexpectedly small: ${delta}`);
+	assert.ok(Math.ceil((beforeChars + delta) / 4) <= PREFIX_TOKEN_MAX, "one activated plan schema remains inside the prefix ceiling");
 });
 
 test("registration exposes complete real schemas and loader activation is purely additive", async () => {
@@ -248,15 +280,27 @@ test("stampKnownScope drops model-supplied scope and adds the bond", () => {
 		title: "hello",
 		git_remote: "git@example.com:nope.git",
 		project_id: "should-not-pass",
+		pinned_project_id: "model-invented-pin",
 		session_id: "model-invented",
 		local_session_id: "model-invented-local",
 	});
 	assert.equal(stamped.title, "hello");
 	assert.equal(stamped.git_remote, undefined);
 	assert.equal(stamped.project_id, undefined);
+	assert.equal(stamped.pinned_project_id, undefined);
 	assert.equal(stamped.local_session_id, undefined);
 	assert.equal(stamped.session_id, "sess-1");
 	assert.equal(stamped.connection_id, "conn-1");
+	const planScoped = stampKnownScope({
+		action: "complete",
+		plan_id: "plan-1",
+		expected_revision: 4,
+		project_id: "model-project",
+		pinned_project_id: "model-pin",
+		connection_id: "model-connection",
+		session_id: "model-session",
+	}, PLAN_TOOL_NAME);
+	assert.deepEqual(planScoped, { action: "complete", plan_id: "plan-1", expected_revision: 4 });
 	setBond(null);
 });
 

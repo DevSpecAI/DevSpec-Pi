@@ -75,18 +75,16 @@ test("model tool schemas and projection families require an explicit contract-ba
 		.filter((entry) => entry.kind === "model")
 		.map(({ name, inputSchema }) => ({ name, inputSchema, family: projectionFamily(name) }));
 	const fingerprint = createHash("sha256").update(JSON.stringify(contract)).digest("hex");
-	// Reviewed against DevSpecV2 staging c5bfc2d22 during D7. The refreshed
-	// catalog makes action-item ordering and connection-less transcript advisory
-	// behavior explicit. Wire fields and projection-family assignments remain
-	// unchanged; only server-authored descriptions moved.
+	// Reviewed against DevSpecV2 staging 58f3257db for shared session plans.
+	// manage_plan is the one new schema-complete native verb and uses the full
+	// projection family because every mutation returns the authoritative snapshot.
 	//
-	// BUDGET: description-only schema deltas stay within the benchmark below;
-	// no verb or input field was added to the initial model surface.
-	// QUALITY: exact transcript reads remain lossless and no new verb falls
-	// through accidentally.
+	// BUDGET: the schema remains cold initially and tests measure its one-tool
+	// activation delta; unrelated rare schemas remain cold.
+	// QUALITY: plan snapshots are lossless and no new verb falls through.
 	assert.equal(
 		fingerprint,
-		"d6042bbcb17d540d2fb77def9947e7368ff28986387006eac5e588808e7a0162",
+		"260043f1f05162266005b3cfd0004d1dedda4037534e4d5c175dbe1b30f7b0a6",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -100,7 +98,7 @@ test("verb projections use explicit, loss-aware families", () => {
 		"get_action_item", "claim_work_item", "get_session_transcript", "preview_conflict_resolution",
 		"get_project_instruction_rules", "get_personal_instructions", "get_workflow_rules", "get_database_schema",
 		"get_goals", "get_project_goals", "create_session", "claim_playbook_run", "claim_review",
-		"import_instruction_rules", "update_personal_instructions",
+		"import_instruction_rules", "update_personal_instructions", "manage_plan",
 	]) assert.equal(projectionFamily(verb), "full", verb);
 	assert.equal(projectionFamily("some_future_verb"), "fallback");
 });
@@ -502,7 +500,7 @@ test("full exact decision, instruction, transcript, and schema reads are never c
 	const payload = { id: "exact", body: huge("LOSSLESS-EXACT-CONTENT", 9_000) };
 	for (const verb of [
 		"get_action_item", "get_session_transcript", "preview_conflict_resolution", "get_project_instruction_rules",
-		"get_personal_instructions", "get_workflow_rules", "get_database_schema",
+		"get_personal_instructions", "get_workflow_rules", "get_database_schema", "manage_plan",
 	]) {
 		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
 		assert.ok(text.length > PROJECTION_BUDGETS.fallback, verb);

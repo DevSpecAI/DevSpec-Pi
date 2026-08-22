@@ -22,6 +22,7 @@ import { consumeDeliveryLifecycle } from "./core/active-deliveries.ts";
 import { observeSuccessfulWorkResult } from "./core/work-state.ts";
 import {
 	HOT_SET_VERBS,
+	PLAN_TOOL_NAME,
 	SCOPE_KEY_SET,
 	TOOL_LOADER_DESCRIPTION,
 	TOOL_LOADER_NAME,
@@ -211,12 +212,15 @@ export function stampHostProvider(
 }
 
 /** Drop scope the extension already knows, then stamp bond/cwd values. */
-export function stampKnownScope(params: Record<string, unknown>): Record<string, unknown> {
+export function stampKnownScope(params: Record<string, unknown>, name?: string): Record<string, unknown> {
 	const stamped: Record<string, unknown> = {};
 	for (const [key, value] of Object.entries(params)) {
 		if (SCOPE_KEY_SET.has(key)) continue;
 		stamped[key] = value;
 	}
+	// manage_plan identity, session and project are derived exclusively from the
+	// capability-authenticated connection. Even host-known ids do not become args.
+	if (name === PLAN_TOOL_NAME) return stamped;
 	const bond = getBond();
 	if (bond?.sessionId) stamped.session_id = bond.sessionId;
 	if (bond?.connectionId) stamped.connection_id = bond.connectionId;
@@ -228,7 +232,8 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 	if (!resolved) return measuredToolResult(name, toolErrorResult(NOT_CONNECTED));
 	try {
 		const augment = AUGMENTS[name];
-		const scopedParams = stampKnownScope(params);
+		const bond = getBond();
+		const scopedParams = stampKnownScope(params, name);
 		const augmentedParams = augment ? augment(scopedParams, ctx) : scopedParams;
 		const args = stampHostLocalSession(
 			name,
@@ -240,6 +245,9 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 			cwd: ctx.cwd,
 			lane: "work",
 			timeoutMs: MODEL_TIMEOUT_MS,
+			...(name === PLAN_TOOL_NAME && bond?.connectionCapability
+				? { connectionCapability: bond.connectionCapability }
+				: {}),
 		});
 		const result = unwrapOrThrow(name, raw);
 		consumeResultMechanics(name, result, args, localSessionId);

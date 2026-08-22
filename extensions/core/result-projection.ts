@@ -80,6 +80,9 @@ const FULL_READ_VERBS = new Set([
 	"claim_review",
 	"import_instruction_rules",
 	"update_personal_instructions",
+	// Every manage_plan mutation returns the full authoritative revisioned
+	// snapshot; there is no continuation from which omitted steps can be recovered.
+	"manage_plan",
 ]);
 
 const ACK_VERBS = new Set([

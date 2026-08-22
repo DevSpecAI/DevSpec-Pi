@@ -8,6 +8,8 @@
 
 export interface BondState {
 	connectionId: string;
+	/** Hidden server-minted capability; transport header only, never model context. */
+	connectionCapability?: string;
 	codename?: string;
 	/** Attached DevSpec session, when attached (sessionless otherwise). */
 	sessionId?: string;
@@ -47,6 +49,21 @@ export function getBond(): BondState | null {
 
 export function setBond(bond: BondState | null): void {
 	store().current = bond;
+}
+
+/** Extract the negotiated capability from MCP result metadata without touching visible content. */
+export function connectionCapabilityFromResult(raw: unknown): string | undefined {
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+	const meta = (raw as { _meta?: unknown })._meta;
+	if (!meta || typeof meta !== "object" || Array.isArray(meta)) return undefined;
+	const devspec = (meta as { devspec?: unknown }).devspec;
+	if (!devspec || typeof devspec !== "object" || Array.isArray(devspec)) return undefined;
+	const capability = (devspec as { connection_capability?: unknown }).connection_capability;
+	if (!capability || typeof capability !== "object" || Array.isArray(capability)) return undefined;
+	const row = capability as { version?: unknown; value?: unknown };
+	return row.version === 1 && typeof row.value === "string" && /^dvsc_[A-Za-z0-9_-]{20,}$/.test(row.value)
+		? row.value
+		: undefined;
 }
 
 // There is deliberately no turn-post marker here. Delivery has exactly one

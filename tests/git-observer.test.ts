@@ -104,6 +104,30 @@ test("root, alias, amend and linked-worktree commits resolve from the actual wor
 	assert.equal(drainGitObservations()[0]?.worktree, worktree);
 });
 
+test("secondary nested-repository Trace2 events cannot replace the parent repo", (t) => {
+	const root = fixture(t);
+	const parent = repo(root, "parent");
+	const nested = join(parent, "nested");
+	mkdirSync(nested);
+	git(nested, "init", "-q");
+	git(nested, "config", "user.name", "Nested Test");
+	git(nested, "config", "user.email", "nested@example.test");
+	stage(nested, "nested.txt", "nested");
+	git(nested, "commit", "-q", "-m", "nested");
+	git(parent, "add", "nested");
+	stage(parent, "base.txt", "base");
+	git(parent, "commit", "-q", "-m", "base");
+	// Dirty the embedded repo so Git inspects it and may emit repo:2 def_repo.
+	writeFileSync(join(nested, "dirty.txt"), "dirty");
+	stage(parent, "parent.txt", "parent");
+	const prepared = prepare("tool-nested-repo");
+	bash(`${prepared.prefix}git -C ${JSON.stringify(parent)} commit -q -m parent`);
+	const row = drainGitObservations()[0];
+	assert.ok(row);
+	assert.equal(row.worktree, parent);
+	assert.equal(row.sha, git(parent, "rev-parse", "HEAD"));
+});
+
 test("dry-run, failed, and unsupported Git operations create no observation", (t) => {
 	const root = fixture(t);
 	const cwd = repo(root, "repo");

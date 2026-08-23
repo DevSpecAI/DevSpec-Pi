@@ -16,6 +16,26 @@ test("Pi carries immutable turn + command identity through every activity output
 	assert.match(source, /reportComplete\("process_exit", openTurn\.commandTurnId, openTurn\.commandMessageId, isCommandTurnUnbound\(openTurn\)\)/);
 });
 
+test("async subagents retain parent Working until the authoritative fleet is empty", () => {
+	assert.match(source, /snapshot = await subagentFleet\.refreshFresh\(\)/);
+	assert.match(source, /snapshot\.totalActive > 0/);
+	assert.match(source, /noteBackgroundTask\(SUBAGENT_FLEET_TASK_ID\)/);
+	assert.match(source, /resolveBackgroundTask\(SUBAGENT_FLEET_TASK_ID\)/);
+	assert.match(source, /turn !== trackedTurn \|\| trackedTurn\.revision !== expectedRevision/);
+	const settled = source.slice(source.indexOf('pi.on("agent_settled"'), source.indexOf('// ---- Turn lifecycle events'));
+	assert.match(settled, /reconciliation === "stale"\) return/);
+	assert.match(settled, /const keepWorking = Boolean\(settlingTurn && shouldPauseSettle\(settlingTurn\.tracker\)\)/);
+	assert.match(settled, /pump\.busy = keepWorking/);
+	assert.match(settled, /beatBusy\(keepWorking, agentStats\)/);
+	assert.doesNotMatch(settled, /pump\.busy = false|beatBusy\(false/);
+	const messageStart = source.slice(source.indexOf('pi.on("message_start"'), source.indexOf('pi.on("message_update"'));
+	assert.match(messageStart, /isSubagentAsyncNotification\(text, customType\)/);
+	assert.match(messageStart, /await reconcileSubagentFleetOwnership\(notificationTurn\)/);
+	assert.match(messageStart, /allowNextAnswerBeforeBackgroundContinuation\(\)/);
+	const agentStart = source.slice(source.indexOf('pi.on("agent_start"'), source.indexOf('pi.on("agent_settled"'));
+	assert.match(agentStart, /turn\.revision = nextTurnRevision\+\+/);
+});
+
 test("delivery boundaries post the old exact command before rebinding the new segment", () => {
 	const split = source.slice(source.indexOf("function splitTurnAtBoundary"), source.indexOf("async function beatBusy"));
 	assert.match(split, /commandTurnId: t\.commandTurnId/);

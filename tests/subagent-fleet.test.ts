@@ -117,6 +117,24 @@ test("client negotiates fleetStatus v1, deduplicates refresh, and keeps stable l
 	assert.equal(second?.children[0]?.durationMs, 2_000);
 	assert.equal(bus.requests.filter((request) => request.method === "ping").length, 1);
 	assert.equal(bus.requests.filter((request) => request.method === "status").length, 2);
+
+	// Settle-time reads wait out any shared trail read, then issue their own
+	// authoritative status request rather than reusing the older snapshot.
+	const shared = client.refresh();
+	const fresh = client.refreshFresh();
+	await Promise.all([shared, fresh]);
+	assert.equal(bus.requests.filter((request) => request.method === "status").length, 4);
+	client.dispose();
+});
+
+test("fresh settle snapshots recover after a transient status timeout", async () => {
+	const bus = new FakeBus();
+	const client = new SubagentFleetClient(bus, 2, () => 2_000);
+	assert.ok(await client.refresh(), "initial capability + status succeeds");
+	bus.respond = false;
+	assert.equal(await client.refreshFresh(), null);
+	bus.respond = true;
+	assert.ok(await client.refreshFresh(), "the supported companion remains retryable");
 	client.dispose();
 });
 

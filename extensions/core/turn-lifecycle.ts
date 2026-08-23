@@ -52,6 +52,7 @@ const CONTEXT_TEXT_PREFIXES = [
 	"[DevSpec remote — room orientation",
 ];
 const SUBAGENT_NOTIFICATION_PREFIX = /^(?:Background task (?:completed|failed|paused|stopped)|Detached foreground task (?:completed|failed|paused|stopped)): \*\*[^\n]+\*\*(?: \([^\n]*\))?\n\n/;
+const ASYNC_SUBAGENT_NOTIFICATION_PREFIX = /^Background task (?:completed|failed|paused|stopped): \*\*[^\n]+\*\*(?: \([^\n]*\))?\n\n/;
 const GROUPED_SUBAGENT_NOTIFICATION_PREFIX = /^Background tasks completed \(\d+\):[^\n]*\n\n1\. /;
 
 /**
@@ -61,6 +62,12 @@ const GROUPED_SUBAGENT_NOTIFICATION_PREFIX = /^Background tasks completed \(\d+\
  * Text checks are compatibility backstops for hosts that drop customType.
  * A typed `/bg-update` is NOT harness — slash commands stay first-class local.
  */
+export function isSubagentAsyncNotification(text: string, _customType?: string | null): boolean {
+	const trimmed = text.trim();
+	return ASYNC_SUBAGENT_NOTIFICATION_PREFIX.test(trimmed)
+		|| GROUPED_SUBAGENT_NOTIFICATION_PREFIX.test(trimmed);
+}
+
 export function isHarnessOrigin(text: string, customType?: string | null): boolean {
 	if (text.startsWith(REMOTE_PREFIX) || text.startsWith(PLAYBOOK_RUN_PREFIX)) return false;
 	if (typeof customType === "string" && customType.trim()) return true;
@@ -152,6 +159,17 @@ export class TurnTracker {
 			this.pendingBackgroundTaskIds = new Set(from.pendingBackgroundTaskIds);
 			this.lastCloseWasProcess = from.lastCloseWasProcess;
 		}
+	}
+
+	/**
+	 * A terminal wake may arrive while authoritative background status is
+	 * temporarily unavailable. Let the next substantive recap cross an
+	 * incomplete delivery boundary without pretending the background is done.
+	 */
+	allowNextAnswerBeforeBackgroundContinuation(): void {
+		if (!this.awaitingBackground) return;
+		this.awaitingFirstAnswer = true;
+		this.firstAnswerOverridesBackground = true;
 	}
 
 	/** A successful automatic-wake task started in this owner turn. */

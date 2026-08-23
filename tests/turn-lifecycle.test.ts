@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { formatPlaybookRunMessage, isPlaybookRunEnvelope, playbookRunId } from "../extensions/core/dispatch.ts";
-import { automaticBackgroundTaskId, backgroundTaskNotificationId, classifyUserKind, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, isWaitNarration, isProcessClose, planSettle, shouldPauseSettle, shouldSplitFirstAnswer, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
+import { automaticBackgroundTaskId, backgroundTaskNotificationId, classifyUserKind, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, isSubagentAsyncNotification, isWaitNarration, isProcessClose, planSettle, shouldPauseSettle, shouldSplitFirstAnswer, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 
 function remoteTurn(answer: string): TurnTracker {
 	const t = new TurnTracker();
@@ -224,6 +224,8 @@ test("pi-subagents completion notifications are synthetic, not owner prompts", (
 	].join("\n");
 
 	assert.equal(isHarnessOrigin(completion, "subagent-notify"), true);
+	assert.equal(isSubagentAsyncNotification(completion, "subagent-notify"), true);
+	assert.equal(isSubagentAsyncNotification("Detached foreground task completed: **worker**\n\ndone", "subagent-notify"), false);
 	assert.equal(classifyUserKind(completion, "subagent-notify"), "harness");
 	assert.equal(isHarnessOrigin(completion), true, "rendered-text backstop survives missing customType");
 	assert.equal(isHarnessOrigin("Background tasks completed (2): **worker**, **reviewer**\n\n1. worker\ncomplete"), true);
@@ -595,6 +597,52 @@ test("automatic background task receipts require a successful notifying wake", (
 	assert.equal(automaticBackgroundTaskId("bg_run", { details: { task: { ...live.details.task, notifyOnCompletion: false } } }), null);
 	assert.equal(automaticBackgroundTaskId("bg_delegate", { details: { task: { ...live.details.task, triggerOnCompletion: false } } }), null);
 	assert.equal(automaticBackgroundTaskId("fusion_validate", { details: { task: { id: "missing-flags" } } }), null);
+});
+
+test("async subagent ownership survives intermediate speech until the completion wake", () => {
+	const t = new TurnTracker();
+	t.userMessage("[DevSpec remote — message from Ali Price to Fearless Walrus]\nImplement the ledger foundation.");
+	const opener = "I’ve claimed the foundation and delegated the implementation review.";
+	assert.equal(shouldSplitFirstAnswer(t, { text: opener, hasToolCalls: true }), true);
+	t.assistantFinal(opener, true);
+
+	const continuation = new TurnTracker();
+	continuation.carryUser(t.userText, t);
+	continuation.noteBackgroundTask("pi-subagents:active-fleet");
+	const parked = "The child implementation is still active; I’ll resume when it finishes.";
+	continuation.assistantFinal(parked, isClosedAnswer({
+		text: parked,
+		hasToolCalls: false,
+		stopReason: "stop",
+		awaitingBackground: continuation.awaitingBackground,
+	}));
+	assert.equal(continuation.lastCloseWasProcess, true);
+	assert.equal(shouldPauseSettle(continuation), true, "parent Working remains parked with the child");
+	assert.deepEqual(planSettle(continuation, true), { kind: "none" });
+
+	assert.equal(continuation.resolveBackgroundTask("pi-subagents:stale-fleet"), false);
+	assert.equal(shouldPauseSettle(continuation), true, "stale completion cannot clear active work");
+	assert.equal(continuation.resolveBackgroundTask("pi-subagents:active-fleet"), true);
+	const recap = "The delegated implementation is complete and all checks passed.";
+	continuation.assistantFinal(recap, true);
+	assert.equal(shouldPauseSettle(continuation), false);
+	assert.deepEqual(planSettle(continuation, true), { kind: "final", message: recap });
+
+	// If the completion-wake status read is transiently unavailable, speech must
+	// still cross an incomplete boundary while ownership remains active. A later
+	// fresh settle snapshot can clear Working without swallowing the recap.
+	const fallback = new TurnTracker();
+	fallback.userMessage("[DevSpec remote — message from Ali Price to Fearless Walrus]\nContinue.");
+	fallback.noteBackgroundTask("pi-subagents:active-fleet");
+	fallback.assistantFinal("The child is still running; I’ll wait for it.", false);
+	fallback.allowNextAnswerBeforeBackgroundContinuation();
+	assert.equal(shouldSplitFirstAnswer(fallback, { text: recap, hasToolCalls: false }), true);
+	fallback.assistantFinal(recap, true);
+	assert.equal(fallback.answerClosesBeforeBackgroundContinuation, true);
+	assert.deepEqual(planSettle(fallback, true), { kind: "final", message: recap });
+	const fallbackContinuation = new TurnTracker();
+	fallbackContinuation.carryUser(fallback.userText, fallback);
+	assert.equal(shouldPauseSettle(fallbackContinuation), true);
 });
 
 test("terminal notification ids prefer structured details and fall back to the envelope", () => {

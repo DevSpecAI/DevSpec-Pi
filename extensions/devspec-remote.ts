@@ -59,10 +59,10 @@ import {
 import { unwrapMcpResult } from "./core/result.ts";
 import { shapeTranscript } from "./core/attach-context.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
-import { SubagentFleetClient } from "./core/subagent-fleet.ts";
+import { SubagentFleetClient, type SubagentFleetSnapshot } from "./core/subagent-fleet.ts";
 import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
 import { takeContextBudgetReport } from "./core/context-budget.ts";
-import { automaticBackgroundTaskId, backgroundTaskNotificationId, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitFirstAnswer, isHarnessOrigin, shouldPauseSettle, TurnTracker } from "./core/turn-lifecycle.ts";
+import { automaticBackgroundTaskId, backgroundTaskNotificationId, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitFirstAnswer, isHarnessOrigin, isSubagentAsyncNotification, shouldPauseSettle, TurnTracker } from "./core/turn-lifecycle.ts";
 import {
 	formatPlaybookRunMessage,
 	isPlaybookRunEnvelope,
@@ -100,6 +100,8 @@ import {
 } from "./core/owner-inject.ts";
 
 const AGENT_NAME = "Pi";
+/** Aggregate current-session ownership; child identities remain inside pi-subagents. */
+const SUBAGENT_FLEET_TASK_ID = "pi-subagents:active-fleet";
 const POLL_WAIT_MS = 25_000;
 /** Hold + margin; must stay under the MCP client default timeout. */
 const POLL_TIMEOUT_MS = 45_000;
@@ -170,6 +172,8 @@ let preemptOwnerCached = true;
 // All of this is extension-mechanical: zero tokens, no model compliance.
 
 interface TurnState {
+	/** Monotonic segment revision; protects awaited settle reconciliation. */
+	revision: number;
 	tracker: TurnTracker;
 	trail: TrailBuilder;
 	/** Immutable poll-delivered command generation this segment answers. */
@@ -198,6 +202,7 @@ export function nextTrailDelayMs(postsSoFar: number): number {
 let postWarnedThisTurn = false;
 
 let turn: TurnState | null = null;
+let nextTurnRevision = 1;
 const pendingTerminalPosts = new Set<Promise<void>>();
 const commandTurnBindings = new CommandTurnBindings();
 let lastCtx: ExtensionContext | null = null;
@@ -215,7 +220,7 @@ const TRAIL_INTERVAL_MS = 1_000;
 function ensureTurn(): void {
 	if (turn) return;
 	if (!getBond()?.sessionId) { debug("ensureTurn: not attached"); return; }
-	turn = { tracker: new TurnTracker(), trail: new TrailBuilder(), dirty: false, interval: null, posts: 0, lastPostAt: 0 };
+	turn = { revision: nextTurnRevision++, tracker: new TurnTracker(), trail: new TrailBuilder(), dirty: false, interval: null, posts: 0, lastPostAt: 0 };
 	postWarnedThisTurn = false;
 	debug("ensureTurn: tracking (run-scoped)");
 	turn.interval = setInterval(trailTick, TRAIL_INTERVAL_MS);
@@ -455,6 +460,7 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 	// entire prior activity beneath every later answer. Exact message identity
 	// now keeps the two records stable without cumulative snapshots.
 	turn = {
+		revision: nextTurnRevision++,
 		tracker: next,
 		trail: new TrailBuilder(),
 		commandTurnId: t.commandTurnId,
@@ -1358,6 +1364,24 @@ async function enrichBondWithSession(sessionId: string): Promise<void> {
 export default function (pi: ExtensionAPI) {
 	rememberExtensionRunner();
 	const subagentFleet = new SubagentFleetClient(pi.events);
+	const reconcileSubagentFleetOwnership = async (
+		trackedTurn: TurnState,
+		attempts = 2,
+	): Promise<"active" | "idle" | "unknown" | "stale"> => {
+		const expectedRevision = trackedTurn.revision;
+		let snapshot: SubagentFleetSnapshot | null = null;
+		for (let attempt = 0; attempt < attempts && !snapshot; attempt += 1) {
+			snapshot = await subagentFleet.refreshFresh();
+			if (turn !== trackedTurn || trackedTurn.revision !== expectedRevision) return "stale";
+		}
+		if (!snapshot) return "unknown";
+		if (snapshot.totalActive > 0) {
+			trackedTurn.tracker.noteBackgroundTask(SUBAGENT_FLEET_TASK_ID);
+			return "active";
+		}
+		trackedTurn.tracker.resolveBackgroundTask(SUBAGENT_FLEET_TASK_ID);
+		return "idle";
+	};
 	const refreshSubagentFleet = (toolCallId: string, trackedTurn: TurnState | null) => {
 		if (!trackedTurn) return;
 		void subagentFleet.refresh().then((snapshot) => {
@@ -1421,20 +1445,40 @@ export default function (pi: ExtensionAPI) {
 		// The run begins — the delivery unit. Turn state is born here (or on
 		// the first attached turn_start after a mid-run attach), never per round.
 		ensureTurn();
+		// A completion custom message may start while the previous run's awaited
+		// agent_settled handler is still returning. Revision isolates those runs
+		// even though they intentionally share the owner TurnState.
+		if (turn) turn.revision = nextTurnRevision++;
 	});
-	pi.on("agent_settled", (_event, ctx) => {
+	pi.on("agent_settled", async (_event, ctx) => {
 		lastCtx = ctx;
-		// Capture before settleTurn releases the segment; terminal fallback must
-		// never complete a newer owner command that arrived during this settle.
-		const commandTurnId = turn?.commandTurnId;
-		const commandMessageId = turn?.commandMessageId;
-		const commandTurnUnbound = turn ? isCommandTurnUnbound(turn) : false;
-		// Settle telemetry FIRST (pure, instant) so the idle heartbeat and the
-		// answer post carry this turn's report, not the previous one's.
+		// The parent model may be locally finished while async children still own
+		// the user-visible job. Reconcile pi-subagents' documented current-session
+		// fleet before deciding whether this command attempt is terminal. The DTO
+		// exposes only a bounded aggregate here—no child ids, prompts, or paths.
+		const settlingTurn = turn;
+		if (settlingTurn?.tracker.userKind && settlingTurn.tracker.userKind !== "harness") {
+			const reconciliation = await reconcileSubagentFleetOwnership(settlingTurn);
+			// Pi may accept a newer command while an extension settle handler awaits.
+			// The stale callback owns nothing in that newer segment.
+			if (reconciliation === "stale") return;
+		}
+		// Capture after fleet reconciliation and before settleTurn releases the
+		// segment; terminal fallback must never complete a newer owner command.
+		const commandTurnId = settlingTurn?.commandTurnId;
+		const commandMessageId = settlingTurn?.commandMessageId;
+		const commandTurnUnbound = settlingTurn ? isCommandTurnUnbound(settlingTurn) : false;
+		// Settle telemetry FIRST so the idle/parked heartbeat and answer post carry
+		// this turn's report, not the previous one's.
 		const agentStats = settleTelemetry();
+		// A settled parent model run can still own automatic background work.
+		// Keep the pump authoritative Working signal alive until the final owned
+		// continuation settles; otherwise polls broadcast false and close the
+		// durable attempt while an async child is visibly still running.
+		const keepWorking = Boolean(settlingTurn && shouldPauseSettle(settlingTurn.tracker));
 		if (pump) {
-			pump.busy = false;
-			void beatBusy(false, agentStats);
+			pump.busy = keepWorking;
+			void beatBusy(keepWorking, agentStats);
 		}
 		if (untitledAttached() && pump?.bond.sessionId) {
 			scheduleTitleRefresh(pump.bond.sessionId);
@@ -1512,7 +1556,7 @@ export default function (pi: ExtensionAPI) {
 		return injected;
 	});
 
-	pi.on("message_start", (event, ctx) => {
+	pi.on("message_start", async (event, ctx) => {
 		lastCtx = ctx;
 		if (!turn) return;
 		const msg = event.message as { role?: string; customType?: string; details?: unknown } | undefined;
@@ -1545,6 +1589,7 @@ export default function (pi: ExtensionAPI) {
 			// message starts a new segment: bind the server turn id retained when the
 			// poller injected it, or clear the old binding for a local prompt.
 			if (isRealUserMessage) {
+				turn.revision = nextTurnRevision++;
 				turn.commandTurnId = incomingCommand?.turnId;
 				turn.commandMessageId = incomingCommand?.commandMessageId;
 			}
@@ -1552,6 +1597,19 @@ export default function (pi: ExtensionAPI) {
 				customType,
 				backgroundTaskId: harness ? backgroundTaskNotificationId(text, msg?.details) : null,
 			});
+			// Idle triggerTurn custom messages bypass before_agent_start in Pi. The
+			// awaited message_start event is the earliest common point before the
+			// completion-wake model can author its recap.
+			if (harness && isSubagentAsyncNotification(text, customType)) {
+				const notificationTurn = turn;
+				const reconciliation = await reconcileSubagentFleetOwnership(notificationTurn);
+				// If bounded status is temporarily unavailable, do not declare the
+				// fleet done. Still let substantive speech cross an incomplete answer
+				// boundary so a transient miss cannot swallow the user-facing recap.
+				if (reconciliation === "unknown" && turn === notificationTurn) {
+					notificationTurn.tracker.allowNextAnswerBeforeBackgroundContinuation();
+				}
+			}
 		}
 		// A new assistant message = a new LLM round. If the previous close was
 		// a finished text-only answer, that bubble is done — split it off

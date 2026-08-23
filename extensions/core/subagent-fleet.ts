@@ -150,10 +150,17 @@ export class SubagentFleetClient {
 	refresh(): Promise<SubagentFleetSnapshot | null> {
 		if (this.disposed || this.capability === "unsupported") return Promise.resolve(null);
 		if (this.pending) return this.pending;
-		this.pending = this.load().finally(() => {
-			this.pending = null;
-		});
-		return this.pending;
+		return this.startLoad();
+	}
+
+	/**
+	 * Wait out any trail refresh, then take a new settle-time snapshot. This
+	 * prevents a stale in-flight display request from deciding parent activity.
+	 */
+	async refreshFresh(): Promise<SubagentFleetSnapshot | null> {
+		while (this.pending) await this.pending;
+		if (this.disposed || this.capability === "unsupported") return null;
+		return this.startLoad();
 	}
 
 	dispose(): void {
@@ -163,6 +170,13 @@ export class SubagentFleetClient {
 		for (const stop of this.cleanup) stop();
 		this.cleanup.clear();
 		this.aliases.clear();
+	}
+
+	private startLoad(): Promise<SubagentFleetSnapshot | null> {
+		this.pending = this.load().finally(() => {
+			this.pending = null;
+		});
+		return this.pending;
 	}
 
 	private async load(): Promise<SubagentFleetSnapshot | null> {

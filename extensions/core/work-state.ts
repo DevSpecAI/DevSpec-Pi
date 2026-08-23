@@ -10,6 +10,7 @@
 export interface ObservedClaim {
 	sessionId: string;
 	actionItemId: string;
+	projectId?: string;
 	observedAt: number;
 }
 
@@ -46,6 +47,16 @@ function resultDetails(value: unknown): Record<string, unknown> | null {
 	const root = record(value);
 	if (!root) return null;
 	return record(root.details) ?? root;
+}
+
+function responseProjectId(details: Record<string, unknown>): string | undefined {
+	const direct = exactNonEmpty(details.project_id);
+	if (direct) return direct;
+	const actionItem = record(details.action_item);
+	const item = record(details.item);
+	return exactNonEmpty(actionItem?.project_id) ??
+		exactNonEmpty(item?.project_id) ??
+		exactNonEmpty(record(item?.action_item)?.project_id);
 }
 
 function responseActionItemId(details: Record<string, unknown>): string | undefined {
@@ -96,8 +107,8 @@ export function listObservedClaims(sessionId?: string): ObservedClaim[] {
 		.map((claim) => ({ ...claim }));
 }
 
-export function hasObservedClaim(sessionId: string): boolean {
-	return listObservedClaims(sessionId).length > 0;
+export function hasObservedClaim(sessionId: string, projectId?: string): boolean {
+	return listObservedClaims(sessionId).some((claim) => !projectId || claim.projectId === projectId);
 }
 
 /**
@@ -109,12 +120,14 @@ export function observeSuccessfulWorkResult(
 	args: Record<string, unknown>,
 	result: unknown,
 	sessionId: string,
+	projectId?: string,
 ): boolean {
 	const exactSessionId = exactNonEmpty(sessionId);
 	const details = resultDetails(result);
 	if (!exactSessionId || !details) return false;
 	const actionItemId = matchingResponseItemId(args, details);
 	if (!actionItemId) return false;
+	const resolvedProjectId = exactNonEmpty(projectId) ?? responseProjectId(details);
 
 	if (name === "claim_work_item") {
 		if (details.claim_success !== true || hasNegativeMarker(details)) return false;
@@ -122,6 +135,7 @@ export function observeSuccessfulWorkResult(
 		current.claims.set(claimKey(exactSessionId, actionItemId), {
 			sessionId: exactSessionId,
 			actionItemId,
+			...(resolvedProjectId ? { projectId: resolvedProjectId } : {}),
 			observedAt: Date.now(),
 		});
 		while (current.claims.size > MAX_OBSERVED_CLAIMS) {
@@ -149,6 +163,13 @@ export function markProjectNudged(sessionId: string, projectId: string): boolean
 	// spent key is what makes "at most one" absolute for that session/project.
 	current.nudgedProjects.add(key);
 	return true;
+}
+
+export function unmarkProjectNudged(sessionId: string, projectId: string): void {
+	const exactSessionId = exactNonEmpty(sessionId);
+	const exactProjectId = exactNonEmpty(projectId);
+	if (!exactSessionId || !exactProjectId) return;
+	store().nudgedProjects.delete(`${exactSessionId}\0${exactProjectId}`);
 }
 
 export function resetWorkStateForTests(): void {

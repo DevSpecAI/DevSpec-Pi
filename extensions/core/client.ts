@@ -225,13 +225,11 @@ export async function callDevspec(
 	let lastError: unknown = null;
 	for (let attempt = 0; attempt < 2; attempt++) {
 		try {
-			await waitOutCooldown();
-			const client = await connect(token, lane, options.connectionCapability);
-			const raw = await withHardTimeout(
-				client.callTool({ name, arguments: callArgs }, undefined, { timeout: timeoutMs }),
-				timeoutMs,
-				name,
-			);
+			const raw = await withHardTimeout((async () => {
+				await waitOutCooldown();
+				const client = await connect(token, lane, options.connectionCapability);
+				return client.callTool({ name, arguments: callArgs }, undefined, { timeout: timeoutMs });
+			})(), timeoutMs, name);
 			// MCP-level errors arrive as results, not throws — surface them the
 			// same way so the scoping retry below can see them too.
 			const r = raw as { isError?: boolean; content?: Array<{ type?: string; text?: string }> };
@@ -291,6 +289,51 @@ export async function callDevspec(
 		}
 	}
 	throw mapClientError(lastError);
+}
+
+/**
+ * One isolated advisory call. It never touches the pump/work client caches,
+ * never waits through a known cooldown, never retries, and closes its own client
+ * at the end-to-end deadline. Used by edit-time nudges so discovery cannot delay
+ * or abort foreground DevSpec tools.
+ */
+export async function callDevspecAdvisoryOnce(
+	token: string,
+	name: string,
+	args: Record<string, unknown>,
+	timeoutMs = 1500,
+): Promise<unknown> {
+	const cooldown = rateLimitStore().until - Date.now();
+	if (cooldown > 0) throw new DevspecRateLimitError("DevSpec advisory skipped during rate-limit cooldown.", cooldown);
+	const url = await resolveEndpoint();
+	const transport = new StreamableHTTPClientTransport(new URL(url), {
+		requestInit: { headers: { authorization: `Bearer ${token}` } },
+	});
+	const client = new Client({ name: `${CLIENT_NAME}-advisory`, version: CLIENT_VERSION }, { capabilities: {} });
+	try {
+		const raw = await withHardTimeout((async () => {
+			await client.connect(transport);
+			return client.callTool({ name, arguments: args }, undefined, { timeout: timeoutMs });
+		})(), timeoutMs, `${name} advisory`);
+		const result = raw as { isError?: boolean; content?: Array<{ type?: string; text?: string }> };
+		if (result?.isError) {
+			const text = (result.content ?? []).filter((c) => c?.type === "text").map((c) => c.text).join(" ");
+			throw new DevspecApiError(text || `DevSpec tool ${name} failed.`);
+		}
+		return raw;
+	} catch (error) {
+		const mapped = mapClientError(error);
+		const retryMs = parseRateLimitRetryMs(mapped.message);
+		if (retryMs !== null) {
+			rateLimitStore().until = Date.now() + retryMs;
+			throw new DevspecRateLimitError(mapped.message, retryMs);
+		}
+		throw mapped;
+	} finally {
+		// Cleanup must never extend the advisory deadline; this client is isolated
+		// from foreground lanes and close failure has no caller-visible consequence.
+		void client.close().catch(() => {});
+	}
 }
 
 /**

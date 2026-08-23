@@ -26,16 +26,15 @@ test("needsProjectScope ignores auth and ordinary failures", () => {
 	assert.ok(!needsProjectScope("fetch failed"));
 });
 
-test("resolveGitRemote reads origin and caches per cwd", async () => {
+test("resolveGitRemote reads fresh origin identity on every call", async (t) => {
 	clearGitRemoteCache();
-	const url = await resolveGitRemote(process.cwd());
-	// Local clones commonly use SSH; actions/checkout uses HTTPS. The resolver
-	// deliberately returns the real remote, so assert repository identity rather
-	// than coupling this test to one transport.
-	assert.match(url ?? "", /github\.com[:/]DevSpecAI\/DevSpec-Pi(?:\.git)?$/);
-	// Cache hit: same answer without re-spawning git (can't easily assert spawn
-	// count — assert stability instead).
-	assert.equal(await resolveGitRemote(process.cwd()), url);
+	const dir = await mkdtemp(join(tmpdir(), "devspec-fresh-remote-"));
+	t.after(() => rm(dir, { recursive: true, force: true }));
+	git(dir, ["init", "-q"]);
+	git(dir, ["remote", "add", "origin", "git@github.com:acme/first.git"]);
+	assert.equal(await resolveGitRemote(dir), "git@github.com:acme/first.git");
+	git(dir, ["remote", "set-url", "origin", "git@github.com:acme/second.git"]);
+	assert.equal(await resolveGitRemote(dir), "git@github.com:acme/second.git");
 });
 
 test("resolveGitRemote returns null outside a git repo", async () => {
@@ -46,6 +45,10 @@ test("resolveGitRemote returns null outside a git repo", async () => {
 test("credential-bearing remotes are never transport scope", async (t) => {
 	assert.equal(sanitizeGitRemoteForTransport("https://token@github.com/acme/app.git"), null);
 	assert.equal(sanitizeGitRemoteForTransport("https://user:secret@github.com/acme/app.git"), null);
+	assert.equal(sanitizeGitRemoteForTransport("git+https://SECRET@github.com/acme/app.git"), null);
+	assert.equal(sanitizeGitRemoteForTransport("ssh://git@github.com/acme/app.git"), "ssh://git@github.com/acme/app.git");
+	assert.equal(sanitizeGitRemoteForTransport("ssh://SECRET@github.com/acme/app.git"), null);
+	assert.equal(sanitizeGitRemoteForTransport("SECRET@github.com:acme/app.git"), null);
 	assert.equal(sanitizeGitRemoteForTransport("git@github.com:acme/app.git"), "git@github.com:acme/app.git");
 	const dir = await mkdtemp(join(tmpdir(), "devspec-credential-remote-"));
 	t.after(() => rm(dir, { recursive: true, force: true }));
@@ -72,11 +75,12 @@ function git(cwd: string, args: string[]): void {
 	execFileSync("git", args, { cwd, stdio: "pipe" });
 }
 
-test("resolveProjectPin reads project_id and caches per cwd", async () => {
+test("resolveProjectPin reads fresh project identity on every call", async () => {
 	clearProjectPinCache();
 	const dir = await pinnedDir('{"project_id":"3dfada23-36c8-4dda-91cd-ba2fbb787a65"}');
 	assert.equal(await resolveProjectPin(dir), "3dfada23-36c8-4dda-91cd-ba2fbb787a65");
-	assert.equal(await resolveProjectPin(dir), "3dfada23-36c8-4dda-91cd-ba2fbb787a65");
+	await writeFile(join(dir, ".devspec", "project.json"), '{"project_id":"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"}', "utf8");
+	assert.equal(await resolveProjectPin(dir), "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
 });
 
 test("resolveProjectPin trims and tolerates extra keys", async () => {

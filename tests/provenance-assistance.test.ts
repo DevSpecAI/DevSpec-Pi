@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import provenanceExtension, { unclaimedEditNudge } from "../extensions/devspec-provenance-assistance.ts";
+import provenanceExtension, {
+	resetNudgeJurisdictionCacheForTests,
+	resolveNudgeProject,
+	unclaimedEditNudge,
+} from "../extensions/devspec-provenance-assistance.ts";
 import { resolveProjectPin } from "../extensions/core/project-scope.ts";
 import {
 	hasObservedClaim,
@@ -12,15 +16,18 @@ import {
 	resetWorkStateForTests,
 } from "../extensions/core/work-state.ts";
 
-const PROJECT = "11111111-2222-3333-4444-555555555555";
+const PROJECT = "11111111-2222-4333-8444-555555555555";
+const PROJECT_B = "66666666-7777-4888-9999-aaaaaaaaaaaa";
 const ITEM = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 
 function runtime(sessionId = "session-a", cwd = process.cwd()) {
 	return { cwd, sessionManager: { getSessionId: () => sessionId } };
 }
 
-function successfulClaim(id = ITEM) {
-	return { details: { claim_success: true, action_item: { id } } };
+const settleAsync = () => new Promise<void>((resolve) => setTimeout(resolve, 25));
+
+function successfulClaim(id = ITEM, projectId = PROJECT) {
+	return { details: { claim_success: true, action_item: { id, project_id: projectId } } };
 }
 
 test("only reliable first-class edit events can emit the one advisory nudge", async () => {
@@ -64,26 +71,95 @@ test("uncertain jurisdiction and existing claims suppress the nudge without bloc
 		{ action_item_id: ITEM },
 		successfulClaim(),
 		"session-a",
+		PROJECT,
 	), true);
 	assert.equal(hasObservedClaim("session-a"), true);
 	assert.equal(await unclaimedEditNudge("write", runtime(), async () => PROJECT), null);
 });
 
+test("a claim in one project does not suppress another project's one-shot nudge", async () => {
+	resetWorkStateForTests();
+	observeSuccessfulWorkResult("claim_work_item", { action_item_id: ITEM }, successfulClaim(), "session-a", PROJECT);
+	assert.equal(hasObservedClaim("session-a", PROJECT), true);
+	assert.equal(hasObservedClaim("session-a", PROJECT_B), false);
+	const other = await unclaimedEditNudge("edit", runtime(), async () => PROJECT_B);
+	assert.ok(other);
+	assert.equal(other.details.projectId, PROJECT_B);
+});
+
+test("an unbonded claim stores the server-resolved project from its result", () => {
+	resetWorkStateForTests();
+	observeSuccessfulWorkResult("claim_work_item", { action_item_id: ITEM }, successfulClaim(ITEM, PROJECT), "headless-session");
+	assert.equal(hasObservedClaim("headless-session", PROJECT), true);
+	assert.equal(hasObservedClaim("headless-session", PROJECT_B), false);
+});
+
 test("post-record follow-through remains writable and may receive only the advisory nudge", async () => {
 	resetWorkStateForTests();
-	observeSuccessfulWorkResult("claim_work_item", { action_item_id: ITEM }, successfulClaim(), "session-a");
+	observeSuccessfulWorkResult("claim_work_item", { action_item_id: ITEM }, successfulClaim(), "session-a", PROJECT);
 	assert.equal(hasObservedClaim("session-a"), true);
 	observeSuccessfulWorkResult(
 		"record_implementation",
 		{ action_item_id: ITEM },
 		{ details: { id: ITEM, lifecycle: "implemented" } },
 		"session-a",
+		PROJECT,
 	);
 	assert.equal(hasObservedClaim("session-a"), false);
 	const followThrough = await unclaimedEditNudge("edit", runtime(), async () => PROJECT);
 	assert.ok(followThrough);
 	assert.match(followThrough.content, /Continue this edit/);
 	assert.match(followThrough.content, /claim the covering item/);
+});
+
+test("verified remotes resolve with remote-over-pin precedence and bounded cache isolation", async (t) => {
+	resetNudgeJurisdictionCacheForTests();
+	t.after(resetNudgeJurisdictionCacheForTests);
+	let calls = 0;
+	const deps = {
+		resolveToken: async () => ({ token: "token-a" }),
+		resolveEndpoint: async () => "https://staging.example/api/mcp",
+		resolveGitRemote: async () => "git@github.com:acme/app.git",
+		resolveProjectPin: async () => PROJECT,
+		call: async () => {
+			calls += 1;
+			return { content: [{ type: "text", text: JSON.stringify({ remote_match: { resolved_project_id: PROJECT_B, candidate_project_ids: [] } }) }] };
+		},
+	};
+	assert.equal(await resolveNudgeProject("/repo", deps as any, 1000), PROJECT_B, "verified remote beats stale pin");
+	assert.equal(await resolveNudgeProject("/repo", deps as any, 1001), PROJECT_B);
+	assert.equal(calls, 1, "same endpoint/token/remote/pin uses positive cache");
+
+	const otherToken = { ...deps, resolveToken: async () => ({ token: "token-b" }) };
+	assert.equal(await resolveNudgeProject("/repo", otherToken as any, 1002), PROJECT_B);
+	assert.equal(calls, 2, "token fingerprint isolates cache entries");
+
+	resetNudgeJurisdictionCacheForTests();
+	calls = 0;
+	const concurrent = await Promise.all([
+		resolveNudgeProject("/parallel", deps as any, 2000),
+		resolveNudgeProject("/parallel", deps as any, 2000),
+		resolveNudgeProject("/parallel", deps as any, 2000),
+	]);
+	assert.deepEqual(concurrent, [PROJECT_B, PROJECT_B, PROJECT_B]);
+	assert.equal(calls, 1, "concurrent cache misses coalesce to one request");
+});
+
+test("ambiguous, offline and malformed remote results fail open while explicit pins remain", async (t) => {
+	resetNudgeJurisdictionCacheForTests();
+	t.after(resetNudgeJurisdictionCacheForTests);
+	const base = {
+		resolveToken: async () => ({ token: "token" }),
+		resolveEndpoint: async () => "https://staging.example/api/mcp",
+		resolveGitRemote: async () => "git@github.com:acme/app.git",
+		resolveProjectPin: async () => null,
+		call: async () => ({ content: [{ type: "text", text: JSON.stringify({ remote_match: { resolved_project_id: null, candidate_project_ids: [PROJECT, PROJECT_B] } }) }] }),
+	};
+	assert.equal(await resolveNudgeProject("/ambiguous", base as any), null);
+	assert.equal(await resolveNudgeProject("/candidate-pin", { ...base, resolveProjectPin: async () => PROJECT } as any), PROJECT);
+	assert.equal(await resolveNudgeProject("/offline", { ...base, call: async () => { throw new Error("offline"); } } as any), null);
+	assert.equal(await resolveNudgeProject("/malformed", { ...base, call: async () => ({ content: [{ type: "text", text: "not-json" }] }) } as any), null);
+	assert.equal(await resolveNudgeProject("/pin-only", { ...base, resolveGitRemote: async () => null, resolveProjectPin: async () => PROJECT } as any), PROJECT);
 });
 
 test("registered tool handler injects one model-visible steer without blocking", async () => {
@@ -104,10 +180,12 @@ test("registered tool handler injects one model-visible steer without blocking",
 		const ctx = runtime("session-a", cwd);
 		assert.equal(await handlers.get("tool_call")?.({ toolName: "bash", input: { command: "touch x" } }, ctx), undefined);
 		assert.equal(await handlers.get("tool_call")?.({ toolName: "write", input: { path: "x" } }, ctx), undefined);
+		await settleAsync();
 		assert.equal(sent.length, 0, "an unpinned folder has no positive local jurisdiction");
 
 		await commands.get("devspec.pin")?.handler(PROJECT, { cwd, ui: { notify() {} } });
-		assert.equal(await handlers.get("tool_call")?.({ toolName: "edit", input: { path: "x" } }, ctx), undefined);
+		assert.equal(handlers.get("tool_call")?.({ toolName: "edit", input: { path: "x" } }, ctx), undefined, "tool_call returns synchronously");
+		await settleAsync();
 		assert.equal(sent.length, 1);
 		assert.equal(sent[0]?.message.customType, "devspec-provenance-nudge");
 		assert.equal(sent[0]?.message.display, true);
@@ -119,6 +197,64 @@ test("registered tool handler injects one model-visible steer without blocking",
 	} finally {
 		rmSync(cwd, { recursive: true, force: true });
 	}
+});
+
+test("failed detached delivery rolls back the one-shot marker", async () => {
+	resetWorkStateForTests();
+	const handlers = new Map<string, (...args: any[]) => unknown>();
+	let fail = true;
+	let delivered = 0;
+	const pi = {
+		on(event: string, handler: (...args: any[]) => unknown) { handlers.set(event, handler); },
+		sendMessage() {
+			if (fail) throw new Error("delivery failed");
+			delivered += 1;
+		},
+		registerCommand() {},
+	} as unknown as ExtensionAPI;
+	provenanceExtension(pi);
+	const cwd = mkdtempSync(join(tmpdir(), "devspec-pi-delivery-"));
+	mkdirSync(join(cwd, ".devspec"));
+	writeFileSync(join(cwd, ".devspec", "project.json"), JSON.stringify({ project_id: PROJECT }));
+	const ctx = runtime("delivery-session", cwd);
+	assert.equal(handlers.get("tool_call")?.({ toolName: "edit", input: {} }, ctx), undefined);
+	await settleAsync();
+	assert.equal(delivered, 0);
+	fail = false;
+	assert.equal(handlers.get("tool_call")?.({ toolName: "edit", input: {} }, ctx), undefined);
+	await settleAsync();
+	assert.equal(delivered, 1, "failed send did not consume the session/project marker");
+	rmSync(cwd, { recursive: true, force: true });
+});
+
+test("reload during detached resolution cannot deliver stale or consume the marker", async () => {
+	resetWorkStateForTests();
+	const cwd = mkdtempSync(join(tmpdir(), "devspec-pi-reload-delivery-"));
+	mkdirSync(join(cwd, ".devspec"));
+	writeFileSync(join(cwd, ".devspec", "project.json"), JSON.stringify({ project_id: PROJECT }));
+	const ctx = runtime("reload-session", cwd);
+	let delivered = 0;
+	const oldHandlers = new Map<string, (...args: any[]) => unknown>();
+	provenanceExtension({
+		on(event: string, handler: (...args: any[]) => unknown) { oldHandlers.set(event, handler); },
+		sendMessage() { delivered += 1; },
+		registerCommand() {},
+	} as unknown as ExtensionAPI);
+	oldHandlers.get("tool_call")?.({ toolName: "edit", input: {} }, ctx);
+	oldHandlers.get("session_shutdown")?.({ reason: "reload" }, ctx);
+	await settleAsync();
+	assert.equal(delivered, 0);
+
+	const newHandlers = new Map<string, (...args: any[]) => unknown>();
+	provenanceExtension({
+		on(event: string, handler: (...args: any[]) => unknown) { newHandlers.set(event, handler); },
+		sendMessage() { delivered += 1; },
+		registerCommand() {},
+	} as unknown as ExtensionAPI);
+	newHandlers.get("tool_call")?.({ toolName: "edit", input: {} }, ctx);
+	await settleAsync();
+	assert.equal(delivered, 1);
+	rmSync(cwd, { recursive: true, force: true });
 });
 
 test("/devspec.pin is the explicit local write; generic extension startup writes nothing", async () => {

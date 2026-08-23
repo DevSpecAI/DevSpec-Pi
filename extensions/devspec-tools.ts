@@ -103,12 +103,13 @@ export function consumeResultMechanics(
 	result: unknown,
 	args: Record<string, unknown> = {},
 	sessionId?: string,
+	projectId?: string,
 ): void {
 	watchForSignals(name, result);
 	// executeVerb calls this only after unwrapOrThrow has established MCP success.
 	// This observation drives status and nudge suppression only; it grants no permission.
 	const claimArmed = sessionId
-		? observeSuccessfulWorkResult(name, args, result, sessionId) && name === "claim_work_item"
+		? observeSuccessfulWorkResult(name, args, result, sessionId, projectId) && name === "claim_work_item"
 		: false;
 	applyWorkStatus(name, result, claimArmed);
 	consumeDeliveryLifecycle(name, args, result);
@@ -250,7 +251,7 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 				: {}),
 		});
 		const result = unwrapOrThrow(name, raw);
-		consumeResultMechanics(name, result, args, localSessionId);
+		consumeResultMechanics(name, result, args, localSessionId, getBond()?.projectId);
 		return measuredToolResult(name, result);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);

@@ -20,7 +20,8 @@
  * self-corrects instead of hijacking the folder. Both signals go on the retry when
  * both exist; the SERVER arbitrates. Never decide precedence here.
  *
- * The matcher is pure (unit-tested); remote and pin lookups are cached per cwd.
+ * Remote and pin identity are read fresh; only server-verified jurisdiction results
+ * receive bounded endpoint/token/repository-aware caching in the nudge layer.
  */
 
 import { execFile } from "node:child_process";
@@ -36,13 +37,13 @@ export function needsProjectScope(message: string): boolean {
 	);
 }
 
-const remoteCache = new Map<string, string | null>();
-
 /** Credential-free bounded remote suitable for DevSpec transport, or null. */
 export function sanitizeGitRemoteForTransport(remote: string | null): string | null {
 	if (!remote) return null;
 	const value = remote.trim();
 	if (!value || value.length > 512 || /[\s?#\u0000-\u001f\u007f]/u.test(value)) return null;
+	const scp = /^([^/@:]+)@([^/:]+):(.+)$/u.exec(value);
+	if (scp && scp[1] !== "git") return null;
 	if (/^https?:\/\//iu.test(value)) {
 		try {
 			const parsed = new URL(value);
@@ -51,17 +52,15 @@ export function sanitizeGitRemoteForTransport(remote: string | null): string | n
 	} else if (/^[a-z][a-z0-9+.-]*:\/\//iu.test(value)) {
 		try {
 			const parsed = new URL(value);
-			if (parsed.password || parsed.search || parsed.hash) return null;
+			const safeSshUser = parsed.protocol.endsWith("ssh:") && parsed.username === "git";
+			if (parsed.password || parsed.search || parsed.hash || (parsed.username && !safeSshUser)) return null;
 		} catch { return null; }
 	}
 	return value;
 }
 
-/** This checkout's credential-free `origin` URL, or null. Cached per cwd. */
+/** This checkout's credential-free `origin` URL, or null. */
 export function resolveGitRemote(cwd: string): Promise<string | null> {
-	const hit = remoteCache.get(cwd);
-	if (hit !== undefined) return Promise.resolve(hit);
-
 	return new Promise((resolve) => {
 		execFile(
 			"git",
@@ -69,8 +68,7 @@ export function resolveGitRemote(cwd: string): Promise<string | null> {
 			{ cwd, timeout: 3000 },
 			(err, stdout) => {
 				const url = !err && stdout ? stdout.trim() : null;
-				remoteCache.set(cwd, sanitizeGitRemoteForTransport(url));
-				resolve(remoteCache.get(cwd) ?? null);
+				resolve(sanitizeGitRemoteForTransport(url));
 			},
 		);
 	});
@@ -78,10 +76,8 @@ export function resolveGitRemote(cwd: string): Promise<string | null> {
 
 /** Test hook. */
 export function clearGitRemoteCache(): void {
-	remoteCache.clear();
+	// Compatibility test hook. Repository identity is intentionally read fresh.
 }
-
-const pinCache = new Map<string, string | null>();
 
 /** Run one bounded Git metadata query. Every unavailable/error state is null. */
 function gitOutput(cwd: string, args: string[]): Promise<string | null> {
@@ -196,9 +192,6 @@ export function resolveProjectPin(
 	cwd: string,
 	home: string = homedir(),
 ): Promise<string | null> {
-	const hit = pinCache.get(cwd);
-	if (hit !== undefined) return Promise.resolve(hit);
-
 	const dirs = pinSearchDirs(cwd, home);
 
 	// Nearest wins, so an inner folder can deliberately override an outer one.
@@ -223,15 +216,12 @@ export function resolveProjectPin(
 		return null;
 	};
 
-	return walk().then((id) => {
-		pinCache.set(cwd, id);
-		return id;
-	});
+	return walk();
 }
 
 /** Test hook. */
 export function clearProjectPinCache(): void {
-	pinCache.clear();
+	// Compatibility test hook. Pins are intentionally read fresh.
 }
 
 /** What a pin write did, so the caller can tell the user precisely what changed. */
@@ -301,10 +291,6 @@ export async function writeProjectPin(
 	await mkdir(join(dir, ".devspec"), { recursive: true });
 	const path = join(dir, ".devspec", "project.json");
 	await writeFile(path, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-
-	// The read cache is keyed by the cwd asked about, not by where the file lives, so a
-	// stale miss could survive this write. Clear it wholesale — pins change rarely.
-	pinCache.clear();
 
 	return { path, projectId: id, replaced: replaced === id ? null : replaced };
 }

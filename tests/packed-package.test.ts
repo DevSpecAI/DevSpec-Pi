@@ -3,9 +3,10 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-const ROOT = resolve(new URL("..", import.meta.url).pathname);
+const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
 test("npm package contains fail-open provenance runtime and no obsolete gate", (t) => {
 	const destination = mkdtempSync(join(tmpdir(), "devspec-pi-pack-"));
@@ -20,6 +21,8 @@ test("npm package contains fail-open provenance runtime and no obsolete gate", (
 	for (const required of [
 		"extensions/devspec-provenance-assistance.ts",
 		"extensions/core/work-state.ts",
+		"extensions/core/git-observer.ts",
+		"runtime/git-observer-shim.mjs",
 		"docs/commit-provenance-capabilities.md",
 		"extensions/generated/mcp-catalog.ts",
 	]) assert.equal(files.has(required), true, `${required} missing from packed npm package`);

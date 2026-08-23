@@ -8,6 +8,8 @@
 
 export interface BondState {
 	connectionId: string;
+	/** Immutable DevSpec project bound when this connection generation registered. */
+	projectId?: string;
 	/** Hidden server-minted capability; transport header only, never model context. */
 	connectionCapability?: string;
 	codename?: string;

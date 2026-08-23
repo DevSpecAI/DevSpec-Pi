@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 052d6310e8c10ee6b5eff1465838198025f8509d5ae91259f6db885049ccd4fb
- * Description fingerprint: 41612f40bc2845d3052fa8dbf7dbe73350367e293d1cb14c03e9dccdd0d7bf93
- * Regenerated: 2026-08-22T02:25:37.906Z
+ * Schema fingerprint: dce055077fe4aa150a32839c423314632a310eeed469cc1196815f5c76130234
+ * Description fingerprint: 8dc523b44bc75d24ce2710a71f14c7935722fa1c46eb2cc2e46c61657eed10a5
+ * Regenerated: 2026-08-23T09:15:34.412Z
  */
-export const MCP_CATALOG_FINGERPRINT = "052d6310e8c10ee6b5eff1465838198025f8509d5ae91259f6db885049ccd4fb";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "41612f40bc2845d3052fa8dbf7dbe73350367e293d1cb14c03e9dccdd0d7bf93";
-export const MCP_CATALOG_GENERATED_AT = "2026-08-22T02:25:37.906Z";
+export const MCP_CATALOG_FINGERPRINT = "dce055077fe4aa150a32839c423314632a310eeed469cc1196815f5c76130234";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "8dc523b44bc75d24ce2710a71f14c7935722fa1c46eb2cc2e46c61657eed10a5";
+export const MCP_CATALOG_GENERATED_AT = "2026-08-23T09:15:34.412Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -4802,7 +4802,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "register_connection",
 		"label": "DevSpec: Register Connection",
-		"description": "CONNECTION-NATIVE remote control (fd51d80b). Register/maintain THIS local conversation as a first-class connection that is INDEPENDENT of any session — bare `devspec.remote`. It appears on the Agents page as remote capacity for server-authorized exact-target conversational commands (owner or delegated), owner-authority typed controls, and owner-scoped explicit playbook runs; registration never routes or assigns action-item work. The server alone stamps exact-target command authority and immutable requester provenance. Idempotent on the (token, local conversation) bond: re-calling refreshes presence + machine metadata and returns the SAME connection_id (never a duplicate). Returns { connection_id, created, session_id }.\n\nALSO returns your instruction tiers, because this may be the only connect call you make: `owner_custom_instructions` (the owner's Chat Response Style), `owner_agent_rules` (their machine/tooling context), `project_custom_instructions` (team principles) and `project_agent_rules` (team execution mechanics), each with a `*_note` explaining it. Apply them for the whole run — a human who attaches you from web/phone later expects you to already be following their style. Store the returned `instruction_tiers_version` + `instruction_tiers_hash`; on refresh, echo both known fields to receive `instructions_unchanged: true` without duplicate tier texts.",
+		"description": "CONNECTION-NATIVE remote control (fd51d80b). Register/maintain THIS local conversation as a first-class connection that is INDEPENDENT of any session — bare `devspec.remote`. It appears on the Agents page as remote capacity for server-authorized exact-target conversational commands (owner or delegated), owner-authority typed controls, and owner-scoped explicit playbook runs; registration never routes or assigns action-item work. The server alone stamps exact-target command authority and immutable requester provenance. Idempotent on the (token, local conversation) bond: re-calling refreshes presence + machine metadata and returns the SAME connection_id (never a duplicate). Returns { connection_id, project_id, created, session_id }; project_id is the immutable project bound to this connection generation.\n\nALSO returns your instruction tiers, because this may be the only connect call you make: `owner_custom_instructions` (the owner's Chat Response Style), `owner_agent_rules` (their machine/tooling context), `project_custom_instructions` (team principles) and `project_agent_rules` (team execution mechanics), each with a `*_note` explaining it. Apply them for the whole run — a human who attaches you from web/phone later expects you to already be following their style. Store the returned `instruction_tiers_version` + `instruction_tiers_hash`; on refresh, echo both known fields to receive `instructions_unchanged: true` without duplicate tier texts.",
 		"promptSnippet": "CONNECTION-NATIVE remote control (fd51d80b).",
 		"inputSchema": {
 			"type": "object",
@@ -5519,7 +5519,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "report_commit_provenance",
 		"label": "DevSpec: Report Commit Provenance",
-		"description": "MECHANICAL, host-called. Report that THIS connection made a commit (item 27fab61a). Call it from the host's post-commit hook for EVERY commit the plugin observes — whether or not the message carried a [devspec:<uuid>] reference, and whether or not its shape was readable. It is not a model-facing tool and needs no reasoning: the plugin already watched the commit go past, and this is where it says so.\n\nWHY IT EXISTS: `commits` carries only the git author, which is the machine's git config — every agent on one machine commits as the same person, so nothing could tell two of your own agents apart. Without this, an auto-created action item cannot be attributed to the agent that did the work, and nothing can be told that its commit produced an item.\n\nIt is a MEASUREMENT, not a claim of authority: reporting a commit grants no capability and changes no lifecycle. Idempotent per (project, commit) — a retry or reconnect updates in place. Best-effort by contract: never let a failure here affect the commit or the turn.",
+		"description": "MECHANICAL, host-called. Report that THIS connection made a commit (item 27fab61a). Call it from the host's post-commit hook for EVERY commit the plugin observes — whether or not the message carried a [devspec:<uuid>] reference, and whether or not its shape was readable. It is not a model-facing tool and needs no reasoning: the plugin already watched the commit go past, and this is where it says so.\n\nWHY IT EXISTS: `commits` carries only the git author, which is the machine's git config — every agent on one machine commits as the same person, so nothing could tell two of your own agents apart. Without this, an auto-created action item cannot be attributed to the agent that did the work, and nothing can be told that its commit produced an item.\n\nIt is a MEASUREMENT, not a claim of authority: reporting a commit grants no capability and changes no lifecycle. Same-connection retries are idempotent. The first observed connection is immutable; a different connection is recorded as a diagnostic conflict and never overwrites it. Best-effort by contract: never let a failure here affect the commit or the turn.",
 		"promptSnippet": "MECHANICAL, host-called.",
 		"inputSchema": {
 			"type": "object",
@@ -5535,6 +5535,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"branch": {
 					"type": "string",
 					"description": "Optional branch the commit landed on."
+				},
+				"observation_id": {
+					"type": "string",
+					"description": "Optional host-generated UUID for idempotence and diagnostics. It is not a capability."
+				},
+				"git_remote": {
+					"type": "string",
+					"description": "Optional credential-free origin URL for server verification against this connection project. A present verified remote outranks a stale pin; a present untracked/mismatching remote is refused."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional explicit local project pin, accepted only when no git_remote is present and it equals this connection project."
 				},
 				"runner_session_id": {
 					"type": "string",

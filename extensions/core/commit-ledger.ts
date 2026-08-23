@@ -46,7 +46,7 @@ export function recentCommits(): LedgerCommit[] {
 	return store().commits.map((commit) => ({ ...commit }));
 }
 
-function noteCommit(entry: LedgerCommit): void {
+export function recordObservedCommit(entry: LedgerCommit): void {
 	const s = store();
 	const existing = s.commits.findIndex((c) => c.sha === entry.sha);
 	if (existing >= 0) s.commits.splice(existing, 1);
@@ -127,7 +127,7 @@ export function captureGitCommit(command: string, output: string, resolve: GitRe
 	if (parsed) {
 		const full = resolve(parsed.shortSha) ?? parsed.shortSha;
 		const entry: LedgerCommit = { sha: full, shortSha: parsed.shortSha, branch: parsed.branch, at: Date.now() };
-		noteCommit(entry);
+		recordObservedCommit(entry);
 		return entry;
 	}
 

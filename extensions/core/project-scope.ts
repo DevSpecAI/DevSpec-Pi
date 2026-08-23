@@ -38,7 +38,26 @@ export function needsProjectScope(message: string): boolean {
 
 const remoteCache = new Map<string, string | null>();
 
-/** This checkout's `origin` URL, or null outside a git repo. Cached per cwd. */
+/** Credential-free bounded remote suitable for DevSpec transport, or null. */
+export function sanitizeGitRemoteForTransport(remote: string | null): string | null {
+	if (!remote) return null;
+	const value = remote.trim();
+	if (!value || value.length > 512 || /[\s?#\u0000-\u001f\u007f]/u.test(value)) return null;
+	if (/^https?:\/\//iu.test(value)) {
+		try {
+			const parsed = new URL(value);
+			if (parsed.username || parsed.password || parsed.search || parsed.hash) return null;
+		} catch { return null; }
+	} else if (/^[a-z][a-z0-9+.-]*:\/\//iu.test(value)) {
+		try {
+			const parsed = new URL(value);
+			if (parsed.password || parsed.search || parsed.hash) return null;
+		} catch { return null; }
+	}
+	return value;
+}
+
+/** This checkout's credential-free `origin` URL, or null. Cached per cwd. */
 export function resolveGitRemote(cwd: string): Promise<string | null> {
 	const hit = remoteCache.get(cwd);
 	if (hit !== undefined) return Promise.resolve(hit);
@@ -50,7 +69,7 @@ export function resolveGitRemote(cwd: string): Promise<string | null> {
 			{ cwd, timeout: 3000 },
 			(err, stdout) => {
 				const url = !err && stdout ? stdout.trim() : null;
-				remoteCache.set(cwd, url && url.length > 0 ? url : null);
+				remoteCache.set(cwd, sanitizeGitRemoteForTransport(url));
 				resolve(remoteCache.get(cwd) ?? null);
 			},
 		);

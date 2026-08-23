@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
 	needsProjectScope,
 	resolveGitRemote,
+	sanitizeGitRemoteForTransport,
 	clearGitRemoteCache,
 	resolveProjectPin,
 	clearProjectPinCache,
@@ -40,6 +41,18 @@ test("resolveGitRemote reads origin and caches per cwd", async () => {
 test("resolveGitRemote returns null outside a git repo", async () => {
 	clearGitRemoteCache();
 	assert.equal(await resolveGitRemote("/tmp"), null);
+});
+
+test("credential-bearing remotes are never transport scope", async (t) => {
+	assert.equal(sanitizeGitRemoteForTransport("https://token@github.com/acme/app.git"), null);
+	assert.equal(sanitizeGitRemoteForTransport("https://user:secret@github.com/acme/app.git"), null);
+	assert.equal(sanitizeGitRemoteForTransport("git@github.com:acme/app.git"), "git@github.com:acme/app.git");
+	const dir = await mkdtemp(join(tmpdir(), "devspec-credential-remote-"));
+	t.after(() => rm(dir, { recursive: true, force: true }));
+	git(dir, ["init", "-q"]);
+	git(dir, ["remote", "add", "origin", "https://secret-token@github.com/acme/app.git"]);
+	clearGitRemoteCache();
+	assert.equal(await resolveGitRemote(dir), null);
 });
 
 /**

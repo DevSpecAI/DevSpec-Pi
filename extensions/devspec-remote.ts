@@ -1242,6 +1242,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 
 	const bond: BondState = {
 		connectionId,
+		projectId: typeof d.project_id === "string" ? d.project_id : undefined,
 		connectionCapability,
 		codename: typeof d.codename === "string" ? d.codename : undefined,
 		sessionId: (d.session_id as string | undefined) ?? undefined,

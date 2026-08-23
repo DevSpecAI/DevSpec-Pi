@@ -19,12 +19,35 @@ import {
 } from "./active-session-plans.ts";
 
 const SCHEMA_VERSION = 1;
-const CONTRACT_VERSION = "1.3.0";
-const POLICY_VERSION = "2026-08-21.1";
+const CONTRACT_VERSION = "1.4.0";
+const POLICY_VERSION = "2026-08-22.1";
+const PRESERVED_CONTRACT_VERSION = "1.3.0";
+const PRESERVED_POLICY_VERSION = "2026-08-21.1";
 const DELEGATED_PROJECT_POLICY_ID = "delegated_project_v1";
+const SYSTEM_NOTICE_VERSION = 1;
+const SYSTEM_NOTICE_KIND = "unlinked_commit_item_review";
+const SYSTEM_NOTICE_CONTRACT_URI = "devspec://product/remote-ingress-contract";
+const SYSTEM_NOTICE_ALLOWED_OUTCOMES = [
+	"correct_item",
+	"link_item",
+	"resolve_duplicate",
+	"dismiss_item",
+	"confirm_item_correct",
+	"defer_follow_up",
+] as const;
+const SYSTEM_NOTICE_ALLOWED_TOOLS = [
+	"get_action_item",
+	"update_action_item",
+	"link_action_items",
+	"resolve_action_item_conflict",
+] as const;
 const MAX_COMMANDS_PER_ENVELOPE = 128;
 const MAX_CONTEXT_ENTRIES_PER_BUCKET = 500;
+const MAX_SYSTEM_NOTICES_PER_ENVELOPE = 25;
+const MAX_SYSTEM_NOTICE_TEXT_CHARS = 500;
+const MAX_SYSTEM_NOTICE_CURSOR_CHARS = 2_048;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const FULL_LOWERCASE_SHA_RE = /^[0-9a-f]{40}$/;
 const DATETIME_WITH_OFFSET_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
 export type IngressActorKind = "human" | "agent" | "ai" | "system";
@@ -72,7 +95,7 @@ export interface IngressTypedContext {
 }
 
 export interface IngressBoundedMetadata {
-	policy_version: typeof POLICY_VERSION;
+	policy_version: typeof POLICY_VERSION | typeof PRESERVED_POLICY_VERSION;
 	returned: number;
 	total_known: number | null;
 	source_window: { start: IngressOrderPoint | null; end: IngressOrderPoint | null };
@@ -137,10 +160,33 @@ export interface OwnerCommandBundle {
 	advisoryContext: IngressAdvisoryContext;
 }
 
+export interface RemoteConnectionIdentity {
+	connection_id: string;
+	agent_name: string | null;
+	codename: string | null;
+	label: string;
+}
+
+export interface SystemNoticeV1 {
+	version: 1;
+	kind: typeof SYSTEM_NOTICE_KIND;
+	notice_id: string;
+	commit_sha: string;
+	action_item_id: string;
+	action_item_title: string;
+	branch: string;
+	contract_uri: typeof SYSTEM_NOTICE_CONTRACT_URI;
+	allowed_outcomes: [...typeof SYSTEM_NOTICE_ALLOWED_OUTCOMES];
+	allowed_tools: [...typeof SYSTEM_NOTICE_ALLOWED_TOOLS];
+}
+
 export interface PollPackage {
 	changed: boolean;
 	/** Top-level opaque live-delivery cursor; never window.next_cursor. */
 	cursorV2?: string;
+	/** Independent notice point, retained only after notices enter host memory/delivery. */
+	systemNoticeCursor?: string;
+	systemNotices: SystemNoticeV1[];
 	dispatchCursor?: string;
 	ownerBundle?: OwnerCommandBundle;
 	/** An unavailable attachment rejects the whole canonical turn atomically. */
@@ -230,7 +276,7 @@ function assertStrictOrder(rows: readonly { order: IngressOrderPoint }[], path: 
 	}
 }
 
-function addressee(value: unknown, path: string): OwnerCommand["addressee"] {
+function addressee(value: unknown, path: string): RemoteConnectionIdentity {
 	const row = record(value, path);
 	exactKeys(row, ["connection_id", "agent_name", "codename", "label"], path);
 	return {
@@ -241,8 +287,61 @@ function addressee(value: unknown, path: string): OwnerCommand["addressee"] {
 	};
 }
 
-function sameAddressee(a: OwnerCommand["addressee"], b: OwnerCommand["addressee"]): boolean {
+function sameAddressee(a: RemoteConnectionIdentity, b: RemoteConnectionIdentity): boolean {
 	return a.connection_id === b.connection_id && a.agent_name === b.agent_name && a.codename === b.codename && a.label === b.label;
+}
+
+function exactTuple<T extends string>(value: unknown, expected: readonly T[], path: string): T[] {
+	if (!Array.isArray(value) || value.length !== expected.length) fail(path, `expected exact ${expected.join(", ")} tuple`);
+	return value.map((entry, index) => oneOf(entry, [expected[index]!] as const, `${path}[${index}]`));
+}
+
+function systemNotice(value: unknown, path: string): SystemNoticeV1 {
+	const row = record(value, path);
+	exactKeys(row, [
+		"version", "kind", "notice_id", "commit_sha", "action_item_id",
+		"action_item_title", "branch", "contract_uri", "allowed_outcomes", "allowed_tools",
+	], path);
+	if (row.version !== SYSTEM_NOTICE_VERSION) fail(`${path}.version`, "unknown system notice version");
+	if (row.kind !== SYSTEM_NOTICE_KIND) fail(`${path}.kind`, "unknown system notice kind");
+	const commitSha = string(row.commit_sha, `${path}.commit_sha`);
+	if (!FULL_LOWERCASE_SHA_RE.test(commitSha)) fail(`${path}.commit_sha`, "expected lowercase full SHA");
+	const actionItemTitle = string(row.action_item_title, `${path}.action_item_title`);
+	const branch = string(row.branch, `${path}.branch`);
+	if (actionItemTitle.length > MAX_SYSTEM_NOTICE_TEXT_CHARS) fail(`${path}.action_item_title`, "title exceeds safe bound");
+	if (branch.length > MAX_SYSTEM_NOTICE_TEXT_CHARS) fail(`${path}.branch`, "branch exceeds safe bound");
+	if (row.contract_uri !== SYSTEM_NOTICE_CONTRACT_URI) fail(`${path}.contract_uri`, "unknown system notice contract URI");
+	return {
+		version: SYSTEM_NOTICE_VERSION,
+		kind: SYSTEM_NOTICE_KIND,
+		notice_id: uuid(row.notice_id, `${path}.notice_id`),
+		commit_sha: commitSha,
+		action_item_id: uuid(row.action_item_id, `${path}.action_item_id`),
+		action_item_title: actionItemTitle,
+		branch,
+		contract_uri: SYSTEM_NOTICE_CONTRACT_URI,
+		allowed_outcomes: exactTuple(row.allowed_outcomes, SYSTEM_NOTICE_ALLOWED_OUTCOMES, `${path}.allowed_outcomes`) as [...typeof SYSTEM_NOTICE_ALLOWED_OUTCOMES],
+		allowed_tools: exactTuple(row.allowed_tools, SYSTEM_NOTICE_ALLOWED_TOOLS, `${path}.allowed_tools`) as [...typeof SYSTEM_NOTICE_ALLOWED_TOOLS],
+	};
+}
+
+function systemNoticeArray(value: unknown, path: string): SystemNoticeV1[] {
+	if (!Array.isArray(value)) fail(path, "expected array");
+	if (value.length > MAX_SYSTEM_NOTICES_PER_ENVELOPE) fail(path, "system notice set exceeds safe bound");
+	const notices = value.map((entry, index) => systemNotice(entry, `${path}[${index}]`));
+	if (new Set(notices.map((notice) => notice.notice_id)).size !== notices.length) fail(path, "notice ids must be deduplicated");
+	return notices;
+}
+
+function systemNoticeCursor(value: unknown, path: string): string | undefined {
+	if (value === null || value === undefined) return undefined;
+	const parsed = string(value, path);
+	if (parsed.length > MAX_SYSTEM_NOTICE_CURSOR_CHARS) fail(path, "cursor exceeds safe bound");
+	const separator = parsed.lastIndexOf("|");
+	if (separator <= 0) fail(path, "invalid system notice cursor");
+	datetime(parsed.slice(0, separator), `${path}.created_at`);
+	uuid(parsed.slice(separator + 1), `${path}.id`);
+	return parsed;
 }
 
 function attachment(value: unknown, path: string): IngressAttachment {
@@ -363,17 +462,21 @@ function typedContext(value: unknown, path: string): IngressTypedContext {
 	return out;
 }
 
-function boundedMetadata(value: unknown, path: string): IngressBoundedMetadata {
+function boundedMetadata(
+	value: unknown,
+	path: string,
+	expectedPolicyVersion: typeof POLICY_VERSION | typeof PRESERVED_POLICY_VERSION,
+): IngressBoundedMetadata {
 	const row = record(value, path);
 	exactKeys(row, ["policy_version", "returned", "total_known", "source_window", "truncated", "has_more", "next_cursor", "fetch_id", "omission_reason"], path);
-	if (row.policy_version !== POLICY_VERSION) fail(`${path}.policy_version`, "unknown policy version");
+	if (row.policy_version !== expectedPolicyVersion) fail(`${path}.policy_version`, "unknown policy version");
 	const source = record(row.source_window, `${path}.source_window`);
 	exactKeys(source, ["start", "end"], `${path}.source_window`);
 	const start = source.start === null ? null : orderPoint(source.start, `${path}.source_window.start`);
 	const end = source.end === null ? null : orderPoint(source.end, `${path}.source_window.end`);
 	if ((start === null) !== (end === null) || (start && end && compareOrder(start, end) > 0)) fail(`${path}.source_window`, "invalid total-order range");
 	const parsed: IngressBoundedMetadata = {
-		policy_version: POLICY_VERSION,
+		policy_version: expectedPolicyVersion,
 		returned: integer(row.returned, `${path}.returned`),
 		total_known: row.total_known === null ? null : integer(row.total_known, `${path}.total_known`),
 		source_window: { start, end },
@@ -487,37 +590,49 @@ function control(value: unknown, path: string): unknown {
 
 interface ParsedEnvelope {
 	envelopeId: string;
-	wakeKind: "conversational_command" | "control" | "advisory_update" | "history_reseed" | "idle";
+	connection: RemoteConnectionIdentity;
+	wakeKind: "conversational_command" | "control" | "advisory_update" | "history_reseed" | "idle" | "system_notice";
 	wakeActive: boolean;
 	deliveryState: "live" | "replay" | "reseed";
 	commands: OwnerCommand[];
 	control?: unknown;
+	systemNotices: SystemNoticeV1[];
 	activeSessionPlans: ActiveSessionPlansProjection | null;
 	advisoryContext: IngressAdvisoryContext;
 }
 
-function parseEnvelope(value: unknown, connectionId: string): ParsedEnvelope {
+function parseEnvelope(
+	value: unknown,
+	expectedConnection: RemoteConnectionIdentity,
+	systemNoticeNegotiated: boolean,
+): ParsedEnvelope {
 	const row = record(value, "ingress");
+	const noticeKey = systemNoticeNegotiated ? ["system_notices"] : [];
 	exactKeys(
 		row,
 		row.active_session_plans === undefined
-			? ["kind", "schema_version", "contract_version", "policy_version", "envelope_id", "connection", "wake", "delivery_state", "command_message_ids", "commands", "control", "context", "window"]
-			: ["kind", "schema_version", "contract_version", "policy_version", "envelope_id", "connection", "wake", "delivery_state", "command_message_ids", "commands", "control", "context", "active_session_plans", "window"],
+			? ["kind", "schema_version", "contract_version", "policy_version", "envelope_id", "connection", "wake", "delivery_state", "command_message_ids", "commands", "control", "context", ...noticeKey, "window"]
+			: ["kind", "schema_version", "contract_version", "policy_version", "envelope_id", "connection", "wake", "delivery_state", "command_message_ids", "commands", "control", "context", "active_session_plans", ...noticeKey, "window"],
 		"ingress",
 	);
 	if (row.kind !== "devspec.remote_ingress") fail("ingress.kind", "unknown ingress kind");
 	if (row.schema_version !== SCHEMA_VERSION) fail("ingress.schema_version", "unknown schema version");
-	if (row.contract_version !== CONTRACT_VERSION) fail("ingress.contract_version", "unknown contract version");
-	if (row.policy_version !== POLICY_VERSION) fail("ingress.policy_version", "unknown policy version");
+	const expectedContractVersion = systemNoticeNegotiated ? CONTRACT_VERSION : PRESERVED_CONTRACT_VERSION;
+	const expectedPolicyVersion = systemNoticeNegotiated ? POLICY_VERSION : PRESERVED_POLICY_VERSION;
+	if (row.contract_version !== expectedContractVersion) fail("ingress.contract_version", "unknown or mismatched contract version");
+	if (row.policy_version !== expectedPolicyVersion) fail("ingress.policy_version", "unknown or mismatched policy version");
 	const envelopeId = uuid(row.envelope_id, "ingress.envelope_id");
 	const connection = addressee(row.connection, "ingress.connection");
-	if (connection.connection_id !== connectionId) fail("ingress.connection.connection_id", "envelope is not addressed to this connection");
+	if (!sameAddressee(connection, expectedConnection)) fail("ingress.connection", "envelope addressee does not equal the frozen bonded connection");
 	const wake = record(row.wake, "ingress.wake");
 	exactKeys(wake, ["kind", "active", "reason_id"], "ingress.wake");
-	const wakeKind = oneOf(wake.kind, ["conversational_command", "control", "advisory_update", "history_reseed", "idle"] as const, "ingress.wake.kind");
+	const wakeKind = systemNoticeNegotiated
+		? oneOf(wake.kind, ["conversational_command", "control", "advisory_update", "history_reseed", "idle", "system_notice"] as const, "ingress.wake.kind")
+		: oneOf(wake.kind, ["conversational_command", "control", "advisory_update", "history_reseed", "idle"] as const, "ingress.wake.kind");
 	const wakeActive = boolean(wake.active, "ingress.wake.active");
-	string(wake.reason_id, "ingress.wake.reason_id");
-	const activeKind = wakeKind === "conversational_command" || wakeKind === "control";
+	const wakeReason = string(wake.reason_id, "ingress.wake.reason_id");
+	if (wakeKind === "system_notice" && wakeReason !== "exact_connection_system_notice") fail("ingress.wake.reason_id", "unknown system notice wake reason");
+	const activeKind = wakeKind === "conversational_command" || wakeKind === "control" || wakeKind === "system_notice";
 	if (wakeActive !== activeKind) fail("ingress.wake.active", "wake active flag contradicts kind");
 	const deliveryState = oneOf(row.delivery_state, ["live", "replay", "reseed"] as const, "ingress.delivery_state");
 	if (deliveryState !== "live" && (wakeKind !== "history_reseed" || wakeActive)) fail("ingress.delivery_state", "replay/reseed must be inactive history");
@@ -556,12 +671,19 @@ function parseEnvelope(value: unknown, connectionId: string): ParsedEnvelope {
 		if (wakeKind !== "control") fail("ingress.control", "control payload only allowed for control wake");
 		parsedControl = control(row.control, "ingress.control");
 	}
+	const systemNotices = systemNoticeNegotiated
+		? systemNoticeArray(row.system_notices, "ingress.system_notices")
+		: [];
+	if ((wakeKind === "system_notice") !== (systemNotices.length > 0)) fail("ingress.system_notices", "notices must be nonempty exactly for a system_notice wake");
+	if (systemNotices.length > 0 && (commands.length > 0 || row.control !== null || wakeKind !== "system_notice" || deliveryState !== "live")) {
+		fail("ingress.system_notices", "system notices cannot accompany history, commands, or control");
+	}
 	const context = typedContext(row.context, "ingress.context");
 	const contextEntries = Object.values(context).flat();
 	const allRows = [...commands, ...contextEntries];
 	const allIds = allRows.map((item) => item.message_id);
 	if (new Set(allIds).size !== allIds.length) fail("ingress.context", "command/context records overlap");
-	const window = boundedMetadata(row.window, "ingress.window");
+	const window = boundedMetadata(row.window, "ingress.window", expectedPolicyVersion);
 	if (window.returned !== allRows.length) fail("ingress.window.returned", "window returned count mismatch");
 	const { start, end } = window.source_window;
 	if (allRows.length > 0 && (!start || !end || allRows.some((item) => compareOrder(item.order, start) < 0 || compareOrder(item.order, end) > 0))) {
@@ -572,34 +694,64 @@ function parseEnvelope(value: unknown, connectionId: string): ParsedEnvelope {
 		: parseActiveSessionPlansProjection(row.active_session_plans);
 	const advisoryContext = { envelopeId, context, window };
 	for (const item of commands) item.advisoryContext = advisoryContext;
-	return { envelopeId, wakeKind, wakeActive, deliveryState, commands, control: parsedControl, activeSessionPlans, advisoryContext };
+	return { envelopeId, connection, wakeKind, wakeActive, deliveryState, commands, control: parsedControl, systemNotices, activeSessionPlans, advisoryContext };
 }
 
 function contextEntryCount(context: IngressTypedContext): number {
 	return Object.values(context).reduce((count, entries) => count + entries.length, 0);
 }
 
-/** Parse a negotiated poll payload. Canonical ingress failures never wake or advance its cursor. */
-export function parsePollPayload(payload: unknown, connectionId: string): PollPackage {
+export interface PollParseOptions {
+	/** Exact capability sent on the request that produced this response. */
+	systemNoticeNegotiated: boolean;
+}
+
+/** Parse a negotiated poll payload. Canonical ingress failures never wake or advance either live cursor. */
+export function parsePollPayload(
+	payload: unknown,
+	expectedConnection: RemoteConnectionIdentity,
+	options: PollParseOptions = { systemNoticeNegotiated: true },
+): PollPackage {
 	const outer = payload && typeof payload === "object" && !Array.isArray(payload) ? payload as RecordValue : {};
 	const changed = outer.changed === true;
 	const dispatchCursor = typeof outer.dispatch_cursor === "string" ? outer.dispatch_cursor : undefined;
 	const dispatchCount = Array.isArray(outer.dispatches) ? outer.dispatches.length : 0;
-	if (!changed) {
-		return {
-			changed: false,
-			cursorV2: typeof outer.cursor_v2 === "string" && outer.cursor_v2.length > 0 ? outer.cursor_v2 : undefined,
-			dispatchCursor,
-			dispatchCount,
-			canonicalState: "idle",
-		};
-	}
 	try {
-		const envelope = parseEnvelope(outer.ingress, connectionId);
+		const systemNoticeNegotiated = options.systemNoticeNegotiated;
+		if (systemNoticeNegotiated) {
+			if (outer.system_notice_version !== SYSTEM_NOTICE_VERSION) fail("system_notice_version", "expected negotiated version 1");
+		} else if (outer.system_notice_version !== undefined || outer.system_notice_cursor !== undefined || outer.system_notices !== undefined) {
+			fail("system_notice_version", "notice fields require request negotiation");
+		}
+		const topLevelNotices = systemNoticeNegotiated
+			? systemNoticeArray(outer.system_notices, "system_notices")
+			: [];
+		const returnedNoticeCursor = systemNoticeNegotiated
+			? systemNoticeCursor(outer.system_notice_cursor, "system_notice_cursor")
+			: undefined;
+		if (!changed) {
+			if (topLevelNotices.length !== 0) fail("system_notices", "idle response cannot carry notices");
+			return {
+				changed: false,
+				cursorV2: typeof outer.cursor_v2 === "string" && outer.cursor_v2.length > 0 ? outer.cursor_v2 : undefined,
+				systemNotices: [],
+				dispatchCursor,
+				dispatchCount,
+				canonicalState: "idle",
+			};
+		}
+
+		const topLevelAddressee = addressee(outer.addressed_to, "addressed_to");
+		if (!sameAddressee(topLevelAddressee, expectedConnection)) fail("addressed_to", "top-level addressee does not equal the frozen bonded connection");
+		const envelope = parseEnvelope(outer.ingress, expectedConnection, systemNoticeNegotiated);
+		if (!sameAddressee(topLevelAddressee, envelope.connection)) fail("addressed_to", "top-level and canonical addressees differ");
+		if (JSON.stringify(topLevelNotices) !== JSON.stringify(envelope.systemNotices)) fail("system_notices", "top-level and canonical notice sets differ");
 		const cursorV2 = typeof outer.cursor_v2 === "string" && outer.cursor_v2.length > 0 ? outer.cursor_v2 : undefined;
 		const actionableCommand = envelope.deliveryState === "live" && envelope.wakeActive && envelope.wakeKind === "conversational_command";
 		const actionableControl = envelope.deliveryState === "live" && envelope.wakeActive && envelope.wakeKind === "control";
+		const actionableNotices = envelope.deliveryState === "live" && envelope.wakeActive && envelope.wakeKind === "system_notice";
 		if ((actionableCommand || actionableControl) && !cursorV2) fail("cursor_v2", "actionable canonical delivery requires top-level cursor_v2");
+		if (actionableNotices && (!returnedNoticeCursor || envelope.systemNotices.length === 0)) fail("system_notice_cursor", "active notice delivery requires an independent returned cursor");
 		let ownerBundle: OwnerCommandBundle | undefined;
 		let rejectedBundle: OwnerCommandBundle | undefined;
 		if (actionableCommand) {
@@ -621,6 +773,8 @@ export function parsePollPayload(payload: unknown, connectionId: string): PollPa
 		return {
 			changed: true,
 			cursorV2,
+			...(actionableNotices ? { systemNoticeCursor: returnedNoticeCursor } : {}),
+			systemNotices: actionableNotices ? envelope.systemNotices : [],
 			dispatchCursor,
 			...(ownerBundle ? { ownerBundle } : {}),
 			...(rejectedBundle ? { rejectedBundle } : {}),
@@ -632,7 +786,8 @@ export function parsePollPayload(payload: unknown, connectionId: string): PollPa
 		};
 	} catch (error) {
 		return {
-			changed: true,
+			changed,
+			systemNotices: [],
 			dispatchCursor,
 			dispatchCount,
 			canonicalState: "invalid",

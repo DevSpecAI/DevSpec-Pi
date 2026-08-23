@@ -284,7 +284,11 @@ honored, not ported around:
   negotiates numeric `ingress_version: 1`, `delegated_scope_version: 1`, and
   `active_plan_projection_version: 1`. Strict contract 1.3 validates the complete
   active-plan inventory and appends it only at the newest delivery tail; stable
-  system/history bytes are never rewritten.
+  system/history bytes are never rewritten. The SSE wake stream advertises
+  system-notice v1; the main pump negotiates strict canonical ingress 1.4 only
+  while a complete server notice batch fits its bounded memory, otherwise it
+  keeps owner-command intake live under preserved 1.3. No control-ack or side
+  poll negotiates the at-most-once notice channel.
   Canonical semantics are served at `devspec://product/remote-ingress-contract`;
   this document does not restate mutable server policy.
 - **Ingress:** server-authorized owner and delegated commands arrive as **real

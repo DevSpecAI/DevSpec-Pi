@@ -3,9 +3,21 @@ import { test } from "node:test";
 import {
 	nextPushReconnectDelayMs,
 	parseSseFrame,
+	pushChannelUrl,
 	PUSH_HEALTHY_MS,
 	PUSH_RECONNECT_BACKOFF_MS,
 } from "../extensions/core/push-channel.ts";
+
+test("main SSE URL advertises system notice v1 only when explicitly requested", () => {
+	assert.equal(
+		pushChannelUrl({ mcpUrl: "https://devspec.test/api/mcp", connectionId: "id with spaces", systemNoticeVersion: 1 }),
+		"https://devspec.test/api/mcp/connection-stream?connection_id=id+with+spaces&system_notice_version=1",
+	);
+	assert.equal(
+		pushChannelUrl({ mcpUrl: "https://devspec.test/api/mcp/", connectionId: "plain" }),
+		"https://devspec.test/api/mcp/connection-stream?connection_id=plain",
+	);
+});
 
 test("parseSseFrame parses event + data", () => {
 	assert.deepEqual(parseSseFrame('event: wake\ndata: {"at":"x"}'), { event: "wake", data: '{"at":"x"}' });

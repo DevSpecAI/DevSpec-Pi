@@ -24,7 +24,8 @@ test("async subagents retain parent Working until the authoritative fleet is emp
 	assert.match(source, /turn !== trackedTurn \|\| trackedTurn\.revision !== expectedRevision/);
 	const settled = source.slice(source.indexOf('pi.on("agent_settled"'), source.indexOf('// ---- Turn lifecycle events'));
 	assert.match(settled, /reconciliation === "stale"\) return/);
-	assert.match(settled, /const keepWorking = Boolean\(settlingTurn && shouldPauseSettle\(settlingTurn\.tracker\)\)/);
+	assert.match(settled, /const keepWorking = !completionNeutral && Boolean\(settlingTurn && shouldPauseSettle\(settlingTurn\.tracker\)\)/);
+	assert.match(settled, /if \(pump && activityPolicy\.reportPresence\)/);
 	assert.match(settled, /pump\.busy = keepWorking/);
 	assert.match(settled, /beatBusy\(keepWorking, agentStats\)/);
 	assert.doesNotMatch(settled, /pump\.busy = false|beatBusy\(false/);

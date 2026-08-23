@@ -22,6 +22,8 @@ export interface PushChannelOptions {
 	mcpUrl: string;
 	token: string;
 	connectionId: string;
+	/** Main intake capability only; side polls never inherit this negotiation. */
+	systemNoticeVersion?: 1;
 	handlers: PushChannelHandlers;
 	/** Abort to close deliberately. */
 	signal: AbortSignal;
@@ -71,8 +73,14 @@ export function nextPushReconnectDelayMs(
  * (non-2xx, network) so the caller can choose fallback BEFORE any frames
  * flowed.
  */
+export function pushChannelUrl(opts: Pick<PushChannelOptions, "mcpUrl" | "connectionId" | "systemNoticeVersion">): string {
+	const query = new URLSearchParams({ connection_id: opts.connectionId });
+	if (opts.systemNoticeVersion === 1) query.set("system_notice_version", "1");
+	return `${opts.mcpUrl.replace(/\/$/, "")}/connection-stream?${query.toString()}`;
+}
+
 export async function openPushChannel(opts: PushChannelOptions): Promise<void> {
-	const url = `${opts.mcpUrl.replace(/\/$/, "")}/connection-stream?connection_id=${encodeURIComponent(opts.connectionId)}`;
+	const url = pushChannelUrl(opts);
 	const res = await fetch(url, {
 		method: "GET",
 		headers: {

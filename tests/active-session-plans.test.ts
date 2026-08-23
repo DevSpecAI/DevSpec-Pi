@@ -16,19 +16,19 @@ import {
 	serializeActiveSessionPlansProjection,
 } from "../extensions/core/active-session-plans.ts";
 import { parsePollPayload } from "../extensions/core/remote-payload.ts";
-import { activePlanProjection, canonicalPoll, IDS } from "./canonical-ingress-fixture.ts";
+import { activePlanProjection, canonicalPoll, IDS, TEST_CONNECTION } from "./canonical-ingress-fixture.ts";
 
 function clone<T>(value: T): T {
 	return JSON.parse(JSON.stringify(value)) as T;
 }
 
-test("strict 1.3 ingress parses the complete active plan inventory and no-plan state", () => {
-	const withPlan = parsePollPayload(canonicalPoll({ activePlans: activePlanProjection() }), IDS.connection);
+test("strict 1.4 ingress preserves the complete active plan inventory and no-plan state", () => {
+	const withPlan = parsePollPayload(canonicalPoll({ activePlans: activePlanProjection() }), TEST_CONNECTION);
 	assert.equal(withPlan.canonicalState, "valid");
 	assert.equal(withPlan.activeSessionPlans?.plans[0]?.id, IDS.plan);
 	assert.equal(withPlan.activeSessionPlans?.plans[0]?.revision, 7);
 
-	const withoutPlan = parsePollPayload(canonicalPoll(), IDS.connection);
+	const withoutPlan = parsePollPayload(canonicalPoll(), TEST_CONNECTION);
 	assert.equal(withoutPlan.canonicalState, "valid");
 	assert.equal(withoutPlan.activeSessionPlans, null, "omission is authoritative no active plans, not an unknown legacy shape");
 });
@@ -50,7 +50,7 @@ test("active plan parser fails the entire ingress atomically on shape, bounds, a
 		const projection = clone(activePlanProjection());
 		mutate(projection);
 		const payload = canonicalPoll({ activePlans: projection });
-		const parsed = parsePollPayload(payload, IDS.connection);
+		const parsed = parsePollPayload(payload, TEST_CONNECTION);
 		assert.equal(parsed.canonicalState, "invalid");
 		assert.equal(parsed.cursorV2, undefined, "invalid projection cannot advance the canonical cursor");
 		assert.equal(parsed.ownerBundle, undefined, "invalid projection cannot partially deliver its command");

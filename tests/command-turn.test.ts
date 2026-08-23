@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CommandTurnBindings } from "../extensions/core/command-turn.ts";
 import { formatCanonicalDeliveryContext, formatInboundBundleMessage, parsePollPayload } from "../extensions/core/remote-payload.ts";
-import { canonicalPoll, DELEGATED_PROJECT_INSTRUCTION, IDS } from "./canonical-ingress-fixture.ts";
+import { canonicalPoll, DELEGATED_PROJECT_INSTRUCTION, TEST_CONNECTION } from "./canonical-ingress-fixture.ts";
 
 test("retains immutable turn and command ids until the exact injected message starts", () => {
 	const bindings = new CommandTurnBindings();
@@ -40,8 +40,8 @@ test("hidden canonical data peeks for the same turn without consuming identity",
 
 test("idle, steer, and followUp retain delegated scope without crossing into an owner bundle", () => {
 	const bindings = new CommandTurnBindings();
-	const delegatedBundle = parsePollPayload(canonicalPoll({ delegated: true, body: "same exact body" }), IDS.connection).ownerBundle!;
-	const ownerBundle = parsePollPayload(canonicalPoll({ body: "same exact body" }), IDS.connection).ownerBundle!;
+	const delegatedBundle = parsePollPayload(canonicalPoll({ delegated: true, body: "same exact body" }), TEST_CONNECTION).ownerBundle!;
+	const ownerBundle = parsePollPayload(canonicalPoll({ body: "same exact body" }), TEST_CONNECTION).ownerBundle!;
 	const delegatedMessage = formatInboundBundleMessage(delegatedBundle);
 	const ownerMessage = formatInboundBundleMessage(ownerBundle);
 	assert.ok(delegatedMessage.includes(DELEGATED_PROJECT_INSTRUCTION));

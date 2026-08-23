@@ -11,7 +11,7 @@ function bodyBetween(start: string, end: string): string {
 	return source.slice(from, to);
 }
 
-test("every Pi poll negotiates canonical ingress, delegated scope, and active plans while only top-level cursor_v2 drives live progress", () => {
+test("main Pi poll capacity-gates system notices while control ack cannot claim them", () => {
 	const calls = [...source.matchAll(/callDevspec\([^]*?"poll_connection"[^]*?\{([^]*?)\}, \{/gu)];
 	assert.equal(calls.length, 2, "expected control ack and pump poll only");
 	for (const call of calls) {
@@ -19,15 +19,73 @@ test("every Pi poll negotiates canonical ingress, delegated scope, and active pl
 		assert.match(call[1], /delegated_scope_version: 1/);
 		assert.match(call[1], /active_plan_projection_version: 1/);
 	}
+	assert.doesNotMatch(calls[0]![1], /system_notice_version|system_notice_cursor/, "ackControl must never lease/ack at-most-once notices");
+	assert.match(calls[1]![1], /\.\.\.\(systemNoticeNegotiated \? \{/);
+	assert.match(calls[1]![1], /system_notice_version: 1/);
+	assert.match(calls[1]![1], /system_notice_cursor: active\.systemNoticeCursor/);
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
+	assert.match(pump, /const systemNoticeNegotiated = hasSystemNoticeBatchCapacity\(active\.systemNoticeKey\)/);
 	assert.match(pump, /cursor_v2: active\.cursor/);
 	assert.match(pump, /if \(!commandDeliveryFailed\)[^]*active\.cursor = pkg\.cursorV2/);
+	assert.match(pump, /acceptSystemNotices\(active\.systemNoticeKey, pkg\.systemNotices\)[^]*active\.systemNoticeCursor = pkg\.systemNoticeCursor/);
 	assert.doesNotMatch(pump, /active\.cursor\s*=\s*[^;]*next_cursor|\bcursor: active\.cursor/);
+});
+
+test("system notices use a fresh harness custom turn and never user/followUp/steer delivery", () => {
+	const sender = bodyBetween("pi_systemNoticeSend =", "pi_send =");
+	assert.match(sender, /customType: SYSTEM_NOTICE_CUSTOM_TYPE/);
+	assert.match(sender, /pi\.sendMessage\(/);
+	assert.match(sender, /triggerTurn: true/);
+	assert.doesNotMatch(sender, /sendUserMessage|deliverAs|followUp|steer/);
+
+	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
+	assert.match(pump, /if \(!active\.busy && ctx\.isIdle\(\)\)[^]*deliverQueuedSystemNotices/);
+	const started = bodyBetween('pi.on("agent_start"', 'pi.on("agent_settled"');
+	assert.ok(started.indexOf("const completionNeutral = systemNoticeTurnPending") < started.indexOf("pump.busy = true"));
+	assert.match(started, /const activityPolicy = remoteRunActivityPolicy\(completionNeutral\)[^]*if \(pump && activityPolicy\.reportPresence\)[^]*pump\.busy = true[^]*beatBusy\(true\)/);
+	const settled = bodyBetween('pi.on("agent_settled"', "// ---- Turn lifecycle events");
+	assert.match(settled, /const activityPolicy = remoteRunActivityPolicy\(completionNeutral\)[^]*if \(pump && activityPolicy\.reportPresence\)[^]*pump\.busy = keepWorking[^]*beatBusy\(keepWorking/);
+	assert.match(settled, /!keepWorking && pump && !pump\.busy && ctx\.isIdle\(\)[^]*deliverQueuedSystemNotices/);
+	assert.match(settled, /!posted && activityPolicy\.reportCompletion[^]*reportComplete\("turn_end"/);
+	const runtimeStamp = bodyBetween("function scheduleRuntimeStamp", "/** Settle the turn's usage");
+	assert.match(runtimeStamp, /const completionNeutralAtSchedule = systemNoticeRunActive \|\| systemNoticeTurnPending/);
+	assert.match(runtimeStamp, /if \(!completionNeutralAtSchedule && !systemNoticeRunActive\) void beatBusy/);
+	const beat = bodyBetween("async function beatBusy", "function notify");
+	assert.match(beat, /if \(!active \|\| active\.stop \|\| systemNoticeRunActive\) return/);
+
+	const split = bodyBetween("function splitTurnAtBoundary", "/**\n * Assert busy presence");
+	assert.match(split, /completionNeutral: t\.completionNeutral/);
+	const answer = bodyBetween("async function postSegmentAnswer", "async function settleTurn");
+	assert.match(answer, /if \(!remoteRunActivityPolicy\(t\.completionNeutral\)\.reportTranscript\) return false/);
+	const trail = bodyBetween("function trailTick", "/**\n * Explicitly close");
+	assert.match(trail, /if \(!turn\?\.dirty \|\| !remoteRunActivityPolicy\(turn\.completionNeutral\)\.reportTranscript\) return/);
+	const shutdown = bodyBetween('pi.on("session_shutdown"', 'pi.on("session_start"');
+	assert.match(shutdown, /revokeSystemNoticeState\(active\.systemNoticeKey\)/);
+	assert.match(shutdown, /if \(openTurn && remoteRunActivityPolicy\(openTurn\.completionNeutral\)\.reportCompletion\)[^]*reportComplete\("process_exit"/);
+});
+
+test("same-run real user boundary ends notice neutrality before normal presence and settle", () => {
+	const messageStart = bodyBetween('pi.on("message_start"', 'pi.on("message_update"');
+	assert.match(messageStart, /transitionToRealUserActivity\(\{[^]*systemNoticeRunActive[^]*segmentCompletionNeutral: turn\.completionNeutral/);
+	assert.match(messageStart, /isDeliveryBoundary\(turn\.tracker\) \|\| activityTransition\?\.beginBusyPresence[^]*splitTurnAtBoundary\(\)/);
+	const endNeutral = messageStart.indexOf("systemNoticeRunActive = activityTransition?.nextSystemNoticeRunActive");
+	const bindTurn = messageStart.indexOf("turn.commandTurnId = incomingCommand?.turnId");
+	const trackUser = messageStart.indexOf("turn.tracker.userMessage(text, { customType })");
+	const beginBusy = messageStart.indexOf("pump.busy = true", trackUser);
+	const beat = messageStart.indexOf("beatBusy(true)", beginBusy);
+	assert.ok(endNeutral >= 0 && endNeutral < bindTurn && bindTurn < trackUser && trackUser < beginBusy && beginBusy < beat);
+	assert.match(messageStart, /const previousPolicy = activityTransition\?\.previousPolicy[^]*if \(previousPolicy\.reportCompletion\)[^]*reportComplete/);
+
+	const split = bodyBetween("function splitTurnAtBoundary", "/**\n * Assert busy presence");
+	assert.match(split, /const previousPolicy = remoteRunActivityPolicy\(t\.completionNeutral\)/);
+	assert.match(split, /!posted && previousPolicy\.reportCompletion[^]*reportComplete/);
+	const settled = bodyBetween('pi.on("agent_settled"', "// ---- Turn lifecycle events");
+	assert.match(settled, /const completionNeutral = systemNoticeRunActive \|\| settlingTurn\?\.completionNeutral === true/);
 });
 
 test("canonical parser output stays independent from playbook dispatch and control paths", () => {
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
-	assert.match(pump, /parsePollPayload\(payload, active\.bond\.connectionId\)/);
+	assert.match(pump, /parsePollPayload\(payload, active\.connectionIdentity, \{ systemNoticeNegotiated \}\)/);
 	assert.match(pump, /pkg\.ownerBundle/);
 	assert.match(pump, /pkg\.control/);
 	assert.match(pump, /for \(const dispatch of dispatches\) enqueuePlaybookRun/);

@@ -30,8 +30,9 @@ and binds all implementation decisions in this repo.
 less-common native tools are loaded on demand with `search_devspec_tools`. The
 generated MCP catalog is the wire map, not the initial model surface. Shared session
 plans are native: qualifying bonded work activates only `manage_plan`, and strict
-remote-ingress 1.3 resumes active plans at the current delivery tail without
-invalidating the stable prompt prefix. See VISION.md.
+remote-ingress 1.4 adds capacity-gated exact-connection system notices through
+an activity-neutral, generation-scoped harness turn, with preserved 1.3 command
+intake under notice backpressure. See VISION.md.
 
 ## Development
 

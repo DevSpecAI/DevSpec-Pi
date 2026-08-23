@@ -17,7 +17,7 @@ import {
 	safeAttachmentName,
 } from "../extensions/core/attachments.ts";
 import { formatCanonicalDeliveryContext, formatInboundBundleMessage, parsePollPayload } from "../extensions/core/remote-payload.ts";
-import { canonicalPoll, IDS } from "./canonical-ingress-fixture.ts";
+import { canonicalPoll, TEST_CONNECTION } from "./canonical-ingress-fixture.ts";
 
 const ME = "conn-123";
 
@@ -41,7 +41,7 @@ test("safeAttachmentName never escapes the attachment dir", () => {
 });
 
 test("attachment paths stay in hidden typed framing and never mutate the visible command body", () => {
-	const bundle = parsePollPayload(canonicalPoll({ body: "can you see the screenshot?" }), IDS.connection).ownerBundle!;
+	const bundle = parsePollPayload(canonicalPoll({ body: "can you see the screenshot?" }), TEST_CONNECTION).ownerBundle!;
 	bundle.commands[0].attachmentNotes =
 		"Attached files (open the local paths — they are part of the command):\n- shot.png (image/png, 12 bytes) → /tmp/shot.png";
 	const visible = formatInboundBundleMessage(bundle);

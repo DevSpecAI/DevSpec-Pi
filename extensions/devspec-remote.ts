@@ -39,6 +39,7 @@ import {
 	type IngressAdvisoryContext,
 	type OwnerCommand,
 	type OwnerCommandBundle,
+	type RemoteConnectionIdentity,
 } from "./core/remote-payload.ts";
 import { CommandTurnBindings, type CanonicalQueueItem } from "./core/command-turn.ts";
 import { compactWithContext, executeControlCommand, parseControlCommand, reloadWithContext, runReloadLap } from "./core/control.ts";
@@ -98,6 +99,19 @@ import {
 	SeenOwnerCommands,
 	sendModeAtSendTime,
 } from "./core/owner-inject.ts";
+import {
+	SYSTEM_NOTICE_CUSTOM_TYPE,
+	acceptSystemNotices,
+	bindSystemNoticeState,
+	commitSystemNoticeDelivery,
+	formatSystemNoticeMessage,
+	hasSystemNoticeBatchCapacity,
+	queuedSystemNotices,
+	revokeSystemNoticeState,
+	remoteRunActivityPolicy,
+	shouldDeliverSystemNotices,
+	transitionToRealUserActivity,
+} from "./core/system-notice.ts";
 
 const AGENT_NAME = "Pi";
 /** Aggregate current-session ownership; child identities remain inside pi-subagents. */
@@ -114,6 +128,12 @@ interface PumpState {
 	bond: BondState;
 	cursor?: string;
 	dispatchCursor?: string;
+	/** Independent v1 notice point; advances only after validated host acceptance. */
+	systemNoticeCursor?: string;
+	/** Frozen exact addressee for this registered pump generation. */
+	connectionIdentity: RemoteConnectionIdentity;
+	/** globalThis notice state key: Pi session + connection + pump generation. */
+	systemNoticeKey: string;
 	busy: boolean;
 	stop: boolean;
 	/** Shutdown blocks intake but still permits exact terminal fallback posts. */
@@ -180,6 +200,8 @@ interface TurnState {
 	commandTurnId?: string;
 	/** Exact owner command/source message this transcript segment answers. */
 	commandMessageId?: string;
+	/** Harness notice runs never post/complete owner command activity. */
+	completionNeutral: boolean;
 	dirty: boolean;
 	interval: ReturnType<typeof setInterval> | null;
 	/** Trail posts so far this run — drives the adaptive cadence. */
@@ -202,6 +224,8 @@ export function nextTrailDelayMs(postsSoFar: number): number {
 let postWarnedThisTurn = false;
 
 let turn: TurnState | null = null;
+let systemNoticeTurnPending = false;
+let systemNoticeRunActive = false;
 let nextTurnRevision = 1;
 const pendingTerminalPosts = new Set<Promise<void>>();
 const commandTurnBindings = new CommandTurnBindings();
@@ -220,7 +244,7 @@ const TRAIL_INTERVAL_MS = 1_000;
 function ensureTurn(): void {
 	if (turn) return;
 	if (!getBond()?.sessionId) { debug("ensureTurn: not attached"); return; }
-	turn = { revision: nextTurnRevision++, tracker: new TurnTracker(), trail: new TrailBuilder(), dirty: false, interval: null, posts: 0, lastPostAt: 0 };
+	turn = { revision: nextTurnRevision++, tracker: new TurnTracker(), trail: new TrailBuilder(), completionNeutral: false, dirty: false, interval: null, posts: 0, lastPostAt: 0 };
 	postWarnedThisTurn = false;
 	debug("ensureTurn: tracking (run-scoped)");
 	turn.interval = setInterval(trailTick, TRAIL_INTERVAL_MS);
@@ -250,6 +274,7 @@ function runtimeAgentStats(ctx: ExtensionContext | null = lastCtx): AgentStatsRe
 function scheduleRuntimeStamp(ctx: ExtensionContext): void {
 	lastCtx = ctx;
 	if (!pump) return;
+	const completionNeutralAtSchedule = systemNoticeRunActive || systemNoticeTurnPending;
 	if (runtimeStampTimer) clearTimeout(runtimeStampTimer);
 	runtimeStampTimer = setTimeout(() => {
 		runtimeStampTimer = null;
@@ -257,7 +282,7 @@ function scheduleRuntimeStamp(ctx: ExtensionContext): void {
 		if (!active || active.stop) return;
 		const stats = runtimeAgentStats(lastCtx);
 		latestAgentStats = stats;
-		void beatBusy(active.busy, stats);
+		if (!completionNeutralAtSchedule && !systemNoticeRunActive) void beatBusy(active.busy, stats);
 	}, 0);
 	if (typeof runtimeStampTimer.unref === "function") runtimeStampTimer.unref();
 }
@@ -336,7 +361,7 @@ function isCommandTurnUnbound(t: TurnState): boolean {
 }
 
 function trailTick(): void {
-	if (!turn?.dirty) return;
+	if (!turn?.dirty || !remoteRunActivityPolicy(turn.completionNeutral).reportTranscript) return;
 	const now = Date.now();
 	if (now - turn.lastPostAt < nextTrailDelayMs(turn.posts)) return;
 	const activityEvents = turn.trail.events();
@@ -389,6 +414,7 @@ async function reportComplete(reason: string, commandTurnId?: string, commandMes
  * mid-run close (f0df6c3e) passes false: the bubble is finished, work is not.
  */
 async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | null, why: string, completeTurn = true): Promise<boolean> {
+	if (!remoteRunActivityPolicy(t.completionNeutral).reportTranscript) return false;
 	const bond = getBond();
 	if (!bond?.sessionId) { debug("settle segment not attached"); return false; }
 
@@ -454,7 +480,7 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 	const interval = setInterval(trailTick, TRAIL_INTERVAL_MS);
 	if (typeof interval.unref === "function") interval.unref();
 	const next = new TurnTracker();
-	if (t.tracker.userText) next.carryUser(t.tracker.userText, t.tracker);
+	if (t.tracker.userText && !t.completionNeutral) next.carryUser(t.tracker.userText, t.tracker);
 	// A user-facing progress answer closes one transcript segment. Activity after
 	// it belongs to the next segment; carrying the old builder duplicated the
 	// entire prior activity beneath every later answer. Exact message identity
@@ -465,6 +491,7 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 		trail: new TrailBuilder(),
 		commandTurnId: t.commandTurnId,
 		commandMessageId: t.commandMessageId,
+		completionNeutral: t.completionNeutral,
 		dirty: false,
 		posts: 0,
 		lastPostAt: 0,
@@ -472,8 +499,11 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 	};
 	postWarnedThisTurn = false;
 	debug("delivery boundary", { completeTurn });
+	const previousPolicy = remoteRunActivityPolicy(t.completionNeutral);
 	trackTerminalPost(postSegmentAnswer(t, null, why, completeTurn).then(async (posted) => {
-		if (completeTurn && !posted) await reportComplete(why, t.commandTurnId, t.commandMessageId, isCommandTurnUnbound(t));
+		if (completeTurn && !posted && previousPolicy.reportCompletion) {
+			await reportComplete(why, t.commandTurnId, t.commandMessageId, isCommandTurnUnbound(t));
+		}
 	}));
 }
 
@@ -487,7 +517,7 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
  */
 async function beatBusy(busy: boolean, agentStats?: AgentStatsReport | null): Promise<void> {
 	const active = pump;
-	if (!active || active.stop) return;
+	if (!active || active.stop || systemNoticeRunActive) return;
 	const resolved = await resolveToken();
 	if (!resolved) return;
 	try {
@@ -506,6 +536,22 @@ async function beatBusy(busy: boolean, agentStats?: AgentStatsReport | null): Pr
 function notify(ctx: ExtensionContext | null, message: string, level: "info" | "warning" | "error" = "info"): void {
 	if (!ctx) return;
 	withLiveUi(ctx, () => ctx.ui.notify(message, level));
+}
+
+/** Deliver only from an idle, current generation. Busy intake remains memory-only. */
+function deliverQueuedSystemNotices(active: PumpState, ctx: ExtensionContext): boolean {
+	if (pump !== active || active.stop || !shouldDeliverSystemNotices({ ctxIdle: ctx.isIdle(), pumpBusy: active.busy })) return false;
+	const notices = queuedSystemNotices(active.systemNoticeKey);
+	if (notices.length === 0) return false;
+	const ids = notices.map((notice) => notice.notice_id);
+	pi_systemNoticeSend(formatSystemNoticeMessage(notices), { notices });
+	if (!commitSystemNoticeDelivery(active.systemNoticeKey, ids)) {
+		throw new Error("System notice generation changed during Pi delivery.");
+	}
+	// Capacity is available again. Wake the main pump immediately so notice
+	// negotiation resumes without waiting for the SSE safety interval.
+	signalWake(active);
+	return true;
 }
 
 async function ackControl(
@@ -613,6 +659,9 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	const active = pump;
 	if (!active) return;
 	active.stop = true;
+	systemNoticeTurnPending = false;
+	systemNoticeRunActive = false;
+	revokeSystemNoticeState(active.systemNoticeKey);
 	active.playbookQueue.invalidate();
 	for (const timer of active.playbookRetryTimers.values()) clearTimeout(timer);
 	active.playbookRetryTimers.clear();
@@ -709,6 +758,7 @@ function startPushChannel(active: PumpState, token: string, endpoint: string): v
 		mcpUrl: endpoint,
 		token,
 		connectionId: active.bond.connectionId,
+		systemNoticeVersion: 1,
 		signal: controller.signal,
 		handlers: {
 			onWake: () => {
@@ -895,6 +945,10 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (active.pushClosed) continue; // fall through to long-poll next lap
 		}
 
+		// The server can claim ten at once. Negotiate only when that complete batch
+		// fits; otherwise ordinary 1.3 command polling continues while notices stay
+		// server-retained behind the still-aware SSE marker.
+		const systemNoticeNegotiated = hasSystemNoticeBatchCapacity(active.systemNoticeKey);
 		let payload: unknown;
 		try {
 			const raw = await callDevspec(
@@ -905,6 +959,10 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					ingress_version: 1,
 					delegated_scope_version: 1,
 					active_plan_projection_version: 1,
+					...(systemNoticeNegotiated ? {
+						system_notice_version: 1,
+						system_notice_cursor: active.systemNoticeCursor,
+					} : {}),
 					cursor_v2: active.cursor,
 					dispatch_cursor: active.dispatchCursor,
 					wait_ms: pushMode ? 0 : POLL_WAIT_MS,
@@ -1003,7 +1061,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			}
 		}
 
-		const pkg = parsePollPayload(payload, active.bond.connectionId);
+		const pkg = parsePollPayload(payload, active.connectionIdentity, { systemNoticeNegotiated });
 		if (pkg.canonicalState === "invalid") {
 			// A negotiated changed response without a valid known ingress envelope
 			// has no executable or contextual meaning. Keep the canonical cursor
@@ -1015,6 +1073,27 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			debug("canonical ingress rejected", { errors: active.errors, errorPresent: Boolean(pkg.canonicalError) });
 			await new Promise((resolve) => setTimeout(resolve, ERROR_BACKOFF_MS));
 			continue;
+		}
+
+		if (pkg.systemNotices.length > 0) {
+			if (!acceptSystemNotices(active.systemNoticeKey, pkg.systemNotices)) {
+				active.errors += 1;
+				debug("system notice memory queue rejected", { errors: active.errors, count: pkg.systemNotices.length });
+				await new Promise((resolve) => setTimeout(resolve, ERROR_BACKOFF_MS));
+				continue;
+			}
+			// This independent point advances only after the entire validated batch is
+			// retained in bounded memory (busy) or synchronously accepted by idle Pi.
+			if (pkg.systemNoticeCursor) active.systemNoticeCursor = pkg.systemNoticeCursor;
+			// A claim may be capped while more rows remain. Coalesce one immediate
+			// no-hold lap while another complete batch still fits; once capacity is
+			// below ten, ordinary SSE-driven command polling continues under 1.3.
+			if (hasSystemNoticeBatchCapacity(active.systemNoticeKey)) signalWake(active);
+			if (!active.busy && ctx.isIdle()) {
+				try { deliverQueuedSystemNotices(active, ctx); } catch (error) {
+					debug("system notice idle delivery failed", { errorPresent: Boolean(error) });
+				}
+			}
 		}
 
 		if (pkg.activeSessionPlans !== undefined) {
@@ -1275,9 +1354,23 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 	}
 
 	setBond(bond);
+	const generation = nextPumpGeneration++;
+	const connectionIdentity: RemoteConnectionIdentity = {
+		connection_id: connectionId,
+		agent_name: AGENT_NAME,
+		codename: bond.codename ?? null,
+		label: bond.codename ? `${AGENT_NAME} · ${bond.codename}` : AGENT_NAME,
+	};
+	const systemNoticeKey = bindSystemNoticeState({
+		piSessionId: localId,
+		connectionId,
+		pumpGeneration: generation,
+	});
 	pump = {
-		generation: nextPumpGeneration++,
+		generation,
 		bond,
+		connectionIdentity,
+		systemNoticeKey,
 		busy: false,
 		stop: false,
 		errors: 0,
@@ -1307,6 +1400,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 }
 
 // Late-bound so the loop can reference the ExtensionAPI closure.
+let pi_systemNoticeSend: (message: string, details: { notices: unknown[] }) => void = () => {};
 let pi_send: (
 	message: string,
 	mode?: "now" | "steer" | "followUp",
@@ -1391,6 +1485,22 @@ export default function (pi: ExtensionAPI) {
 			if (trackedTurn.trail.applySubagentFleet(toolCallId, snapshot)) trackedTurn.dirty = true;
 		});
 	};
+	pi_systemNoticeSend = (message, details) => {
+		// Called only after the pump proves idle; triggerTurn starts a fresh
+		// harness-attributed run from this model-visible custom message.
+		systemNoticeTurnPending = true;
+		try {
+			pi.sendMessage({
+				customType: SYSTEM_NOTICE_CUSTOM_TYPE,
+				content: message,
+				display: true,
+				details,
+			}, { triggerTurn: true });
+		} catch (error) {
+			systemNoticeTurnPending = false;
+			throw error;
+		}
+	};
 	pi_send = (message, mode = "now", commandTurnId, commandMessageId, canonicalQueueItem) => {
 		commandTurnBindings.remember(message, commandTurnId, commandMessageId, canonicalQueueItem);
 		try {
@@ -1439,13 +1549,19 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("agent_start", () => {
-		if (pump) {
+		// Notice-triggered turns are harness-local. Detect them before touching
+		// pump presence so they cannot pick up or mutate an owner activity attempt.
+		const completionNeutral = systemNoticeTurnPending;
+		const activityPolicy = remoteRunActivityPolicy(completionNeutral);
+		systemNoticeRunActive = completionNeutral;
+		if (pump && activityPolicy.reportPresence) {
 			pump.busy = true;
 			void beatBusy(true);
 		}
 		// The run begins — the delivery unit. Turn state is born here (or on
 		// the first attached turn_start after a mid-run attach), never per round.
 		ensureTurn();
+		if (turn && completionNeutral) turn.completionNeutral = true;
 		// A completion custom message may start while the previous run's awaited
 		// agent_settled handler is still returning. Revision isolates those runs
 		// even though they intentionally share the owner TurnState.
@@ -1469,6 +1585,8 @@ export default function (pi: ExtensionAPI) {
 		const commandTurnId = settlingTurn?.commandTurnId;
 		const commandMessageId = settlingTurn?.commandMessageId;
 		const commandTurnUnbound = settlingTurn ? isCommandTurnUnbound(settlingTurn) : false;
+		const completionNeutral = systemNoticeRunActive || settlingTurn?.completionNeutral === true;
+		const activityPolicy = remoteRunActivityPolicy(completionNeutral);
 		// Settle telemetry FIRST so the idle/parked heartbeat and answer post carry
 		// this turn's report, not the previous one's.
 		const agentStats = settleTelemetry();
@@ -1476,12 +1594,12 @@ export default function (pi: ExtensionAPI) {
 		// Keep the pump authoritative Working signal alive until the final owned
 		// continuation settles; otherwise polls broadcast false and close the
 		// durable attempt while an async child is visibly still running.
-		const keepWorking = Boolean(settlingTurn && shouldPauseSettle(settlingTurn.tracker));
-		if (pump) {
+		const keepWorking = !completionNeutral && Boolean(settlingTurn && shouldPauseSettle(settlingTurn.tracker));
+		if (pump && activityPolicy.reportPresence) {
 			pump.busy = keepWorking;
 			void beatBusy(keepWorking, agentStats);
 		}
-		if (untitledAttached() && pump?.bond.sessionId) {
+		if (!completionNeutral && untitledAttached() && pump?.bond.sessionId) {
 			scheduleTitleRefresh(pump.bond.sessionId);
 		}
 		trackTerminalPost((async () => {
@@ -1489,8 +1607,20 @@ export default function (pi: ExtensionAPI) {
 			// Pause (wait/bg_run) keeps the tracker and the working attempt.
 			// No complete_turn post landed (aborted/empty turn, or the post
 			// failed) — close the working attempt explicitly (item 2c20337a).
-			if (!posted) await reportComplete("turn_end", commandTurnId, commandMessageId, commandTurnUnbound);
+			if (!posted && activityPolicy.reportCompletion) {
+				await reportComplete("turn_end", commandTurnId, commandMessageId, commandTurnUnbound);
+			}
 		})());
+		// Local telemetry above is safe; from here onward the notice run is over.
+		// Busy notices may wake only after final settlement proves both Pi and pump
+		// idle. The next custom run remains unbound from every owner generation.
+		if (completionNeutral) systemNoticeTurnPending = false;
+		systemNoticeRunActive = false;
+		if (!keepWorking && pump && !pump.busy && ctx.isIdle()) {
+			try { deliverQueuedSystemNotices(pump, ctx); } catch (error) {
+				debug("system notice settle drain failed", { errorPresent: Boolean(error) });
+			}
+		}
 	});
 
 	// ---- Turn lifecycle events (mechanical trail + final answer) ------------
@@ -1559,45 +1689,68 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("message_start", async (event, ctx) => {
 		lastCtx = ctx;
-		if (!turn) return;
 		const msg = event.message as { role?: string; customType?: string; details?: unknown } | undefined;
-		const text = extractText(event.message);
 		const customType = typeof msg?.customType === "string" ? msg.customType : null;
+		if (customType === SYSTEM_NOTICE_CUSTOM_TYPE) systemNoticeTurnPending = false;
+		if (!turn) return;
+		const text = extractText(event.message);
 		const harness = isHarnessOrigin(text, customType);
 		if (msg?.role === "user" || msg?.role === "custom" || harness) {
 			const isRealUserMessage = msg?.role === "user" && !harness;
+			if (customType === SYSTEM_NOTICE_CUSTOM_TYPE) turn.completionNeutral = true;
+			const activityTransition = isRealUserMessage
+				? transitionToRealUserActivity({
+					systemNoticeRunActive,
+					segmentCompletionNeutral: turn.completionNeutral,
+				})
+				: null;
+			if (activityTransition?.previousCompletionNeutral) turn.completionNeutral = true;
 			const incomingCommand = isRealUserMessage ? commandTurnBindings.take(text) : undefined;
 			// A mid-run OWNER/LOCAL user message is a delivery boundary
 			// (b1fb756a). Context/harness injections stay on this turn so
 			// they cannot complete_turn a working sentence (item 60cf5f00).
-			// The old segment posts its own exact command_message_id. The server
-			// completes that activity but keeps the shared command generation open
-			// while a newer command in it is still pending/working.
-			if (isRealUserMessage && isDeliveryBoundary(turn.tracker)) {
+			// Notice-to-user always gets a fresh segment even before assistant text:
+			// local input must not be mistaken for a replay of the harness message.
+			if (isRealUserMessage && (isDeliveryBoundary(turn.tracker) || activityTransition?.beginBusyPresence)) {
 				splitTurnAtBoundary();
 			} else if (isRealUserMessage && (turn.commandMessageId || isCommandTurnUnbound(turn))) {
 				// A pure tool-call/no-text segment is not a display boundary, but its
 				// activity identity still must terminate before the new user segment
-				// replaces it (notably a preemption-timeout steer).
-				trackTerminalPost(reportComplete(
-					"turn_end",
-					turn.commandTurnId,
-					turn.commandMessageId,
-					isCommandTurnUnbound(turn),
-				).then(() => undefined));
+				// replaces it (notably a preemption-timeout steer). The captured prior
+				// policy prevents a neutral notice from completing an owner attempt.
+				const previousTurn = turn;
+				const previousPolicy = activityTransition?.previousPolicy ??
+					remoteRunActivityPolicy(previousTurn.completionNeutral);
+				if (previousPolicy.reportCompletion) {
+					trackTerminalPost(reportComplete(
+						"turn_end",
+						previousTurn.commandTurnId,
+						previousTurn.commandMessageId,
+						isCommandTurnUnbound(previousTurn),
+					).then(() => undefined));
+				}
 			}
-			// Harness context belongs to the current owner generation. A real user
-			// message starts a new segment: bind the server turn id retained when the
-			// poller injected it, or clear the old binding for a local prompt.
+			// Atomically leave notice neutrality before starting the real segment.
+			// Bind immutable command identity (or clear it for local input), then
+			// begin normal busy presence exactly once for this same-run transition.
 			if (isRealUserMessage) {
+				systemNoticeTurnPending = false;
+				systemNoticeRunActive = activityTransition?.nextSystemNoticeRunActive ?? false;
+				turn.completionNeutral = activityTransition?.nextCompletionNeutral ?? false;
 				turn.revision = nextTurnRevision++;
 				turn.commandTurnId = incomingCommand?.turnId;
 				turn.commandMessageId = incomingCommand?.commandMessageId;
+				turn.tracker.userMessage(text, { customType });
+				if (activityTransition?.beginBusyPresence && pump) {
+					pump.busy = true;
+					void beatBusy(true);
+				}
+			} else {
+				turn.tracker.userMessage(text, {
+					customType,
+					backgroundTaskId: harness ? backgroundTaskNotificationId(text, msg?.details) : null,
+				});
 			}
-			turn.tracker.userMessage(text, {
-				customType,
-				backgroundTaskId: harness ? backgroundTaskNotificationId(text, msg?.details) : null,
-			});
 			// Idle triggerTurn custom messages bypass before_agent_start in Pi. The
 			// awaited message_start event is the earliest common point before the
 			// completion-wake model can author its recap.
@@ -1711,10 +1864,13 @@ export default function (pi: ExtensionAPI) {
 		const openTurn = turn;
 		if (openTurn?.interval) clearInterval(openTurn.interval);
 		turn = null;
+		systemNoticeTurnPending = false;
+		systemNoticeRunActive = false;
 		const active = pump;
 		if (!active) return;
 		active.closing = true;
 		active.stop = true;
+		revokeSystemNoticeState(active.systemNoticeKey);
 		active.pushAbort?.abort();
 		if (active.pushReconnectTimer) clearTimeout(active.pushReconnectTimer);
 		if (active.wakeWaiter) {
@@ -1728,7 +1884,7 @@ export default function (pi: ExtensionAPI) {
 			await Promise.allSettled([...pendingTerminalPosts]);
 		}
 		// Close the activity attempt while the bond is still on the wire.
-		if (openTurn) {
+		if (openTurn && remoteRunActivityPolicy(openTurn.completionNeutral).reportCompletion) {
 			try { await reportComplete("process_exit", openTurn.commandTurnId, openTurn.commandMessageId, isCommandTurnUnbound(openTurn)); } catch { /* best-effort */ }
 		}
 		pump = null;

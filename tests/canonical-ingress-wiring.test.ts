@@ -83,6 +83,41 @@ test("same-run real user boundary ends notice neutrality before normal presence 
 	assert.match(settled, /const completionNeutral = systemNoticeRunActive \|\| settlingTurn\?\.completionNeutral === true/);
 });
 
+test("recoverable server ends revive the same bond instead of spinning on an ended row", () => {
+	const recovery = bodyBetween("async function reviveRecoverableBond", "async function pumpLoop");
+	assert.match(recovery, /"register_connection"[^]*local_id: localId[^]*connection_capability_version: 1/);
+	assert.match(recovery, /if \(!sessionId && prior\.sessionId\)[^]*"attach_connection"[^]*session_id: prior\.sessionId/);
+	assert.match(recovery, /active\.bond = bond[^]*setBond\(bond\)[^]*startPushChannel\(active/);
+	assert.match(recovery, /planRecoveredConnectionScope\([^]*currentConnectionId: prior\.connectionId[^]*nextConnectionId: connectionId/);
+	assert.match(recovery, /active\.generation = recoveredScope\.generation[^]*active\.cursor = recoveredScope\.cursor[^]*active\.systemNoticeCursor = recoveredScope\.systemNoticeCursor[^]*active\.connectionIdentity = recoveredScope\.connectionIdentity/);
+	assert.match(recovery, /active\.playbookQueue\.invalidate\(\)[^]*active\.playbookQueue = new DeliveryQueue\(\)[^]*playbookRetryTimers\.clear\(\)[^]*playbookRetryAttempts\.clear\(\)/);
+	assert.match(recovery, /revokeSystemNoticeState\(active\.systemNoticeKey\)[^]*active\.systemNoticeKey = bindSystemNoticeState/);
+	assert.doesNotMatch(recovery, /new SeenOwnerCommands|seenOwnerCommands\s*=/,
+		"same-row revival must retain exactly-once command memory");
+
+	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
+	assert.equal((pump.match(/await reviveRecoverableBond\(active, token, ctx\)/g) ?? []).length, 2,
+		"push and long-poll ended paths both revive mechanically");
+	assert.match(pump, /push ended recoverable[^]*await reviveRecoverableBond/);
+	assert.match(pump, /poll recoverable server response[^]*await reviveRecoverableBond/);
+});
+
+test("awaited transcript writes revalidate immutable pump authority before posting", () => {
+	const post = bodyBetween("async function postToSession", "function trackTerminalPost");
+	assert.match(post, /capturePumpAuthority\([^]*await resolveToken\(\)[^]*isPumpAuthorityCurrent/);
+	assert.match(post, /connection_id: authority\.connectionId/);
+	const complete = bodyBetween("async function reportComplete", "/**\n * Post a captured segment's answer");
+	assert.match(complete, /capturePumpAuthority\([^]*await resolveToken\(\)[^]*isPumpAuthorityCurrent/);
+	assert.match(complete, /connection_id: authority\.connectionId/);
+});
+
+test("playbook retry revalidation cannot cross recovered connection authority", () => {
+	const retry = bodyBetween("function schedulePlaybookRetry", "function enqueuePlaybookRun");
+	assert.match(retry, /capturePumpAuthority\([^]*const authorityIsCurrent/);
+	assert.match(retry, /if \(!authorityIsCurrent\(\)\) return[^]*assertCurrent: \(\) => \{[^]*!authorityIsCurrent\(\)/);
+	assert.match(retry, /if \(authorityIsCurrent\(\)\) schedulePlaybookRetry/);
+});
+
 test("canonical parser output stays independent from playbook dispatch and control paths", () => {
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
 	assert.match(pump, /parsePollPayload\(payload, active\.connectionIdentity, \{ systemNoticeNegotiated \}\)/);

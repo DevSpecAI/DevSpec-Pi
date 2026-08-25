@@ -49,5 +49,5 @@ test("delivery boundaries post the old exact command before rebinding the new se
 	assert.ok(shutdown.indexOf("active.stop = true") < shutdown.indexOf("await Promise.allSettled"));
 	assert.match(source, /active\.stop && !active\.closing/);
 	assert.match(source, /pump !== active \|\| active\.stop/);
-	assert.match(source, /pump !== active \|\| \(active\.stop && !active\.closing\)/);
+	assert.match(source, /pump !== active \|\| !isPumpAuthorityCurrent\(authority/);
 });

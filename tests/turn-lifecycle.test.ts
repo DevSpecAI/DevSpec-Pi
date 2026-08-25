@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { formatPlaybookRunMessage, isPlaybookRunEnvelope, playbookRunId } from "../extensions/core/dispatch.ts";
+import { INTERACTION_EVENT_CUSTOM_TYPE, formatInteractionEventContinuation, type InteractionEventV1 } from "../extensions/core/interaction-events.ts";
 import { automaticBackgroundTaskId, backgroundTaskNotificationId, classifyUserKind, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, isSubagentAsyncNotification, isWaitNarration, isProcessClose, planSettle, shouldPauseSettle, shouldSplitFirstAnswer, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 
 function remoteTurn(answer: string): TurnTracker {
@@ -20,6 +21,34 @@ test("userMessage classifies remote / playbook / local", () => {
 	const l = new TurnTracker();
 	l.userMessage("just typing locally");
 	assert.equal(l.userKind, "local");
+});
+
+test("directed-question custom continuation is genuine activity but never remote command ingress", () => {
+	const interactionEvent: InteractionEventV1 = {
+		kind: "devspec.interaction_event",
+		version: 1,
+		event_id: "11111111-1111-4111-8111-111111111111",
+		response_id: "22222222-2222-4222-8222-222222222222",
+		question_id: "33333333-3333-4333-8333-333333333333",
+		origin_connection_id: "44444444-4444-4444-8444-444444444444",
+		source_session_id: "55555555-5555-4555-8555-555555555555",
+		response_kind: "text",
+		answer: "yes",
+		answered_at: "2026-08-25T12:00:00.000Z",
+		claim_token: "66666666-6666-4666-8666-666666666666",
+		lease_expires_at: "2026-08-25T12:00:30.000Z",
+	};
+	const message = formatInteractionEventContinuation(interactionEvent);
+	assert.equal(isHarnessOrigin(message), false, "formatter prefix is the text fallback when customType is unavailable");
+	assert.equal(classifyUserKind(message), "interaction");
+	assert.equal(isHarnessOrigin("host omitted the envelope", INTERACTION_EVENT_CUSTOM_TYPE), false,
+		"customType remains the primary classification signal");
+	assert.equal(classifyUserKind("host omitted the envelope", INTERACTION_EVENT_CUSTOM_TYPE), "interaction");
+	const tracker = new TurnTracker();
+	tracker.userMessage(message, { customType: INTERACTION_EVENT_CUSTOM_TYPE });
+	tracker.assistantFinal("Continuing the original workflow.");
+	assert.deepEqual(planSettle(tracker, true), { kind: "final", message: "Continuing the original workflow." });
+	assert.equal(tracker.userKind, "interaction");
 });
 
 test("remote run → the final assistant message is the answer (mechanical, single writer)", () => {

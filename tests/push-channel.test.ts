@@ -3,15 +3,21 @@ import { test } from "node:test";
 import {
 	nextPushReconnectDelayMs,
 	parseSseFrame,
+	PushChannelGenerationFence,
 	pushChannelUrl,
 	PUSH_HEALTHY_MS,
 	PUSH_RECONNECT_BACKOFF_MS,
 } from "../extensions/core/push-channel.ts";
 
-test("main SSE URL advertises system notice v1 only when explicitly requested", () => {
+test("main SSE URL advertises additive capabilities only when dynamically requested", () => {
 	assert.equal(
-		pushChannelUrl({ mcpUrl: "https://devspec.test/api/mcp", connectionId: "id with spaces", systemNoticeVersion: 1 }),
-		"https://devspec.test/api/mcp/connection-stream?connection_id=id+with+spaces&system_notice_version=1",
+		pushChannelUrl({
+			mcpUrl: "https://devspec.test/api/mcp",
+			connectionId: "id with spaces",
+			systemNoticeVersion: 1,
+			interactionEventVersion: 1,
+		}),
+		"https://devspec.test/api/mcp/connection-stream?connection_id=id+with+spaces&system_notice_version=1&interaction_event_version=1",
 	);
 	assert.equal(
 		pushChannelUrl({ mcpUrl: "https://devspec.test/api/mcp/", connectionId: "plain" }),
@@ -64,4 +70,28 @@ test("nextPushReconnectDelayMs restarts backoff when the dropped stream was heal
 test("nextPushReconnectDelayMs without an open timestamp trusts the attempt count", () => {
 	assert.equal(nextPushReconnectDelayMs(0, undefined, 5_000), PUSH_RECONNECT_BACKOFF_MS[0]);
 	assert.equal(nextPushReconnectDelayMs(3, undefined, 5_000), null);
+});
+
+test("dynamic SSE restart fences an already-scheduled reconnect from opening a second stream", () => {
+	const fence = new PushChannelGenerationFence();
+	const first = fence.begin();
+	let opens = 1;
+	let reconnectTimer: (() => void) | undefined = () => {
+		if (fence.isCurrent(first)) opens += 1;
+	};
+
+	// Production cancels the timer and invalidates its generation before open.
+	reconnectTimer = undefined;
+	fence.invalidate();
+	const replacement = fence.begin();
+	opens += 1;
+	assert.equal(fence.isCurrent(first), false);
+	assert.equal(fence.isCurrent(replacement), true);
+	reconnectTimer?.();
+	assert.equal(opens, 2, "only the original and its one replacement opened");
+
+	// Even if cancellation loses a race and the stale callback runs, fencing wins.
+	const staleCallback = () => { if (fence.isCurrent(first)) opens += 1; };
+	staleCallback();
+	assert.equal(opens, 2);
 });

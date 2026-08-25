@@ -21,6 +21,7 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { readFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { debugRemote as debug } from "./core/debug.ts";
 import { DeliveryQueue, StaleDeliveryError, nextDeliveryRetryDelayMs, type DeliveryLease } from "./core/delivery-queue.ts";
@@ -86,7 +87,7 @@ import {
 	setSessionPreview,
 	syncBondIntoStatus,
 } from "./core/status-line.ts";
-import { openPushChannel, nextPushReconnectDelayMs } from "./core/push-channel.ts";
+import { openPushChannel, nextPushReconnectDelayMs, PushChannelGenerationFence } from "./core/push-channel.ts";
 import {
 	ACTIVE_PLAN_CLEAR_TOMBSTONE,
 	activePlanTailForDelivery,
@@ -96,7 +97,26 @@ import {
 	markActivePlanAwareness,
 	serializeActiveSessionPlansProjection,
 } from "./core/active-session-plans.ts";
-import { withPlanToolActive } from "./core/model-surface.ts";
+import {
+	withDirectedQuestionToolActive,
+	withPlanToolActive,
+} from "./core/model-surface.ts";
+import {
+	INTERACTION_EVENT_CUSTOM_TYPE,
+	INTERACTION_EVENT_JOURNAL_TYPE,
+	InteractionEventDeliveryController,
+	InteractionEventJournal,
+	interactionEventJournalEntry,
+	interactionEventMatchesWorkflow,
+	parseInteractionEventPollPayload,
+	persistedActiveBranchEntries,
+	type InteractionEventApplicationDetails,
+	type InteractionEventDeliveryAuthority,
+	type InteractionEventDeliveryPort,
+	type InteractionEventMessageEndLike,
+	type InteractionEventV1,
+	type SessionEntryLike,
+} from "./core/interaction-events.ts";
 import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
 import { loadSettings, saveSettings } from "./core/settings.ts";
 import { decideOwnerDelivery, waitUntil } from "./core/preempt.ts";
@@ -168,6 +188,10 @@ interface PumpState {
 	pushAttempts: number;
 	pushOpenedAt?: number;
 	pushReconnectTimer?: ReturnType<typeof setTimeout>;
+	/** Negotiation carried by the currently open one-and-only SSE stream. */
+	pushInteractionAware?: boolean;
+	/** Fences close callbacks and reconnect timers from every replaced stream. */
+	pushGenerationFence: PushChannelGenerationFence;
 	wakePending?: boolean;
 	wakeWaiter?: (() => void) | null;
 	/** Last attach-context/title fetch attempt — titles are job-generated, so a
@@ -190,6 +214,16 @@ interface PumpState {
 
 let pump: PumpState | null = null;
 let nextPumpGeneration = 1;
+/** Branch-local durable receipts, reconstructed from Pi's JSONL session. */
+let interactionJournal = new InteractionEventJournal();
+let interactionDelivery = new InteractionEventDeliveryController(interactionJournal);
+interface PendingInteractionConfirmation {
+	message: InteractionEventMessageEndLike;
+	sessionFile: string | undefined;
+	sessionManager: ExtensionContext["sessionManager"];
+	active: PumpState;
+}
+const pendingInteractionConfirmations = new Set<PendingInteractionConfirmation>();
 /** Cached so a mid-turn poll does not re-read settings.json every lap. */
 let preemptOwnerCached = true;
 
@@ -678,6 +712,7 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	active.playbookQueue.invalidate();
 	for (const timer of active.playbookRetryTimers.values()) clearTimeout(timer);
 	active.playbookRetryTimers.clear();
+	active.pushGenerationFence.invalidate();
 	active.pushAbort?.abort();
 	if (active.pushReconnectTimer) {
 		clearTimeout(active.pushReconnectTimer);
@@ -692,6 +727,7 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	commandTurnBindings.clear();
 	setBond(null);
 	pi_setPlanToolActive(false);
+	pi_setQuestionToolActive(false);
 	setRemoteStatus(ctx);
 	if (serverAlreadyEnded) return;
 	const resolved = await resolveToken();
@@ -715,6 +751,174 @@ function signalWake(active: PumpState): void {
 		active.wakeWaiter = null;
 		w();
 	}
+}
+
+/** Interaction awareness is dynamic, but remains on while a durable ACK is pending. */
+function interactionEventsRelevant(active: PumpState): boolean {
+	return Boolean(
+		active.bond.connectionCapability &&
+		(active.bond.sessionId || interactionJournal.hasPendingAck(active.bond.connectionId)),
+	);
+}
+
+function interactionApplicationDetails(
+	active: PumpState,
+	ctx: ExtensionContext,
+	event: InteractionEventV1,
+): InteractionEventApplicationDetails {
+	return {
+		version: 1,
+		local_session_id: ctx.sessionManager.getSessionId(),
+		connection_id: active.bond.connectionId,
+		source_session_id: event.source_session_id,
+		event,
+	};
+}
+
+function readPersistedSessionEntries(sessionFile: string | undefined): SessionEntryLike[] | null {
+	if (!sessionFile) return null;
+	try {
+		const entries: SessionEntryLike[] = [];
+		for (const line of readFileSync(sessionFile, "utf8").split("\n")) {
+			if (!line.trim()) continue;
+			const value = JSON.parse(line) as unknown;
+			if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+			entries.push(value as SessionEntryLike);
+		}
+		return entries;
+	} catch {
+		return null;
+	}
+}
+
+function readPersistedActiveBranchEntries(
+	sessionManager: ExtensionContext["sessionManager"],
+	expectedSessionFile = sessionManager.getSessionFile(),
+): SessionEntryLike[] | null {
+	// A session switch between scheduling and confirmation must not let the old
+	// file prove application for the new active branch (or vice versa).
+	if (sessionManager.getSessionFile() !== expectedSessionFile) return null;
+	return persistedActiveBranchEntries(
+		readPersistedSessionEntries(expectedSessionFile),
+		sessionManager.getBranch() as SessionEntryLike[],
+	);
+}
+
+function replaceInteractionJournal(journal: InteractionEventJournal): void {
+	interactionJournal = journal;
+	interactionDelivery.replaceJournal(journal);
+}
+
+function interactionAuthorityCurrent(authority: InteractionEventDeliveryAuthority): boolean {
+	const active = pump;
+	return Boolean(active && !active.stop
+		&& active.generation === authority.generation
+		&& active.bond.connectionId === authority.connectionId
+		&& active.bond.sessionId === authority.sourceSessionId);
+}
+
+function interactionDeliveryPort(active: PumpState): InteractionEventDeliveryPort {
+	return {
+		append: (state, details) => pi_appendInteractionEntry(state, details),
+		send: (message, details) => pi_sendInteractionContinuation(message, details),
+		wake: () => {
+			if (pump === active && !active.stop) signalWake(active);
+		},
+	};
+}
+
+/**
+ * Idle-only observation/application. ACK eligibility is granted later, from
+ * the exact custom message's message_end path after a fresh JSONL disk read.
+ */
+function applyInteractionEvent(
+	active: PumpState,
+	ctx: ExtensionContext,
+	event: InteractionEventV1,
+): boolean {
+	if (pump !== active || active.stop || active.busy || !ctx.isIdle() || !interactionEventMatchesWorkflow(event, {
+		connectionId: active.bond.connectionId,
+		sourceSessionId: active.bond.sessionId,
+	})) return false;
+	const authority: InteractionEventDeliveryAuthority = {
+		generation: active.generation,
+		connectionId: active.bond.connectionId,
+		sourceSessionId: event.source_session_id,
+		localSessionId: ctx.sessionManager.getSessionId(),
+	};
+	const details = interactionApplicationDetails(active, ctx, event);
+	try {
+		const result = interactionDelivery.stage({
+			details,
+			authority,
+			idle: !active.busy && ctx.isIdle(),
+			isAuthorityCurrent: interactionAuthorityCurrent,
+			port: interactionDeliveryPort(active),
+		});
+		return result === "awaiting-persistence" || result === "applied";
+	} catch (error) {
+		debug("interaction event application failed", { errorPresent: Boolean(error) });
+		return false;
+	}
+}
+
+function attemptInteractionPersistenceConfirmation(
+	confirmation: PendingInteractionConfirmation,
+	settled: boolean,
+): void {
+	try {
+		const result = interactionDelivery.confirmPersistedMessage({
+			message: confirmation.message,
+			persistedEntries: readPersistedActiveBranchEntries(
+				confirmation.sessionManager,
+				confirmation.sessionFile,
+			),
+			isAuthorityCurrent: interactionAuthorityCurrent,
+			port: interactionDeliveryPort(confirmation.active),
+		});
+		if (result !== "pending") pendingInteractionConfirmations.delete(confirmation);
+		else if (settled) {
+			// Pi has fully settled, so its message_end persistence path has finished.
+			// No exact disk row now means persistence failed; release for lease retry.
+			interactionDelivery.abandonMessage(confirmation.message);
+			pendingInteractionConfirmations.delete(confirmation);
+		}
+	} catch (error) {
+		// The custom message itself remains sufficient recovery proof. A failed
+		// optional applied receipt must not erase that already-durable fact.
+		pendingInteractionConfirmations.delete(confirmation);
+		debug("interaction event persistence confirmation failed", { errorPresent: Boolean(error) });
+	}
+}
+
+function confirmInteractionMessageAfterPersistence(
+	message: InteractionEventMessageEndLike,
+	ctx: ExtensionContext,
+): void {
+	const active = pump;
+	if (!active) return;
+	const confirmation: PendingInteractionConfirmation = {
+		message,
+		sessionFile: ctx.sessionManager.getSessionFile(),
+		sessionManager: ctx.sessionManager,
+		active,
+	};
+	pendingInteractionConfirmations.add(confirmation);
+	// message_end handlers run immediately before Pi's synchronous JSONL append.
+	// A later task usually observes it; agent_settled is the definitive fallback
+	// if another async message_end handler delays persistence past this task.
+	const timer = setTimeout(() => attemptInteractionPersistenceConfirmation(confirmation, false), 0);
+	if (typeof timer.unref === "function") timer.unref();
+}
+
+/** Recover observed-before-application and applied-before-receipt crash windows. */
+function resumePersistedInteractionEvents(active: PumpState, ctx: ExtensionContext): void {
+	if (active.busy || !ctx.isIdle()) return;
+	for (const details of interactionJournal.pendingApplications(active.bond.connectionId, active.bond.sessionId)) {
+		if (pump !== active || active.stop || active.busy || !ctx.isIdle()) return;
+		applyInteractionEvent(active, ctx, details.event);
+	}
+	if (interactionJournal.hasPendingAck(active.bond.connectionId)) signalWake(active);
 }
 
 /** Wait for a wake frame (or the safety tick). Never rejects. */
@@ -741,8 +945,14 @@ function waitForWake(active: PumpState, safetyMs: number): Promise<void> {
  * grace-guarded liveness clear (10s) gives these retries their window: a
  * reconnect that lands in time re-stamps presence and defeats the clear.
  */
-function schedulePushReconnect(active: PumpState, token: string, endpoint: string): void {
-	if (active.stop || active.pushEnded !== undefined) return;
+function schedulePushReconnect(
+	active: PumpState,
+	token: string,
+	endpoint: string,
+	streamGeneration: number,
+): void {
+	if (active.stop || active.pushEnded !== undefined ||
+		!active.pushGenerationFence.isCurrent(streamGeneration)) return;
 	const delay = nextPushReconnectDelayMs(active.pushAttempts, active.pushOpenedAt, Date.now());
 	if (delay === null) {
 		active.pushClosed = true;
@@ -751,9 +961,11 @@ function schedulePushReconnect(active: PumpState, token: string, endpoint: strin
 	}
 	active.pushAttempts += 1;
 	debug("push reconnect attempt", { attempt: active.pushAttempts, delayMs: delay });
+	if (active.pushReconnectTimer) clearTimeout(active.pushReconnectTimer);
 	active.pushReconnectTimer = setTimeout(() => {
 		active.pushReconnectTimer = undefined;
-		if (active.stop || active.pushEnded !== undefined) return;
+		if (active.stop || active.pushEnded !== undefined ||
+			!active.pushGenerationFence.isCurrent(streamGeneration)) return;
 		startPushChannel(active, token, endpoint);
 		// A re-opened stream's first marker read always wakes (fresh baseline),
 		// so nothing that moved during the outage is missed.
@@ -764,37 +976,60 @@ function schedulePushReconnect(active: PumpState, token: string, endpoint: strin
 
 /** Open the SSE push channel; drops route through schedulePushReconnect. */
 function startPushChannel(active: PumpState, token: string, endpoint: string): void {
+	const streamGeneration = active.pushGenerationFence.begin();
 	const controller = new AbortController();
 	active.pushAbort = controller;
 	active.pushOpenedAt = Date.now();
+	active.pushInteractionAware = interactionEventsRelevant(active);
+	const current = () => pump === active && !active.stop &&
+		active.pushGenerationFence.isCurrent(streamGeneration);
 	void openPushChannel({
 		mcpUrl: endpoint,
 		token,
 		connectionId: active.bond.connectionId,
 		systemNoticeVersion: 1,
+		...(active.pushInteractionAware ? { interactionEventVersion: 1 as const } : {}),
 		signal: controller.signal,
 		handlers: {
 			onWake: () => {
+				if (!current()) return;
 				debug("push wake");
 				signalWake(active);
 			},
 			onEnded: (reason) => {
+				if (!current()) return;
 				active.pushEnded = reason;
 				signalWake(active);
 			},
 			onClose: (reason) => {
-				if (controller.signal.aborted) return;
+				if (controller.signal.aborted || !current()) return;
 				debug("push channel closed", { reasonPresent: Boolean(reason) });
-				schedulePushReconnect(active, token, endpoint);
+				schedulePushReconnect(active, token, endpoint, streamGeneration);
 				signalWake(active);
 			},
 		},
 	}).catch((err) => {
-		if (controller.signal.aborted) return;
+		if (controller.signal.aborted || !current()) return;
 		debug("push channel connect failed", { errorPresent: Boolean(err) });
-		schedulePushReconnect(active, token, endpoint);
+		schedulePushReconnect(active, token, endpoint, streamGeneration);
 		signalWake(active);
 	});
+}
+
+/** Restart the same stream only when its additive negotiation changed. */
+function ensurePushInteractionNegotiation(active: PumpState, token: string, endpoint: string): void {
+	const desired = interactionEventsRelevant(active);
+	if (active.pushInteractionAware === desired) return;
+	// Cancel AND fence a drop timer before opening the replacement stream. The
+	// stale callback cannot create a second concurrent stream even if it races.
+	if (active.pushReconnectTimer) clearTimeout(active.pushReconnectTimer);
+	active.pushReconnectTimer = undefined;
+	active.pushGenerationFence.invalidate();
+	active.pushAbort?.abort();
+	active.pushClosed = false;
+	active.pushAttempts = 0;
+	startPushChannel(active, token, endpoint);
+	signalWake(active);
 }
 
 function playbookRecord(value: unknown): Record<string, unknown> | null {
@@ -996,6 +1231,7 @@ async function reviveRecoverableBond(
 			},
 		};
 
+		active.pushGenerationFence.invalidate();
 		active.pushAbort?.abort();
 		if (active.pushReconnectTimer) clearTimeout(active.pushReconnectTimer);
 		active.pushReconnectTimer = undefined;
@@ -1027,8 +1263,10 @@ async function reviveRecoverableBond(
 		}
 		setBond(bond);
 		pi_setPlanToolActive(Boolean(bond.sessionId));
+		pi_setQuestionToolActive(Boolean(bond.sessionId && bond.connectionCapability));
 		setRemoteStatus(ctx);
 		if (bond.sessionId) void enrichBondWithSession(bond.sessionId);
+		resumePersistedInteractionEvents(active, ctx);
 		startPushChannel(active, token, await resolveEndpoint());
 		signalWake(active);
 		return true;
@@ -1046,7 +1284,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 
 	// Push mode: SSE wakes us; we fetch the package with a no-hold poll.
 	// Falls back to the held long-poll if the channel stays unavailable.
-	startPushChannel(active, token, await resolveEndpoint());
+	const endpoint = await resolveEndpoint();
+	startPushChannel(active, token, endpoint);
 	let pushMode = true;
 	// The safety tick keeps presence fresh and catches anything the stream missed.
 	const PUSH_SAFETY_MS = 75_000;
@@ -1054,6 +1293,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 
 	while (pump === active && !active.stop) {
 		lastCtx = ctx;
+		ensurePushInteractionNegotiation(active, token, endpoint);
 		// Server told us the bond ended — only a human End / local stop is sticky.
 		if (active.pushEnded !== undefined) {
 			if (isPermanentServerEnd("ended", active.pushEnded)) {
@@ -1089,6 +1329,13 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		// fits; otherwise ordinary 1.3 command polling continues while notices stay
 		// server-retained behind the still-aware SSE marker.
 		const systemNoticeNegotiated = hasSystemNoticeBatchCapacity(active.systemNoticeKey);
+		// Never ask the server to fetch/claim an interaction event while Pi is
+		// busy. The SSE marker and lease re-wake retain it until an idle lap.
+		const interactionEventNegotiated = interactionEventsRelevant(active)
+			&& Boolean(active.bond.sessionId) && !active.busy && ctx.isIdle();
+		const interactionEventAck = interactionEventNegotiated
+			? interactionJournal.nextAck(active.bond.connectionId, active.bond.sessionId)
+			: null;
 		let payload: unknown;
 		try {
 			const raw = await callDevspec(
@@ -1102,6 +1349,10 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					...(systemNoticeNegotiated ? {
 						system_notice_version: 1,
 						system_notice_cursor: active.systemNoticeCursor,
+					} : {}),
+					...(interactionEventNegotiated ? {
+						interaction_event_version: 1,
+						...(interactionEventAck ? { interaction_event_ack: interactionEventAck } : {}),
 					} : {}),
 					cursor_v2: active.cursor,
 					dispatch_cursor: active.dispatchCursor,
@@ -1159,6 +1410,24 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			continue;
 		}
 
+		// Parse the complete public event lane before host application or local ACK
+		// commitment. Unknown/malformed versions remain server-retained.
+		let interactionEvent: InteractionEventV1 | null;
+		try {
+			interactionEvent = parseInteractionEventPollPayload(payload, interactionEventNegotiated);
+		} catch (error) {
+			active.errors += 1;
+			debug("interaction event payload rejected", { errors: active.errors, errorPresent: Boolean(error) });
+			await new Promise((resolve) => setTimeout(resolve, ERROR_BACKOFF_MS));
+			continue;
+		}
+		if (interactionEventAck) {
+			const ackDetails = interactionJournal.detailsFor(interactionEventAck.event_id);
+			if (interactionJournal.markAcknowledged(interactionEventAck.event_id, interactionEventAck.claim_token) && ackDetails) {
+				pi_appendInteractionEntry("acknowledged", ackDetails);
+			}
+		}
+
 		// Adopt the server's CURRENT attachment every lap (edea1a91: the server is
 		// the sole attachment authority — the client observes, never re-adopts from
 		// local state). Without this, an owner attaching the connection from the UI
@@ -1188,10 +1457,32 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			active.activePlanTail = "";
 			setBond(next);
 			pi_setPlanToolActive(Boolean(serverSessionId));
+			pi_setQuestionToolActive(Boolean(serverSessionId && next.connectionCapability));
 			setRemoteStatus(ctx);
 			debug("attachment adopted from server", { attached: Boolean(serverSessionId) });
 			// Refresh display identity only. Command-turn context is canonical ingress.
-			if (serverSessionId) void enrichBondWithSession(serverSessionId);
+			if (serverSessionId) {
+				void enrichBondWithSession(serverSessionId);
+				// Reattachment may follow a message_end whose custom message persisted
+				// while authority was detached. Rebuild from disk before considering ACK.
+				replaceInteractionJournal(InteractionEventJournal.reconstruct(
+					readPersistedActiveBranchEntries(ctx.sessionManager) ?? [],
+					ctx.sessionManager.getSessionId(),
+				));
+			}
+			resumePersistedInteractionEvents(active, ctx);
+			ensurePushInteractionNegotiation(active, token, endpoint);
+		}
+
+		if (interactionEvent) {
+			if (!applyInteractionEvent(active, ctx, interactionEvent)) {
+				active.errors += 1;
+				debug("interaction event exact-workflow guard rejected", { errors: active.errors });
+				await new Promise((resolve) => setTimeout(resolve, ERROR_BACKOFF_MS));
+			}
+			// The server's event-only lane intentionally carries no canonical ingress,
+			// dispatch, notice, cursor, control, plan, trail, or activity payload.
+			continue;
 		}
 
 		// Titles are job-generated from the first substantial message: an attach
@@ -1522,6 +1813,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 		seenOwnerCommands: new SeenOwnerCommands(),
 		advisoryCarry: [],
 		pushAttempts: 0,
+		pushGenerationFence: new PushChannelGenerationFence(),
 		playbookQueue: new DeliveryQueue(),
 		playbookRetryAttempts: new Map(),
 		playbookRetryTimers: new Map(),
@@ -1531,6 +1823,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 		pendingActivePlanTail: "",
 	};
 	pi_setPlanToolActive(Boolean(bond.sessionId));
+	pi_setQuestionToolActive(Boolean(bond.sessionId && bond.connectionCapability));
 	preemptOwnerCached = (await loadSettings()).preemptOwner;
 	setRemoteStatus(ctx);
 	// Initial runtime identity must be visible before this agent has completed a
@@ -1539,12 +1832,21 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 	// Revive/register can already be attached. Refresh title/owner display
 	// identity; canonical ingress remains the only model-context source.
 	if (bond.sessionId) void enrichBondWithSession(bond.sessionId);
+	resumePersistedInteractionEvents(pump, ctx);
 	void pumpLoop(ctx);
 	return { ok: true, codename: bond.codename, attached };
 }
 
 // Late-bound so the loop can reference the ExtensionAPI closure.
 let pi_systemNoticeSend: (message: string, details: { notices: unknown[] }) => void = () => {};
+let pi_appendInteractionEntry: (
+	state: "observed" | "applied" | "acknowledged",
+	details: InteractionEventApplicationDetails,
+) => void = () => {};
+let pi_sendInteractionContinuation: (
+	message: string,
+	details: InteractionEventApplicationDetails,
+) => void = () => {};
 let pi_send: (
 	message: string,
 	mode?: "now" | "steer" | "followUp",
@@ -1558,6 +1860,7 @@ let pi_reload: () => Promise<void> = async () => {};
 let pi_setThinking: (level: string) => void = () => {};
 let pi_setModel: (modelId: string) => Promise<boolean> = async () => false;
 let pi_setPlanToolActive: (enabled: boolean) => void = () => {};
+let pi_setQuestionToolActive: (enabled: boolean) => void = () => {};
 
 /**
  * Refresh display identity only. Conversational/model context is accepted
@@ -1629,6 +1932,19 @@ export default function (pi: ExtensionAPI) {
 			if (trackedTurn.trail.applySubagentFleet(toolCallId, snapshot)) trackedTurn.dirty = true;
 		});
 	};
+	pi_appendInteractionEntry = (state, details) => {
+		pi.appendEntry(INTERACTION_EVENT_JOURNAL_TYPE, interactionEventJournalEntry(state, details));
+	};
+	pi_sendInteractionContinuation = (message, details) => {
+		// The poll lane and delivery controller both prove idle. Never create an
+		// uncancellable follow-up that could outlive attachment/pump authority.
+		pi.sendMessage({
+			customType: INTERACTION_EVENT_CUSTOM_TYPE,
+			content: message,
+			display: true,
+			details,
+		}, { triggerTurn: true });
+	};
 	pi_systemNoticeSend = (message, details) => {
 		// Called only after the pump proves idle; triggerTurn starts a fresh
 		// harness-attributed run from this model-visible custom message.
@@ -1684,6 +2000,10 @@ export default function (pi: ExtensionAPI) {
 		const next = withPlanToolActive(pi.getActiveTools(), enabled);
 		if (next.join("\0") !== pi.getActiveTools().join("\0")) pi.setActiveTools(next);
 	};
+	pi_setQuestionToolActive = (enabled) => {
+		const next = withDirectedQuestionToolActive(pi.getActiveTools(), enabled);
+		if (next.join("\0") !== pi.getActiveTools().join("\0")) pi.setActiveTools(next);
+	};
 
 	pi.on("model_select", (_event, ctx) => {
 		scheduleRuntimeStamp(ctx);
@@ -1713,6 +2033,9 @@ export default function (pi: ExtensionAPI) {
 	});
 	pi.on("agent_settled", async (_event, ctx) => {
 		lastCtx = ctx;
+		for (const confirmation of [...pendingInteractionConfirmations]) {
+			attemptInteractionPersistenceConfirmation(confirmation, true);
+		}
 		// The parent model may be locally finished while async children still own
 		// the user-visible job. Reconcile pi-subagents' documented current-session
 		// fleet before deciding whether this command attempt is terminal. The DTO
@@ -1934,7 +2257,13 @@ export default function (pi: ExtensionAPI) {
 		// Telemetry accumulates for EVERY assistant message while bonded —
 		// including turns the trail skips (unattached/local), so sessionless
 		// agents still report on the idle heartbeat.
-		const msg = event.message as { role?: string; usage?: MessageUsage } | undefined;
+		const msg = event.message as ({ role?: string; usage?: MessageUsage } & InteractionEventMessageEndLike) | undefined;
+		if (msg?.role === "custom" && msg.customType === INTERACTION_EVENT_CUSTOM_TYPE) {
+			// Pi 0.84 persists this finalized custom message immediately after all
+			// message_end extension handlers return. A later task verifies the exact
+			// JSONL row before the controller makes ACK eligible.
+			confirmInteractionMessageAfterPersistence(msg, ctx);
+		}
 		if (pump && msg?.role === "assistant") {
 			telemetry.addMessageUsage(msg.usage);
 		}
@@ -1999,6 +2328,10 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("session_shutdown", async () => {
 		subagentFleet.dispose();
+		for (const confirmation of pendingInteractionConfirmations) {
+			interactionDelivery.abandonMessage(confirmation.message);
+		}
+		pendingInteractionConfirmations.clear();
 		if (runtimeStampTimer) {
 			clearTimeout(runtimeStampTimer);
 			runtimeStampTimer = null;
@@ -2015,6 +2348,7 @@ export default function (pi: ExtensionAPI) {
 		active.closing = true;
 		active.stop = true;
 		revokeSystemNoticeState(active.systemNoticeKey);
+		active.pushGenerationFence.invalidate();
 		active.pushAbort?.abort();
 		if (active.pushReconnectTimer) clearTimeout(active.pushReconnectTimer);
 		if (active.wakeWaiter) {
@@ -2035,6 +2369,7 @@ export default function (pi: ExtensionAPI) {
 		commandTurnBindings.clear();
 		setBond(null);
 		pi_setPlanToolActive(false);
+		pi_setQuestionToolActive(false);
 		resetStatus();
 		paintStatus(lastCtx);
 
@@ -2059,6 +2394,10 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
+		replaceInteractionJournal(InteractionEventJournal.reconstruct(
+			readPersistedActiveBranchEntries(ctx.sessionManager) ?? [],
+			ctx.sessionManager.getSessionId(),
+		));
 		// Auto-bond: interactive sessions become DevSpec capacity on launch
 		// (zero-command). Headless modes never auto-bond — scripts, one-shots
 		// and cloud workers bond explicitly (RPC command / future flag).
@@ -2071,6 +2410,17 @@ export default function (pi: ExtensionAPI) {
 		if (outcome.ok) {
 			lastCtx = ctx;
 			notify(ctx, `DevSpec remote: auto-bonded as ${outcome.codename ?? "agent"} — you're reachable from the Agents page. /devspec.remote stop to end.`);
+		}
+	});
+
+	pi.on("session_tree", (_event, ctx) => {
+		replaceInteractionJournal(InteractionEventJournal.reconstruct(
+			readPersistedActiveBranchEntries(ctx.sessionManager) ?? [],
+			ctx.sessionManager.getSessionId(),
+		));
+		if (pump) {
+			resumePersistedInteractionEvents(pump, ctx);
+			signalWake(pump);
 		}
 	});
 

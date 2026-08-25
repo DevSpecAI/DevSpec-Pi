@@ -42,10 +42,13 @@
  *   text (e.g. a run that was pure tool calls with no closing message).
  */
 
-export type UserKind = "remote" | "playbook" | "local" | "harness";
+import { INTERACTION_EVENT_CUSTOM_TYPE } from "./interaction-events.ts";
+
+export type UserKind = "remote" | "playbook" | "interaction" | "local" | "harness";
 
 export const REMOTE_PREFIX = "[DevSpec remote — message from";
 export const PLAYBOOK_RUN_PREFIX = "[DevSpec remote — playbook run";
+export const INTERACTION_CONTINUATION_PREFIX = "[DevSpec directed-question workflow continuation]";
 const CONTEXT_TEXT_PREFIXES = [
 	"### DevSpec memory — auto-recall",
 	"[DevSpec remote — bond context",
@@ -69,7 +72,8 @@ export function isSubagentAsyncNotification(text: string, _customType?: string |
 }
 
 export function isHarnessOrigin(text: string, customType?: string | null): boolean {
-	if (text.startsWith(REMOTE_PREFIX) || text.startsWith(PLAYBOOK_RUN_PREFIX)) return false;
+	if (text.startsWith(REMOTE_PREFIX) || text.startsWith(PLAYBOOK_RUN_PREFIX) ||
+		text.startsWith(INTERACTION_CONTINUATION_PREFIX) || customType === INTERACTION_EVENT_CUSTOM_TYPE) return false;
 	if (typeof customType === "string" && customType.trim()) return true;
 	const t = text.trim();
 	if (!t) return false;
@@ -85,6 +89,7 @@ export function isHarnessOrigin(text: string, customType?: string | null): boole
 export function classifyUserKind(text: string, customType?: string | null): UserKind {
 	if (text.startsWith(REMOTE_PREFIX)) return "remote";
 	if (text.startsWith(PLAYBOOK_RUN_PREFIX)) return "playbook";
+	if (text.startsWith(INTERACTION_CONTINUATION_PREFIX) || customType === INTERACTION_EVENT_CUSTOM_TYPE) return "interaction";
 	if (isHarnessOrigin(text, customType)) return "harness";
 	return "local";
 }

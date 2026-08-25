@@ -24,6 +24,8 @@ export interface PushChannelOptions {
 	connectionId: string;
 	/** Main intake capability only; side polls never inherit this negotiation. */
 	systemNoticeVersion?: 1;
+	/** Durable interaction events share this one stream's wake marker. */
+	interactionEventVersion?: 1;
 	handlers: PushChannelHandlers;
 	/** Abort to close deliberately. */
 	signal: AbortSignal;
@@ -56,6 +58,24 @@ export function parseSseFrame(block: string): { event: string; data: string } | 
 export const PUSH_RECONNECT_BACKOFF_MS = [1_000, 4_000, 10_000] as const;
 export const PUSH_HEALTHY_MS = 30_000;
 
+/** Monotonic fence: callbacks/timers from a replaced stream cannot open another. */
+export class PushChannelGenerationFence {
+	private generation = 0;
+
+	begin(): number {
+		this.generation += 1;
+		return this.generation;
+	}
+
+	invalidate(): void {
+		this.generation += 1;
+	}
+
+	isCurrent(generation: number): boolean {
+		return generation === this.generation;
+	}
+}
+
 export function nextPushReconnectDelayMs(
 	attempts: number,
 	openedAt: number | undefined,
@@ -73,9 +93,10 @@ export function nextPushReconnectDelayMs(
  * (non-2xx, network) so the caller can choose fallback BEFORE any frames
  * flowed.
  */
-export function pushChannelUrl(opts: Pick<PushChannelOptions, "mcpUrl" | "connectionId" | "systemNoticeVersion">): string {
+export function pushChannelUrl(opts: Pick<PushChannelOptions, "mcpUrl" | "connectionId" | "systemNoticeVersion" | "interactionEventVersion">): string {
 	const query = new URLSearchParams({ connection_id: opts.connectionId });
 	if (opts.systemNoticeVersion === 1) query.set("system_notice_version", "1");
+	if (opts.interactionEventVersion === 1) query.set("interaction_event_version", "1");
 	return `${opts.mcpUrl.replace(/\/$/, "")}/connection-stream?${query.toString()}`;
 }
 

@@ -193,11 +193,13 @@ test("all send modes use the same visible bundle binding and idle retains hidden
 	assert.match(beforeStart, /display: false/);
 });
 
-test("attached bonds activate only native plan management and detach/stop removes it", () => {
+test("attached bonds independently activate native plan and directed-question management", () => {
 	const bond = bodyBetween("async function bondNow", "// Late-bound");
 	assert.match(bond, /pi_setPlanToolActive\(Boolean\(bond\.sessionId\)\)/);
+	assert.match(bond, /pi_setQuestionToolActive\(Boolean\(bond\.sessionId && bond\.connectionCapability\)\)/);
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
 	assert.match(pump, /pi_setPlanToolActive\(Boolean\(serverSessionId\)\)/);
+	assert.match(pump, /pi_setQuestionToolActive\(Boolean\(serverSessionId && next\.connectionCapability\)\)/);
 	assert.match(pump, /pi_setPlanToolActive\(Boolean\(active\.bond\.sessionId \|\| planTail\)\)/);
 	assert.match(pump, /authoritativeActivePlanTransitionTail\([^]*active\.awarenessKey[^]*active\.activePlanTail[^]*""/,
 		"detach/replacement consults persistent injected awareness");
@@ -206,6 +208,7 @@ test("attached bonds activate only native plan management and detach/stop remove
 	assert.doesNotMatch(stop, /clearActivePlanAwareness|resetActivePlanAwareness/, "stop preserves injected awareness for rebond");
 	const setter = bodyBetween("pi_setPlanToolActive =", 'pi.on("model_select"');
 	assert.match(setter, /withPlanToolActive\(pi\.getActiveTools\(\), enabled\)/);
+	assert.match(setter, /withDirectedQuestionToolActive\(pi\.getActiveTools\(\), enabled\)/);
 	assert.doesNotMatch(setter, /MODEL_VERB_NAMES|allModelFacingTools|searchRareModelTools/);
 });
 

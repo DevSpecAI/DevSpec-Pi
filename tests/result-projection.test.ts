@@ -75,15 +75,15 @@ test("model tool schemas and projection families require an explicit contract-ba
 		.filter((entry) => entry.kind === "model")
 		.map(({ name, inputSchema }) => ({ name, inputSchema, family: projectionFamily(name) }));
 	const fingerprint = createHash("sha256").update(JSON.stringify(contract)).digest("hex");
-	// Reviewed against DevSpecV2 staging 50a2831b1 after criterion evidence gained
-	// an optional repo-relative files list. No projection family changed; the
-	// schema remains cold and the existing full evidence projection is lossless.
+	// Reviewed against the directed-question reference server e890e9f1d.
+	// manage_directed_question stays cold until an attached capable bond activates
+	// it and uses the lossless full projection for authoritative question state.
 	//
-	// BUDGET: the additive field costs nothing until the rare tool is activated.
-	// QUALITY: optional file dependency evidence survives without a fallback family.
+	// BUDGET: activation is additive and session-scoped; no initial prefix cost.
+	// QUALITY: create/list/get/cancel responses retain canonical revision/status.
 	assert.equal(
 		fingerprint,
-		"5622d947d6050a798f4392cb6023cd378fb879b35997402d94aeb03ab4bf6853",
+		"7bf7d97d1d69c1b9908503dd99374f215d007c8adba7c77bce5781f615a31a79",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -97,7 +97,7 @@ test("verb projections use explicit, loss-aware families", () => {
 		"get_action_item", "claim_work_item", "get_session_transcript", "preview_conflict_resolution",
 		"get_project_instruction_rules", "get_personal_instructions", "get_workflow_rules", "get_database_schema",
 		"get_goals", "get_project_goals", "create_session", "claim_playbook_run", "claim_review",
-		"import_instruction_rules", "update_personal_instructions", "manage_plan",
+		"import_instruction_rules", "update_personal_instructions", "manage_plan", "manage_directed_question",
 	]) assert.equal(projectionFamily(verb), "full", verb);
 	assert.equal(projectionFamily("some_future_verb"), "fallback");
 });

@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: c2bac7827af84c5ebf911deb75a7e13291f3b037bc68ff3fc072511767d7c30d
+ * Schema fingerprint: b5447ddf5a57b38e9e4cb573a02d0032fab75b1f960e1c60415c5c029d9844f2
  * Description fingerprint: 16ff2c656c18c65d12be233c77f65c54b4aeaeb3d520580bb72aae1a90903e1d
- * Regenerated: 2026-08-23T16:57:27.690Z
+ * Regenerated: 2026-08-25T15:11:07.737Z
  */
-export const MCP_CATALOG_FINGERPRINT = "c2bac7827af84c5ebf911deb75a7e13291f3b037bc68ff3fc072511767d7c30d";
+export const MCP_CATALOG_FINGERPRINT = "b5447ddf5a57b38e9e4cb573a02d0032fab75b1f960e1c60415c5c029d9844f2";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "16ff2c656c18c65d12be233c77f65c54b4aeaeb3d520580bb72aae1a90903e1d";
-export const MCP_CATALOG_GENERATED_AT = "2026-08-23T16:57:27.690Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-08-25T15:11:07.737Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -3778,6 +3778,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 									"result": {
 										"type": "string",
 										"description": "What CAME BACK — the observed output, count, status or payload."
+									},
+									"files": {
+										"type": "array",
+										"items": {
+											"type": "string"
+										},
+										"description": "OPTIONAL, and worth filling in: the repo-relative paths this observation actually depended on — the files whose content would have to change for your answer to stop being true. If a later commit rewrites one of them, this verdict needs re-checking; if it touches nothing on your list, the verdict still stands. Nothing else records that, so without it every verdict has to be treated as equally suspect after any commit (measured: 286 live verdicts across 58 items already have a commit that landed after them). Omit it when the observation does not rest on files at all — a query against the deployed system, a log check, a migration you applied. Do not pad it with files you merely looked at."
 									}
 								},
 								"required": [

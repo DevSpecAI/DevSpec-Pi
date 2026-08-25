@@ -57,9 +57,11 @@ test("only a rejected token ends the bond from the client", () => {
 	assert.equal(isRecoverableTransportError(auth), false);
 });
 
-test("only ui / local_stop server ends are sticky", () => {
+test("explicit human, host-death, and auth server ends are sticky", () => {
 	assert.equal(isPermanentServerEnd("ended", "ui"), true);
 	assert.equal(isPermanentServerEnd("ended", "local_stop"), true);
+	assert.equal(isPermanentServerEnd("ended", "owner_gone"), true);
+	assert.equal(isPermanentServerEnd("ended", "auth"), true);
 	assert.equal(isPermanentServerEnd("ended", null), false);
 	assert.equal(isPermanentServerEnd("not_found", null), false);
 	assert.equal(isPermanentServerEnd("ended", "idle_timeout"), false);

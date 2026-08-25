@@ -75,16 +75,15 @@ test("model tool schemas and projection families require an explicit contract-ba
 		.filter((entry) => entry.kind === "model")
 		.map(({ name, inputSchema }) => ({ name, inputSchema, family: projectionFamily(name) }));
 	const fingerprint = createHash("sha256").update(JSON.stringify(contract)).digest("hex");
-	// Reviewed against DevSpecV2 staging 58f3257db for shared session plans.
-	// manage_plan is the one new schema-complete native verb and uses the full
-	// projection family because every mutation returns the authoritative snapshot.
+	// Reviewed against DevSpecV2 staging 50a2831b1 after criterion evidence gained
+	// an optional repo-relative files list. No projection family changed; the
+	// schema remains cold and the existing full evidence projection is lossless.
 	//
-	// BUDGET: the schema remains cold initially and tests measure its one-tool
-	// activation delta; unrelated rare schemas remain cold.
-	// QUALITY: plan snapshots are lossless and no new verb falls through.
+	// BUDGET: the additive field costs nothing until the rare tool is activated.
+	// QUALITY: optional file dependency evidence survives without a fallback family.
 	assert.equal(
 		fingerprint,
-		"260043f1f05162266005b3cfd0004d1dedda4037534e4d5c175dbe1b30f7b0a6",
+		"5622d947d6050a798f4392cb6023cd378fb879b35997402d94aeb03ab4bf6853",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

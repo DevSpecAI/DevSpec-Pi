@@ -166,10 +166,10 @@ export function shouldEndBondOnPollFailure(err: unknown): boolean {
 	return err instanceof DevspecAuthError || mapClientError(err) instanceof DevspecAuthError;
 }
 
-/** Human End / local stop are sticky. Redeploy, parse, not_found are not. */
+/** Explicit human/host/auth teardown is sticky. Inferred idle/not_found is recoverable. */
 export function isPermanentServerEnd(status?: string | null, endReason?: string | null): boolean {
 	if (status !== "ended" && status !== "not_found") return false;
-	return endReason === "ui" || endReason === "local_stop";
+	return endReason === "ui" || endReason === "local_stop" || endReason === "owner_gone" || endReason === "auth";
 }
 
 export interface CallOptions {

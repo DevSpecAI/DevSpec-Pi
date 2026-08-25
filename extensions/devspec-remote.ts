@@ -33,6 +33,11 @@ import {
 } from "./core/client.ts";
 import { connectionCapabilityFromResult, getBond, setBond, type BondState } from "./core/bond-state.ts";
 import {
+	capturePumpAuthority,
+	isPumpAuthorityCurrent,
+	planRecoveredConnectionScope,
+} from "./core/bond-recovery.ts";
+import {
 	formatCanonicalDeliveryContext,
 	formatInboundBundleMessage,
 	parsePollPayload,
@@ -314,12 +319,16 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 	const active = pump;
 	const bond = getBond();
 	if (!active || !bond?.sessionId) return false;
+	const authority = capturePumpAuthority({ generation: active.generation, connectionId: bond.connectionId });
 	const resolved = await resolveToken();
 	if (!resolved) return false;
-	if (pump !== active || (active.stop && !active.closing)) return false;
+	if (pump !== active || !isPumpAuthorityCurrent(authority, {
+		generation: active.generation,
+		connectionId: active.bond.connectionId,
+	}) || (active.stop && !active.closing)) return false;
 	try {
 		await callDevspec(resolved.token, "post_session_message", {
-			connection_id: bond.connectionId,
+			connection_id: authority.connectionId,
 			message,
 			agent_name: AGENT_NAME,
 			...(opts.commandTurnId ? { command_turn_id: opts.commandTurnId } : {}),
@@ -387,12 +396,16 @@ function trailTick(): void {
 async function reportComplete(reason: string, commandTurnId?: string, commandMessageId?: string, commandTurnUnbound = false): Promise<boolean> {
 	const active = pump;
 	if (!active || (active.stop && !active.closing)) return false;
+	const authority = capturePumpAuthority({ generation: active.generation, connectionId: active.bond.connectionId });
 	const resolved = await resolveToken();
 	if (!resolved) return false;
-	if (pump !== active || (active.stop && !active.closing)) return false;
+	if (pump !== active || !isPumpAuthorityCurrent(authority, {
+		generation: active.generation,
+		connectionId: active.bond.connectionId,
+	}) || (active.stop && !active.closing)) return false;
 	try {
 		await callDevspec(resolved.token, "report_complete", {
-			connection_id: active.bond.connectionId,
+			connection_id: authority.connectionId,
 			reason,
 			...(commandTurnId ? { command_turn_id: commandTurnId } : {}),
 			...(commandMessageId ? { command_message_id: commandMessageId } : {}),
@@ -848,6 +861,11 @@ function schedulePlaybookRetry(
 	quiet = false,
 ): void {
 	if (active.stop || pump !== active) return;
+	const authority = capturePumpAuthority({ generation: active.generation, connectionId: active.bond.connectionId });
+	const authorityIsCurrent = () => pump === active && !active.stop && isPumpAuthorityCurrent(authority, {
+		generation: active.generation,
+		connectionId: active.bond.connectionId,
+	});
 	const failures = (active.playbookRetryAttempts.get(key) ?? 0) + 1;
 	active.playbookRetryAttempts.set(key, failures);
 	const delayMs = nextDeliveryRetryDelayMs(failures);
@@ -855,23 +873,26 @@ function schedulePlaybookRetry(
 	if (!active.playbookRetryTimers.has(key)) {
 		const timer = setTimeout(() => {
 			active.playbookRetryTimers.delete(key);
-			if (active.stop || pump !== active) return;
+			if (!authorityIsCurrent()) return;
 			void revalidatePlaybookRunRetry({
 				key,
 				loadCurrentInbox: () => loadCurrentPlaybookInbox(active, key, token, ctx),
 				identity: playbookRunId,
 				assertCurrent: () => {
-					if (active.stop || pump !== active) throw new StaleDeliveryError();
+					if (!authorityIsCurrent()) throw new StaleDeliveryError();
 				},
 				withdrawCurrent: () => active.playbookQueue.invalidateKey(key),
 				enqueueCurrent: (currentRun) => enqueuePlaybookRun(active, token, currentRun, ctx),
 			}).then((outcome) => {
+				if (!authorityIsCurrent()) return;
 				if (outcome === "withdrawn") {
 					active.playbookRetryAttempts.delete(key);
 				} else if (outcome === "retry") {
 					schedulePlaybookRetry(active, key, token, ctx, "playbook run authority is not yet confirmable", true);
 				}
-			}).catch((retryError) => schedulePlaybookRetry(active, key, token, ctx, retryError));
+			}).catch((retryError) => {
+				if (authorityIsCurrent()) schedulePlaybookRetry(active, key, token, ctx, retryError);
+			});
 		}, delayMs);
 		if (typeof timer.unref === "function") timer.unref();
 		active.playbookRetryTimers.set(key, timer);
@@ -904,6 +925,118 @@ function enqueuePlaybookRun(
 	);
 }
 
+/**
+ * Revive a recoverably-ended server bond in place (idle timeout, redeploy,
+ * transient not_found). The owning Pi process is still alive, so stopping the
+ * pump would turn the server's inference into a real disconnect. Registration
+ * uses the same conversation local_id; the server revives that identity and
+ * rotates its hidden capability. Existing cursors/seen-command state stay on
+ * the pump so recovery cannot replay answered owner turns.
+ */
+async function reviveRecoverableBond(
+	active: PumpState,
+	token: string,
+	ctx: ExtensionContext,
+): Promise<boolean> {
+	if (active.stop || pump !== active) return false;
+	const prior = active.bond;
+	const localId = ctx.sessionManager.getSessionId();
+	try {
+		const regRaw = await callDevspec(token, "register_connection", {
+			local_id: localId,
+			agent_name: AGENT_NAME,
+			machine_hostname: hostname(),
+			cwd: ctx.cwd,
+			connection_capability_version: 1,
+		}, { cwd: ctx.cwd, lane: "pump" });
+		const reg = unwrapMcpResult(regRaw);
+		if (reg.isError) return false;
+		const details = (reg.details ?? {}) as Record<string, unknown>;
+		const connectionId = (details.connection_id ?? details.connectionId) as string | undefined;
+		const connectionCapability = connectionCapabilityFromResult(regRaw);
+		if (!connectionId || !connectionCapability || active.stop || pump !== active) return false;
+
+		let sessionId = typeof details.session_id === "string" ? details.session_id : undefined;
+		if (!sessionId && prior.sessionId) {
+			const attachRaw = await callDevspec(token, "attach_connection", {
+				connection_id: connectionId,
+				session_id: prior.sessionId,
+			}, { cwd: ctx.cwd, lane: "pump" });
+			const attach = unwrapMcpResult(attachRaw);
+			if (attach.isError || active.stop || pump !== active) return false;
+			const attached = (attach.details ?? {}) as Record<string, unknown>;
+			sessionId = typeof attached.session_id === "string" ? attached.session_id : prior.sessionId;
+		}
+
+		const recoveredScope = planRecoveredConnectionScope({
+			currentConnectionId: prior.connectionId,
+			nextConnectionId: connectionId,
+			generation: active.generation,
+			nextGeneration: connectionId === prior.connectionId ? active.generation : nextPumpGeneration++,
+			cursor: active.cursor,
+			dispatchCursor: active.dispatchCursor,
+			systemNoticeCursor: active.systemNoticeCursor,
+			synced: active.synced,
+			agentName: AGENT_NAME,
+			codename: typeof details.codename === "string" ? details.codename : prior.codename,
+		});
+		const changedConnection = recoveredScope.changedConnection;
+		const bond: BondState = {
+			...prior,
+			connectionId,
+			projectId: typeof details.project_id === "string" ? details.project_id : prior.projectId,
+			connectionCapability,
+			codename: typeof details.codename === "string" ? details.codename : prior.codename,
+			sessionId,
+			instructions: {
+				owner_custom_instructions: (details.owner_custom_instructions as string | undefined) ?? prior.instructions?.owner_custom_instructions,
+				owner_agent_rules: (details.owner_agent_rules as string | undefined) ?? prior.instructions?.owner_agent_rules,
+				project_custom_instructions: (details.project_custom_instructions as string | undefined) ?? prior.instructions?.project_custom_instructions,
+				project_agent_rules: (details.project_agent_rules as string | undefined) ?? prior.instructions?.project_agent_rules,
+			},
+		};
+
+		active.pushAbort?.abort();
+		if (active.pushReconnectTimer) clearTimeout(active.pushReconnectTimer);
+		active.pushReconnectTimer = undefined;
+		active.pushClosed = false;
+		active.pushEnded = undefined;
+		active.pushAttempts = 0;
+		active.errors = 0;
+		active.bond = bond;
+		active.generation = recoveredScope.generation;
+		active.cursor = recoveredScope.cursor;
+		active.dispatchCursor = recoveredScope.dispatchCursor;
+		active.systemNoticeCursor = recoveredScope.systemNoticeCursor;
+		active.synced = recoveredScope.synced;
+		active.connectionIdentity = recoveredScope.connectionIdentity;
+		if (changedConnection) {
+			active.advisoryCarry = [];
+			active.attachmentRetryAttempts.clear();
+			active.playbookQueue.invalidate();
+			active.playbookQueue = new DeliveryQueue();
+			for (const timer of active.playbookRetryTimers.values()) clearTimeout(timer);
+			active.playbookRetryTimers.clear();
+			active.playbookRetryAttempts.clear();
+			revokeSystemNoticeState(active.systemNoticeKey);
+			active.systemNoticeKey = bindSystemNoticeState({
+				piSessionId: localId,
+				connectionId,
+				pumpGeneration: active.generation,
+			});
+		}
+		setBond(bond);
+		pi_setPlanToolActive(Boolean(bond.sessionId));
+		setRemoteStatus(ctx);
+		if (bond.sessionId) void enrichBondWithSession(bond.sessionId);
+		startPushChannel(active, token, await resolveEndpoint());
+		signalWake(active);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 	const active = pump;
 	if (!active) return;
@@ -929,7 +1062,14 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				return;
 			}
 			debug("push ended recoverable", { reasonPresent: Boolean(active.pushEnded) });
-			active.pushEnded = undefined;
+			if (await reviveRecoverableBond(active, token, ctx)) {
+				pushMode = true;
+				notifiedFallback = false;
+				continue;
+			}
+			active.errors += 1;
+			await new Promise((resolve) => setTimeout(resolve, ERROR_BACKOFF_MS));
+			continue;
 		}
 		if (pushMode && active.pushClosed) {
 			pushMode = false;
@@ -1010,7 +1150,11 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			}
 			active.errors += 1;
 			debug("poll recoverable server response", { ended: status === "ended", reasonPresent: Boolean(endReason) });
-			void beatBusy(active.busy);
+			if (await reviveRecoverableBond(active, token, ctx)) {
+				pushMode = true;
+				notifiedFallback = false;
+				continue;
+			}
 			await new Promise((r) => setTimeout(r, ERROR_BACKOFF_MS));
 			continue;
 		}

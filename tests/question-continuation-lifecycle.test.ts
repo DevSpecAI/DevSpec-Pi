@@ -13,14 +13,17 @@ function between(start: string, end: string): string {
 	return remote.slice(from, to);
 }
 
-test("only a successful directed-question create result requests Pi termination", () => {
-	assert.equal(shouldTerminateAfterDirectedQuestionCreate("manage_directed_question", { action: "create" }), true);
+test("only a receipt-owning successful directed-question create requests Pi termination", () => {
+	const receipt = { details: { question: { transcriptMessageId: "11111111-1111-4111-8111-111111111111" } } };
+	assert.equal(shouldTerminateAfterDirectedQuestionCreate("manage_directed_question", { action: "create" }, receipt), true);
+	assert.equal(shouldTerminateAfterDirectedQuestionCreate("manage_directed_question", { action: "create" }, { details: { question: { transcriptMessageId: null } } }), false);
+	assert.equal(shouldTerminateAfterDirectedQuestionCreate("manage_directed_question", { action: "create" }, { details: { question: {} } }), false);
 	for (const action of ["list", "get", "cancel"]) {
-		assert.equal(shouldTerminateAfterDirectedQuestionCreate("manage_directed_question", { action }), false, action);
+		assert.equal(shouldTerminateAfterDirectedQuestionCreate("manage_directed_question", { action }, receipt), false, action);
 	}
-	assert.equal(shouldTerminateAfterDirectedQuestionCreate("manage_plan", { action: "create" }), false);
+	assert.equal(shouldTerminateAfterDirectedQuestionCreate("manage_plan", { action: "create" }, receipt), false);
 	const successPath = tools.slice(tools.indexOf("const projected = unwrapOrThrow"), tools.indexOf("} catch (err)", tools.indexOf("const projected = unwrapOrThrow")));
-	assert.match(successPath, /shouldTerminateAfterDirectedQuestionCreate\(name, args\)[^]*terminate: true/);
+	assert.match(successPath, /shouldTerminateAfterDirectedQuestionCreate\(name, args, projected\)[^]*terminate: true/);
 	assert.ok(tools.indexOf("const projected = unwrapOrThrow") < tools.indexOf("terminate: true as const"));
 });
 
@@ -54,7 +57,7 @@ test("persisted custom application ACKs mechanically while busy before model set
 });
 
 test("trail, final, keepalive, fallback, and process exit carry the exact interaction tuple", () => {
-	assert.match(remote, /postToSession\(rendered, \{ phase: "trail"[^]*interaction: interactionIdentity\(turn\.interaction\)/);
+	assert.match(remote, /postToSession\(rendered, \{ phase: "trail"[^]*interaction: interactionIdentity\(postingTurn\.interaction\)/);
 	assert.match(remote, /phase: "answer"[^]*interaction: interactionIdentity\(t\.interaction\)/);
 	const keepalive = between("async function keepInteractionContinuationAlive", "async function releaseInteractionBeforePersistence");
 	assert.match(keepalive, /interactionAuthorityCurrent\(run\.authority\)[^]*await resolveToken\(\)[^]*interactionAuthorityCurrent\(run\.authority\)/);

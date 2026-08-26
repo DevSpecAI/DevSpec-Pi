@@ -3,8 +3,8 @@
  *
  * The event itself is a mechanical response, not conversational ingress. Pi
  * persists an observation before application, persists the dedicated custom
- * message as the durable application proof, and only then makes its ACK
- * eligible for the next ordinary poll_connection lap.
+ * message as the durable application proof, and only then sends its exact ACK
+ * mechanically without waiting for model settlement.
  */
 
 export const INTERACTION_EVENT_VERSION = 1 as const;
@@ -46,7 +46,70 @@ export interface InteractionEventApplicationDetails {
 	local_session_id: string;
 	connection_id: string;
 	source_session_id: string;
+	/** Exact server activity identity for protocol 1.1 applications. Absent only
+	 * on legacy v1 receipts written before exact continuation activity shipped. */
+	attempt_id?: string;
 	event: InteractionEventV1;
+}
+
+export interface ExactInteractionContinuationIdentity {
+	attemptId: string;
+	eventId: string;
+	responseId: string;
+	claimToken: string;
+}
+
+export type InteractionContinuationStartResult =
+	| { outcome: "started"; attemptId: string; sourceSessionId: string; idempotent: boolean }
+	| { outcome: "blocked_by_activity" | "blocked_by_attachment" | "source_session_unavailable" | "already_acked" }
+	| { outcome: "terminal_same_claim" | "stale_generation" | "recovery_requires_reclaim"; attemptId: string; sourceSessionId: string };
+
+/** Strictly project the server 1.1 start result before any custom message may be injected. */
+export function parseInteractionContinuationStartResult(value: unknown): InteractionContinuationStartResult {
+	const row = record(value, "interaction continuation start");
+	const outcome = row.outcome;
+	if (outcome === "started") {
+		if (row.phase !== "working" || typeof row.idempotent !== "boolean") {
+			fail("interaction continuation start", "started outcome must be working and carry idempotence");
+		}
+		return {
+			outcome,
+			attemptId: uuid(row.attempt_id, "interaction continuation start.attempt_id"),
+			sourceSessionId: uuid(row.source_session_id, "interaction continuation start.source_session_id"),
+			idempotent: row.idempotent,
+		};
+	}
+	if (outcome === "blocked_by_activity" || outcome === "blocked_by_attachment" ||
+		outcome === "source_session_unavailable" || outcome === "already_acked") return { outcome };
+	if (outcome === "terminal_same_claim" || outcome === "stale_generation" || outcome === "recovery_requires_reclaim") {
+		return {
+			outcome,
+			attemptId: uuid(row.attempt_id, "interaction continuation start.attempt_id"),
+			sourceSessionId: uuid(row.source_session_id, "interaction continuation start.source_session_id"),
+		};
+	}
+	fail("interaction continuation start.outcome", "unknown outcome");
+}
+
+export type InteractionContinuationStartAction = "inject" | "release" | "defer" | "ignore";
+
+/** Mechanical start policy: only a current `started` result may reach Pi. */
+export function interactionContinuationStartAction(
+	result: InteractionContinuationStartResult,
+	authorityCurrent: boolean,
+): InteractionContinuationStartAction {
+	if (result.outcome === "started") return authorityCurrent ? "inject" : "release";
+	if (result.outcome === "already_acked") return "ignore";
+	return "defer";
+}
+
+export function exactInteractionContinuationArgs(identity: ExactInteractionContinuationIdentity): Record<string, unknown> {
+	return {
+		attempt_id: identity.attemptId,
+		interaction_event_id: identity.eventId,
+		interaction_response_id: identity.responseId,
+		interaction_claim_token: identity.claimToken,
+	};
 }
 
 export type InteractionEventJournalEntry =
@@ -228,11 +291,15 @@ function parseApplicationDetails(value: unknown): InteractionEventApplicationDet
 			typeof row.connection_id !== "string" || typeof row.source_session_id !== "string") return null;
 		const event = parseInteractionEventV1(row.event, "interaction receipt.event");
 		if (event.origin_connection_id !== row.connection_id || event.source_session_id !== row.source_session_id) return null;
+		const attemptId = row.attempt_id === undefined
+			? undefined
+			: uuid(row.attempt_id, "interaction receipt.attempt_id");
 		return {
 			version: 1,
 			local_session_id: row.local_session_id,
 			connection_id: row.connection_id,
 			source_session_id: row.source_session_id,
+			...(attemptId ? { attempt_id: attemptId } : {}),
 			event,
 		};
 	} catch {
@@ -275,6 +342,9 @@ export function interactionApplicationImmutableFieldsEqual(
 		&& left.local_session_id === right.local_session_id
 		&& left.connection_id === right.connection_id
 		&& left.source_session_id === right.source_session_id
+		// Legacy observed/applied receipts predate exact attempts. They may be
+		// upgraded once, but two concrete attempt identities must never collide.
+		&& (!left.attempt_id || !right.attempt_id || left.attempt_id === right.attempt_id)
 		&& interactionEventImmutableFieldsEqual(left.event, right.event);
 }
 
@@ -283,6 +353,7 @@ function interactionApplicationExactEqual(
 	right: InteractionEventApplicationDetails,
 ): boolean {
 	return interactionApplicationImmutableFieldsEqual(left, right)
+		&& left.attempt_id === right.attempt_id
 		&& left.event.claim_token === right.event.claim_token
 		&& left.event.lease_expires_at === right.event.lease_expires_at;
 }
@@ -344,6 +415,15 @@ export class InteractionEventJournal {
 		const state: ReceiptState = eventMatch ?? responseMatch ?? { ...details, applied: false, acknowledged: false };
 		if (this.isConflicted(state)) return;
 		const claimChanged = state.event.claim_token !== details.event.claim_token;
+		if (details.attempt_id) {
+			if (state.attempt_id && state.attempt_id !== details.attempt_id && state.applied && !claimChanged) {
+				this.quarantine(details, [state]);
+				return;
+			}
+			// A pre-persistence failure may redeliver with a new claim and exact
+			// attempt; an applied receipt never changes its execution identity.
+			if (!state.applied || !state.attempt_id) state.attempt_id = details.attempt_id;
+		}
 		state.event = details.event; // only a structurally identical redelivery may rotate the lease
 		state.applied ||= applied;
 		if (claimChanged) state.acknowledged = false;
@@ -368,6 +448,14 @@ export class InteractionEventJournal {
 		if (!existing) {
 			this.restore(details, false, false);
 			return "new";
+		}
+		const claimChanged = existing.event.claim_token !== details.event.claim_token;
+		if (details.attempt_id) {
+			if (existing.attempt_id && existing.attempt_id !== details.attempt_id && existing.applied && !claimChanged) {
+				this.quarantine(details, [existing]);
+				return "conflict";
+			}
+			if (!existing.applied || !existing.attempt_id) existing.attempt_id = details.attempt_id;
 		}
 		existing.event = details.event;
 		existing.acknowledged = false; // a current redelivery requires the newest claim token
@@ -436,8 +524,21 @@ export class InteractionEventJournal {
 export interface InteractionEventDeliveryAuthority {
 	generation: number;
 	connectionId: string;
+	connectionCapability: string;
 	sourceSessionId: string;
 	localSessionId: string;
+}
+
+export function exactInteractionAuthorityMatches(
+	expected: InteractionEventDeliveryAuthority,
+	current: InteractionEventDeliveryAuthority | null,
+): boolean {
+	return Boolean(current
+		&& current.generation === expected.generation
+		&& current.connectionId === expected.connectionId
+		&& current.connectionCapability === expected.connectionCapability
+		&& current.sourceSessionId === expected.sourceSessionId
+		&& current.localSessionId === expected.localSessionId);
 }
 
 export interface InteractionEventMessageEndLike {

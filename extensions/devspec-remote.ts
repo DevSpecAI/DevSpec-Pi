@@ -87,7 +87,15 @@ import {
 	setSessionPreview,
 	syncBondIntoStatus,
 } from "./core/status-line.ts";
-import { openPushChannel, nextPushReconnectDelayMs, PushChannelGenerationFence } from "./core/push-channel.ts";
+import {
+	BusyWakeLatch,
+	openPushChannel,
+	nextPushReconnectDelayMs,
+	PushChannelGenerationFence,
+	RuntimeOccupancyFence,
+	WakeGenerationGate,
+	type RuntimeOccupancyRevision,
+} from "./core/push-channel.ts";
 import {
 	ACTIVE_PLAN_CLEAR_TOMBSTONE,
 	activePlanTailForDelivery,
@@ -106,10 +114,15 @@ import {
 	INTERACTION_EVENT_JOURNAL_TYPE,
 	InteractionEventDeliveryController,
 	InteractionEventJournal,
+	exactInteractionContinuationArgs,
+	exactInteractionAuthorityMatches,
+	interactionContinuationStartAction,
 	interactionEventJournalEntry,
 	interactionEventMatchesWorkflow,
+	parseInteractionContinuationStartResult,
 	parseInteractionEventPollPayload,
 	persistedActiveBranchEntries,
+	type ExactInteractionContinuationIdentity,
 	type InteractionEventApplicationDetails,
 	type InteractionEventDeliveryAuthority,
 	type InteractionEventDeliveryPort,
@@ -146,6 +159,20 @@ const POLL_WAIT_MS = 25_000;
 const POLL_TIMEOUT_MS = 45_000;
 const ERROR_BACKOFF_MS = 5_000;
 const MAX_CONSECUTIVE_ERRORS = 10;
+
+interface PendingInteractionStartRetry {
+	event: InteractionEventV1;
+	generation: number;
+	localSessionId: string;
+	attempts: number;
+	nextAt: number;
+}
+
+interface PendingInteractionReleaseRetry {
+	run: ExactInteractionRun;
+	attempts: number;
+	nextAt: number;
+}
 
 interface PumpState {
 	/** Monotonic authority generation; async work may commit only while this pump remains current. */
@@ -192,8 +219,16 @@ interface PumpState {
 	pushInteractionAware?: boolean;
 	/** Fences close callbacks and reconnect timers from every replaced stream. */
 	pushGenerationFence: PushChannelGenerationFence;
-	wakePending?: boolean;
-	wakeWaiter?: (() => void) | null;
+	/** True model occupancy includes activity-neutral system-notice runs. */
+	runtimeOccupancy: RuntimeOccupancyFence;
+	/** A wake consumed while occupied must be replayed once Pi reaches true idle. */
+	idleBoundaryWake: BusyWakeLatch;
+	/** Stable Pi conversation identity captured when this pump generation bonded. */
+	localSessionId: string;
+	pendingInteractionStarts: Map<string, PendingInteractionStartRetry>;
+	pendingInteractionReleases: Map<string, PendingInteractionReleaseRetry>;
+	interactionRetryTimer?: ReturnType<typeof setTimeout>;
+	wakeGate: WakeGenerationGate;
 	/** Last attach-context/title fetch attempt — titles are job-generated, so a
 	 *  missing one is retried on a slow cadence, never hot-polled (Ali: a brand-new
 	 *  session may have no title at attach time; check again later). */
@@ -217,13 +252,30 @@ let nextPumpGeneration = 1;
 /** Branch-local durable receipts, reconstructed from Pi's JSONL session. */
 let interactionJournal = new InteractionEventJournal();
 let interactionDelivery = new InteractionEventDeliveryController(interactionJournal);
+interface ExactInteractionRun {
+	active: PumpState;
+	authority: InteractionEventDeliveryAuthority;
+	details: InteractionEventApplicationDetails & { attempt_id: string };
+	identity: ExactInteractionContinuationIdentity;
+	application: "starting" | "applied" | "released";
+}
 interface PendingInteractionConfirmation {
 	message: InteractionEventMessageEndLike;
 	sessionFile: string | undefined;
 	sessionManager: ExtensionContext["sessionManager"];
 	active: PumpState;
+	run: ExactInteractionRun;
 }
 const pendingInteractionConfirmations = new Set<PendingInteractionConfirmation>();
+/** The only exact continuation accepted by Pi but not yet fully settled. */
+let startingInteractionRun: ExactInteractionRun | null = null;
+const interactionRunsByEvent = new Map<string, ExactInteractionRun>();
+const INTERACTION_RETRY_MS = [500, 2_000, 5_000, 10_000] as const;
+
+function interactionRetryDelay(attempts: number): number {
+	return INTERACTION_RETRY_MS[Math.min(attempts, INTERACTION_RETRY_MS.length - 1)]!;
+}
+
 /** Cached so a mid-turn poll does not re-read settings.json every lap. */
 let preemptOwnerCached = true;
 
@@ -241,6 +293,11 @@ interface TurnState {
 	commandMessageId?: string;
 	/** Harness notice runs never post/complete owner command activity. */
 	completionNeutral: boolean;
+	/** Exact event/claim-bound activity for a directed-question continuation. */
+	interaction?: ExactInteractionRun;
+	/** Runtime run generation; older settle callbacks cannot clear a newer run. */
+	occupancy?: RuntimeOccupancyRevision;
+	lastInteractionKeepaliveAt?: number;
 	dirty: boolean;
 	interval: ReturnType<typeof setInterval> | null;
 	/** Trail posts so far this run — drives the adaptive cadence. */
@@ -349,7 +406,7 @@ function settleTelemetry(): AgentStatsReport {
 	return latestAgentStats;
 }
 
-async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; workTrail?: string; trailEvents?: unknown; agentStats?: AgentStatsReport } = {}): Promise<boolean> {
+async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; agentStats?: AgentStatsReport } = {}): Promise<boolean> {
 	const active = pump;
 	const bond = getBond();
 	if (!active || !bond?.sessionId) return false;
@@ -367,7 +424,8 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 			agent_name: AGENT_NAME,
 			...(opts.commandTurnId ? { command_turn_id: opts.commandTurnId } : {}),
 			...(opts.commandMessageId ? { command_message_id: opts.commandMessageId } : {}),
-			...(opts.commandTurnUnbound ? { command_turn_unbound: true } : {}),
+			...(opts.commandTurnUnbound || opts.interaction ? { command_turn_unbound: true } : {}),
+			...(opts.interaction ? exactInteractionContinuationArgs(opts.interaction) : {}),
 			...(opts.phase ? { phase: opts.phase } : {}),
 			...(opts.completeTurn === true ? { complete_turn: true } : opts.completeTurn === false ? { complete_turn: false } : {}),
 			...(opts.turnKind ? { turn_kind: opts.turnKind } : {}),
@@ -376,7 +434,7 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 				? { trail_events: opts.trailEvents }
 				: {}),
 			...(opts.agentStats ? { agent_stats: opts.agentStats } : {}),
-		}, { lane: "pump" });
+		}, { lane: "pump", ...(opts.interaction && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}) });
 		return true;
 	} catch (err) {
 		debug("post to session failed", { errorPresent: Boolean(err) });
@@ -398,15 +456,22 @@ function trackTerminalPost(post: Promise<void>): void {
 
 function isCommandTurnUnbound(t: TurnState): boolean {
 	// Every actionable remote command now has BOTH ids (extractor fails closed).
-	// No ids therefore means a genuinely local/synthetic segment, even if its
-	// text happens to resemble the remote envelope prefix.
-	return !t.commandTurnId && !t.commandMessageId;
+	// Interaction continuations are exact source-less generations too.
+	return Boolean(t.interaction) || (!t.commandTurnId && !t.commandMessageId);
+}
+
+function interactionIdentity(run: ExactInteractionRun | undefined): ExactInteractionContinuationIdentity | undefined {
+	return run?.identity;
 }
 
 function trailTick(): void {
-	if (!turn?.dirty || !remoteRunActivityPolicy(turn.completionNeutral).reportTranscript) return;
+	if (!turn || !remoteRunActivityPolicy(turn.completionNeutral).reportTranscript) return;
 	const now = Date.now();
-	if (now - turn.lastPostAt < nextTrailDelayMs(turn.posts)) return;
+	if (turn.interaction && now - (turn.lastInteractionKeepaliveAt ?? 0) >= 60_000) {
+		turn.lastInteractionKeepaliveAt = now;
+		void keepInteractionContinuationAlive(turn.interaction);
+	}
+	if (!turn.dirty || now - turn.lastPostAt < nextTrailDelayMs(turn.posts)) return;
 	const activityEvents = turn.trail.events();
 	// Assistant speech belongs to the transcript. A text-only progress/final
 	// message must not open an empty Activity record containing a duplicate.
@@ -416,7 +481,7 @@ function trailTick(): void {
 	turn.dirty = false;
 	turn.posts += 1;
 	turn.lastPostAt = now;
-	void postToSession(rendered, { phase: "trail", commandTurnId: turn.commandTurnId, commandMessageId: turn.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(turn), trailEvents: activityEvents });
+	void postToSession(rendered, { phase: "trail", commandTurnId: turn.commandTurnId, commandMessageId: turn.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(turn), interaction: interactionIdentity(turn.interaction), trailEvents: activityEvents });
 }
 
 /**
@@ -427,7 +492,7 @@ function trailTick(): void {
  * otherwise strand the Working indicator until lease expiry. report_complete
  * is the explicit channel; idempotent when the attempt already closed.
  */
-async function reportComplete(reason: string, commandTurnId?: string, commandMessageId?: string, commandTurnUnbound = false): Promise<boolean> {
+async function reportComplete(reason: string, commandTurnId?: string, commandMessageId?: string, commandTurnUnbound = false, interaction?: ExactInteractionContinuationIdentity, prePersistenceFailure = false): Promise<boolean> {
 	const active = pump;
 	if (!active || (active.stop && !active.closing)) return false;
 	const authority = capturePumpAuthority({ generation: active.generation, connectionId: active.bond.connectionId });
@@ -443,11 +508,90 @@ async function reportComplete(reason: string, commandTurnId?: string, commandMes
 			reason,
 			...(commandTurnId ? { command_turn_id: commandTurnId } : {}),
 			...(commandMessageId ? { command_message_id: commandMessageId } : {}),
-			...(commandTurnUnbound ? { command_turn_unbound: true } : {}),
-		}, { timeoutMs: 10_000, lane: "pump" });
+			...(commandTurnUnbound && !interaction ? { command_turn_unbound: true } : {}),
+			...(interaction ? exactInteractionContinuationArgs(interaction) : {}),
+			...(prePersistenceFailure ? { interaction_pre_persistence_failure: true } : {}),
+		}, { timeoutMs: 10_000, lane: "pump", ...(interaction && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}) });
 		return true;
 	} catch {
 		/* lease expiry + disconnect remain backstops for best-effort callers */
+		return false;
+	}
+}
+
+/** Start the exact event/claim-bound activity before Pi can persist or execute it. */
+async function startInteractionContinuation(
+	active: PumpState,
+	event: InteractionEventV1,
+): Promise<ReturnType<typeof parseInteractionContinuationStartResult>> {
+	if (pump !== active || active.stop) throw new Error("interaction pump authority changed");
+	const authority = capturePumpAuthority({ generation: active.generation, connectionId: active.bond.connectionId });
+	const resolved = await resolveToken();
+	if (!resolved) throw new Error("interaction continuation requires authentication");
+	const raw = await callDevspec(resolved.token, "report_pickup", {
+		connection_id: authority.connectionId,
+		interaction_event_version: 1,
+		interaction_event_id: event.event_id,
+		interaction_response_id: event.response_id,
+		interaction_claim_token: event.claim_token,
+	}, { timeoutMs: 10_000, lane: "pump", connectionCapability: active.bond.connectionCapability });
+	const { details, isError, text } = unwrapMcpResult(raw);
+	if (isError) throw new Error(text || "exact interaction report_pickup failed");
+	return parseInteractionContinuationStartResult(details);
+}
+
+function interactionRunIsLive(run: ExactInteractionRun): boolean {
+	return run.application !== "released";
+}
+
+async function keepInteractionContinuationAlive(run: ExactInteractionRun): Promise<boolean> {
+	if (!interactionRunIsLive(run) || !interactionAuthorityCurrent(run.authority)) return false;
+	const resolved = await resolveToken();
+	if (!resolved || !interactionRunIsLive(run) || !interactionAuthorityCurrent(run.authority)) return false;
+	try {
+		await callDevspec(resolved.token, "report_keepalive", {
+			connection_id: run.authority.connectionId,
+			...exactInteractionContinuationArgs(run.identity),
+		}, { timeoutMs: 10_000, lane: "pump", connectionCapability: run.authority.connectionCapability });
+		return interactionRunIsLive(run) && interactionAuthorityCurrent(run.authority);
+	} catch {
+		return false;
+	}
+}
+
+async function releaseInteractionBeforePersistence(run: ExactInteractionRun, reason: string): Promise<boolean> {
+	if (run.application !== "starting") return false;
+	const resolved = await resolveToken();
+	if (!resolved) {
+		retainInteractionReleaseRetry(run);
+		return false;
+	}
+	try {
+		await callDevspec(resolved.token, "report_complete", {
+			connection_id: run.authority.connectionId,
+			reason,
+			...exactInteractionContinuationArgs(run.identity),
+			interaction_pre_persistence_failure: true,
+		}, {
+			timeoutMs: 10_000,
+			lane: "pump",
+			connectionCapability: run.authority.connectionCapability,
+		});
+		run.application = "released";
+		run.active.pendingInteractionReleases.delete(run.identity.eventId);
+		armInteractionRetryWake(run.active);
+		interactionRunsByEvent.delete(run.details.event.event_id);
+		if (startingInteractionRun === run) startingInteractionRun = null;
+		return true;
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		if (/already_terminal|already_applied|already_released|stale_claim|source_session_(?:unavailable|changed)/i.test(message)) {
+			run.application = "released";
+			run.active.pendingInteractionReleases.delete(run.identity.eventId);
+			interactionRunsByEvent.delete(run.identity.eventId);
+			return true;
+		}
+		retainInteractionReleaseRetry(run);
 		return false;
 	}
 }
@@ -480,13 +624,13 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 	if (t.tracker.userKind === "harness") return false;
 	if (plan.kind === "final") {
 		// phase 'answer' closes the trail bubble (preserved as "Show work").
-		return await postToSession(plan.message, { phase: "answer", completeTurn, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
+		return await postToSession(plan.message, { phase: "answer", completeTurn, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), interaction: interactionIdentity(t.interaction), workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
 	} else if (plan.kind === "local_mirror") {
 		await postToSession(plan.prompt, { turnKind: "local_prompt" });
-		return await postToSession(plan.answer, { phase: "answer", completeTurn, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
+		return await postToSession(plan.answer, { phase: "answer", completeTurn, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), interaction: interactionIdentity(t.interaction), workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
 	}
 	if (t.dirty && activityTrail) {
-		await postToSession(activityTrail, { phase: "trail", commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), trailEvents: finalEvents });
+		await postToSession(activityTrail, { phase: "trail", commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), interaction: interactionIdentity(t.interaction), trailEvents: finalEvents });
 	}
 	return false;
 }
@@ -539,6 +683,9 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 		commandTurnId: t.commandTurnId,
 		commandMessageId: t.commandMessageId,
 		completionNeutral: t.completionNeutral,
+		interaction: t.interaction,
+		occupancy: t.occupancy,
+		lastInteractionKeepaliveAt: t.lastInteractionKeepaliveAt,
 		dirty: false,
 		posts: 0,
 		lastPostAt: 0,
@@ -549,7 +696,7 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 	const previousPolicy = remoteRunActivityPolicy(t.completionNeutral);
 	trackTerminalPost(postSegmentAnswer(t, null, why, completeTurn).then(async (posted) => {
 		if (completeTurn && !posted && previousPolicy.reportCompletion) {
-			await reportComplete(why, t.commandTurnId, t.commandMessageId, isCommandTurnUnbound(t));
+			await reportComplete(why, t.commandTurnId, t.commandMessageId, isCommandTurnUnbound(t), interactionIdentity(t.interaction));
 		}
 	}));
 }
@@ -565,6 +712,11 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 async function beatBusy(busy: boolean, agentStats?: AgentStatsReport | null): Promise<void> {
 	const active = pump;
 	if (!active || active.stop || systemNoticeRunActive) return;
+	const interaction = activeInteractionRun(active);
+	if (interaction) {
+		if (busy) await keepInteractionContinuationAlive(interaction);
+		return;
+	}
 	const resolved = await resolveToken();
 	if (!resolved) return;
 	try {
@@ -706,6 +858,18 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	const active = pump;
 	if (!active) return;
 	active.stop = true;
+	if (active.interactionRetryTimer) clearTimeout(active.interactionRetryTimer);
+	active.interactionRetryTimer = undefined;
+	const starting = startingInteractionRun?.active === active ? startingInteractionRun : null;
+	if (starting?.application === "starting") {
+		await releaseInteractionBeforePersistence(starting, "interaction_pump_stopped_before_persistence");
+	}
+	startingInteractionRun = null;
+	for (const [eventId, run] of interactionRunsByEvent) {
+		if (run.active === active) interactionRunsByEvent.delete(eventId);
+	}
+	active.pendingInteractionStarts.clear();
+	active.pendingInteractionReleases.clear();
 	systemNoticeTurnPending = false;
 	systemNoticeRunActive = false;
 	revokeSystemNoticeState(active.systemNoticeKey);
@@ -718,11 +882,7 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 		clearTimeout(active.pushReconnectTimer);
 		active.pushReconnectTimer = undefined;
 	}
-	if (active.wakeWaiter) {
-		const w = active.wakeWaiter;
-		active.wakeWaiter = null;
-		w();
-	}
+	active.wakeGate.cancel();
 	pump = null;
 	commandTurnBindings.clear();
 	setBond(null);
@@ -745,12 +905,59 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 
 /** Wake the pump's SSE waiter (if any). */
 function signalWake(active: PumpState): void {
-	active.wakePending = true;
-	if (active.wakeWaiter) {
-		const w = active.wakeWaiter;
-		active.wakeWaiter = null;
-		w();
+	// A generic SSE marker does not identify its lane. Remember every busy wake;
+	// the idle boundary will replay one coalesced nudge so an interaction marker
+	// consumed by a busy poll cannot wait for the 75s safety tick.
+	active.idleBoundaryWake.noteWake(active.busy || active.runtimeOccupancy.isBusy());
+	active.wakeGate.signal();
+}
+
+function nextInteractionRetryAt(active: PumpState): number | null {
+	const due = [
+		...[...active.pendingInteractionStarts.values()].map((item) => item.nextAt),
+		...[...active.pendingInteractionReleases.values()].map((item) => item.nextAt),
+	];
+	return due.length === 0 ? null : Math.min(...due);
+}
+
+function armInteractionRetryWake(active: PumpState): void {
+	if (active.interactionRetryTimer) clearTimeout(active.interactionRetryTimer);
+	const nextAt = nextInteractionRetryAt(active);
+	if (nextAt === null || active.stop || pump !== active) {
+		active.interactionRetryTimer = undefined;
+		return;
 	}
+	const delay = Math.max(0, nextAt - Date.now());
+	active.interactionRetryTimer = setTimeout(() => {
+		active.interactionRetryTimer = undefined;
+		if (pump === active && !active.stop) signalWake(active);
+	}, delay);
+	if (typeof active.interactionRetryTimer.unref === "function") active.interactionRetryTimer.unref();
+}
+
+function retainInteractionStartRetry(active: PumpState, event: InteractionEventV1, localSessionId: string): void {
+	const existing = active.pendingInteractionStarts.get(event.event_id);
+	const attempts = (existing?.attempts ?? 0) + 1;
+	active.pendingInteractionStarts.set(event.event_id, {
+		event,
+		generation: active.generation,
+		localSessionId,
+		attempts,
+		nextAt: Date.now() + interactionRetryDelay(attempts - 1),
+	});
+	armInteractionRetryWake(active);
+}
+
+function retainInteractionReleaseRetry(run: ExactInteractionRun): void {
+	const active = run.active;
+	const existing = active.pendingInteractionReleases.get(run.identity.eventId);
+	const attempts = (existing?.attempts ?? 0) + 1;
+	active.pendingInteractionReleases.set(run.identity.eventId, {
+		run,
+		attempts,
+		nextAt: Date.now() + interactionRetryDelay(attempts - 1),
+	});
+	armInteractionRetryWake(active);
 }
 
 /** Interaction awareness is dynamic, but remains on while a durable ACK is pending. */
@@ -761,16 +968,51 @@ function interactionEventsRelevant(active: PumpState): boolean {
 	);
 }
 
+function activeInteractionRun(active: PumpState): ExactInteractionRun | undefined {
+	return [...interactionRunsByEvent.values()].find((run) =>
+		run.active === active && run.application !== "released");
+}
+
+/** Server attachment authority changed; the old exact workflow cannot retarget. */
+function revokeInteractionForAttachmentChange(active: PumpState, ctx: ExtensionContext): boolean {
+	const running = [...interactionRunsByEvent.values()].filter((run) => run.active === active);
+	if (running.length === 0 && turn?.interaction?.active !== active &&
+		active.pendingInteractionStarts.size === 0 && active.pendingInteractionReleases.size === 0) return false;
+	ctx.abort();
+	for (const confirmation of [...pendingInteractionConfirmations]) {
+		if (confirmation.active !== active) continue;
+		interactionDelivery.abandonMessage(confirmation.message);
+		pendingInteractionConfirmations.delete(confirmation);
+	}
+	for (const run of running) {
+		run.application = "released"; // server attachment transition seals/releases it
+		interactionRunsByEvent.delete(run.details.event.event_id);
+	}
+	if (startingInteractionRun?.active === active) startingInteractionRun = null;
+	if (turn?.interaction?.active === active) {
+		turn.interaction = undefined;
+		turn.lastInteractionKeepaliveAt = undefined;
+		turn.completionNeutral = true;
+	}
+	active.pendingInteractionStarts.clear();
+	active.pendingInteractionReleases.clear();
+	armInteractionRetryWake(active);
+	active.busy = false;
+	return true;
+}
+
 function interactionApplicationDetails(
 	active: PumpState,
 	ctx: ExtensionContext,
 	event: InteractionEventV1,
+	attemptId?: string,
 ): InteractionEventApplicationDetails {
 	return {
 		version: 1,
 		local_session_id: ctx.sessionManager.getSessionId(),
 		connection_id: active.bond.connectionId,
 		source_session_id: event.source_session_id,
+		...(attemptId ? { attempt_id: attemptId } : {}),
 		event,
 	};
 }
@@ -809,18 +1051,28 @@ function replaceInteractionJournal(journal: InteractionEventJournal): void {
 	interactionDelivery.replaceJournal(journal);
 }
 
-function interactionAuthorityCurrent(authority: InteractionEventDeliveryAuthority): boolean {
-	const active = pump;
-	return Boolean(active && !active.stop
-		&& active.generation === authority.generation
-		&& active.bond.connectionId === authority.connectionId
-		&& active.bond.sessionId === authority.sourceSessionId);
+function currentInteractionAuthority(active: PumpState | null = pump): InteractionEventDeliveryAuthority | null {
+	if (!active || active.stop || !active.bond.connectionCapability || !active.bond.sessionId || !lastCtx) return null;
+	return {
+		generation: active.generation,
+		connectionId: active.bond.connectionId,
+		connectionCapability: active.bond.connectionCapability,
+		sourceSessionId: active.bond.sessionId,
+		localSessionId: lastCtx.sessionManager.getSessionId(),
+	};
 }
 
-function interactionDeliveryPort(active: PumpState): InteractionEventDeliveryPort {
+function interactionAuthorityCurrent(authority: InteractionEventDeliveryAuthority): boolean {
+	return exactInteractionAuthorityMatches(authority, currentInteractionAuthority());
+}
+
+function interactionDeliveryPort(active: PumpState, run?: ExactInteractionRun): InteractionEventDeliveryPort {
 	return {
 		append: (state, details) => pi_appendInteractionEntry(state, details),
-		send: (message, details) => pi_sendInteractionContinuation(message, details),
+		send: (message, details) => {
+			if (!run) throw new Error("exact interaction run is required before persistence");
+			pi_sendInteractionContinuation(active, message, details, run);
+		},
 		wake: () => {
 			if (pump === active && !active.stop) signalWake(active);
 		},
@@ -831,41 +1083,177 @@ function interactionDeliveryPort(active: PumpState): InteractionEventDeliveryPor
  * Idle-only observation/application. ACK eligibility is granted later, from
  * the exact custom message's message_end path after a fresh JSONL disk read.
  */
-function applyInteractionEvent(
+async function applyInteractionEvent(
 	active: PumpState,
 	ctx: ExtensionContext,
 	event: InteractionEventV1,
-): boolean {
-	if (pump !== active || active.stop || active.busy || !ctx.isIdle() || !interactionEventMatchesWorkflow(event, {
-		connectionId: active.bond.connectionId,
-		sourceSessionId: active.bond.sessionId,
-	})) return false;
+): Promise<boolean> {
+	if (pump !== active || active.stop || active.busy || active.runtimeOccupancy.isBusy() || !ctx.isIdle() ||
+		!active.bond.connectionCapability || !interactionEventMatchesWorkflow(event, {
+			connectionId: active.bond.connectionId,
+			sourceSessionId: active.bond.sessionId,
+		})) return false;
 	const authority: InteractionEventDeliveryAuthority = {
 		generation: active.generation,
 		connectionId: active.bond.connectionId,
+		connectionCapability: active.bond.connectionCapability,
 		sourceSessionId: event.source_session_id,
 		localSessionId: ctx.sessionManager.getSessionId(),
 	};
-	const details = interactionApplicationDetails(active, ctx, event);
+	const observedDetails = interactionApplicationDetails(active, ctx, event);
 	try {
+		// Durable application from an earlier claim never executes twice. Rotate the
+		// claim in the journal and make its exact ACK eligible without opening work.
+		if (interactionJournal.isApplied(event.event_id)) {
+			const result = interactionDelivery.stage({
+				details: observedDetails,
+				authority,
+				idle: true,
+				isAuthorityCurrent: interactionAuthorityCurrent,
+				port: interactionDeliveryPort(active),
+			});
+			return result === "applied";
+		}
+
+		// Persist observation before the fallible exact start call. A timeout may
+		// follow a committed server start; this claim must survive locally so the
+		// same idempotent start can be retried promptly without waiting for lease.
+		const observed = interactionJournal.observe(observedDetails);
+		if (observed === "conflict") return false;
+		pi_appendInteractionEntry("observed", observedDetails);
+		const started = await startInteractionContinuation(active, event);
+		active.pendingInteractionStarts.delete(event.event_id);
+		armInteractionRetryWake(active);
+		const startedSourceMatches = started.outcome !== "started" ||
+			(started.sourceSessionId === event.source_session_id &&
+				started.sourceSessionId === active.bond.sessionId);
+		const authorityStillCurrent = startedSourceMatches && interactionAuthorityCurrent(authority)
+			&& !active.busy && !active.runtimeOccupancy.isBusy() && ctx.isIdle();
+		const startAction = interactionContinuationStartAction(started, authorityStillCurrent);
+		if (startAction === "defer" || startAction === "ignore") {
+			// Server-owned defer/terminal decisions never persist, execute or ACK.
+			return true;
+		}
+		if (started.outcome !== "started") return true;
+		const identity: ExactInteractionContinuationIdentity = {
+			attemptId: started.attemptId,
+			eventId: event.event_id,
+			responseId: event.response_id,
+			claimToken: event.claim_token,
+		};
+		const details = interactionApplicationDetails(active, ctx, event, started.attemptId) as InteractionEventApplicationDetails & { attempt_id: string };
+		const run: ExactInteractionRun = { active, authority, details, identity, application: "starting" };
+		// The await may have crossed rebond, reattach, local session switch, or a
+		// new Pi run. Release exactly this pre-persistence claim before returning.
+		if (startAction === "release") {
+			await releaseInteractionBeforePersistence(run, "interaction_authority_changed_before_persistence");
+			return false;
+		}
+		startingInteractionRun = run;
+		interactionRunsByEvent.set(event.event_id, run);
 		const result = interactionDelivery.stage({
 			details,
 			authority,
-			idle: !active.busy && ctx.isIdle(),
+			idle: true,
 			isAuthorityCurrent: interactionAuthorityCurrent,
-			port: interactionDeliveryPort(active),
+			port: interactionDeliveryPort(active, run),
 		});
-		return result === "awaiting-persistence" || result === "applied";
+		if (result !== "awaiting-persistence") {
+			await releaseInteractionBeforePersistence(run, "interaction_not_persisted");
+			return result === "applied";
+		}
+		return true;
 	} catch (error) {
+		const run = interactionRunsByEvent.get(event.event_id);
+		if (run?.application === "starting") {
+			await releaseInteractionBeforePersistence(run, "interaction_persistence_start_failed");
+		} else if (interactionAuthorityCurrent(authority)) {
+			// The server may have committed start before transport timeout. Retain
+			// the exact claim and retry idempotently; never wait for event lease expiry.
+			retainInteractionStartRetry(active, event, authority.localSessionId);
+		}
 		debug("interaction event application failed", { errorPresent: Boolean(error) });
+		return true;
+	}
+}
+
+async function drainInteractionRetries(active: PumpState, ctx: ExtensionContext): Promise<boolean> {
+	let attempted = false;
+	const now = Date.now();
+	for (const [eventId, pending] of [...active.pendingInteractionReleases]) {
+		if (pending.nextAt > now) continue;
+		const { run } = pending;
+		const authorityGone = pump !== active || active.stop || active.generation !== run.authority.generation ||
+			active.bond.connectionId !== run.authority.connectionId ||
+			active.bond.connectionCapability !== run.authority.connectionCapability;
+		if (authorityGone) {
+			active.pendingInteractionReleases.delete(eventId);
+			run.application = "released";
+			interactionRunsByEvent.delete(eventId);
+			continue;
+		}
+		attempted = true;
+		await releaseInteractionBeforePersistence(run, "interaction_release_retry");
+	}
+	for (const [eventId, pending] of [...active.pendingInteractionStarts]) {
+		if (pending.nextAt > now) continue;
+		const authorityGone = pump !== active || active.stop || active.generation !== pending.generation ||
+			active.bond.connectionId !== pending.event.origin_connection_id ||
+			active.bond.sessionId !== pending.event.source_session_id ||
+			ctx.sessionManager.getSessionId() !== pending.localSessionId;
+		if (authorityGone) {
+			active.pendingInteractionStarts.delete(eventId);
+			continue;
+		}
+		if (active.busy || active.runtimeOccupancy.isBusy() || !ctx.isIdle()) {
+			pending.nextAt = Date.now() + 1_000;
+			continue;
+		}
+		attempted = true;
+		await applyInteractionEvent(active, ctx, pending.event);
+	}
+	armInteractionRetryWake(active);
+	return attempted;
+}
+
+async function acknowledgeInteractionApplication(run: ExactInteractionRun): Promise<boolean> {
+	if (run.application !== "applied" || !interactionAuthorityCurrent(run.authority)) return false;
+	const resolved = await resolveToken();
+	if (!resolved) return false;
+	try {
+		const raw = await callDevspec(resolved.token, "poll_connection", {
+			connection_id: run.authority.connectionId,
+			interaction_event_version: 1,
+			interaction_event_ack: {
+				event_id: run.identity.eventId,
+				response_id: run.identity.responseId,
+				claim_token: run.identity.claimToken,
+			},
+			// ACK-only catch-up cannot claim another event or package an owner command.
+			catch_up: true,
+			cursor_v2: run.active.cursor,
+			dispatch_cursor: run.active.dispatchCursor,
+			wait_ms: 0,
+			listener_armed: true,
+		}, { timeoutMs: 10_000, lane: "pump", connectionCapability: run.authority.connectionCapability });
+		const unwrapped = unwrapMcpResult(raw);
+		if (unwrapped.isError) throw new Error(unwrapped.text || "interaction ACK failed");
+		const details = interactionJournal.detailsFor(run.identity.eventId);
+		if (interactionJournal.markAcknowledged(run.identity.eventId, run.identity.claimToken) && details) {
+			pi_appendInteractionEntry("acknowledged", details);
+		}
+		return true;
+	} catch {
+		// The main poll retries this same exact ACK; durable application is never undone.
+		if (pump === run.active && !run.active.stop) signalWake(run.active);
 		return false;
 	}
 }
 
-function attemptInteractionPersistenceConfirmation(
+async function attemptInteractionPersistenceConfirmation(
 	confirmation: PendingInteractionConfirmation,
 	settled: boolean,
-): void {
+): Promise<void> {
 	try {
 		const result = interactionDelivery.confirmPersistedMessage({
 			message: confirmation.message,
@@ -874,19 +1262,27 @@ function attemptInteractionPersistenceConfirmation(
 				confirmation.sessionFile,
 			),
 			isAuthorityCurrent: interactionAuthorityCurrent,
-			port: interactionDeliveryPort(confirmation.active),
+			port: interactionDeliveryPort(confirmation.active, confirmation.run),
 		});
-		if (result !== "pending") pendingInteractionConfirmations.delete(confirmation);
-		else if (settled) {
-			// Pi has fully settled, so its message_end persistence path has finished.
-			// No exact disk row now means persistence failed; release for lease retry.
+		if (result === "confirmed") {
+			pendingInteractionConfirmations.delete(confirmation);
+			confirmation.run.application = "applied";
+			// ACK is a mechanical persistence receipt, not model completion. Send it
+			// now while Pi is busy so a 30-second claim lease cannot redeliver.
+			await acknowledgeInteractionApplication(confirmation.run);
+		} else if (result === "rejected") {
+			pendingInteractionConfirmations.delete(confirmation);
+			await releaseInteractionBeforePersistence(confirmation.run, "interaction_persistence_rejected");
+		} else if (settled) {
 			interactionDelivery.abandonMessage(confirmation.message);
 			pendingInteractionConfirmations.delete(confirmation);
+			await releaseInteractionBeforePersistence(confirmation.run, "interaction_persistence_missing");
 		}
 	} catch (error) {
-		// The custom message itself remains sufficient recovery proof. A failed
-		// optional applied receipt must not erase that already-durable fact.
 		pendingInteractionConfirmations.delete(confirmation);
+		if (confirmation.run.application === "starting") {
+			await releaseInteractionBeforePersistence(confirmation.run, "interaction_persistence_confirmation_failed");
+		}
 		debug("interaction event persistence confirmation failed", { errorPresent: Boolean(error) });
 	}
 }
@@ -896,18 +1292,24 @@ function confirmInteractionMessageAfterPersistence(
 	ctx: ExtensionContext,
 ): void {
 	const active = pump;
-	if (!active) return;
+	const messageDetails = (message.details && typeof message.details === "object")
+		? message.details as { event?: { event_id?: unknown } }
+		: null;
+	const eventId = messageDetails?.event?.event_id;
+	const run = typeof eventId === "string" ? interactionRunsByEvent.get(eventId) : undefined;
+	if (!active || !run || run.active !== active) return;
 	const confirmation: PendingInteractionConfirmation = {
 		message,
 		sessionFile: ctx.sessionManager.getSessionFile(),
 		sessionManager: ctx.sessionManager,
 		active,
+		run,
 	};
 	pendingInteractionConfirmations.add(confirmation);
 	// message_end handlers run immediately before Pi's synchronous JSONL append.
 	// A later task usually observes it; agent_settled is the definitive fallback
 	// if another async message_end handler delays persistence past this task.
-	const timer = setTimeout(() => attemptInteractionPersistenceConfirmation(confirmation, false), 0);
+	const timer = setTimeout(() => { void attemptInteractionPersistenceConfirmation(confirmation, false); }, 0);
 	if (typeof timer.unref === "function") timer.unref();
 }
 
@@ -916,25 +1318,14 @@ function resumePersistedInteractionEvents(active: PumpState, ctx: ExtensionConte
 	if (active.busy || !ctx.isIdle()) return;
 	for (const details of interactionJournal.pendingApplications(active.bond.connectionId, active.bond.sessionId)) {
 		if (pump !== active || active.stop || active.busy || !ctx.isIdle()) return;
-		applyInteractionEvent(active, ctx, details.event);
+		void applyInteractionEvent(active, ctx, details.event);
 	}
 	if (interactionJournal.hasPendingAck(active.bond.connectionId)) signalWake(active);
 }
 
 /** Wait for a wake frame (or the safety tick). Never rejects. */
 function waitForWake(active: PumpState, safetyMs: number): Promise<void> {
-	if (active.wakePending) {
-		active.wakePending = false;
-		return Promise.resolve();
-	}
-	return new Promise((resolve) => {
-		active.wakeWaiter = resolve;
-		const t = setTimeout(() => {
-			if (active.wakeWaiter === resolve) active.wakeWaiter = null;
-			resolve();
-		}, safetyMs);
-		if (typeof t.unref === "function") t.unref();
-	});
+	return active.wakeGate.wait(safetyMs);
 }
 
 /**
@@ -987,6 +1378,7 @@ function startPushChannel(active: PumpState, token: string, endpoint: string): v
 		mcpUrl: endpoint,
 		token,
 		connectionId: active.bond.connectionId,
+		connectionCapability: active.bond.connectionCapability,
 		systemNoticeVersion: 1,
 		...(active.pushInteractionAware ? { interactionEventVersion: 1 as const } : {}),
 		signal: controller.signal,
@@ -1260,6 +1652,19 @@ async function reviveRecoverableBond(
 				connectionId,
 				pumpGeneration: active.generation,
 			});
+			// General bond recovery remains valid, but a replacement row is different
+			// interaction authority and cannot inherit the old run or journal ACK.
+			revokeInteractionForAttachmentChange(active, ctx);
+			replaceInteractionJournal(new InteractionEventJournal());
+		} else {
+			// Same-row revival rotates only the hidden transport capability. Exact
+			// attempts and durable receipts remain authoritative in the same workflow.
+			for (const run of interactionRunsByEvent.values()) {
+				if (run.active === active && run.authority.connectionId === connectionId &&
+					run.authority.sourceSessionId === sessionId) {
+					run.authority.connectionCapability = connectionCapability;
+				}
+			}
 		}
 		setBond(bond);
 		pi_setPlanToolActive(Boolean(bond.sessionId));
@@ -1294,6 +1699,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 	while (pump === active && !active.stop) {
 		lastCtx = ctx;
 		ensurePushInteractionNegotiation(active, token, endpoint);
+		if (active.stop || pump !== active) return;
 		// Server told us the bond ended — only a human End / local stop is sticky.
 		if (active.pushEnded !== undefined) {
 			if (isPermanentServerEnd("ended", active.pushEnded)) {
@@ -1324,18 +1730,27 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (active.pushEnded !== undefined) continue; // handled at the top
 			if (active.pushClosed) continue; // fall through to long-poll next lap
 		}
+		const retryAt = nextInteractionRetryAt(active);
+		if (retryAt !== null && retryAt > Date.now()) {
+			await new Promise((resolve) => setTimeout(resolve, retryAt - Date.now()));
+			if (active.stop || pump !== active) return;
+		}
+		if (await drainInteractionRetries(active, ctx)) continue;
 
 		// The server can claim ten at once. Negotiate only when that complete batch
 		// fits; otherwise ordinary 1.3 command polling continues while notices stay
 		// server-retained behind the still-aware SSE marker.
 		const systemNoticeNegotiated = hasSystemNoticeBatchCapacity(active.systemNoticeKey);
-		// Never ask the server to fetch/claim an interaction event while Pi is
-		// busy. The SSE marker and lease re-wake retain it until an idle lap.
-		const interactionEventNegotiated = interactionEventsRelevant(active)
-			&& Boolean(active.bond.sessionId) && !active.busy && ctx.isIdle();
-		const interactionEventAck = interactionEventNegotiated
+		// Claims are idle-only. A durable application ACK is different: it must
+		// travel immediately while the model is busy, before the 30-second event
+		// lease can redeliver. catch_up below keeps that ACK lap event/command-free.
+		const interactionEventAck = interactionEventsRelevant(active)
 			? interactionJournal.nextAck(active.bond.connectionId, active.bond.sessionId)
 			: null;
+		const interactionClaimIdle = interactionEventsRelevant(active)
+			&& Boolean(active.bond.sessionId) && !active.busy
+			&& !active.runtimeOccupancy.isBusy() && ctx.isIdle();
+		const interactionEventNegotiated = interactionClaimIdle || Boolean(interactionEventAck);
 		let payload: unknown;
 		try {
 			const raw = await callDevspec(
@@ -1357,12 +1772,15 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					cursor_v2: active.cursor,
 					dispatch_cursor: active.dispatchCursor,
 					wait_ms: pushMode ? 0 : POLL_WAIT_MS,
-					busy: active.busy,
+					...(interactionEventAck && (active.busy || active.runtimeOccupancy.isBusy()) ? { catch_up: true } : {}),
+					// Generic busy projection is forbidden for exact interaction attempts;
+					// their lease is refreshed with report_keepalive and exact tuple.
+					...(!activeInteractionRun(active) ? { busy: active.busy } : {}),
 					listener_armed: true,
 					agent_name: AGENT_NAME,
 					agent_stats: runtimeAgentStats(ctx),
 				},
-				{ timeoutMs: POLL_TIMEOUT_MS, cwd: ctx.cwd, lane: "pump" },
+				{ timeoutMs: POLL_TIMEOUT_MS, cwd: ctx.cwd, lane: "pump", ...(interactionEventNegotiated && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}) },
 			);
 			const { details, isError, text } = unwrapMcpResult(raw);
 			if (isError) throw new Error(text || "poll_connection failed");
@@ -1438,6 +1856,10 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		// too (server session_id null → posting stops).
 		const serverSessionId = (payload as { session_id?: string | null } | null)?.session_id ?? null;
 		if (serverSessionId !== (active.bond.sessionId ?? null)) {
+			// The server migration atomically seals/releases an in-flight exact
+			// interaction on detach/reattach. Abort local execution immediately so
+			// no model/tool side effect continues under revoked source authority.
+			revokeInteractionForAttachmentChange(active, ctx);
 			const next = {
 				...active.bond,
 				sessionId: serverSessionId ?? undefined,
@@ -1475,7 +1897,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		}
 
 		if (interactionEvent) {
-			if (!applyInteractionEvent(active, ctx, interactionEvent)) {
+			if (!await applyInteractionEvent(active, ctx, interactionEvent)) {
 				active.errors += 1;
 				debug("interaction event exact-workflow guard rejected", { errors: active.errors });
 				await new Promise((resolve) => setTimeout(resolve, ERROR_BACKOFF_MS));
@@ -1814,6 +2236,12 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 		advisoryCarry: [],
 		pushAttempts: 0,
 		pushGenerationFence: new PushChannelGenerationFence(),
+		runtimeOccupancy: new RuntimeOccupancyFence(),
+		idleBoundaryWake: new BusyWakeLatch(),
+		localSessionId: localId,
+		pendingInteractionStarts: new Map(),
+		pendingInteractionReleases: new Map(),
+		wakeGate: new WakeGenerationGate(),
 		playbookQueue: new DeliveryQueue(),
 		playbookRetryAttempts: new Map(),
 		playbookRetryTimers: new Map(),
@@ -1832,7 +2260,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 	// Revive/register can already be attached. Refresh title/owner display
 	// identity; canonical ingress remains the only model-context source.
 	if (bond.sessionId) void enrichBondWithSession(bond.sessionId);
-	resumePersistedInteractionEvents(pump, ctx);
+	if (pump) resumePersistedInteractionEvents(pump, ctx);
 	void pumpLoop(ctx);
 	return { ok: true, codename: bond.codename, attached };
 }
@@ -1844,8 +2272,10 @@ let pi_appendInteractionEntry: (
 	details: InteractionEventApplicationDetails,
 ) => void = () => {};
 let pi_sendInteractionContinuation: (
+	active: PumpState,
 	message: string,
 	details: InteractionEventApplicationDetails,
+	run: ExactInteractionRun,
 ) => void = () => {};
 let pi_send: (
 	message: string,
@@ -1935,15 +2365,24 @@ export default function (pi: ExtensionAPI) {
 	pi_appendInteractionEntry = (state, details) => {
 		pi.appendEntry(INTERACTION_EVENT_JOURNAL_TYPE, interactionEventJournalEntry(state, details));
 	};
-	pi_sendInteractionContinuation = (message, details) => {
-		// The poll lane and delivery controller both prove idle. Never create an
-		// uncancellable follow-up that could outlive attachment/pump authority.
-		pi.sendMessage({
-			customType: INTERACTION_EVENT_CUSTOM_TYPE,
-			content: message,
-			display: true,
-			details,
-		}, { triggerTurn: true });
+	pi_sendInteractionContinuation = (active, message, details, run) => {
+		// Exact server activity already exists. Only now may Pi persist/inject the
+		// dedicated custom continuation; agent_start never performs authority lookup.
+		if (startingInteractionRun && startingInteractionRun !== run) {
+			throw new Error("An interaction continuation is already starting.");
+		}
+		startingInteractionRun = run;
+		try {
+			pi.sendMessage({
+				customType: INTERACTION_EVENT_CUSTOM_TYPE,
+				content: message,
+				display: true,
+				details,
+			}, { triggerTurn: true });
+		} catch (error) {
+			startingInteractionRun = null;
+			throw error;
+		}
 	};
 	pi_systemNoticeSend = (message, details) => {
 		// Called only after the pump proves idle; triggerTurn starts a fresh
@@ -2012,47 +2451,87 @@ export default function (pi: ExtensionAPI) {
 		scheduleRuntimeStamp(ctx);
 	});
 
-	pi.on("agent_start", () => {
-		// Notice-triggered turns are harness-local. Detect them before touching
-		// pump presence so they cannot pick up or mutate an owner activity attempt.
-		const completionNeutral = systemNoticeTurnPending;
+	pi.on("agent_start", async (_event, ctx) => {
+		lastCtx = ctx;
+		const active = pump;
+		const newInteractionRun = startingInteractionRun;
+		const continuedInteractionRun = turn?.interaction ?? (active ? activeInteractionRun(active) : undefined);
+		const requestedKind = newInteractionRun ? "interaction" : systemNoticeTurnPending ? "system_notice" : "owner";
+		const occupancy = active?.runtimeOccupancy.begin(requestedKind) ?? null;
+		// The occupancy, not the one-shot pending flag, owns run classification
+		// across Pi retry/compaction agent_start events.
+		const completionNeutral = occupancy?.kind === "system_notice";
 		const activityPolicy = remoteRunActivityPolicy(completionNeutral);
+		const interactionRun = newInteractionRun ?? (occupancy?.kind === "interaction" ? continuedInteractionRun : undefined);
 		systemNoticeRunActive = completionNeutral;
-		if (pump && activityPolicy.reportPresence) {
-			pump.busy = true;
+
+		if (newInteractionRun) {
+			startingInteractionRun = null;
+			if (!active || newInteractionRun.active !== active || newInteractionRun.application === "released" ||
+				!interactionAuthorityCurrent(newInteractionRun.authority)) {
+				active?.runtimeOccupancy.finish(occupancy);
+				ctx.abort();
+				await releaseInteractionBeforePersistence(newInteractionRun, "interaction_authority_changed_before_agent_start");
+				return;
+			}
+			active.busy = true;
+		} else if (occupancy?.kind === "interaction" && (!active || !continuedInteractionRun ||
+			!interactionAuthorityCurrent(continuedInteractionRun.authority))) {
+			// A retry start after detach/replacement cannot fall through to generic
+			// owner activity under the new attachment.
+			ctx.abort();
+			if (active) revokeInteractionForAttachmentChange(active, ctx);
+			return;
+		} else if (active && activityPolicy.reportPresence) {
+			active.busy = true;
 			void beatBusy(true);
 		}
+
 		// The run begins — the delivery unit. Turn state is born here (or on
 		// the first attached turn_start after a mid-run attach), never per round.
 		ensureTurn();
 		if (turn && completionNeutral) turn.completionNeutral = true;
-		// A completion custom message may start while the previous run's awaited
-		// agent_settled handler is still returning. Revision isolates those runs
-		// even though they intentionally share the owner TurnState.
-		if (turn) turn.revision = nextTurnRevision++;
+		if (turn && newInteractionRun) {
+			turn.interaction = newInteractionRun;
+			turn.commandTurnId = undefined;
+			turn.commandMessageId = undefined;
+			turn.lastInteractionKeepaliveAt = Date.now();
+		}
+		if (turn) {
+			turn.occupancy = occupancy ?? undefined;
+			turn.revision = nextTurnRevision++;
+		}
 	});
 	pi.on("agent_settled", async (_event, ctx) => {
 		lastCtx = ctx;
-		for (const confirmation of [...pendingInteractionConfirmations]) {
-			attemptInteractionPersistenceConfirmation(confirmation, true);
-		}
+		const activeAtSettle = pump;
+		const occupancyAtSettle = activeAtSettle?.runtimeOccupancy.capture() ?? null;
+		const turnAtSettle = turn;
+		const revisionAtSettle = turnAtSettle?.revision;
+		await Promise.all([...pendingInteractionConfirmations].map((confirmation) =>
+			attemptInteractionPersistenceConfirmation(confirmation, true)));
 		// The parent model may be locally finished while async children still own
 		// the user-visible job. Reconcile pi-subagents' documented current-session
 		// fleet before deciding whether this command attempt is terminal. The DTO
 		// exposes only a bounded aggregate here—no child ids, prompts, or paths.
-		const settlingTurn = turn;
+		const settlingTurn = turnAtSettle;
 		if (settlingTurn?.tracker.userKind && settlingTurn.tracker.userKind !== "harness") {
 			const reconciliation = await reconcileSubagentFleetOwnership(settlingTurn);
 			// Pi may accept a newer command while an extension settle handler awaits.
 			// The stale callback owns nothing in that newer segment.
 			if (reconciliation === "stale") return;
 		}
+		// Awaited reconciliation/persistence may overlap a newer run. The older
+		// callback must not clear its occupancy, busy state, turn, or exact attempt.
+		if (turn !== settlingTurn || settlingTurn?.revision !== revisionAtSettle ||
+			(activeAtSettle && !activeAtSettle.runtimeOccupancy.finish(occupancyAtSettle))) return;
 		// Capture after fleet reconciliation and before settleTurn releases the
 		// segment; terminal fallback must never complete a newer owner command.
 		const commandTurnId = settlingTurn?.commandTurnId;
 		const commandMessageId = settlingTurn?.commandMessageId;
 		const commandTurnUnbound = settlingTurn ? isCommandTurnUnbound(settlingTurn) : false;
-		const completionNeutral = systemNoticeRunActive || settlingTurn?.completionNeutral === true;
+		const interactionRun = settlingTurn?.interaction;
+		const completionNeutral = occupancyAtSettle?.kind === "system_notice" || settlingTurn?.completionNeutral === true;
 		const activityPolicy = remoteRunActivityPolicy(completionNeutral);
 		// Settle telemetry FIRST so the idle/parked heartbeat and answer post carry
 		// this turn's report, not the previous one's.
@@ -2064,7 +2543,12 @@ export default function (pi: ExtensionAPI) {
 		const keepWorking = !completionNeutral && Boolean(settlingTurn && shouldPauseSettle(settlingTurn.tracker));
 		if (pump && activityPolicy.reportPresence) {
 			pump.busy = keepWorking;
-			void beatBusy(keepWorking, agentStats);
+			if (!interactionRun) void beatBusy(keepWorking, agentStats);
+			const trueIdle = !keepWorking && !pump.runtimeOccupancy.isBusy() && ctx.isIdle();
+			if (pump.idleBoundaryWake.consumeAtIdle(trueIdle)) signalWake(pump);
+		} else if (pump) {
+			const trueIdle = !pump.busy && !pump.runtimeOccupancy.isBusy() && ctx.isIdle();
+			if (pump.idleBoundaryWake.consumeAtIdle(trueIdle)) signalWake(pump);
 		}
 		if (!completionNeutral && untitledAttached() && pump?.bond.sessionId) {
 			scheduleTitleRefresh(pump.bond.sessionId);
@@ -2073,9 +2557,13 @@ export default function (pi: ExtensionAPI) {
 			const posted = await settleTurn(agentStats, true);
 			// Pause (wait/bg_run) keeps the tracker and the working attempt.
 			// No complete_turn post landed (aborted/empty turn, or the post
-			// failed) — close the working attempt explicitly (item 2c20337a).
+			// failed) — close the exact activity honestly.
 			if (!posted && activityPolicy.reportCompletion) {
-				await reportComplete("turn_end", commandTurnId, commandMessageId, commandTurnUnbound);
+				await reportComplete("turn_end", commandTurnId, commandMessageId, commandTurnUnbound, interactionIdentity(interactionRun));
+			}
+			if (interactionRun) {
+				interactionRunsByEvent.delete(interactionRun.details.event.event_id);
+				if (startingInteractionRun === interactionRun) startingInteractionRun = null;
 			}
 		})());
 		// Local telemetry above is safe; from here onward the notice run is over.
@@ -2194,6 +2682,7 @@ export default function (pi: ExtensionAPI) {
 						previousTurn.commandTurnId,
 						previousTurn.commandMessageId,
 						isCommandTurnUnbound(previousTurn),
+						interactionIdentity(previousTurn.interaction),
 					).then(() => undefined));
 				}
 			}
@@ -2201,12 +2690,23 @@ export default function (pi: ExtensionAPI) {
 			// Bind immutable command identity (or clear it for local input), then
 			// begin normal busy presence exactly once for this same-run transition.
 			if (isRealUserMessage) {
+				// A genuine user follow-up promotes the one run-level occupancy. Low-level
+				// retry starts never do this merely because the pending flag was cleared.
+				if (pump && turn.occupancy?.kind === "system_notice") {
+					const promoted = pump.runtimeOccupancy.promote(turn.occupancy, "owner");
+					if (promoted) {
+						turn.occupancy = promoted;
+						turn.revision = nextTurnRevision++;
+					}
+				}
 				systemNoticeTurnPending = false;
 				systemNoticeRunActive = activityTransition?.nextSystemNoticeRunActive ?? false;
 				turn.completionNeutral = activityTransition?.nextCompletionNeutral ?? false;
 				turn.revision = nextTurnRevision++;
 				turn.commandTurnId = incomingCommand?.turnId;
 				turn.commandMessageId = incomingCommand?.commandMessageId;
+				turn.interaction = undefined;
+				turn.lastInteractionKeepaliveAt = undefined;
 				turn.tracker.userMessage(text, { customType });
 				if (activityTransition?.beginBusyPresence && pump) {
 					pump.busy = true;
@@ -2330,8 +2830,15 @@ export default function (pi: ExtensionAPI) {
 		subagentFleet.dispose();
 		for (const confirmation of pendingInteractionConfirmations) {
 			interactionDelivery.abandonMessage(confirmation.message);
+			if (confirmation.run.application === "starting") {
+				await releaseInteractionBeforePersistence(confirmation.run, "interaction_shutdown_before_persistence");
+			}
 		}
 		pendingInteractionConfirmations.clear();
+		if (startingInteractionRun?.application === "starting") {
+			await releaseInteractionBeforePersistence(startingInteractionRun, "interaction_shutdown_before_persistence");
+		}
+		startingInteractionRun = null;
 		if (runtimeStampTimer) {
 			clearTimeout(runtimeStampTimer);
 			runtimeStampTimer = null;
@@ -2345,17 +2852,17 @@ export default function (pi: ExtensionAPI) {
 		systemNoticeRunActive = false;
 		const active = pump;
 		if (!active) return;
+		if (active.interactionRetryTimer) clearTimeout(active.interactionRetryTimer);
+		active.interactionRetryTimer = undefined;
+		active.pendingInteractionStarts.clear();
+		active.pendingInteractionReleases.clear();
 		active.closing = true;
 		active.stop = true;
 		revokeSystemNoticeState(active.systemNoticeKey);
 		active.pushGenerationFence.invalidate();
 		active.pushAbort?.abort();
 		if (active.pushReconnectTimer) clearTimeout(active.pushReconnectTimer);
-		if (active.wakeWaiter) {
-			const w = active.wakeWaiter;
-			active.wakeWaiter = null;
-			w();
-		}
+		active.wakeGate.cancel();
 		// Let detached boundary/settle posts finish while pump authority still
 		// exists, so their failure fallback can report the exact segment.
 		if (pendingTerminalPosts.size > 0) {
@@ -2363,7 +2870,7 @@ export default function (pi: ExtensionAPI) {
 		}
 		// Close the activity attempt while the bond is still on the wire.
 		if (openTurn && remoteRunActivityPolicy(openTurn.completionNeutral).reportCompletion) {
-			try { await reportComplete("process_exit", openTurn.commandTurnId, openTurn.commandMessageId, isCommandTurnUnbound(openTurn)); } catch { /* best-effort */ }
+			try { await reportComplete("process_exit", openTurn.commandTurnId, openTurn.commandMessageId, isCommandTurnUnbound(openTurn), interactionIdentity(openTurn.interaction)); } catch { /* best-effort */ }
 		}
 		pump = null;
 		commandTurnBindings.clear();

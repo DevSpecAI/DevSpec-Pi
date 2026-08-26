@@ -12,8 +12,8 @@ test("Pi carries immutable turn + command identity through every activity output
 	assert.match(source, /command_message_id: opts\.commandMessageId/);
 	assert.match(source, /command_turn_unbound: true/);
 	assert.match(source, /commandTurnId: turn\.commandTurnId, commandMessageId: turn\.commandMessageId/);
-	assert.match(source, /reportComplete\("turn_end", commandTurnId, commandMessageId, commandTurnUnbound\)/);
-	assert.match(source, /reportComplete\("process_exit", openTurn\.commandTurnId, openTurn\.commandMessageId, isCommandTurnUnbound\(openTurn\)\)/);
+	assert.match(source, /reportComplete\("turn_end", commandTurnId, commandMessageId, commandTurnUnbound, interactionIdentity\(interactionRun\)\)/);
+	assert.match(source, /reportComplete\("process_exit", openTurn\.commandTurnId, openTurn\.commandMessageId, isCommandTurnUnbound\(openTurn\), interactionIdentity\(openTurn\.interaction\)\)/);
 });
 
 test("async subagents retain parent Working until the authoritative fleet is empty", () => {
@@ -34,14 +34,14 @@ test("async subagents retain parent Working until the authoritative fleet is emp
 	assert.match(messageStart, /await reconcileSubagentFleetOwnership\(notificationTurn\)/);
 	assert.match(messageStart, /allowNextAnswerBeforeBackgroundContinuation\(\)/);
 	const agentStart = source.slice(source.indexOf('pi.on("agent_start"'), source.indexOf('pi.on("agent_settled"'));
-	assert.match(agentStart, /turn\.revision = nextTurnRevision\+\+/);
+	assert.match(agentStart, /turn\.occupancy = occupancy \?\? undefined;[^]*turn\.revision = nextTurnRevision\+\+/);
 });
 
 test("delivery boundaries post the old exact command before rebinding the new segment", () => {
 	const split = source.slice(source.indexOf("function splitTurnAtBoundary"), source.indexOf("async function beatBusy"));
 	assert.match(split, /commandTurnId: t\.commandTurnId/);
 	assert.match(split, /commandMessageId: t\.commandMessageId/);
-	assert.match(source, /splitTurnAtBoundary\(\);[\s\S]{0,1400}turn\.commandTurnId = incomingCommand\?\.turnId;[\s\S]{0,200}turn\.commandMessageId = incomingCommand\?\.commandMessageId/);
+	assert.match(source, /splitTurnAtBoundary\(\);[\s\S]{0,2400}turn\.commandTurnId = incomingCommand\?\.turnId;[\s\S]{0,200}turn\.commandMessageId = incomingCommand\?\.commandMessageId/);
 	assert.doesNotMatch(source, /commandTurnBindings\.has\(/, "client queue guesses must not own server completion");
 	assert.match(source, /pure tool-call\/no-text segment[\s\S]{0,500}trackTerminalPost\(reportComplete/);
 	assert.match(source, /await Promise\.allSettled\(\[\.\.\.pendingTerminalPosts\]\)/);

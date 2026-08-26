@@ -20,6 +20,7 @@ import { addFlags, extractFlags } from "./core/conflict-watch.ts";
 import { jsonSchemaToTypebox } from "./core/json-schema.ts";
 import { consumeDeliveryLifecycle } from "./core/active-deliveries.ts";
 import { observeSuccessfulWorkResult } from "./core/work-state.ts";
+import { directedQuestionTranscriptReceiptId } from "./core/question-receipt-lifecycle.ts";
 import {
 	DIRECTED_QUESTION_TOOL_NAME,
 	HOT_SET_VERBS,
@@ -137,8 +138,10 @@ type PiToolResult = {
 export function shouldTerminateAfterDirectedQuestionCreate(
 	name: string,
 	args: Record<string, unknown>,
+	result: unknown,
 ): boolean {
-	return name === DIRECTED_QUESTION_TOOL_NAME && args.action === "create";
+	return name === DIRECTED_QUESTION_TOOL_NAME && args.action === "create" &&
+		directedQuestionTranscriptReceiptId(result) !== null;
 }
 
 /** Attribute model-visible characters only; details/args never enter telemetry. */
@@ -270,7 +273,7 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 				: {}),
 		});
 		const projected = unwrapOrThrow(name, raw);
-		const result = shouldTerminateAfterDirectedQuestionCreate(name, args)
+		const result = shouldTerminateAfterDirectedQuestionCreate(name, args, projected)
 			? { ...projected, terminate: true as const }
 			: projected;
 		consumeResultMechanics(name, result, args, localSessionId, getBond()?.projectId);

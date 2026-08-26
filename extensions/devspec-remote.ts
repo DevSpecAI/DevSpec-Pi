@@ -88,6 +88,12 @@ import {
 	syncBondIntoStatus,
 } from "./core/status-line.ts";
 import {
+	DirectedQuestionReceiptBatch,
+	TrailPostFence,
+	isPotentialDirectedQuestionCreate,
+	isReceiptOwningDirectedQuestionCreate,
+} from "./core/question-receipt-lifecycle.ts";
+import {
 	BusyWakeLatch,
 	openPushChannel,
 	nextPushReconnectDelayMs,
@@ -298,6 +304,10 @@ interface TurnState {
 	/** Runtime run generation; older settle callbacks cannot clear a newer run. */
 	occupancy?: RuntimeOccupancyRevision;
 	lastInteractionKeepaliveAt?: number;
+	/** Receipt-owned tool-batch state; never suppresses tool execution or completion. */
+	receiptBatch: DirectedQuestionReceiptBatch;
+	/** Every asynchronous projection that can still mutate this turn's pointer. */
+	trailPostFence: TrailPostFence;
 	dirty: boolean;
 	interval: ReturnType<typeof setInterval> | null;
 	/** Trail posts so far this run — drives the adaptive cadence. */
@@ -340,7 +350,10 @@ const TRAIL_INTERVAL_MS = 1_000;
 function ensureTurn(): void {
 	if (turn) return;
 	if (!getBond()?.sessionId) { debug("ensureTurn: not attached"); return; }
-	turn = { revision: nextTurnRevision++, tracker: new TurnTracker(), trail: new TrailBuilder(), completionNeutral: false, dirty: false, interval: null, posts: 0, lastPostAt: 0 };
+	const revision = nextTurnRevision++;
+	const receiptBatch = new DirectedQuestionReceiptBatch();
+	receiptBatch.reset(revision);
+	turn = { revision, tracker: new TurnTracker(), trail: new TrailBuilder(), completionNeutral: false, receiptBatch, trailPostFence: new TrailPostFence(), dirty: false, interval: null, posts: 0, lastPostAt: 0 };
 	postWarnedThisTurn = false;
 	debug("ensureTurn: tracking (run-scoped)");
 	turn.interval = setInterval(trailTick, TRAIL_INTERVAL_MS);
@@ -464,8 +477,16 @@ function interactionIdentity(run: ExactInteractionRun | undefined): ExactInterac
 	return run?.identity;
 }
 
+function resetDirectedQuestionReceiptBatch(): void {
+	if (!turn) return;
+	turn.trailPostFence = turn.trailPostFence.rollover();
+	turn.revision = nextTurnRevision++;
+	turn.receiptBatch.reset(turn.revision);
+}
+
 function trailTick(): void {
 	if (!turn || !remoteRunActivityPolicy(turn.completionNeutral).reportTranscript) return;
+	if (turn.receiptBatch.deferTrail(turn.revision)) return;
 	const now = Date.now();
 	if (turn.interaction && now - (turn.lastInteractionKeepaliveAt ?? 0) >= 60_000) {
 		turn.lastInteractionKeepaliveAt = now;
@@ -481,7 +502,8 @@ function trailTick(): void {
 	turn.dirty = false;
 	turn.posts += 1;
 	turn.lastPostAt = now;
-	void postToSession(rendered, { phase: "trail", commandTurnId: turn.commandTurnId, commandMessageId: turn.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(turn), interaction: interactionIdentity(turn.interaction), trailEvents: activityEvents });
+	const postingTurn = turn;
+	postingTurn.trailPostFence.track(postToSession(rendered, { phase: "trail", commandTurnId: postingTurn.commandTurnId, commandMessageId: postingTurn.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(postingTurn), interaction: interactionIdentity(postingTurn.interaction), trailEvents: activityEvents }));
 }
 
 /**
@@ -629,7 +651,7 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 		await postToSession(plan.prompt, { turnKind: "local_prompt" });
 		return await postToSession(plan.answer, { phase: "answer", completeTurn, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), interaction: interactionIdentity(t.interaction), workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
 	}
-	if (t.dirty && activityTrail) {
+	if (t.dirty && activityTrail && !t.receiptBatch.suppressEmptyFallback(t.revision)) {
 		await postToSession(activityTrail, { phase: "trail", commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), interaction: interactionIdentity(t.interaction), trailEvents: finalEvents });
 	}
 	return false;
@@ -652,6 +674,7 @@ async function settleTurn(agentStats: AgentStatsReport | null, completeTurn = tr
 	}
 	turn = null;
 	if (t.interval) clearInterval(t.interval);
+	await t.trailPostFence.drain();
 	return await postSegmentAnswer(t, agentStats, "run_end", completeTurn);
 }
 
@@ -676,10 +699,16 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 	// it belongs to the next segment; carrying the old builder duplicated the
 	// entire prior activity beneath every later answer. Exact message identity
 	// now keeps the two records stable without cumulative snapshots.
+	const nextRevision = nextTurnRevision++;
+	const receiptBatch = new DirectedQuestionReceiptBatch();
+	receiptBatch.reset(nextRevision);
+	const trailPostFence = new TrailPostFence();
 	turn = {
-		revision: nextTurnRevision++,
+		revision: nextRevision,
 		tracker: next,
 		trail: new TrailBuilder(),
+		receiptBatch,
+		trailPostFence,
 		commandTurnId: t.commandTurnId,
 		commandMessageId: t.commandMessageId,
 		completionNeutral: t.completionNeutral,
@@ -694,11 +723,17 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 	postWarnedThisTurn = false;
 	debug("delivery boundary", { completeTurn });
 	const previousPolicy = remoteRunActivityPolicy(t.completionNeutral);
-	trackTerminalPost(postSegmentAnswer(t, null, why, completeTurn).then(async (posted) => {
+	const boundaryPost = (async () => {
+		await t.trailPostFence.drain();
+		const posted = await postSegmentAnswer(t, null, why, completeTurn);
 		if (completeTurn && !posted && previousPolicy.reportCompletion) {
 			await reportComplete(why, t.commandTurnId, t.commandMessageId, isCommandTurnUnbound(t), interactionIdentity(t.interaction));
 		}
-	}));
+	})();
+	// A create in the fresh segment must wait for this predecessor projection too:
+	// it can still finalize/clear the same connection pointer.
+	trailPostFence.track(boundaryPost);
+	trackTerminalPost(boundaryPost);
 }
 
 /**
@@ -857,6 +892,8 @@ function scheduleTitleRefresh(sessionId: string, delayMs = 8_000): void {
 async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "owner_gone", serverAlreadyEnded = false): Promise<void> {
 	const active = pump;
 	if (!active) return;
+	const stoppingTurn = turn;
+	const stoppingTrailFence = stoppingTurn?.trailPostFence;
 	active.stop = true;
 	if (active.interactionRetryTimer) clearTimeout(active.interactionRetryTimer);
 	active.interactionRetryTimer = undefined;
@@ -883,6 +920,8 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 		active.pushReconnectTimer = undefined;
 	}
 	active.wakeGate.cancel();
+	resetDirectedQuestionReceiptBatch();
+	if (stoppingTrailFence) await stoppingTrailFence.drain();
 	pump = null;
 	commandTurnBindings.clear();
 	setBond(null);
@@ -1639,6 +1678,7 @@ async function reviveRecoverableBond(
 		active.synced = recoveredScope.synced;
 		active.connectionIdentity = recoveredScope.connectionIdentity;
 		if (changedConnection) {
+			resetDirectedQuestionReceiptBatch();
 			active.advisoryCarry = [];
 			active.attachmentRetryAttempts.clear();
 			active.playbookQueue.invalidate();
@@ -1856,6 +1896,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		// too (server session_id null → posting stops).
 		const serverSessionId = (payload as { session_id?: string | null } | null)?.session_id ?? null;
 		if (serverSessionId !== (active.bond.sessionId ?? null)) {
+			resetDirectedQuestionReceiptBatch();
 			// The server migration atomically seals/releases an in-flight exact
 			// interaction on detach/reattach. Abort local execution immediately so
 			// no model/tool side effect continues under revoked source authority.
@@ -2500,6 +2541,7 @@ export default function (pi: ExtensionAPI) {
 		if (turn) {
 			turn.occupancy = occupancy ?? undefined;
 			turn.revision = nextTurnRevision++;
+			turn.receiptBatch.reset(turn.revision);
 		}
 	});
 	pi.on("agent_settled", async (_event, ctx) => {
@@ -2585,6 +2627,7 @@ export default function (pi: ExtensionAPI) {
 		// Per-LLM-round event — the state must SURVIVE it, never be recreated
 		// (cc9e8c43). Lazily covers a mid-run attach too.
 		ensureTurn();
+		if (turn) turn.receiptBatch.reset(turn.revision);
 	});
 
 	// Leftover bg receipts arrive as custom_message (customType
@@ -2703,6 +2746,7 @@ export default function (pi: ExtensionAPI) {
 				systemNoticeRunActive = activityTransition?.nextSystemNoticeRunActive ?? false;
 				turn.completionNeutral = activityTransition?.nextCompletionNeutral ?? false;
 				turn.revision = nextTurnRevision++;
+				turn.receiptBatch.reset(turn.revision);
 				turn.commandTurnId = incomingCommand?.turnId;
 				turn.commandMessageId = incomingCommand?.commandMessageId;
 				turn.interaction = undefined;
@@ -2774,6 +2818,7 @@ export default function (pi: ExtensionAPI) {
 			// no deltas — this keeps the trail complete there (flushed at
 			// settle) without double-posting in the TUI (cumulative snapshots).
 			const { text, thinking, hasToolCalls, stopReason } = extractAssistantParts(event.message);
+			turn.receiptBatch.noteAssistantText(text, turn.revision);
 			turn.trail.setThinking(thinking);
 			turn.trail.setText(text);
 			// Round sealed: the next deltas open fresh entries (cc9e8c43).
@@ -2792,14 +2837,40 @@ export default function (pi: ExtensionAPI) {
 		}
 	});
 
-	pi.on("tool_execution_start", (event, ctx) => {
+	pi.on("tool_execution_start", async (event, ctx) => {
 		lastCtx = ctx;
 		noteVerbStart(event.toolCallId, event.toolName, event.args);
 		paintStatus(ctx);
 		if (!turn) return;
-		turn.trail.toolStart(event.toolCallId, event.toolName, event.args);
-		turn.dirty = true;
-		if (event.toolName === "subagent_wait") refreshSubagentFleet(event.toolCallId, turn);
+		const trackedTurn = turn;
+		const revision = trackedTurn.revision;
+		const potentialReceipt = isPotentialDirectedQuestionCreate(event.toolName, event.args);
+		// Mark synchronously before the first await. Timer ticks from this point on
+		// cannot open a pointer that overtakes canonical receipt takeover.
+		trackedTurn.receiptBatch.start(event.toolCallId, revision, potentialReceipt);
+		trackedTurn.trail.toolStart(event.toolCallId, event.toolName, event.args);
+		trackedTurn.dirty = true;
+		if (event.toolName === "subagent_wait") refreshSubagentFleet(event.toolCallId, trackedTurn);
+		if (!potentialReceipt) return;
+
+		const activeAtStart = pump;
+		const authority = activeAtStart
+			? capturePumpAuthority({ generation: activeAtStart.generation, connectionId: activeAtStart.bond.connectionId })
+			: null;
+		await trackedTurn.trailPostFence.drain();
+		const current = Boolean(activeAtStart && authority && turn === trackedTurn &&
+			trackedTurn.revision === revision && pump === activeAtStart && !activeAtStart.stop &&
+			isPumpAuthorityCurrent(authority, {
+				generation: activeAtStart.generation,
+				connectionId: activeAtStart.bond.connectionId,
+			}));
+		if (!current) {
+			trackedTurn.receiptBatch.finish(event.toolCallId, {
+				success: false,
+				terminatingReceipt: false,
+			}, revision);
+			ctx.abort();
+		}
 	});
 
 	pi.on("tool_execution_update", (event, ctx) => {
@@ -2822,6 +2893,15 @@ export default function (pi: ExtensionAPI) {
 		// too early: a failed launch would otherwise park the turn forever.
 		const backgroundTaskId = automaticBackgroundTaskId(event.toolName, event.result, event.isError);
 		if (backgroundTaskId) turn.tracker.noteBackgroundTask(backgroundTaskId);
+		const terminatingReceipt = isReceiptOwningDirectedQuestionCreate(
+			event.toolName,
+			event.result,
+			event.isError,
+		);
+		turn.receiptBatch.finish(event.toolCallId, {
+			success: !event.isError,
+			terminatingReceipt,
+		}, turn.revision);
 		turn.trail.toolEnd(event.toolCallId, event.toolName, !event.isError, event.result);
 		turn.dirty = true;
 	});
@@ -2847,6 +2927,7 @@ export default function (pi: ExtensionAPI) {
 		// (item 781886cf). A crash mid-turn must not leave empty bubbles.
 		const openTurn = turn;
 		if (openTurn?.interval) clearInterval(openTurn.interval);
+		openTurn?.trailPostFence.invalidate();
 		turn = null;
 		systemNoticeTurnPending = false;
 		systemNoticeRunActive = false;
@@ -2868,6 +2949,7 @@ export default function (pi: ExtensionAPI) {
 		if (pendingTerminalPosts.size > 0) {
 			await Promise.allSettled([...pendingTerminalPosts]);
 		}
+		if (openTurn) await openTurn.trailPostFence.drain();
 		// Close the activity attempt while the bond is still on the wire.
 		if (openTurn && remoteRunActivityPolicy(openTurn.completionNeutral).reportCompletion) {
 			try { await reportComplete("process_exit", openTurn.commandTurnId, openTurn.commandMessageId, isCommandTurnUnbound(openTurn), interactionIdentity(openTurn.interaction)); } catch { /* best-effort */ }

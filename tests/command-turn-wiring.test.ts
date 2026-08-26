@@ -11,7 +11,7 @@ test("Pi carries immutable turn + command identity through every activity output
 	assert.match(source, /command_turn_id: opts\.commandTurnId/);
 	assert.match(source, /command_message_id: opts\.commandMessageId/);
 	assert.match(source, /command_turn_unbound: true/);
-	assert.match(source, /commandTurnId: turn\.commandTurnId, commandMessageId: turn\.commandMessageId/);
+	assert.match(source, /commandTurnId: postingTurn\.commandTurnId, commandMessageId: postingTurn\.commandMessageId/);
 	assert.match(source, /reportComplete\("turn_end", commandTurnId, commandMessageId, commandTurnUnbound, interactionIdentity\(interactionRun\)\)/);
 	assert.match(source, /reportComplete\("process_exit", openTurn\.commandTurnId, openTurn\.commandMessageId, isCommandTurnUnbound\(openTurn\), interactionIdentity\(openTurn\.interaction\)\)/);
 });

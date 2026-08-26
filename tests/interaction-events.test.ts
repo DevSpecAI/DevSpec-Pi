@@ -7,8 +7,11 @@ import {
 	InteractionEventDeliveryController,
 	InteractionEventJournal,
 	formatInteractionEventContinuation,
+	exactInteractionAuthorityMatches,
+	interactionContinuationStartAction,
 	interactionEventJournalEntry,
 	interactionEventMatchesWorkflow,
+	parseInteractionContinuationStartResult,
 	parseInteractionEventPollPayload,
 	parseInteractionEventV1,
 	persistedActiveBranchEntries,
@@ -70,16 +73,19 @@ function deliveryHarness() {
 	let wakes = 0;
 	let currentGeneration = 1;
 	let currentConnectionId = event.origin_connection_id;
+	let currentConnectionCapability = "capability-test";
 	let currentSourceSessionId = event.source_session_id;
 	const authority: InteractionEventDeliveryAuthority = {
 		generation: 1,
 		connectionId: event.origin_connection_id,
+		connectionCapability: currentConnectionCapability,
 		sourceSessionId: event.source_session_id,
 		localSessionId: details.local_session_id,
 	};
 	const isAuthorityCurrent = (candidate: InteractionEventDeliveryAuthority) =>
 		candidate.generation === currentGeneration
 		&& candidate.connectionId === currentConnectionId
+		&& candidate.connectionCapability === currentConnectionCapability
 		&& candidate.sourceSessionId === currentSourceSessionId;
 	const port: InteractionEventDeliveryPort = {
 		append(state, value) { appended.push({ state, details: value }); },
@@ -91,6 +97,7 @@ function deliveryHarness() {
 		wakes: () => wakes,
 		setGeneration: (value: number) => { currentGeneration = value; },
 		setConnection: (value: string) => { currentConnectionId = value; },
+		setCapability: (value: string) => { currentConnectionCapability = value; },
 		setSourceSession: (value: string) => { currentSourceSessionId = value; },
 	};
 }
@@ -109,6 +116,135 @@ test("strict v1 parser accepts each answer kind and Unicode code-point bounds", 
 		answer: ["First", "Second"],
 	});
 	assert.deepEqual(multi.answer, ["First", "Second"]);
+});
+
+test("exact continuation start outcomes permit only current started authority to inject", () => {
+	const started = parseInteractionContinuationStartResult({
+		outcome: "started",
+		attempt_id: "77777777-7777-4777-8777-777777777777",
+		source_session_id: event.source_session_id,
+		phase: "working",
+		idempotent: false,
+	});
+	assert.equal(interactionContinuationStartAction(started, true), "inject");
+	assert.equal(interactionContinuationStartAction(started, false), "release");
+	for (const outcome of ["blocked_by_activity", "blocked_by_attachment", "source_session_unavailable"] as const) {
+		assert.equal(interactionContinuationStartAction(parseInteractionContinuationStartResult({ outcome }), true), "defer");
+	}
+	for (const outcome of ["terminal_same_claim", "stale_generation", "recovery_requires_reclaim"] as const) {
+		const parsed = parseInteractionContinuationStartResult({
+			outcome,
+			attempt_id: "77777777-7777-4777-8777-777777777777",
+			source_session_id: event.source_session_id,
+		});
+		assert.equal(interactionContinuationStartAction(parsed, true), "defer");
+	}
+	assert.equal(interactionContinuationStartAction(parseInteractionContinuationStartResult({ outcome: "already_acked" }), true), "ignore");
+	assert.throws(() => parseInteractionContinuationStartResult({ outcome: "future" }));
+});
+
+test("keepalive await uses immutable authority and cannot retarget after replacement", async () => {
+	const expected = {
+		generation: 1,
+		connectionId: event.origin_connection_id,
+		connectionCapability: "capability-old",
+		sourceSessionId: event.source_session_id,
+		localSessionId: "pi-session",
+	};
+	let current = { ...expected };
+	let releaseRemote!: () => void;
+	const remote = new Promise<void>((resolve) => { releaseRemote = resolve; });
+	const requests: string[] = [];
+	const keepalive = async () => {
+		if (!exactInteractionAuthorityMatches(expected, current)) return false;
+		requests.push(expected.connectionId);
+		await remote;
+		return exactInteractionAuthorityMatches(expected, current);
+	};
+	const pending = keepalive();
+	current = { ...current, generation: 2, connectionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", connectionCapability: "capability-new" };
+	releaseRemote();
+	assert.equal(await pending, false);
+	assert.deepEqual(requests, [event.origin_connection_id], "request used original immutable connection only");
+});
+
+test("started source mismatch requires release and never injection", () => {
+	const mismatched = parseInteractionContinuationStartResult({
+		outcome: "started",
+		attempt_id: "77777777-7777-4777-8777-777777777777",
+		source_session_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+		phase: "working",
+		idempotent: false,
+	});
+	const sourceCurrent = mismatched.outcome === "started" && mismatched.sourceSessionId === event.source_session_id;
+	assert.equal(interactionContinuationStartAction(mismatched, sourceCurrent), "release");
+});
+
+test("ambiguous commit-then-timeout pickup retries the same claim and injects once", async () => {
+	let calls = 0;
+	let injected = 0;
+	let serverCommitted = false;
+	const call = async () => {
+		calls += 1;
+		if (calls === 1) {
+			serverCommitted = true;
+			throw new Error("timeout after commit");
+		}
+		assert.equal(serverCommitted, true);
+		return parseInteractionContinuationStartResult({
+			outcome: "started",
+			attempt_id: "77777777-7777-4777-8777-777777777777",
+			source_session_id: event.source_session_id,
+			phase: "working",
+			idempotent: true,
+		});
+	};
+	await assert.rejects(call());
+	const retried = await call();
+	if (interactionContinuationStartAction(retried, true) === "inject") injected += 1;
+	assert.equal(calls, 2);
+	assert.equal(injected, 1);
+});
+
+test("token-null release remains queued and local-session change does not retarget exact retry", async () => {
+	const authority = {
+		generation: 1,
+		connectionId: event.origin_connection_id,
+		connectionCapability: "capability-old",
+		sourceSessionId: event.source_session_id,
+		localSessionId: "pi-session-old",
+	};
+	let token: string | null = null;
+	let currentLocalSession = "pi-session-old";
+	const requests: Array<{ connectionId: string; capability: string }> = [];
+	const release = async () => {
+		if (!token) return "retry";
+		requests.push({ connectionId: authority.connectionId, capability: authority.connectionCapability });
+		return "released";
+	};
+	assert.equal(await release(), "retry");
+	currentLocalSession = "pi-session-new";
+	token = "token";
+	assert.equal(await release(), "released");
+	assert.equal(currentLocalSession, "pi-session-new");
+	assert.deepEqual(requests, [{ connectionId: event.origin_connection_id, capability: "capability-old" }]);
+});
+
+test("ambiguous pre-persistence release retries exact identity until success", async () => {
+	let calls = 0;
+	let serverReleased = false;
+	const release = async () => {
+		calls += 1;
+		if (calls === 1) {
+			serverReleased = true;
+			throw new Error("timeout after release commit");
+		}
+		assert.equal(serverReleased, true);
+		return "already_released";
+	};
+	await assert.rejects(release());
+	assert.equal(await release(), "already_released");
+	assert.equal(calls, 2);
 });
 
 test("strict parser rejects unknown versions, malformed fields, extras, and invalid answers", () => {
@@ -413,6 +549,7 @@ test("crash and persistence-failure windows fail closed at the adapter boundary"
 		authority: {
 			generation: 1,
 			connectionId: event.origin_connection_id,
+			connectionCapability: "capability-test",
 			sourceSessionId: event.source_session_id,
 			localSessionId: details.local_session_id,
 		},
@@ -490,7 +627,8 @@ test("remote wiring uses idle claim/application and post-message_end disk proof"
 	assert.match(remote, /"poll_connection"/);
 	assert.match(remote, /interaction_event_version: 1/);
 	assert.match(remote, /interaction_event_ack: interactionEventAck/);
-	assert.match(remote, /const interactionEventNegotiated = interactionEventsRelevant\(active\)\s*&& Boolean\(active\.bond\.sessionId\) && !active\.busy && ctx\.isIdle\(\)/s);
+	assert.match(remote, /const interactionClaimIdle = interactionEventsRelevant\(active\)[^]*!active\.busy[^]*!active\.runtimeOccupancy\.isBusy\(\)[^]*ctx\.isIdle\(\)/s);
+	assert.match(remote, /const interactionEventNegotiated = interactionClaimIdle \|\| Boolean\(interactionEventAck\)/);
 	assert.match(remote, /pi\.sendMessage\(\{\s*customType: INTERACTION_EVENT_CUSTOM_TYPE/s);
 	assert.doesNotMatch(remote, /pi\.sendUserMessage\([^)]*INTERACTION_EVENT/s);
 	const interactionSender = remote.slice(
@@ -498,6 +636,12 @@ test("remote wiring uses idle claim/application and post-message_end disk proof"
 		remote.indexOf("pi_systemNoticeSend ="),
 	);
 	assert.doesNotMatch(interactionSender, /followUp|deliverAs/);
+	const exactStartAt = remote.indexOf("await startInteractionContinuation(active, event)");
+	assert.ok(exactStartAt >= 0 && exactStartAt < remote.indexOf("interactionDelivery.stage({", exactStartAt),
+		"exact report_pickup precedes custom persistence/injection");
+	assert.match(remote, /connectionCapability: active\.bond\.connectionCapability/);
+	assert.match(remote, /interaction_pre_persistence_failure: true/);
+	assert.match(remote, /await acknowledgeInteractionApplication\(confirmation\.run\)/);
 	assert.match(remote, /msg\?\.role === "custom" && msg\.customType === INTERACTION_EVENT_CUSTOM_TYPE[^]*confirmInteractionMessageAfterPersistence/s);
 	assert.match(remote, /readPersistedActiveBranchEntries\(\s*confirmation\.sessionManager,\s*confirmation\.sessionFile/s);
 	assert.match(remote, /persistedActiveBranchEntries\(\s*readPersistedSessionEntries\(expectedSessionFile\),\s*sessionManager\.getBranch\(\)/s);

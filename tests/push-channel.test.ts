@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+	BusyWakeLatch,
 	nextPushReconnectDelayMs,
+	openPushChannel,
 	parseSseFrame,
 	PushChannelGenerationFence,
+	RuntimeOccupancyFence,
+	WakeGenerationGate,
 	pushChannelUrl,
 	PUSH_HEALTHY_MS,
 	PUSH_RECONNECT_BACKOFF_MS,
@@ -23,6 +27,30 @@ test("main SSE URL advertises additive capabilities only when dynamically reques
 		pushChannelUrl({ mcpUrl: "https://devspec.test/api/mcp/", connectionId: "plain" }),
 		"https://devspec.test/api/mcp/connection-stream?connection_id=plain",
 	);
+});
+
+test("interaction-aware SSE carries the hidden exact-connection capability header", async () => {
+	const originalFetch = globalThis.fetch;
+	let captured: RequestInit | undefined;
+	globalThis.fetch = (async (_input, init) => {
+		captured = init;
+		return new Response("", { status: 200, headers: { "content-type": "text/event-stream" } });
+	}) as typeof fetch;
+	try {
+		await openPushChannel({
+			mcpUrl: "https://devspec.test/api/mcp",
+			token: "token",
+			connectionId: "connection",
+			connectionCapability: "capability",
+			interactionEventVersion: 1,
+			handlers: { onWake() {}, onEnded() {}, onClose() {} },
+			signal: new AbortController().signal,
+		});
+		const headers = new Headers(captured?.headers);
+		assert.equal(headers.get("x-devspec-connection-capability"), "capability");
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
 });
 
 test("parseSseFrame parses event + data", () => {
@@ -70,6 +98,62 @@ test("nextPushReconnectDelayMs restarts backoff when the dropped stream was heal
 test("nextPushReconnectDelayMs without an open timestamp trusts the attempt count", () => {
 	assert.equal(nextPushReconnectDelayMs(0, undefined, 5_000), PUSH_RECONNECT_BACKOFF_MS[0]);
 	assert.equal(nextPushReconnectDelayMs(3, undefined, 5_000), null);
+});
+
+test("wake gate consumes the resolving signal and preserves exactly one newer burst fetch", async () => {
+	const gate = new WakeGenerationGate();
+	const first = gate.wait(1_000);
+	gate.signal(); // resolves the existing waiter and consumes this generation
+	gate.signal();
+	gate.signal(); // synchronous burst coalesces as one newer pending generation
+	await first;
+	assert.equal(gate.hasPending(), true);
+	await gate.wait(1_000);
+	assert.equal(gate.hasPending(), false);
+	// A genuinely newer wake after the fetch remains pending.
+	gate.signal();
+	assert.equal(gate.hasPending(), true);
+	await gate.wait(1_000);
+	assert.equal(gate.hasPending(), false);
+	gate.cancel();
+});
+
+test("busy wake is replayed exactly once at the next idle boundary", () => {
+	const latch = new BusyWakeLatch();
+	latch.noteWake(true);
+	latch.noteWake(true);
+	assert.equal(latch.consumeAtIdle(false), false, "a busy boundary cannot consume the nudge");
+	assert.equal(latch.consumeAtIdle(true), true, "settle receives an immediate coalesced nudge");
+	assert.equal(latch.consumeAtIdle(true), false, "the nudge is one-shot");
+	latch.noteWake(false);
+	assert.equal(latch.consumeAtIdle(true), false, "idle wakes need no later replay");
+});
+
+test("multiple low-level starts preserve one notice run until its single settle", () => {
+	const occupancy = new RuntimeOccupancyFence();
+	const latch = new BusyWakeLatch();
+	const notice = occupancy.begin("system_notice");
+	const retry = occupancy.begin("owner"); // pending flag may already be cleared
+	assert.equal(retry.kind, "system_notice", "retry/compaction start cannot reclassify the run");
+	assert.ok(retry.revision > notice.revision, "every low-level start fences older settle");
+	latch.noteWake(occupancy.isBusy());
+	assert.equal(latch.consumeAtIdle(false), false);
+	assert.equal(occupancy.finish(notice), false, "old settle captured before retry cannot finish");
+	assert.equal(occupancy.finish(retry), true);
+	assert.equal(occupancy.isBusy(), false);
+	assert.equal(latch.consumeAtIdle(true), true, "single settle immediately replays one wake");
+	assert.equal(latch.consumeAtIdle(true), false);
+});
+
+test("a genuine owner follow-up promotes an active notice run and still settles normally", () => {
+	const occupancy = new RuntimeOccupancyFence();
+	const notice = occupancy.begin("system_notice");
+	const owner = occupancy.promote(notice, "owner");
+	assert.equal(owner?.kind, "owner");
+	assert.ok((owner?.revision ?? 0) > notice.revision, "promotion also fences older settle");
+	assert.equal(occupancy.capture()?.kind, "owner");
+	assert.equal(occupancy.finish(owner), true);
+	assert.equal(occupancy.isBusy(), false);
 });
 
 test("dynamic SSE restart fences an already-scheduled reconnect from opening a second stream", () => {

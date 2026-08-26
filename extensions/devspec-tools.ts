@@ -124,7 +124,22 @@ const NOT_CONNECTED =
 
 type CallCtx = { sessionManager: { getSessionId(): string }; cwd: string };
 
-type PiToolResult = { content?: Array<{ type?: string; text?: string }> };
+type PiToolResult = {
+	content?: Array<{ type?: string; text?: string }>;
+	terminate?: boolean;
+};
+
+/**
+ * A created directed-question card is the blocking turn's terminal output. Pi
+ * stops only when every result in the same tool batch carries terminate=true,
+ * so mixed create/read/work batches remain safe and continue normally.
+ */
+export function shouldTerminateAfterDirectedQuestionCreate(
+	name: string,
+	args: Record<string, unknown>,
+): boolean {
+	return name === DIRECTED_QUESTION_TOOL_NAME && args.action === "create";
+}
 
 /** Attribute model-visible characters only; details/args never enter telemetry. */
 function measuredToolResult<T extends PiToolResult>(name: string, result: T): T {
@@ -254,7 +269,10 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 				? { connectionCapability: bond.connectionCapability }
 				: {}),
 		});
-		const result = unwrapOrThrow(name, raw);
+		const projected = unwrapOrThrow(name, raw);
+		const result = shouldTerminateAfterDirectedQuestionCreate(name, args)
+			? { ...projected, terminate: true as const }
+			: projected;
 		consumeResultMechanics(name, result, args, localSessionId, getBond()?.projectId);
 		return measuredToolResult(name, result);
 	} catch (err) {

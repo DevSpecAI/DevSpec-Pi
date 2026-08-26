@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 006bf684b8869818c7720cad4c9ce85a718e9f86155d1c1d1faa004c6dbbff5b
- * Description fingerprint: 3eabd419773650963029caeabeb9b74da1e9e400f27300f031e316ad7fd4aa7e
- * Regenerated: 2026-08-25T22:15:00.957Z
+ * Schema fingerprint: 24726af58e04cb864a9c0a6d8033e99073594041cadfe295b805ff88cfb43353
+ * Description fingerprint: 4d6bfbbd93bde9d5ba5a80f4ac8d051e92aec1d9ca8eb2e69f35023b2e4ff842
+ * Regenerated: 2026-08-26T11:19:07.523Z
  */
-export const MCP_CATALOG_FINGERPRINT = "006bf684b8869818c7720cad4c9ce85a718e9f86155d1c1d1faa004c6dbbff5b";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "3eabd419773650963029caeabeb9b74da1e9e400f27300f031e316ad7fd4aa7e";
-export const MCP_CATALOG_GENERATED_AT = "2026-08-25T22:15:00.957Z";
+export const MCP_CATALOG_FINGERPRINT = "24726af58e04cb864a9c0a6d8033e99073594041cadfe295b805ff88cfb43353";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "4d6bfbbd93bde9d5ba5a80f4ac8d051e92aec1d9ca8eb2e69f35023b2e4ff842";
+export const MCP_CATALOG_GENERATED_AT = "2026-08-26T11:19:07.523Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -4408,6 +4408,30 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "boolean",
 					"description": "Optional explicit local/synthetic generation marker. True means this output began with no poll-delivered command turn; it may close only a source-less activity captured for this connection, never a newer owner command. Mutually exclusive with command_turn_id."
 				},
+				"attempt_id": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact interaction attempt returned by report_pickup.",
+					"x-devspec-host-only": true
+				},
+				"interaction_event_id": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact directed-question event for this host continuation.",
+					"x-devspec-host-only": true
+				},
+				"interaction_response_id": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact immutable response paired with the event.",
+					"x-devspec-host-only": true
+				},
+				"interaction_claim_token": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact current claim generation that started the attempt.",
+					"x-devspec-host-only": true
+				},
 				"message": {
 					"type": "string",
 					"description": "The message content (markdown). Displayed in the live chat as a distinct local-agent message. For turn_kind=local_prompt, pass the raw owner prompt (no need for a \"Local prompt:\" wrapper)."
@@ -5540,18 +5564,44 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "report_pickup",
 		"label": "DevSpec: Report Pickup",
-		"description": "CONNECTION activity state machine (a16abcbd). Report that this connection has STARTED an activity — moves its attempt to working and starts the working lease. You are the SOLE authority for 'working'; the server never infers it. Call once when you start acting. Normally pass just connection_id: the server resolves the current pending conversational-command attempt, or — if there is none (a locally initiated turn) — opens a fresh working attempt on your behalf because you reported it. Optionally pass a specific attempt_id returned with an exact-target command to pick up exactly that attempt; only a currently-pending attempt can be picked up that way (a stale/duplicate pickup is rejected). Then keep it alive with report_keepalive and close it with report_complete.",
-		"promptSnippet": "CONNECTION activity state machine (a16abcbd).",
+		"description": "Start activity. Moves its attempt to working and starts the working lease. You are the SOLE authority for 'working'; the server never infers it. Call once when you start acting. Normally pass just connection_id: the server resolves the current pending conversational-command attempt, or — if there is none (a locally initiated turn) — opens a fresh working attempt on your behalf because you reported it. For an interaction continuation, the mechanical host passes version 1 plus the exact event/response/claim tuple; the server atomically returns its event-bound attempt and never selects a pending owner command. Otherwise, an optional attempt_id picks up that exact pending command attempt. Keep it alive with report_keepalive and close it with report_complete.",
+		"promptSnippet": "Start activity.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
 				"connection_id": {
-					"type": "string",
-					"description": "The connection starting the activity (from register_connection / attach_connection)."
+					"type": "string"
 				},
 				"attempt_id": {
 					"type": "string",
-					"description": "Optional — a specific activity attempt returned with an exact-target conversational command. Omit to let the server resolve this connection’s current attempt."
+					"format": "uuid",
+					"description": "Exact activity attempt when supplied."
+				},
+				"interaction_event_version": {
+					"type": "integer",
+					"enum": [
+						1
+					],
+					"description": "Mechanical event-bound continuation protocol version.",
+					"x-devspec-host-only": true
+				},
+				"interaction_event_id": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact claimed event id.",
+					"x-devspec-host-only": true
+				},
+				"interaction_response_id": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact response id carried by the event.",
+					"x-devspec-host-only": true
+				},
+				"interaction_claim_token": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact event claim token.",
+					"x-devspec-host-only": true
 				},
 				"runner_session_id": {
 					"type": "string",
@@ -5622,7 +5672,26 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"attempt_id": {
 					"type": "string",
+					"format": "uuid",
 					"description": "Optional — a specific working attempt to keep alive. Omit to refresh this connection’s current working attempt."
+				},
+				"interaction_event_id": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact interaction event bound to attempt_id.",
+					"x-devspec-host-only": true
+				},
+				"interaction_response_id": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact interaction response bound to attempt_id.",
+					"x-devspec-host-only": true
+				},
+				"interaction_claim_token": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact interaction claim bound to attempt_id.",
+					"x-devspec-host-only": true
 				},
 				"runner_session_id": {
 					"type": "string",
@@ -5649,6 +5718,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"attempt_id": {
 					"type": "string",
+					"format": "uuid",
 					"description": "Optional — a specific activity attempt to close as done. Mutually exclusive with command_turn_id."
 				},
 				"command_turn_id": {
@@ -5666,6 +5736,29 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"reason": {
 					"type": "string",
 					"description": "Optional short note recorded as the terminal reason."
+				},
+				"interaction_event_id": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact interaction event bound to attempt_id.",
+					"x-devspec-host-only": true
+				},
+				"interaction_response_id": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact interaction response bound to attempt_id.",
+					"x-devspec-host-only": true
+				},
+				"interaction_claim_token": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact interaction claim bound to attempt_id.",
+					"x-devspec-host-only": true
+				},
+				"interaction_pre_persistence_failure": {
+					"type": "boolean",
+					"description": "Release only when host persistence failed before application.",
+					"x-devspec-host-only": true
 				},
 				"runner_session_id": {
 					"type": "string",

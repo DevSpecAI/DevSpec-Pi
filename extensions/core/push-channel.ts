@@ -22,6 +22,8 @@ export interface PushChannelOptions {
 	mcpUrl: string;
 	token: string;
 	connectionId: string;
+	/** Hidden exact-connection capability minted with this bond. */
+	connectionCapability?: string;
 	/** Main intake capability only; side polls never inherit this negotiation. */
 	systemNoticeVersion?: 1;
 	/** Durable interaction events share this one stream's wake marker. */
@@ -76,6 +78,123 @@ export class PushChannelGenerationFence {
 	}
 }
 
+export type RuntimeRunKind = "owner" | "interaction" | "system_notice";
+
+export interface RuntimeOccupancyRevision {
+	revision: number;
+	kind: RuntimeRunKind;
+}
+
+/**
+ * True Pi runtime occupancy, independent from server-visible activity. System
+ * notices are activity-neutral but still occupy the model and must retain SSE
+ * wakes. A stale settle revision can never clear a newer run.
+ */
+export class RuntimeOccupancyFence {
+	private nextRevision = 1;
+	private current: RuntimeOccupancyRevision | null = null;
+
+	begin(kind: RuntimeRunKind): RuntimeOccupancyRevision {
+		// Every low-level Pi start receives a newer settle token, while retries and
+		// compaction retain the existing run kind. An older awaited settle can no
+		// longer finish after a newer start has occurred.
+		const current = {
+			revision: this.nextRevision++,
+			kind: this.current?.kind ?? kind,
+		};
+		this.current = current;
+		return { ...current };
+	}
+
+	promote(candidate: RuntimeOccupancyRevision | null, kind: RuntimeRunKind): RuntimeOccupancyRevision | null {
+		if (!this.isCurrent(candidate) || !this.current) return null;
+		this.current = { revision: this.nextRevision++, kind };
+		return { ...this.current };
+	}
+
+	capture(): RuntimeOccupancyRevision | null {
+		return this.current ? { ...this.current } : null;
+	}
+
+	isCurrent(candidate: RuntimeOccupancyRevision | null): boolean {
+		return Boolean(candidate && this.current
+			&& candidate.revision === this.current.revision
+			&& candidate.kind === this.current.kind);
+	}
+
+	finish(candidate: RuntimeOccupancyRevision | null): boolean {
+		if (!this.isCurrent(candidate)) return false;
+		this.current = null;
+		return true;
+	}
+
+	isBusy(): boolean {
+		return this.current !== null;
+	}
+}
+
+/**
+ * Monotonic wake gate for the one pump fetch loop. Resolving a waiter consumes
+ * that exact generation; a later/burst signal remains one pending generation.
+ */
+export class WakeGenerationGate {
+	private produced = 0;
+	private consumed = 0;
+	private waiter: { resolve: () => void; timer: ReturnType<typeof setTimeout> } | null = null;
+
+	signal(): void {
+		this.produced += 1;
+		const waiter = this.waiter;
+		if (!waiter) return;
+		this.waiter = null;
+		clearTimeout(waiter.timer);
+		this.consumed = this.produced;
+		waiter.resolve();
+	}
+
+	wait(safetyMs: number): Promise<void> {
+		if (this.produced > this.consumed) {
+			this.consumed = this.produced;
+			return Promise.resolve();
+		}
+		return new Promise((resolve) => {
+			const timer = setTimeout(() => {
+				if (this.waiter?.resolve === resolve) this.waiter = null;
+				resolve();
+			}, safetyMs);
+			if (typeof timer.unref === "function") timer.unref();
+			this.waiter = { resolve, timer };
+		});
+	}
+
+	cancel(): void {
+		const waiter = this.waiter;
+		this.waiter = null;
+		if (!waiter) return;
+		clearTimeout(waiter.timer);
+		waiter.resolve();
+	}
+
+	hasPending(): boolean {
+		return this.produced > this.consumed;
+	}
+}
+
+/** Coalesces wake markers consumed while Pi cannot negotiate idle-only lanes. */
+export class BusyWakeLatch {
+	private pending = false;
+
+	noteWake(busy: boolean): void {
+		if (busy) this.pending = true;
+	}
+
+	consumeAtIdle(idle: boolean): boolean {
+		if (!idle || !this.pending) return false;
+		this.pending = false;
+		return true;
+	}
+}
+
 export function nextPushReconnectDelayMs(
 	attempts: number,
 	openedAt: number | undefined,
@@ -107,6 +226,7 @@ export async function openPushChannel(opts: PushChannelOptions): Promise<void> {
 		headers: {
 			authorization: `Bearer ${opts.token}`,
 			accept: "text/event-stream",
+			...(opts.connectionCapability ? { "x-devspec-connection-capability": opts.connectionCapability } : {}),
 		},
 		signal: opts.signal,
 	});

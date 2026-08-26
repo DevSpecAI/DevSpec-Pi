@@ -13,16 +13,18 @@ function bodyBetween(start: string, end: string): string {
 
 test("main Pi poll capacity-gates system notices while control ack cannot claim them", () => {
 	const calls = [...source.matchAll(/callDevspec\([^]*?"poll_connection"[^]*?\{([^]*?)\}, \{/gu)];
-	assert.equal(calls.length, 2, "expected control ack and pump poll only");
-	for (const call of calls) {
+	assert.equal(calls.length, 3, "expected control ACK, exact interaction ACK, and main pump poll only");
+	for (const call of [calls[0]!, calls[2]!]) {
 		assert.match(call[1], /ingress_version: 1/);
 		assert.match(call[1], /delegated_scope_version: 1/);
 		assert.match(call[1], /active_plan_projection_version: 1/);
 	}
 	assert.doesNotMatch(calls[0]![1], /system_notice_version|system_notice_cursor/, "ackControl must never lease/ack at-most-once notices");
-	assert.match(calls[1]![1], /\.\.\.\(systemNoticeNegotiated \? \{/);
-	assert.match(calls[1]![1], /system_notice_version: 1/);
-	assert.match(calls[1]![1], /system_notice_cursor: active\.systemNoticeCursor/);
+	assert.match(calls[1]![1], /interaction_event_ack/);
+	assert.match(calls[1]![1], /catch_up: true/);
+	assert.match(calls[2]![1], /\.\.\.\(systemNoticeNegotiated \? \{/);
+	assert.match(calls[2]![1], /system_notice_version: 1/);
+	assert.match(calls[2]![1], /system_notice_cursor: active\.systemNoticeCursor/);
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
 	assert.match(pump, /const systemNoticeNegotiated = hasSystemNoticeBatchCapacity\(active\.systemNoticeKey\)/);
 	assert.match(pump, /cursor_v2: active\.cursor/);
@@ -41,8 +43,8 @@ test("system notices use a fresh harness custom turn and never user/followUp/ste
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
 	assert.match(pump, /if \(!active\.busy && ctx\.isIdle\(\)\)[^]*deliverQueuedSystemNotices/);
 	const started = bodyBetween('pi.on("agent_start"', 'pi.on("agent_settled"');
-	assert.ok(started.indexOf("const completionNeutral = systemNoticeTurnPending") < started.indexOf("pump.busy = true"));
-	assert.match(started, /const activityPolicy = remoteRunActivityPolicy\(completionNeutral\)[^]*if \(pump && activityPolicy\.reportPresence\)[^]*pump\.busy = true[^]*beatBusy\(true\)/);
+	assert.ok(started.indexOf("const completionNeutral = occupancy?.kind === \"system_notice\"") < started.indexOf("active.busy = true"));
+	assert.match(started, /const activityPolicy = remoteRunActivityPolicy\(completionNeutral\)[^]*else if \(active && activityPolicy\.reportPresence\)[^]*active\.busy = true[^]*beatBusy\(true\)/);
 	const settled = bodyBetween('pi.on("agent_settled"', "// ---- Turn lifecycle events");
 	assert.match(settled, /const activityPolicy = remoteRunActivityPolicy\(completionNeutral\)[^]*if \(pump && activityPolicy\.reportPresence\)[^]*pump\.busy = keepWorking[^]*beatBusy\(keepWorking/);
 	assert.match(settled, /!keepWorking && pump && !pump\.busy && ctx\.isIdle\(\)[^]*deliverQueuedSystemNotices/);
@@ -58,7 +60,7 @@ test("system notices use a fresh harness custom turn and never user/followUp/ste
 	const answer = bodyBetween("async function postSegmentAnswer", "async function settleTurn");
 	assert.match(answer, /if \(!remoteRunActivityPolicy\(t\.completionNeutral\)\.reportTranscript\) return false/);
 	const trail = bodyBetween("function trailTick", "/**\n * Explicitly close");
-	assert.match(trail, /if \(!turn\?\.dirty \|\| !remoteRunActivityPolicy\(turn\.completionNeutral\)\.reportTranscript\) return/);
+	assert.match(trail, /if \(!turn \|\| !remoteRunActivityPolicy\(turn\.completionNeutral\)\.reportTranscript\) return/);
 	const shutdown = bodyBetween('pi.on("session_shutdown"', 'pi.on("session_start"');
 	assert.match(shutdown, /revokeSystemNoticeState\(active\.systemNoticeKey\)/);
 	assert.match(shutdown, /if \(openTurn && remoteRunActivityPolicy\(openTurn\.completionNeutral\)\.reportCompletion\)[^]*reportComplete\("process_exit"/);
@@ -75,12 +77,13 @@ test("same-run real user boundary ends notice neutrality before normal presence 
 	const beat = messageStart.indexOf("beatBusy(true)", beginBusy);
 	assert.ok(endNeutral >= 0 && endNeutral < bindTurn && bindTurn < trackUser && trackUser < beginBusy && beginBusy < beat);
 	assert.match(messageStart, /const previousPolicy = activityTransition\?\.previousPolicy[^]*if \(previousPolicy\.reportCompletion\)[^]*reportComplete/);
+	assert.match(messageStart, /turn\.occupancy\?\.kind === "system_notice"[^]*runtimeOccupancy\.promote\(turn\.occupancy, "owner"\)[^]*turn\.occupancy = promoted/);
 
 	const split = bodyBetween("function splitTurnAtBoundary", "/**\n * Assert busy presence");
 	assert.match(split, /const previousPolicy = remoteRunActivityPolicy\(t\.completionNeutral\)/);
 	assert.match(split, /!posted && previousPolicy\.reportCompletion[^]*reportComplete/);
 	const settled = bodyBetween('pi.on("agent_settled"', "// ---- Turn lifecycle events");
-	assert.match(settled, /const completionNeutral = systemNoticeRunActive \|\| settlingTurn\?\.completionNeutral === true/);
+	assert.match(settled, /const completionNeutral = occupancyAtSettle\?\.kind === "system_notice" \|\| settlingTurn\?\.completionNeutral === true/);
 });
 
 test("recoverable server ends revive the same bond instead of spinning on an ended row", () => {

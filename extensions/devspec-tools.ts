@@ -21,6 +21,7 @@ import { jsonSchemaToTypebox } from "./core/json-schema.ts";
 import { consumeDeliveryLifecycle } from "./core/active-deliveries.ts";
 import { observeSuccessfulWorkResult } from "./core/work-state.ts";
 import {
+	DIRECTED_QUESTION_TOOL_NAME,
 	HOT_SET_VERBS,
 	PLAN_TOOL_NAME,
 	SCOPE_KEY_SET,
@@ -31,6 +32,8 @@ import {
 	hotToolPromptMetadata,
 	searchRareModelTools,
 	toolLoaderInputSchema,
+	withDirectedQuestionToolActive,
+	withPlanToolActive,
 } from "./core/model-surface.ts";
 import { projectedToolResult, toolErrorResult, toolTextResult, unwrapMcpResult } from "./core/result.ts";
 import {
@@ -219,9 +222,10 @@ export function stampKnownScope(params: Record<string, unknown>, name?: string):
 		if (SCOPE_KEY_SET.has(key)) continue;
 		stamped[key] = value;
 	}
-	// manage_plan identity, session and project are derived exclusively from the
-	// capability-authenticated connection. Even host-known ids do not become args.
-	if (name === PLAN_TOOL_NAME) return stamped;
+	// Connection-bound ledgers derive identity, session and project exclusively
+	// from the capability-authenticated connection. Even host-known ids do not
+	// become model arguments.
+	if (name === PLAN_TOOL_NAME || name === DIRECTED_QUESTION_TOOL_NAME) return stamped;
 	const bond = getBond();
 	if (bond?.sessionId) stamped.session_id = bond.sessionId;
 	if (bond?.connectionId) stamped.connection_id = bond.connectionId;
@@ -246,7 +250,7 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 			cwd: ctx.cwd,
 			lane: "work",
 			timeoutMs: MODEL_TIMEOUT_MS,
-			...(name === PLAN_TOOL_NAME && bond?.connectionCapability
+			...((name === PLAN_TOOL_NAME || name === DIRECTED_QUESTION_TOOL_NAME) && bond?.connectionCapability
 				? { connectionCapability: bond.connectionCapability }
 				: {}),
 		});
@@ -328,6 +332,12 @@ export default function (pi: ExtensionAPI) {
 	for (const entry of allModelFacingTools()) registerCatalogTool(pi, entry);
 	registerToolLoader(pi);
 	pi.on("session_start", () => {
-		pi.setActiveTools(initialActiveTools(pi.getActiveTools()));
+		const bond = getBond();
+		const initial = initialActiveTools(pi.getActiveTools());
+		const withPlan = withPlanToolActive(initial, Boolean(bond?.sessionId));
+		pi.setActiveTools(withDirectedQuestionToolActive(
+			withPlan,
+			Boolean(bond?.sessionId && bond.connectionCapability),
+		));
 	});
 }

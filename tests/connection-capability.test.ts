@@ -16,13 +16,13 @@ test("connection capability is accepted only from negotiated hidden MCP metadata
 	assert.equal(connectionCapabilityFromResult({ ...raw, _meta: { devspec: { connection_capability: { version: 1, value: "connection-id" } } } }), undefined);
 });
 
-test("native manage_plan sends no model-authored identity and stamps capability only as a transport header", () => {
+test("native connection-bound tools send no model-authored identity and stamp capability only as a transport header", () => {
 	const tools = readFileSync(new URL("../extensions/devspec-tools.ts", import.meta.url), "utf8");
 	const client = readFileSync(new URL("../extensions/core/client.ts", import.meta.url), "utf8");
 	const remote = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 	assert.match(remote, /connection_capability_version: 1/);
 	assert.match(remote, /connectionCapabilityFromResult\(regRaw\)/);
-	assert.match(tools, /name === PLAN_TOOL_NAME && bond\?\.connectionCapability/);
+	assert.match(tools, /name === PLAN_TOOL_NAME \|\| name === DIRECTED_QUESTION_TOOL_NAME/);
 	assert.match(tools, /stampKnownScope\(params, name\)/);
 	assert.match(client, /"x-devspec-connection-capability": connectionCapability/);
 	assert.doesNotMatch(tools, /connection_capability\s*:/);

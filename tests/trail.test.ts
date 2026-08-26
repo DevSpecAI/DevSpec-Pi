@@ -366,6 +366,29 @@ test("manage_plan trail keeps safe revision mechanics and discards plan bodies",
 	assert.ok(!serialized.includes(secret), serialized);
 });
 
+test("manage_directed_question trail keeps mechanics and discards prompt/options", () => {
+	const secret = "QUESTION_PRIVATE_SENTINEL_81c2";
+	const t = new TrailBuilder();
+	t.toolStart("question-1", "manage_directed_question", {
+		action: "cancel",
+		question_id: "21212121-2121-4121-8121-212121212121",
+		expected_revision: 2,
+		prompt: secret,
+		options: [secret],
+	});
+	t.toolEnd("question-1", "manage_directed_question", true, {
+		content: [{ type: "text", text: secret }],
+		details: { question: { status: "cancelled", revision: 3, prompt: secret } },
+	});
+	const serialized = `${t.render()}\n${JSON.stringify(t.events())}`;
+	assert.match(serialized, /action=cancel/);
+	assert.match(serialized, /question_id=21212121-2121-4121-8121-212121212121/);
+	assert.match(serialized, /expected_revision=2/);
+	assert.match(serialized, /status=cancelled/);
+	assert.match(serialized, /revision=3/);
+	assert.ok(!serialized.includes(secret), serialized);
+});
+
 test("realistic domain wrappers preserve safe lifecycle outcomes and markdown-safe labels", () => {
 	const secret = "TITLE_URL_SENTINEL_5bc9";
 	const t = new TrailBuilder();

@@ -80,9 +80,10 @@ const FULL_READ_VERBS = new Set([
 	"claim_review",
 	"import_instruction_rules",
 	"update_personal_instructions",
-	// Every manage_plan mutation returns the full authoritative revisioned
-	// snapshot; there is no continuation from which omitted steps can be recovered.
+	// Every connection-bound ledger mutation/read returns the authoritative
+	// revisioned object; there is no safe continuation for omitted state.
 	"manage_plan",
+	"manage_directed_question",
 ]);
 
 const ACK_VERBS = new Set([

@@ -53,8 +53,9 @@ export const SCOPE_KEY_SET = new Set<string>(SCOPE_KEYS);
 
 export const TOOL_LOADER_NAME = "search_devspec_tools";
 export const PLAN_TOOL_NAME = "manage_plan";
+export const DIRECTED_QUESTION_TOOL_NAME = "manage_directed_question";
 /** Native tools whose lifecycle is mechanical, never loader/search driven. */
-export const ACTIVATION_ONLY_VERBS = new Set<string>([PLAN_TOOL_NAME]);
+export const ACTIVATION_ONLY_VERBS = new Set<string>([PLAN_TOOL_NAME, DIRECTED_QUESTION_TOOL_NAME]);
 export const TOOL_LOADER_DESCRIPTION =
 	"Find and load less-common DevSpec tools for a task described in natural language.";
 
@@ -404,6 +405,12 @@ export function estimatePlanToolChars(): number {
 export function withPlanToolActive(active: readonly string[], enabled: boolean): string[] {
 	const withoutPlan = active.filter((name) => name !== PLAN_TOOL_NAME);
 	return enabled ? [...withoutPlan, PLAN_TOOL_NAME] : withoutPlan;
+}
+
+/** Add/remove only the question schema; its lifecycle is independent of plans. */
+export function withDirectedQuestionToolActive(active: readonly string[], enabled: boolean): string[] {
+	const withoutQuestion = active.filter((name) => name !== DIRECTED_QUESTION_TOOL_NAME);
+	return enabled ? [...withoutQuestion, DIRECTED_QUESTION_TOOL_NAME] : withoutQuestion;
 }
 
 /** Conservative token estimate (chars/4). Target band is 2–8k. */

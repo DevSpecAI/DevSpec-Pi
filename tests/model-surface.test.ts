@@ -6,6 +6,7 @@ import { buildDevspecInstructions } from "../extensions/core/instructions.ts";
 import { jsonSchemaToTypebox } from "../extensions/core/json-schema.ts";
 import {
 	ACTIVATION_ONLY_VERBS,
+	DIRECTED_QUESTION_TOOL_NAME,
 	HOT_SET,
 	HOT_SET_VERBS,
 	PLAN_TOOL_NAME,
@@ -27,6 +28,7 @@ import {
 	searchRareModelTools,
 	slimSchema,
 	toolLoaderInputSchema,
+	withDirectedQuestionToolActive,
 	withPlanToolActive,
 } from "../extensions/core/model-surface.ts";
 import registerDevspecTools, {
@@ -88,9 +90,12 @@ test("rare verbs are searchable but not in the initial hot set", () => {
 		assert.ok(isCallableModelVerb(name));
 	}
 	assert.equal(rareModelSurface().length, MODEL_VERB_NAMES.length - HOT_SET_VERBS.length - ACTIVATION_ONLY_VERBS.size);
-	assert.ok(!rareModelVerbs().includes(PLAN_TOOL_NAME), "manage_plan is activation-only, not a searchable rare tool");
-	assert.ok(!rareModelSurface().some((entry) => entry.name === PLAN_TOOL_NAME));
+	for (const activationOnly of [PLAN_TOOL_NAME, DIRECTED_QUESTION_TOOL_NAME]) {
+		assert.ok(!rareModelVerbs().includes(activationOnly), `${activationOnly} is activation-only, not searchable`);
+		assert.ok(!rareModelSurface().some((entry) => entry.name === activationOnly));
+	}
 	assert.ok(!searchRareModelTools("manage plan shared session execution", 10).some((entry) => entry.name === PLAN_TOOL_NAME));
+	assert.ok(!searchRareModelTools("ask a directed question", 10).some((entry) => entry.name === DIRECTED_QUESTION_TOOL_NAME));
 });
 
 test("slimmed schemas never ask for stamped scope keys", () => {
@@ -183,6 +188,23 @@ test("initial activation preserves other tools and contains hot set plus loader 
 	for (const name of rareModelVerbs()) assert.ok(!initial.includes(name), `${name} initially active`);
 	assert.equal(initial.length, new Set(initial).size);
 	assert.ok(!initial.includes(PLAN_TOOL_NAME), "plan schema stays cold until a bonded session or resume projection activates it");
+	assert.ok(!initial.includes(DIRECTED_QUESTION_TOOL_NAME), "question schema stays cold until an attached capable bond activates it");
+});
+
+test("directed-question activation is independent, capability-bound, and identity-free", () => {
+	const before = ["read", "bash", ...HOT_SET_VERBS, TOOL_LOADER_NAME];
+	const active = withDirectedQuestionToolActive(before, true);
+	assert.equal(active.at(-1), DIRECTED_QUESTION_TOOL_NAME);
+	assert.deepEqual(withDirectedQuestionToolActive(active, true), active);
+	assert.deepEqual(withDirectedQuestionToolActive(active, false), before);
+	assert.deepEqual(withPlanToolActive(active, true).slice(-2), [DIRECTED_QUESTION_TOOL_NAME, PLAN_TOOL_NAME]);
+	assert.ok(allModelFacingTools().some((entry) => entry.name === DIRECTED_QUESTION_TOOL_NAME));
+	const question = allModelFacingTools().find((entry) => entry.name === DIRECTED_QUESTION_TOOL_NAME)!;
+	const properties = question.inputSchema.properties as Record<string, unknown>;
+	assert.deepEqual((properties.action as { enum: string[] }).enum, ["create", "list", "get", "cancel"]);
+	for (const identity of ["project_id", "session_id", "connection_id", "local_session_id", "responder_user_id"]) {
+		assert.equal(properties[identity], undefined, `${identity} must remain capability-derived`);
+	}
 });
 
 test("plan activation changes only one real schema and reports its before/after prefix cost", () => {

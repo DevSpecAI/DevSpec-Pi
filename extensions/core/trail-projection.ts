@@ -27,6 +27,7 @@ const DEVSPEC_ID_KEYS = [
 	"memory_id",
 	"plan_id",
 	"project_id",
+	"question_id",
 	"resource_id",
 	"session_id",
 	"signal_id",
@@ -245,8 +246,11 @@ function devspecArgs(name: string, args: Record<string, unknown>): string | unde
 		const id = safeTrailId(args[key]);
 		if (id) parts.push(`${key}=${id}`);
 	}
-	if (name === "manage_plan") {
-		const action = typeof args.action === "string" && /^(?:create|list|get|update|start_step|complete_step|skip_step|fail_step|advance|complete|abandon|adopt)$/.test(args.action)
+	if (name === "manage_plan" || name === "manage_directed_question") {
+		const actionPattern = name === "manage_plan"
+			? /^(?:create|list|get|update|start_step|complete_step|skip_step|fail_step|advance|complete|abandon|adopt)$/
+			: /^(?:create|list|get|cancel)$/;
+		const action = typeof args.action === "string" && actionPattern.test(args.action)
 			? args.action
 			: undefined;
 		const revision = typeof args.expected_revision === "number" && Number.isSafeInteger(args.expected_revision) && args.expected_revision > 0
@@ -316,6 +320,7 @@ function wrappedEntity(parsed: Record<string, unknown>): Record<string, unknown>
 		?? asRecord(parsed.resource)
 		?? asRecord(parsed.memory)
 		?? asRecord(parsed.plan)
+		?? asRecord(parsed.question)
 		?? asRecord(item?.action_item)
 		?? asRecord(item?.resource)
 		?? asRecord(item?.memory)
@@ -352,7 +357,7 @@ function safeOutcome(result: unknown): string | undefined {
 /** Select safe output metadata. Raw tool text is never copied into the trail. */
 export function projectTrailResult(name: string, result: unknown): string | undefined {
 	if (!DEVSPEC_TOOLS.has(name)) return undefined;
-	if (name === "manage_plan" || /^(?:create_|update_|claim_|record_|resolve_|supersede_|retract_|archive_)/.test(name)) {
+	if (name === "manage_plan" || name === "manage_directed_question" || /^(?:create_|update_|claim_|record_|resolve_|supersede_|retract_|archive_)/.test(name)) {
 		return safeOutcome(result);
 	}
 	if (name.startsWith("search_") || name.startsWith("list_")) {

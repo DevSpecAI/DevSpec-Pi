@@ -16,6 +16,7 @@ function between(start: string, end: string): string {
 test("only a receipt-owning successful directed-question create requests Pi termination", () => {
 	const receipt = { details: { question: { transcriptMessageId: "11111111-1111-4111-8111-111111111111" } } };
 	assert.equal(shouldTerminateAfterDirectedQuestionCreate("manage_directed_question", { action: "create" }, receipt), true);
+	assert.equal(shouldTerminateAfterDirectedQuestionCreate("manage_directed_question", { action: "create", keep_turn: true }, receipt), false);
 	assert.equal(shouldTerminateAfterDirectedQuestionCreate("manage_directed_question", { action: "create" }, { details: { question: { transcriptMessageId: null } } }), false);
 	assert.equal(shouldTerminateAfterDirectedQuestionCreate("manage_directed_question", { action: "create" }, { details: { question: {} } }), false);
 	for (const action of ["list", "get", "cancel"]) {

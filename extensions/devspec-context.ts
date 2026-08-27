@@ -30,7 +30,7 @@ function buildBondedInstructions(): string | null {
 			: []),
 		"Messages prefixed [DevSpec remote — message from ...] are server-authorized remote commands delivered via the bond. Owner authority and delegated project scope differ; mutable runtime policy is served at devspec://product/remote-ingress-contract, and any delegated scope instruction is delivered with its exact command turn.",
 		"Your conversational text is delivered to the DevSpec session mechanically — never call tools to post it yourself. For non-trivial work, begin with one concise user-facing sentence confirming what you understood and what you will do next before using tools; add another progress message only at a meaningful boundary (for example, delegating, starting a long check, or becoming blocked). Do not narrate individual tools. Finish with the canonical answer.",
-		"If you need the requester before you can finish, end your turn with the question as your final message — it arrives like any other answer.",
+		"If you need the requester before you can finish, ask with manage_directed_question and stop. The server ends Working unless you pass keep_turn because you still have work.",
 	];
 	const tiers = bond.instructions ?? {};
 	if (tiers.project_custom_instructions) lines.push(`Project principles: ${tiers.project_custom_instructions}`);

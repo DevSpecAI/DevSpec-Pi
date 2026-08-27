@@ -141,6 +141,7 @@ export function shouldTerminateAfterDirectedQuestionCreate(
 	result: unknown,
 ): boolean {
 	return name === DIRECTED_QUESTION_TOOL_NAME && args.action === "create" &&
+		args.keep_turn !== true &&
 		directedQuestionTranscriptReceiptId(result) !== null;
 }
 

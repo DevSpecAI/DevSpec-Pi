@@ -116,3 +116,15 @@ test("owner polling is deferred by server activity while Pi suppresses generic b
 	assert.match(pump, /interactionEventAck[^]*catch_up: true/);
 	assert.match(pump, /await applyInteractionEvent\(active, ctx, interactionEvent\)/);
 });
+
+test("a busy question answer aborts then applies the exact continuation, never an owner command", () => {
+	const pump = between("if (interactionEvent) {", "// Titles are job-generated");
+	assert.match(pump, /decideInteractionDelivery\(\{[^]*hasEvent: true[^]*\}\) === "preempt"/s);
+	assert.match(pump, /pi_abort\(\)/);
+	assert.match(pump, /waitUntil\([^]*ctx\.isIdle\(\) && !active\.busy && !active\.runtimeOccupancy\.isBusy\(\)/s);
+	assert.ok(pump.indexOf("pi_abort()") < pump.indexOf("await applyInteractionEvent"));
+	assert.doesNotMatch(pump, /sendUserMessage|pi_send\(/);
+	const apply = between("async function applyInteractionEvent", "async function drainInteractionRetries");
+	assert.match(apply, /retainInteractionStartRetry\(active, event, ctx\.sessionManager\.getSessionId\(\)\)/);
+	assert.match(apply, /started\.outcome === "blocked_by_activity"[^]*retainInteractionStartRetry/s);
+});

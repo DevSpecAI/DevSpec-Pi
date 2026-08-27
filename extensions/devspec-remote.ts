@@ -138,7 +138,7 @@ import {
 } from "./core/interaction-events.ts";
 import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
 import { loadSettings, saveSettings } from "./core/settings.ts";
-import { decideOwnerDelivery, waitUntil } from "./core/preempt.ts";
+import { decideInteractionDelivery, decideOwnerDelivery, waitUntil } from "./core/preempt.ts";
 import {
 	SeenOwnerCommands,
 	sendModeAtSendTime,
@@ -1127,11 +1127,15 @@ async function applyInteractionEvent(
 	ctx: ExtensionContext,
 	event: InteractionEventV1,
 ): Promise<boolean> {
-	if (pump !== active || active.stop || active.busy || active.runtimeOccupancy.isBusy() || !ctx.isIdle() ||
+	if (pump !== active || active.stop ||
 		!active.bond.connectionCapability || !interactionEventMatchesWorkflow(event, {
 			connectionId: active.bond.connectionId,
 			sourceSessionId: active.bond.sessionId,
 		})) return false;
+	if (active.busy || active.runtimeOccupancy.isBusy() || !ctx.isIdle()) {
+		retainInteractionStartRetry(active, event, ctx.sessionManager.getSessionId());
+		return false;
+	}
 	const authority: InteractionEventDeliveryAuthority = {
 		generation: active.generation,
 		connectionId: active.bond.connectionId,
@@ -1169,8 +1173,13 @@ async function applyInteractionEvent(
 		const authorityStillCurrent = startedSourceMatches && interactionAuthorityCurrent(authority)
 			&& !active.busy && !active.runtimeOccupancy.isBusy() && ctx.isIdle();
 		const startAction = interactionContinuationStartAction(started, authorityStillCurrent);
-		if (startAction === "defer" || startAction === "ignore") {
-			// Server-owned defer/terminal decisions never persist, execute or ACK.
+		if (startAction === "ignore") return true;
+		if (startAction === "defer") {
+			// Abort settle can close the owner attempt a beat after ctx.isIdle().
+			// Keep the claimed event and retry rather than waiting for lease expiry.
+			if (started.outcome === "blocked_by_activity") {
+				retainInteractionStartRetry(active, event, authority.localSessionId);
+			}
 			return true;
 		}
 		if (started.outcome !== "started") return true;
@@ -1790,7 +1799,14 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		const interactionClaimIdle = interactionEventsRelevant(active)
 			&& Boolean(active.bond.sessionId) && !active.busy
 			&& !active.runtimeOccupancy.isBusy() && ctx.isIdle();
-		const interactionEventNegotiated = interactionClaimIdle || Boolean(interactionEventAck);
+		// Busy + preempt on: claim the event so we can abort, then apply once idle.
+		// Do not mix this with an ACK catch_up lap (that lane is event-free).
+		const interactionClaimBusyPreempt = interactionEventsRelevant(active)
+			&& Boolean(active.bond.sessionId)
+			&& preemptOwnerCached
+			&& !interactionClaimIdle
+			&& !interactionEventAck;
+		const interactionEventNegotiated = interactionClaimIdle || interactionClaimBusyPreempt || Boolean(interactionEventAck);
 		let payload: unknown;
 		try {
 			const raw = await callDevspec(
@@ -1938,6 +1954,21 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		}
 
 		if (interactionEvent) {
+			const idle = !active.busy && !active.runtimeOccupancy.isBusy() && ctx.isIdle();
+			if (decideInteractionDelivery({
+				idle,
+				preemptEnabled: preemptOwnerCached,
+				hasEvent: true,
+			}) === "preempt") {
+				debug("preempt: aborting running turn for question answer");
+				pi_abort();
+				const settled = await waitUntil(
+					() => ctx.isIdle() && !active.busy && !active.runtimeOccupancy.isBusy(),
+					{ timeoutMs: 8_000, intervalMs: 50 },
+				);
+				debug("preempt", { settled });
+				if (pump !== active || active.stop) continue;
+			}
 			if (!await applyInteractionEvent(active, ctx, interactionEvent)) {
 				active.errors += 1;
 				debug("interaction event exact-workflow guard rejected", { errors: active.errors });

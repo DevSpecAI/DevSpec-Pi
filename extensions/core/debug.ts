@@ -43,6 +43,7 @@ const DEBUG_FIELDS = {
 	"post to session failed": ["errorPresent"],
 	preempt: ["settled", "immediate"],
 	"preempt: aborting running turn for owner instruction": [],
+	"preempt: aborting running turn for question answer": [],
 	"push channel closed": ["reasonPresent"],
 	"push channel connect failed": ["errorPresent"],
 	"push ended recoverable": ["reasonPresent"],

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { decideOwnerDelivery, sendModeFor, waitUntil } from "../extensions/core/preempt.ts";
+import { decideInteractionDelivery, decideOwnerDelivery, sendModeFor, waitUntil } from "../extensions/core/preempt.ts";
 
 test("idle owner messages deliver immediately", () => {
 	assert.equal(
@@ -27,6 +27,34 @@ test("no owner command never preempts (ambient/dispatch stay out)", () => {
 	assert.equal(
 		decideOwnerDelivery({ idle: false, preemptEnabled: true, hasOwnerCommand: false }),
 		"immediate",
+	);
+});
+
+test("idle question answers apply immediately", () => {
+	assert.equal(
+		decideInteractionDelivery({ idle: true, preemptEnabled: true, hasEvent: true }),
+		"apply",
+	);
+});
+
+test("busy + preempt on → abort then apply the interaction event", () => {
+	assert.equal(
+		decideInteractionDelivery({ idle: false, preemptEnabled: true, hasEvent: true }),
+		"preempt",
+	);
+});
+
+test("busy + preempt off → defer until idle (do not claim)", () => {
+	assert.equal(
+		decideInteractionDelivery({ idle: false, preemptEnabled: false, hasEvent: true }),
+		"defer",
+	);
+});
+
+test("no interaction event never preempts", () => {
+	assert.equal(
+		decideInteractionDelivery({ idle: false, preemptEnabled: true, hasEvent: false }),
+		"defer",
 	);
 });
 

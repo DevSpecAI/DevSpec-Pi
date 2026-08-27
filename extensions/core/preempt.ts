@@ -25,6 +25,20 @@ export function decideOwnerDelivery(input: {
 	return "queue";
 }
 
+/** How a directed-question answer should meet a running Pi turn (item 4221d08e). */
+export type InteractionDeliveryMode = "apply" | "preempt" | "defer";
+
+export function decideInteractionDelivery(input: {
+	idle: boolean;
+	preemptEnabled: boolean;
+	hasEvent: boolean;
+}): InteractionDeliveryMode {
+	if (!input.hasEvent) return "defer";
+	if (input.idle) return "apply";
+	if (input.preemptEnabled) return "preempt";
+	return "defer";
+}
+
 /**
  * After abort(), isStreaming stays true until the aborted run settles
  * (cooperative AbortSignal). A bare send during that window throws

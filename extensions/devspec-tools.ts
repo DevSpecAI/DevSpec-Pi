@@ -24,7 +24,7 @@ import { directedQuestionTranscriptReceiptId } from "./core/question-receipt-lif
 import {
 	DIRECTED_QUESTION_TOOL_NAME,
 	HOT_SET_VERBS,
-	PLAN_TOOL_NAME,
+	isConnectionBoundTool,
 	SCOPE_KEY_SET,
 	TOOL_LOADER_DESCRIPTION,
 	TOOL_LOADER_NAME,
@@ -35,6 +35,7 @@ import {
 	toolLoaderInputSchema,
 	withDirectedQuestionToolActive,
 	withPlanToolActive,
+	withPollToolActive,
 } from "./core/model-surface.ts";
 import { projectedToolResult, toolErrorResult, toolTextResult, unwrapMcpResult } from "./core/result.ts";
 import {
@@ -244,7 +245,7 @@ export function stampKnownScope(params: Record<string, unknown>, name?: string):
 	// Connection-bound ledgers derive identity, session and project exclusively
 	// from the capability-authenticated connection. Even host-known ids do not
 	// become model arguments.
-	if (name === PLAN_TOOL_NAME || name === DIRECTED_QUESTION_TOOL_NAME) return stamped;
+	if (isConnectionBoundTool(name)) return stamped;
 	const bond = getBond();
 	if (bond?.sessionId) stamped.session_id = bond.sessionId;
 	if (bond?.connectionId) stamped.connection_id = bond.connectionId;
@@ -269,7 +270,7 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 			cwd: ctx.cwd,
 			lane: "work",
 			timeoutMs: MODEL_TIMEOUT_MS,
-			...((name === PLAN_TOOL_NAME || name === DIRECTED_QUESTION_TOOL_NAME) && bond?.connectionCapability
+			...((isConnectionBoundTool(name)) && bond?.connectionCapability
 				? { connectionCapability: bond.connectionCapability }
 				: {}),
 		});
@@ -356,10 +357,9 @@ export default function (pi: ExtensionAPI) {
 	pi.on("session_start", () => {
 		const bond = getBond();
 		const initial = initialActiveTools(pi.getActiveTools());
+		const attached = Boolean(bond?.sessionId && bond.connectionCapability);
 		const withPlan = withPlanToolActive(initial, Boolean(bond?.sessionId));
-		pi.setActiveTools(withDirectedQuestionToolActive(
-			withPlan,
-			Boolean(bond?.sessionId && bond.connectionCapability),
-		));
+		const withPoll = withPollToolActive(withPlan, attached);
+		pi.setActiveTools(withDirectedQuestionToolActive(withPoll, attached));
 	});
 }

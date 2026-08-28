@@ -78,6 +78,23 @@ test("connection catalog matches server authority: exact commands and playbook-o
 	assert.doesNotMatch(catalogText, /exact assignment id|ready to receive connection-native work dispatches|assignment routing hints/i);
 });
 
+test("generated manage_poll wire map is schema-complete and model-facing", () => {
+	const poll = MCP_CATALOG.find((entry) => entry.name === "manage_poll");
+	assert.ok(poll);
+	assert.equal(poll.kind, "model");
+	const properties = (poll.inputSchema as { properties?: Record<string, Record<string, unknown>> }).properties;
+	assert.deepEqual(properties?.action.enum, ["create", "list", "get", "update", "end", "retract", "supersede"]);
+	for (const field of ["poll_id", "expected_revision", "question", "options", "recommendation_index", "reason"]) {
+		assert.ok(properties?.[field], `manage_poll missing ${field}`);
+	}
+	assert.match(poll.description, /DevSpec helper/);
+	assert.match(poll.description, /Votes are not commands/);
+	const keys = Object.keys(properties ?? {});
+	for (const identity of ["connection_id", "session_id", "owner_user_id", "recommendation_option_id", "origin_connection_id"]) {
+		assert.ok(!keys.includes(identity), `${identity} must not be a model argument`);
+	}
+});
+
 test("generated manage_plan wire map is schema-complete and model-facing", () => {
 	const plan = MCP_CATALOG.find((entry) => entry.name === "manage_plan");
 	assert.ok(plan);

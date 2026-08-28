@@ -53,9 +53,15 @@ export const SCOPE_KEY_SET = new Set<string>(SCOPE_KEYS);
 
 export const TOOL_LOADER_NAME = "search_devspec_tools";
 export const PLAN_TOOL_NAME = "manage_plan";
+export const POLL_TOOL_NAME = "manage_poll";
 export const DIRECTED_QUESTION_TOOL_NAME = "manage_directed_question";
 /** Native tools whose lifecycle is mechanical, never loader/search driven. */
-export const ACTIVATION_ONLY_VERBS = new Set<string>([PLAN_TOOL_NAME, DIRECTED_QUESTION_TOOL_NAME]);
+export const ACTIVATION_ONLY_VERBS = new Set<string>([PLAN_TOOL_NAME, POLL_TOOL_NAME, DIRECTED_QUESTION_TOOL_NAME]);
+
+/** Connection-bound ledgers: identity is capability-derived, never model arguments. */
+export function isConnectionBoundTool(name: string): boolean {
+	return name === PLAN_TOOL_NAME || name === POLL_TOOL_NAME || name === DIRECTED_QUESTION_TOOL_NAME;
+}
 export const TOOL_LOADER_DESCRIPTION =
 	"Find and load less-common DevSpec tools for a task described in natural language.";
 
@@ -411,6 +417,12 @@ export function withPlanToolActive(active: readonly string[], enabled: boolean):
 export function withDirectedQuestionToolActive(active: readonly string[], enabled: boolean): string[] {
 	const withoutQuestion = active.filter((name) => name !== DIRECTED_QUESTION_TOOL_NAME);
 	return enabled ? [...withoutQuestion, DIRECTED_QUESTION_TOOL_NAME] : withoutQuestion;
+}
+
+/** Add/remove only the poll schema; collaborative shared state, never a question wake. */
+export function withPollToolActive(active: readonly string[], enabled: boolean): string[] {
+	const withoutPoll = active.filter((name) => name !== POLL_TOOL_NAME);
+	return enabled ? [...withoutPoll, POLL_TOOL_NAME] : withoutPoll;
 }
 
 /** Conservative token estimate (chars/4). Target band is 2–8k. */

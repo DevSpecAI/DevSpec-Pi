@@ -22,7 +22,7 @@ test("native connection-bound tools send no model-authored identity and stamp ca
 	const remote = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 	assert.match(remote, /connection_capability_version: 1/);
 	assert.match(remote, /connectionCapabilityFromResult\(regRaw\)/);
-	assert.match(tools, /name === PLAN_TOOL_NAME \|\| name === DIRECTED_QUESTION_TOOL_NAME/);
+	assert.match(tools, /isConnectionBoundTool\(name\)/);
 	assert.match(tools, /stampKnownScope\(params, name\)/);
 	assert.match(client, /"x-devspec-connection-capability": connectionCapability/);
 	assert.doesNotMatch(tools, /connection_capability\s*:/);

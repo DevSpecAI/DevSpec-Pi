@@ -83,6 +83,7 @@ const FULL_READ_VERBS = new Set([
 	// Every connection-bound ledger mutation/read returns the authoritative
 	// revisioned object; there is no safe continuation for omitted state.
 	"manage_plan",
+	"manage_poll",
 	"manage_directed_question",
 ]);
 

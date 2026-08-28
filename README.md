@@ -29,7 +29,7 @@ and binds all implementation decisions in this repo.
 / `/devspec.status`. Everyday DevSpec work is a small active native hot set;
 less-common native tools are loaded on demand with `search_devspec_tools`. The
 generated MCP catalog is the wire map, not the initial model surface. Shared session
-plans are native: qualifying bonded work activates only `manage_plan`, and strict
+plans and session polls are native: qualifying bonded work activates `manage_plan` and `manage_poll`, and strict
 remote-ingress 1.4 adds capacity-gated exact-connection system notices through
 an activity-neutral, generation-scoped harness turn, with preserved 1.3 command
 intake under notice backpressure. See VISION.md.

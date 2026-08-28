@@ -79,6 +79,10 @@ process.stdout.write(JSON.stringify(tools.map((t) => ({
 	const generatedPlan = MCP_CATALOG.find((tool) => tool.name === "manage_plan");
 	assert.ok(livePlan && generatedPlan, "manage_plan must exist in both server and Pi wire maps");
 	assert.deepEqual(generatedPlan.inputSchema, livePlan.inputSchema, "manage_plan native schema drifted from the server");
+	const livePoll = live.find((tool) => tool.name === "manage_poll");
+	const generatedPoll = MCP_CATALOG.find((tool) => tool.name === "manage_poll");
+	assert.ok(livePoll && generatedPoll, "manage_poll must exist in both server and Pi wire maps");
+	assert.deepEqual(generatedPoll.inputSchema, livePoll.inputSchema, "manage_poll native schema drifted from the server");
 	assert.equal(fingerprint(live), MCP_CATALOG_FINGERPRINT, "generated catalog schemas drifted from DevSpecV2");
 	assert.equal(
 		descriptionFingerprint(live),

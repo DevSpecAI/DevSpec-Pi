@@ -112,8 +112,12 @@ import {
 	serializeActiveSessionPlansProjection,
 } from "./core/active-session-plans.ts";
 import {
+	serializeSessionPollsProjection,
+} from "./core/session-polls.ts";
+import {
 	withDirectedQuestionToolActive,
 	withPlanToolActive,
+	withPollToolActive,
 } from "./core/model-surface.ts";
 import {
 	INTERACTION_EVENT_CUSTOM_TYPE,
@@ -251,6 +255,9 @@ interface PumpState {
 	/** Latest validated 1.3 projection tail and its not-yet-injected revision. */
 	activePlanTail: string;
 	pendingActivePlanTail: string;
+	/** Latest validated session_polls advisory tail. */
+	sessionPollsTail: string;
+	pendingSessionPollsTail: string;
 }
 
 let pump: PumpState | null = null;
@@ -927,6 +934,7 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	setBond(null);
 	pi_setPlanToolActive(false);
 	pi_setQuestionToolActive(false);
+	pi_setPollToolActive(false);
 	setRemoteStatus(ctx);
 	if (serverAlreadyEnded) return;
 	const resolved = await resolveToken();
@@ -1718,6 +1726,7 @@ async function reviveRecoverableBond(
 		setBond(bond);
 		pi_setPlanToolActive(Boolean(bond.sessionId));
 		pi_setQuestionToolActive(Boolean(bond.sessionId && bond.connectionCapability));
+		pi_setPollToolActive(Boolean(bond.sessionId && bond.connectionCapability));
 		setRemoteStatus(ctx);
 		if (bond.sessionId) void enrichBondWithSession(bond.sessionId);
 		resumePersistedInteractionEvents(active, ctx);
@@ -1934,9 +1943,12 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			);
 			if (detachTail) active.pendingActivePlanTail = detachTail;
 			active.activePlanTail = "";
+			active.pendingSessionPollsTail = "";
+			active.sessionPollsTail = "";
 			setBond(next);
 			pi_setPlanToolActive(Boolean(serverSessionId));
 			pi_setQuestionToolActive(Boolean(serverSessionId && next.connectionCapability));
+			pi_setPollToolActive(Boolean(serverSessionId && next.connectionCapability));
 			setRemoteStatus(ctx);
 			debug("attachment adopted from server", { attached: Boolean(serverSessionId) });
 			// Refresh display identity only. Command-turn context is canonical ingress.
@@ -2035,6 +2047,13 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (transitionTail) active.pendingActivePlanTail = transitionTail;
 			active.activePlanTail = planTail;
 			pi_setPlanToolActive(Boolean(active.bond.sessionId || planTail));
+		}
+
+		if (pkg.sessionPolls !== undefined) {
+			const pollTail = serializeSessionPollsProjection(pkg.sessionPolls);
+			if (pollTail !== active.sessionPollsTail) active.pendingSessionPollsTail = pollTail;
+			active.sessionPollsTail = pollTail;
+			pi_setPollToolActive(Boolean(active.bond.sessionId && active.bond.connectionCapability));
 		}
 
 		const control = parseControlCommand(pkg.control);
@@ -2321,9 +2340,12 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 		awarenessKey: localId,
 		activePlanTail: "",
 		pendingActivePlanTail: "",
+		sessionPollsTail: "",
+		pendingSessionPollsTail: "",
 	};
 	pi_setPlanToolActive(Boolean(bond.sessionId));
 	pi_setQuestionToolActive(Boolean(bond.sessionId && bond.connectionCapability));
+	pi_setPollToolActive(Boolean(bond.sessionId && bond.connectionCapability));
 	preemptOwnerCached = (await loadSettings()).preemptOwner;
 	setRemoteStatus(ctx);
 	// Initial runtime identity must be visible before this agent has completed a
@@ -2363,6 +2385,7 @@ let pi_setThinking: (level: string) => void = () => {};
 let pi_setModel: (modelId: string) => Promise<boolean> = async () => false;
 let pi_setPlanToolActive: (enabled: boolean) => void = () => {};
 let pi_setQuestionToolActive: (enabled: boolean) => void = () => {};
+let pi_setPollToolActive: (enabled: boolean) => void = () => {};
 
 /**
  * Refresh display identity only. Conversational/model context is accepted
@@ -2513,6 +2536,10 @@ export default function (pi: ExtensionAPI) {
 	};
 	pi_setQuestionToolActive = (enabled) => {
 		const next = withDirectedQuestionToolActive(pi.getActiveTools(), enabled);
+		if (next.join("\0") !== pi.getActiveTools().join("\0")) pi.setActiveTools(next);
+	};
+	pi_setPollToolActive = (enabled) => {
+		const next = withPollToolActive(pi.getActiveTools(), enabled);
 		if (next.join("\0") !== pi.getActiveTools().join("\0")) pi.setActiveTools(next);
 	};
 
@@ -2682,7 +2709,16 @@ export default function (pi: ExtensionAPI) {
 				markActivePlanAwareness(active.awarenessKey, planTail);
 			}
 		}
-		const hiddenContent = appendActivePlanTail(canonicalQueueItem?.hiddenContent ?? "", planTail);
+		const pollTail = activePlanTailForDelivery(
+			Boolean(canonicalQueueItem),
+			active?.sessionPollsTail ?? "",
+			active?.pendingSessionPollsTail ?? "",
+		);
+		if (active && pollTail) active.pendingSessionPollsTail = "";
+		const hiddenContent = appendActivePlanTail(
+			appendActivePlanTail(canonicalQueueItem?.hiddenContent ?? "", planTail),
+			pollTail,
+		);
 		const injected = hiddenContent ? {
 			message: {
 				customType: canonicalQueueItem ? "devspec-remote-ingress-context" : "devspec-active-session-plans",
@@ -2990,6 +3026,7 @@ export default function (pi: ExtensionAPI) {
 		setBond(null);
 		pi_setPlanToolActive(false);
 		pi_setQuestionToolActive(false);
+		pi_setPollToolActive(false);
 		resetStatus();
 		paintStatus(lastCtx);
 

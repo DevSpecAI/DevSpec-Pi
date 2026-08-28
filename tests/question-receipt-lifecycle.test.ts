@@ -30,6 +30,7 @@ test("receipt identity is strict host-only control metadata", () => {
 	assert.equal(isReceiptOwningDirectedQuestionCreate("manage_directed_question", receiptResult(), false), true);
 	assert.equal(isReceiptOwningDirectedQuestionCreate("manage_directed_question", receiptResult(), true), false);
 	assert.equal(isReceiptOwningDirectedQuestionCreate("manage_plan", receiptResult(), false), false);
+	assert.equal(isReceiptOwningDirectedQuestionCreate("manage_poll", receiptResult(), false), false);
 	assert.equal(isReceiptOwningDirectedQuestionCreate("manage_directed_question", { ...receiptResult(), terminate: false }, false), false);
 });
 

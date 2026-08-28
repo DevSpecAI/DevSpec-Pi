@@ -190,7 +190,7 @@ test("all send modes use the same visible bundle binding and idle retains hidden
 
 	const beforeStart = bodyBetween('pi.on("before_agent_start"', 'pi.on("message_start"');
 	assert.match(beforeStart, /commandTurnBindings\.peek\(event\.prompt\)/);
-	assert.match(beforeStart, /appendActivePlanTail\(canonicalQueueItem\?\.hiddenContent \?\? "", planTail\)/);
+	assert.match(beforeStart, /appendActivePlanTail\(\s*appendActivePlanTail\(canonicalQueueItem\?\.hiddenContent \?\? "", planTail\),\s*pollTail/s);
 	assert.match(beforeStart, /customType: canonicalQueueItem \? "devspec-remote-ingress-context" : "devspec-active-session-plans"/);
 	assert.match(beforeStart, /content: hiddenContent/);
 	assert.match(beforeStart, /display: false/);
@@ -200,9 +200,11 @@ test("attached bonds independently activate native plan and directed-question ma
 	const bond = bodyBetween("async function bondNow", "// Late-bound");
 	assert.match(bond, /pi_setPlanToolActive\(Boolean\(bond\.sessionId\)\)/);
 	assert.match(bond, /pi_setQuestionToolActive\(Boolean\(bond\.sessionId && bond\.connectionCapability\)\)/);
+	assert.match(bond, /pi_setPollToolActive\(Boolean\(bond\.sessionId && bond\.connectionCapability\)\)/);
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
 	assert.match(pump, /pi_setPlanToolActive\(Boolean\(serverSessionId\)\)/);
 	assert.match(pump, /pi_setQuestionToolActive\(Boolean\(serverSessionId && next\.connectionCapability\)\)/);
+	assert.match(pump, /pi_setPollToolActive\(Boolean\(serverSessionId && next\.connectionCapability\)\)/);
 	assert.match(pump, /pi_setPlanToolActive\(Boolean\(active\.bond\.sessionId \|\| planTail\)\)/);
 	assert.match(pump, /authoritativeActivePlanTransitionTail\([^]*active\.awarenessKey[^]*active\.activePlanTail[^]*""/,
 		"detach/replacement consults persistent injected awareness");
@@ -212,18 +214,22 @@ test("attached bonds independently activate native plan and directed-question ma
 	const setter = bodyBetween("pi_setPlanToolActive =", 'pi.on("model_select"');
 	assert.match(setter, /withPlanToolActive\(pi\.getActiveTools\(\), enabled\)/);
 	assert.match(setter, /withDirectedQuestionToolActive\(pi\.getActiveTools\(\), enabled\)/);
+	assert.match(setter, /withPollToolActive\(pi\.getActiveTools\(\), enabled\)/);
 	assert.doesNotMatch(setter, /MODEL_VERB_NAMES|allModelFacingTools|searchRareModelTools/);
 });
 
 test("validated plan projection appends at the canonical delivery tail without rewriting visible owner text", () => {
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
 	assert.match(pump, /serializeActiveSessionPlansProjection\(pkg\.activeSessionPlans, active\.bond\.connectionId\)/);
+	assert.match(pump, /serializeSessionPollsProjection\(pkg\.sessionPolls\)/);
 	const delivery = bodyBetween("if (pkg.ownerBundle)", "const dispatches =");
 	assert.match(delivery, /hiddenContent: formatCanonicalDeliveryContext\(hydrated, contexts\)/);
 	assert.match(delivery, /pi_send\(formatted/);
 	assert.doesNotMatch(delivery, /formatted\s*=\s*appendActivePlanTail|hiddenContent: appendActivePlanTail|event\.systemPrompt/);
 	const beforeStart = bodyBetween('pi.on("before_agent_start"', 'pi.on("message_start"');
-	assert.match(beforeStart, /activePlanTailForDelivery\([^]*Boolean\(canonicalQueueItem\)[^]*active\?\.activePlanTail[^]*active\?\.pendingActivePlanTail[^]*appendActivePlanTail\(canonicalQueueItem\?\.hiddenContent \?\? "", planTail\)/);
+	assert.match(beforeStart, /activePlanTailForDelivery\([^]*Boolean\(canonicalQueueItem\)[^]*active\?\.activePlanTail[^]*active\?\.pendingActivePlanTail/);
+	assert.match(beforeStart, /activePlanTailForDelivery\([^]*Boolean\(canonicalQueueItem\)[^]*active\?\.sessionPollsTail[^]*active\?\.pendingSessionPollsTail/);
+	assert.match(beforeStart, /appendActivePlanTail\([^]*appendActivePlanTail\(canonicalQueueItem\?\.hiddenContent \?\? "", planTail\)[^]*pollTail/);
 	assert.match(beforeStart, /planTail === ACTIVE_PLAN_CLEAR_TOMBSTONE\) clearActivePlanAwareness\(active\.awarenessKey\)/);
 	assert.match(beforeStart, /markActivePlanAwareness\(active\.awarenessKey, planTail\)/);
 });

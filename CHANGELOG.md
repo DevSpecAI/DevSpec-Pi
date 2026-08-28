@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Native, schema-complete `manage_poll` on the same attached-bond activation path as `manage_plan`. Votes are not commands and do not keep Working on.
+- Strict top-level `session_polls` advisory projection on changed remote packages.
+
 ## 0.2.0 — 2026-08-22
 
 ### Added

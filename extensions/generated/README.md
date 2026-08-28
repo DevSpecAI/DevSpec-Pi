@@ -5,7 +5,7 @@ client speaks these verb names on `/api/mcp`. What the model sees is the
 Pi-shaped hot set in `extensions/core/model-surface.ts` (item `7de79db6`).
 Do not regenerate this catalog and activate the whole verb set. Every safe model
 verb is registered natively, but only the small hot set (plus narrowly activated
-`manage_plan` for bonded plan work) is active without deferred search.
+`manage_plan` / `manage_poll` for bonded session work) is active without deferred search.
 
 Do not edit `mcp-catalog.ts` by hand. Regenerate:
 

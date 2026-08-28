@@ -23,6 +23,7 @@ test("only a receipt-owning successful directed-question create requests Pi term
 		assert.equal(shouldTerminateAfterDirectedQuestionCreate("manage_directed_question", { action }, receipt), false, action);
 	}
 	assert.equal(shouldTerminateAfterDirectedQuestionCreate("manage_plan", { action: "create" }, receipt), false);
+	assert.equal(shouldTerminateAfterDirectedQuestionCreate("manage_poll", { action: "create" }, receipt), false);
 	const successPath = tools.slice(tools.indexOf("const projected = unwrapOrThrow"), tools.indexOf("} catch (err)", tools.indexOf("const projected = unwrapOrThrow")));
 	assert.match(successPath, /shouldTerminateAfterDirectedQuestionCreate\(name, args, projected\)[^]*terminate: true/);
 	assert.ok(tools.indexOf("const projected = unwrapOrThrow") < tools.indexOf("terminate: true as const"));

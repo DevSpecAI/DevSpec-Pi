@@ -366,6 +366,36 @@ test("manage_plan trail keeps safe revision mechanics and discards plan bodies",
 	assert.ok(!serialized.includes(secret), serialized);
 });
 
+test("manage_poll trail keeps safe revision mechanics and discards poll bodies", () => {
+	const secret = "POLL_PRIVATE_SENTINEL_c3a9";
+	const t = new TrailBuilder();
+	t.toolStart("poll-1", "manage_poll", {
+		action: "create",
+		poll_id: "32323232-3232-4323-8323-323232323232",
+		expected_revision: 3,
+		question: secret,
+		options: [secret, "other"],
+	});
+	t.toolEnd("poll-1", "manage_poll", true, {
+		content: [{ type: "text", text: `authoritative snapshot ${secret}` }],
+		details: {
+			poll: {
+				id: "32323232-3232-4323-8323-323232323232",
+				question: secret,
+				status: "active",
+				revision: 4,
+			},
+		},
+	});
+	const serialized = `${t.render()}\n${JSON.stringify(t.events())}`;
+	assert.match(serialized, /action=create/);
+	assert.match(serialized, /poll_id=32323232-3232-4323-8323-323232323232/);
+	assert.match(serialized, /expected_revision=3/);
+	assert.match(serialized, /status=active/);
+	assert.match(serialized, /revision=4/);
+	assert.ok(!serialized.includes(secret), serialized);
+});
+
 test("manage_directed_question trail keeps mechanics and discards prompt/options", () => {
 	const secret = "QUESTION_PRIVATE_SENTINEL_81c2";
 	const t = new TrailBuilder();

@@ -17,6 +17,10 @@ import {
 	parseActiveSessionPlansProjection,
 	type ActiveSessionPlansProjection,
 } from "./active-session-plans.ts";
+import {
+	parseSessionPollsProjection,
+	type SessionPollsProjectionV1,
+} from "./session-polls.ts";
 
 const SCHEMA_VERSION = 1;
 const CONTRACT_VERSION = "1.4.0";
@@ -195,6 +199,8 @@ export interface PollPackage {
 	control?: unknown;
 	/** Strict negotiated 1.3 inventory. Null means authoritative no active plans. */
 	activeSessionPlans?: ActiveSessionPlansProjection | null;
+	/** Top-level advisory session_polls on changed packages. */
+	sessionPolls?: SessionPollsProjectionV1;
 	canonicalState: "idle" | "valid" | "invalid";
 	canonicalError?: string;
 	advisoryContext?: IngressAdvisoryContext;
@@ -731,6 +737,7 @@ export function parsePollPayload(
 			: undefined;
 		if (!changed) {
 			if (topLevelNotices.length !== 0) fail("system_notices", "idle response cannot carry notices");
+			if (outer.session_polls !== undefined) fail("session_polls", "idle response cannot carry session polls");
 			return {
 				changed: false,
 				cursorV2: typeof outer.cursor_v2 === "string" && outer.cursor_v2.length > 0 ? outer.cursor_v2 : undefined,
@@ -781,6 +788,9 @@ export function parsePollPayload(
 			dispatchCount,
 			control: actionableControl ? envelope.control : undefined,
 			activeSessionPlans: envelope.activeSessionPlans,
+			...(outer.session_polls !== undefined
+				? { sessionPolls: parseSessionPollsProjection(outer.session_polls) }
+				: {}),
 			canonicalState: "valid",
 			...(contextEntryCount(envelope.advisoryContext.context) > 0 ? { advisoryContext: envelope.advisoryContext } : {}),
 		};

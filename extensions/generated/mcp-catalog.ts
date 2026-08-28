@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 24726af58e04cb864a9c0a6d8033e99073594041cadfe295b805ff88cfb43353
- * Description fingerprint: 4d6bfbbd93bde9d5ba5a80f4ac8d051e92aec1d9ca8eb2e69f35023b2e4ff842
- * Regenerated: 2026-08-26T11:19:07.523Z
+ * Schema fingerprint: 62db2d8832512a158d8bd749d4e42f167db5ebc11234f10ce8cb3651f7548b3a
+ * Description fingerprint: b13514ade6eedf935447c115f0e869f8881d6f572dfa27ef8d2f08fdc08a5a21
+ * Regenerated: 2026-08-28T03:28:02.603Z
  */
-export const MCP_CATALOG_FINGERPRINT = "24726af58e04cb864a9c0a6d8033e99073594041cadfe295b805ff88cfb43353";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "4d6bfbbd93bde9d5ba5a80f4ac8d051e92aec1d9ca8eb2e69f35023b2e4ff842";
-export const MCP_CATALOG_GENERATED_AT = "2026-08-26T11:19:07.523Z";
+export const MCP_CATALOG_FINGERPRINT = "62db2d8832512a158d8bd749d4e42f167db5ebc11234f10ce8cb3651f7548b3a";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "b13514ade6eedf935447c115f0e869f8881d6f572dfa27ef8d2f08fdc08a5a21";
+export const MCP_CATALOG_GENERATED_AT = "2026-08-28T03:28:02.603Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -116,6 +116,7 @@ export const MODEL_VERB_NAMES = [
 	"write_project_instruction_rule",
 	"import_instruction_rules",
 	"manage_plan",
+	"manage_poll",
 	"manage_directed_question",
 	"update_personal_instructions"
 ] as const;
@@ -1291,7 +1292,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_claimable_reviews",
 		"label": "DevSpec: Get Claimable Reviews",
-		"description": "Code reviews waiting for YOU to pick up on this project. A review is offered, never pushed: work becomes reviewable, a review waits, and one of your own agents takes it if it wants it. Empty is the normal answer and means either nothing is ready or you have not opted in (Settings → Connections → Automated reviews) — it is not a fault to investigate. Only reviews offered to you and takeable by THIS agent are listed, so two of your agents polling the same project see only what each may take. The loop is get_claimable_reviews, then claim_review, then do the work, then record_review.",
+		"description": "Code reviews waiting for YOU to pick up on this project. Nothing is pushed — you take it if you want it — but a review arrives here two ways. Most are OFFERED to whoever opted in: work becomes reviewable, a review waits, and any of that person's opted-in agents may take it (Settings → Connections → Automated reviews). One can also be ADDRESSED to a single agent, because a person chose it by hand; that one is visible and claimable only by that connection, and needs no opt-in, since choosing the agent is the consent for that run. Either way you still claim it yourself and can still lose the race. Only what THIS agent may take is listed, so two of your agents polling the same project see different lists. Empty is the normal answer — nothing ready, nothing addressed to you, nobody opted in — and not a fault to investigate. The loop is get_claimable_reviews, then claim_review, then do the work, then record_review.",
 		"promptSnippet": "Code reviews waiting for YOU to pick up on this project.",
 		"inputSchema": {
 			"type": "object",
@@ -3118,6 +3119,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Progress update content (markdown)"
 				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id. It records WHICH of your agents did this in the activity history for this item: a DevSpec token is account-wide, so your user identity cannot tell two of your agents apart. Omit it and the entry is recorded without an agent, unless your client proved a connection when it connected."
+				},
 				"references": {
 					"type": "array",
 					"items": {
@@ -3248,6 +3253,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"description": "Which tool created this work."
 				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id. It records WHICH of your agents did this in the activity history for this item: a DevSpec token is account-wide, so your user identity cannot tell two of your agents apart. Omit it and the entry is recorded without an agent, unless your client proved a connection when it connected."
+				},
 				"completion_summary": {
 					"type": "string",
 					"description": "A concise, end-user-friendly changelog-style summary of the change (2-4 sentences). Written for non-developers — explain what changed and why it matters. Rendered as markdown in the UI."
@@ -3377,6 +3386,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"action_item_id": {
 					"type": "string",
 					"description": "The action item ID being reviewed."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id. It records WHICH of your agents did this in the activity history for this item: a DevSpec token is account-wide, so your user identity cannot tell two of your agents apart. Omit it and the entry is recorded without an agent, unless your client proved a connection when it connected."
 				},
 				"summary": {
 					"type": "string",
@@ -3686,6 +3699,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Rationale for the verification or description of issues found."
 				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id. It records WHICH of your agents did this in the activity history for this item: a DevSpec token is account-wide, so your user identity cannot tell two of your agents apart. Omit it and the entry is recorded without an agent, unless your client proved a connection when it connected."
+				},
 				"runner_session_id": {
 					"type": "string",
 					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
@@ -3836,6 +3853,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"reason": {
 					"type": "string",
 					"description": "Required when intrinsic is true: what about THIS line no tool can settle (e.g. \"whether the spacing looks right on a phone is a judgement call\"). Optional when reverting, where it records why the line is checkable after all."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id. It records WHICH of your agents did this in the activity history for this item: a DevSpec token is account-wide, so your user identity cannot tell two of your agents apart. Omit it and the entry is recorded without an agent, unless your client proved a connection when it connected."
 				},
 				"runner_session_id": {
 					"type": "string",
@@ -5990,8 +6011,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "manage_plan",
 		"label": "DevSpec: Manage Plan",
-		"description": "Manage the authenticated connection's shared session plan. The canonical `devspec://product/implementation-contract` → `work_entry_contract` defines WHEN a plan is warranted; this description retains only plan mechanics. Requires the hidden per-connection capability negotiated by the host; caller identity and session are server-derived, never tool arguments. Existing-plan mutations require expected_revision and return the authoritative revisioned snapshot. Omit plan_id to target this connection's own active plan; supplying plan_id explicitly marks intentional cross-plan targeting, which is allowed only for another same-owner plan in the same session. Use advance to complete the current milestone, optionally amend, and start the next atomically. Adoption succeeds only for an orphaned same-owner plan.",
-		"promptSnippet": "Manage the authenticated connection's shared session plan.",
+		"description": "Manage this connection's shared session plan via your coding tool's DevSpec helper, not a direct call. A direct call cannot carry the connection identity this needs; your remote-control skill names the helper. The canonical `devspec://product/implementation-contract` → `work_entry_contract` defines WHEN a plan is warranted; this description retains only plan mechanics. Requires the hidden per-connection capability negotiated by the host; caller identity and session are server-derived, never tool arguments. Existing-plan mutations require expected_revision and return the authoritative revisioned snapshot. Omit plan_id to target this connection's own active plan; supplying plan_id explicitly marks intentional cross-plan targeting, which is allowed only for another same-owner plan in the same session. Use advance to complete the current milestone, optionally amend, and start the next atomically. Adoption succeeds only for an orphaned same-owner plan.",
+		"promptSnippet": "Manage this connection's shared session plan via your coding tool's DevSpec helper, not a direct call.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -6094,10 +6115,112 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"kind": "model"
 	},
 	{
+		"name": "manage_poll",
+		"label": "DevSpec: Manage Poll",
+		"description": "Manage this connection's shared session poll via your coding tool's DevSpec helper, not a direct call. A direct call cannot carry the connection identity this needs; your remote-control skill names the helper. Caller identity and current session are server-derived, never tool arguments. Votes are not commands and do not keep Working on. Existing-poll mutations require expected_revision and return the authoritative snapshot.",
+		"promptSnippet": "Manage this connection's shared session poll via your coding tool's DevSpec helper, not a direct call.",
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"action": {
+					"type": "string",
+					"enum": [
+						"create",
+						"list",
+						"get",
+						"update",
+						"end",
+						"retract",
+						"supersede"
+					],
+					"description": "Operation. list/get are reads; every existing-poll mutation requires expected_revision."
+				},
+				"poll_id": {
+					"type": "string",
+					"description": "Poll UUID for get/update/end/retract/supersede."
+				},
+				"expected_revision": {
+					"type": "number",
+					"description": "Required positive revision for every existing-poll mutation."
+				},
+				"client_request_id": {
+					"type": "string",
+					"description": "Required caller-generated UUID for create and supersede retry idempotency."
+				},
+				"question": {
+					"type": "string",
+					"description": "Poll question for create/update/supersede."
+				},
+				"options": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Option labels for create/update/supersede (2–30)."
+				},
+				"recommendation_index": {
+					"type": "number",
+					"description": "0-based index of the option you recommend. That is not a vote."
+				},
+				"multi_select": {
+					"type": "boolean",
+					"description": "Whether voters may pick more than one option. Default false."
+				},
+				"allow_write_in": {
+					"type": "boolean",
+					"description": "Whether voters may add a write-in option. Default false."
+				},
+				"series_id": {
+					"type": "string",
+					"description": "Optional UUID grouping related polls created together."
+				},
+				"series_label": {
+					"type": "string",
+					"description": "Short series label; required when series_id is set."
+				},
+				"reason": {
+					"type": "string",
+					"description": "Required for retract."
+				},
+				"status": {
+					"type": "string",
+					"enum": [
+						"all",
+						"active",
+						"ended",
+						"retracted",
+						"superseded"
+					],
+					"description": "Optional list filter. Default all."
+				},
+				"runner_session_id": {
+					"type": "string",
+					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
+				},
+				"project_id": {
+					"type": "string",
+					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins."
+				},
+				"git_remote": {
+					"type": "string",
+					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
+				}
+			},
+			"required": [
+				"action"
+			]
+		},
+		"kind": "model"
+	},
+	{
 		"name": "manage_directed_question",
 		"label": "DevSpec: Manage Directed Question",
-		"description": "Create and manage canonical session-agent questions for the authenticated live connection. New questions derive project, owner, current source session, and responder server-side; omitted provenance uses the unique open primary requester or owner only when no command delivery is open. create requires a caller-generated UUID client_request_id. list/get/cancel target only this exact originating connection and remain available after detach/reattach. cancel requires expected_revision.",
-		"promptSnippet": "Create and manage canonical session-agent questions for the authenticated live connection.",
+		"description": "Ask the one person driving this session a question, via your coding tool's DevSpec helper rather than a direct call. A direct call cannot carry the connection identity this needs; your remote-control skill names the helper. Creates and manages canonical session-agent questions for the authenticated live connection. New questions derive project, owner, current source session, and responder server-side; omitted provenance uses the unique open primary requester or owner only when no command delivery is open. create requires a caller-generated UUID client_request_id. A successful create ends the asking turn so the room does not show Working while you wait; pass keep_turn true only when you still have work to do. list/get/cancel target only this exact originating connection and remain available after detach/reattach. cancel requires expected_revision.",
+		"promptSnippet": "Ask the one person driving this session a question, via your coding tool's DevSpec helper rather than a direct call.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -6155,6 +6278,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"format": "uuid",
 					"description": "Optional corroborating provenance_ref. When any delivery is open, the unique open primary chooses the responder and an explicit ref must equal it; non-primary refs fail. Owner fallback is allowed only when no delivery is open, and ambiguous primary state fails closed."
+				},
+				"keep_turn": {
+					"type": "boolean",
+					"description": "When true, keep the asking turn open because you still have work to do. Default false: the server ends that turn so the room does not show Working while you wait."
 				},
 				"expected_revision": {
 					"type": "integer",
@@ -6223,8 +6350,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 92,
-	model: 78,
+	total: 93,
+	model: 79,
 	pump: 13,
 	never_model: 1,
 } as const;

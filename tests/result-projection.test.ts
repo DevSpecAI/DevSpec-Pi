@@ -75,15 +75,16 @@ test("model tool schemas and projection families require an explicit contract-ba
 		.filter((entry) => entry.kind === "model")
 		.map(({ name, inputSchema }) => ({ name, inputSchema, family: projectionFamily(name) }));
 	const fingerprint = createHash("sha256").update(JSON.stringify(contract)).digest("hex");
-	// Reviewed against the directed-question reference server e890e9f1d.
-	// manage_directed_question stays cold until an attached capable bond activates
-	// it and uses the lossless full projection for authoritative question state.
+	// Reviewed against the session-polls server manage_poll wire map (item 852eab6b).
+	// manage_poll stays cold until an attached capable bond activates it and uses
+	// the lossless full projection for authoritative revisioned poll state.
+	// Votes are not commands and do not keep Working on.
 	//
 	// BUDGET: activation is additive and session-scoped; no initial prefix cost.
-	// QUALITY: create/list/get/cancel responses retain canonical revision/status.
+	// QUALITY: create/list/get/update/end/retract/supersede retain revision/status.
 	assert.equal(
 		fingerprint,
-		"7bf7d97d1d69c1b9908503dd99374f215d007c8adba7c77bce5781f615a31a79",
+		"489a19104080f135a935c5430866f94e5ce2269ae9976d76164c28b6ff773ae9",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -97,7 +98,7 @@ test("verb projections use explicit, loss-aware families", () => {
 		"get_action_item", "claim_work_item", "get_session_transcript", "preview_conflict_resolution",
 		"get_project_instruction_rules", "get_personal_instructions", "get_workflow_rules", "get_database_schema",
 		"get_goals", "get_project_goals", "create_session", "claim_playbook_run", "claim_review",
-		"import_instruction_rules", "update_personal_instructions", "manage_plan", "manage_directed_question",
+		"import_instruction_rules", "update_personal_instructions", "manage_plan", "manage_poll", "manage_directed_question",
 	]) assert.equal(projectionFamily(verb), "full", verb);
 	assert.equal(projectionFamily("some_future_verb"), "fallback");
 });
@@ -499,7 +500,7 @@ test("full exact decision, instruction, transcript, and schema reads are never c
 	const payload = { id: "exact", body: huge("LOSSLESS-EXACT-CONTENT", 9_000) };
 	for (const verb of [
 		"get_action_item", "get_session_transcript", "preview_conflict_resolution", "get_project_instruction_rules",
-		"get_personal_instructions", "get_workflow_rules", "get_database_schema", "manage_plan",
+		"get_personal_instructions", "get_workflow_rules", "get_database_schema", "manage_plan", "manage_poll",
 	]) {
 		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
 		assert.ok(text.length > PROJECTION_BUDGETS.fallback, verb);

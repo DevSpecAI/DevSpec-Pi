@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- `npm test` caps `node --test` at two files at a time (`--test-concurrency=2`) so this suite cannot fork one worker per CPU next to a live agent.
+
 ### Added
 
 - Deferred native `search_sessions`: wire-map catalog plus ordinary-language aliases, not in the hot set. Compact session cards, then `get_session_transcript` to read one room.

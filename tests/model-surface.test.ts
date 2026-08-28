@@ -85,6 +85,7 @@ test("rare verbs are searchable but not in the initial hot set", () => {
 		"import_instruction_rules",
 		"update_personal_instructions",
 		"write_project_instruction_rule",
+		"search_sessions",
 	];
 	for (const name of rareMustStayOff) {
 		assert.ok(!HOT_SET.has(name), `${name} leaked into the hot set`);
@@ -174,6 +175,11 @@ test("colloquial requests route across materially different rare tool families",
 		["what team policies should agents follow?", "get_project_instruction_rules"],
 		["resolve an action item contradiction against a decision memory", "resolve_action_item_decision_flag"],
 		["clear a contradicts_decision flag on an action item", "resolve_action_item_decision_flag"],
+		["session search", "search_sessions"],
+		["find conversation", "search_sessions"],
+		["search transcripts", "search_sessions"],
+		["which session talked about", "search_sessions"],
+		["past discussion", "search_sessions"],
 	] as const;
 	for (const [query, expected] of cases) {
 		const match = searchRareModelTools(query, 1)[0];
@@ -362,6 +368,32 @@ test("stampKnownScope drops model-supplied scope and adds the bond", () => {
 		recommendation_index: 0,
 	});
 	setBond(null);
+});
+
+test("search_sessions is a schema-complete deferred tool activated by ordinary language", () => {
+	const entry = allModelFacingTools().find((tool) => tool.name === "search_sessions");
+	assert.ok(entry, "generated catalog must include search_sessions");
+	assert.equal(isHotSetVerb("search_sessions"), false);
+	assert.ok(rareModelVerbs().includes("search_sessions"));
+	const properties = entry.inputSchema.properties as Record<string, unknown>;
+	assert.ok(properties.query);
+	assert.ok(properties.limit);
+	for (const identity of ["project_id", "git_remote", "session_id", "connection_id"]) {
+		assert.equal(properties[identity], undefined, `${identity} must remain stamped`);
+	}
+	assert.deepEqual(entry.inputSchema.required, ["query"]);
+	assert.ok(entry.description.length <= 160);
+	for (const query of [
+		"session search",
+		"find conversation",
+		"search transcripts",
+		"which session talked about",
+		"past discussion",
+	]) {
+		const match = searchRareModelTools(query, 1)[0];
+		assert.equal(match?.name, "search_sessions", `${JSON.stringify(query)} routed to ${match?.name}`);
+		assert.deepEqual((match.inputSchema.properties as Record<string, unknown>).query, properties.query);
+	}
 });
 
 test("prefix estimate includes Pi's active snippets and lands in the 2–8k token band", () => {

@@ -159,6 +159,7 @@ const VERB_LABELS: Record<string, string> = {
 	resolve_action_item_decision_flag: "resolving decision flag",
 	record_criterion_verdicts: "recording verdicts",
 	get_session_transcript: "reading transcript",
+	search_sessions: "searching sessions",
 	get_project_summary: "reading project",
 	release_work_item: "releasing",
 	fail_work_item: "failing item",

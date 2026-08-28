@@ -46,6 +46,7 @@ const COLLECTION_VERBS = new Set([
 	"get_conventions",
 	"get_unresolved_questions",
 	"get_recent_sessions",
+	"search_sessions",
 	"get_playbook_runs",
 	"get_playbooks",
 	"get_claimable_reviews",
@@ -334,9 +335,15 @@ function card(raw: unknown, index: number): string {
 		["type", "item_type", "memory_type", "resource_type"],
 		["priority"],
 		["source", "source_type"],
+		["matched_by", "matchedBy"],
 	] as const) {
 		const value = oneLine(first(row, keys), 70);
 		if (value && !metadata.includes(value)) metadata.push(value);
+	}
+	const matchCount = Number(first(row, ["match_count", "matchCount"]));
+	if (Number.isFinite(matchCount) && matchCount > 0) {
+		const label = `${matchCount} match${matchCount === 1 ? "" : "es"}`;
+		if (!metadata.includes(label)) metadata.push(label);
 	}
 	const parentRow = record(row.parent) ?? record(row.brief);
 	const parent = oneLine(
@@ -345,14 +352,15 @@ function card(raw: unknown, index: number): string {
 		140,
 	);
 	const why = oneLine(
-		first(outer, ["why", "why_matched", "match_reason", "matching_passage", "intent", "snippet", "summary", "description_preview", "content_preview"])
-			?? first(row, ["why", "matching_passage", "intent", "summary", "snippet", "description_preview", "content_preview"]),
+		first(outer, ["why", "why_matched", "match_reason", "matching_passage", "intent", "snippet", "summary", "description_preview", "content_preview", "excerpt"])
+			?? first(row, ["why", "matching_passage", "intent", "summary", "snippet", "description_preview", "content_preview", "excerpt"]),
 		200,
 	);
 	const created = oneLine(first(row, ["created_at", "createdAt"]), 40);
-	const age = created ? undefined : oneLine(first(row, ["age"]), 30);
+	const started = created ? undefined : oneLine(first(row, ["started_at", "startedAt"]), 40);
+	const age = created || started ? undefined : oneLine(first(row, ["age"]), 30);
 	const lastActivity = oneLine(first(row, ["last_activity_at", "lastActivityAt", "last_activity"]), 40);
-	const timeline = [created && `created ${created}`, age && `age ${age}`, lastActivity && `last activity ${lastActivity}`]
+	const timeline = [created && `created ${created}`, started && `started ${started}`, age && `age ${age}`, lastActivity && `last activity ${lastActivity}`]
 		.filter((value): value is string => Boolean(value));
 	const signals = [...new Set([...signalLabels(outer), ...signalLabels(row)])];
 	const required = [`${index + 1}. ${id ? `[${id}] ` : ""}${title}${metadata.length ? ` — ${metadata.join(" · ")}` : ""}`];
@@ -457,6 +465,9 @@ function fetchHint(toolName: string): string {
 	}
 	if (toolName.includes("resource")) return "Fetch an exact resource with get_resource(id); rerun the list/search with a narrower filter for more.";
 	if (toolName.includes("project")) return "Use get_project_summary for an exact project; refine project scope or pagination for more.";
+	if (toolName === "search_sessions" || toolName === "get_recent_sessions") {
+		return "Call get_session_transcript with a session_id to read one room.";
+	}
 	return `Rerun ${toolName} with a narrower filter or pagination to fetch more; use the entity's exact get tool when available.`;
 }
 

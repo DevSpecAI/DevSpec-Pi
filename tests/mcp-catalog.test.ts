@@ -32,6 +32,7 @@ test("catalog remains the complete wire map", () => {
 		"record_criterion_verdicts",
 		"resolve_action_item_conflict",
 		"get_session_transcript",
+		"search_sessions",
 		"get_action_item_history",
 		"classify_criterion",
 		"verify_action_item",
@@ -42,6 +43,7 @@ test("catalog remains the complete wire map", () => {
 	}
 	assert.ok(modelFacingSurface().some((e) => e.name === "record_criterion_verdicts"));
 	assert.ok(modelFacingSurface().some((e) => e.name === "get_session_transcript"));
+	assert.ok(!modelFacingSurface().some((e) => e.name === "search_sessions"));
 	assert.ok(!modelFacingSurface().some((e) => e.name === "get_action_item_history"));
 	assert.ok(!modelFacingSurface().some((e) => e.name === "classify_criterion"));
 });

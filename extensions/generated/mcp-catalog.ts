@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 62db2d8832512a158d8bd749d4e42f167db5ebc11234f10ce8cb3651f7548b3a
- * Description fingerprint: b13514ade6eedf935447c115f0e869f8881d6f572dfa27ef8d2f08fdc08a5a21
- * Regenerated: 2026-08-28T03:28:02.603Z
+ * Schema fingerprint: 2b44de24224365d66f9ba760e2d4dcdf2690b1f4242b85ecefb6a6febad445d4
+ * Description fingerprint: 2feda34d45eade6c4569f3746b4b5f0abc1bbb8ebebae8c91173121291e6c5be
+ * Regenerated: 2026-08-28T15:25:52.346Z
  */
-export const MCP_CATALOG_FINGERPRINT = "62db2d8832512a158d8bd749d4e42f167db5ebc11234f10ce8cb3651f7548b3a";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "b13514ade6eedf935447c115f0e869f8881d6f572dfa27ef8d2f08fdc08a5a21";
-export const MCP_CATALOG_GENERATED_AT = "2026-08-28T03:28:02.603Z";
+export const MCP_CATALOG_FINGERPRINT = "2b44de24224365d66f9ba760e2d4dcdf2690b1f4242b85ecefb6a6febad445d4";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "2feda34d45eade6c4569f3746b4b5f0abc1bbb8ebebae8c91173121291e6c5be";
+export const MCP_CATALOG_GENERATED_AT = "2026-08-28T15:25:52.346Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -52,6 +52,7 @@ export const MODEL_VERB_NAMES = [
 	"get_resource",
 	"get_session_transcript",
 	"get_recent_sessions",
+	"search_sessions",
 	"get_memory",
 	"search_memories",
 	"get_decisions",
@@ -720,6 +721,41 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
 				}
 			}
+		},
+		"kind": "model"
+	},
+	{
+		"name": "search_sessions",
+		"label": "DevSpec: Search Sessions",
+		"description": "Search project sessions by title and transcript — keywords or short phrases; ranked hits with excerpts, not full transcripts. Search items, memories, and docs first; use this when it was only said. Call get_session_transcript to read one hit.",
+		"promptSnippet": "Search project sessions by title and transcript — keywords or short phrases; ranked hits with excerpts, not full transcripts.",
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"query": {
+					"type": "string",
+					"description": "Keywords or a short phrase. Required — listing rooms is get_recent_sessions."
+				},
+				"limit": {
+					"type": "number",
+					"description": "Maximum hits. Defaults to 5, max 10."
+				},
+				"project_id": {
+					"type": "string",
+					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins."
+				},
+				"git_remote": {
+					"type": "string",
+					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
+				}
+			},
+			"required": [
+				"query"
+			]
 		},
 		"kind": "model"
 	},
@@ -6350,8 +6386,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 93,
-	model: 79,
+	total: 94,
+	model: 80,
 	pump: 13,
 	never_model: 1,
 } as const;

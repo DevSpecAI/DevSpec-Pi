@@ -245,7 +245,7 @@ export function stampKnownScope(params: Record<string, unknown>, name?: string):
 	// Connection-bound ledgers derive identity, session and project exclusively
 	// from the capability-authenticated connection. Even host-known ids do not
 	// become model arguments.
-	if (isConnectionBoundTool(name)) return stamped;
+	if (name && isConnectionBoundTool(name)) return stamped;
 	const bond = getBond();
 	if (bond?.sessionId) stamped.session_id = bond.sessionId;
 	if (bond?.connectionId) stamped.connection_id = bond.connectionId;

@@ -4,6 +4,7 @@
 
 ### Added
 
+- Deferred native `search_sessions`: wire-map catalog plus ordinary-language aliases, not in the hot set. Compact session cards, then `get_session_transcript` to read one room.
 - Native, schema-complete `manage_poll` on the same attached-bond activation path as `manage_plan`. Votes are not commands and do not keep Working on.
 - Strict top-level `session_polls` advisory projection on changed remote packages.
 

@@ -75,16 +75,18 @@ test("model tool schemas and projection families require an explicit contract-ba
 		.filter((entry) => entry.kind === "model")
 		.map(({ name, inputSchema }) => ({ name, inputSchema, family: projectionFamily(name) }));
 	const fingerprint = createHash("sha256").update(JSON.stringify(contract)).digest("hex");
-	// Reviewed against the session-polls server manage_poll wire map (item 852eab6b).
-	// manage_poll stays cold until an attached capable bond activates it and uses
-	// the lossless full projection for authoritative revisioned poll state.
+	// Reviewed against search_sessions (item e09a7432) plus the prior manage_poll
+	// wire map (item 852eab6b). search_sessions is deferred, collection-projected
+	// compact cards, then get_session_transcript for the room. manage_poll stays
+	// cold until an attached capable bond activates it and uses the lossless full
+	// projection for authoritative revisioned poll state.
 	// Votes are not commands and do not keep Working on.
 	//
-	// BUDGET: activation is additive and session-scoped; no initial prefix cost.
-	// QUALITY: create/list/get/update/end/retract/supersede retain revision/status.
+	// BUDGET: search_sessions is not in the hot set; no initial prefix cost.
+	// QUALITY: cards carry session_id, title, started_at, matched_by, excerpt; no transcripts.
 	assert.equal(
 		fingerprint,
-		"489a19104080f135a935c5430866f94e5ce2269ae9976d76164c28b6ff773ae9",
+		"f8ad27f852d100d8b74353af30e92729409123fc347704dbe6ae43d4b0a06872",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -92,6 +94,7 @@ test("model tool schemas and projection families require an explicit contract-ba
 test("verb projections use explicit, loss-aware families", () => {
 	assert.equal(projectionFamily("get_project_summary"), "project");
 	assert.equal(projectionFamily("search_action_items"), "collection");
+	assert.equal(projectionFamily("search_sessions"), "collection");
 	assert.equal(projectionFamily("devspec_help_search"), "help");
 	assert.equal(projectionFamily("create_action_item"), "ack");
 	for (const verb of [
@@ -256,6 +259,31 @@ test("action-item search preserves intent, parent title, and created chronology 
 	assert.match(text, /created 2026-08-14T12:54:36.630085\+00:00/);
 	assert.match(text, /Preserve project awareness without flooding model context/);
 	assert.doesNotMatch(text, /MUST-NOT-BE-VISIBLE/);
+});
+
+test("session search projects compact cards with excerpts and a transcript follow-up", () => {
+	const payload = {
+		sessions: [{
+			session_id: "841dbaba-3774-4bbc-b88a-0454a8f5006b",
+			title: "Enable local agents to search session transcripts",
+			started_at: "2026-08-27T19:20:06.731+00:00",
+			status: "active",
+			matched_by: "keyword",
+			match_count: 3,
+			excerpt: "I'm sure we talked about this in another session.",
+			messages: [{ role: "user", content: "FULL-TRANSCRIPT-MUST-NOT-LEAK" }],
+		}],
+		transcript_omitted: "Cards only — call get_session_transcript with a session_id to read a room.",
+	};
+	const text = projectModelText({ toolName: "search_sessions", text: JSON.stringify(payload), details: payload });
+	assert.ok(text.length <= PROJECTION_BUDGETS.collection);
+	assert.match(text, /search_sessions: 1 result/);
+	assert.match(text, /\[841dbaba-3774-4bbc-b88a-0454a8f5006b\] Enable local agents to search session transcripts/);
+	assert.match(text, /active · keyword · 3 matches/);
+	assert.match(text, /started 2026-08-27T19:20:06\.731\+00:00/);
+	assert.match(text, /I'm sure we talked about this in another session/);
+	assert.match(text, /get_session_transcript/);
+	assert.doesNotMatch(text, /FULL-TRANSCRIPT-MUST-NOT-LEAK/);
 });
 
 test("long selection cards preserve parent, chronology, and intent before optional signals", () => {

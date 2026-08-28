@@ -120,6 +120,7 @@ const TOOL_SEARCH_ALIASES: Partial<Record<ModelVerbName, readonly string[]>> = {
 	release_work_item: ["unclaim", "give up claimed work", "abandon claimed task"],
 	fail_work_item: ["could not finish claimed work", "unable to finish claimed task", "stuck on claimed work"],
 	get_recent_sessions: ["recent activity", "recent conversations"],
+	search_sessions: ["session search", "find conversation", "search transcripts", "which session talked about", "past discussion"],
 	get_claimable_reviews: ["inspect someone else's changes", "check someone else's changes"],
 	get_playbooks: ["recurring automations", "saved routines"],
 	get_project_goals: ["objectives", "working toward", "big picture"],

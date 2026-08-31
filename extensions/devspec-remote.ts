@@ -115,6 +115,9 @@ import {
 	serializeSessionPollsProjection,
 } from "./core/session-polls.ts";
 import {
+	serializeStillToDiscussProjection,
+} from "./core/still-to-discuss.ts";
+import {
 	withDirectedQuestionToolActive,
 	withPlanToolActive,
 	withPollToolActive,
@@ -258,6 +261,9 @@ interface PumpState {
 	/** Latest validated session_polls advisory tail. */
 	sessionPollsTail: string;
 	pendingSessionPollsTail: string;
+	/** Latest validated this-session Still to Discuss tail. */
+	stillToDiscussTail: string;
+	pendingStillToDiscussTail: string;
 }
 
 let pump: PumpState | null = null;
@@ -1945,6 +1951,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			active.activePlanTail = "";
 			active.pendingSessionPollsTail = "";
 			active.sessionPollsTail = "";
+			active.pendingStillToDiscussTail = "";
+			active.stillToDiscussTail = "";
 			setBond(next);
 			pi_setPlanToolActive(Boolean(serverSessionId));
 			pi_setQuestionToolActive(Boolean(serverSessionId && next.connectionCapability));
@@ -2054,6 +2062,12 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (pollTail !== active.sessionPollsTail) active.pendingSessionPollsTail = pollTail;
 			active.sessionPollsTail = pollTail;
 			pi_setPollToolActive(Boolean(active.bond.sessionId && active.bond.connectionCapability));
+		}
+
+		if (pkg.stillToDiscuss !== undefined) {
+			const discussTail = serializeStillToDiscussProjection(pkg.stillToDiscuss);
+			if (discussTail !== active.stillToDiscussTail) active.pendingStillToDiscussTail = discussTail;
+			active.stillToDiscussTail = discussTail;
 		}
 
 		const control = parseControlCommand(pkg.control);
@@ -2342,6 +2356,8 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 		pendingActivePlanTail: "",
 		sessionPollsTail: "",
 		pendingSessionPollsTail: "",
+		stillToDiscussTail: "",
+		pendingStillToDiscussTail: "",
 	};
 	pi_setPlanToolActive(Boolean(bond.sessionId));
 	pi_setQuestionToolActive(Boolean(bond.sessionId && bond.connectionCapability));
@@ -2715,9 +2731,18 @@ export default function (pi: ExtensionAPI) {
 			active?.pendingSessionPollsTail ?? "",
 		);
 		if (active && pollTail) active.pendingSessionPollsTail = "";
+		const discussTail = activePlanTailForDelivery(
+			Boolean(canonicalQueueItem),
+			active?.stillToDiscussTail ?? "",
+			active?.pendingStillToDiscussTail ?? "",
+		);
+		if (active && discussTail) active.pendingStillToDiscussTail = "";
 		const hiddenContent = appendActivePlanTail(
-			appendActivePlanTail(canonicalQueueItem?.hiddenContent ?? "", planTail),
-			pollTail,
+			appendActivePlanTail(
+				appendActivePlanTail(canonicalQueueItem?.hiddenContent ?? "", planTail),
+				pollTail,
+			),
+			discussTail,
 		);
 		const injected = hiddenContent ? {
 			message: {

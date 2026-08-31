@@ -21,6 +21,10 @@ import {
 	parseSessionPollsProjection,
 	type SessionPollsProjectionV1,
 } from "./session-polls.ts";
+import {
+	parseStillToDiscussProjection,
+	type StillToDiscussProjectionV1,
+} from "./still-to-discuss.ts";
 
 const SCHEMA_VERSION = 1;
 const CONTRACT_VERSION = "1.4.0";
@@ -201,6 +205,8 @@ export interface PollPackage {
 	activeSessionPlans?: ActiveSessionPlansProjection | null;
 	/** Top-level advisory session_polls on changed packages. */
 	sessionPolls?: SessionPollsProjectionV1;
+	/** Top-level this-session Still to Discuss snapshot on changed packages. */
+	stillToDiscuss?: StillToDiscussProjectionV1;
 	canonicalState: "idle" | "valid" | "invalid";
 	canonicalError?: string;
 	advisoryContext?: IngressAdvisoryContext;
@@ -738,6 +744,7 @@ export function parsePollPayload(
 		if (!changed) {
 			if (topLevelNotices.length !== 0) fail("system_notices", "idle response cannot carry notices");
 			if (outer.session_polls !== undefined) fail("session_polls", "idle response cannot carry session polls");
+			if (outer.still_to_discuss !== undefined) fail("still_to_discuss", "idle response cannot carry still to discuss");
 			return {
 				changed: false,
 				cursorV2: typeof outer.cursor_v2 === "string" && outer.cursor_v2.length > 0 ? outer.cursor_v2 : undefined,
@@ -790,6 +797,9 @@ export function parsePollPayload(
 			activeSessionPlans: envelope.activeSessionPlans,
 			...(outer.session_polls !== undefined
 				? { sessionPolls: parseSessionPollsProjection(outer.session_polls) }
+				: {}),
+			...(outer.still_to_discuss !== undefined
+				? { stillToDiscuss: parseStillToDiscussProjection(outer.still_to_discuss) }
 				: {}),
 			canonicalState: "valid",
 			...(contextEntryCount(envelope.advisoryContext.context) > 0 ? { advisoryContext: envelope.advisoryContext } : {}),

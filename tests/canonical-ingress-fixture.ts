@@ -150,6 +150,22 @@ function contextEntry(kind: "human" | "agent" | "ai" | "system", message_id: str
 	};
 }
 
+
+export function stillToDiscussProjection(options: { empty?: boolean } = {}) {
+	return {
+		version: 1 as const,
+		advisory: true as const,
+		authority_note: "This session only. Advisory read-awareness. Do not add, strike, or reopen unless the human asked.",
+		truncated: false,
+		rows: options.empty ? [] : [{
+			id: "597e9c3a-c661-43e7-81c4-77094296187b",
+			title: "Investigate remaining CI unit-test failures",
+			state: "open" as const,
+			preview: "CI still fails on three unit tests.",
+		}],
+	};
+}
+
 export function canonicalPoll(options: {
 	body?: string;
 	bodies?: string[];
@@ -165,6 +181,7 @@ export function canonicalPoll(options: {
 	window?: Record<string, unknown>;
 	activePlans?: ReturnType<typeof activePlanProjection> | null;
 	sessionPolls?: ReturnType<typeof sessionPollsProjection> | null;
+	stillToDiscuss?: ReturnType<typeof stillToDiscussProjection> | null;
 	systemNotices?: unknown[];
 	systemNoticeNegotiated?: boolean;
 } = {}) {
@@ -240,6 +257,7 @@ export function canonicalPoll(options: {
 	return {
 		changed: true,
 		...(options.sessionPolls ? { session_polls: options.sessionPolls } : {}),
+		...(options.stillToDiscuss ? { still_to_discuss: options.stillToDiscuss } : {}),
 		cursor_v2: "canonical-cursor-1",
 		...(systemNoticeNegotiated ? {
 			system_notice_version: 1,

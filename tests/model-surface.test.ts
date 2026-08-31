@@ -86,6 +86,9 @@ test("rare verbs are searchable but not in the initial hot set", () => {
 		"update_personal_instructions",
 		"write_project_instruction_rule",
 		"search_sessions",
+		"search_discussion_points",
+		"get_discussion_point",
+		"manage_discussion_point",
 	];
 	for (const name of rareMustStayOff) {
 		assert.ok(!HOT_SET.has(name), `${name} leaked into the hot set`);
@@ -180,6 +183,8 @@ test("colloquial requests route across materially different rare tool families",
 		["search transcripts", "search_sessions"],
 		["which session talked about", "search_sessions"],
 		["past discussion", "search_sessions"],
+		["still to discuss", "search_discussion_points"],
+		["open discussion points", "search_discussion_points"],
 	] as const;
 	for (const [query, expected] of cases) {
 		const match = searchRareModelTools(query, 1)[0];

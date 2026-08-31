@@ -75,18 +75,12 @@ test("model tool schemas and projection families require an explicit contract-ba
 		.filter((entry) => entry.kind === "model")
 		.map(({ name, inputSchema }) => ({ name, inputSchema, family: projectionFamily(name) }));
 	const fingerprint = createHash("sha256").update(JSON.stringify(contract)).digest("hex");
-	// Reviewed against search_sessions (item e09a7432) plus the prior manage_poll
-	// wire map (item 852eab6b). search_sessions is deferred, collection-projected
-	// compact cards, then get_session_transcript for the room. manage_poll stays
-	// cold until an attached capable bond activates it and uses the lossless full
-	// projection for authoritative revisioned poll state.
-	// Votes are not commands and do not keep Working on.
-	//
-	// BUDGET: search_sessions is not in the hot set; no initial prefix cost.
-	// QUALITY: cards carry session_id, title, started_at, matched_by, excerpt; no transcripts.
+	// Reviewed against Still to Discuss agent verbs (item f2dbec96). search/get/manage
+	// are deferred, not hot-set. search is collection cards; get is full body;
+	// manage is ack and returns the row plus list. Do not maintain the board unasked.
 	assert.equal(
 		fingerprint,
-		"f8ad27f852d100d8b74353af30e92729409123fc347704dbe6ae43d4b0a06872",
+		"33130aa4d09212f82e694e710e60282fdf46b3cb93bb2783f875e3c5a5d70982",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

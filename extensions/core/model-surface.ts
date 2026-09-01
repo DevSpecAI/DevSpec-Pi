@@ -36,7 +36,11 @@ export type HotSetVerb = (typeof HOT_SET_VERBS)[number];
 
 export const HOT_SET = new Set<string>(HOT_SET_VERBS);
 
-/** Keys the extension stamps. The model must never be asked for these. */
+/** Keys the extension stamps. The model must never be asked for these —
+ *  except `session_id` on verbs where it names the resource being read
+ *  (`MODEL_OWNED_SESSION_ID_VERBS`), not the bonded room. Item 7de79db6
+ *  still holds for git_remote / project_id / the current-room default.
+ */
 export const SCOPE_KEYS = [
 	"git_remote",
 	"project_id",
@@ -50,6 +54,18 @@ export const SCOPE_KEYS = [
 ] as const;
 
 export const SCOPE_KEY_SET = new Set<string>(SCOPE_KEYS);
+
+/** session_id here is the room to read (bb3cdeea), not host identity. */
+export const MODEL_OWNED_SESSION_ID_VERBS = new Set<string>(["get_session_transcript"]);
+
+export function scopeKeysForTool(name?: string): Set<string> {
+	if (name && MODEL_OWNED_SESSION_ID_VERBS.has(name)) {
+		const keys = new Set<string>(SCOPE_KEYS);
+		keys.delete("session_id");
+		return keys;
+	}
+	return SCOPE_KEY_SET;
+}
 
 export const TOOL_LOADER_NAME = "search_devspec_tools";
 export const PLAN_TOOL_NAME = "manage_plan";
@@ -140,28 +156,31 @@ export function firstSentence(text: string, max = SNIPPET_MAX): string {
 	return sentence.length > max ? `${sentence.slice(0, max - 1)}…` : sentence;
 }
 
-function slimUnknown(value: unknown): unknown {
-	if (Array.isArray(value)) return value.map(slimUnknown);
+function slimUnknown(value: unknown, omitKeys: Set<string> = SCOPE_KEY_SET): unknown {
+	if (Array.isArray(value)) return value.map((item) => slimUnknown(item, omitKeys));
 	if (!value || typeof value !== "object") return value;
-	return slimSchema(value as Record<string, unknown>);
+	return slimSchema(value as Record<string, unknown>, omitKeys);
 }
 
 /** Recursively drop stamped scope keys and shrink description essays. */
-export function slimSchema(schema: Record<string, unknown> | undefined): Record<string, unknown> {
+export function slimSchema(
+	schema: Record<string, unknown> | undefined,
+	omitKeys: Set<string> = SCOPE_KEY_SET,
+): Record<string, unknown> {
 	if (!schema || typeof schema !== "object") return { type: "object", properties: {} };
 	const out: Record<string, unknown> = {};
 	for (const [key, value] of Object.entries(schema)) {
 		if (key === "properties" && value && typeof value === "object" && !Array.isArray(value)) {
 			const props: Record<string, unknown> = {};
 			for (const [name, prop] of Object.entries(value as Record<string, unknown>)) {
-				if (SCOPE_KEY_SET.has(name)) continue;
-				props[name] = slimUnknown(prop);
+				if (omitKeys.has(name)) continue;
+				props[name] = slimUnknown(prop, omitKeys);
 			}
 			out.properties = props;
 			continue;
 		}
 		if (key === "required" && Array.isArray(value)) {
-			const required = value.filter((name) => typeof name === "string" && !SCOPE_KEY_SET.has(name));
+			const required = value.filter((name) => typeof name === "string" && !omitKeys.has(name));
 			if (required.length > 0) out.required = required;
 			continue;
 		}
@@ -170,7 +189,7 @@ export function slimSchema(schema: Record<string, unknown> | undefined): Record<
 			continue;
 		}
 		if (value && typeof value === "object") {
-			out[key] = slimUnknown(value);
+			out[key] = slimUnknown(value, omitKeys);
 			continue;
 		}
 		out[key] = value;
@@ -179,11 +198,18 @@ export function slimSchema(schema: Record<string, unknown> | undefined): Record<
 }
 
 export function slimCatalogEntry(entry: CatalogEntry): CatalogEntry {
+	const omitKeys = scopeKeysForTool(entry.name);
+	const inputSchema = slimSchema(entry.inputSchema, omitKeys);
+	if (MODEL_OWNED_SESSION_ID_VERBS.has(entry.name) && Array.isArray(inputSchema.required)) {
+		const required = inputSchema.required.filter((name) => name !== "session_id");
+		if (required.length > 0) inputSchema.required = required;
+		else delete inputSchema.required;
+	}
 	return {
 		...entry,
 		description: firstSentence(entry.promptSnippet || entry.description),
 		promptSnippet: firstSentence(entry.promptSnippet || entry.description),
-		inputSchema: slimSchema(entry.inputSchema),
+		inputSchema,
 	};
 }
 

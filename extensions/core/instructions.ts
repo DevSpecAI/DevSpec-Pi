@@ -10,7 +10,7 @@
  */
 
 /** Bump when the block changes materially; handy for debugging drift reports. */
-export const INSTRUCTIONS_VERSION = 10;
+export const INSTRUCTIONS_VERSION = 11;
 
 export function buildDevspecInstructions(): string {
 	return `## DevSpec
@@ -23,5 +23,5 @@ This project is connected to DevSpec. Everyday verbs are active native tools. Fi
 - Project conventions and decisions (get_memory for the full body) are BINDING — if one contradicts what the code needs, surface it and propose a supersede rather than silently deviating.
 - Keep shared memory fresh: record durable decisions/conventions/risks with record_memory (it recall-gates near-duplicates — prefer superseding or retracting a stale entry rather than duplicating). In interactive sessions, propose a memory to the user before recording it.
 - For non-trivial work, start with one concise user-facing sentence saying what you understood and what you will do next before tools. Add another only at a meaningful boundary; never narrate individual tools.
-- Do not pass git_remote, project_id, or session id — the extension already knows them.`;
+- Do not pass git_remote, project_id, or connection_id — the extension already knows them.`;
 }

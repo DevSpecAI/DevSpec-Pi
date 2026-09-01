@@ -14,6 +14,7 @@ import {
 	PREFIX_TOKEN_MAX,
 	PREFIX_TOKEN_MIN,
 	SCOPE_KEY_SET,
+	scopeKeysForTool,
 	TOOL_LOADER_DESCRIPTION,
 	TOOL_LOADER_NAME,
 	TOOL_LOADER_PROMPT_METADATA,
@@ -109,11 +110,24 @@ test("slimmed schemas never ask for stamped scope keys", () => {
 	assert.ok(SCOPE_KEY_SET.has("pinned_project_id"), "folder pins are host scope, never model identity");
 	for (const entry of allModelFacingTools()) {
 		const props = (entry.inputSchema.properties ?? {}) as Record<string, unknown>;
-		for (const key of SCOPE_KEY_SET) assert.ok(!(key in props), `${entry.name} still exposes ${key}`);
+		const omit = scopeKeysForTool(entry.name);
+		for (const key of omit) assert.ok(!(key in props), `${entry.name} still exposes ${key}`);
 		const required = (entry.inputSchema.required ?? []) as string[];
 		for (const key of SCOPE_KEY_SET) assert.ok(!required.includes(key), `${entry.name} still requires ${key}`);
 		assert.ok(entry.description.length <= 160, `${entry.name} description still an essay`);
 	}
+});
+
+test("get_session_transcript keeps session_id as a model-facing target", () => {
+	const entry = allModelFacingTools().find((tool) => tool.name === "get_session_transcript");
+	assert.ok(entry, "get_session_transcript must stay on the model surface");
+	const props = (entry.inputSchema.properties ?? {}) as Record<string, unknown>;
+	assert.ok(props.session_id, "session_id is the room to read, not host scope");
+	assert.equal(props.git_remote, undefined);
+	assert.equal(props.project_id, undefined);
+	assert.equal(props.connection_id, undefined);
+	const required = (entry.inputSchema.required ?? []) as string[];
+	assert.ok(!required.includes("session_id"), "omit session_id to read the bonded room");
 });
 
 test("slimSchema drops nested scope keys and shortens descriptions", () => {
@@ -372,6 +386,23 @@ test("stampKnownScope drops model-supplied scope and adds the bond", () => {
 		options: ["yes", "no"],
 		recommendation_index: 0,
 	});
+	setBond(null);
+});
+
+test("stampKnownScope preserves model session_id on get_session_transcript", () => {
+	setBond({ connectionId: "conn-1", sessionId: "sess-1", codename: "Restless Squirrel" });
+	const named = stampKnownScope({
+		session_id: "other-session",
+		fetch_id: "session_transcript:other-session",
+	}, "get_session_transcript");
+	assert.equal(named.session_id, "other-session");
+	assert.equal(named.connection_id, "conn-1");
+	const omitted = stampKnownScope({ tail: 20 }, "get_session_transcript");
+	assert.equal(omitted.session_id, "sess-1");
+	assert.equal(omitted.tail, 20);
+	const other = stampKnownScope({ session_id: "model-invented", title: "hello" }, "create_action_item");
+	assert.equal(other.session_id, "sess-1");
+	assert.equal(other.title, "hello");
 	setBond(null);
 });
 

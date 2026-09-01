@@ -44,6 +44,7 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /record_memory/);
 	assert.match(text, /git_remote/);
 	assert.match(text, /extension already knows/i);
+	assert.doesNotMatch(text, /or session id/i);
 	assert.match(text, /search_devspec_tools/);
 	assert.match(text, /concise user-facing sentence/);
 	assert.match(text, /never narrate individual tools/);

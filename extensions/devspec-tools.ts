@@ -25,7 +25,7 @@ import {
 	DIRECTED_QUESTION_TOOL_NAME,
 	HOT_SET_VERBS,
 	isConnectionBoundTool,
-	SCOPE_KEY_SET,
+	scopeKeysForTool,
 	TOOL_LOADER_DESCRIPTION,
 	TOOL_LOADER_NAME,
 	TOOL_LOADER_PROMPT_METADATA,
@@ -237,9 +237,10 @@ export function stampHostProvider(
 
 /** Drop scope the extension already knows, then stamp bond/cwd values. */
 export function stampKnownScope(params: Record<string, unknown>, name?: string): Record<string, unknown> {
+	const omit = scopeKeysForTool(name);
 	const stamped: Record<string, unknown> = {};
 	for (const [key, value] of Object.entries(params)) {
-		if (SCOPE_KEY_SET.has(key)) continue;
+		if (omit.has(key)) continue;
 		stamped[key] = value;
 	}
 	// Connection-bound ledgers derive identity, session and project exclusively
@@ -247,7 +248,9 @@ export function stampKnownScope(params: Record<string, unknown>, name?: string):
 	// become model arguments.
 	if (name && isConnectionBoundTool(name)) return stamped;
 	const bond = getBond();
-	if (bond?.sessionId) stamped.session_id = bond.sessionId;
+	// Target session_id (get_session_transcript) is model-owned; only fill the
+	// bonded room when the model omitted it. Other verbs still stamp over.
+	if (!stamped.session_id && bond?.sessionId) stamped.session_id = bond.sessionId;
 	if (bond?.connectionId) stamped.connection_id = bond.connectionId;
 	return stamped;
 }

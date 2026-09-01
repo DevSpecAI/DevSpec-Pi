@@ -6,7 +6,8 @@
 export const STILL_TO_DISCUSS_PROJECTION_VERSION = 1 as const;
 export const STILL_TO_DISCUSS_MAX_ROWS = 16;
 export const STILL_TO_DISCUSS_MAX_TITLE_CHARS = 200;
-export const STILL_TO_DISCUSS_MAX_PREVIEW_CHARS = 160;
+/** Server slices the body to 160 then appends … (item 54902803: 161 chars deafened Bounding Lynx). */
+export const STILL_TO_DISCUSS_MAX_PREVIEW_CHARS = 161;
 export const STILL_TO_DISCUSS_AUTHORITY_NOTE =
 	"This session only. Advisory read-awareness. Do not add, strike, or reopen unless the human asked." as const;
 
@@ -73,8 +74,10 @@ export function parseStillToDiscussProjection(value: unknown, path = "still_to_d
 		const nested = `${path}.rows[${index}]`;
 		const card = record(item, nested);
 		exactKeys(card, ["id", "title", "state", "preview"], nested);
-		const state = card.state;
-		if (state !== "open" && state !== "discussed") fail(`${nested}.state`, "expected open or discussed");
+		let state: "open" | "discussed";
+		if (card.state === "discussed") state = "discussed";
+		else if (card.state === "open") state = "open";
+		else fail(`${nested}.state`, "expected open or discussed");
 		return {
 			id: uuid(card.id, `${nested}.id`),
 			title: boundedString(card.title, `${nested}.title`, STILL_TO_DISCUSS_MAX_TITLE_CHARS),

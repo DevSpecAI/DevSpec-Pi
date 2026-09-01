@@ -41,7 +41,7 @@ test("omitted session_polls is not an empty inventory and idle packages reject i
 	assert.equal(idle.canonicalState, "invalid");
 });
 
-test("malformed session_polls fails the package atomically", () => {
+test("malformed session_polls omits the sidecar and still delivers the owner command", () => {
 	const mutations: Array<(projection: ReturnType<typeof sessionPollsProjection>) => void> = [
 		(value) => { value.version = 2 as never; },
 		(value) => { value.advisory = false as never; },
@@ -54,8 +54,9 @@ test("malformed session_polls fails the package atomically", () => {
 		const projection = JSON.parse(JSON.stringify(sessionPollsProjection())) as ReturnType<typeof sessionPollsProjection>;
 		mutate(projection);
 		const parsed = parsePollPayload(canonicalPoll({ sessionPolls: projection }), TEST_CONNECTION);
-		assert.equal(parsed.canonicalState, "invalid");
-		assert.equal(parsed.ownerBundle, undefined);
+		assert.equal(parsed.canonicalState, "valid");
+		assert.ok(parsed.ownerBundle);
+		assert.equal(parsed.sessionPolls, undefined);
 	}
 	assert.throws(() => parseSessionPollsProjection({ ...sessionPollsProjection(), polls: [] }), /1\.\.21 polls/);
 });

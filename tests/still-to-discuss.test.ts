@@ -37,3 +37,33 @@ test("omitted still_to_discuss is not an empty inventory and idle packages rejec
 	}, TEST_CONNECTION);
 	assert.equal(idle.canonicalState, "invalid");
 });
+
+test("a 161-character ellipsis preview still delivers the owner command", () => {
+	const preview = `${"x".repeat(160)}…`;
+	assert.equal(preview.length, 161);
+	const parsed = parsePollPayload(canonicalPoll({
+		stillToDiscuss: {
+			...stillToDiscussProjection(),
+			rows: [{
+				id: "20752a57-9169-4a89-b5ce-b824c174deed",
+				title: "Separate playbook triggers from participation and harness selection",
+				state: "discussed",
+				preview,
+			}],
+		},
+	}), TEST_CONNECTION);
+	assert.equal(parsed.canonicalState, "valid");
+	assert.ok(parsed.ownerBundle);
+	assert.equal(parsed.stillToDiscuss?.rows[0]?.preview, preview);
+});
+
+test("a malformed Still to Discuss sidecar does not deafen the owner command", () => {
+	const payload = canonicalPoll({ stillToDiscuss: stillToDiscussProjection() }) as {
+		still_to_discuss: Record<string, unknown>;
+	};
+	payload.still_to_discuss.extra = true;
+	const parsed = parsePollPayload(payload, TEST_CONNECTION);
+	assert.equal(parsed.canonicalState, "valid");
+	assert.ok(parsed.ownerBundle);
+	assert.equal(parsed.stillToDiscuss, undefined);
+});

@@ -218,6 +218,15 @@ function fail(path: string, message: string): never {
 	throw new Error(`${path}: ${message}`);
 }
 
+/** Advisory sidecars must not invalidate canonical command delivery (item 54902803). */
+function tryParseAdvisory<T>(value: unknown, parse: (value: unknown) => T): T | undefined {
+	try {
+		return parse(value);
+	} catch {
+		return undefined;
+	}
+}
+
 function record(value: unknown, path: string): RecordValue {
 	if (!value || typeof value !== "object" || Array.isArray(value)) fail(path, "expected object");
 	return value as RecordValue;
@@ -784,6 +793,12 @@ export function parsePollPayload(
 			if (bundle.commands.some((item) => item.attachments?.some((attachment) => attachment.materialization === "unavailable"))) rejectedBundle = bundle;
 			else ownerBundle = bundle;
 		}
+		const sessionPolls = outer.session_polls === undefined
+			? undefined
+			: tryParseAdvisory(outer.session_polls, parseSessionPollsProjection);
+		const stillToDiscuss = outer.still_to_discuss === undefined
+			? undefined
+			: tryParseAdvisory(outer.still_to_discuss, parseStillToDiscussProjection);
 		return {
 			changed: true,
 			cursorV2,
@@ -795,12 +810,8 @@ export function parsePollPayload(
 			dispatchCount,
 			control: actionableControl ? envelope.control : undefined,
 			activeSessionPlans: envelope.activeSessionPlans,
-			...(outer.session_polls !== undefined
-				? { sessionPolls: parseSessionPollsProjection(outer.session_polls) }
-				: {}),
-			...(outer.still_to_discuss !== undefined
-				? { stillToDiscuss: parseStillToDiscussProjection(outer.still_to_discuss) }
-				: {}),
+			...(sessionPolls ? { sessionPolls } : {}),
+			...(stillToDiscuss ? { stillToDiscuss } : {}),
 			canonicalState: "valid",
 			...(contextEntryCount(envelope.advisoryContext.context) > 0 ? { advisoryContext: envelope.advisoryContext } : {}),
 		};

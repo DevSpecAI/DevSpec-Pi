@@ -78,9 +78,17 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// Reviewed against Still to Discuss agent verbs (item f2dbec96). search/get/manage
 	// are deferred, not hot-set. search is collection cards; get is full body;
 	// manage is ack and returns the row plus list. Do not maintain the board unasked.
+	//
+	// Rebaselined 2026-09-02 for DevSpec item ab4765f4, which removed the
+	// `separate_work` follow-up-step kind. Two input schemas moved and nothing
+	// else: the step `kind` enums dropped to required_step|note, and
+	// create_action_item gained an optional follow_up_from_action_item_id so work
+	// that belongs in its own item becomes one in the same call. No new verbs, and
+	// every projection family is unchanged (create_action_item is still `ack`), so
+	// budget/quality coverage is unaffected.
 	assert.equal(
 		fingerprint,
-		"33130aa4d09212f82e694e710e60282fdf46b3cb93bb2783f875e3c5a5d70982",
+		"65f1447a5119c4e341f4255ba94498ee1abfe311b6ad8990af047acb881d73ad",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -592,7 +600,7 @@ test("goal reads preserve authoritative exact items, project vision, and every c
 test("manual follow-up arrays stay bounded with IDs, kinds, counts, and an exact recovery path", () => {
 	const steps = Array.from({ length: 100 }, (_, index) => ({
 		id: `step-${index + 1}`,
-		kind: index % 3 === 0 ? "required_step" : index % 3 === 1 ? "separate_work" : "note",
+		kind: index % 2 === 0 ? "required_step" : "note",
 		description: huge(`follow-up ${index + 1}`, 2_000),
 	}));
 	const payload = {
@@ -603,8 +611,8 @@ test("manual follow-up arrays stay bounded with IDs, kinds, counts, and an exact
 	assert.ok(text.length <= PROJECTION_BUDGETS.recordImplementation);
 	assert.match(text, /Manual\/human follow-up: 100; showing 3/);
 	assert.match(text, /\[step-1\] required_step/);
-	assert.match(text, /\[step-2\] separate_work/);
-	assert.match(text, /\[step-3\] note/);
+	assert.match(text, /\[step-2\] note/);
+	assert.match(text, /\[step-3\] required_step/);
 	assert.match(text, /97 additional follow-up step\(s\) omitted; use get_action_item\(work-followups\)/);
 	assert.doesNotMatch(text, /step-4/);
 });

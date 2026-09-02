@@ -37,6 +37,8 @@ const DEBUG_FIELDS = {
 	"interaction event persistence confirmation failed": ["errorPresent"],
 	"interaction event exact-workflow guard rejected": ["errors"],
 	"interaction event payload rejected": ["errors", "errorPresent"],
+	"launcher install": ["installed", "keptNewer", "current"],
+	"launcher install failed": ["errorPresent"],
 	"message_end: no turn": [],
 	"poll recoverable": ["errors", "errorPresent"],
 	"poll recoverable server response": ["ended", "reasonPresent"],

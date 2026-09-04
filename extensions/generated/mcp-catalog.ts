@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 19a114ee20a3f6090ce61e5413c7f03f68a92cee692e5c1663b9682baca5e16e
- * Description fingerprint: b0a96abe56e0922d8b77d3e707f5b1ce44e78a2c54e0e35cb28189ba98d0330e
- * Regenerated: 2026-09-04T10:15:06.561Z
+ * Schema fingerprint: 6590b1a8cd94d806a458a5d66255cbc26f43339706673813be9c23f6d469644c
+ * Description fingerprint: 39b1c46b451792f15156beb683b68f083695287eac93702d97e31ab7b8f4edb2
+ * Regenerated: 2026-09-04T19:03:59.641Z
  */
-export const MCP_CATALOG_FINGERPRINT = "19a114ee20a3f6090ce61e5413c7f03f68a92cee692e5c1663b9682baca5e16e";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "b0a96abe56e0922d8b77d3e707f5b1ce44e78a2c54e0e35cb28189ba98d0330e";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-04T10:15:06.562Z";
+export const MCP_CATALOG_FINGERPRINT = "6590b1a8cd94d806a458a5d66255cbc26f43339706673813be9c23f6d469644c";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "39b1c46b451792f15156beb683b68f083695287eac93702d97e31ab7b8f4edb2";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-04T19:03:59.641Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -201,7 +201,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_action_items",
 		"label": "DevSpec: Get Action Items",
-		"description": "List action items as a project SUMMARY plus a token-bounded, priority-ordered page — designed to reconcile with what the DevSpec UI shows (no silent truncation). The response is an object: `summary` carries lifecycle counts (`ui_buckets` matches the UI counts; `lifecycle_breakdown` is the literal lifecycle distribution) and `assignment_lanes` (assigned_to_me / unassigned grab-bag / assigned_to_others within the active filter); `page` carries pagination (total_matching, offset, limit, has_more, next_offset); `items` is the ordered page (each with a truncated description_preview + assignment_lane — call get_action_item for full text); `briefs` lists parent briefs with rolled-up child counts; `relationships` lists links (blocks / caused_by / supersedes) among the returned items. IMPORTANT — `items` is a single PAGE, not the whole list: report HOW MANY items exist from `summary.ui_buckets` (e.g. open / implemented-awaiting-verify / done), never from `items.length`. When `page.has_more` is true there are more than returned — page with offset/next_offset, or (for triage / \"where do I start\" / dedup / \"are any redundant\") pass `fields: \"compact\"` to scan a much larger slice cheaply. To find items by topic/keyword, prefer search_action_items. The page is sorted by project queue priority by default; pass order_by (\"created\"/\"last_activity\") + order_dir to reorder — e.g. order_by:\"created\", order_dir:\"asc\" for an oldest-first backlog-age audit, or order_by:\"last_activity\", order_dir:\"asc\" to surface the most stale (longest-untouched) items. Briefs are hidden from the page by default; pass include_briefs: true to include them as rows.",
+		"description": "List action items as a project SUMMARY plus a token-bounded, priority-ordered page — designed to reconcile with what the DevSpec UI shows (no silent truncation). The response is an object: `summary` carries lifecycle counts (`ui_buckets` matches the UI counts; `lifecycle_breakdown` is the literal lifecycle distribution), `assignment_lanes` (assigned_to_me / unassigned grab-bag / assigned_to_others within the active filter), and `attention` — WHY items want a human, as an exact count per reason in the same labels the UI shows, plus `any_reason_total` (items with at least one reason, counted once, excluding the calm implemented-awaiting-verification lane). Answer \"what needs attention?\" from `attention` and then drill into one reason with `signal_type`, rather than fetching rows to find out; `page` carries pagination (total_matching, offset, limit, has_more, next_offset); `items` is the ordered page (each with a truncated description_preview + assignment_lane — call get_action_item for full text); `briefs` lists parent briefs with rolled-up child counts; `relationships` lists links (blocks / caused_by / supersedes) among the returned items. IMPORTANT — `items` is a single PAGE, not the whole list: report HOW MANY items exist from `summary.ui_buckets` (e.g. open / implemented-awaiting-verify / done), never from `items.length`. When `page.has_more` is true there are more than returned — page with offset/next_offset, or (for triage / \"where do I start\" / dedup / \"are any redundant\") pass `fields: \"compact\"` to scan a much larger slice cheaply. To find items by topic/keyword, prefer search_action_items. The page is sorted by project queue priority by default; pass order_by (\"created\"/\"last_activity\") + order_dir to reorder — e.g. order_by:\"created\", order_dir:\"asc\" for an oldest-first backlog-age audit, or order_by:\"last_activity\", order_dir:\"asc\" to surface the most stale (longest-untouched) items. Briefs are hidden from the page by default; pass include_briefs: true to include them as rows.",
 		"promptSnippet": "List action items as a project SUMMARY plus a token-bounded, priority-ordered page — designed to reconcile with what the DevSpec UI shows (no silent truncati…",
 		"inputSchema": {
 			"type": "object",
@@ -211,13 +211,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						"open",
 						"in_progress",
+						"implemented",
+						"blocked",
 						"done",
 						"dismissed",
 						"deferred",
-						"blocked",
+						"active",
 						"all"
 					],
-					"description": "Lifecycle bucket filter for the returned page. \"open\" includes open + in_progress + implemented + blocked items (NOT parked/deferred). \"deferred\" returns parked items (consciously not now, reversible). Defaults to \"open\". The summary counts always cover all lifecycle buckets regardless of this filter."
+					"description": "Which lifecycle state to return a page of. Each value means EXACTLY the state it names, nothing wider: \"open\" is work not started (it does not include in_progress or implemented), \"in_progress\" is work an agent has in hand right now, \"implemented\" is delivered work still awaiting verification — the lane to search when you want \"what is stuck one criterion short of done\" — \"blocked\" is work that cannot proceed, and \"deferred\" is work consciously parked (reversible). Two set filters: \"active\" is everything still in play (open + in_progress + implemented + blocked) and \"all\" is unfiltered. Defaults to \"open\", so a plain \"what can we start?\" call returns startable work rather than other people's finished work. The summary counts every bucket regardless of this filter: `page.total_matching` reconciles with the matching `summary.lifecycle_breakdown` entry (same vocabulary as this filter), while `summary.ui_buckets` counts the Action Items page's buckets, which additionally move blocked work, failed agent runs and failed verification into needs_attention."
 				},
 				"fields": {
 					"type": "string",
@@ -314,6 +316,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"followup_required",
 						"agent_run_failed",
 						"deployment_failed",
+						"verification_failed",
 						"possible_conflict",
 						"possibly_stale",
 						"contradicts_decision",
@@ -367,12 +370,16 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"enum": [
 						"open",
+						"in_progress",
+						"implemented",
+						"blocked",
 						"done",
 						"dismissed",
 						"deferred",
+						"active",
 						"all"
 					],
-					"description": "Optional lifecycle filter. \"open\" covers open/in_progress/implemented/blocked. Defaults to \"all\"."
+					"description": "Optional lifecycle filter, the same vocabulary get_action_items uses: each value means exactly the state it names (\"open\" is not-started work only; \"implemented\" is delivered-but-unverified), plus \"active\" for everything still in play and \"all\" for unfiltered. Defaults to \"all\", so a topic search reaches finished work too."
 				},
 				"limit": {
 					"type": "number",

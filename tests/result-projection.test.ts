@@ -92,9 +92,30 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// record_automation_run, get_automations, get_automation, get_automation_runs,
 	// create_automation, update_automation, delete_automation) and their schemas
 	// renamed the matching fields; no schema shape or projection family changed.
+	//
+	// Rebaselined 2026-09-04 for DevSpec items 8bebb66e and ff12609d, which made
+	// the two action-item filters mean what they say. Three enums moved and
+	// nothing else:
+	//   - get_action_items.lifecycle and search_action_items.lifecycle now take the
+	//     same nine values (they took seven and five). `implemented` became
+	//     askable, `active` names the old catch-all `open` behaviour, and `open`
+	//     stopped selecting in_progress+implemented+blocked as well.
+	//   - signal_type gained `verification_failed`, the fourth reason the Action
+	//     Items page has always shown under Needs attention and the signal axis
+	//     never had a name for.
+	// Both lifecycle enums and both signal enums are now generated from shared
+	// constants in DevSpec core, so a future value arrives here by regeneration
+	// rather than by anyone editing a list.
+	//
+	// No new verbs and no projection family changed, so budget coverage is
+	// unaffected. One thing WORTH KNOWING rather than fixing here: the response
+	// also gained `summary.attention` (an exact count per attention reason), and
+	// collectionProjection reads only `summary.ui_buckets` / `lifecycle_breakdown`
+	// for its Counts line, numeric values only — so Pi does not surface the new
+	// landscape yet. That is a Pi projection decision, not a catalog one.
 	assert.equal(
 		fingerprint,
-		"125077ec3697561cefe4c69cc90df13fe47a1c1b33d58545c9b694393219774a",
+		"adbb950f3ddbd9e163e209d38a896ebd2e8109decb41b9a3ff9fd81ed0378b00",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

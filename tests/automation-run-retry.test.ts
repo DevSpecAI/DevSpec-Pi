@@ -1,24 +1,24 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { revalidatePlaybookRunRetry } from "../extensions/core/playbook-run-retry.ts";
+import { revalidateAutomationRunRetry } from "../extensions/core/automation-run-retry.ts";
 
-interface PlaybookRun {
-	kind: "playbook_run";
+interface AutomationRun {
+	kind: "automation_run";
 	run_id: string;
 	revision?: string;
 }
 
-const identity = (run: PlaybookRun) => run.run_id;
-const run = (id: string, revision?: string): PlaybookRun => ({
-	kind: "playbook_run",
+const identity = (run: AutomationRun) => run.run_id;
+const run = (id: string, revision?: string): AutomationRun => ({
+	kind: "automation_run",
 	run_id: id,
 	...(revision ? { revision } : {}),
 });
 
-test("authoritatively withdrawn playbook run revokes same-key authority", async () => {
-	const enqueued: PlaybookRun[] = [];
+test("authoritatively withdrawn automation run revokes same-key authority", async () => {
+	const enqueued: AutomationRun[] = [];
 	const events: string[] = [];
-	const outcome = await revalidatePlaybookRunRetry({
+	const outcome = await revalidateAutomationRunRetry({
 		key: "run-a",
 		loadCurrentInbox: async () => ({ dispatches: [], identityComplete: true }),
 		identity,
@@ -30,11 +30,11 @@ test("authoritatively withdrawn playbook run revokes same-key authority", async 
 	assert.deepEqual(enqueued, []);
 });
 
-test("retry uses the current exact playbook envelope, never captured authority", async () => {
+test("retry uses the current exact automation envelope, never captured authority", async () => {
 	const captured = run("run-a", "captured-before-failure");
 	const current = run("run-a", "current-server-authority");
-	const enqueued: PlaybookRun[] = [];
-	const outcome = await revalidatePlaybookRunRetry({
+	const enqueued: AutomationRun[] = [];
+	const outcome = await revalidateAutomationRunRetry({
 		key: captured.run_id,
 		loadCurrentInbox: async () => ({ dispatches: [current], identityComplete: true }),
 		identity,
@@ -47,7 +47,7 @@ test("retry uses the current exact playbook envelope, never captured authority",
 
 test("unconfirmed absence remains retryable and cannot revoke authority", async () => {
 	let revoked = false;
-	const outcome = await revalidatePlaybookRunRetry({
+	const outcome = await revalidateAutomationRunRetry({
 		key: "run-outside-window",
 		loadCurrentInbox: async () => ({ dispatches: [], identityComplete: false }),
 		identity,
@@ -59,8 +59,8 @@ test("unconfirmed absence remains retryable and cannot revoke authority", async 
 });
 
 test("a different run cannot satisfy an exact retry", async () => {
-	const enqueued: PlaybookRun[] = [];
-	const outcome = await revalidatePlaybookRunRetry({
+	const enqueued: AutomationRun[] = [];
+	const outcome = await revalidateAutomationRunRetry({
 		key: "run-a",
 		loadCurrentInbox: async () => ({ dispatches: [run("run-b")], identityComplete: false }),
 		identity,
@@ -72,9 +72,9 @@ test("a different run cannot satisfy an exact retry", async () => {
 
 test("source failure and pump revocation never enqueue", async () => {
 	await assert.rejects(
-		revalidatePlaybookRunRetry({
+		revalidateAutomationRunRetry({
 			key: "run-a",
-			loadCurrentInbox: async () => { throw new Error("playbook source unavailable"); },
+			loadCurrentInbox: async () => { throw new Error("automation source unavailable"); },
 			identity,
 			enqueueCurrent: () => assert.fail("failed reads cannot enqueue"),
 		}),
@@ -84,7 +84,7 @@ test("source failure and pump revocation never enqueue", async () => {
 	let current = true;
 	let enqueued = false;
 	await assert.rejects(
-		revalidatePlaybookRunRetry({
+		revalidateAutomationRunRetry({
 			key: "run-a",
 			loadCurrentInbox: async () => {
 				current = false;

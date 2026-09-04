@@ -141,7 +141,7 @@ const TOOL_SEARCH_ALIASES: Partial<Record<ModelVerbName, readonly string[]>> = {
 	get_discussion_point: ["discussion point body", "full still to discuss row"],
 	manage_discussion_point: ["add to still to discuss", "strike discussed", "reopen discussion", "watch discussion"],
 	get_claimable_reviews: ["inspect someone else's changes", "check someone else's changes"],
-	get_playbooks: ["recurring automations", "saved routines"],
+	get_automations: ["recurring automations", "saved routines"],
 	get_project_goals: ["objectives", "working toward", "big picture"],
 	get_project_instruction_rules: ["team policies", "agent guidelines", "how agents should behave"],
 };

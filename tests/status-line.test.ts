@@ -2,17 +2,17 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
 	DEFAULT_TERMINAL_TITLE,
-	clearPlaybook,
+	clearAutomation,
 	clearWork,
 	extractItemRef,
-	extractPlaybookRef,
+	extractAutomationRef,
 	firstTextPreview,
 	formatStatusLine,
 	formatTerminalTitle,
 	getStatusSnapshot,
 	isDevspecVerb,
 	isRealSessionTitle,
-	notePlaybook,
+	noteAutomation,
 	noteVerbEnd,
 	noteVerbStart,
 	noteWork,
@@ -186,7 +186,7 @@ test("live verbs stack and pop; non-DevSpec tools never enter the slot", () => {
 	assert.equal(getStatusSnapshot().verb, undefined);
 	noteVerbStart("2", "claim_work_item", { action_item_id: "x" });
 	assert.equal(getStatusSnapshot().verb, "claim_work_item");
-	noteVerbStart("3", "search_devspec_tools", { query: "playbooks" });
+	noteVerbStart("3", "search_devspec_tools", { query: "automations" });
 	assert.equal(getStatusSnapshot().verb, "search_devspec_tools");
 	noteVerbEnd("3");
 	assert.equal(getStatusSnapshot().verb, "claim_work_item");
@@ -207,52 +207,52 @@ test("claimed work is shown and cleared for that item only", () => {
 	resetStatus();
 });
 
-test("extractPlaybookRef reads claim_playbook_run and record payloads", () => {
+test("extractAutomationRef reads claim_automation_run and record payloads", () => {
 	assert.deepEqual(
-		extractPlaybookRef({
+		extractAutomationRef({
 			claimed: true,
-			run: { run_id: "run-1", playbook_id: "pb-1", playbook_name: "Pull plugin repos" },
-			playbook: { id: "pb-1", name: "Pull plugin repos" },
+			run: { run_id: "run-1", automation_id: "pb-1", automation_name: "Pull plugin repos" },
+			automation: { id: "pb-1", name: "Pull plugin repos" },
 		}),
 		{ id: "pb-1", runId: "run-1", name: "Pull plugin repos" },
 	);
 	assert.deepEqual(
-		extractPlaybookRef({
+		extractAutomationRef({
 			details: {
 				recorded: true,
-				run: { run_id: "run-1", playbook_id: "pb-1", playbook_name: "Pull plugin repos" },
+				run: { run_id: "run-1", automation_id: "pb-1", automation_name: "Pull plugin repos" },
 			},
 		}),
 		{ id: "pb-1", runId: "run-1", name: "Pull plugin repos" },
 	);
 });
 
-test("claimed playbook sits in the footer and is distinct from an action item", () => {
+test("claimed automation sits in the footer and is distinct from an action item", () => {
 	assert.equal(
 		formatStatusLine({
 			codename: "Golden Possum",
 			sessionId: "sess-1",
 			sessionTitle: "Room",
-			playbookName: "Pull plugin repos",
+			automationName: "Pull plugin repos",
 			workTitle: "Fix the build",
 		}),
-		"⛁ Golden Possum · “Room” · playbook “Pull plugin repos” · “Fix the build”",
+		"⛁ Golden Possum · “Room” · automation “Pull plugin repos” · “Fix the build”",
 	);
 });
 
-test("claimed playbook is shown and cleared for that run only", () => {
+test("claimed automation is shown and cleared for that run only", () => {
 	resetStatus();
 	patchStatus({ codename: "Golden Possum" });
-	notePlaybook({ id: "pb-1", runId: "run-1", name: "Pull plugin repos" });
-	assert.equal(formatStatusLine(getStatusSnapshot()), "⛁ Golden Possum · playbook “Pull plugin repos”");
-	clearPlaybook("run-other");
-	assert.equal(getStatusSnapshot().playbookName, "Pull plugin repos");
-	clearPlaybook("run-1");
-	assert.equal(getStatusSnapshot().playbookName, undefined);
+	noteAutomation({ id: "pb-1", runId: "run-1", name: "Pull plugin repos" });
+	assert.equal(formatStatusLine(getStatusSnapshot()), "⛁ Golden Possum · automation “Pull plugin repos”");
+	clearAutomation("run-other");
+	assert.equal(getStatusSnapshot().automationName, "Pull plugin repos");
+	clearAutomation("run-1");
+	assert.equal(getStatusSnapshot().automationName, undefined);
 	resetStatus();
 });
 
-test("terminal title prefers session, then playbook, then untitled stand-in, then item, then codename", () => {
+test("terminal title prefers session, then automation, then untitled stand-in, then item, then codename", () => {
 	assert.equal(formatTerminalTitle(undefined), DEFAULT_TERMINAL_TITLE);
 	assert.equal(formatTerminalTitle({}), DEFAULT_TERMINAL_TITLE);
 	assert.equal(
@@ -260,7 +260,7 @@ test("terminal title prefers session, then playbook, then untitled stand-in, the
 			codename: "Golden Possum",
 			sessionId: "sess-1",
 			sessionTitle: "Pi TUI footer",
-			playbookName: "Pull plugin repos",
+			automationName: "Pull plugin repos",
 			workTitle: "Fix the build",
 		}),
 		"Pi TUI footer",
@@ -270,7 +270,7 @@ test("terminal title prefers session, then playbook, then untitled stand-in, the
 			codename: "Golden Possum",
 			sessionId: "sess-1",
 			sessionTitle: "New session",
-			playbookName: "Pull plugin repos",
+			automationName: "Pull plugin repos",
 			workTitle: "Fix the build",
 			sessionPreview: "first owner message",
 		}),
@@ -295,7 +295,7 @@ test("terminal title prefers session, then playbook, then untitled stand-in, the
 	assert.equal(formatTerminalTitle({ workTitle: "Fix the build" }), "Fix the build");
 	assert.equal(formatTerminalTitle({ codename: "Golden Possum", sessionId: "sess-1" }), "Golden Possum");
 	assert.equal(formatTerminalTitle({ codename: "Golden Possum" }), "Golden Possum");
-	assert.equal(formatTerminalTitle({ playbookName: "Pull plugin repos" }), "Pull plugin repos");
+	assert.equal(formatTerminalTitle({ automationName: "Pull plugin repos" }), "Pull plugin repos");
 });
 
 test("a batch retitles on each claim and falls back when that item is recorded", () => {

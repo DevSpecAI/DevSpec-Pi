@@ -103,7 +103,7 @@ test("invalid delegated scope preserves independent dispatch inbox metadata for 
 	const payload = canonicalPoll({ delegated: true }) as ReturnType<typeof canonicalPoll> & { dispatch_cursor: string; dispatches: unknown[] };
 	payload.ingress.commands[0].project_scope.project_id = "wrong";
 	payload.dispatch_cursor = "dispatch-still-consumable";
-	payload.dispatches = [{ kind: "playbook_run" }];
+	payload.dispatches = [{ kind: "automation_run" }];
 	const pkg = parsePollPayload(payload, ME);
 	assert.equal(pkg.canonicalState, "invalid");
 	assert.equal(pkg.cursorV2, undefined);

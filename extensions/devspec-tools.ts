@@ -43,11 +43,11 @@ import {
 	registerContextBudgetToolNames,
 } from "./core/context-budget.ts";
 import {
-	clearPlaybook,
+	clearAutomation,
 	clearWork,
 	extractItemRef,
-	extractPlaybookRef,
-	notePlaybook,
+	extractAutomationRef,
+	noteAutomation,
 	noteWork,
 	paintStatus,
 } from "./core/status-line.ts";
@@ -94,10 +94,10 @@ function applyWorkStatus(name: string, result: unknown, claimArmed: boolean): vo
 		if (claimArmed) noteWork(ref);
 	} else if (name === "record_implementation" || name === "release_work_item" || name === "fail_work_item") {
 		clearWork(ref.id);
-	} else if (name === "claim_playbook_run") {
-		if (claimFlag(result) !== false) notePlaybook(extractPlaybookRef(result));
-	} else if (name === "record_playbook_run") {
-		clearPlaybook(extractPlaybookRef(result).runId);
+	} else if (name === "claim_automation_run") {
+		if (claimFlag(result) !== false) noteAutomation(extractAutomationRef(result));
+	} else if (name === "record_automation_run") {
+		clearAutomation(extractAutomationRef(result).runId);
 	}
 	paintStatus();
 }
@@ -185,7 +185,7 @@ const AUGMENTS: Record<string, (params: Record<string, unknown>, ctx: CallCtx) =
 
 const LOCAL_SESSION_STAMPED_VERBS: ReadonlySet<string> = new Set([
 	"update_action_item",
-	"record_playbook_run",
+	"record_automation_run",
 	"claim_work_item",
 	"record_implementation",
 ]);
@@ -208,8 +208,8 @@ export function stampHostLocalSession(
  * work to another tool. So it is stamped here, after the model's params, and
  * always wins — the same treatment the commit ledger gives commit_sha.
  *
- * NOT included: create_playbook / update_playbook take `preferred_provider`,
- * which is "which agent is this playbook written FOR" — a genuine authoring
+ * NOT included: create_automation / update_automation take `preferred_provider`,
+ * which is "which agent is this automation written FOR" — a genuine authoring
  * choice that belongs to the caller, not the host's identity.
  */
 const HOST_PROVIDER = "pi";
@@ -219,11 +219,11 @@ const PROVIDER_STAMPED_VERBS: ReadonlySet<string> = new Set([
 	"claim_work_item",
 	"record_implementation",
 	"record_completed_work",
-	// Playbook runs: free-text "your coding agent", used to match a run's
+	// Automation runs: free-text "your coding agent", used to match a run's
 	// provider constraint and to build the resume affordance.
-	"get_playbook_runs",
-	"claim_playbook_run",
-	"record_playbook_run",
+	"get_automation_runs",
+	"claim_automation_run",
+	"record_automation_run",
 ]);
 
 /** Stamp the host's own provider identity on the verbs that record or filter it. */

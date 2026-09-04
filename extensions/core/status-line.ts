@@ -4,8 +4,8 @@
  * The footer already showed the bond codename. This module adds the rest of
  * what the process already knows: which room we are in, whether that room
  * still has a generated title, the locally selected/claimed item, a claimed
- * playbook, and the DevSpec verb currently executing. paintStatus also
- * retitles the OS terminal tab (session → playbook → untitled stand-in →
+ * automation, and the DevSpec verb currently executing. paintStatus also
+ * retitles the OS terminal tab (session → automation → untitled stand-in →
  * current action item → codename). Pure formatter + globalThis store — pi
  * loads each extension
  * file with a fresh jiti graph, so module singletons are not shared.
@@ -23,7 +23,7 @@ export const STATUS_KEY = "devspec-remote";
 const SESSION_TITLE_MAX = 28;
 const SESSION_PREVIEW_MAX = 22;
 const WORK_TITLE_MAX = 28;
-const PLAYBOOK_NAME_MAX = 28;
+const AUTOMATION_NAME_MAX = 28;
 const TERMINAL_TITLE_MAX = 48;
 export const DEFAULT_TERMINAL_TITLE = "Pi";
 
@@ -36,9 +36,9 @@ export interface StatusSnapshot {
 	sessionPreview?: string;
 	workId?: string;
 	workTitle?: string;
-	playbookId?: string;
-	playbookRunId?: string;
-	playbookName?: string;
+	automationId?: string;
+	automationRunId?: string;
+	automationName?: string;
 	/** Currently executing DevSpec verb (MCP name). */
 	verb?: string;
 }
@@ -169,11 +169,11 @@ const VERB_LABELS: Record<string, string> = {
 	report_progress: "reporting",
 	verify_action_item: "verifying",
 	reserve_work_items: "reserving work",
-	claim_playbook_run: "claiming playbook",
-	record_playbook_run: "recording playbook",
-	get_playbook: "reading playbook",
-	get_playbooks: "listing playbooks",
-	get_playbook_runs: "listing playbook runs",
+	claim_automation_run: "claiming automation",
+	record_automation_run: "recording automation",
+	get_automation: "reading automation",
+	get_automations: "listing automations",
+	get_automation_runs: "listing automation runs",
 };
 
 export function verbLabel(verb: string): string {
@@ -205,7 +205,7 @@ export function extractItemRef(value: unknown): { id?: string; title?: string } 
 	return { id, title };
 }
 
-export function extractPlaybookRef(value: unknown): {
+export function extractAutomationRef(value: unknown): {
 	id?: string;
 	runId?: string;
 	name?: string;
@@ -213,20 +213,20 @@ export function extractPlaybookRef(value: unknown): {
 	const root = asRecord(value);
 	if (!root) return {};
 	if (root.details !== undefined) {
-		const inner = extractPlaybookRef(root.details);
+		const inner = extractAutomationRef(root.details);
 		if (inner.id || inner.runId || inner.name) return inner;
 	}
-	const playbook = asRecord(root.playbook);
+	const automation = asRecord(root.automation);
 	const run = asRecord(root.run);
 	const name =
-		(playbook && typeof playbook.name === "string" && playbook.name.trim() && playbook.name.trim()) ||
-		(typeof root.playbook_name === "string" && root.playbook_name.trim() && root.playbook_name.trim()) ||
-		(run && typeof run.playbook_name === "string" && run.playbook_name.trim() && run.playbook_name.trim()) ||
+		(automation && typeof automation.name === "string" && automation.name.trim() && automation.name.trim()) ||
+		(typeof root.automation_name === "string" && root.automation_name.trim() && root.automation_name.trim()) ||
+		(run && typeof run.automation_name === "string" && run.automation_name.trim() && run.automation_name.trim()) ||
 		undefined;
 	const id =
-		(playbook && typeof playbook.id === "string" && playbook.id) ||
-		(typeof root.playbook_id === "string" && root.playbook_id) ||
-		(run && typeof run.playbook_id === "string" && run.playbook_id) ||
+		(automation && typeof automation.id === "string" && automation.id) ||
+		(typeof root.automation_id === "string" && root.automation_id) ||
+		(run && typeof run.automation_id === "string" && run.automation_id) ||
 		undefined;
 	const runId =
 		(typeof root.run_id === "string" && root.run_id) ||
@@ -238,7 +238,7 @@ export function extractPlaybookRef(value: unknown): {
 
 export function formatStatusLine(snap: StatusSnapshot): string | undefined {
 	const codename = snap.codename?.trim();
-	if (!codename && !snap.sessionId && !snap.workTitle && !snap.playbookName && !snap.verb) {
+	if (!codename && !snap.sessionId && !snap.workTitle && !snap.automationName && !snap.verb) {
 		return undefined;
 	}
 
@@ -254,8 +254,8 @@ export function formatStatusLine(snap: StatusSnapshot): string | undefined {
 		}
 	}
 
-	if (snap.playbookName) {
-		parts.push(`playbook “${truncateLabel(snap.playbookName, PLAYBOOK_NAME_MAX)}”`);
+	if (snap.automationName) {
+		parts.push(`automation “${truncateLabel(snap.automationName, AUTOMATION_NAME_MAX)}”`);
 	}
 
 	if (snap.workTitle) {
@@ -267,19 +267,19 @@ export function formatStatusLine(snap: StatusSnapshot): string | undefined {
 	return parts.join(" · ");
 }
 
-/** OS tab title. Session → playbook → untitled stand-in → current item → codename. */
+/** OS tab title. Session → automation → untitled stand-in → current item → codename. */
 export function formatTerminalTitle(snap: StatusSnapshot | null | undefined): string {
 	if (
 		!snap ||
-		(!snap.codename && !snap.sessionId && !snap.playbookName && !snap.sessionPreview && !snap.workTitle)
+		(!snap.codename && !snap.sessionId && !snap.automationName && !snap.sessionPreview && !snap.workTitle)
 	) {
 		return DEFAULT_TERMINAL_TITLE;
 	}
 	if (isRealSessionTitle(snap.sessionTitle)) {
 		return truncateLabel(snap.sessionTitle, TERMINAL_TITLE_MAX);
 	}
-	if (snap.playbookName) {
-		return truncateLabel(snap.playbookName, TERMINAL_TITLE_MAX);
+	if (snap.automationName) {
+		return truncateLabel(snap.automationName, TERMINAL_TITLE_MAX);
 	}
 	if (snap.sessionPreview) {
 		return truncateLabel(snap.sessionPreview, TERMINAL_TITLE_MAX);
@@ -326,21 +326,21 @@ export function clearWork(id?: string): void {
 	patchStatus({ workId: undefined, workTitle: undefined });
 }
 
-export function notePlaybook(ref: { id?: string; runId?: string; name?: string }): void {
+export function noteAutomation(ref: { id?: string; runId?: string; name?: string }): void {
 	if (!ref.id && !ref.runId && !ref.name) return;
 	patchStatus({
-		playbookId: ref.id,
-		playbookRunId: ref.runId,
-		playbookName: ref.name,
+		automationId: ref.id,
+		automationRunId: ref.runId,
+		automationName: ref.name,
 	});
 }
 
-export function clearPlaybook(id?: string): void {
+export function clearAutomation(id?: string): void {
 	const current = store().current;
-	if (id && current.playbookRunId && current.playbookRunId !== id && current.playbookId !== id) {
+	if (id && current.automationRunId && current.automationRunId !== id && current.automationId !== id) {
 		return;
 	}
-	patchStatus({ playbookId: undefined, playbookRunId: undefined, playbookName: undefined });
+	patchStatus({ automationId: undefined, automationRunId: undefined, automationName: undefined });
 }
 
 /** Apply bond identity into the snapshot. Session change drops the old preview. */

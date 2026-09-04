@@ -48,7 +48,7 @@ test("catalog remains the complete wire map", () => {
 	assert.ok(!modelFacingSurface().some((e) => e.name === "classify_criterion"));
 });
 
-test("connection catalog matches server authority: exact commands and playbook-only delivery", () => {
+test("connection catalog matches server authority: exact commands and automation-only delivery", () => {
 	const transcript = MCP_CATALOG.find((entry) => entry.name === "get_session_transcript");
 	const inbox = MCP_CATALOG.find((entry) => entry.name === "get_connection_dispatch");
 	const register = MCP_CATALOG.find((entry) => entry.name === "register_connection");
@@ -56,9 +56,9 @@ test("connection catalog matches server authority: exact commands and playbook-o
 	assert.ok(transcript && inbox && register && poll);
 	assert.match(transcript.description, /is_controller_instruction/);
 	assert.match(transcript.description, /owner or delegated human command/);
-	assert.match(inbox.description, /PLAYBOOK RUNS ONLY/);
+	assert.match(inbox.description, /AUTOMATION RUNS ONLY/);
 	assert.match(inbox.description, /never contain action-item work/);
-	assert.match(poll.description, /owner-scoped waiting playbook runs only/);
+	assert.match(poll.description, /owner-scoped waiting automation runs only/);
 	assert.match(poll.description, /never routed through this array/);
 	const pollProperties = (poll.inputSchema as { properties?: Record<string, unknown> }).properties;
 	assert.ok(pollProperties?.delegated_scope_version, "poll_connection must advertise delegated scope negotiation");

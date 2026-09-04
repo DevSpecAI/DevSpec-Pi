@@ -25,7 +25,7 @@ import { readFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { debugRemote as debug } from "./core/debug.ts";
 import { DeliveryQueue, StaleDeliveryError, nextDeliveryRetryDelayMs, type DeliveryLease } from "./core/delivery-queue.ts";
-import { revalidatePlaybookRunRetry } from "./core/playbook-run-retry.ts";
+import { revalidateAutomationRunRetry } from "./core/automation-run-retry.ts";
 import {
 	callDevspec,
 	isPermanentServerEnd,
@@ -71,15 +71,15 @@ import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, typ
 import { takeContextBudgetReport } from "./core/context-budget.ts";
 import { automaticBackgroundTaskId, backgroundTaskNotificationId, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitFirstAnswer, isHarnessOrigin, isSubagentAsyncNotification, shouldPauseSettle, TurnTracker } from "./core/turn-lifecycle.ts";
 import {
-	formatPlaybookRunMessage,
-	isPlaybookRunEnvelope,
-	playbookRunId,
+	formatAutomationRunMessage,
+	isAutomationRunEnvelope,
+	automationRunId,
 } from "./core/dispatch.ts";
 import {
 	firstTextPreview,
 	isRealSessionTitle,
 	noteVerbEnd,
-	notePlaybook,
+	noteAutomation,
 	noteVerbStart,
 	paintStatus,
 	previewFromText,
@@ -246,11 +246,11 @@ interface PumpState {
 	 *  missing one is retried on a slow cadence, never hot-polled (Ali: a brand-new
 	 *  session may have no title at attach time; check again later). */
 	lastSessionEnrichAt?: number;
-	/** Typed playbook-run delivery stays ordered without blocking the pump. */
-	playbookQueue: DeliveryQueue;
+	/** Typed automation-run delivery stays ordered without blocking the pump. */
+	automationQueue: DeliveryQueue;
 	/** Exact-target retry survives cursor advancement after a transient send failure. */
-	playbookRetryAttempts: Map<string, number>;
-	playbookRetryTimers: Map<string, ReturnType<typeof setTimeout>>;
+	automationRetryAttempts: Map<string, number>;
+	automationRetryTimers: Map<string, ReturnType<typeof setTimeout>>;
 	/** Unchanged canonical cursors retry attachment hydration only after bounded delay. */
 	attachmentRetryAttempts: Map<string, number>;
 	/** Pi local session identity scopes minimal awareness across reload/rebond. */
@@ -923,9 +923,9 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	systemNoticeTurnPending = false;
 	systemNoticeRunActive = false;
 	revokeSystemNoticeState(active.systemNoticeKey);
-	active.playbookQueue.invalidate();
-	for (const timer of active.playbookRetryTimers.values()) clearTimeout(timer);
-	active.playbookRetryTimers.clear();
+	active.automationQueue.invalidate();
+	for (const timer of active.automationRetryTimers.values()) clearTimeout(timer);
+	active.automationRetryTimers.clear();
 	active.pushGenerationFence.invalidate();
 	active.pushAbort?.abort();
 	if (active.pushReconnectTimer) {
@@ -1486,7 +1486,7 @@ function ensurePushInteractionNegotiation(active: PumpState, token: string, endp
 	signalWake(active);
 }
 
-function playbookRecord(value: unknown): Record<string, unknown> | null {
+function automationRecord(value: unknown): Record<string, unknown> | null {
 	return value !== null && typeof value === "object" && !Array.isArray(value)
 		? value as Record<string, unknown>
 		: null;
@@ -1499,27 +1499,27 @@ function assertDeliveryAuthority(active: PumpState, lease: DeliveryLease): void 
 	}
 }
 
-async function deliverPlaybookRun(
+async function deliverAutomationRun(
 	active: PumpState,
 	value: unknown,
 	ctx: ExtensionContext,
 	lease: DeliveryLease,
 ): Promise<void> {
 	assertDeliveryAuthority(active, lease);
-	if (!isPlaybookRunEnvelope(value)) return;
-	const root = playbookRecord(value);
-	const message = formatPlaybookRunMessage(value, active.bond.codename ?? "this agent");
+	if (!isAutomationRunEnvelope(value)) return;
+	const root = automationRecord(value);
+	const message = formatAutomationRunMessage(value, active.bond.codename ?? "this agent");
 	assertDeliveryAuthority(active, lease);
-	notePlaybook({
+	noteAutomation({
 		runId: typeof root?.run_id === "string" ? root.run_id : undefined,
-		id: typeof root?.playbook_id === "string" ? root.playbook_id : undefined,
-		name: typeof root?.playbook_name === "string" ? root.playbook_name : undefined,
+		id: typeof root?.automation_id === "string" ? root.automation_id : undefined,
+		name: typeof root?.automation_name === "string" ? root.automation_name : undefined,
 	});
 	paintStatus(ctx);
 	pi_send(message, ctx.isIdle() ? "now" : "followUp");
 }
 
-async function loadCurrentPlaybookInbox(
+async function loadCurrentAutomationInbox(
 	active: PumpState,
 	key: string,
 	token: string,
@@ -1532,16 +1532,16 @@ async function loadCurrentPlaybookInbox(
 		{ timeoutMs: MODEL_TIMEOUT_MS, cwd: ctx.cwd, lane: "work" },
 	);
 	const { details, isError, text } = unwrapMcpResult(raw);
-	if (isError) throw new Error(text || "playbook run retry revalidation failed");
+	if (isError) throw new Error(text || "automation run retry revalidation failed");
 	const payload = details as { dispatches?: unknown[]; dispatch_id?: unknown; identity_complete?: unknown } | null;
-	if (!Array.isArray(payload?.dispatches)) throw new Error("playbook run retry revalidation returned no live inbox");
+	if (!Array.isArray(payload?.dispatches)) throw new Error("automation run retry revalidation returned no live inbox");
 	return {
 		dispatches: payload.dispatches,
 		identityComplete: payload.identity_complete === true && payload.dispatch_id === key,
 	};
 }
 
-function schedulePlaybookRetry(
+function scheduleAutomationRetry(
 	active: PumpState,
 	key: string,
 	token: string,
@@ -1555,62 +1555,62 @@ function schedulePlaybookRetry(
 		generation: active.generation,
 		connectionId: active.bond.connectionId,
 	});
-	const failures = (active.playbookRetryAttempts.get(key) ?? 0) + 1;
-	active.playbookRetryAttempts.set(key, failures);
+	const failures = (active.automationRetryAttempts.get(key) ?? 0) + 1;
+	active.automationRetryAttempts.set(key, failures);
 	const delayMs = nextDeliveryRetryDelayMs(failures);
 	const reason = error instanceof Error ? error.message : String(error);
-	if (!active.playbookRetryTimers.has(key)) {
+	if (!active.automationRetryTimers.has(key)) {
 		const timer = setTimeout(() => {
-			active.playbookRetryTimers.delete(key);
+			active.automationRetryTimers.delete(key);
 			if (!authorityIsCurrent()) return;
-			void revalidatePlaybookRunRetry({
+			void revalidateAutomationRunRetry({
 				key,
-				loadCurrentInbox: () => loadCurrentPlaybookInbox(active, key, token, ctx),
-				identity: playbookRunId,
+				loadCurrentInbox: () => loadCurrentAutomationInbox(active, key, token, ctx),
+				identity: automationRunId,
 				assertCurrent: () => {
 					if (!authorityIsCurrent()) throw new StaleDeliveryError();
 				},
-				withdrawCurrent: () => active.playbookQueue.invalidateKey(key),
-				enqueueCurrent: (currentRun) => enqueuePlaybookRun(active, token, currentRun, ctx),
+				withdrawCurrent: () => active.automationQueue.invalidateKey(key),
+				enqueueCurrent: (currentRun) => enqueueAutomationRun(active, token, currentRun, ctx),
 			}).then((outcome) => {
 				if (!authorityIsCurrent()) return;
 				if (outcome === "withdrawn") {
-					active.playbookRetryAttempts.delete(key);
+					active.automationRetryAttempts.delete(key);
 				} else if (outcome === "retry") {
-					schedulePlaybookRetry(active, key, token, ctx, "playbook run authority is not yet confirmable", true);
+					scheduleAutomationRetry(active, key, token, ctx, "automation run authority is not yet confirmable", true);
 				}
 			}).catch((retryError) => {
-				if (authorityIsCurrent()) schedulePlaybookRetry(active, key, token, ctx, retryError);
+				if (authorityIsCurrent()) scheduleAutomationRetry(active, key, token, ctx, retryError);
 			});
 		}, delayMs);
 		if (typeof timer.unref === "function") timer.unref();
-		active.playbookRetryTimers.set(key, timer);
+		active.automationRetryTimers.set(key, timer);
 	}
 	if (!quiet) {
-		notify(ctx, `DevSpec remote: failed to deliver playbook run: ${reason}. Revalidating in ${Math.ceil(delayMs / 1_000)}s.`, "warning");
+		notify(ctx, `DevSpec remote: failed to deliver automation run: ${reason}. Revalidating in ${Math.ceil(delayMs / 1_000)}s.`, "warning");
 	}
 }
 
-function enqueuePlaybookRun(
+function enqueueAutomationRun(
 	active: PumpState,
 	token: string,
 	value: unknown,
 	ctx: ExtensionContext,
 ): void {
-	if (!isPlaybookRunEnvelope(value)) return;
-	const key = playbookRunId(value);
+	if (!isAutomationRunEnvelope(value)) return;
+	const key = automationRunId(value);
 	if (!key) return;
-	active.playbookQueue.enqueue(
+	active.automationQueue.enqueue(
 		key,
 		async (lease) => {
-			await deliverPlaybookRun(active, value, ctx, lease);
-			active.playbookRetryAttempts.delete(key);
-			const timer = active.playbookRetryTimers.get(key);
+			await deliverAutomationRun(active, value, ctx, lease);
+			active.automationRetryAttempts.delete(key);
+			const timer = active.automationRetryTimers.get(key);
 			if (timer) clearTimeout(timer);
-			active.playbookRetryTimers.delete(key);
-			if (!active.stop && pump === active) notify(ctx, "DevSpec remote: playbook run delivered.");
+			active.automationRetryTimers.delete(key);
+			if (!active.stop && pump === active) notify(ctx, "DevSpec remote: automation run delivered.");
 		},
-		(error) => schedulePlaybookRetry(active, key, token, ctx, error),
+		(error) => scheduleAutomationRetry(active, key, token, ctx, error),
 	);
 }
 
@@ -1704,11 +1704,11 @@ async function reviveRecoverableBond(
 			resetDirectedQuestionReceiptBatch();
 			active.advisoryCarry = [];
 			active.attachmentRetryAttempts.clear();
-			active.playbookQueue.invalidate();
-			active.playbookQueue = new DeliveryQueue();
-			for (const timer of active.playbookRetryTimers.values()) clearTimeout(timer);
-			active.playbookRetryTimers.clear();
-			active.playbookRetryAttempts.clear();
+			active.automationQueue.invalidate();
+			active.automationQueue = new DeliveryQueue();
+			for (const timer of active.automationRetryTimers.values()) clearTimeout(timer);
+			active.automationRetryTimers.clear();
+			active.automationRetryAttempts.clear();
 			revokeSystemNoticeState(active.systemNoticeKey);
 			active.systemNoticeKey = bindSystemNoticeState({
 				piSessionId: localId,
@@ -2016,7 +2016,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			// has no executable or contextual meaning. Keep the canonical cursor
 			// unchanged so a corrected response can be retried.
 			const dispatches = (payload as { dispatches?: unknown[] } | null)?.dispatches ?? [];
-			for (const dispatch of dispatches) enqueuePlaybookRun(active, token, dispatch, ctx);
+			for (const dispatch of dispatches) enqueueAutomationRun(active, token, dispatch, ctx);
 			if (pkg.dispatchCursor) active.dispatchCursor = pkg.dispatchCursor;
 			active.errors += 1;
 			debug("canonical ingress rejected", { errors: active.errors, errorPresent: Boolean(pkg.canonicalError) });
@@ -2229,7 +2229,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (pkg.ownerBundle) active.advisoryCarry = [];
 		}
 		const dispatches = (payload as { dispatches?: unknown[] } | null)?.dispatches ?? [];
-		for (const dispatch of dispatches) enqueuePlaybookRun(active, token, dispatch, ctx);
+		for (const dispatch of dispatches) enqueueAutomationRun(active, token, dispatch, ctx);
 		if (pkg.dispatchCursor) active.dispatchCursor = pkg.dispatchCursor;
 		if (commandRetryDelayMs > 0 && pump === active && !active.stop) {
 			await new Promise((resolve) => setTimeout(resolve, commandRetryDelayMs));
@@ -2347,9 +2347,9 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 		pendingInteractionStarts: new Map(),
 		pendingInteractionReleases: new Map(),
 		wakeGate: new WakeGenerationGate(),
-		playbookQueue: new DeliveryQueue(),
-		playbookRetryAttempts: new Map(),
-		playbookRetryTimers: new Map(),
+		automationQueue: new DeliveryQueue(),
+		automationRetryAttempts: new Map(),
+		automationRetryTimers: new Map(),
 		attachmentRetryAttempts: new Map(),
 		awarenessKey: localId,
 		activePlanTail: "",

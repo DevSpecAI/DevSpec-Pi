@@ -7,7 +7,7 @@ export function nextDeliveryRetryDelayMs(
 	return Math.min(baseMs * 2 ** exponent, maxMs);
 }
 
-/** Pump- and playbook-run-scoped authority lease for one asynchronous delivery. */
+/** Pump- and automation-run-scoped authority lease for one asynchronous delivery. */
 export interface DeliveryLease {
 	readonly generation: number;
 	readonly keyGeneration: number;
@@ -22,7 +22,7 @@ export class StaleDeliveryError extends Error {
 	}
 }
 
-/** Ordered, non-blocking playbook delivery outside the remote pump loop. */
+/** Ordered, non-blocking automation delivery outside the remote pump loop. */
 export class DeliveryQueue {
 	private tail: Promise<void> = Promise.resolve();
 	private seen = new Set<string>();
@@ -61,7 +61,7 @@ export class DeliveryQueue {
 				// A stopped/replaced bond owns neither warnings nor retries. The new
 				// pump has a new queue and receives any still-live delivery itself.
 				if (!lease.isCurrent() || error instanceof StaleDeliveryError) return;
-				// A live inbox may offer the same playbook run again after a transient
+				// A live inbox may offer the same automation run again after a transient
 				// send failure. Action-item work never enters this queue.
 				this.seen.delete(key);
 				onError(error);
@@ -69,7 +69,7 @@ export class DeliveryQueue {
 		return true;
 	}
 
-	/** Revoke in-flight and queued delivery for one playbook-run identity only. */
+	/** Revoke in-flight and queued delivery for one automation-run identity only. */
 	invalidateKey(key: string): void {
 		if (!this.active || !key) return;
 		this.keyGenerations.set(key, this.keyGeneration(key) + 1);

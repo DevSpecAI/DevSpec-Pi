@@ -80,8 +80,8 @@ test("all and only safe generated model verbs are model-facing", () => {
 
 test("rare verbs are searchable but not in the initial hot set", () => {
 	const rareMustStayOff = [
-		"create_playbook",
-		"claim_playbook_run",
+		"create_automation",
+		"claim_automation_run",
 		"get_claimable_reviews",
 		"import_instruction_rules",
 		"update_personal_instructions",
@@ -159,15 +159,15 @@ test("slimSchema drops nested scope keys and shortens descriptions", () => {
 });
 
 test("natural-language rare-tool search is deterministic and relevance-ranked", () => {
-	assert.equal(searchRareModelTools("create a reusable playbook")[0]?.name, "create_playbook");
+	assert.equal(searchRareModelTools("create a reusable automation")[0]?.name, "create_automation");
 	assert.equal(
 		searchRareModelTools("update my personal instructions")[0]?.name,
 		"update_personal_instructions",
 	);
 	const defaultMatches = searchRareModelTools("what database tables exist?");
 	assert.deepEqual(defaultMatches.map((entry) => entry.name), ["get_database_schema"]);
-	const first = searchRareModelTools("review playbook work", 7).map((entry) => entry.name);
-	const second = searchRareModelTools("review playbook work", 7).map((entry) => entry.name);
+	const first = searchRareModelTools("review automation work", 7).map((entry) => entry.name);
+	const second = searchRareModelTools("review automation work", 7).map((entry) => entry.name);
 	assert.deepEqual(first, second);
 	assert.ok(first.length > 1, "an explicit larger limit should load a deliberate tool bundle");
 	assert.deepEqual(searchRareModelTools("the and please"), []);
@@ -187,7 +187,7 @@ test("colloquial requests route across materially different rare tool families",
 		["surface the oldest action items into their source session", "surface_session_action_items"],
 		["surface action items created in this session", "surface_session_action_items"],
 		["is there anything waiting for me to review?", "get_claimable_reviews"],
-		["show my recurring automations", "get_playbooks"],
+		["show my recurring automations", "get_automations"],
 		["what objectives are we working toward?", "get_project_goals"],
 		["what team policies should agents follow?", "get_project_instruction_rules"],
 		["resolve an action item contradiction against a decision memory", "resolve_action_item_decision_flag"],
@@ -336,11 +336,11 @@ test("registration exposes complete real schemas and loader activation is purely
 
 	const loader = definitions.find((def) => def.name === TOOL_LOADER_NAME);
 	assert.ok(loader);
-	const result = await loader.execute("call-1", { query: "create a reusable playbook" });
-	assert.deepEqual(result.details?.matches, ["create_playbook"]);
-	assert.deepEqual(result.details?.added, ["create_playbook"]);
+	const result = await loader.execute("call-1", { query: "create a reusable automation" });
+	assert.deepEqual(result.details?.matches, ["create_automation"]);
+	assert.deepEqual(result.details?.added, ["create_automation"]);
 	assert.deepEqual(active.slice(0, beforeLoad.length), beforeLoad, "activation replaced or reordered tools");
-	assert.equal(active.at(-1), "create_playbook");
+	assert.equal(active.at(-1), "create_automation");
 	assert.equal(setCalls.length, 2, "expected initial reset and one additive activation");
 });
 

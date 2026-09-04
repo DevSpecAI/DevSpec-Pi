@@ -44,10 +44,10 @@
 
 import { INTERACTION_EVENT_CUSTOM_TYPE } from "./interaction-events.ts";
 
-export type UserKind = "remote" | "playbook" | "interaction" | "local" | "harness";
+export type UserKind = "remote" | "automation" | "interaction" | "local" | "harness";
 
 export const REMOTE_PREFIX = "[DevSpec remote — message from";
-export const PLAYBOOK_RUN_PREFIX = "[DevSpec remote — playbook run";
+export const AUTOMATION_RUN_PREFIX = "[DevSpec remote — automation run";
 export const INTERACTION_CONTINUATION_PREFIX = "[DevSpec directed-question workflow continuation]";
 const CONTEXT_TEXT_PREFIXES = [
 	"### DevSpec memory — auto-recall",
@@ -72,7 +72,7 @@ export function isSubagentAsyncNotification(text: string, _customType?: string |
 }
 
 export function isHarnessOrigin(text: string, customType?: string | null): boolean {
-	if (text.startsWith(REMOTE_PREFIX) || text.startsWith(PLAYBOOK_RUN_PREFIX) ||
+	if (text.startsWith(REMOTE_PREFIX) || text.startsWith(AUTOMATION_RUN_PREFIX) ||
 		text.startsWith(INTERACTION_CONTINUATION_PREFIX) || customType === INTERACTION_EVENT_CUSTOM_TYPE) return false;
 	if (typeof customType === "string" && customType.trim()) return true;
 	const t = text.trim();
@@ -88,7 +88,7 @@ export function isHarnessOrigin(text: string, customType?: string | null): boole
 
 export function classifyUserKind(text: string, customType?: string | null): UserKind {
 	if (text.startsWith(REMOTE_PREFIX)) return "remote";
-	if (text.startsWith(PLAYBOOK_RUN_PREFIX)) return "playbook";
+	if (text.startsWith(AUTOMATION_RUN_PREFIX)) return "automation";
 	if (text.startsWith(INTERACTION_CONTINUATION_PREFIX) || customType === INTERACTION_EVENT_CUSTOM_TYPE) return "interaction";
 	if (isHarnessOrigin(text, customType)) return "harness";
 	return "local";
@@ -129,13 +129,13 @@ export class TurnTracker {
 		const interruptsPendingBackground = this.awaitingBackground && replacesConversationalCommand;
 		// A leftover wake may replay the last typed prompt as a user message.
 		// Once this segment is harness, stay harness — do not remirror that prompt.
-		if (this.userKind === "harness" && kind !== "remote" && kind !== "playbook") {
+		if (this.userKind === "harness" && kind !== "remote" && kind !== "automation") {
 			this.awaitingFirstAnswer = false;
 			this.shouldMirrorPrompt = false;
 			return;
 		}
 		// Mid-turn context/harness (auto-recall, leftover receipts) must not
-		// steal an already-started remote/local/playbook turn (item 60cf5f00).
+		// steal an already-started remote/local/automation turn (item 60cf5f00).
 		if (kind === "harness" && this.userKind && this.userKind !== "harness") {
 			// A terminal notification resolves only the task it names. This is
 			// deliberately idempotent because before_agent_start + message_start
@@ -443,6 +443,6 @@ export function planSettle(tracker: TurnTracker, attached: boolean): SettlePlan 
 	if (tracker.userKind === "local" && tracker.shouldMirrorPrompt) {
 		return { kind: "local_mirror", prompt: tracker.userText, answer: tracker.lastAssistantText };
 	}
-	// Remote/playbook, local continuations, and unknowns with an answer: post the final.
+	// Remote/automation, local continuations, and unknowns with an answer: post the final.
 	return { kind: "final", message: tracker.lastAssistantText };
 }

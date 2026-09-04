@@ -46,7 +46,7 @@ test("a 161-character ellipsis preview still delivers the owner command", () => 
 			...stillToDiscussProjection(),
 			rows: [{
 				id: "20752a57-9169-4a89-b5ce-b824c174deed",
-				title: "Separate playbook triggers from participation and harness selection",
+				title: "Separate automation triggers from participation and harness selection",
 				state: "discussed",
 				preview,
 			}],

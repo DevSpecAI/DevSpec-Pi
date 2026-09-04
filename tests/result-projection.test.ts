@@ -86,9 +86,15 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// that belongs in its own item becomes one in the same call. No new verbs, and
 	// every projection family is unchanged (create_action_item is still `ack`), so
 	// budget/quality coverage is unaffected.
+	//
+	// Rebaselined 2026-09-04 for the Playbooks → Automations rename (DevSpec brief
+	// 267da4fa). Eight verbs changed name only (claim_automation_run,
+	// record_automation_run, get_automations, get_automation, get_automation_runs,
+	// create_automation, update_automation, delete_automation) and their schemas
+	// renamed the matching fields; no schema shape or projection family changed.
 	assert.equal(
 		fingerprint,
-		"65f1447a5119c4e341f4255ba94498ee1abfe311b6ad8990af047acb881d73ad",
+		"125077ec3697561cefe4c69cc90df13fe47a1c1b33d58545c9b694393219774a",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -102,7 +108,7 @@ test("verb projections use explicit, loss-aware families", () => {
 	for (const verb of [
 		"get_action_item", "claim_work_item", "get_session_transcript", "preview_conflict_resolution",
 		"get_project_instruction_rules", "get_personal_instructions", "get_workflow_rules", "get_database_schema",
-		"get_goals", "get_project_goals", "create_session", "claim_playbook_run", "claim_review",
+		"get_goals", "get_project_goals", "create_session", "claim_automation_run", "claim_review",
 		"import_instruction_rules", "update_personal_instructions", "manage_plan", "manage_poll", "manage_directed_question",
 	]) assert.equal(projectionFamily(verb), "full", verb);
 	assert.equal(projectionFamily("some_future_verb"), "fallback");
@@ -559,7 +565,7 @@ test("create_session and read-like writes preserve their complete load-bearing r
 	assert.match(sessionText, /PROJECT-PRINCIPLES/);
 	assert.match(sessionText, /OWNER-AGENT-RULES/);
 
-	for (const verb of ["claim_playbook_run", "claim_review", "import_instruction_rules", "update_personal_instructions"]) {
+	for (const verb of ["claim_automation_run", "claim_review", "import_instruction_rules", "update_personal_instructions"]) {
 		const payload = { id: `${verb}-1`, permission: "look_only", preview: huge(`${verb}-LOAD-BEARING`, 8_000) };
 		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
 		assert.deepEqual(JSON.parse(text), payload, verb);

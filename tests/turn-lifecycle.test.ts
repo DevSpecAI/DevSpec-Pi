@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatPlaybookRunMessage, isPlaybookRunEnvelope, playbookRunId } from "../extensions/core/dispatch.ts";
+import { formatAutomationRunMessage, isAutomationRunEnvelope, automationRunId } from "../extensions/core/dispatch.ts";
 import { INTERACTION_EVENT_CUSTOM_TYPE, formatInteractionEventContinuation, type InteractionEventV1 } from "../extensions/core/interaction-events.ts";
 import { automaticBackgroundTaskId, backgroundTaskNotificationId, classifyUserKind, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, isSubagentAsyncNotification, isWaitNarration, isProcessClose, planSettle, shouldPauseSettle, shouldSplitFirstAnswer, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 
@@ -11,13 +11,13 @@ function remoteTurn(answer: string): TurnTracker {
 	return t;
 }
 
-test("userMessage classifies remote / playbook / local", () => {
+test("userMessage classifies remote / automation / local", () => {
 	const t = new TurnTracker();
 	t.userMessage("[DevSpec remote — message from Ali to Wary Wolf]\nhi");
 	assert.equal(t.userKind, "remote");
-	const playbook = new TurnTracker();
-	playbook.userMessage("[DevSpec remote — playbook run to Wary Wolf]\n…");
-	assert.equal(playbook.userKind, "playbook");
+	const automation = new TurnTracker();
+	automation.userMessage("[DevSpec remote — automation run to Wary Wolf]\n…");
+	assert.equal(automation.userKind, "automation");
 	const l = new TurnTracker();
 	l.userMessage("just typing locally");
 	assert.equal(l.userKind, "local");
@@ -273,9 +273,9 @@ test("pi-subagents completion notifications are synthetic, not owner prompts", (
 	const remote = "[DevSpec remote — message from Ali Price to Ivory Koala]\nWhy is this attributed to me?";
 	assert.equal(isHarnessOrigin(remote, "future-remote-envelope"), false);
 	assert.equal(classifyUserKind(remote, "future-remote-envelope"), "remote");
-	const playbook = "[DevSpec remote — playbook run to Ivory Koala]\nRun the supplied playbook.";
-	assert.equal(isHarnessOrigin(playbook, "future-playbook-envelope"), false);
-	assert.equal(classifyUserKind(playbook, "future-playbook-envelope"), "playbook");
+	const automation = "[DevSpec remote — automation run to Ivory Koala]\nRun the supplied automation.";
+	assert.equal(isHarnessOrigin(automation, "future-automation-envelope"), false);
+	assert.equal(classifyUserKind(automation, "future-automation-envelope"), "automation");
 
 	const activeOwner = new TurnTracker();
 	activeOwner.userMessage(remote);
@@ -486,7 +486,7 @@ test("new command speech outranks inherited background wait, then recap continue
 	assert.deepEqual(planSettle(continuation, true), { kind: "final", message: recap });
 });
 
-test("background-interrupted local and playbook commands use the same speech boundary (6f4424bd)", () => {
+test("background-interrupted local and automation commands use the same speech boundary (6f4424bd)", () => {
 	const local = new TurnTracker();
 	local.userMessage("Start the long check.");
 	local.noteBackgroundTask("local-check");
@@ -500,14 +500,14 @@ test("background-interrupted local and playbook commands use the same speech bou
 		answer: localAnswer,
 	});
 
-	const playbook = new TurnTracker();
-	playbook.userMessage("[DevSpec remote — playbook run Alpha]\nStart checks.");
-	playbook.noteBackgroundTask("playbook-check");
-	playbook.userMessage("[DevSpec remote — playbook run Beta]\nExplain status.");
-	const playbookAnswer = "The first gate passed; the second remains active.";
-	assert.equal(shouldSplitFirstAnswer(playbook, { text: playbookAnswer, hasToolCalls: false }), true);
-	playbook.assistantFinal(playbookAnswer, true);
-	assert.deepEqual(planSettle(playbook, true), { kind: "final", message: playbookAnswer });
+	const automation = new TurnTracker();
+	automation.userMessage("[DevSpec remote — automation run Alpha]\nStart checks.");
+	automation.noteBackgroundTask("automation-check");
+	automation.userMessage("[DevSpec remote — automation run Beta]\nExplain status.");
+	const automationAnswer = "The first gate passed; the second remains active.";
+	assert.equal(shouldSplitFirstAnswer(automation, { text: automationAnswer, hasToolCalls: false }), true);
+	automation.assistantFinal(automationAnswer, true);
+	assert.deepEqual(planSettle(automation, true), { kind: "final", message: automationAnswer });
 });
 
 test("explicit wait narration after a new command remains process-only (6f4424bd)", () => {
@@ -751,30 +751,30 @@ test("leftover-only [bg completed] still posts no answer (56b9a3b4)", () => {
 	assert.deepEqual(planSettle(leftover, true), { kind: "none" });
 });
 
-test("only typed playbook-run envelopes have remote run identity", () => {
-	const playbook = { kind: "playbook_run", run_id: "run-1", playbook_name: "Deploy recovery" };
-	assert.equal(isPlaybookRunEnvelope(playbook), true);
-	assert.equal(playbookRunId(playbook), "run-1");
-	assert.equal(isPlaybookRunEnvelope({ id: "legacy-envelope", members: [{ action_item_id: "item-1" }] }), false);
-	assert.equal(playbookRunId({ kind: "assignment", id: "legacy-envelope" }), undefined);
-	assert.equal(playbookRunId({ kind: "playbook_run" }), undefined);
+test("only typed automation-run envelopes have remote run identity", () => {
+	const automation = { kind: "automation_run", run_id: "run-1", automation_name: "Deploy recovery" };
+	assert.equal(isAutomationRunEnvelope(automation), true);
+	assert.equal(automationRunId(automation), "run-1");
+	assert.equal(isAutomationRunEnvelope({ id: "legacy-envelope", members: [{ action_item_id: "item-1" }] }), false);
+	assert.equal(automationRunId({ kind: "assignment", id: "legacy-envelope" }), undefined);
+	assert.equal(automationRunId({ kind: "automation_run" }), undefined);
 });
 
-test("playbook message has a playbook-only model-visible envelope", () => {
+test("automation message has an automation-only model-visible envelope", () => {
 	const value = {
-		kind: "playbook_run",
+		kind: "automation_run",
 		run_id: "run-1",
-		playbook_id: "playbook-1",
-		playbook_name: "Deploy recovery",
+		automation_id: "automation-1",
+		automation_name: "Deploy recovery",
 	};
-	const message = formatPlaybookRunMessage(value, "Wary Wolf");
-	assert.match(message, /^\[DevSpec remote — playbook run to Wary Wolf\]/);
-	assert.match(message, /DevSpec playbook run run-1 is ready/);
-	assert.match(message, /claim_playbook_run/);
-	assert.match(message, /Playbook run envelope:/);
+	const message = formatAutomationRunMessage(value, "Wary Wolf");
+	assert.match(message, /^\[DevSpec remote — automation run to Wary Wolf\]/);
+	assert.match(message, /DevSpec automation run run-1 is ready/);
+	assert.match(message, /claim_automation_run/);
+	assert.match(message, /Automation run envelope:/);
 	assert.doesNotMatch(message, /work dispatch|assignment|local_agent_dispatch|been dispatched/i);
 	assert.throws(
-		() => formatPlaybookRunMessage({ kind: "playbook_run" }, "Wary Wolf"),
+		() => formatAutomationRunMessage({ kind: "automation_run" }, "Wary Wolf"),
 		/requires a run id/,
 	);
 });

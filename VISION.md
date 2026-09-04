@@ -469,8 +469,8 @@ current contract, adopted here first, migrated to other hosts only if proven.
      round's fresh tracker) and truncated the preserved trail to the last
      round. Local-terminal turns mirror the prompt as
      `turn_kind:'local_prompt'` first — two-sided transcript.
-   - **Playbook runs:** `dispatches[]` is a transport field for owner-scoped,
-     typed playbook runs only. Pi rejects every other shape before queueing or
+   - **Automation runs:** `dispatches[]` is a transport field for owner-scoped,
+     typed automation runs only. Pi rejects every other shape before queueing or
      model injection. Action-item work never enters this channel: the agent
      reserves already-selected items with `reserve_work_items`, then claims
      them one at a time.

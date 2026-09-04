@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Playbooks are now Automations
+
+DevSpec has renamed Playbooks to Automations. This plugin now uses the renamed tools
+(`claim_automation_run`, `record_automation_run`, `get_automations` and the rest) and reads
+the renamed fields in what the server sends it. It needs a DevSpec server that carries the
+same rename; against an older server, automation runs are not picked up.
+
 ### Changed
 
 - `npm test` caps `node --test` at two files at a time (`--test-concurrency=2`) so this suite cannot fork one worker per CPU next to a live agent.

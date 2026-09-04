@@ -48,8 +48,8 @@ const COLLECTION_VERBS = new Set([
 	"get_recent_sessions",
 	"search_sessions",
 	"search_discussion_points",
-	"get_playbook_runs",
-	"get_playbooks",
+	"get_automation_runs",
+	"get_automations",
 	"get_claimable_reviews",
 ]);
 
@@ -62,7 +62,7 @@ const FULL_READ_VERBS = new Set([
 	"get_testing_brief",
 	"get_action_item_history",
 	"get_action_item_siblings",
-	"get_playbook",
+	"get_automation",
 	"get_goals",
 	"get_project_goals",
 	"claim_work_item",
@@ -79,7 +79,7 @@ const FULL_READ_VERBS = new Set([
 	// These mutate/claim, but their responses are read-like contracts containing
 	// briefing, permission, previews, resulting text, or mandatory instructions.
 	"create_session",
-	"claim_playbook_run",
+	"claim_automation_run",
 	"claim_review",
 	"import_instruction_rules",
 	"update_personal_instructions",
@@ -95,11 +95,11 @@ const ACK_VERBS = new Set([
 	"create_action_item",
 	"add_commit_reference",
 	"add_implementation_note",
-	"record_playbook_run",
+	"record_automation_run",
 	"record_review",
-	"create_playbook",
-	"update_playbook",
-	"delete_playbook",
+	"create_automation",
+	"update_automation",
+	"delete_automation",
 	"create_resource",
 	"release_work_item",
 	"record_implementation",
@@ -134,7 +134,7 @@ const ACK_VERBS = new Set([
 
 const ROW_KEYS = [
 	"results", "items", "action_items", "memories", "resources", "projects", "goals", "sessions",
-	"playbooks", "runs", "reviews", "matches", "data",
+	"automations", "runs", "reviews", "matches", "data",
 ] as const;
 const COUNT_KEYS = ["total_matching", "total", "count"] as const;
 const ACK_GATE_KEYS = [
@@ -289,7 +289,7 @@ export function projectionFamily(toolName: string): ProjectionFamily {
 }
 
 function nestedEntity(root: Row): Row {
-	for (const key of ["item", "action_item", "memory", "resource", "playbook", "goal", "project", "session", "assignment", "run"]) {
+	for (const key of ["item", "action_item", "memory", "resource", "automation", "goal", "project", "session", "assignment", "run"]) {
 		const found = record(root[key]);
 		if (found) return found;
 	}

@@ -93,7 +93,7 @@ test("recoverable server ends revive the same bond instead of spinning on an end
 	assert.match(recovery, /active\.bond = bond[^]*setBond\(bond\)[^]*startPushChannel\(active/);
 	assert.match(recovery, /planRecoveredConnectionScope\([^]*currentConnectionId: prior\.connectionId[^]*nextConnectionId: connectionId/);
 	assert.match(recovery, /active\.generation = recoveredScope\.generation[^]*active\.cursor = recoveredScope\.cursor[^]*active\.systemNoticeCursor = recoveredScope\.systemNoticeCursor[^]*active\.connectionIdentity = recoveredScope\.connectionIdentity/);
-	assert.match(recovery, /active\.playbookQueue\.invalidate\(\)[^]*active\.playbookQueue = new DeliveryQueue\(\)[^]*playbookRetryTimers\.clear\(\)[^]*playbookRetryAttempts\.clear\(\)/);
+	assert.match(recovery, /active\.automationQueue\.invalidate\(\)[^]*active\.automationQueue = new DeliveryQueue\(\)[^]*automationRetryTimers\.clear\(\)[^]*automationRetryAttempts\.clear\(\)/);
 	assert.match(recovery, /revokeSystemNoticeState\(active\.systemNoticeKey\)[^]*active\.systemNoticeKey = bindSystemNoticeState/);
 	assert.doesNotMatch(recovery, /new SeenOwnerCommands|seenOwnerCommands\s*=/,
 		"same-row revival must retain exactly-once command memory");
@@ -114,19 +114,19 @@ test("awaited transcript writes revalidate immutable pump authority before posti
 	assert.match(complete, /connection_id: authority\.connectionId/);
 });
 
-test("playbook retry revalidation cannot cross recovered connection authority", () => {
-	const retry = bodyBetween("function schedulePlaybookRetry", "function enqueuePlaybookRun");
+test("automation retry revalidation cannot cross recovered connection authority", () => {
+	const retry = bodyBetween("function scheduleAutomationRetry", "function enqueueAutomationRun");
 	assert.match(retry, /capturePumpAuthority\([^]*const authorityIsCurrent/);
 	assert.match(retry, /if \(!authorityIsCurrent\(\)\) return[^]*assertCurrent: \(\) => \{[^]*!authorityIsCurrent\(\)/);
-	assert.match(retry, /if \(authorityIsCurrent\(\)\) schedulePlaybookRetry/);
+	assert.match(retry, /if \(authorityIsCurrent\(\)\) scheduleAutomationRetry/);
 });
 
-test("canonical parser output stays independent from playbook dispatch and control paths", () => {
+test("canonical parser output stays independent from automation dispatch and control paths", () => {
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
 	assert.match(pump, /parsePollPayload\(payload, active\.connectionIdentity, \{ systemNoticeNegotiated \}\)/);
 	assert.match(pump, /pkg\.ownerBundle/);
 	assert.match(pump, /pkg\.control/);
-	assert.match(pump, /for \(const dispatch of dispatches\) enqueuePlaybookRun/);
+	assert.match(pump, /for \(const dispatch of dispatches\) enqueueAutomationRun/);
 	assert.doesNotMatch(pump, /payload[^\n]*commands|buildRoomDigest|owner_ambient|room_context/);
 });
 

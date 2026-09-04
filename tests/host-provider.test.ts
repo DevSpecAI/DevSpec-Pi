@@ -9,11 +9,11 @@ import {
 import { MCP_CATALOG } from "../extensions/generated/mcp-catalog.ts";
 
 const ATTRIBUTION_VERBS = ["claim_work_item", "record_implementation", "record_completed_work"];
-const PLAYBOOK_VERBS = ["get_playbook_runs", "claim_playbook_run", "record_playbook_run"];
-const LOCAL_SESSION_VERBS = ["update_action_item", "record_playbook_run", "claim_work_item", "record_implementation"];
+const AUTOMATION_VERBS = ["get_automation_runs", "claim_automation_run", "record_automation_run"];
+const LOCAL_SESSION_VERBS = ["update_action_item", "record_automation_run", "claim_work_item", "record_implementation"];
 
 test("every attribution verb is stamped with provider=pi", () => {
-	for (const name of [...ATTRIBUTION_VERBS, ...PLAYBOOK_VERBS]) {
+	for (const name of [...ATTRIBUTION_VERBS, ...AUTOMATION_VERBS]) {
 		assert.equal(stampHostProvider(name, {}).provider, "pi", `${name} was not stamped`);
 	}
 });
@@ -88,9 +88,9 @@ test("verbs that do not carry provider are untouched", () => {
 });
 
 test("preferred_provider is an authoring choice and is never overwritten", () => {
-	// create_playbook/update_playbook ask which agent the playbook is written
+	// create_automation/update_automation ask which agent the automation is written
 	// FOR — that is the caller's decision, not a fact about this host.
-	for (const name of ["create_playbook", "update_playbook"]) {
+	for (const name of ["create_automation", "update_automation"]) {
 		const stamped = stampHostProvider(name, { preferred_provider: "opencode" });
 		assert.equal(stamped.preferred_provider, "opencode");
 		assert.equal(stamped.provider, undefined);
@@ -100,13 +100,13 @@ test("preferred_provider is an authoring choice and is never overwritten", () =>
 test("every stamped verb really accepts provider, and pi is a legal value", () => {
 	// Guards against stamping a verb whose schema has no provider (the server
 	// would reject the call) or whose enum has not learned "pi" yet.
-	for (const name of [...ATTRIBUTION_VERBS, ...PLAYBOOK_VERBS]) {
+	for (const name of [...ATTRIBUTION_VERBS, ...AUTOMATION_VERBS]) {
 		const entry = MCP_CATALOG.find((e) => e.name === name);
 		assert.ok(entry, `${name} missing from the generated catalog`);
 		const props = (entry.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
 		const provider = props.provider as { enum?: string[] } | undefined;
 		assert.ok(provider, `${name} has no provider property to stamp`);
-		// Free-text provider (playbook runs) has no enum; an enum must include pi.
+		// Free-text provider (automation runs) has no enum; an enum must include pi.
 		if (provider.enum) {
 			assert.ok(provider.enum.includes("pi"), `${name} enum does not accept pi`);
 		}

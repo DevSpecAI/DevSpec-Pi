@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DeliveryQueue, nextDeliveryRetryDelayMs } from "../extensions/core/delivery-queue.ts";
-import { revalidatePlaybookRunRetry } from "../extensions/core/playbook-run-retry.ts";
+import { revalidateAutomationRunRetry } from "../extensions/core/automation-run-retry.ts";
 
 test("delivery retry backoff is bounded and deterministic", () => {
 	assert.equal(nextDeliveryRetryDelayMs(1), 5_000);
@@ -10,7 +10,7 @@ test("delivery retry backoff is bounded and deterministic", () => {
 	assert.equal(nextDeliveryRetryDelayMs(20), 60_000);
 });
 
-test("playbook runs remain ordered without blocking the pump caller", async () => {
+test("automation runs remain ordered without blocking the pump caller", async () => {
 	const queue = new DeliveryQueue();
 	const events: string[] = [];
 	let releaseFirst!: () => void;
@@ -63,7 +63,7 @@ test("authoritative withdrawal revokes same-key in-flight delivery only", async 
 		messages.push("unrelated");
 	}, () => assert.fail("key withdrawal must not revoke another run"));
 
-	const outcome = await revalidatePlaybookRunRetry({
+	const outcome = await revalidateAutomationRunRetry({
 		key: "run-withdrawn",
 		loadCurrentInbox: async () => ({ dispatches: [], identityComplete: true }),
 		identity: (value: { run_id: string }) => value.run_id,
@@ -77,7 +77,7 @@ test("authoritative withdrawal revokes same-key in-flight delivery only", async 
 	assert.equal(retries, 0);
 });
 
-test("stopping a pump revokes paused and queued playbook delivery", async () => {
+test("stopping a pump revokes paused and queued automation delivery", async () => {
 	const oldQueue = new DeliveryQueue();
 	const newQueue = new DeliveryQueue();
 	const messages: string[] = [];

@@ -9,6 +9,16 @@ DevSpec has renamed Playbooks to Automations. This plugin now uses the renamed t
 the renamed fields in what the server sends it. It needs a DevSpec server that carries the
 same rename; against an older server, automation runs are not picked up.
 
+### Fixed
+
+- `/devspec.remote --session <id>` now ATTACHES an already-bonded agent to that
+  session instead of refusing with "already bonded". Interactive Pi auto-bonds on
+  session_start, so there was always a bond by the time the command ran, which made
+  `--session` unreachable in practice — a resume command, a copied attach line, or a
+  person typing it all hit the guard and the room was silently dropped. Naming a
+  session is an explicit instruction to be in that room, not a duplicate connect.
+  A bare `/devspec.remote` while bonded still says so and does nothing.
+
 ### Changed
 
 - `npm test` caps `node --test` at two files at a time (`--test-concurrency=2`) so this suite cannot fork one worker per CPU next to a live agent.

@@ -3155,12 +3155,53 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
+			const sessionMatch = arg.match(/^(?:--session|-s)\s+(\S+)$/);
+
 			if (pump) {
-				notify(ctx, `DevSpec remote: already bonded as ${pump.bond.codename ?? pump.bond.connectionId}. Use /devspec.remote stop first.`, "warning");
+				// Already bonded, and no room named — nothing to do.
+				if (!sessionMatch?.[1]) {
+					notify(ctx, `DevSpec remote: already bonded as ${pump.bond.codename ?? pump.bond.connectionId}. Use /devspec.remote stop first.`, "warning");
+					return;
+				}
+
+				// Already bonded AND a room was named: ATTACH this bond to it.
+				//
+				// Refusing here used to make `--session` unreachable in practice.
+				// Interactive Pi auto-bonds on session_start, so by the time any
+				// `/devspec.remote --session <id>` runs — a resume command, a
+				// copied attach line, or a person typing it — there is always a
+				// bond, and the guard swallowed the room. Naming a session is an
+				// explicit instruction to be in that room, not a duplicate connect.
+				const resolved = await resolveToken();
+				if (!resolved) {
+					notify(ctx, "DevSpec remote: not connected to DevSpec — /devspec.login first.", "warning");
+					return;
+				}
+				try {
+					const attRaw = await callDevspec(resolved.token, "attach_connection", {
+						connection_id: pump.bond.connectionId,
+						session_id: sessionMatch[1],
+					}, { cwd: ctx.cwd, lane: "pump" });
+					const att = unwrapMcpResult(attRaw);
+					if (att.isError) {
+						notify(ctx, `DevSpec remote: attach failed: ${att.text}`, "error");
+						return;
+					}
+				} catch (err) {
+					notify(ctx, `DevSpec remote: attach failed: ${err instanceof Error ? err.message : err}`, "error");
+					return;
+				}
+				// The pump adopts the server's attachment on its next poll, which
+				// owns the bond/tool/status updates — so this deliberately does
+				// not write that state a second time.
+				notify(
+					ctx,
+					`DevSpec remote: ${pump.bond.codename ?? "this agent"} attached to the session. ` +
+						`Owner messages will arrive as user messages here.`,
+				);
 				return;
 			}
 
-			const sessionMatch = arg.match(/^(?:--session|-s)\s+(\S+)$/);
 			const outcome = await bondNow(ctx, sessionMatch?.[1]);
 			if (!outcome.ok) {
 				notify(ctx, `DevSpec remote: ${outcome.error}`, outcome.errorKind === "auth" ? "warning" : "error");

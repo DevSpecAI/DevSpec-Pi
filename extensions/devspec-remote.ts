@@ -64,6 +64,7 @@ import {
 	type MaterialisedAttachment,
 } from "./core/attachments.ts";
 import { unwrapMcpResult } from "./core/result.ts";
+import { bondedRemoteAction, namedSessionFromRemoteArg } from "./core/remote-session-arg.ts";
 import { shapeTranscript } from "./core/attach-context.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { SubagentFleetClient, type SubagentFleetSnapshot } from "./core/subagent-fleet.ts";
@@ -3155,11 +3156,12 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
-			const sessionMatch = arg.match(/^(?:--session|-s)\s+(\S+)$/);
+			const sessionId = namedSessionFromRemoteArg(arg);
 
 			if (pump) {
+				const action = bondedRemoteAction(arg);
 				// Already bonded, and no room named — nothing to do.
-				if (!sessionMatch?.[1]) {
+				if (action.type === "report_already_bonded") {
 					notify(ctx, `DevSpec remote: already bonded as ${pump.bond.codename ?? pump.bond.connectionId}. Use /devspec.remote stop first.`, "warning");
 					return;
 				}
@@ -3180,7 +3182,7 @@ export default function (pi: ExtensionAPI) {
 				try {
 					const attRaw = await callDevspec(resolved.token, "attach_connection", {
 						connection_id: pump.bond.connectionId,
-						session_id: sessionMatch[1],
+						session_id: action.sessionId,
 					}, { cwd: ctx.cwd, lane: "pump" });
 					const att = unwrapMcpResult(attRaw);
 					if (att.isError) {
@@ -3202,7 +3204,7 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
-			const outcome = await bondNow(ctx, sessionMatch?.[1]);
+			const outcome = await bondNow(ctx, sessionId);
 			if (!outcome.ok) {
 				notify(ctx, `DevSpec remote: ${outcome.error}`, outcome.errorKind === "auth" ? "warning" : "error");
 				return;

@@ -39,6 +39,10 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /possible_conflict/);
 	assert.match(text, /missing claim never blocks edits, execution, tests, worktrees, delegation, or follow-through/i);
 	assert.match(text, /commit_provenance_contract/);
+	// Who may commit, and what a queued write means, is the served authority section — pointed at, never restated (item 06936ee9).
+	assert.match(text, /authority_contract/);
+	assert.match(text, /queued_for_review relay the proposal_id and reason/);
+	assert.doesNotMatch(text, /interactive authority|maintainer-only|always queues/i);
 	assert.match(text, /server reconciliation/);
 	assert.doesNotMatch(text, /trusted subprocess|trusted child/i);
 	assert.match(text, /record_memory/);

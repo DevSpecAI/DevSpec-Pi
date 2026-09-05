@@ -82,7 +82,42 @@ function provenanceSection() {
 	} as const;
 }
 
-const CURRENT_CONTRACT_VERSION = "4.3.0";
+function authoritySection() {
+	const outcomes = (guest: string, contributor: string, maintainer: string, unattended: string) =>
+		({ guest, contributor, maintainer, unattended });
+	return {
+		schema_version: 1,
+		decision: "One function judges every write from the verb, the role and whether the run is unattended.",
+		roles: [
+			{ role: "guest", label: "Guest", meaning: "Sees everything and takes part in the conversation." },
+			{ role: "contributor", label: "Contributor", meaning: "Adds to the record; changes to what is settled are proposed." },
+			{ role: "maintainer", label: "Maintainer", meaning: "Can overrule the record and accepts proposals." },
+		],
+		role_source_rule: "The effective project role is judged; an organization Owner or Admin is a Maintainer everywhere.",
+		classes: [
+			{ class: "talk", meaning: "Takes part in the conversation.", outcomes: outcomes("commit", "commit", "commit", "commit") },
+			{ class: "add", meaning: "Adds to the record.", outcomes: outcomes("deny", "commit", "commit", "commit") },
+			{ class: "overrule", meaning: "Changes what the project has settled.", outcomes: outcomes("deny", "propose", "commit", "propose") },
+		],
+		ownership_rule: "A verb may be an overrule only against someone else's row.",
+		requester_rule: "A delegated command is judged by the REQUESTER's effective role.",
+		unattended_rule: "An unattended run proposes every overrule; attended-versus-unattended is never the axis on its own.",
+		proposal_outcome: {
+			token: "queued_for_review",
+			requirement: "A propose outcome returns queued_for_review with a proposal_id; the target is UNCHANGED until a Maintainer accepts.",
+			because: ["unattended_run", "insufficient_role"],
+			ledgers: { proposals: "A real queue.", pending: "No queue yet.", none: "Refused." },
+		},
+		contested_rule: "A queued pair ruling is a pair_judgement proposal and the pair is CONTESTED.",
+		preview_rule: "A direct overrule shows the exact text first.",
+		verbs: [
+			{ id: "memory.record", class: "add", scope: "project", unattended: "propose", ledger: "proposals", description: "Record a memory" },
+			{ id: "memory.supersede", class: "overrule", scope: "project", unattended: "propose", ledger: "proposals", description: "Supersede a memory" },
+		],
+	} as const;
+}
+
+const CURRENT_CONTRACT_VERSION = "4.4.0";
 
 function bundle(version = CURRENT_CONTRACT_VERSION) {
 	const input = {
@@ -94,6 +129,7 @@ function bundle(version = CURRENT_CONTRACT_VERSION) {
 		core_implementation_contract: coreSection(),
 		work_entry_contract: workEntrySection(),
 		commit_provenance_contract: provenanceSection(),
+		authority_contract: authoritySection(),
 	};
 	return { ...input, contract_hash: hashContractValue(input) };
 }
@@ -155,10 +191,10 @@ test("mechanically reads, validates, formats, and caches the current v4.3 tracki
 	assert.equal(counts.resource, 1);
 });
 
-test("cache v7 ignores every pre-cutover parser generation", async () => {
+test("cache v8 ignores every pre-cutover parser generation", async () => {
 	resetImplementationContractCache();
 	const root = globalThis as typeof globalThis & Record<symbol, unknown>;
-	for (const version of ["v1", "v2", "v3", "v4", "v5", "v6"]) {
+	for (const version of ["v1", "v2", "v3", "v4", "v5", "v6", "v7"]) {
 		root[Symbol.for(`devspec.pi.implementation-contract.${version}`)] = {
 			byIdentity: new Map([["poison", { contractVersion: "3.0.0", rules: [{ id: "poison" }] }]]),
 			latestByResource: new Map(),
@@ -300,7 +336,7 @@ test("an unversioned local delivery retains the latest compatible v4 contract du
 		loader: loader({ resourceError: new Error("offline"), compatibilityError: new Error("offline") }),
 	});
 	assert.equal(retained.source, "cache");
-	assert.match(retained.warning ?? "", /retained 4\.3\.0 contract/);
+	assert.match(retained.warning ?? "", /retained 4\.4\.0 contract/);
 });
 
 test("wrong resource pointers never become trusted but remain non-blocking guidance", async () => {
@@ -335,4 +371,44 @@ test("kickoff validates canonical resource/version and carries no execution mode
 	assert.deepEqual(kickoff.work, { action_item_ids: ["item-1"] });
 	assert.equal(kickoff.implementation_contract.contract_version, CURRENT_CONTRACT_VERSION);
 	assert.doesNotMatch(JSON.stringify(kickoff), /assignment|attended|execution_mode/);
+});
+
+test("the authority section is required, exactly shaped, and carried to the model", async (t) => {
+	resetImplementationContractCache();
+	const context = await loadImplementationContext({
+		reference: REFERENCE,
+		loader: loader({ resource: resource(), compatibilityError: new Error("unavailable") }),
+	});
+	assert.equal(context.source, "resource");
+	assert.equal(context.authorityContract?.classes.map((c) => c.class).join(","), "talk,add,overrule");
+	assert.equal(context.authorityContract?.proposal_outcome.token, "queued_for_review");
+	const text = formatImplementationContext(context);
+	assert.match(text, /Write authority \(authority_contract/);
+	assert.match(text, /overrule: .* guest deny, contributor propose, maintainer commit, unattended propose/);
+	assert.match(text, /Requester rule: A delegated command is judged by the REQUESTER/);
+	assert.match(text, /queued_for_review: A propose outcome/);
+	assert.match(text, /Contested rulings:/);
+
+	const cases: Array<[string, (section: Record<string, unknown>, root: Record<string, unknown>) => void]> = [
+		["missing section", (_section, root) => { delete root.authority_contract; }],
+		["wrong schema", (section) => { section.schema_version = 2; }],
+		["extra field", (section) => { section.mutable_policy = true; }],
+		["missing class", (section) => { (section.classes as unknown[]).pop(); }],
+		["reordered classes", (section) => { (section.classes as unknown[]).reverse(); }],
+		["unknown outcome", (section) => { ((section.classes as Array<{ outcomes: Record<string, string> }>)[0]!).outcomes.guest = "maybe"; }],
+		["wrong proposal token", (section) => { (section.proposal_outcome as Record<string, unknown>).token = "pending"; }],
+		["no verbs", (section) => { section.verbs = []; }],
+	];
+	for (const [name, mutate] of cases) {
+		await t.test(name, async () => {
+			resetImplementationContractCache();
+			const malformed = JSON.parse(JSON.stringify(bundle())) as Record<string, unknown>;
+			mutate(malformed.authority_contract as Record<string, unknown>, malformed);
+			const outcome = await loadImplementationContext({
+				reference: REFERENCE,
+				loader: loader({ resource: resource(malformed), compatibilityError: new Error("unavailable") }),
+			});
+			assert.equal(outcome.source, "local_safety_fallback");
+		});
+	}
 });

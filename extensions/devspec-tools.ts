@@ -53,9 +53,32 @@ import {
 } from "./core/status-line.ts";
 import { MODEL_VERB_NAMES, type CatalogEntry } from "./generated/mcp-catalog.ts";
 
+/**
+ * A write the server queued instead of committing (DevSpec item 06936ee9). The
+ * served authority_contract decides who may commit; Pi's only job is to make the
+ * outcome impossible to miss — the model must relay the proposal id and the reason
+ * and never report the change as done.
+ */
+export function queuedForReviewRelay(details: unknown): string | null {
+	if (details === null || typeof details !== "object" || Array.isArray(details)) return null;
+	const row = details as Record<string, unknown>;
+	if (row.outcome !== "queued_for_review") return null;
+	const proposalId = typeof row.proposal_id === "string" && row.proposal_id.trim() ? row.proposal_id.trim() : null;
+	const reason = typeof row.reason === "string" && row.reason.trim() ? row.reason.trim() : null;
+	return [
+		"QUEUED FOR A MAINTAINER — not in effect.",
+		proposalId ? `Proposal ${proposalId}.` : null,
+		reason ? `Reason: ${reason}` : null,
+		"Relay the proposal id and the reason to the user and say a maintainer has to accept it on the project's Review tab before it applies; do not report this change as done.",
+	].filter(Boolean).join(" ");
+}
+
 /** Unwrap and project a DevSpec result, retaining complete data in details. */
 function unwrapOrThrow(name: string, raw: unknown) {
-	const { text, details, isError } = unwrapMcpResult(raw);
+	const unwrapped = unwrapMcpResult(raw);
+	const relay = unwrapped.isError ? null : queuedForReviewRelay(unwrapped.details);
+	const { details, isError } = unwrapped;
+	const text = relay ? `${relay}\n\n${unwrapped.text}` : unwrapped.text;
 	// Errors intentionally stay full rather than passing through a size-oriented
 	// success projection: the model must see every actionable server detail.
 	if (isError) {

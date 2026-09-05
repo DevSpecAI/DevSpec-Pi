@@ -57,6 +57,9 @@ const FULL_READ_VERBS = new Set([
 	// Exact implementation/decision inputs are intentionally exempt from compact
 	// family budgets. Arbitrary truncation would not have a lossless continuation.
 	"get_action_item",
+	// A pull request's provenance umbrella is one exact entity read; every list in it
+	// is already bounded by the joins, and its `absent` sentences must reach the model whole.
+	"get_pull_request",
 	"get_memory",
 	"get_resource",
 	"get_testing_brief",

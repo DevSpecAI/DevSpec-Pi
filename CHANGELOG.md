@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### The served contract's authority section, and queued writes relayed
+
+DevSpec contract 4.4.0 adds `authority_contract` — who may change the project's record,
+judged per call by the server. Pi verifies the section exactly like the others (an older
+Pi read the new document as invalid and fell back to its local safety rules), shows the
+model the classes, outcomes, requester rule and proposal outcome, and when a write comes
+back `queued_for_review` puts the proposal id and reason at the top of the tool result so
+the model relays them and never reports the change as done. The MCP catalog is
+regenerated (adds `get_pull_request`).
+
 ### Playbooks are now Automations
 
 DevSpec has renamed Playbooks to Automations. This plugin now uses the renamed tools

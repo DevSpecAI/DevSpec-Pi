@@ -115,7 +115,7 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// landscape yet. That is a Pi projection decision, not a catalog one.
 	assert.equal(
 		fingerprint,
-		"adbb950f3ddbd9e163e209d38a896ebd2e8109decb41b9a3ff9fd81ed0378b00",
+		"b9417ad7020716daf5945ef63a39104484591551676b3abffdaaee213aadad60",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

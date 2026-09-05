@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { clampThinkingLevel, type Model, type ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { compactWithContext, executeControlCommand, parseControlCommand, reloadWithContext, runReloadLap } from "../extensions/core/control.ts";
 
 function host(calls: string[]) {
@@ -12,7 +13,10 @@ function host(calls: string[]) {
 		reload: async () => {
 			calls.push("reload");
 		},
-		setThinkingLevel: (level: string) => calls.push(`think:${level}`),
+		setThinkingLevel: (level: string) => {
+			calls.push(`think:${level}`);
+			return level;
+		},
 		setModel: async () => true,
 		notify: () => {},
 	};
@@ -153,3 +157,49 @@ test("runReloadLap reports reload_failed after a successful ack", async () => {
 	assert.match(failed.error ?? "", /not available/);
 });
 
+
+const thinkingCommand = (thinking: string) => ({
+	id: "thinking-control",
+	verb: "set_thinking" as const,
+	issuedAt: "2026-08-13T19:00:00.000Z",
+	issuedByUserId: "u1",
+	args: { thinking },
+});
+
+test("executeControlCommand set_thinking reports the effective native clamped level, including unchanged values", async () => {
+	const model: Model<"openai-completions"> = {
+		provider: "custom-provider", id: "alias", name: "Alias", api: "openai-completions",
+		baseUrl: "https://example.invalid", reasoning: true, input: ["text"],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 1000, maxTokens: 100,
+	};
+	for (const scenario of [
+		{ model, requested: "low", initial: "high", expected: "low" },
+		{ model, requested: "high", initial: "high", expected: "high" },
+		{ model, requested: "xhigh", initial: "high", expected: "high" },
+		{ model: { ...model, reasoning: false }, requested: "xhigh", initial: "off", expected: "off" },
+		{ model: { ...model, thinkingLevelMap: { xhigh: null, max: "max" } }, requested: "xhigh", initial: "high", expected: "max" },
+	] as const) {
+		let effective: ModelThinkingLevel = scenario.initial;
+		let calls = 0;
+		const result = await executeControlCommand(thinkingCommand(scenario.requested), {
+			...host([]),
+			setThinkingLevel: (requested) => {
+				calls++;
+				effective = clampThinkingLevel(scenario.model, requested as ModelThinkingLevel);
+				return effective;
+			},
+		});
+		assert.equal(calls, 1);
+		assert.equal(effective, scenario.expected);
+		assert.equal(result, `thinking=${scenario.expected}`);
+	}
+});
+
+test("executeControlCommand set_thinking rejects an unavailable or throwing setter", async () => {
+	await assert.rejects(executeControlCommand(thinkingCommand("high"), {
+		...host([]), setThinkingLevel: undefined,
+	}), /setThinkingLevel is not available/);
+	await assert.rejects(executeControlCommand(thinkingCommand("high"), {
+		...host([]), setThinkingLevel: () => { throw new Error("host rejected"); },
+	}), /host rejected/);
+});

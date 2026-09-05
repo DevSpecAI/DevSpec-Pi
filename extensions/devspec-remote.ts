@@ -21,6 +21,7 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { getSupportedThinkingLevels, type ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { readFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { debugRemote as debug } from "./core/debug.ts";
@@ -384,11 +385,12 @@ let latestAgentStats: AgentStatsReport | null = null;
 let runtimeStampTimer: ReturnType<typeof setTimeout> | null = null;
 
 function runtimeAgentStats(ctx: ExtensionContext | null = lastCtx): AgentStatsReport {
-	const model = ctx?.model as { provider?: string; id?: string } | undefined;
+	const model = ctx?.model;
 	return refreshAgentStatsReport({
 		previous: latestAgentStats,
 		model: model ?? null,
 		thinkingLevel: ctx?.thinkingLevel ?? null,
+		supportedThinkingLevels: model ? getSupportedThinkingLevels(model) : undefined,
 		context: ctx?.getContextUsage?.() ?? null,
 	});
 }
@@ -414,13 +416,14 @@ function scheduleRuntimeStamp(ctx: ExtensionContext): void {
 function settleTelemetry(): AgentStatsReport {
 	const settled = telemetry.settleTurn();
 	const ctx = lastCtx;
-	const model = ctx?.model as { provider?: string; id?: string } | undefined;
+	const model = ctx?.model;
 	const contextBudget = takeContextBudgetReport();
 	latestAgentStats = buildAgentStatsReport({
 		turn: settled.turn,
 		session: settled.session,
 		model: model ?? null,
 		thinkingLevel: ctx?.thinkingLevel ?? null,
+		supportedThinkingLevels: model ? getSupportedThinkingLevels(model) : undefined,
 		context: ctx?.getContextUsage?.() ?? null,
 		contextBudget,
 	});
@@ -2112,6 +2115,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					const msg = err instanceof Error ? err.message : String(err);
 					debug("control failed", { messageChars: msg.length });
 					notify(ctx, `DevSpec remote: ${control.verb} failed — ${msg}`, "error");
+				} finally {
+					// Pi emits no event when a request clamps to the already-active level.
+					if (control.verb === "set_thinking") scheduleRuntimeStamp(ctx);
 				}
 				void ackControl(token, active.bond.connectionId, control.id, catalog).catch(() => {});
 			}
@@ -2398,7 +2404,7 @@ let pi_send: (
 let pi_abort: () => void = () => {};
 let pi_compact: () => void = () => {};
 let pi_reload: () => Promise<void> = async () => {};
-let pi_setThinking: (level: string) => void = () => {};
+let pi_setThinking: (level: string) => string = () => { throw new Error("setThinkingLevel is not available"); };
 let pi_setModel: (modelId: string) => Promise<boolean> = async () => false;
 let pi_setPlanToolActive: (enabled: boolean) => void = () => {};
 let pi_setQuestionToolActive: (enabled: boolean) => void = () => {};
@@ -2536,7 +2542,10 @@ export default function (pi: ExtensionAPI) {
 		await reloadWithContext(commandReloadContext() ?? (lastCtx as { reload?: () => Promise<void> } | null));
 	};
 	pi_setThinking = (level) => {
-		pi.setThinkingLevel?.(level as never);
+		if (typeof pi.setThinkingLevel !== "function") throw new Error("setThinkingLevel is not available");
+		if (typeof pi.getThinkingLevel !== "function") throw new Error("getThinkingLevel is not available");
+		pi.setThinkingLevel(level as ModelThinkingLevel);
+		return pi.getThinkingLevel();
 	};
 	pi_setModel = async (modelId) => {
 		const slash = modelId.indexOf("/");

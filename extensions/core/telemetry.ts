@@ -36,6 +36,8 @@ export interface AgentStatsReport {
 	v: 1;
 	model: { provider: string; id: string } | null;
 	thinkingLevel: string | null;
+	/** Native capabilities for this report's effective model; omitted when unknown. */
+	supportedThinkingLevels?: string[];
 	context: { tokens: number | null; window: number | null; percent: number | null } | null;
 	/** Numeric-only DevSpec attribution; no prompt/tool payload content. */
 	contextBudget?: ContextBudgetReport;
@@ -115,6 +117,7 @@ export function buildAgentStatsReport(input: {
 	session: UsageTotals & { turns: number };
 	model?: { provider?: string; id?: string } | null;
 	thinkingLevel?: string | null;
+	supportedThinkingLevels?: readonly string[];
 	context?: { tokens: number | null; contextWindow: number; percent: number | null } | null;
 	contextBudget?: ContextBudgetReport;
 	now?: string;
@@ -127,6 +130,7 @@ export function buildAgentStatsReport(input: {
 				? { provider: input.model.provider ?? "", id: input.model.id ?? "" }
 				: null,
 		thinkingLevel: input.thinkingLevel ?? null,
+		...(input.supportedThinkingLevels ? { supportedThinkingLevels: [...input.supportedThinkingLevels] } : {}),
 		context: ctx
 			? {
 					tokens: typeof ctx.tokens === "number" && Number.isFinite(ctx.tokens) ? Math.round(ctx.tokens) : null,
@@ -153,6 +157,7 @@ export function refreshAgentStatsReport(input: {
 	previous?: AgentStatsReport | null;
 	model?: { provider?: string; id?: string } | null;
 	thinkingLevel?: string | null;
+	supportedThinkingLevels?: readonly string[];
 	context?: { tokens: number | null; contextWindow: number; percent: number | null } | null;
 	contextBudget?: ContextBudgetReport;
 	now?: string;
@@ -164,6 +169,7 @@ export function refreshAgentStatsReport(input: {
 		session: input.previous?.session ?? zeroSession,
 		model: input.model,
 		thinkingLevel: input.thinkingLevel,
+		supportedThinkingLevels: input.supportedThinkingLevels,
 		context: input.context,
 		contextBudget: input.contextBudget ?? input.previous?.contextBudget,
 		now: input.now,

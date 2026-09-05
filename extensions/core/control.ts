@@ -42,12 +42,13 @@ export interface ControlHost {
 	abort(): void;
 	compact(): Promise<void> | void;
 	reload(): Promise<void> | void;
-	setThinkingLevel(level: string): void;
+	/** Set the requested level and read back the host's effective (possibly clamped) level. */
+	setThinkingLevel?(level: string): string;
 	setModel(modelId: string): Promise<boolean> | boolean;
 	notify(message: string): void;
 }
 
-/** Execute one CONTROL verb. Returns a short result for the ack / notify. */
+/** Execute one CONTROL verb. Returns local feedback; the wire ack is consumption-only. */
 export async function executeControlCommand(cmd: ControlCommand, host: ControlHost): Promise<string> {
 	switch (cmd.verb) {
 		case "abort":
@@ -59,8 +60,9 @@ export async function executeControlCommand(cmd: ControlCommand, host: ControlHo
 		case "set_thinking": {
 			const level = cmd.args?.thinking;
 			if (!level) return "set_thinking missing level";
-			host.setThinkingLevel(level);
-			return `thinking=${level}`;
+			if (typeof host.setThinkingLevel !== "function") throw new Error("setThinkingLevel is not available");
+			const effectiveLevel = host.setThinkingLevel(level);
+			return `thinking=${effectiveLevel}`;
 		}
 		case "set_model": {
 			const model = cmd.args?.model;

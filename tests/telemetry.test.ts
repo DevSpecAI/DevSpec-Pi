@@ -92,3 +92,27 @@ test("buildAgentStatsReport tolerates unknown model and null context", () => {
 	assert.equal(report.context, null);
 	assert.equal(report.thinkingLevel, null);
 });
+
+test("agent_stats carries a capability snapshot and omits unknown capabilities", () => {
+	const supportedThinkingLevels = ["off", "high", "max"];
+	const initial = refreshAgentStatsReport({
+		model: { provider: "custom", id: "alias" }, supportedThinkingLevels,
+	});
+	assert.deepEqual(initial.supportedThinkingLevels, ["off", "high", "max"]);
+	supportedThinkingLevels.push("xhigh");
+	assert.deepEqual(initial.supportedThinkingLevels, ["off", "high", "max"], "snapshot must not alias runtime input");
+
+	const changed = refreshAgentStatsReport({
+		previous: initial, model: { provider: "custom", id: "non-reasoning" },
+		supportedThinkingLevels: ["off"], thinkingLevel: "off",
+	});
+	assert.deepEqual(changed.supportedThinkingLevels, ["off"]);
+	assert.deepEqual(changed.model, { provider: "custom", id: "non-reasoning" });
+	assert.deepEqual(changed.turn, initial.turn);
+	assert.deepEqual(changed.session, initial.session);
+
+	const unknown = refreshAgentStatsReport({ previous: changed });
+	assert.equal(unknown.model, null);
+	assert.equal(Object.hasOwn(unknown, "supportedThinkingLevels"), false, "never retain prior-model capabilities");
+	assert.equal(Object.hasOwn(refreshAgentStatsReport({ model: initial.model }), "supportedThinkingLevels"), false);
+});

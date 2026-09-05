@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Instruction block: stop rationing sentences
+
+The always-on instruction test now fails on genuine bloat (a dumped verb map or a
+pasted contract), not on adding a needed sentence. The authority pointer and
+queued-write relay are full sentences again, and the memory / record_implementation
+wording that was trimmed to fit 2,200 characters on 0.3.0 is restored. Plugin 0.3.1.
+
 ### The served contract's authority section, and queued writes relayed
 
 DevSpec contract 4.4.0 adds `authority_contract` — who may change the project's record,

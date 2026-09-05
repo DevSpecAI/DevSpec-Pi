@@ -40,8 +40,14 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /missing claim never blocks edits, execution, tests, worktrees, delegation, or follow-through/i);
 	assert.match(text, /commit_provenance_contract/);
 	// Who may commit, and what a queued write means, is the served authority section — pointed at, never restated (item 06936ee9).
+	// The pointer is a full sentence plus the operational relay of a queued write (item 45588384); it does not name who may commit.
 	assert.match(text, /authority_contract/);
-	assert.match(text, /queued_for_review relay the proposal_id and reason/);
+	assert.match(text, /Who may commit a memory, artifact, rule or conflict ruling/);
+	assert.match(text, /queued_for_review carries a proposal_id and a reason/);
+	assert.match(text, /relay both/);
+	assert.match(text, /never report the change as done/i);
+	assert.match(text, /not a rule to remember here/);
+	assert.match(text, /recall-gates near-duplicates/);
 	assert.doesNotMatch(text, /interactive authority|maintainer-only|always queues/i);
 	assert.match(text, /server reconciliation/);
 	assert.doesNotMatch(text, /trusted subprocess|trusted child/i);
@@ -80,6 +86,25 @@ test("instructions do not dump search-first or the 76-verb map", () => {
 
 test("instructions stay compact (every line costs tokens per turn)", () => {
 	const text = buildDevspecInstructions();
-	assert.ok(text.length < 2200, `instructions bloated: ${text.length} chars`);
-	assert.ok(INSTRUCTIONS_VERSION >= 3);
+	// Every line here costs tokens on every turn, so keep a test. The budget exists
+	// to catch a dumped verb map or a pasted contract, not to ration a sentence.
+	// At Pi 0.3.0 the block was 2,192 chars; adding the authority pointer meant
+	// squeezing it to a fragment and trimming two unrelated lines to stay under
+	// 2,200 (item 45588384). Quality of instruction beats a few hundred characters;
+	// the block is tiny relative to any model context.
+	const COMPACT_CEILING_CHARS = 8_000;
+	assert.ok(
+		text.length < COMPACT_CEILING_CHARS,
+		`instructions bloated: ${text.length} chars (ceiling ${COMPACT_CEILING_CHARS})`,
+	);
+	const PER_BULLET_CEILING_CHARS = 1_200;
+	for (const line of text.split("\n")) {
+		const bullet = line.trim();
+		if (!bullet.startsWith("- ")) continue;
+		assert.ok(
+			bullet.length < PER_BULLET_CEILING_CHARS,
+			`instruction bullet is an essay (${bullet.length} chars, ceiling ${PER_BULLET_CEILING_CHARS}): ${bullet.slice(0, 80)}`,
+		);
+	}
+	assert.ok(INSTRUCTIONS_VERSION >= 13);
 });

@@ -11,8 +11,10 @@
  *   - "pump"  — poll / heartbeat / trail / bond. Must not wait on a model verb.
  *   - "work"  — native tools and recall. A hang or parse error dies here.
  *
- * The server is stateless, so there is no session to manage; on failure we
- * drop that lane and reconnect lazily on the next call.
+ * The server is stateless, so there is no session to manage. Transport
+ * failure retires that lane's client and reconnects lazily; MCP `isError`
+ * application results do not, because close() aborts every in-flight sibling
+ * (item 8e1b3c05). In-flight waiters keep a retired client alive until drain.
  */
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -34,6 +36,9 @@ export class DevspecAuthError extends Error {}
 
 /** Anything else: network, server 5xx, MCP protocol errors. */
 export class DevspecApiError extends Error {}
+
+/** MCP tool result with `isError: true` — a verb refusal, not a dead socket. */
+export class DevspecToolError extends DevspecApiError {}
 
 /** The per-token request budget is exhausted; carries the server's retry hint. */
 export class DevspecRateLimitError extends DevspecApiError {
@@ -69,56 +74,124 @@ async function waitOutCooldown(): Promise<void> {
 	if (wait > 0) await new Promise((r) => setTimeout(r, Math.min(wait, MAX_COOLDOWN_WAIT_MS)));
 }
 
+/** Minimal MCP client surface the lane cache holds. Real SDK Client satisfies this. */
+export type LaneClient = {
+	callTool: (
+		request: { name: string; arguments?: Record<string, unknown> },
+		schema?: unknown,
+		options?: { timeout?: number },
+	) => Promise<unknown>;
+	readResource: (request: { uri: string }, options?: { timeout?: number }) => Promise<unknown>;
+	close: () => Promise<void>;
+};
+
+export type LaneClientFactory = (args: {
+	token: string;
+	lane: ClientLane;
+	url: string;
+	connectionCapability?: string;
+}) => Promise<LaneClient>;
+
 interface CacheEntry {
 	token: string;
 	url: string;
 	/** Hidden connection capability bound into this transport's request headers. */
 	connectionCapability?: string;
-	client: Client;
+	client: LaneClient;
+	inFlight: number;
+	retired: boolean;
+}
+
+interface LaneSlot {
+	entry: CacheEntry | null;
+	connecting: Promise<CacheEntry> | null;
 }
 
 interface LaneCache {
-	pump: CacheEntry | null;
-	work: CacheEntry | null;
+	pump: LaneSlot;
+	work: LaneSlot;
 }
 
 // Cross-extension-file singleton: pi isolates each extension file's module
 // graph, so the cache lives on globalThis (one MCP client per lane).
-const GLOBAL_KEY = "__devspecPiClientCacheByLane";
+// V2: inFlight/retired slots. Do not reuse the V1 `{ pump: CacheEntry | null }` shape.
+const GLOBAL_KEY = "__devspecPiClientCacheByLaneV2";
+const FACTORY_KEY = "__devspecPiLaneClientFactory";
+
+function emptySlot(): LaneSlot {
+	return { entry: null, connecting: null };
+}
 
 function cacheStore(): LaneCache {
 	const g = globalThis as unknown as Record<string, LaneCache | undefined>;
-	if (!g[GLOBAL_KEY]) g[GLOBAL_KEY] = { pump: null, work: null };
+	if (!g[GLOBAL_KEY]) g[GLOBAL_KEY] = { pump: emptySlot(), work: emptySlot() };
 	return g[GLOBAL_KEY] as LaneCache;
+}
+
+function laneClientFactory(): LaneClientFactory | null {
+	const g = globalThis as unknown as Record<string, LaneClientFactory | null | undefined>;
+	return g[FACTORY_KEY] ?? null;
+}
+
+/** Test-only: replace Streamable HTTP connect. `null` restores the real transport. */
+export function setLaneClientFactoryForTests(factory: LaneClientFactory | null): void {
+	const g = globalThis as unknown as Record<string, LaneClientFactory | null | undefined>;
+	g[FACTORY_KEY] = factory;
 }
 
 function closeEntry(entry: CacheEntry | null): void {
 	if (entry) void entry.client.close().catch(() => {});
 }
 
-/** Drop a lane (or both). Logout / token change clears both. */
+function reusable(
+	entry: CacheEntry | null,
+	token: string,
+	url: string,
+	connectionCapability?: string,
+): entry is CacheEntry {
+	return !!entry && !entry.retired && entry.token === token && entry.url === url &&
+		entry.connectionCapability === connectionCapability;
+}
+
+function retireEntry(lane: ClientLane, entry: CacheEntry): void {
+	entry.retired = true;
+	const slot = cacheStore()[lane];
+	if (slot.entry === entry) slot.entry = null;
+	if (entry.inFlight <= 0) closeEntry(entry);
+}
+
+function releaseClient(entry: CacheEntry): void {
+	entry.inFlight = Math.max(0, entry.inFlight - 1);
+	if (entry.retired && entry.inFlight === 0) closeEntry(entry);
+}
+
+function forceCloseSlot(slot: LaneSlot): void {
+	if (slot.entry) {
+		closeEntry(slot.entry);
+		slot.entry = null;
+	}
+	slot.connecting = null;
+}
+
+/** Drop a lane (or both). Logout / token change force-closes; in-flight RPCs abort. */
 export function resetClientCache(lane?: ClientLane): void {
 	const store = cacheStore();
 	if (!lane) {
-		closeEntry(store.pump);
-		closeEntry(store.work);
-		store.pump = null;
-		store.work = null;
+		forceCloseSlot(store.pump);
+		forceCloseSlot(store.work);
 		return;
 	}
-	closeEntry(store[lane]);
-	store[lane] = null;
+	forceCloseSlot(store[lane]);
 }
 
-async function connect(token: string, lane: ClientLane, connectionCapability?: string): Promise<Client> {
-	const url = await resolveEndpoint();
-	const store = cacheStore();
-	const cached = store[lane];
-	if (cached && cached.token === token && cached.url === url && cached.connectionCapability === connectionCapability) {
-		return cached.client;
-	}
-
-	resetClientCache(lane);
+async function openClient(
+	token: string,
+	lane: ClientLane,
+	url: string,
+	connectionCapability?: string,
+): Promise<LaneClient> {
+	const factory = laneClientFactory();
+	if (factory) return factory({ token, lane, url, connectionCapability });
 	const transport = new StreamableHTTPClientTransport(new URL(url), {
 		requestInit: {
 			headers: {
@@ -129,8 +202,49 @@ async function connect(token: string, lane: ClientLane, connectionCapability?: s
 	});
 	const client = new Client({ name: CLIENT_NAME, version: CLIENT_VERSION }, { capabilities: {} });
 	await client.connect(transport);
-	store[lane] = { token, url, ...(connectionCapability ? { connectionCapability } : {}), client };
-	return client;
+	return client as unknown as LaneClient;
+}
+
+async function acquireClient(token: string, lane: ClientLane, connectionCapability?: string): Promise<CacheEntry> {
+	const url = laneClientFactory() ? "https://devspec.test/api/mcp" : await resolveEndpoint();
+	const slot = cacheStore()[lane];
+	for (;;) {
+		if (reusable(slot.entry, token, url, connectionCapability)) {
+			slot.entry.inFlight += 1;
+			return slot.entry;
+		}
+		if (slot.connecting) {
+			try {
+				await slot.connecting;
+			} catch {
+				/* connect failed; loop and try again */
+			}
+			continue;
+		}
+		const previous = slot.entry;
+		const connecting = (async () => {
+			if (previous) retireEntry(lane, previous);
+			const client = await openClient(token, lane, url, connectionCapability);
+			const entry: CacheEntry = {
+				token,
+				url,
+				...(connectionCapability ? { connectionCapability } : {}),
+				client,
+				inFlight: 0,
+				retired: false,
+			};
+			slot.entry = entry;
+			return entry;
+		})();
+		slot.connecting = connecting;
+		try {
+			const entry = await connecting;
+			entry.inFlight += 1;
+			return entry;
+		} finally {
+			if (slot.connecting === connecting) slot.connecting = null;
+		}
+	}
 }
 
 /**
@@ -139,6 +253,10 @@ async function connect(token: string, lane: ClientLane, connectionCapability?: s
  * the SDK surfaces that body text without the status code.
  */
 export function mapClientError(err: unknown): Error {
+	if (err instanceof DevspecAuthError || err instanceof DevspecToolError || err instanceof DevspecRateLimitError) {
+		return err;
+	}
+	if (err instanceof DevspecApiError) return err;
 	const message = err instanceof Error ? err.message : String(err);
 	if (/401|unauthori[sz]ed|invalid_token|invalid (or revoked )?(api )?token|invalid authorization/i.test(message)) {
 		return new DevspecAuthError("DevSpec rejected the token (invalid or revoked). Run /devspec.login.");
@@ -151,11 +269,18 @@ export function mapClientError(err: unknown): Error {
 
 /** Transport / parse / timeout — recoverable. Never a human End. */
 export function isRecoverableTransportError(err: unknown): boolean {
-	if (err instanceof DevspecAuthError) return false;
+	if (err instanceof DevspecAuthError || err instanceof DevspecToolError) return false;
 	const message = err instanceof Error ? err.message : String(err);
-	return /parse|streamable|timed? ?out|ETIMEDOUT|fetch failed|ECONNREFUSED|ENOTFOUND|ECONNRESET|socket|certificate|network|abort|Cannot reach DevSpec/i.test(
+	return /parse|streamable|timed? ?out|ETIMEDOUT|fetch failed|ECONNREFUSED|ENOTFOUND|ECONNRESET|socket|certificate|network|abort|Cannot reach DevSpec|Connection closed|-32000/i.test(
 		message,
 	);
+}
+
+function mcpToolErrorText(raw: unknown, name: string): string | null {
+	const r = raw as { isError?: boolean; content?: Array<{ type?: string; text?: string }> } | null;
+	if (!r?.isError) return null;
+	const text = (r.content ?? []).filter((c) => c?.type === "text").map((c) => c.text).join(" ");
+	return text || `DevSpec tool ${name} failed.`;
 }
 
 /**
@@ -205,11 +330,33 @@ export async function withHardTimeout<T>(promise: Promise<T>, timeoutMs: number,
 	}
 }
 
+async function invokeOnLane<T>(
+	token: string,
+	lane: ClientLane,
+	connectionCapability: string | undefined,
+	timeoutMs: number,
+	label: string,
+	run: (client: LaneClient) => Promise<T>,
+): Promise<T> {
+	await waitOutCooldown();
+	const entry = await acquireClient(token, lane, connectionCapability);
+	try {
+		return await withHardTimeout(run(entry.client), timeoutMs, label);
+	} catch (err) {
+		const mapped = mapClientError(err);
+		if (isRecoverableTransportError(mapped)) retireEntry(lane, entry);
+		throw mapped;
+	} finally {
+		releaseClient(entry);
+	}
+}
+
 /**
- * Call a DevSpec MCP tool. Throws DevspecAuthError / DevspecApiError.
+ * Call a DevSpec MCP tool. Throws DevspecAuthError / DevspecApiError / DevspecToolError.
  * One transparent reconnect-retry on transport failure (the cached client may
- * hold a dead socket after sleep/network change). A work-lane failure never
- * drops the pump client.
+ * hold a dead socket after sleep/network change). MCP `isError` is a verb
+ * refusal: one request, no close, no retry. A work-lane failure never drops
+ * the pump client; retiring a lane never close()s while siblings are in flight.
  */
 export async function callDevspec(
 	token: string,
@@ -225,21 +372,20 @@ export async function callDevspec(
 	let lastError: unknown = null;
 	for (let attempt = 0; attempt < 2; attempt++) {
 		try {
-			const raw = await withHardTimeout((async () => {
-				await waitOutCooldown();
-				const client = await connect(token, lane, options.connectionCapability);
-				return client.callTool({ name, arguments: callArgs }, undefined, { timeout: timeoutMs });
-			})(), timeoutMs, name);
-			// MCP-level errors arrive as results, not throws — surface them the
-			// same way so the scoping retry below can see them too.
-			const r = raw as { isError?: boolean; content?: Array<{ type?: string; text?: string }> };
-			if (r?.isError) {
-				const text = (r.content ?? []).filter((c) => c?.type === "text").map((c) => c.text).join(" ");
-				throw new DevspecApiError(text || `DevSpec tool ${name} failed.`);
-			}
+			const raw = await invokeOnLane(
+				token,
+				lane,
+				options.connectionCapability,
+				timeoutMs,
+				name,
+				(client) => client.callTool({ name, arguments: callArgs }, undefined, { timeout: timeoutMs }),
+			);
+			const toolError = mcpToolErrorText(raw, name);
+			if (toolError) throw new DevspecToolError(toolError);
 			return raw;
 		} catch (err) {
 			const mapped = mapClientError(err);
+			if (mapped instanceof DevspecToolError) throw mapped;
 			// Rate limit: honor the server's hint, cool the whole process down,
 			// and retry ONCE after waiting — never hammer the window.
 			const retryMs = parseRateLimitRetryMs(mapped.message);
@@ -282,10 +428,12 @@ export async function callDevspec(
 					continue;
 				}
 			}
-			lastError = err;
-			resetClientCache(lane);
-			// Auth errors are terminal — retrying cannot help.
-			if (mapped instanceof DevspecAuthError) break;
+			lastError = mapped;
+			if (mapped instanceof DevspecAuthError) {
+				resetClientCache(lane);
+				break;
+			}
+			if (!isRecoverableTransportError(mapped)) throw mapped;
 		}
 	}
 	throw mapClientError(lastError);
@@ -351,12 +499,13 @@ export async function readDevspecResource(
 	let rateLimitRetries = 0;
 	for (let attempt = 0; attempt < 2; attempt++) {
 		try {
-			await waitOutCooldown();
-			const client = await connect(token, lane);
-			return await withHardTimeout(
-				client.readResource({ uri }, { timeout: timeoutMs }),
+			return await invokeOnLane(
+				token,
+				lane,
+				undefined,
 				timeoutMs,
 				`resource ${uri}`,
+				(client) => client.readResource({ uri }, { timeout: timeoutMs }),
 			);
 		} catch (error) {
 			const mapped = mapClientError(error);
@@ -369,9 +518,12 @@ export async function readDevspecResource(
 				attempt--;
 				continue;
 			}
-			lastError = error;
-			resetClientCache(lane);
-			if (mapped instanceof DevspecAuthError) break;
+			lastError = mapped;
+			if (mapped instanceof DevspecAuthError) {
+				resetClientCache(lane);
+				break;
+			}
+			if (!isRecoverableTransportError(mapped)) throw mapped;
 		}
 	}
 	throw mapClientError(lastError);

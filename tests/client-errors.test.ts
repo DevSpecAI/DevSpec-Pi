@@ -51,6 +51,12 @@ test("Streamable HTTP parse / timeout hangs are recoverable, not a human End", (
 	assert.equal(shouldEndBondOnPollFailure(timeout), false);
 });
 
+test("Connection closed / -32000 is recoverable transport, not a human End", () => {
+	const closed = new Error("MCP error -32000: Connection closed");
+	assert.equal(isRecoverableTransportError(closed), true);
+	assert.equal(shouldEndBondOnPollFailure(closed), false);
+});
+
 test("only a rejected token ends the bond from the client", () => {
 	const auth = new DevspecAuthError("DevSpec rejected the token (invalid or revoked). Run /devspec.login.");
 	assert.equal(shouldEndBondOnPollFailure(auth), true);

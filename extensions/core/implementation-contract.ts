@@ -108,6 +108,46 @@ export interface CommitProvenanceContract {
 	independent_controls: string;
 }
 
+/**
+ * Who may change the project's record (DevSpec item ff803a1a). Served beside the
+ * work-entry and commit-provenance sections from contract 4.4.0; Pi shows it to the
+ * model and relays its proposal outcome, and never restates it in its own prose.
+ */
+export type AuthorityWriteClass = "talk" | "add" | "overrule";
+export type AuthorityWriteOutcome = "commit" | "propose" | "deny";
+
+export interface AuthorityContract {
+	schema_version: 1;
+	decision: string;
+	roles: Array<{ role: string; label: string; meaning: string }>;
+	role_source_rule: string;
+	classes: Array<{
+		class: AuthorityWriteClass;
+		meaning: string;
+		outcomes: Record<"guest" | "contributor" | "maintainer" | "unattended", AuthorityWriteOutcome>;
+	}>;
+	ownership_rule: string;
+	requester_rule: string;
+	unattended_rule: string;
+	proposal_outcome: {
+		token: "queued_for_review";
+		requirement: string;
+		because: string[];
+		ledgers: Record<string, string>;
+	};
+	contested_rule: string;
+	preview_rule: string;
+	verbs: Array<{
+		id: string;
+		class: AuthorityWriteClass;
+		scope: string;
+		unattended: string;
+		ledger: string;
+		overrule_when?: string;
+		description: string;
+	}>;
+}
+
 export interface ImplementationContractContext {
 	contractVersion: string;
 	contractHash?: string;
@@ -116,6 +156,7 @@ export interface ImplementationContractContext {
 	rules: ImplementationRule[];
 	workEntryContract?: WorkEntryContract;
 	commitProvenanceContract?: CommitProvenanceContract;
+	authorityContract?: AuthorityContract;
 	warning?: string;
 }
 
@@ -133,9 +174,10 @@ interface ContractCache {
 	latestByResource: Map<string, CachedContract>;
 }
 
-// v7 adds the canonical work-entry v2 tracking/plan boundary. Older parser
-// caches cannot authorize it because they did not validate or carry those axes.
-const CACHE_KEY = Symbol.for("devspec.pi.implementation-contract.v7");
+// v7 added the canonical work-entry v2 tracking/plan boundary; v8 adds the
+// authority_contract section (contract 4.4.0). Older parser caches cannot
+// authorize either because they did not validate or carry those sections.
+const CACHE_KEY = Symbol.for("devspec.pi.implementation-contract.v8");
 
 function cache(): ContractCache {
 	const root = globalThis as typeof globalThis & { [CACHE_KEY]?: ContractCache };
@@ -375,6 +417,52 @@ function parseCommitProvenanceContract(value: unknown): CommitProvenanceContract
 	return section as unknown as CommitProvenanceContract;
 }
 
+const AUTHORITY_CLASSES: readonly AuthorityWriteClass[] = ["talk", "add", "overrule"];
+const AUTHORITY_OUTCOMES = new Set<string>(["commit", "propose", "deny"]);
+const AUTHORITY_OUTCOME_KEYS = ["guest", "contributor", "maintainer", "unattended"] as const;
+
+function parseAuthorityContract(value: unknown): AuthorityContract | null {
+	const section = asRecord(value);
+	if (!section || !hasExactKeys(section, [
+		"schema_version", "decision", "roles", "role_source_rule", "classes", "ownership_rule",
+		"requester_rule", "unattended_rule", "proposal_outcome", "contested_rule", "preview_rule", "verbs",
+	]) || section.schema_version !== 1) return null;
+	for (const key of ["decision", "role_source_rule", "ownership_rule", "requester_rule", "unattended_rule", "contested_rule", "preview_rule"]) {
+		if (!exactContractString(section[key])) return null;
+	}
+	if (!Array.isArray(section.roles) || section.roles.length === 0) return null;
+	for (const candidate of section.roles) {
+		const row = asRecord(candidate);
+		if (!row || !hasExactKeys(row, ["role", "label", "meaning"])) return null;
+		if (!exactContractString(row.role) || !exactContractString(row.label) || !exactContractString(row.meaning)) return null;
+	}
+	if (!Array.isArray(section.classes) || section.classes.length !== AUTHORITY_CLASSES.length) return null;
+	for (const [index, candidate] of section.classes.entries()) {
+		const row = asRecord(candidate);
+		if (!row || !hasExactKeys(row, ["class", "meaning", "outcomes"]) || row.class !== AUTHORITY_CLASSES[index]) return null;
+		if (!exactContractString(row.meaning)) return null;
+		const outcomes = asRecord(row.outcomes);
+		if (!outcomes || !hasExactKeys(outcomes, AUTHORITY_OUTCOME_KEYS)) return null;
+		for (const key of AUTHORITY_OUTCOME_KEYS) {
+			if (typeof outcomes[key] !== "string" || !AUTHORITY_OUTCOMES.has(outcomes[key] as string)) return null;
+		}
+	}
+	const proposal = asRecord(section.proposal_outcome);
+	if (
+		!proposal || !hasExactKeys(proposal, ["token", "requirement", "because", "ledgers"]) ||
+		proposal.token !== "queued_for_review" || !exactContractString(proposal.requirement) ||
+		!Array.isArray(proposal.because) || proposal.because.length === 0 ||
+		!proposal.because.every((entry) => exactContractString(entry)) ||
+		!asRecord(proposal.ledgers)
+	) return null;
+	if (!Array.isArray(section.verbs) || section.verbs.length === 0) return null;
+	for (const candidate of section.verbs) {
+		const row = asRecord(candidate);
+		if (!row || !exactContractString(row.id) || !exactContractString(row.class) || !AUTHORITY_CLASSES.includes(row.class as AuthorityWriteClass)) return null;
+	}
+	return section as unknown as AuthorityContract;
+}
+
 function parseJsonText(value: unknown, expectedResourceUri: string): unknown {
 	const root = asRecord(value);
 	if (!root || !Array.isArray(root.contents)) return value;
@@ -396,7 +484,7 @@ function parseContractBundle(root: Record<string, unknown>, resourceUri: string)
 	if (!contractVersion || !CONTRACT_VERSION_PATTERN.test(contractVersion)) return null;
 	const expectedKeys = [
 		"kind", "schema_version", "contract_version", "contract_hash", "source", "instruction_boundary",
-		"core_implementation_contract", "work_entry_contract", "commit_provenance_contract",
+		"core_implementation_contract", "work_entry_contract", "commit_provenance_contract", "authority_contract",
 	];
 	if (
 		!hasExactKeys(root, expectedKeys) ||
@@ -409,9 +497,10 @@ function parseContractBundle(root: Record<string, unknown>, resourceUri: string)
 	const rules = parseRules(root.core_implementation_contract);
 	const workEntryContract = parseWorkEntryContract(root.work_entry_contract);
 	const commitProvenanceContract = parseCommitProvenanceContract(root.commit_provenance_contract);
+	const authorityContract = parseAuthorityContract(root.authority_contract);
 	if (
 		!contractHash || !CONTRACT_HASH_PATTERN.test(contractHash) || !rules ||
-		!workEntryContract || !commitProvenanceContract
+		!workEntryContract || !commitProvenanceContract || !authorityContract
 	) return null;
 	// Hash exactly what was served. Validation above guarantees the shape and
 	// canonical strings; no trimming or reconstructed value may authenticate a
@@ -425,6 +514,7 @@ function parseContractBundle(root: Record<string, unknown>, resourceUri: string)
 		rules,
 		workEntryContract,
 		commitProvenanceContract,
+		authorityContract,
 	};
 }
 
@@ -662,9 +752,28 @@ export function formatImplementationContext(context: ImplementationContractConte
 			"Canonical work entry contract (the only action-item/session-plan boundary):",
 			JSON.stringify(context.workEntryContract),
 		] : []),
+		...(context.authorityContract ? formatAuthorityContract(context.authorityContract) : []),
 		"Rules:",
 		...context.rules.map((rule) => `- [${rule.id}] ${rule.requirement}`),
 	].join("\n");
+}
+
+/**
+ * The authority section as the model reads it: the classes with the outcomes the
+ * server actually returns, the requester and contested rules, and what a queued
+ * proposal means. Verbs and role meanings stay in the served document — the model
+ * reads the outcome of each call; it never has to predict one.
+ */
+export function formatAuthorityContract(authority: AuthorityContract): string[] {
+	return [
+		"Write authority (authority_contract — who may change the project's record is decided per call by the server from the verb, the person's project role and whether the run is unattended; read every write's outcome, never predict it):",
+		...authority.classes.map((cls) =>
+			`- ${cls.class}: ${cls.meaning} Outcomes — guest ${cls.outcomes.guest}, contributor ${cls.outcomes.contributor}, maintainer ${cls.outcomes.maintainer}, unattended ${cls.outcomes.unattended}.`,
+		),
+		`- Requester rule: ${authority.requester_rule}`,
+		`- ${authority.proposal_outcome.token}: ${authority.proposal_outcome.requirement}`,
+		`- Contested rulings: ${authority.contested_rule}`,
+	];
 }
 
 export function resetImplementationContractCache(): void {

@@ -305,6 +305,67 @@ test("work-entry v2 tracking axes, plan threshold, and lifecycle fail exact pars
 	}
 });
 
+test("a section this Pi does not implement is carried as a notice, not a rejection (689d44cb)", async () => {
+	// Adding a section to the served contract used to invalidate the whole document
+	// and drop Pi to five generic local rules — twice. The document still has to
+	// carry every section Pi verifies, exactly, and the served hash still has to
+	// cover the part Pi cannot read.
+	resetImplementationContractCache();
+	const input = { ...bundle() } as Record<string, unknown>;
+	delete input.contract_hash;
+	input.future_section = { schema_version: 1, note: "a section from a newer DevSpec" };
+	const future = { ...input, contract_hash: hashContractValue(input) };
+	const context = await loadImplementationContext({
+		reference: REFERENCE,
+		loader: loader({ resource: resource(future), compatibilityError: new Error("must not be needed") }),
+	});
+	assert.equal(context.source, "resource");
+	assert.equal(context.rules.length, coreSection().rules.length);
+	assert.ok(context.workEntryContract);
+	assert.ok(context.commitProvenanceContract);
+	assert.ok(context.authorityContract);
+	assert.deepEqual(context.unknownSections, ["future_section"]);
+	assert.match(context.warning ?? "", /future_section/);
+	assert.match(context.warning ?? "", /Update the DevSpec Pi plugin/);
+	assert.match(formatImplementationContext(context), /future_section/);
+});
+
+test("an unknown section outside the served hash is still refused", async () => {
+	resetImplementationContractCache();
+	const tampered = { ...bundle(), future_section: { injected: true } };
+	const context = await loadImplementationContext({
+		reference: REFERENCE,
+		loader: loader({ resource: resource(tampered), compatibilityError: new Error("unavailable") }),
+	});
+	assert.equal(context.source, "local_safety_fallback");
+});
+
+test("a served document Pi cannot verify says so, and an absent one says it is unavailable", async () => {
+	resetImplementationContractCache();
+	const malformed = JSON.parse(JSON.stringify(bundle())) as Record<string, unknown>;
+	((malformed.authority_contract as Record<string, unknown>).proposal_outcome as Record<string, unknown>).token = "pending";
+	delete malformed.contract_hash;
+	const rejected = await loadImplementationContext({
+		reference: REFERENCE,
+		loader: loader({
+			resource: resource({ ...malformed, contract_hash: hashContractValue(malformed) }),
+			compatibilityError: new Error("unavailable"),
+		}),
+	});
+	assert.equal(rejected.source, "local_safety_fallback");
+	assert.match(rejected.warning ?? "", /could not verify/);
+	assert.doesNotMatch(rejected.warning ?? "", /contract unavailable/);
+
+	resetImplementationContractCache();
+	const offline = await loadImplementationContext({
+		reference: REFERENCE,
+		loader: loader({ resourceError: new Error("offline"), compatibilityError: new Error("offline") }),
+	});
+	assert.equal(offline.source, "local_safety_fallback");
+	assert.match(offline.warning ?? "", /contract unavailable/);
+	assert.doesNotMatch(offline.warning ?? "", /could not verify/);
+});
+
 test("offline fallback is fail-open and still builds the immutable work kickoff", async () => {
 	resetImplementationContractCache();
 	const context = await loadImplementationContext({
@@ -385,6 +446,11 @@ test("the authority section is required, exactly shaped, and carried to the mode
 	const text = formatImplementationContext(context);
 	assert.match(text, /Write authority \(authority_contract/);
 	assert.match(text, /overrule: .* guest deny, contributor propose, maintainer commit, unattended propose/);
+	// The class table alone says an `add` commits unattended; the served unattended
+	// rule is what makes memory.record a proposal. Both must reach the model, or the
+	// summary misstates the write an agent makes most (item 689d44cb).
+	assert.match(text, /Ownership rule: A verb may be an overrule only against someone else's row\./);
+	assert.match(text, /Unattended rule: An unattended run proposes every overrule/);
 	assert.match(text, /Requester rule: A delegated command is judged by the REQUESTER/);
 	assert.match(text, /queued_for_review: A propose outcome/);
 	assert.match(text, /Contested rulings:/);

@@ -498,6 +498,39 @@ test("realistic domain wrappers preserve safe lifecycle outcomes and markdown-sa
 	assert.match(serialized, /55555555-6666-7777-8888-999999999999/);
 });
 
+test("a queued write is not reported in the trail as one that landed (689d44cb)", () => {
+	// The served contested_rule ends "Never describe a contested pair as resolved",
+	// and the same holds for a memory nobody has accepted yet.
+	const t = new TrailBuilder();
+	t.toolStart("tool-1", "record_memory", { title: "Two-pool billing" });
+	t.toolEnd("tool-1", "record_memory", true, {
+		content: [{ type: "text", text: JSON.stringify({
+			recorded: false,
+			outcome: "queued_for_review",
+			proposal_id: "prop-9",
+			title: "Two-pool billing",
+		}) }],
+	});
+	t.toolStart("tool-2", "resolve_action_item_conflict", { action_item_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" });
+	t.toolEnd("tool-2", "resolve_action_item_conflict", true, {
+		content: [{ type: "text", text: JSON.stringify({
+			committed: false,
+			outcome: "queued_for_review",
+			proposal_id: "prop-10",
+			contested: true,
+		}) }],
+	});
+	t.toolStart("tool-3", "record_memory", { title: "Committed one" });
+	t.toolEnd("tool-3", "record_memory", true, {
+		content: [{ type: "text", text: JSON.stringify({ outcome: "committed", id: "11111111-2222-3333-4444-555555555555" }) }],
+	});
+
+	const actions = t.events()
+		.filter((event): event is Extract<typeof event, { kind: "domain" }> => event.kind === "domain")
+		.map((event) => event.action);
+	assert.deepEqual(actions, ["proposed", "contested", "recorded"]);
+});
+
 test("TrailBuilder.events emits stable seqs and classifies domain tools", () => {
 	assert.deepEqual(classifyDomainTool("create_action_item"), {
 		domain: "action_item",

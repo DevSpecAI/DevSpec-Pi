@@ -157,6 +157,11 @@ export interface ImplementationContractContext {
 	workEntryContract?: WorkEntryContract;
 	commitProvenanceContract?: CommitProvenanceContract;
 	authorityContract?: AuthorityContract;
+	/**
+	 * Top-level sections this Pi does not implement, present in the document it
+	 * verified. Not an error — see `parseContractBundle`.
+	 */
+	unknownSections?: string[];
 	warning?: string;
 }
 
@@ -174,10 +179,12 @@ interface ContractCache {
 	latestByResource: Map<string, CachedContract>;
 }
 
-// v7 added the canonical work-entry v2 tracking/plan boundary; v8 adds the
-// authority_contract section (contract 4.4.0). Older parser caches cannot
-// authorize either because they did not validate or carry those sections.
-const CACHE_KEY = Symbol.for("devspec.pi.implementation-contract.v8");
+// v7 added the canonical work-entry v2 tracking/plan boundary; v8 added the
+// authority_contract section (contract 4.4.0); v9 records unknown top-level
+// sections instead of rejecting the document for carrying one. Older parser
+// caches cannot authorize: they either did not validate those sections, or
+// carry no record of a section this generation would have warned about.
+const CACHE_KEY = Symbol.for("devspec.pi.implementation-contract.v9");
 
 function cache(): ContractCache {
 	const root = globalThis as typeof globalThis & { [CACHE_KEY]?: ContractCache };
@@ -280,6 +287,16 @@ function hasExactKeys(value: Record<string, unknown>, expected: readonly string[
 	const actual = Object.keys(value).sort();
 	const wanted = [...expected].sort();
 	return actual.length === wanted.length && actual.every((key, index) => key === wanted[index]);
+}
+
+/** Keys the document must carry, in any order. */
+function missingKeys(value: Record<string, unknown>, expected: readonly string[]): string[] {
+	return expected.filter((key) => !Object.hasOwn(value, key));
+}
+
+/** Keys the document carries that this parser knows nothing about. */
+function extraKeys(value: Record<string, unknown>, expected: readonly string[]): string[] {
+	return Object.keys(value).filter((key) => !expected.includes(key)).sort();
 }
 
 function parseRules(value: unknown): ImplementationRule[] | null {
@@ -478,6 +495,17 @@ function parseJsonText(value: unknown, expectedResourceUri: string): unknown {
  * One parser for both delivery paths, because both now carry the same document.
  * `contract_hash` covers every other served field, so a bundle authenticates
  * itself: no second read, and no mode to reconcile.
+ *
+ * A section this Pi does not implement is NOT a reason to reject the document
+ * (DevSpec item 689d44cb). Every section named below still has to be present and
+ * exactly the shape this parser verifies, and the hash still has to cover the
+ * whole served document — including the part Pi cannot read, so nothing is
+ * accepted unverified. What changes is what happens when DevSpec adds a section:
+ * Pi keeps the sixteen rules plus work entry, provenance and authority it does
+ * understand, and says which section it did not, instead of throwing all of it
+ * away for five generic local ones. Failing closed on an ADDITION is not the
+ * safer choice — it is a silent, total loss of the contract, and it has happened
+ * twice (4.4.0 adding `authority_contract` was the second time).
  */
 function parseContractBundle(root: Record<string, unknown>, resourceUri: string): CachedContract | null {
 	const contractVersion = exactContractString(root.contract_version);
@@ -486,8 +514,9 @@ function parseContractBundle(root: Record<string, unknown>, resourceUri: string)
 		"kind", "schema_version", "contract_version", "contract_hash", "source", "instruction_boundary",
 		"core_implementation_contract", "work_entry_contract", "commit_provenance_contract", "authority_contract",
 	];
+	const unknownSections = extraKeys(root, expectedKeys);
 	if (
-		!hasExactKeys(root, expectedKeys) ||
+		missingKeys(root, expectedKeys).length > 0 ||
 		root.kind !== "devspec.product.implementation_contract" ||
 		root.schema_version !== 1 ||
 		!exactMetadata(root.source, PRODUCT_SOURCE) ||
@@ -515,6 +544,7 @@ function parseContractBundle(root: Record<string, unknown>, resourceUri: string)
 		workEntryContract,
 		commitProvenanceContract,
 		authorityContract,
+		...(unknownSections.length > 0 ? { unknownSections } : {}),
 	};
 }
 
@@ -587,6 +617,27 @@ function storeContract(scope: string, value: CachedContract): void {
 	current.latestByResource.set(latestIdentity(scope, value.resourceUri), value);
 }
 
+/**
+ * The notice an accepted contract carries. A section Pi does not implement is
+ * worth saying out loud — the model is reading a contract that has more in it
+ * than this plugin can show — but it never downgrades the sections Pi did read.
+ */
+function unknownSectionNotice(contract: CachedContract): string | undefined {
+	const unknown = contract.unknownSections ?? [];
+	if (unknown.length === 0) return undefined;
+	return `This DevSpec serves ${unknown.length === 1 ? "a contract section" : "contract sections"} this Pi does not understand (${unknown.join(", ")}); everything else in the contract is loaded and in force. Update the DevSpec Pi plugin to read ${unknown.length === 1 ? "it" : "them"}.`;
+}
+
+function acceptedContract(
+	contract: CachedContract,
+	source: "resource" | "compatibility" | "cache",
+	warning?: string,
+): ImplementationContractContext {
+	const notice = unknownSectionNotice(contract);
+	const combined = [warning, notice].filter(Boolean).join(" ");
+	return { ...contract, source, ...(combined ? { warning: combined } : {}) };
+}
+
 function cachedContract(
 	scope: string,
 	resourceUri: string,
@@ -596,7 +647,7 @@ function cachedContract(
 	const value = expectedVersion
 		? current.byIdentity.get(cacheIdentity(scope, resourceUri, expectedVersion))
 		: current.latestByResource.get(latestIdentity(scope, resourceUri));
-	return value ? { ...value, source: "cache" } : null;
+	return value ? acceptedContract(value, "cache") : null;
 }
 
 /**
@@ -627,16 +678,22 @@ export async function loadImplementationContext(input: {
 	}
 
 	const errors: string[] = [];
+	// A document that arrived and failed verification is a different situation from
+	// one that never arrived: the first needs a plugin update, the second needs the
+	// service back. Saying "unavailable" for both sends whoever reads it looking in
+	// the wrong place.
+	let served = false;
 	try {
 		const payload = await input.loader.readResource(resourceUri);
 		input.assertCurrent?.();
+		served = true;
 		const contract = contractFromResourcePayload(payload, resourceUri);
-		if (!contract) throw new Error("resource payload was not a valid implementation contract");
+		if (!contract) throw new Error("the served document did not match the contract shape this Pi verifies");
 		if (expectedVersion && contract.contractVersion !== expectedVersion) {
 			throw new Error(`resource version ${contract.contractVersion} did not match kickoff version ${expectedVersion}`);
 		}
 		storeContract(scope, contract);
-		return { ...contract, source: "resource" };
+		return acceptedContract(contract, "resource");
 	} catch (error) {
 		input.assertCurrent?.();
 		errors.push(error instanceof Error ? error.message : String(error));
@@ -645,13 +702,14 @@ export async function loadImplementationContext(input: {
 	try {
 		const payload = await input.loader.readCompatibilityBundle();
 		input.assertCurrent?.();
+		served = true;
 		const contract = contractFromCompatibilityPayload(payload, resourceUri);
-		if (!contract) throw new Error("compatibility payload was not a valid implementation contract");
+		if (!contract) throw new Error("the compatibility payload did not match the contract shape this Pi verifies");
 		if (expectedVersion && contract.contractVersion !== expectedVersion) {
 			throw new Error(`compatibility version ${contract.contractVersion} did not match kickoff version ${expectedVersion}`);
 		}
 		storeContract(scope, contract);
-		return { ...contract, source: "compatibility" };
+		return acceptedContract(contract, "compatibility");
 	} catch (error) {
 		input.assertCurrent?.();
 		errors.push(error instanceof Error ? error.message : String(error));
@@ -664,12 +722,17 @@ export async function loadImplementationContext(input: {
 	if (retained) {
 		return {
 			...retained,
-			warning: `DevSpec contract refresh failed; using the retained ${retained.contractVersion} contract.`,
+			warning: [
+				`DevSpec contract refresh failed; using the retained ${retained.contractVersion} contract.`,
+				retained.warning,
+			].filter(Boolean).join(" "),
 		};
 	}
 	return localSafetyFallback(
 		resourceUri,
-		`DevSpec contract unavailable (${errors.join("; ") || "unknown error"}); the Pi safety fallback is active.`,
+		served
+			? `DevSpec served a contract this Pi could not verify (${errors.join("; ") || "unknown error"}); the Pi safety fallback is active. Update the DevSpec Pi plugin — this is a version mismatch, not an outage.`
+			: `DevSpec contract unavailable (${errors.join("; ") || "unknown error"}); the Pi safety fallback is active.`,
 	);
 }
 
@@ -746,7 +809,7 @@ export function formatImplementationContext(context: ImplementationContractConte
 		`source=${context.source}`,
 	].filter(Boolean).join(" · ");
 	return [
-		`${context.source === "local_safety_fallback" ? "Local fail-open fallback (the referenced product contract was unavailable)" : "Product implementation contract"} (${identity})`,
+		`${context.source === "local_safety_fallback" ? "Local fail-open fallback (the canonical product contract was not loaded; the notice below says why)" : "Product implementation contract"} (${identity})`,
 		...(context.warning ? [`Availability notice: ${context.warning}`] : []),
 		...(context.workEntryContract ? [
 			"Canonical work entry contract (the only action-item/session-plan boundary):",
@@ -760,9 +823,17 @@ export function formatImplementationContext(context: ImplementationContractConte
 
 /**
  * The authority section as the model reads it: the classes with the outcomes the
- * server actually returns, the requester and contested rules, and what a queued
+ * server actually returns, the rules that qualify those outcomes, and what a queued
  * proposal means. Verbs and role meanings stay in the served document — the model
  * reads the outcome of each call; it never has to predict one.
+ *
+ * The class table is printed with `ownership_rule` and `unattended_rule` beside it
+ * because on its own it is wrong about the two writes an agent makes most (DevSpec
+ * item 689d44cb): the table says an `add` commits unattended, while the served
+ * unattended rule records `memory.record` and `artifact.create` as proposals and
+ * refuses personal-scope writes; and the ownership rule is what makes closing your
+ * own item an add and closing a colleague's an overrule. Both are quoted from the
+ * served document, never paraphrased — this plugin does not own these sentences.
  */
 export function formatAuthorityContract(authority: AuthorityContract): string[] {
 	return [
@@ -770,6 +841,8 @@ export function formatAuthorityContract(authority: AuthorityContract): string[] 
 		...authority.classes.map((cls) =>
 			`- ${cls.class}: ${cls.meaning} Outcomes — guest ${cls.outcomes.guest}, contributor ${cls.outcomes.contributor}, maintainer ${cls.outcomes.maintainer}, unattended ${cls.outcomes.unattended}.`,
 		),
+		`- Ownership rule: ${authority.ownership_rule}`,
+		`- Unattended rule: ${authority.unattended_rule}`,
 		`- Requester rule: ${authority.requester_rule}`,
 		`- ${authority.proposal_outcome.token}: ${authority.proposal_outcome.requirement}`,
 		`- Contested rulings: ${authority.contested_rule}`,

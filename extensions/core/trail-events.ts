@@ -166,6 +166,34 @@ export function classifyDomainTool(name: string, _args?: unknown): DomainSpec | 
 	return DOMAIN_BY_NAME[name] ?? null;
 }
 
+/**
+ * The server's own word for what happened to a write, when it says one. A write
+ * the server queued rather than committed comes back `outcome: queued_for_review`
+ * (served authority_contract).
+ */
+export function writeOutcomeFromResult(result: unknown): string | undefined {
+	const row = unwrapResult(result);
+	return typeof row?.outcome === "string" && row.outcome.trim() ? row.outcome.trim() : undefined;
+}
+
+/** The word a queued write gets instead of the committed one, per domain. */
+const QUEUED_ACTION_BY_DOMAIN: Partial<Record<TrailDomain, string>> = {
+	// A queued pair ruling is contested, not resolved — the served contested_rule
+	// ends "Never describe a contested pair as resolved."
+	conflict: "contested",
+};
+
+/**
+ * What the trail says a write DID. `DOMAIN_BY_NAME` names the committed outcome,
+ * because that is the ordinary one; a write the server only queued did not resolve,
+ * record or supersede anything, and saying it did is the failure the proposals
+ * ledger exists to prevent (DevSpec item 689d44cb).
+ */
+export function domainAction(spec: DomainSpec, outcome?: string): string {
+	if (outcome !== "queued_for_review") return spec.action;
+	return QUEUED_ACTION_BY_DOMAIN[spec.domain] ?? "proposed";
+}
+
 export function domainIdentity(name: string, args?: unknown, result?: unknown): { id?: string; title?: string } {
 	const spec = DOMAIN_BY_NAME[name];
 	if (!spec) return {};

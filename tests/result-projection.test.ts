@@ -242,6 +242,78 @@ test("an off-page brief is contextual and never inflates the server's paginated 
 	assert.match(text, /Omitted 9 action-item result\(s\)/);
 });
 
+test("a pending proposal against a recalled record survives the card projection (38576d61)", () => {
+	// A proposal never touches its target, so the decided body a search returns looks
+	// exactly as it did. Dropping the annotation is how an agent recalls decided text
+	// and never learns a colleague has proposed replacing it.
+	const payload = {
+		memories: [
+			{
+				id: "mem-1",
+				title: "Two-pool metered billing",
+				type: "decision",
+				state: "decided",
+				summary: "Intelligence pays for background work; Assistant pays for what a person clicked.",
+				created_at: "2026-09-01T10:00:00Z",
+				pending_proposals: [
+					{
+						proposal_id: "prop-9",
+						kind: "memory_supersede",
+						what: "proposed replacement",
+						by: "Cee Ontributor (Contributor)",
+						because: "insufficient_role",
+						line: "\u26a0 proposed replacement by Cee Ontributor (Contributor), awaiting a maintainer (proposal prop-9)",
+					},
+				],
+			},
+			{ id: "mem-2", title: "Never pad a short SHA", type: "convention", state: "decided", created_at: "2026-08-01T10:00:00Z" },
+		],
+		count: 2,
+	};
+	const text = visible(projectedToolResult("search_memories", unwrapMcpResult(mcpJson(payload))));
+	assert.match(text, /proposed replacement by Cee Ontributor \(Contributor\), awaiting a maintainer \(proposal prop-9\)/);
+	// The decided record is still what the card shows.
+	assert.match(text, /\[mem-1\] Two-pool metered billing/);
+	// A record with nothing proposed against it gains no line.
+	assert.equal((text.match(/awaiting a maintainer/g) ?? []).length, 1);
+});
+
+test("pending proposals are bounded, and a row without a served line still names its proposal", () => {
+	const payload = {
+		memories: [
+			{
+				id: "mem-3",
+				title: "Three changes proposed against this one",
+				type: "decision",
+				state: "decided",
+				created_at: "2026-08-02T10:00:00Z",
+				pending_proposals: [
+					{ proposal_id: "p1", what: "proposed edit", by: "a contributor", line: "\u26a0 proposed edit by a contributor, awaiting a maintainer (proposal p1)" },
+					{ proposal_id: "p2", what: "proposed retraction", by: "an agent, working unattended", line: "\u26a0 proposed retraction by an agent, working unattended, awaiting a maintainer (proposal p2)" },
+					{ proposal_id: "p3", what: "proposed replacement", by: "a contributor" },
+				],
+			},
+			{
+				id: "mem-4",
+				title: "Server sent no rendered line",
+				type: "decision",
+				state: "decided",
+				created_at: "2026-08-03T10:00:00Z",
+				pending_proposals: [{ proposal_id: "p7", what: "proposed retraction", by: "a contributor (Contributor)" }],
+			},
+		],
+		count: 2,
+	};
+	const text = visible(projectedToolResult("search_memories", unwrapMcpResult(mcpJson(payload))));
+	assert.match(text, /proposal p1/);
+	assert.match(text, /proposal p2/);
+	// Third one is summarised rather than listed, and never silently dropped.
+	assert.doesNotMatch(text, /proposal p3/);
+	assert.match(text, /1 further proposed change\(s\) awaiting a maintainer/);
+	// Composed from the parts when the server sent no line.
+	assert.match(text, /proposed retraction by a contributor \(Contributor\), awaiting a maintainer \(proposal p7\)/);
+});
+
 test("action-item search renders bounded compact cards with an exact fetch path", () => {
 	const items = Array.from({ length: 20 }, (_, index) => ({
 		id: `item-${String(index + 1).padStart(2, "0")}`,

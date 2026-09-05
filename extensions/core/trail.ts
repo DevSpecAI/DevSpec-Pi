@@ -9,7 +9,9 @@
 
 import {
 	classifyDomainTool,
+	domainAction,
 	domainIdentity,
+	writeOutcomeFromResult,
 	type DomainTrailEvent,
 	type SubagentTrailChild,
 	type SubagentTrailEvent,
@@ -47,6 +49,8 @@ interface ToolLine {
 	open: boolean;
 	ok?: boolean;
 	resultSummary?: string;
+	/** The server's `outcome` for a write, when it reported one (queued vs committed). */
+	writeOutcome?: string;
 	subagentChildren?: SubagentTrailChild[];
 	subagentSummary?: string;
 	startedAt: number;
@@ -319,6 +323,7 @@ export class TrailBuilder {
 					title: resultIdentity.title ?? e.line.identity.title,
 				};
 				e.line.resultSummary = summarizeResult(name, result);
+				e.line.writeOutcome = writeOutcomeFromResult(result);
 				if (name === "subagent" || name === "subagent_wait") {
 					const children = subagentChildren(result);
 					// A terminal tool result owns the terminal child projection. Clear
@@ -387,7 +392,7 @@ export class TrailBuilder {
 						kind: "domain",
 						correlationId: e.line.toolCallId,
 						domain: domain.domain,
-						action: domain.action,
+						action: domainAction(domain, e.line.writeOutcome),
 						name: e.line.name,
 						status,
 						...timing,

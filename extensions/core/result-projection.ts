@@ -30,6 +30,7 @@ const CARD_LIMIT = 7;
 const CARD_BUDGET = 560;
 const RELATED_LIMIT = 3;
 const MANUAL_FOLLOWUP_LIMIT = 3;
+const PENDING_PROPOSAL_LIMIT = 2;
 const LINE_LIMIT = 240;
 // High on purpose: these are binding inputs, not repeated metadata. The cap is
 // only a pathological-payload guard and carries an exact recovery instruction.
@@ -329,6 +330,48 @@ function signalLabels(row: Row): string[] {
 	return [...new Set(labels)].slice(0, 4);
 }
 
+/**
+ * A change someone has PROPOSED against this record, awaiting a maintainer
+ * (DevSpec item 38576d61). The card still shows the decided record; these lines
+ * say a change is waiting on it, who proposed it and which proposal.
+ *
+ * The server writes each `line` for exactly this purpose, so Pi renders what it
+ * was sent rather than composing its own sentence about proposals — the wording
+ * of what a queued write means belongs to the served contract, not to a plugin.
+ * Only when a row arrives without a `line` does this compose one from the parts.
+ *
+ * These go in a card's REQUIRED blocks: an annotation that is dropped under
+ * budget pressure is the bug this fixes, not a smaller version of it.
+ */
+function pendingProposalLines(row: Row, outer: Row): string[] {
+	const source = Array.isArray(row.pending_proposals)
+		? row.pending_proposals
+		: Array.isArray(outer.pending_proposals)
+			? outer.pending_proposals
+			: [];
+	const lines: string[] = [];
+	for (const raw of source.slice(0, PENDING_PROPOSAL_LIMIT)) {
+		const entry = record(raw);
+		if (!entry) continue;
+		const served = oneLine(entry.line, LINE_LIMIT);
+		if (served) {
+			lines.push(served);
+			continue;
+		}
+		const what = oneLine(first(entry, ["what", "kind"]), 80) ?? "proposed change";
+		const by = oneLine(entry.by, 80);
+		const id = oneLine(entry.proposal_id, 90);
+		lines.push(
+			`\u26a0 ${what}${by ? ` by ${by}` : ""}, awaiting a maintainer${id ? ` (proposal ${id})` : ""}`,
+		);
+	}
+	const remaining = source.length - lines.length;
+	if (lines.length && remaining > 0) {
+		lines.push(`\u26a0 ${remaining} further proposed change(s) awaiting a maintainer.`);
+	}
+	return lines;
+}
+
 function card(raw: unknown, index: number): string {
 	const outer = record(raw) ?? { value: raw };
 	const row = nestedEntity(outer);
@@ -371,11 +414,13 @@ function card(raw: unknown, index: number): string {
 	const signals = [...new Set([...signalLabels(outer), ...signalLabels(row)])];
 	const required = [`${index + 1}. ${id ? `[${id}] ` : ""}${title}${metadata.length ? ` — ${metadata.join(" · ")}` : ""}`];
 	// A card exists to decide whether an exact read is worth paying for. Parent,
-	// chronology, and intent/matching passage are therefore selection inputs, not
-	// decorative fields that may disappear before optional repo/signal metadata.
+	// chronology, intent/matching passage and a pending proposal against the record
+	// are therefore selection inputs, not decorative fields that may disappear
+	// before optional repo/signal metadata.
 	if (parent) required.push(`   parent/brief: ${parent}`);
 	if (timeline.length) required.push(`   ${timeline.join(" · ")}`);
 	if (why) required.push(`   ${why}`);
+	for (const line of pendingProposalLines(row, outer)) required.push(`   ${line}`);
 	const optional: string[] = [];
 	const repos = Array.isArray(row.repos) ? row.repos : [];
 	if (repos.length) {

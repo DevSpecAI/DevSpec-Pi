@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+### A proposal against a memory now shows up when you search for it
+
+DevSpec lets a colleague propose a change to a decided memory or artifact without
+touching it, so what you recall is still the decided text. Searching for one used to
+show no sign that a change was waiting on it — only opening the exact record did.
+A search result now carries the same "⚠ … awaiting a maintainer" line the record
+itself carries, so a proposed change cannot be missed by looking it up.
+
+### A newer DevSpec no longer switches Pi back to its local rules
+
+Pi verifies the product contract it is served. When DevSpec added a new section to
+that contract, the whole document failed verification and Pi fell back to five
+generic local rules — losing the work-entry, provenance and authority rules it could
+read perfectly well. A section this version of Pi does not know about is now noted
+("update the plugin to read it") and everything else stays in force. The sections Pi
+does implement are still checked exactly, and the contract's own hash still has to
+cover the part it cannot read. A contract that fails verification now says so, rather
+than reporting DevSpec as unavailable.
+
+### The write-authority summary says what it means for an unattended run
+
+Pi shows the model the three write classes and their outcomes. It now shows the two
+rules that qualify them, in DevSpec's own words: that a run nobody is watching
+proposes its memories and artifacts rather than recording them, and that closing your
+own item is a different act from closing a colleague's.
+
+### The activity trail stops saying a queued write landed
+
+Recording a memory or ruling on a conflict shows as "recorded" or "resolved" in the
+trail. When the server queues the write for a maintainer instead of committing it,
+the trail now says "proposed" — and "contested" for a conflict ruling, which is what
+DevSpec calls a pair nobody has ruled on yet. Plugin 0.3.2.
+
 ### Instruction block: stop rationing sentences
 
 The always-on instruction test now fails on genuine bloat (a dumped verb map or a

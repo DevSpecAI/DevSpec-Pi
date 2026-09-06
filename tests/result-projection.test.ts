@@ -113,9 +113,24 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// collectionProjection reads only `summary.ui_buckets` / `lifecycle_breakdown`
 	// for its Counts line, numeric values only — so Pi does not surface the new
 	// landscape yet. That is a Pi projection decision, not a catalog one.
+	// Rebaselined 2026-09-06 for DevSpec item 39519046, which made an automation
+	// run's outcome correctable. Two optional inputs moved and nothing else:
+	// record_automation_run gained `force` and `reason`, the deliberate recorded
+	// way for one of your agents to correct a report another of them made (a
+	// connection id is minted fresh on every reconnect, so the reporting agent is
+	// not always still there). No new verbs, no projection family changed —
+	// record_automation_run is still `ack` — so budget and quality coverage are
+	// unaffected.
+	//
+	// The DESCRIPTIONS of claim_automation_run and record_automation_run also
+	// changed, and that half matters more to Pi than the schema does: the server
+	// now returns already_finished / already_yours / not_your_target where it used
+	// to call every refusal a lost race, and calling record again on a finished run
+	// corrects it rather than failing. Pi carries no restatement of either, which
+	// is why regenerating the catalog is the whole of Pi's change here.
 	assert.equal(
 		fingerprint,
-		"b9417ad7020716daf5945ef63a39104484591551676b3abffdaaee213aadad60",
+		"56b386529eb404f5b751a1a47ae0d5f526c203825586334e1f52c3fe1c5cbbde",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

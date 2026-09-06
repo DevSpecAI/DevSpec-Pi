@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 89c256d9cc2be0e23aaecfdb1e21e14dc93ff060f758b465dfbed46c33e4f9f9
- * Description fingerprint: a51d9aa8ca1f53e74cef2a5b64dc4f09c3f67db66aff3d91b0f0f433a7314d63
- * Regenerated: 2026-09-06T13:57:33.367Z
+ * Schema fingerprint: d960c048fa823aa0b83dc76032cdae6012a2ab47ff841fb8dfddec9aeb324416
+ * Description fingerprint: 179e9568d2625cfbffc8b7b88d24e938dbf0a5d5c64d8d0690da0af6fd528b6d
+ * Regenerated: 2026-09-06T18:36:13.377Z
  */
-export const MCP_CATALOG_FINGERPRINT = "89c256d9cc2be0e23aaecfdb1e21e14dc93ff060f758b465dfbed46c33e4f9f9";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "a51d9aa8ca1f53e74cef2a5b64dc4f09c3f67db66aff3d91b0f0f433a7314d63";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-06T13:57:33.367Z";
+export const MCP_CATALOG_FINGERPRINT = "d960c048fa823aa0b83dc76032cdae6012a2ab47ff841fb8dfddec9aeb324416";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "179e9568d2625cfbffc8b7b88d24e938dbf0a5d5c64d8d0690da0af6fd528b6d";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-06T18:36:13.377Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -2153,7 +2153,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "claim_automation_run",
 		"label": "DevSpec: Claim Automation Run",
-		"description": "Take a waiting automation run so you can do the work. Returns the automation instruction, its acceptance criteria, and what you are permitted to do on the machine. Losing the race is NORMAL, not an error: if another of the owner's agents claimed it first you get claimed:false with reason already_taken — move on, do not retry. An automation that names a different agent is refused; leave it for the agent it asks for, because the instruction likely depends on that setup. RESPECT THE PERMISSION you are given back: look_only means investigate and report, never edit or commit.",
+		"description": "Take a waiting automation run so you can do the work. Returns the automation instruction, its acceptance criteria, and what you are permitted to do on the machine. A refusal comes back as claimed:false with a reason naming the actual cause — already_taken (another of the owner's agents got there first: normal, move on), already_yours (you hold it already — go and report it), already_finished (it is over; to correct what you reported, call record_automation_run again), and others; `retry` says whether a retry could ever work. An automation that names a different agent is refused; leave it for the agent it asks for, because the instruction likely depends on that setup. RESPECT THE PERMISSION you get back: it governs what you may do to this machine and its repositories — look_only means investigate and report, never edit or commit.",
 		"promptSnippet": "Take a waiting automation run so you can do the work.",
 		"inputSchema": {
 			"type": "object",
@@ -2168,7 +2168,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"provider": {
 					"type": "string",
-					"description": "Your coding agent, checked against the automation constraint and stored so the run can be resumed later."
+					"description": "Optional. The server derives your agent from the connection."
 				},
 				"model": {
 					"type": "string",
@@ -2200,8 +2200,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_automation_run",
 		"label": "DevSpec: Record Automation Run",
-		"description": "Report the outcome of a run you claimed. Mirrors record_implementation in shape and habit. Give a verdict for EACH acceptance criterion, and EVIDENCE for every met/not_met verdict — a verdict without evidence is REJECTED. You are marking your own homework, so a bare tick nobody can check is worse than no tick at all. Good: criterion 'every repo builds', verdict met, evidence 'ran the build in all five, all exited zero'. Use verdict unknown, honestly, for anything you could not actually check — a criterion you simply do not mention comes back as unknown anyway. Record what the run PRODUCED in artifacts, as links (an action item you created, a document you updated). Every run should end in something that lands in DevSpec; if there was genuinely nothing, say so in the summary.",
-		"promptSnippet": "Report the outcome of a run you claimed.",
+		"description": "Report the outcome of a run you claimed, or correct one you reported. Mirrors record_implementation in shape and habit. Give a verdict for EACH acceptance criterion, and EVIDENCE for every met/not_met verdict — a verdict without evidence is REJECTED. You are marking your own homework, so a bare tick nobody can check is worse than no tick at all. Good: criterion 'every repo builds', verdict met, evidence 'ran the build in all five, all exited zero'. Use verdict unknown, honestly, for anything you could not check — on a first report, a criterion you do not mention comes back as unknown anyway. CALLING IT AGAIN ON A FINISHED RUN CORRECTS THAT RUN: your verdicts merge over the stored ones, criteria you do not mention keep theirs, timings are untouched, and the correction is stamped on the run. A report is corrected by the agent that made it; if that agent is gone, pass force:true with a reason. Record what the run PRODUCED in artifacts, as links; an empty list is a fine answer for a run whose job was to look.",
+		"promptSnippet": "Report the outcome of a run you claimed, or correct one you reported.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -2244,6 +2244,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"provider": {
 					"type": "string",
 					"description": "Your coding agent, stored with the run for the resume affordance."
+				},
+				"force": {
+					"type": "boolean",
+					"description": "Correct a DIFFERENT agent's report. Requires reason."
+				},
+				"reason": {
+					"type": "string",
+					"description": "Why, when correcting another agent's report. Recorded on the run."
 				},
 				"runner_session_id": {
 					"type": "string",

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### The lowest project role is Viewer
+
+DevSpec renamed the lowest project role from "guest" to Viewer (an organisation
+Guest is now a different thing: how much of the organisation someone can see,
+not what they can do on a project). Pi reads the served write-authority section
+by its exact shape, so it now expects the 4.5.0 outcome key `viewer` — without
+this, a newer DevSpec would have failed that section and Pi would have fallen
+back to its generic rules. The generated MCP catalog is refreshed with it.
+
 ### A proposal against a memory now shows up when you search for it
 
 DevSpec lets a colleague propose a change to a decided memory or artifact without

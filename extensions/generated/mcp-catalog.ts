@@ -3,12 +3,12 @@
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
  * Schema fingerprint: 89c256d9cc2be0e23aaecfdb1e21e14dc93ff060f758b465dfbed46c33e4f9f9
- * Description fingerprint: f1845791825974220f16a3af109628d09df49a1443c99bc42c76f1a815673d19
- * Regenerated: 2026-09-05T20:18:10.133Z
+ * Description fingerprint: a51d9aa8ca1f53e74cef2a5b64dc4f09c3f67db66aff3d91b0f0f433a7314d63
+ * Regenerated: 2026-09-06T13:57:33.367Z
  */
 export const MCP_CATALOG_FINGERPRINT = "89c256d9cc2be0e23aaecfdb1e21e14dc93ff060f758b465dfbed46c33e4f9f9";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "f1845791825974220f16a3af109628d09df49a1443c99bc42c76f1a815673d19";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-05T20:18:10.133Z";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "a51d9aa8ca1f53e74cef2a5b64dc4f09c3f67db66aff3d91b0f0f433a7314d63";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-06T13:57:33.367Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -6156,7 +6156,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "import_instruction_rules",
 		"label": "DevSpec: Import Instruction Rules",
-		"description": "Turn an existing agent-rules file (CLAUDE.md, AGENTS.md, .cursorrules, .github/copilot-instructions.md) into structured DevSpec rules. YOU read and categorise the file — that judgement is the whole value; this tool validates the plan, shows it to the user, and routes each piece. Call WITHOUT confirm first: you get the categorised plan back and NOTHING is written, which is the review step. Show it to the user, let them drop or move entries, then call again with confirm: true. Each item needs a `source_line` so a human can check it against their own file. FIVE destinations, because a real rules file contains all five: project_agent_rules (team execution mechanics), project_principles (team philosophy), personal_agent_rules (the author's own machine/tooling — NOT team policy, and burying it in a team field makes every agent obey one person's setup), memory (architecture DECISIONS — 'we use Broadcast rather than postgres_changes' is a decision and belongs in record_memory with its rationale; 'never add postgres_changes without documenting it' is a rule — getting this split wrong in either direction is the main risk), and leave_in_repo (directory layout, commands — DevSpec already indexes the code). Do NOT dump the whole file into project_agent_rules. Landing is judged per rule by the served contract (devspec://product/implementation-contract → authority_contract, `instruction_rule.write`): read each `outcome` — a queued rule is not in effect.",
+		"description": "Turn an existing agent-rules file (CLAUDE.md, AGENTS.md, .cursorrules, .github/copilot-instructions.md) into structured DevSpec rules. YOU read and categorise the file — that judgement is the whole value; this tool validates the plan, shows it to the user, and routes each piece. Call WITHOUT confirm first: you get the categorised plan back and NOTHING is written, which is the review step. Show it to the user, let them drop or move entries, then call again with confirm: true. Each item needs a `source_line` so a human can check it against their own file. FIVE destinations, because a real rules file contains all five: project_agent_rules (team execution mechanics), project_principles (team philosophy), personal_agent_rules (the author's own machine/tooling — NOT team policy, and burying it in a team field makes every agent obey one person's setup), memory (architecture DECISIONS — 'we use Broadcast rather than postgres_changes' is a decision and belongs in record_memory with its rationale; 'never add postgres_changes without documenting it' is a rule — getting this split wrong in either direction is the main risk), and leave_in_repo (directory layout, commands — DevSpec already indexes the code). Do NOT dump the whole file into project_agent_rules. Landing is judged per rule by the served contract (devspec://product/implementation-contract → authority_contract, `instruction_rule.write`): read the `outcome` — `applied: true` with `outcome: committed` means the rules are live; `applied: false` with `outcome: queued_for_review` means NOTHING is in effect and the queued rules are named by `proposal_ids` (plural — an import usually queues several), awaiting a maintainer.",
 		"promptSnippet": "Turn an existing agent-rules file (CLAUDE.md, AGENTS.md, .cursorrules, .github/copilot-instructions.md) into structured DevSpec rules.",
 		"inputSchema": {
 			"type": "object",

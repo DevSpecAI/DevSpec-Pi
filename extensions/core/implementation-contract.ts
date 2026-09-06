@@ -110,7 +110,8 @@ export interface CommitProvenanceContract {
 
 /**
  * Who may change the project's record (DevSpec item ff803a1a). Served beside the
- * work-entry and commit-provenance sections from contract 4.4.0; Pi shows it to the
+ * work-entry and commit-provenance sections since contract 4.4.0 (4.5.0 renamed the
+ * lowest project role guest → viewer; the organisation Guest is a different role); Pi shows it to the
  * model and relays its proposal outcome, and never restates it in its own prose.
  */
 export type AuthorityWriteClass = "talk" | "add" | "overrule";
@@ -124,7 +125,7 @@ export interface AuthorityContract {
 	classes: Array<{
 		class: AuthorityWriteClass;
 		meaning: string;
-		outcomes: Record<"guest" | "contributor" | "maintainer" | "unattended", AuthorityWriteOutcome>;
+		outcomes: Record<"viewer" | "contributor" | "maintainer" | "unattended", AuthorityWriteOutcome>;
 	}>;
 	ownership_rule: string;
 	requester_rule: string;
@@ -184,7 +185,7 @@ interface ContractCache {
 // sections instead of rejecting the document for carrying one. Older parser
 // caches cannot authorize: they either did not validate those sections, or
 // carry no record of a section this generation would have warned about.
-const CACHE_KEY = Symbol.for("devspec.pi.implementation-contract.v9");
+const CACHE_KEY = Symbol.for("devspec.pi.implementation-contract.v10");
 
 function cache(): ContractCache {
 	const root = globalThis as typeof globalThis & { [CACHE_KEY]?: ContractCache };
@@ -436,7 +437,7 @@ function parseCommitProvenanceContract(value: unknown): CommitProvenanceContract
 
 const AUTHORITY_CLASSES: readonly AuthorityWriteClass[] = ["talk", "add", "overrule"];
 const AUTHORITY_OUTCOMES = new Set<string>(["commit", "propose", "deny"]);
-const AUTHORITY_OUTCOME_KEYS = ["guest", "contributor", "maintainer", "unattended"] as const;
+const AUTHORITY_OUTCOME_KEYS = ["viewer", "contributor", "maintainer", "unattended"] as const;
 
 function parseAuthorityContract(value: unknown): AuthorityContract | null {
 	const section = asRecord(value);
@@ -839,7 +840,7 @@ export function formatAuthorityContract(authority: AuthorityContract): string[] 
 	return [
 		"Write authority (authority_contract — who may change the project's record is decided per call by the server from the verb, the person's project role and whether the run is unattended; read every write's outcome, never predict it):",
 		...authority.classes.map((cls) =>
-			`- ${cls.class}: ${cls.meaning} Outcomes — guest ${cls.outcomes.guest}, contributor ${cls.outcomes.contributor}, maintainer ${cls.outcomes.maintainer}, unattended ${cls.outcomes.unattended}.`,
+			`- ${cls.class}: ${cls.meaning} Outcomes — viewer ${cls.outcomes.viewer}, contributor ${cls.outcomes.contributor}, maintainer ${cls.outcomes.maintainer}, unattended ${cls.outcomes.unattended}.`,
 		),
 		`- Ownership rule: ${authority.ownership_rule}`,
 		`- Unattended rule: ${authority.unattended_rule}`,

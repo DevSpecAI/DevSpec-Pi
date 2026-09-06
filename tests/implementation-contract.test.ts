@@ -83,13 +83,13 @@ function provenanceSection() {
 }
 
 function authoritySection() {
-	const outcomes = (guest: string, contributor: string, maintainer: string, unattended: string) =>
-		({ guest, contributor, maintainer, unattended });
+	const outcomes = (viewer: string, contributor: string, maintainer: string, unattended: string) =>
+		({ viewer, contributor, maintainer, unattended });
 	return {
 		schema_version: 1,
 		decision: "One function judges every write from the verb, the role and whether the run is unattended.",
 		roles: [
-			{ role: "guest", label: "Guest", meaning: "Sees everything and takes part in the conversation." },
+			{ role: "viewer", label: "Viewer", meaning: "Sees everything and takes part in the conversation." },
 			{ role: "contributor", label: "Contributor", meaning: "Adds to the record; changes to what is settled are proposed." },
 			{ role: "maintainer", label: "Maintainer", meaning: "Can overrule the record and accepts proposals." },
 		],
@@ -117,7 +117,7 @@ function authoritySection() {
 	} as const;
 }
 
-const CURRENT_CONTRACT_VERSION = "4.4.0";
+const CURRENT_CONTRACT_VERSION = "4.5.0";
 
 function bundle(version = CURRENT_CONTRACT_VERSION) {
 	const input = {
@@ -397,7 +397,7 @@ test("an unversioned local delivery retains the latest compatible v4 contract du
 		loader: loader({ resourceError: new Error("offline"), compatibilityError: new Error("offline") }),
 	});
 	assert.equal(retained.source, "cache");
-	assert.match(retained.warning ?? "", /retained 4\.4\.0 contract/);
+	assert.match(retained.warning ?? "", /retained 4\.5\.0 contract/);
 });
 
 test("wrong resource pointers never become trusted but remain non-blocking guidance", async () => {
@@ -445,7 +445,7 @@ test("the authority section is required, exactly shaped, and carried to the mode
 	assert.equal(context.authorityContract?.proposal_outcome.token, "queued_for_review");
 	const text = formatImplementationContext(context);
 	assert.match(text, /Write authority \(authority_contract/);
-	assert.match(text, /overrule: .* guest deny, contributor propose, maintainer commit, unattended propose/);
+	assert.match(text, /overrule: .* viewer deny, contributor propose, maintainer commit, unattended propose/);
 	// The class table alone says an `add` commits unattended; the served unattended
 	// rule is what makes memory.record a proposal. Both must reach the model, or the
 	// summary misstates the write an agent makes most (item 689d44cb).
@@ -461,7 +461,7 @@ test("the authority section is required, exactly shaped, and carried to the mode
 		["extra field", (section) => { section.mutable_policy = true; }],
 		["missing class", (section) => { (section.classes as unknown[]).pop(); }],
 		["reordered classes", (section) => { (section.classes as unknown[]).reverse(); }],
-		["unknown outcome", (section) => { ((section.classes as Array<{ outcomes: Record<string, string> }>)[0]!).outcomes.guest = "maybe"; }],
+		["unknown outcome", (section) => { ((section.classes as Array<{ outcomes: Record<string, string> }>)[0]!).outcomes.viewer = "maybe"; }],
 		["wrong proposal token", (section) => { (section.proposal_outcome as Record<string, unknown>).token = "pending"; }],
 		["no verbs", (section) => { section.verbs = []; }],
 	];

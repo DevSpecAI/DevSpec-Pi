@@ -436,6 +436,34 @@ function settleTelemetry(): AgentStatsReport {
 	return latestAgentStats;
 }
 
+/**
+ * The `model` argument on `post_session_message`, or nothing.
+ *
+ * Distinct from the model inside `agent_stats`. That one is runtime telemetry —
+ * what the agent is configured with right now. This one becomes the message's
+ * `dispatch_model`, which is what the transcript renders as VIA …, and it is
+ * about the row rather than the agent.
+ *
+ * Pi already had the value and never sent it here: over fourteen days to
+ * 2026-09-07, 0 of 824 Pi messages carried `dispatch_model` while 15 of 37
+ * OpenCode messages did (devspec:3def43ba). Extension-mechanical, so it costs
+ * the model nothing and cannot be forgotten — which matters, because the
+ * argument is deliberately optional and Claude Code's agents, who have to
+ * remember it themselves, managed 6%.
+ *
+ * Prefer the settled report: that is the model that actually produced this turn.
+ * Fall back to live context for posts that carry no report. Both halves must be
+ * non-empty — the report writes "" for a field it could not resolve, and a blank
+ * provider or id is worse than no stamp.
+ */
+function replyModelArgs(agentStats?: AgentStatsReport): Record<string, unknown> {
+	const model = agentStats?.model ?? lastCtx?.model ?? null;
+	const providerID = model?.provider?.trim();
+	const modelID = model?.id?.trim();
+	if (!providerID || !modelID) return {};
+	return { model: { providerID, modelID } };
+}
+
 async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; agentStats?: AgentStatsReport } = {}): Promise<boolean> {
 	const active = pump;
 	const bond = getBond();
@@ -464,6 +492,7 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 				? { trail_events: opts.trailEvents }
 				: {}),
 			...(opts.agentStats ? { agent_stats: opts.agentStats } : {}),
+			...replyModelArgs(opts.agentStats),
 		}, { lane: "pump", ...(opts.interaction && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}) });
 		return true;
 	} catch (err) {

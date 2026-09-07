@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: f3ea229ebd91b4fae1f3f359f65eacef4ae930c8c54311e155ba49a761a59179
+ * Schema fingerprint: 88093060076d4b9e651bf3d3fa2dc8d3eb80c8d55e2325521833b9d4e511df7a
  * Description fingerprint: d5fe99c63e4c281075d1d2f4426fadbd79117c686decb07935727ce216e6af27
- * Regenerated: 2026-09-07T06:52:39.109Z
+ * Regenerated: 2026-09-07T17:25:02.371Z
  */
-export const MCP_CATALOG_FINGERPRINT = "f3ea229ebd91b4fae1f3f359f65eacef4ae930c8c54311e155ba49a761a59179";
+export const MCP_CATALOG_FINGERPRINT = "88093060076d4b9e651bf3d3fa2dc8d3eb80c8d55e2325521833b9d4e511df7a";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "d5fe99c63e4c281075d1d2f4426fadbd79117c686decb07935727ce216e6af27";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-07T06:52:39.109Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-07T17:25:02.371Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -4911,7 +4911,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"model": {
 					"type": "object",
-					"description": "Optional: which provider/model actually produced this reply — e.g. { \"providerID\": \"minimax\", \"modelID\": \"MiniMax-M3\" }. Only meaningful for provider-agnostic tools (OpenCode) where a single session can span more than one model; the DevSpec UI renders it as a small badge on this reply. Omit for tools with a single fixed model.",
+					"description": "Optional: which provider/model produced this reply — e.g. { \"providerID\": \"anthropic\", \"modelID\": \"claude-opus-5\" }. Send it whenever you know it. The transcript renders it beside the timestamp, so a reader can tell a Fable answer from an Opus one without asking, and \"one host, one fixed model\" is not the normal case — Claude Code, Pi and OpenCode agents all span several. Omitting it is never an error; the row simply shows no model.",
 					"properties": {
 						"providerID": {
 							"type": "string"

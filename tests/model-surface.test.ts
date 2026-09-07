@@ -106,6 +106,13 @@ test("rare verbs are searchable but not in the initial hot set", () => {
 	assert.ok(!searchRareModelTools("ask a directed question", 10).some((entry) => entry.name === DIRECTED_QUESTION_TOOL_NAME));
 });
 
+/**
+ * Backstop for one runaway sentence, in step with SNIPPET_MAX in
+ * extensions/core/model-surface.ts and the generator. NOT a ration: at 160 this
+ * shipped 9 snippets cut off mid-sentence. See SNIPPET_MAX for the reasoning.
+ */
+const SNIPPET_CEILING_CHARS = 320;
+
 test("slimmed schemas never ask for stamped scope keys", () => {
 	assert.ok(SCOPE_KEY_SET.has("pinned_project_id"), "folder pins are host scope, never model identity");
 	for (const entry of allModelFacingTools()) {
@@ -114,8 +121,26 @@ test("slimmed schemas never ask for stamped scope keys", () => {
 		for (const key of omit) assert.ok(!(key in props), `${entry.name} still exposes ${key}`);
 		const required = (entry.inputSchema.required ?? []) as string[];
 		for (const key of SCOPE_KEY_SET) assert.ok(!required.includes(key), `${entry.name} still requires ${key}`);
-		assert.ok(entry.description.length <= 160, `${entry.name} description still an essay`);
+		assert.ok(entry.description.length <= SNIPPET_CEILING_CHARS, `${entry.name} description is an essay, not a sentence`);
 	}
+});
+
+test("no model-facing description is shipped elided mid-sentence", () => {
+	// The caps exist to keep the prefix small, NOT to hand a model half a sentence
+	// and let it guess the rest. Before 2026-09-07 this failed silently: 19 of 84
+	// tool descriptions and 23 parameter descriptions ended in an ellipsis, 14 of
+	// them on the hot surface. Fix an offender by shortening the SENTENCE in
+	// DevSpecV2's apps/web/lib/mcp/tool-definitions.ts, then regenerate — never by
+	// raising the ceiling to fit an essay.
+	const elided: string[] = [];
+	for (const entry of allModelFacingTools()) {
+		if (entry.description.endsWith("…")) elided.push(entry.name);
+		const props = (entry.inputSchema.properties ?? {}) as Record<string, { description?: string } | undefined>;
+		for (const [param, schema] of Object.entries(props)) {
+			if (schema?.description?.endsWith("…")) elided.push(`${entry.name}.${param}`);
+		}
+	}
+	assert.deepEqual(elided, [], `elided instructions: ${elided.join(", ")}`);
 });
 
 test("get_session_transcript keeps session_id as a model-facing target", () => {
@@ -203,7 +228,7 @@ test("colloquial requests route across materially different rare tool families",
 	for (const [query, expected] of cases) {
 		const match = searchRareModelTools(query, 1)[0];
 		assert.equal(match?.name, expected, `${JSON.stringify(query)} routed to ${match?.name}`);
-		assert.ok(match.description.length <= 160, `${expected} result was not slimmed`);
+		assert.ok(match.description.length <= SNIPPET_CEILING_CHARS, `${expected} result was not slimmed`);
 	}
 });
 
@@ -418,7 +443,7 @@ test("search_sessions is a schema-complete deferred tool activated by ordinary l
 		assert.equal(properties[identity], undefined, `${identity} must remain stamped`);
 	}
 	assert.deepEqual(entry.inputSchema.required, ["query"]);
-	assert.ok(entry.description.length <= 160);
+	assert.ok(entry.description.length <= SNIPPET_CEILING_CHARS);
 	for (const query of [
 		"session search",
 		"find conversation",

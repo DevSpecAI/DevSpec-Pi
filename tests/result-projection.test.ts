@@ -128,9 +128,23 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// to call every refusal a lost race, and calling record again on a finished run
 	// corrects it rather than failing. Pi carries no restatement of either, which
 	// is why regenerating the catalog is the whole of Pi's change here.
+	// Rebaselined 2026-09-07 for DevSpec item db00d228 and the instruction-ration
+	// correction that came out of it. NO schema changed and no projection family
+	// moved — only DESCRIPTIONS, which is the half that matters to Pi:
+	//   - the four `commit_sha` descriptions now say "short or full" and "never pad".
+	//     record_implementation used to say only "Final commit SHA" while
+	//     report_commit_provenance demanded "the FULL 40-character sha", and three
+	//     agents on 2026-09-06 invented 31 hex characters to fit that shape.
+	//   - four descriptions with an over-long FIRST sentence were split, so the
+	//     sentence that reaches the model is complete rather than elided.
+	// Pi's own caps were the second half of the same defect: SNIPPET_MAX was 140
+	// and the generator truncated at 160, which shipped 19 of 84 tool descriptions
+	// and 23 parameter descriptions cut off mid-sentence. Both are 320 now, a new
+	// test asserts nothing ships elided, and the prefix went 6,933 -> 7,130 tokens
+	// of an 8,000 ceiling to buy that back. Budget and quality coverage unaffected.
 	assert.equal(
 		fingerprint,
-		"56b386529eb404f5b751a1a47ae0d5f526c203825586334e1f52c3fe1c5cbbde",
+		"8915d4185c1e0901866a34a1726bc215e233ff22a6ffb8c6deff6c2add0c08da",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

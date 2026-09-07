@@ -86,11 +86,19 @@ function titleCase(name) {
 		.join(" ");
 }
 
+/** Kept in step with SNIPPET_MAX in extensions/core/model-surface.ts. */
+const SNIPPET_MAX = 320;
+
 function firstSentence(text) {
 	const trimmed = String(text ?? "").trim().replace(/\s+/g, " ");
 	const cut = trimmed.search(/[.!?](?:\s|$)/);
 	const sentence = cut >= 0 ? trimmed.slice(0, cut + 1) : trimmed;
-	return sentence.length > 160 ? `${sentence.slice(0, 157)}…` : sentence;
+	// Backstop for one runaway sentence, NOT a ration — kept in step with
+	// SNIPPET_MAX in extensions/core/model-surface.ts. At 160 this was silently
+	// lossy: 9 catalog snippets shipped cut off mid-sentence, so a model read half
+	// an instruction and guessed the rest. If a sentence does not fit, shorten it
+	// in DevSpecV2's apps/web/lib/mcp/tool-definitions.ts, which is the source.
+	return sentence.length > SNIPPET_MAX ? `${sentence.slice(0, SNIPPET_MAX - 3)}…` : sentence;
 }
 
 function classify(name) {

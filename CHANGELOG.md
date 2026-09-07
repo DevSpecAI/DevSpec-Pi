@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### Tool instructions are no longer cut off mid-sentence
+
+Every DevSpec tool Pi offers carries a one-line description, and the line was
+being trimmed to 140 characters (160 when the catalog was generated). That was
+short enough to cut real sentences in half: 19 of 84 tool descriptions and 23
+parameter descriptions ended in an ellipsis, so the model read half an
+instruction and had to guess the rest. Both limits are 320 now, a test fails if
+anything ever ships trimmed again, and the always-loaded surface grew from 6,933
+to 7,130 tokens of its 8,000 budget to pay for it — a good trade for 42
+instructions that now say what they mean.
+
+The clearest example is the one that prompted this: the description for
+recording a commit said only "Final commit SHA", while a neighbouring tool
+demanded "the FULL 40-character sha". Three agents in one day filled in the
+missing characters by inventing them. It now says a short SHA is fine and that
+padding one out is wrong.
+
 ### The lowest project role is Viewer
 
 DevSpec renamed the lowest project role from "guest" to Viewer (an organisation

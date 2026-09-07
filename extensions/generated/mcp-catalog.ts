@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: d960c048fa823aa0b83dc76032cdae6012a2ab47ff841fb8dfddec9aeb324416
- * Description fingerprint: 179e9568d2625cfbffc8b7b88d24e938dbf0a5d5c64d8d0690da0af6fd528b6d
- * Regenerated: 2026-09-06T18:36:13.377Z
+ * Schema fingerprint: f3ea229ebd91b4fae1f3f359f65eacef4ae930c8c54311e155ba49a761a59179
+ * Description fingerprint: d5fe99c63e4c281075d1d2f4426fadbd79117c686decb07935727ce216e6af27
+ * Regenerated: 2026-09-07T06:52:39.109Z
  */
-export const MCP_CATALOG_FINGERPRINT = "d960c048fa823aa0b83dc76032cdae6012a2ab47ff841fb8dfddec9aeb324416";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "179e9568d2625cfbffc8b7b88d24e938dbf0a5d5c64d8d0690da0af6fd528b6d";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-06T18:36:13.377Z";
+export const MCP_CATALOG_FINGERPRINT = "f3ea229ebd91b4fae1f3f359f65eacef4ae930c8c54311e155ba49a761a59179";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "d5fe99c63e4c281075d1d2f4426fadbd79117c686decb07935727ce216e6af27";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-07T06:52:39.109Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -203,7 +203,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "get_action_items",
 		"label": "DevSpec: Get Action Items",
 		"description": "List action items as a project SUMMARY plus a token-bounded, priority-ordered page — designed to reconcile with what the DevSpec UI shows (no silent truncation). The response is an object: `summary` carries lifecycle counts (`ui_buckets` matches the UI counts; `lifecycle_breakdown` is the literal lifecycle distribution), `assignment_lanes` (assigned_to_me / unassigned grab-bag / assigned_to_others within the active filter), and `attention` — WHY items want a human, as an exact count per reason in the same labels the UI shows, plus `any_reason_total` (items with at least one reason, counted once, excluding the calm implemented-awaiting-verification lane). Answer \"what needs attention?\" from `attention` and then drill into one reason with `signal_type`, rather than fetching rows to find out; `page` carries pagination (total_matching, offset, limit, has_more, next_offset); `items` is the ordered page (each with a truncated description_preview + assignment_lane — call get_action_item for full text); `briefs` lists the briefs THIS PAGE is about — the parent of each returned item, with child counts rolled up across the whole active set (not just the page), so a returned child carries its feature context; it is not a project inventory, and to see the children of one brief, ask for them with parent_id; `relationships` lists links (blocks / caused_by / supersedes) among the returned items. IMPORTANT — `items` is a single PAGE, not the whole list: report HOW MANY items exist from `summary.ui_buckets` (e.g. open / implemented-awaiting-verify / done), never from `items.length`. When `page.has_more` is true there are more than returned — page with offset/next_offset, or (for triage / \"where do I start\" / dedup / \"are any redundant\") pass `fields: \"compact\"` to scan a much larger slice cheaply. To find items by topic/keyword, prefer search_action_items. The page is sorted by project queue priority by default; pass order_by (\"created\"/\"last_activity\") + order_dir to reorder — e.g. order_by:\"created\", order_dir:\"asc\" for an oldest-first backlog-age audit, or order_by:\"last_activity\", order_dir:\"asc\" to surface the most stale (longest-untouched) items. Briefs are hidden from the page by default; pass include_briefs: true to include them as rows.",
-		"promptSnippet": "List action items as a project SUMMARY plus a token-bounded, priority-ordered page — designed to reconcile with what the DevSpec UI shows (no silent truncati…",
+		"promptSnippet": "List action items as a project SUMMARY plus a token-bounded, priority-ordered page — designed to reconcile with what the DevSpec UI shows (no silent truncation).",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -340,7 +340,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"risk",
 						"state"
 					],
-					"description": "Filter by review-signal BUCKET instead of one type: \"action\" = a human must do a specific thing (follow-up required, agent run failed, deployment failed); \"risk\" = a human must look and judge (possible conflict, possibly stale/superseded); \"state\" = lifecycle position, not a problem (blocked, implemented-but-unverified). \"action\" is the closest thing to \"what genuinely needs attention\"."
+					"description": "Filter by review-signal BUCKET instead of one type, where \"action\" is the closest thing to \"what genuinely needs attention\". The three buckets: \"action\" = a human must do a specific thing (follow-up required, agent run failed, deployment failed); \"risk\" = a human must look and judge (possible conflict, possibly stale/superseded); \"state\" = lifecycle position, not a problem (blocked, implemented-but-unverified)."
 				},
 				"flagged": {
 					"type": "boolean",
@@ -391,7 +391,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"active",
 						"all"
 					],
-					"description": "Optional lifecycle filter, the same vocabulary get_action_items uses: each value means exactly the state it names (\"open\" is not-started work only; \"implemented\" is delivered-but-unverified), plus \"active\" for everything still in play and \"all\" for unfiltered. Defaults to \"all\", so a topic search reaches finished work too."
+					"description": "Optional lifecycle filter, the same vocabulary get_action_items uses, defaulting to \"all\" so a topic search reaches finished work too. Each value means exactly the state it names (\"open\" is not-started work only; \"implemented\" is delivered-but-unverified), plus \"active\" for everything still in play and \"all\" for unfiltered."
 				},
 				"limit": {
 					"type": "number",
@@ -420,7 +420,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "get_action_item",
 		"label": "DevSpec: Get Action Item",
 		"description": "Fetch a single action item by ID with its FULL description and all structured fields (completion summary/note, verification state, agent fields, ai_instructions, etc.). Use this to read the full text of an item found via get_action_items or search_action_items, both of which return only a truncated preview. The payload also includes `review_signals` and `unresolved_conflicts` — if `unresolved_conflicts` is non-empty the item is held out of the autopilot queue due to a possible_conflict (each entry names the conflicting item + reason). Settling the pair is your job, not a permission you need: read both items and resolve with resolve_action_item_conflict (verdicts: supersedes · related · not_a_conflict · discuss), recording a `basis`. `related` and `not_a_conflict` close nothing and reverse nothing, so resolve those yourself when the facts are plain. Ask the person first when the verdict is `supersedes` (something gets closed) AND you cannot cite their own intent-level authorisation for retiring that specific item, when the counterpart was authored by someone else, or when they have not shown they understand — at the INTENT level, not the code level — what would be reversed; and then state what would actually happen rather than that a flag exists. It also includes `goals` = { direct, inherited }: the goals this item serves directly plus any inherited from its parent brief (each { goalId, title, status }) — to change them, pass goal_ids to update_action_item or record_implementation.",
-		"promptSnippet": "Fetch a single action item by ID with its FULL description and all structured fields (completion summary/note, verification state, agent fields, ai_instructi…",
+		"promptSnippet": "Fetch a single action item by ID with its FULL description and all structured fields (completion summary/note, verification state, agent fields, ai_instructions, etc.).",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -536,7 +536,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "search_resources",
 		"label": "DevSpec: Search Resources",
 		"description": "Hybrid search over DOCUMENTS and ARTIFACTS — full-text keyword matching fused with semantic (embedding) similarity, so a conceptual question finds the right passage even when no keyword overlaps (ask \"how much tax was on that invoice\" and it finds a document that says VAT). Uploaded documents are chunked, so a hit returns the MATCHING PASSAGE inline rather than just a title — you usually do not need a follow-up read. Use this to find reference material by topic; use get_resources when you want to browse everything, and get_resource to read one in full. OMIT `query` to LIST what exists (most recent first) instead of searching — the right call for \"what documents do we have?\".",
-		"promptSnippet": "Hybrid search over DOCUMENTS and ARTIFACTS — full-text keyword matching fused with semantic (embedding) similarity, so a conceptual question finds the right …",
+		"promptSnippet": "Hybrid search over DOCUMENTS and ARTIFACTS — full-text keyword matching fused with semantic (embedding) similarity, so a conceptual question finds the right passage even when no keyword overlaps (ask \"how much tax was on that invoice\" and it finds a document that says VAT).",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -624,8 +624,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_pull_request",
 		"label": "DevSpec: Get Pull Request",
-		"description": "Read ONE pull request as a provenance umbrella — what the branch did to the project's record: number, title, state, author (a DevSpec person only when they connected their own account; otherwise the provider handle and nothing more), branches, changed files, the commits it carries, the action items those commits delivered with their lifecycle, the memories and artifacts written or proposed while those items were worked, conflict rulings and contested pairs on those items, and everything still awaiting a maintainer. Every join that has nothing behind it returns an empty list and a sentence in `absent` saying so — nothing is guessed or substituted. DevSpec never approves, merges or gates a pull request; call this to understand a branch before deciding on the provider, or after a Discuss seed names a PR. Address it by `number` (add `repo` as owner/name when the project tracks more than one repository) or by `pull_request_id` (the id a Discuss seed or timeline event carries).",
-		"promptSnippet": "Read ONE pull request as a provenance umbrella — what the branch did to the project's record: number, title, state, author (a DevSpec person only when they c…",
+		"description": "Read ONE pull request as a provenance umbrella — what the branch did to the project's record. It returns number, title, state, author (a DevSpec person only when they connected their own account; otherwise the provider handle and nothing more), branches, changed files, the commits it carries, the action items those commits delivered with their lifecycle, the memories and artifacts written or proposed while those items were worked, conflict rulings and contested pairs on those items, and everything still awaiting a maintainer. Every join that has nothing behind it returns an empty list and a sentence in `absent` saying so — nothing is guessed or substituted. DevSpec never approves, merges or gates a pull request; call this to understand a branch before deciding on the provider, or after a Discuss seed names a PR. Address it by `number` (add `repo` as owner/name when the project tracks more than one repository) or by `pull_request_id` (the id a Discuss seed or timeline event carries).",
+		"promptSnippet": "Read ONE pull request as a provenance umbrella — what the branch did to the project's record.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -1276,7 +1276,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "get_action_item_history",
 		"label": "DevSpec: Get Action Item History",
 		"description": "Get the full traceability view of an action item: details, activity timeline, relationships, linked PRs, commit references, and linked session messages with quotes. Use to understand \"where did this come from?\" and \"what happened?\".",
-		"promptSnippet": "Get the full traceability view of an action item: details, activity timeline, relationships, linked PRs, commit references, and linked session messages with …",
+		"promptSnippet": "Get the full traceability view of an action item: details, activity timeline, relationships, linked PRs, commit references, and linked session messages with quotes.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -1410,8 +1410,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_automations",
 		"label": "DevSpec: Get Automations",
-		"description": "List the caller's own AUTOMATIONS — named, reusable, re-runnable agent jobs (e.g. \"pull my plugin repos, check they build, install them\"). An automation is NOT an action item: an action item is done once and then finished, an automation is meant to be run again forever and never completes. Automations are PRIVATE to their owner; this only ever returns yours. Pass `name` to resolve one the user named (case-insensitive; exact matches win) — that is what makes \"run my fix-build automation\" work from a conversation. Pass `query` instead to SEARCH when you don't know the wording: full-text over name, instruction and tags, best match first — the same retrieval the Automations page runs.",
-		"promptSnippet": "List the caller's own AUTOMATIONS — named, reusable, re-runnable agent jobs (e.g.",
+		"description": "List the caller's own AUTOMATIONS — named, reusable agent jobs, run again and again. An automation is NOT an action item: an action item is done once and then finished, an automation is meant to be run again forever and never completes. Automations are PRIVATE to their owner; this only ever returns yours. Pass `name` to resolve one the user named (case-insensitive; exact matches win) — that is what makes \"run my fix-build automation\" work from a conversation. Pass `query` instead to SEARCH when you don't know the wording: full-text over name, instruction and tags, best match first — the same retrieval the Automations page runs.",
+		"promptSnippet": "List the caller's own AUTOMATIONS — named, reusable agent jobs, run again and again.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -1511,7 +1511,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "get_project_instruction_rules",
 		"label": "DevSpec: Get Project Instruction Rules",
 		"description": "Read this project's TEAM instruction rules as individual rules rather than one blob: `rules` (live — what every agent on the project actually receives, composed into project_agent_rules / project_custom_instructions) and `pending_proposals` (queued for a maintainer, reaching NOBODY until accepted). Each rule carries its text, class (safety | mechanics | style), rationale, author and status. Use this before proposing a change so you can see what is already there and avoid duplicating a rule. For the caller's OWN machine/tooling rules use get_personal_instructions instead — these are the team's.",
-		"promptSnippet": "Read this project's TEAM instruction rules as individual rules rather than one blob: `rules` (live — what every agent on the project actually receives, compo…",
+		"promptSnippet": "Read this project's TEAM instruction rules as individual rules rather than one blob: `rules` (live — what every agent on the project actually receives, composed into project_agent_rules / project_custom_instructions) and `pending_proposals` (queued for a maintainer, reaching NOBODY until accepted).",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -1542,8 +1542,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_personal_instructions",
 		"label": "DevSpec: Get Personal Instructions",
-		"description": "Read YOUR OWN personal instruction tiers — the two settings on the calling token's account: `personal_agent_rules` (Account → Personal Agent Rules: this machine and how this person works locally — installed tools, local ports, personal workflow; agents only, never shown to the in-session AI) and `chat_response_style` (Account → Chat Response Style: personal conversational tone). Null means the user has not set that one. Scope comes from the token, so there is no way to read another user's personal tiers here, and no project is involved. Use this before amending them with update_personal_instructions, or when the user asks what their current rules say. Note the team tiers are separate and are NOT here: project principles and project agent rules arrive with the project context (get_project_summary, claim_work_item).",
-		"promptSnippet": "Read YOUR OWN personal instruction tiers — the two settings on the calling token's account: `personal_agent_rules` (Account → Personal Agent Rules: this mach…",
+		"description": "Read YOUR OWN personal instruction tiers — the two settings on the calling token's account. They are `personal_agent_rules` (Account → Personal Agent Rules: this machine and how this person works locally — installed tools, local ports, personal workflow; agents only, never shown to the in-session AI) and `chat_response_style` (Account → Chat Response Style: personal conversational tone). Null means the user has not set that one. Scope comes from the token, so there is no way to read another user's personal tiers here, and no project is involved. Use this before amending them with update_personal_instructions, or when the user asks what their current rules say. Note the team tiers are separate and are NOT here: project principles and project agent rules arrive with the project context (get_project_summary, claim_work_item).",
+		"promptSnippet": "Read YOUR OWN personal instruction tiers — the two settings on the calling token's account.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {}
@@ -1554,7 +1554,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "preview_conflict_resolution",
 		"label": "DevSpec: Preview Conflict Resolution",
 		"description": "Preview what resolving a `possible_conflict` / `possibly_stale` pair WOULD do, before anyone commits — the answer to the only question that matters in an escalation: what happens if we say yes. Given the pair and a candidate verdict, returns the resulting closure (`none` / `dismissed` / `done_superseded` / `already_done` / `refused`), what closes (title, whose work, when), what is explicitly NOT affected, and why the flag fired (each mark's origin, confidence, and reason verbatim, with a `similarity_only` hint when the flag fired on text resemblance alone). For `supersedes`, the structural guards are evaluated too — a preview can tell you the resolver would REFUSE the pair, and why — and the `tense` says whether the supersession would take effect now or be recorded PENDING until the winner ships (`closure: pending`). The `authority` block says whether YOUR ruling would commit or be recorded as contested (`would_be_contested`), what it would set aside, and why — so you can tell the user before ruling.\n\nUse it when writing an escalation: state the CONSEQUENCE from this payload, never the flag vocabulary. The closure is computed by the same pure rule the real resolver uses (`closureForLifecycle`), so this cannot drift from the act. Genuinely read-only — no marks cleared, no ledger rows, no lifecycle change — so it needs no one's permission and never proposes: call it freely, as often as the reasoning needs.\n\nDeliberately absent by decision: commit counts and significance scores — volume is not evidence.",
-		"promptSnippet": "Preview what resolving a `possible_conflict` / `possibly_stale` pair WOULD do, before anyone commits — the answer to the only question that matters in an esc…",
+		"promptSnippet": "Preview what resolving a `possible_conflict` / `possibly_stale` pair WOULD do, before anyone commits — the answer to the only question that matters in an escalation: what happens if we say yes.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -1784,7 +1784,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"commit_sha": {
 					"type": "string",
-					"description": "Optional: commit SHA to link. Auto-sets agent_commit_sha when agent_activity is finished."
+					"description": "The commit to link, short or full — both are accepted, and the server resolves a short one against the tracked repository. Never pad a short SHA out to 40 characters: that invents a commit that does not exist. Auto-sets agent_commit_sha when agent_activity is finished."
 				},
 				"note": {
 					"type": "string",
@@ -2033,7 +2033,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"commit_sha": {
 					"type": "string",
-					"description": "Git commit SHA — short or full, both are accepted."
+					"description": "The commit to reference, short or full — both are accepted, and the server resolves a short one against the tracked repository and stores the canonical 40. Never pad a short SHA out to 40 characters yourself: that invents a commit that does not exist."
 				},
 				"commit_message": {
 					"type": "string",
@@ -2209,6 +2209,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "REQUIRED. The run you claimed."
 				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id. Decides whether this is your report to correct."
+				},
 				"status": {
 					"type": "string",
 					"enum": [
@@ -2223,7 +2227,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"captured_output": {
 					"type": "string",
-					"description": "Your fuller output for this run, shown inline on the run. A session can be spawned from it later if someone wants to discuss it."
+					"description": "Your fuller output, shown inline on the run. A session can be spawned from it later if someone wants to discuss it."
 				},
 				"failure_reason": {
 					"type": "string",
@@ -2239,11 +2243,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"local_session_id": {
 					"type": "string",
-					"description": "Your local session id, so this run can be resumed in the same conversation next time."
+					"description": "Your local session id, for resuming in the same conversation."
 				},
 				"provider": {
 					"type": "string",
-					"description": "Your coding agent, stored with the run for the resume affordance."
+					"description": "Your coding agent, stored with the run."
 				},
 				"force": {
 					"type": "boolean",
@@ -2629,14 +2633,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "delete_automation",
 		"label": "DevSpec: Delete Automation",
-		"description": "Delete one of the caller's own automations. Ask the user first — an automation is something they wrote to reuse, and deleting it is not recoverable.",
-		"promptSnippet": "Delete one of the caller's own automations.",
+		"description": "ARCHIVES one of the caller's own automations; nothing deletes one. It stops running and comes off the list, and its run history is kept: the record of every time their agents ran it. Ask the user first, because an automation is something they wrote to reuse.",
+		"promptSnippet": "ARCHIVES one of the caller's own automations; nothing deletes one.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
 				"automation_id": {
 					"type": "string",
-					"description": "REQUIRED. The automation to delete."
+					"description": "REQUIRED. The automation to archive."
 				},
 				"runner_session_id": {
 					"type": "string",
@@ -3048,7 +3052,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"commit_sha": {
 					"type": "string",
-					"description": "Final commit SHA"
+					"description": "The commit this implementation landed in, short or full — both are accepted, and the server resolves a short one against the tracked repository. Never pad a short SHA out to 40 characters: that invents a commit that does not exist, and it is the single most common way this call goes wrong. Pass what `git log --oneline` gave you, or run `git rev-parse HEAD`."
 				},
 				"commit_message": {
 					"type": "string",
@@ -3356,7 +3360,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "record_completed_work",
 		"label": "DevSpec: Record Completed Work",
 		"description": "Record work implemented outside DevSpec's queue as an action item, with its requirement, implementation note, commits, and returned lifecycle/verification status. Completion authority is defined only by `devspec://product/implementation-contract`; this tool description does not impose a human-only done path. Use this at the end of ad-hoc work to give DevSpec visibility into the change.\n\nInfer the fields from what you just did — the git log, the diff, the branch — rather than interrogating the user about type, priority and tags at the end of a job they have already finished. They can edit any of it afterwards, and a recorded item they correct beats an interview they abandon.",
-		"promptSnippet": "Record work implemented outside DevSpec's queue as an action item, with its requirement, implementation note, commits, and returned lifecycle/verification st…",
+		"promptSnippet": "Record work implemented outside DevSpec's queue as an action item, with its requirement, implementation note, commits, and returned lifecycle/verification status.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -3683,7 +3687,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "resolve_action_item_conflict",
 		"label": "DevSpec: Resolve Action Item Conflict",
 		"description": "Resolve a `possible_conflict` or `possibly_stale` mark between TWO action items — the remedy that get_action_item, claim_work_item and update_action_item tell you to apply. One judgement clears BOTH items' marks; you never have to resolve the same pair twice from the other side. Verdicts: `supersedes` (one genuinely replaces the other — records the relationship AND closes the loser: never-shipped work is dismissed, shipped work closes as done. NO verification event is written for that closure: nobody verified the work, and the `supersedes` relationship is the record of why it closed. This is the honest way to retire something that shipped fine but is being replaced — you do NOT have to verify work you are discarding just to clear it from the queue. Any criterion verdicts it already had are left intact; the winner is never modified), `related` (both stay, records related_to), `not_a_conflict` (they do not clash — a SUPPRESSION scoped to the items as they are now, which lifts if their content materially changes; never say a flag \"won't be raised again\", only that it won't be raised again FOR THIS REASON), `discuss` (defers the judgement: opens a session seeded with both items and @mentions both creators, leaving the marks lit). Refuses a supersession that is structurally impossible (an item vs its own parent brief) or from a dismissed item (work that will never exist cannot replace anything).\n\nTWO TENSES: `supersedes` where the loser has shipped and the winner has NOT is the normal case (a new item exists to change what shipped) and is recorded at once as PENDING — the result carries `closure: pending` and `tense: pending`; the loser keeps its lifecycle and reads \"will be superseded\", and the supersession takes effect by itself when the winner reaches implemented or done (the loser then closes as done · superseded), or lapses if the winner is dismissed first. Everything else is effective now (`tense: effective`). Say which tense applied.\n\nAUTHORITY: judged per call by the served contract (devspec://product/implementation-contract → authority_contract; verbs `action_item.resolve_conflict` and `action_item.supersede`, `contested_rule`), never by this description. A ruling that comes back `outcome: queued_for_review` with a `proposal_id` and `contested: true` is recorded as a pair_judgement proposal: both items read `contested` instead of flagged, the claim is not blocked, and a maintainer accepts or declines it on the project's Review tab. Report exactly that; never describe a contested pair as resolved. Call `preview_conflict_resolution` first to see which outcome your ruling would get.\n\nDEFAULT: ABSORB AND RESOLVE. A conflict flag is an input to your reasoning — a guard against the project having amnesia and people overriding each other's work unnoticed — NOT an authorization checkpoint. Read both items, decide, resolve, and record the `basis`. Do not narrate the flag at the user and wait; in particular never reply that you are blocked pending their say-so when the say-so is in the message you are answering.\n\nESCALATE FIRST only when one of these holds: (1) the verdict is `supersedes` — because something gets closed — UNLESS you can cite the user's own intent-level authorisation for retiring that specific item, in which case record the quote as the `basis` and proceed; (2) the counterpart was authored by a DIFFERENT person — deciding against your own past decision is not the same act as overruling a colleague's; (3) the user has not shown they understand what is being reversed. Otherwise resolve it yourself.\n\nThat exception on (1) is not a loophole, it is the point: a mechanical always-escalate on `supersedes` reproduces the exact behaviour this rule was written to remove, and it did — it fired on the person who had just designed the change, minutes after it shipped. \"They asked for this specific reversal and I can quote where\" is a different situation from \"I think this is probably fine\".\n\nUNDERSTANDING IS JUDGED AT THE INTENT LEVEL, NEVER THE CODE LEVEL. Sufficient: they grasp what the outcome is and what the point of the change is — \"yes, the new sweep replaces the old one\". NOT required: that they can state which function overlaps which commit. Demanding that is pedantry, and reporting a code-level conflict to a non-technical person for adjudication is a gotcha — they had no way to know. When you do escalate, state the CONSEQUENCE (what closes, whose work, what is unaffected), never the flag vocabulary.\n\nAn autonomous run (runner_session_id stamped) gets a proposal back and commits nothing.",
-		"promptSnippet": "Resolve a `possible_conflict` or `possibly_stale` mark between TWO action items — the remedy that get_action_item, claim_work_item and update_action_item tel…",
+		"promptSnippet": "Resolve a `possible_conflict` or `possibly_stale` mark between TWO action items — the remedy that get_action_item, claim_work_item and update_action_item tell you to apply.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
@@ -5892,7 +5896,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"commit_sha": {
 					"type": "string",
-					"description": "The FULL 40-character sha. Short forms are refused: they cannot be compared reliably."
+					"description": "The FULL 40-character sha, read from git by the host rather than typed from memory. This one path insists on the canonical form because it is called from a git hook, which always has it. If you are writing a SHA by hand, you want record_implementation or add_commit_reference instead — both take a short form and resolve it."
 				},
 				"branch": {
 					"type": "string",
@@ -6617,7 +6621,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "update_personal_instructions",
 		"label": "DevSpec: Update Personal Instructions",
 		"description": "Amend YOUR OWN personal instruction tiers on the calling token's account: `personal_agent_rules` (Account → Personal Agent Rules — this machine and how you work locally) and `chat_response_style` (Account → Chat Response Style). Use this instead of telling the user to copy-paste text into the web UI. Scope is the token's user; no argument can redirect the write to anyone else, and the two TEAM tiers (project principles, project agent rules) are deliberately NOT writable here — they govern everyone on the project. DEFAULTS TO APPEND: pass just the new rule and it is added to what is already there, so you never restate the user's existing text (rewriting a whole field to add one line eventually drops something they wrote by hand). Pass mode:\"replace\" only when the user actually wants the tier rewritten or cleared. ALWAYS show the user the exact resulting text and get their agreement BEFORE it lands — call with dry_run:true to get that text back without saving, show it, then call again without dry_run once they confirm. Refuses to run from an unattended run — the served contract (devspec://product/implementation-contract → authority_contract, personal scope) keeps a person's own instructions to the person themselves.",
-		"promptSnippet": "Amend YOUR OWN personal instruction tiers on the calling token's account: `personal_agent_rules` (Account → Personal Agent Rules — this machine and how you w…",
+		"promptSnippet": "Amend YOUR OWN personal instruction tiers on the calling token's account: `personal_agent_rules` (Account → Personal Agent Rules — this machine and how you work locally) and `chat_response_style` (Account → Chat Response Style).",
 		"inputSchema": {
 			"type": "object",
 			"properties": {

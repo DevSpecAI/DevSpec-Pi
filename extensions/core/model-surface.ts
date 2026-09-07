@@ -90,7 +90,25 @@ export const TOOL_LOADER_PROMPT_METADATA: ToolPromptMetadata = {
 	promptSnippet: "Search and load less-common DevSpec tools when the active tools cannot perform a task",
 };
 
-const SNIPPET_MAX = 140;
+/**
+ * How much of a description survives `firstSentence` on the model surface.
+ *
+ * The mechanism that keeps the prefix small is the FIRST-SENTENCE rule, not this
+ * number: a catalog entry may carry a contract essay and still show one line. So
+ * this is a backstop against one runaway sentence, not a ration on what a sentence
+ * may say.
+ *
+ * It was 140, which was silently lossy. Measured 2026-09-07: 19 of 84 model-facing
+ * tool descriptions and 23 parameter descriptions ended in an ellipsis, so a model
+ * read half an instruction and guessed the rest — the same mistake the 2,200-char
+ * instruction ration made (item 45588384), and worse, because a truncated sentence
+ * is more misleading than a short one.
+ *
+ * If a sentence does not fit here, shorten the SENTENCE — and do it in DevSpecV2's
+ * `apps/web/lib/mcp/tool-definitions.ts`, which is the source this catalog is
+ * generated from. Never hand-edit the generated catalog.
+ */
+const SNIPPET_MAX = 320;
 // Load one schema by default: deferred loading saves context only when a broad
 // natural-language query cannot activate four merely-adjacent tools. Callers
 // can request a larger bundle explicitly when one task genuinely needs it.

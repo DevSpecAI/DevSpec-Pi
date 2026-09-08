@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Auto-bond works when you have more than one project
+
+Pi used to send `register_connection` with no folder identity, then retry with
+this checkout's git remote if the server asked which project. A later fix stopped
+closing the shared MCP client on application errors — and, by treating every
+`isError` as "do not retry", also skipped that folder-scope retry. One-project
+accounts kept working; a second project made auto-bond (and `/devspec.remote`)
+fail with "this call needs a project", while Claude Code still connected because
+it sends the git remote on the first register.
+
+The host now sends the git remote and/or `.devspec/project.json` pin on the first
+call when it knows the working directory, the same shape as Claude Code. A
+project-scope `isError` still retries once with those facts on the same client —
+not a reconnect. Other application errors are still one request. Auto-bond
+toasts the register error instead of failing silently.
+
 ### Tool instructions are no longer cut off mid-sentence
 
 Every DevSpec tool Pi offers carries a one-line description, and the line was

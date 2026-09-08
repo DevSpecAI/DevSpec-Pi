@@ -3131,6 +3131,8 @@ export default function (pi: ExtensionAPI) {
 		if (outcome.ok) {
 			lastCtx = ctx;
 			notify(ctx, `DevSpec remote: auto-bonded as ${outcome.codename ?? "agent"} — you're reachable from the Agents page. /devspec.remote stop to end.`);
+		} else {
+			notify(ctx, `DevSpec remote: auto-bond failed: ${outcome.error}`, outcome.errorKind === "auth" ? "warning" : "error");
 		}
 	});
 

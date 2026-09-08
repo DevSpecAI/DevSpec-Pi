@@ -2,23 +2,25 @@
  * DevSpec Pi — project scoping via git remote, or a folder pin when there is no repo.
  *
  * DevSpec tokens are account-wide; the server resolves which project a call
- * belongs to. When it can't (user has multiple projects), the call errors —
- * and passing this checkout's `git remote get-url origin` as `git_remote` is
- * the supported disambiguation. We do that reactively: first call goes out
- * bare, and only a project-resolution error triggers one retry with the
- * remote attached (keeps calls minimal and never guesses).
+ * belongs to. Hosts send folder facts — this checkout's `git remote get-url origin`
+ * as `git_remote`, and/or `.devspec/project.json` as `pinned_project_id` — and
+ * the SERVER ranks them. The client never decides precedence and never guesses.
  *
- * A folder with NO repo has no remote to send, which used to make that retry
- * useless — the greenfield case, where a project is planned in DevSpec before its
- * code exists. Such a folder names its project with a pin file instead:
+ * When the caller passes `cwd`, those facts go on the first request (Claude-shaped),
+ * so a multi-project token can auto-bond without a round-trip that asks which
+ * project. If the first call was still unscoped and the server asks, one retry
+ * attaches the same facts — same client, extra args, not a reconnect.
+ *
+ * A folder with NO repo has no remote to send. The greenfield case — a project
+ * planned in DevSpec before its code exists — names the project with a pin file:
  * `.devspec/project.json` holding `{ "project_id": "<uuid>" }`.
  *
  * The pin is sent as `pinned_project_id`, NEVER as `project_id`. They are not
  * interchangeable: `project_id` is an explicit override that outranks a verified
  * git remote, whereas the pin is only a local assertion and the server deliberately
  * ranks it BELOW a remote it can verify — so a pin copied in with a template
- * self-corrects instead of hijacking the folder. Both signals go on the retry when
- * both exist; the SERVER arbitrates. Never decide precedence here.
+ * self-corrects instead of hijacking the folder. Both signals go together when
+ * both exist; the SERVER arbitrates.
  *
  * Remote and pin identity are read fresh; only server-verified jurisdiction results
  * receive bounded endpoint/token/repository-aware caching in the nudge layer.
@@ -217,6 +219,28 @@ export function resolveProjectPin(
 	};
 
 	return walk();
+}
+
+/** True when the caller already named a project (explicit, remote, or pin). */
+export function argsHaveProjectScope(args: Record<string, unknown>): boolean {
+	return Boolean(args.git_remote || args.pinned_project_id || args.project_id);
+}
+
+/**
+ * Folder facts for one MCP call. Server ranks them; never send the pin as `project_id`.
+ */
+export async function folderScopeArgs(cwd: string): Promise<{
+	git_remote?: string;
+	pinned_project_id?: string;
+}> {
+	const [remote, pin] = await Promise.all([
+		resolveGitRemote(cwd),
+		resolveProjectPin(cwd),
+	]);
+	return {
+		...(remote ? { git_remote: remote } : {}),
+		...(pin ? { pinned_project_id: pin } : {}),
+	};
 }
 
 /** Test hook. */

@@ -233,3 +233,11 @@ test("validated plan projection appends at the canonical delivery tail without r
 	assert.match(beforeStart, /planTail === ACTIVE_PLAN_CLEAR_TOMBSTONE\) clearActivePlanAwareness\(active\.awarenessKey\)/);
 	assert.match(beforeStart, /markActivePlanAwareness\(active\.awarenessKey, planTail\)/);
 });
+
+test("auto-bond surfaces a failed register instead of staying silent", () => {
+	const start = bodyBetween('pi.on("session_start"', 'pi.on("session_tree"');
+	assert.match(start, /const outcome = await bondNow\(ctx\)/);
+	assert.match(start, /auto-bonded as \$\{outcome\.codename/);
+	assert.match(start, /auto-bond failed: \$\{outcome\.error\}/);
+	assert.match(start, /outcome\.errorKind === "auth" \? "warning" : "error"/);
+});

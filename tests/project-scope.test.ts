@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+	argsHaveProjectScope,
+	folderScopeArgs,
 	needsProjectScope,
 	resolveGitRemote,
 	sanitizeGitRemoteForTransport,
@@ -18,12 +20,22 @@ test("needsProjectScope matches multi-project resolution failures", () => {
 	assert.ok(needsProjectScope("You have multiple accessible projects; pass git_remote or project_id"));
 	assert.ok(needsProjectScope("Could not resolve which project this call belongs to"));
 	assert.ok(needsProjectScope("unable to determine project from context"));
+	assert.ok(needsProjectScope(
+		"This call needs a project and you can access more than one. Pass project_id, or pass git_remote (from `git remote get-url origin`) so DevSpec can match a tracked repo.",
+	));
 });
 
 test("needsProjectScope ignores auth and ordinary failures", () => {
 	assert.ok(!needsProjectScope("DevSpec rejected the token (invalid or revoked)"));
 	assert.ok(!needsProjectScope("Action item not found"));
 	assert.ok(!needsProjectScope("fetch failed"));
+});
+
+test("argsHaveProjectScope is true for any of the three host/server keys", () => {
+	assert.equal(argsHaveProjectScope({}), false);
+	assert.equal(argsHaveProjectScope({ git_remote: "git@github.com:acme/app.git" }), true);
+	assert.equal(argsHaveProjectScope({ pinned_project_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" }), true);
+	assert.equal(argsHaveProjectScope({ project_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" }), true);
 });
 
 test("resolveGitRemote reads fresh origin identity on every call", async (t) => {
@@ -348,4 +360,28 @@ test("a repo checkout with no pin yields a remote but no pin", async () => {
 	clearProjectPinCache();
 	assert.match(await resolveGitRemote(process.cwd()) ?? "", /github\.com[:/]DevSpecAI\/DevSpec-Pi(?:\.git)?$/);
 	assert.equal(await resolveProjectPin(process.cwd()), null);
+});
+
+test("folderScopeArgs sends origin as git_remote and never as project_id", async (t) => {
+	clearGitRemoteCache();
+	clearProjectPinCache();
+	const dir = await mkdtemp(join(tmpdir(), "devspec-folder-scope-remote-"));
+	t.after(() => rm(dir, { recursive: true, force: true }));
+	git(dir, ["init", "-q"]);
+	git(dir, ["remote", "add", "origin", "git@github.com:acme/app.git"]);
+	const scope = await folderScopeArgs(dir);
+	assert.equal(scope.git_remote, "git@github.com:acme/app.git");
+	assert.equal(scope.pinned_project_id, undefined);
+	assert.equal("project_id" in scope, false);
+});
+
+test("folderScopeArgs sends a pin as pinned_project_id, never project_id", async (t) => {
+	clearGitRemoteCache();
+	clearProjectPinCache();
+	const dir = await pinnedDir('{"project_id":"3dfada23-36c8-4dda-91cd-ba2fbb787a65"}');
+	t.after(() => rm(dir, { recursive: true, force: true }));
+	const scope = await folderScopeArgs(dir);
+	assert.equal(scope.git_remote, undefined);
+	assert.equal(scope.pinned_project_id, "3dfada23-36c8-4dda-91cd-ba2fbb787a65");
+	assert.equal("project_id" in scope, false);
 });

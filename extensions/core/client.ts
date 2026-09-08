@@ -20,7 +20,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { resolveEndpoint } from "./auth-store.ts";
-import { needsProjectScope, resolveGitRemote, resolveProjectPin } from "./project-scope.ts";
+import { argsHaveProjectScope, folderScopeArgs, needsProjectScope } from "./project-scope.ts";
 
 const CLIENT_NAME = "devspec-pi";
 const CLIENT_VERSION = "0.2.0";
@@ -303,9 +303,10 @@ export interface CallOptions {
 	/** Hidden host-held capability. It is stamped as a transport header, never an argument. */
 	connectionCapability?: string;
 	/**
-	 * Working directory for reactive project scoping: when the server can't
-	 * resolve the project (multi-project token) and no git_remote was passed,
-	 * retry once with this checkout's origin remote attached.
+	 * Working directory for folder scope. When set, the first call includes this
+	 * checkout's origin remote and/or `.devspec/project.json` pin so a
+	 * multi-project token can resolve. If those facts were missing and the
+	 * server still asks which project, one retry attaches them.
 	 */
 	cwd?: string;
 	/**
@@ -355,7 +356,10 @@ async function invokeOnLane<T>(
  * Call a DevSpec MCP tool. Throws DevspecAuthError / DevspecApiError / DevspecToolError.
  * One transparent reconnect-retry on transport failure (the cached client may
  * hold a dead socket after sleep/network change). MCP `isError` is a verb
- * refusal: one request, no close, no retry. A work-lane failure never drops
+ * refusal: no close, no transport re-init. Project-scope refusals are different:
+ * folder facts go on the first call when `cwd` is known; if that call was still
+ * unscoped and the server asks which project, retry once with those facts —
+ * same client, extra args, not a reconnect. A work-lane failure never drops
  * the pump client; retiring a lane never close()s while siblings are in flight.
  */
 export async function callDevspec(
@@ -367,7 +371,13 @@ export async function callDevspec(
 	const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 	const lane: ClientLane = options.lane ?? "work";
 	let callArgs = args;
-	let scopedRetryDone = false;
+	if (options.cwd && !argsHaveProjectScope(callArgs)) {
+		const scope = await folderScopeArgs(options.cwd);
+		if (scope.git_remote || scope.pinned_project_id) {
+			callArgs = { ...callArgs, ...scope };
+		}
+	}
+	let scopedRetryDone = argsHaveProjectScope(callArgs);
 	let rateLimitRetries = 0;
 	let lastError: unknown = null;
 	for (let attempt = 0; attempt < 2; attempt++) {
@@ -385,7 +395,6 @@ export async function callDevspec(
 			return raw;
 		} catch (err) {
 			const mapped = mapClientError(err);
-			if (mapped instanceof DevspecToolError) throw mapped;
 			// Rate limit: honor the server's hint, cool the whole process down,
 			// and retry ONCE after waiting — never hammer the window.
 			const retryMs = parseRateLimitRetryMs(mapped.message);
@@ -397,37 +406,27 @@ export async function callDevspec(
 				attempt--; // the rate-limit wait-retry doesn't consume a transport attempt
 				continue;
 			}
-			// Reactive project scoping: one retry with whatever anchors this folder has —
-			// its git remote, its `.devspec/project.json` pin, or both. A folder with no
-			// repo has no remote, so the pin is the only anchor it can offer; sending both
-			// when both exist is deliberate, because the SERVER ranks them (a verified
-			// remote wins) and precedence must never be decided here.
+			// Project-scope retry, including MCP isError. Not a transport retry:
+			// same client, extra folder facts, never close()/re-init.
 			if (
 				!scopedRetryDone &&
 				!(mapped instanceof DevspecAuthError) &&
-				!callArgs.git_remote &&
-				!callArgs.pinned_project_id &&
-				!callArgs.project_id &&
+				!argsHaveProjectScope(callArgs) &&
 				needsProjectScope(mapped.message)
 			) {
 				const cwd = options.cwd ?? process.cwd();
-				const [remote, pin] = await Promise.all([
-					resolveGitRemote(cwd),
-					resolveProjectPin(cwd),
-				]);
-				if (remote || pin) {
+				const scope = await folderScopeArgs(cwd);
+				if (scope.git_remote || scope.pinned_project_id) {
 					scopedRetryDone = true;
 					callArgs = {
 						...callArgs,
-						...(remote ? { git_remote: remote } : {}),
-						// NEVER `project_id` — that would outrank the remote and reverse the
-						// decided precedence. See project-scope.ts.
-						...(pin ? { pinned_project_id: pin } : {}),
+						...scope,
 					};
 					attempt--; // the scoping retry doesn't consume a transport attempt
 					continue;
 				}
 			}
+			if (mapped instanceof DevspecToolError) throw mapped;
 			lastError = mapped;
 			if (mapped instanceof DevspecAuthError) {
 				resetClientCache(lane);

@@ -142,9 +142,29 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// and 23 parameter descriptions cut off mid-sentence. Both are 320 now, a new
 	// test asserts nothing ships elided, and the prefix went 6,933 -> 7,130 tokens
 	// of an 8,000 ceiling to buy that back. Budget and quality coverage unaffected.
+	// Rebaselined 2026-09-08 for DevSpec item f68fc217: filtering action items by
+	// WHO ASKED for them to exist. Two optional inputs were added to
+	// get_action_items and search_action_items and nothing else moved —
+	// `requested_by` (a person id, or "me", the same grammar `assigned_to`
+	// already uses) and `request_origin` (an enum generated from a shared DevSpec
+	// core constant, so a future value arrives here by regeneration rather than
+	// by anyone editing a list). No new verbs, and no projection family changed:
+	// both remain `collection`.
+	//
+	// Budget: search_action_items is in the hot set, so its two new parameter
+	// descriptions do reach the model prefix. Measured after regenerating,
+	// estimatePrefixTokens("") is 6,592 of the 8,000 ceiling. get_action_items is
+	// not in the hot set, so its half is wire-only.
+	//
+	// Quality: Pi carries no restatement of either filter, which is why
+	// regenerating the catalog is the whole of Pi's change. Worth knowing rather
+	// than fixing here: `nobody_asked` is the one value that covers a SET of
+	// stored states (agent_initiative + automatic) and is named as a set on
+	// purpose, so a model reading the enum cannot mistake an exact value for a
+	// widened one.
 	assert.equal(
 		fingerprint,
-		"8915d4185c1e0901866a34a1726bc215e233ff22a6ffb8c6deff6c2add0c08da",
+		"c5c8368369f292769b5a3961eee751dbf44823cf9154a63ac16fba21cca2926d",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

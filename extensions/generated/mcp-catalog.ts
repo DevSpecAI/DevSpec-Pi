@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 88093060076d4b9e651bf3d3fa2dc8d3eb80c8d55e2325521833b9d4e511df7a
+ * Schema fingerprint: d469eaab1466f2c19a59d40da02a32d12162e9d61f09243f1cf3c790fe7979a8
  * Description fingerprint: d5fe99c63e4c281075d1d2f4426fadbd79117c686decb07935727ce216e6af27
- * Regenerated: 2026-09-07T17:25:02.371Z
+ * Regenerated: 2026-09-08T16:16:06.199Z
  */
-export const MCP_CATALOG_FINGERPRINT = "88093060076d4b9e651bf3d3fa2dc8d3eb80c8d55e2325521833b9d4e511df7a";
+export const MCP_CATALOG_FINGERPRINT = "d469eaab1466f2c19a59d40da02a32d12162e9d61f09243f1cf3c790fe7979a8";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "d5fe99c63e4c281075d1d2f4426fadbd79117c686decb07935727ce216e6af27";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-07T17:25:02.371Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-08T16:16:06.199Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -346,6 +346,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "boolean",
 					"description": "The shorthand every corpus shares (item 17925641): flagged:true returns only items carrying ≥1 live review signal of ANY type — \"show me the flagged ones\". Same param name and meaning on get_resources (artifacts) and the memory tools; terminal-state items (done/dismissed/deferred) never match even with a persisted flag. signal_type/signal_bucket win if both are passed."
 				},
+				"requested_by": {
+					"type": "string",
+					"description": "Filter by who ASKED for the item to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID; \"anyone\" or omitting it disables the filter. Same grammar as assigned_to."
+				},
+				"request_origin": {
+					"type": "string",
+					"enum": [
+						"human_requested",
+						"agent_initiative",
+						"automatic",
+						"nobody_asked",
+						"unrecorded",
+						"all"
+					],
+					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = those last two together; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+				},
 				"project_id": {
 					"type": "string",
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins."
@@ -396,6 +412,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"limit": {
 					"type": "number",
 					"description": "Maximum number of results. Defaults to 20, max 50."
+				},
+				"requested_by": {
+					"type": "string",
+					"description": "Filter by who ASKED for the item to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID; \"anyone\" or omitting it disables the filter. Same grammar as assigned_to."
+				},
+				"request_origin": {
+					"type": "string",
+					"enum": [
+						"human_requested",
+						"agent_initiative",
+						"automatic",
+						"nobody_asked",
+						"unrecorded",
+						"all"
+					],
+					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = those last two together; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
 					"type": "string",

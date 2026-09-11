@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 7e85cbcf9b361002e0206cddb599ede24f68d947b68369320e852731916ad4d2
+ * Schema fingerprint: 2e40c18a56f19f80dcb1d4a5dfb7b5098dc1b23d5e068e954f98898f43963eb2
  * Description fingerprint: d5fe99c63e4c281075d1d2f4426fadbd79117c686decb07935727ce216e6af27
- * Regenerated: 2026-09-11T08:26:55.593Z
+ * Regenerated: 2026-09-11T13:38:02.544Z
  */
-export const MCP_CATALOG_FINGERPRINT = "7e85cbcf9b361002e0206cddb599ede24f68d947b68369320e852731916ad4d2";
+export const MCP_CATALOG_FINGERPRINT = "2e40c18a56f19f80dcb1d4a5dfb7b5098dc1b23d5e068e954f98898f43963eb2";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "d5fe99c63e4c281075d1d2f4426fadbd79117c686decb07935727ce216e6af27";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-11T08:26:55.593Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-11T13:38:02.544Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -4777,6 +4777,32 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Exact current claim generation that started the attempt.",
 					"x-devspec-host-only": true
 				},
+				"question_dismissal_event_version": {
+					"type": "integer",
+					"enum": [
+						1
+					],
+					"description": "Separate no-answer continuation version; report_pickup requires it. Do not mix answer identity fields.",
+					"x-devspec-host-only": true
+				},
+				"question_dismissal_event_id": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact responder dismissal event id, not an answer event.",
+					"x-devspec-host-only": true
+				},
+				"question_dismissal_question_id": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact dismissed question id; never a response id.",
+					"x-devspec-host-only": true
+				},
+				"question_dismissal_claim_token": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact dismissal claim generation bound to attempt_id.",
+					"x-devspec-host-only": true
+				},
 				"message": {
 					"type": "string",
 					"description": "The message content (markdown). Displayed in the live chat as a distinct local-agent message. For turn_kind=local_prompt, pass the raw owner prompt (no need for a \"Local prompt:\" wrapper)."
@@ -5672,6 +5698,37 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						1
 					]
 				},
+				"question_dismissal_event_version": {
+					"type": "integer",
+					"enum": [
+						1
+					],
+					"description": "Separately opts into responder dismissal events and ACKs. Requires interaction_event_version:1; answers have priority. Omitted clients never consume dismissal events."
+				},
+				"question_dismissal_event_ack": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"event_id",
+						"question_id",
+						"claim_token"
+					],
+					"description": "Exact dismissal ACK only after durable host continuation persistence; requires both event negotiations.",
+					"properties": {
+						"event_id": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"question_id": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"claim_token": {
+							"type": "string",
+							"format": "uuid"
+						}
+					}
+				},
 				"interaction_event_ack": {
 					"type": "object",
 					"additionalProperties": false,
@@ -5999,6 +6056,32 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Exact event claim token.",
 					"x-devspec-host-only": true
 				},
+				"question_dismissal_event_version": {
+					"type": "integer",
+					"enum": [
+						1
+					],
+					"description": "Separate no-answer continuation version; report_pickup requires it. Do not mix answer identity fields.",
+					"x-devspec-host-only": true
+				},
+				"question_dismissal_event_id": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact responder dismissal event id, not an answer event.",
+					"x-devspec-host-only": true
+				},
+				"question_dismissal_question_id": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact dismissed question id; never a response id.",
+					"x-devspec-host-only": true
+				},
+				"question_dismissal_claim_token": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact dismissal claim generation bound to attempt_id.",
+					"x-devspec-host-only": true
+				},
 				"runner_session_id": {
 					"type": "string",
 					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
@@ -6089,6 +6172,32 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Exact interaction claim bound to attempt_id.",
 					"x-devspec-host-only": true
 				},
+				"question_dismissal_event_version": {
+					"type": "integer",
+					"enum": [
+						1
+					],
+					"description": "Separate no-answer continuation version; report_pickup requires it. Do not mix answer identity fields.",
+					"x-devspec-host-only": true
+				},
+				"question_dismissal_event_id": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact responder dismissal event id, not an answer event.",
+					"x-devspec-host-only": true
+				},
+				"question_dismissal_question_id": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact dismissed question id; never a response id.",
+					"x-devspec-host-only": true
+				},
+				"question_dismissal_claim_token": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact dismissal claim generation bound to attempt_id.",
+					"x-devspec-host-only": true
+				},
 				"runner_session_id": {
 					"type": "string",
 					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
@@ -6149,6 +6258,32 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"format": "uuid",
 					"description": "Exact interaction claim bound to attempt_id.",
+					"x-devspec-host-only": true
+				},
+				"question_dismissal_event_version": {
+					"type": "integer",
+					"enum": [
+						1
+					],
+					"description": "Separate no-answer continuation version; report_pickup requires it. Do not mix answer identity fields.",
+					"x-devspec-host-only": true
+				},
+				"question_dismissal_event_id": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact responder dismissal event id, not an answer event.",
+					"x-devspec-host-only": true
+				},
+				"question_dismissal_question_id": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact dismissed question id; never a response id.",
+					"x-devspec-host-only": true
+				},
+				"question_dismissal_claim_token": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Exact dismissal claim generation bound to attempt_id.",
 					"x-devspec-host-only": true
 				},
 				"interaction_pre_persistence_failure": {

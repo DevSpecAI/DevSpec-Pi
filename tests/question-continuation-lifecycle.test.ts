@@ -40,7 +40,7 @@ test("exact interaction activity starts before custom persistence and never uses
 	const exactStartAt = apply.indexOf("await startInteractionContinuation(active, event)");
 	assert.ok(exactStartAt >= 0 && exactStartAt < apply.indexOf("interactionDelivery.stage({", exactStartAt));
 	const start = between("async function startInteractionContinuation", "async function keepInteractionContinuationAlive");
-	assert.match(start, /"report_pickup"[^]*interaction_event_version: 1[^]*interaction_event_id: event\.event_id[^]*interaction_response_id: event\.response_id[^]*interaction_claim_token: event\.claim_token/);
+	assert.match(start, /"report_pickup"[^]*interactionContinuationStartArgs\(event\)/);
 	assert.match(start, /connectionCapability: active\.bond\.connectionCapability/);
 	assert.doesNotMatch(start, /connection_id: authority\.connectionId\s*\n\s*\}/,
 		"report_pickup must carry the event tuple, not connection identity alone");
@@ -53,7 +53,7 @@ test("persisted custom application ACKs mechanically while busy before model set
 	const confirmation = between("async function attemptInteractionPersistenceConfirmation", "function confirmInteractionMessageAfterPersistence");
 	assert.match(confirmation, /result === "confirmed"[^]*run\.application = "applied"[^]*await acknowledgeInteractionApplication\(confirmation\.run\)/);
 	const ack = between("async function acknowledgeInteractionApplication", "async function attemptInteractionPersistenceConfirmation");
-	assert.match(ack, /"poll_connection"[^]*interaction_event_ack[^]*catch_up: true[^]*wait_ms: 0/);
+	assert.match(ack, /"poll_connection"[^]*interactionEventAckArgs[^]*catch_up: true[^]*wait_ms: 0/);
 	assert.match(ack, /connectionCapability: run\.authority\.connectionCapability/);
 	assert.doesNotMatch(ack, /agent_settled|ctx\.isIdle/);
 });

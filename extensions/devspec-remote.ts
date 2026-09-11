@@ -126,6 +126,12 @@ import {
 } from "./core/model-surface.ts";
 import {
 	INTERACTION_EVENT_CUSTOM_TYPE,
+	QUESTION_DISMISSAL_EVENT_CUSTOM_TYPE,
+	QUESTION_DISMISSAL_EVENT_KIND,
+	interactionEventCustomType,
+	interactionEventAck,
+	interactionEventAckArgs,
+	interactionContinuationStartArgs,
 	INTERACTION_EVENT_JOURNAL_TYPE,
 	InteractionEventDeliveryController,
 	InteractionEventJournal,
@@ -135,14 +141,14 @@ import {
 	interactionEventJournalEntry,
 	interactionEventMatchesWorkflow,
 	parseInteractionContinuationStartResult,
-	parseInteractionEventPollPayload,
+	parseDirectedQuestionEventPollPayload,
 	persistedActiveBranchEntries,
 	type ExactInteractionContinuationIdentity,
 	type InteractionEventApplicationDetails,
 	type InteractionEventDeliveryAuthority,
 	type InteractionEventDeliveryPort,
 	type InteractionEventMessageEndLike,
-	type InteractionEventV1,
+	type DirectedQuestionEventV1,
 	type SessionEntryLike,
 } from "./core/interaction-events.ts";
 import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
@@ -176,7 +182,7 @@ const ERROR_BACKOFF_MS = 5_000;
 const MAX_CONSECUTIVE_ERRORS = 10;
 
 interface PendingInteractionStartRetry {
-	event: InteractionEventV1;
+	event: DirectedQuestionEventV1;
 	generation: number;
 	localSessionId: string;
 	attempts: number;
@@ -590,7 +596,7 @@ async function reportComplete(reason: string, commandTurnId?: string, commandMes
 /** Start the exact event/claim-bound activity before Pi can persist or execute it. */
 async function startInteractionContinuation(
 	active: PumpState,
-	event: InteractionEventV1,
+	event: DirectedQuestionEventV1,
 ): Promise<ReturnType<typeof parseInteractionContinuationStartResult>> {
 	if (pump !== active || active.stop) throw new Error("interaction pump authority changed");
 	const authority = capturePumpAuthority({ generation: active.generation, connectionId: active.bond.connectionId });
@@ -598,10 +604,7 @@ async function startInteractionContinuation(
 	if (!resolved) throw new Error("interaction continuation requires authentication");
 	const raw = await callDevspec(resolved.token, "report_pickup", {
 		connection_id: authority.connectionId,
-		interaction_event_version: 1,
-		interaction_event_id: event.event_id,
-		interaction_response_id: event.response_id,
-		interaction_claim_token: event.claim_token,
+		...interactionContinuationStartArgs(event),
 	}, { timeoutMs: 10_000, lane: "pump", connectionCapability: active.bond.connectionCapability });
 	const { details, isError, text } = unwrapMcpResult(raw);
 	if (isError) throw new Error(text || "exact interaction report_pickup failed");
@@ -1021,7 +1024,7 @@ function armInteractionRetryWake(active: PumpState): void {
 	if (typeof active.interactionRetryTimer.unref === "function") active.interactionRetryTimer.unref();
 }
 
-function retainInteractionStartRetry(active: PumpState, event: InteractionEventV1, localSessionId: string): void {
+function retainInteractionStartRetry(active: PumpState, event: DirectedQuestionEventV1, localSessionId: string): void {
 	const existing = active.pendingInteractionStarts.get(event.event_id);
 	const attempts = (existing?.attempts ?? 0) + 1;
 	active.pendingInteractionStarts.set(event.event_id, {
@@ -1090,7 +1093,7 @@ function revokeInteractionForAttachmentChange(active: PumpState, ctx: ExtensionC
 function interactionApplicationDetails(
 	active: PumpState,
 	ctx: ExtensionContext,
-	event: InteractionEventV1,
+	event: DirectedQuestionEventV1,
 	attemptId?: string,
 ): InteractionEventApplicationDetails {
 	return {
@@ -1172,7 +1175,7 @@ function interactionDeliveryPort(active: PumpState, run?: ExactInteractionRun): 
 async function applyInteractionEvent(
 	active: PumpState,
 	ctx: ExtensionContext,
-	event: InteractionEventV1,
+	event: DirectedQuestionEventV1,
 ): Promise<boolean> {
 	if (pump !== active || active.stop ||
 		!active.bond.connectionCapability || !interactionEventMatchesWorkflow(event, {
@@ -1233,7 +1236,7 @@ async function applyInteractionEvent(
 		const identity: ExactInteractionContinuationIdentity = {
 			attemptId: started.attemptId,
 			eventId: event.event_id,
-			responseId: event.response_id,
+			...(event.kind === QUESTION_DISMISSAL_EVENT_KIND ? { questionId: event.question_id } : { responseId: event.response_id }),
 			claimToken: event.claim_token,
 		};
 		const details = interactionApplicationDetails(active, ctx, event, started.attemptId) as InteractionEventApplicationDetails & { attempt_id: string };
@@ -1319,11 +1322,8 @@ async function acknowledgeInteractionApplication(run: ExactInteractionRun): Prom
 		const raw = await callDevspec(resolved.token, "poll_connection", {
 			connection_id: run.authority.connectionId,
 			interaction_event_version: 1,
-			interaction_event_ack: {
-				event_id: run.identity.eventId,
-				response_id: run.identity.responseId,
-				claim_token: run.identity.claimToken,
-			},
+			question_dismissal_event_version: 1,
+			...interactionEventAckArgs(interactionEventAck(run.details.event)),
 			// ACK-only catch-up cannot claim another event or package an owner command.
 			catch_up: true,
 			cursor_v2: run.active.cursor,
@@ -1475,7 +1475,7 @@ function startPushChannel(active: PumpState, token: string, endpoint: string): v
 		connectionId: active.bond.connectionId,
 		connectionCapability: active.bond.connectionCapability,
 		systemNoticeVersion: 1,
-		...(active.pushInteractionAware ? { interactionEventVersion: 1 as const } : {}),
+		...(active.pushInteractionAware ? { interactionEventVersion: 1 as const, questionDismissalEventVersion: 1 as const } : {}),
 		signal: controller.signal,
 		handlers: {
 			onWake: () => {
@@ -1871,7 +1871,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					} : {}),
 					...(interactionEventNegotiated ? {
 						interaction_event_version: 1,
-						...(interactionEventAck ? { interaction_event_ack: interactionEventAck } : {}),
+						question_dismissal_event_version: 1,
+						...(interactionEventAck ? interactionEventAckArgs(interactionEventAck) : {}),
 					} : {}),
 					cursor_v2: active.cursor,
 					dispatch_cursor: active.dispatchCursor,
@@ -1934,9 +1935,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 
 		// Parse the complete public event lane before host application or local ACK
 		// commitment. Unknown/malformed versions remain server-retained.
-		let interactionEvent: InteractionEventV1 | null;
+		let interactionEvent: DirectedQuestionEventV1 | null;
 		try {
-			interactionEvent = parseInteractionEventPollPayload(payload, interactionEventNegotiated);
+			interactionEvent = parseDirectedQuestionEventPollPayload(payload, interactionEventNegotiated);
 		} catch (error) {
 			active.errors += 1;
 			debug("interaction event payload rejected", { errors: active.errors, errorPresent: Boolean(error) });
@@ -2521,7 +2522,7 @@ export default function (pi: ExtensionAPI) {
 		startingInteractionRun = run;
 		try {
 			pi.sendMessage({
-				customType: INTERACTION_EVENT_CUSTOM_TYPE,
+				customType: interactionEventCustomType(details.event),
 				content: message,
 				display: true,
 				details,
@@ -2933,7 +2934,7 @@ export default function (pi: ExtensionAPI) {
 		// including turns the trail skips (unattached/local), so sessionless
 		// agents still report on the idle heartbeat.
 		const msg = event.message as ({ role?: string; usage?: MessageUsage } & InteractionEventMessageEndLike) | undefined;
-		if (msg?.role === "custom" && msg.customType === INTERACTION_EVENT_CUSTOM_TYPE) {
+		if (msg?.role === "custom" && (msg.customType === INTERACTION_EVENT_CUSTOM_TYPE || msg.customType === QUESTION_DISMISSAL_EVENT_CUSTOM_TYPE)) {
 			// Pi 0.84 persists this finalized custom message immediately after all
 			// message_end extension handlers return. A later task verifies the exact
 			// JSONL row before the controller makes ACK eligible.

@@ -28,6 +28,7 @@ export interface PushChannelOptions {
 	systemNoticeVersion?: 1;
 	/** Durable interaction events share this one stream's wake marker. */
 	interactionEventVersion?: 1;
+	questionDismissalEventVersion?: 1;
 	handlers: PushChannelHandlers;
 	/** Abort to close deliberately. */
 	signal: AbortSignal;
@@ -212,10 +213,14 @@ export function nextPushReconnectDelayMs(
  * (non-2xx, network) so the caller can choose fallback BEFORE any frames
  * flowed.
  */
-export function pushChannelUrl(opts: Pick<PushChannelOptions, "mcpUrl" | "connectionId" | "systemNoticeVersion" | "interactionEventVersion">): string {
+export function pushChannelUrl(opts: Pick<PushChannelOptions, "mcpUrl" | "connectionId" | "systemNoticeVersion" | "interactionEventVersion" | "questionDismissalEventVersion">): string {
 	const query = new URLSearchParams({ connection_id: opts.connectionId });
 	if (opts.systemNoticeVersion === 1) query.set("system_notice_version", "1");
 	if (opts.interactionEventVersion === 1) query.set("interaction_event_version", "1");
+	if (opts.questionDismissalEventVersion === 1) {
+		if (opts.interactionEventVersion !== 1) throw new Error("Dismissal requires answer negotiation");
+		query.set("question_dismissal_event_version", "1");
+	}
 	return `${opts.mcpUrl.replace(/\/$/, "")}/connection-stream?${query.toString()}`;
 }
 

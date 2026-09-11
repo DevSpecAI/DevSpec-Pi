@@ -162,9 +162,26 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// stored states (agent_initiative + automatic) and is named as a set on
 	// purpose, so a model reading the enum cannot mistake an exact value for a
 	// widened one.
+	// Rebaselined 2026-09-11 for DevSpec item 27fdc5d6 (allow_custom defaults on)
+	// together with item f68fc217's who-asked filters reaching the knowledge verbs.
+	// One description and six pairs of optional inputs moved, nothing else:
+	//   - manage_directed_question.allow_custom: the description now says the
+	//     default is true, so the person asked can always answer in their own
+	//     words. Type and optionality are unchanged.
+	//   - get_resources, search_resources, search_memories, get_decisions,
+	//     get_conventions and get_unresolved_questions gained the same optional
+	//     `requested_by` and `request_origin` filters that get_action_items and
+	//     search_action_items took on 2026-09-08, generated from the same shared
+	//     DevSpec core constant.
+	// 84 model verbs before and after, none added or removed, and no projection
+	// family changed (the assignment test above still passes). Budget: after
+	// regenerating, `npm run benchmark:context` measures the initial DevSpec
+	// surface at 7,418 tokens of the 8,000 ceiling. The regenerating commit
+	// (8a71a84) shipped without this step and left main red for a day: the guard
+	// worked, the step it guards was skipped.
 	assert.equal(
 		fingerprint,
-		"c5c8368369f292769b5a3961eee751dbf44823cf9154a63ac16fba21cca2926d",
+		"0e6000ef2ba182e7254e7997a58283668cfc361f5951c8e83d02af2f09d6a661",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

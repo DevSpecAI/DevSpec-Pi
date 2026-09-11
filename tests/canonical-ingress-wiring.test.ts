@@ -20,7 +20,10 @@ test("main Pi poll capacity-gates system notices while control ack cannot claim 
 		assert.match(call[1], /active_plan_projection_version: 1/);
 	}
 	assert.doesNotMatch(calls[0]![1], /system_notice_version|system_notice_cursor/, "ackControl must never lease/ack at-most-once notices");
-	assert.match(calls[1]![1], /interaction_event_ack/);
+	// The exact-event ACK is built by interactionEventAckArgs, which emits
+	// `interaction_event_ack` for an answer and `question_dismissal_event_ack` for a
+	// responder dismissal (debec963). The pin follows the helper call, not one key.
+	assert.match(calls[1]![1], /\.\.\.interactionEventAckArgs\(interactionEventAck\(run\.details\.event\)\)/);
 	assert.match(calls[1]![1], /catch_up: true/);
 	assert.match(calls[2]![1], /\.\.\.\(systemNoticeNegotiated \? \{/);
 	assert.match(calls[2]![1], /system_notice_version: 1/);

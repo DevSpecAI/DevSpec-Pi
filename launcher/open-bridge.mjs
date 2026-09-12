@@ -22,6 +22,9 @@ const PID_PATH = `${DEVSPEC_DIR}/open-bridge.pid`
 export function isAllowedOrigin(origin) {
   if (!origin || typeof origin !== 'string') return false
   return (
+    origin === 'https://app.devspec.ai' ||
+    origin === 'https://app.devspecstaging.com' ||
+    // Pre-split hosts, kept while staging.devspec.ai is retired.
     origin === 'https://devspec.ai' ||
     origin === 'https://staging.devspec.ai' ||
     origin.endsWith('.devspec.ai') ||

@@ -774,9 +774,14 @@ function openExternalUrl(url) {
  * `tool` is passed so the page can name the agent the person actually launched. Without it the
  * page defaults to Cursor and tells a Pi user to go and fix something in an editor they may not
  * have installed — the same wrong-default class already fixed on the interstitial.
+ *
+ * The base is the app host, not the API host: a person reads this page, and `api.devspec.ai`
+ * serves no pages. DEVSPEC_APP_URL sets it explicitly (staging is `app.devspecstaging.com`);
+ * it is deliberately not derived from the MCP URL by rewriting the hostname, because nothing
+ * guarantees the two hosts stay siblings.
  */
 function openErrorPage(slug, reason, tool = 'cursor') {
-  const base = process.env.DEVSPEC_API_URL?.replace(/\/+$/, '') || 'https://devspec.ai'
+  const base = process.env.DEVSPEC_APP_URL?.replace(/\/+$/, '') || 'https://app.devspec.ai'
   const params = new URLSearchParams({ repo: slug, reason, tool })
   openExternalUrl(`${base}/cursor-handoff/error?${params}`)
 }

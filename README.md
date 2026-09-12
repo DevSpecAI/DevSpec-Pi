@@ -42,12 +42,12 @@ npm run check                 # typecheck + full tests + deterministic context b
 npm run benchmark:context     # print the current prefix/result budget baseline
 
 # Dogfood against staging (dev Clerk/Supabase) without installing:
-export DEVSPEC_ENV=staging                 # or DEVSPEC_MCP_URL=https://staging.devspec.ai/api/mcp
-export DEVSPEC_MCP_TOKEN=<from https://staging.devspec.ai/settings/connections>
+export DEVSPEC_ENV=staging                 # or DEVSPEC_MCP_URL=https://api.devspecstaging.com/api/mcp
+export DEVSPEC_MCP_TOKEN=<from https://app.devspecstaging.com/settings/connections>
 pi -e ./extensions/devspec-auth.ts -e ./extensions/devspec-tools.ts
 ```
 
-Production (`devspec.ai`) is the default when no override is set.
+Production (`https://api.devspec.ai/api/mcp`) is the default when no override is set.
 
 ### Regression and context-budget workflow
 

@@ -93,10 +93,18 @@ export function recordAdapterGuard(next: Partial<AdapterGuardState>): AdapterGua
 	return cur;
 }
 
-/** Hostname is DevSpec's own MCP (prod, staging, or a *.devspec.ai deploy). */
+/**
+ * Apex domains DevSpec deploys under: production (`api.devspec.ai`) and
+ * staging (`api.devspecstaging.com`). Matching the apex and any subdomain also
+ * keeps recognising the retiring `staging.devspec.ai`, which a checkout's
+ * `.mcp.json` may still name — that entry is exactly what this guard disables.
+ */
+const DEVSPEC_APEX_DOMAINS: readonly string[] = ["devspec.ai", "devspecstaging.com"];
+
+/** Hostname is DevSpec's own MCP (prod, staging, or any deploy under either apex). */
 export function isDevspecMcpHost(hostname: string): boolean {
 	const host = hostname.trim().toLowerCase();
-	return host === "devspec.ai" || host.endsWith(".devspec.ai");
+	return DEVSPEC_APEX_DOMAINS.some((apex) => host === apex || host.endsWith(`.${apex}`));
 }
 
 /**

@@ -25,14 +25,20 @@ const {
 	SUPPRESSION_NOTICE,
 } = await import("../extensions/core/adapter-overlap.ts");
 
-const STAGING = "https://staging.devspec.ai/api/mcp";
-const PROD = "https://devspec.ai/api/mcp";
+const STAGING = "https://api.devspecstaging.com/api/mcp";
+const PROD = "https://api.devspec.ai/api/mcp";
 
-test("isDevspecMcpHost matches prod and staging, not supabase", () => {
+test("isDevspecMcpHost matches the prod and staging API hosts, not supabase", () => {
+	assert.equal(isDevspecMcpHost("api.devspec.ai"), true);
+	assert.equal(isDevspecMcpHost("api.devspecstaging.com"), true);
 	assert.equal(isDevspecMcpHost("devspec.ai"), true);
+	assert.equal(isDevspecMcpHost("devspecstaging.com"), true);
+	// Retiring host: a checkout's .mcp.json may still name it, and that is the entry the guard disables.
 	assert.equal(isDevspecMcpHost("staging.devspec.ai"), true);
 	assert.equal(isDevspecMcpHost("mcp.supabase.com"), false);
 	assert.equal(isDevspecMcpHost("example.com"), false);
+	assert.equal(isDevspecMcpHost("devspec.ai.example.com"), false);
+	assert.equal(isDevspecMcpHost("notdevspecstaging.com"), false);
 });
 
 test("isDevspecMcpUrl matches host and the effective endpoint", () => {

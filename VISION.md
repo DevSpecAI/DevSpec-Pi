@@ -171,7 +171,7 @@ pump) is fine as module scope.
 
 ### Transport: the MCP contract, spoken natively
 
-The DevSpec MCP endpoint (`https://devspec.ai/api/mcp`) is a **stateless
+The DevSpec MCP endpoint (`https://api.devspec.ai/api/mcp`) is a **stateless
 Streamable HTTP, POST-only, bearer-token** bridge (verified in
 `apps/web/app/api/mcp/route.ts`). That is the **wire**. This package embeds
 a minimal MCP client and speaks those verb names. What the *model* sees is
@@ -323,10 +323,13 @@ Connections page (`/settings/connections`), verified via
 (0600, best-effort on Windows). `DEVSPEC_MCP_TOKEN` env wins for CI/cloud.
 No env-var wrangling as the primary path.
 
-Environments are first-class: development targets **staging.devspec.ai** (dev
-Clerk + Supabase), production is **devspec.ai**. `DEVSPEC_ENV=staging` or a
-full `DEVSPEC_MCP_URL` override selects the endpoint; login guidance points at
-the matching Connections page automatically.
+Environments are first-class: development targets the staging API host
+**api.devspecstaging.com** (dev Clerk + Supabase), production is
+**api.devspec.ai**; the human-facing pages the plugin links to (Connections,
+handoff) live on the matching `app.` host (`app.devspec.ai` /
+`app.devspecstaging.com`), and the marketing site stays on the bare apex.
+`DEVSPEC_ENV=staging` or a full `DEVSPEC_MCP_URL` override selects the
+endpoint; login guidance points at the matching Connections page automatically.
 
 Later (DevSpec-side work): OAuth device-code flow so login is a browser
 confirmation, not a token paste — designed per-environment from the start.
@@ -361,12 +364,13 @@ development convenience, never the user story.
 
 Release gates (all must hold before publishing):
 
-1. **Prod domain healthy.** Today `devspec.ai` serves the Traefik default cert
-   from at least some networks (found during Phase 2 dogfooding) and
-   `staging.devspec.ai` carries the real service. Public install must default
-   to a working prod endpoint — the package's default is already prod
-   (`DEFAULT_MCP_URL`), with `DEVSPEC_ENV=staging` / `DEVSPEC_MCP_URL` as
-   dev-only overrides. Verify TLS + `/api/mcp` on prod before release.
+1. **Prod API host healthy.** The package's default is prod
+   (`DEFAULT_MCP_URL` → `https://api.devspec.ai/api/mcp`), with
+   `DEVSPEC_ENV=staging` (→ `api.devspecstaging.com`) / `DEVSPEC_MCP_URL` as
+   dev-only overrides. During Phase 2 dogfooding the prod domain served the
+   Traefik default cert from at least some networks while staging carried the
+   real service, so a public install must be checked against a working prod
+   endpoint: verify TLS + `/api/mcp` on `api.devspec.ai` before release.
 2. **Login guidance matches the domain.** `/devspec.login` already points at
    the Connections page for the *effective* endpoint; OAuth device flow (when
    it lands) must be per-environment too (dev Clerk on staging, prod Clerk on

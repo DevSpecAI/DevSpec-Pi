@@ -9,15 +9,22 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+/**
+ * DevSpec's hostnames are split by role: the machine API (MCP) lives on the
+ * `api.` host, human-facing pages (settings, handoff) on the `app.` host, and
+ * the marketing site stays on the bare `devspec.ai` apex. Staging mirrors the
+ * same split on `devspecstaging.com`. Never derive one host from another.
+ */
+
 /** Prod MCP endpoint (stateless Streamable HTTP, POST-only, bearer auth). */
-export const DEFAULT_MCP_URL = "https://devspec.ai/api/mcp";
+export const DEFAULT_MCP_URL = "https://api.devspec.ai/api/mcp";
 
-/** Staging endpoint — active development happens here (dev Clerk/Supabase). */
-export const STAGING_MCP_URL = "https://staging.devspec.ai/api/mcp";
+/** Staging MCP endpoint — active development happens here (dev Clerk/Supabase). */
+export const STAGING_MCP_URL = "https://api.devspecstaging.com/api/mcp";
 
-/** Where users mint/revoke account-wide access tokens in the DevSpec web app. */
-export const CONNECTIONS_URL = "https://devspec.ai/settings/connections";
-export const STAGING_CONNECTIONS_URL = "https://staging.devspec.ai/settings/connections";
+/** Where users mint/revoke account-wide access tokens in the DevSpec web app (app host, not the API). */
+export const CONNECTIONS_URL = "https://app.devspec.ai/settings/connections";
+export const STAGING_CONNECTIONS_URL = "https://app.devspecstaging.com/settings/connections";
 
 /** Env var that always wins over the on-disk token store (CI / cloud workers). */
 export const TOKEN_ENV_VAR = "DEVSPEC_MCP_TOKEN";

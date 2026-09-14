@@ -47,7 +47,6 @@ const projectSummary = {
 		custom_instructions: repeat("Team principles", 4_000),
 		agent_rules: repeat("Team agent rules", 4_000),
 		branch_prefix: "devspec/",
-		test_commands: ["npm run check"],
 	},
 	owner_agent_rules: repeat("Owner agent rules", 4_000),
 	repos: Array.from({ length: 8 }, (_, index) => ({ full_name: `Org/repo-${index + 1}`, target_branch: "main" })),

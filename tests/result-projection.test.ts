@@ -224,6 +224,9 @@ test("real project summary shape preserves operational context, safe identity, a
 		execution: {
 			branch_prefix: "devspec/",
 			commit_message_prefix: "feat: ",
+			// DevSpec removed test_commands; a project that saved it before then still
+			// has it in stored settings. Kept here so the projection is proved to ignore
+			// it rather than merely being untested against it.
 			test_commands: ["npm test", "npm run typecheck"],
 			protected_paths: ["extensions/generated/**", ".env"],
 			auto_push: true,
@@ -234,7 +237,7 @@ test("real project summary shape preserves operational context, safe identity, a
 		owner_agent_rules: "Use the owner's local Node toolchain and do not occupy port 3000.",
 		goals: [{ id: "goal-1", name: "Reliable agent workflows", status: "active", progress: 60 }],
 		autopilot: { branch_prefix: "DUPLICATE-BRANCH", custom_instructions: "DUPLICATE-INSTRUCTIONS", token: "secret" },
-		local_plugin_settings: { test_commands: ["DUPLICATE-TEST"] },
+		local_plugin_settings: { protected_paths: ["DUPLICATE-TEST"] },
 		large_storage_settings: huge("NEVER-ECHO-STORAGE", 30_000),
 	};
 	const before = JSON.stringify(payload).length;
@@ -251,7 +254,12 @@ test("real project summary shape preserves operational context, safe identity, a
 	assert.match(text, /action items: 47/);
 	assert.match(text, /branch prefix: devspec\//);
 	assert.match(text, /commit message prefix: feat:/);
-	assert.match(text, /npm test/);
+	// test_commands is no longer a served setting, so neither its label nor its
+	// stored values may reach the model. "npm run typecheck" appears ONLY in that
+	// stored value — agent_rules says "npm test and typecheck", not this — so it
+	// is the precise probe for the removed projection.
+	assert.doesNotMatch(text, /test commands/i);
+	assert.doesNotMatch(text, /npm run typecheck/);
 	assert.match(text, /protected paths:[\s\S]*extensions\/generated/);
 	assert.match(text, /auto push: true/);
 	assert.match(text, /auto merge: false/);
@@ -829,7 +837,7 @@ test("production family budgets hold on adversarial selected fields without arbi
 			id: huge("project-id", 2_000), name: huge("project-name", 4_000),
 			repos: noisyItems, database_targets: noisyItems, members: noisyItems, goals: noisyItems,
 			execution: {
-				branch_prefix: huge("branch", 2_000), test_commands: noisyItems.map((_, index) => huge(`test-${index}`, 2_000)),
+				branch_prefix: huge("branch", 2_000),
 				protected_paths: noisyItems.map((_, index) => huge(`path-${index}`, 2_000)),
 				custom_instructions: huge("principles", 9_000), agent_rules: huge("agent-rules", 9_000),
 			},

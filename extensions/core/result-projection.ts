@@ -719,11 +719,11 @@ function projectSummary(details: unknown): string | null {
 	const execution = record(root.execution) ?? record(project.execution);
 	if (execution) {
 		const lines = ["Unified execution settings:"];
-		const hiddenExecutionValues = ["test_commands", "protected_paths"]
+		const hiddenExecutionValues = ["protected_paths"]
 			.reduce((sum, key) => sum + Math.max(0, (Array.isArray(execution[key]) ? execution[key] as unknown[] : []).length - 16), 0);
 		if (hiddenExecutionValues > 0) lines.push(`- ${hiddenExecutionValues} additional execution value(s) omitted. Repeating this fixed summary will not reveal them model-visibly; inspect the repository's agent rules or ask a maintainer for the exact setting.`);
 		for (const line of selectedScalars(execution, ["branch_prefix", "commit_message_prefix", "auto_push", "auto_merge"])) lines.push(`- ${line}`);
-		for (const [key, label] of [["test_commands", "test commands"], ["protected_paths", "protected paths"]] as const) {
+		for (const [key, label] of [["protected_paths", "protected paths"]] as const) {
 			const values = Array.isArray(execution[key]) ? execution[key] as unknown[] : [];
 			if (values.length) {
 				lines.push(`- ${label}:`);

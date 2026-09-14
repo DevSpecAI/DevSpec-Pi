@@ -64,6 +64,32 @@ test("a wake during the safety wait shortens the gap instead of waiting it out",
 	gate.cancel();
 });
 
+test("shared-token budget: a busy room of safety polls leaves most of the bucket for real traffic", () => {
+	// The token bucket is 60 req/min (DevSpecV2 mcpTokenRateLimiter); each
+	// safety lap is one poll. Derived from the real constant so a future
+	// cadence tightening fails here before it can starve tool traffic.
+	const perAgentPerMin = 60_000 / PUSH_SAFETY_MS;
+	const twelveAgentRoom = perAgentPerMin * 12;
+	assert.ok(
+		twelveAgentRoom < 30,
+		`12 same-token agents at ${perAgentPerMin.toFixed(2)} req/min each = ${twelveAgentRoom.toFixed(1)}/min; must stay under half the 60/min bucket`,
+	);
+});
+
+test("push-mode safety wait is not gated on busy vs idle", () => {
+	// Transport mode is orthogonal to work state: Pi can hold SSE while busy,
+	// and presence must not depend on which. The wait call site must not
+	// consult busy/idle at all.
+	const remote = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
+	const at = remote.indexOf("await waitForWake(active, PUSH_SAFETY_MS)");
+	assert.ok(at > 0, "push-mode waitForWake call site missing");
+	const context = remote.slice(Math.max(0, at - 300), at);
+	const blockStart = context.lastIndexOf("if (pushMode)");
+	assert.ok(blockStart >= 0, "push-mode gate missing around the safety wait");
+	const gate = context.slice(blockStart);
+	assert.doesNotMatch(gate, /busy|isIdle/, `safety wait must not consult work state: ${JSON.stringify(gate)}`);
+});
+
 test("a wake that lands just before the wait resolves immediately", async () => {
 	const gate = new WakeGenerationGate();
 	gate.signal();

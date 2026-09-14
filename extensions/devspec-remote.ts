@@ -29,6 +29,7 @@ import { DeliveryQueue, StaleDeliveryError, nextDeliveryRetryDelayMs, type Deliv
 import { revalidateAutomationRunRetry } from "./core/automation-run-retry.ts";
 import {
 	callDevspec,
+	DevspecAuthError,
 	isPermanentServerEnd,
 	MODEL_TIMEOUT_MS,
 	shouldEndBondOnPollFailure,
@@ -958,7 +959,7 @@ function scheduleTitleRefresh(sessionId: string, delayMs = 8_000): void {
 	if (typeof timer.unref === "function") timer.unref();
 }
 
-async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "owner_gone", serverAlreadyEnded = false): Promise<void> {
+async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "owner_gone" | "auth", serverAlreadyEnded = false): Promise<void> {
 	const active = pump;
 	if (!active) return;
 	const stoppingTurn = turn;
@@ -1679,6 +1680,11 @@ async function reviveRecoverableBond(
 	active: PumpState,
 	token: string,
 	ctx: ExtensionContext,
+	// Optional out-param: set when the revive demonstrably failed BECAUSE the
+	// credentials are rejected (not transport noise). Lets the caller tell
+	// "confirmed revocation, stop retrying" from "still ambiguous, ride it
+	// out" without parsing messages (item 781886cf).
+	failure?: { authFailed: boolean },
 ): Promise<boolean> {
 	if (active.stop || pump !== active) return false;
 	const prior = active.bond;
@@ -1792,7 +1798,8 @@ async function reviveRecoverableBond(
 		startPushChannel(active, token, await resolveEndpoint());
 		signalWake(active);
 		return true;
-	} catch {
+	} catch (err) {
+		if (failure) failure.authFailed = err instanceof DevspecAuthError;
 		return false;
 	}
 }
@@ -1812,6 +1819,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 	// The safety tick keeps presence fresh and catches anything the stream missed.
 	// Cadence is module-scope PUSH_SAFETY_MS (pinned by presence-cadence tests).
 	let notifiedFallback = false;
+	// Degraded-episode notice: warned once per prolonged failure run, cleared
+	// with a single recovery notice on the next clean lap (item 781886cf).
+	let notifiedDegraded = false;
 
 	while (pump === active && !active.stop) {
 		lastCtx = ctx;
@@ -1910,19 +1920,43 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			const { details, isError, text } = unwrapMcpResult(raw);
 			if (isError) throw new Error(text || "poll_connection failed");
 			payload = details;
+			if (notifiedDegraded) {
+				notifiedDegraded = false;
+				notify(ctx, "DevSpec remote: connection recovered.", "info");
+			}
 			active.errors = 0;
 		} catch (err) {
-			// Only a rejected token ends the bond from the client. A hung or
-			// parse-failed poll is recoverable (item 781886cf) — keep heartbeats
-			// and retry. Never stamp owner_gone / local_stop for transport noise.
+			// Only CONFIRMED credential rejection ends the bond (item 781886cf).
+			// Unavailable validation, transport noise, and ambiguous 401s ride
+			// out the backoff below. An auth-shaped failure first gets one
+			// revive, which re-validates the token and mints a fresh capability
+			// — an expired capability heals with no user action. Never stamp
+			// owner_gone / local_stop for anything but a dead host / human stop:
+			// confirmed rejection stamps auth.
 			if (shouldEndBondOnPollFailure(err)) {
-				notify(ctx, "DevSpec remote: token rejected — bond ended. /devspec.login to reconnect.", "error");
-				await stopPump(ctx, "owner_gone");
-				return;
+				const failure = { authFailed: false };
+				if (await reviveRecoverableBond(active, token, ctx, failure)) {
+					pushMode = true;
+					notifiedFallback = false;
+					continue;
+				}
+				if (failure.authFailed) {
+					notify(ctx, "DevSpec remote: credentials rejected — bond ended. /devspec.login to reconnect.", "error");
+					await stopPump(ctx, "auth");
+					return;
+				}
+				// Revive failed without proving revocation (transport noise mid
+				// revive) — fall through to the recoverable path, not the end.
 			}
 			active.errors += 1;
 			if (active.errors === 1 || active.errors % MAX_CONSECUTIVE_ERRORS === 0) {
 				debug("poll recoverable", { errors: active.errors, errorPresent: Boolean(err) });
+			}
+			if (active.errors === MAX_CONSECUTIVE_ERRORS && !notifiedDegraded) {
+				// Prolonged failure, still retrying: say so once, with the one
+				// manual action that helps. Short blips stay quiet by design.
+				notifiedDegraded = true;
+				notify(ctx, "DevSpec remote: connection troubled — retrying automatically. /devspec.remote reconnect to retry now.", "warning");
 			}
 			void beatBusy(active.busy);
 			await new Promise((r) => setTimeout(r, ERROR_BACKOFF_MS));
@@ -3177,7 +3211,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("devspec.remote", {
-		description: "Bond this pi session as DevSpec capacity. Usage: /devspec.remote [--session <id>] | stop | auto [on|off] | preempt [on|off]",
+		description: "Bond this pi session as DevSpec capacity. Usage: /devspec.remote [--session <id>] | stop | reconnect | auto [on|off] | preempt [on|off]",
 		handler: async (args, ctx) => {
 			const arg = args.trim();
 
@@ -3214,6 +3248,30 @@ export default function (pi: ExtensionAPI) {
 					const cur = await loadSettings();
 					notify(ctx, `DevSpec remote: owner-message preemption is ${cur.preemptOwner ? "on" : "off"}.`);
 				}
+				return;
+			}
+
+			// Manual retry for a troubled bond (item 781886cf): the pump already
+			// retries automatically, so this only hurries the next lap — it never
+			// rebuilds state, reloads extensions, or disturbs a healthy bond.
+			if (arg === "reconnect" || arg === "retry") {
+				if (!pump) {
+					const outcome = await bondNow(ctx);
+					if (!outcome.ok) {
+						notify(ctx, `DevSpec remote: ${outcome.error}`, outcome.errorKind === "auth" ? "warning" : "error");
+						return;
+					}
+					notify(
+						ctx,
+						`DevSpec remote: bonded as ${outcome.codename ?? "agent"}` +
+							`${outcome.attached ? " · attached" : " · sessionless (available on the Agents page)"}. ` +
+							`Owner messages will arrive as user messages here.`,
+					);
+					return;
+				}
+				pump.errors = 0;
+				signalWake(pump);
+				notify(ctx, "DevSpec remote: retrying now.", "info");
 				return;
 			}
 

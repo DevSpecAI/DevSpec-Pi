@@ -31,11 +31,24 @@ export const MODEL_TIMEOUT_MS = 25_000;
 
 export type ClientLane = "pump" | "work";
 
-/** Token rejected by the server (401). The user needs to re-login. */
+/** Token rejected by the server (401 + invalid_api_token / invalid_connection_capability). The user needs to re-login. */
 export class DevspecAuthError extends Error {}
 
 /** Anything else: network, server 5xx, MCP protocol errors. */
 export class DevspecApiError extends Error {}
+
+/**
+ * Authentication could not be EVALUATED (HTTP 503 auth_validation_unavailable).
+ * Retryable — the credential may be perfectly valid. Never terminal, never a
+ * reason to end the bond or tell the user to log in (item 781886cf).
+ */
+export class DevspecAuthUnavailableError extends DevspecApiError {
+	readonly credentialType: "api_token" | "connection_capability" | null;
+	constructor(message: string, credentialType: "api_token" | "connection_capability" | null = null) {
+		super(message);
+		this.credentialType = credentialType;
+	}
+}
 
 /** MCP tool result with `isError: true` — a verb refusal, not a dead socket. */
 export class DevspecToolError extends DevspecApiError {}
@@ -49,6 +62,62 @@ export class DevspecRateLimitError extends DevspecApiError {
 	}
 }
 
+/**
+ * Structured failure carried by an SDK/transport error, when the transport
+ * preserved it. The MCP SDK throws StreamableHTTPError with `.code` set to
+ * the HTTP status and the response body embedded in the message as
+ * `Streamable HTTP error: Error POSTing to endpoint: <body>` — so both the
+ * status and the server's JSON failure contract (item 798e2375) survive.
+ * An earlier comment here claimed the status was lost; it was wrong, and the
+ * regex-only classifier built on that claim is what turned transient 503s
+ * into "revoked" (item 781886cf).
+ */
+export interface StructuredServerFailure {
+	status: number | null;
+	code: string | null;
+	retryable: boolean | null;
+	credentialType: "api_token" | "connection_capability" | null;
+}
+
+/** Extract status / machine code / retry verdict from an SDK-shaped error. Exported for tests. */
+export function readStructuredFailure(err: unknown): StructuredServerFailure {
+	const out: StructuredServerFailure = { status: null, code: null, retryable: null, credentialType: null };
+	if (typeof err === "object" && err !== null) {
+		const rec = err as Record<string, unknown>;
+		for (const key of ["code", "status", "statusCode"]) {
+			const v = rec[key];
+			if (typeof v === "number" && Number.isInteger(v) && v >= 100 && v <= 599) {
+				out.status = v;
+				break;
+			}
+			// String codes (ECONNREFUSED, …) are transport noise, never HTTP statuses.
+		}
+	}
+	const message = err instanceof Error ? err.message : String(err);
+	const jsonStart = message.indexOf("{");
+	if (jsonStart >= 0) {
+		let body: Record<string, unknown> | null = null;
+		try {
+			body = JSON.parse(message.slice(jsonStart)) as Record<string, unknown>;
+		} catch {
+			body = null;
+		}
+		if (body && typeof body === "object") {
+			if (typeof body.code === "string") out.code = body.code;
+			if (typeof body.retryable === "boolean") out.retryable = body.retryable;
+			if (body.credential_type === "api_token" || body.credential_type === "connection_capability") {
+				out.credentialType = body.credential_type;
+			}
+		} else {
+			// Truncated or wrapped body — salvage the machine fields directly.
+		const codeMatch = message.match(/"code"\s*:\s*"([^"]+)"/);
+		if (codeMatch) out.code = codeMatch[1];
+			const retryMatch = message.match(/"retryable"\s*:\s*(true|false)/);
+			if (retryMatch) out.retryable = retryMatch[1] === "true";
+		}
+	}
+	return out;
+}
 /** Parse "Rate limit exceeded. Retry after N seconds." → ms, or null. */
 export function parseRateLimitRetryMs(message: string): number | null {
 	if (!/rate limit/i.test(message)) return null;
@@ -249,26 +318,62 @@ async function acquireClient(token: string, lane: ClientLane, connectionCapabili
 
 /**
  * Map SDK/transport errors to typed client errors. Exported for tests.
- * The server returns {"error":"Invalid or revoked API token"} with a 401;
- * the SDK surfaces that body text without the status code.
+ * Classification is structured-first (item 781886cf): the HTTP status from
+ * StreamableHTTPError.code and the server's JSON failure contract
+ * (item 798e2375) decide; message regexes cover only exact legacy server
+ * strings and transport noise. A bare "401" or "unauthorized" in unrelated
+ * text is NEVER credential rejection — that pattern is what killed healthy
+ * bonds on transient 503s.
  */
 export function mapClientError(err: unknown): Error {
-	if (err instanceof DevspecAuthError || err instanceof DevspecToolError || err instanceof DevspecRateLimitError) {
+	if (
+		err instanceof DevspecAuthError || err instanceof DevspecAuthUnavailableError ||
+		err instanceof DevspecToolError || err instanceof DevspecRateLimitError
+	) {
 		return err;
 	}
 	if (err instanceof DevspecApiError) return err;
 	const message = err instanceof Error ? err.message : String(err);
-	if (/401|unauthori[sz]ed|invalid_token|invalid (or revoked )?(api )?token|invalid authorization/i.test(message)) {
+	const structured = readStructuredFailure(err);
+	// 1. The server's explicit word wins. Unavailable validation is retryable
+	// even when the body happens to mention 401/unauthorized in prose.
+	if (
+		structured.retryable === true || structured.code === "auth_validation_unavailable" ||
+		structured.status === 503
+	) {
+		return new DevspecAuthUnavailableError(
+			"DevSpec could not check credentials right now (service unavailable). Retrying — no action needed.",
+			structured.credentialType,
+		);
+	}
+	if (structured.code === "invalid_api_token") {
 		return new DevspecAuthError("DevSpec rejected the token (invalid or revoked). Run /devspec.login.");
 	}
+	if (structured.code === "invalid_connection_capability") {
+		return new DevspecAuthError(
+			"DevSpec rejected the connection credentials (invalid or expired). Reconnecting — run /devspec.login if it persists.",
+		);
+	}
+	// 2. Exact legacy server strings (pre-code servers). Narrow on purpose.
+	if (/Invalid or revoked API token/.test(message)) {
+		return new DevspecAuthError("DevSpec rejected the token (invalid or revoked). Run /devspec.login.");
+	}
+	if (/Invalid or expired connection capability/.test(message)) {
+		return new DevspecAuthError(
+			"DevSpec rejected the connection credentials (invalid or expired). Reconnecting — run /devspec.login if it persists.",
+		);
+	}
+	// 3. Anything else — including ambiguous proxy/gateway 401s with no server
+	// code — is not proof of revocation. Recoverable; the pump rides it out.
 	if (/fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|socket|certificate/i.test(message)) {
 		return new DevspecApiError(`Cannot reach DevSpec (${message}). Check your connection.`);
 	}
 	return new DevspecApiError(message);
 }
 
-/** Transport / parse / timeout — recoverable. Never a human End. */
+/** Transport / parse / timeout / unavailable validation — recoverable. Never a human End. */
 export function isRecoverableTransportError(err: unknown): boolean {
+	if (err instanceof DevspecAuthUnavailableError) return true;
 	if (err instanceof DevspecAuthError || err instanceof DevspecToolError) return false;
 	const message = err instanceof Error ? err.message : String(err);
 	return /parse|streamable|timed? ?out|ETIMEDOUT|fetch failed|ECONNREFUSED|ENOTFOUND|ECONNRESET|socket|certificate|network|abort|Cannot reach DevSpec|Connection closed|-32000/i.test(
@@ -284,17 +389,25 @@ function mcpToolErrorText(raw: unknown, name: string): string | null {
 }
 
 /**
- * Only a rejected token ends the bond from the client. A poll that reports
- * `ended`/`not_found` is a *server* verdict — classified separately.
+ * Only a REJECTED credential ends the bond from the client. Unavailable
+ * validation, transport noise, and ambiguous 401s are recoverable by
+ * construction of mapClientError — they never reach this predicate as
+ * DevspecAuthError (item 781886cf). A poll that reports `ended`/`not_found`
+ * is a *server* verdict — classified separately.
  */
 export function shouldEndBondOnPollFailure(err: unknown): boolean {
 	return err instanceof DevspecAuthError || mapClientError(err) instanceof DevspecAuthError;
 }
 
-/** Explicit human/host/auth teardown is sticky. Inferred idle/not_found is recoverable. */
+/**
+ * Only deliberate human teardown is sticky. Matches the server's
+ * PERMANENT_END_REASONS (ui / local_stop): owner_gone and auth are
+ * recoverable ends the revive path re-validates, idle_timeout was never
+ * sticky, and a missing reason says nothing (item 781886cf).
+ */
 export function isPermanentServerEnd(status?: string | null, endReason?: string | null): boolean {
 	if (status !== "ended" && status !== "not_found") return false;
-	return endReason === "ui" || endReason === "local_stop" || endReason === "owner_gone" || endReason === "auth";
+	return endReason === "ui" || endReason === "local_stop";
 }
 
 export interface CallOptions {

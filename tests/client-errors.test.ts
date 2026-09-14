@@ -3,9 +3,12 @@ import { test } from "node:test";
 import {
 	DevspecApiError,
 	DevspecAuthError,
+	DevspecAuthUnavailableError,
 	isPermanentServerEnd,
 	isRecoverableTransportError,
 	mapClientError,
+	parseRateLimitRetryMs,
+	readStructuredFailure,
 	shouldEndBondOnPollFailure,
 	withHardTimeout,
 } from "../extensions/core/client.ts";
@@ -17,11 +20,84 @@ test("maps the server's 401 body text to DevspecAuthError", () => {
 	assert.ok(mapClientError(sdkError) instanceof DevspecAuthError);
 });
 
-test("maps explicit status and wording variants", () => {
-	assert.ok(mapClientError(new Error("HTTP 401")) instanceof DevspecAuthError);
-	assert.ok(mapClientError(new Error("401 Unauthorized")) instanceof DevspecAuthError);
-	assert.ok(mapClientError(new Error("invalid_token")) instanceof DevspecAuthError);
-	assert.ok(mapClientError(new Error("Missing or invalid Authorization header")) instanceof DevspecAuthError);
+test("structured 503 unavailable-validation is retryable, never credential rejection", () => {
+	// Exact SDK shape: StreamableHTTPError carries .code; the JSON failure
+	// contract (item 798e2375) rides in the message body.
+	const sdkError = Object.assign(
+		new Error(
+			'Streamable HTTP error: Error POSTing to endpoint: {"error":"Authentication is temporarily unavailable. Please try again.","code":"auth_validation_unavailable","credential_type":"api_token","retryable":true}',
+		),
+		{ code: 503 },
+	);
+	const mapped = mapClientError(sdkError);
+	assert.ok(mapped instanceof DevspecAuthUnavailableError);
+	assert.equal((mapped as DevspecAuthUnavailableError).credentialType, "api_token");
+	assert.equal(isRecoverableTransportError(mapped), true);
+	assert.equal(shouldEndBondOnPollFailure(sdkError), false);
+	assert.deepEqual(readStructuredFailure(sdkError), {
+		status: 503,
+		code: "auth_validation_unavailable",
+		retryable: true,
+		credentialType: "api_token",
+	});
+});
+
+test("a 503 that mentions 401 in prose is still unavailable, not revoked", () => {
+	// The defect that killed healthy bonds: bare /401/ matched anything.
+	const sdkError = Object.assign(
+		new Error(
+			'Streamable HTTP error: Error POSTing to endpoint: {"error":"Database lookup failed (see runbook 401c); retrying","code":"auth_validation_unavailable","retryable":true}',
+		),
+		{ code: 503 },
+	);
+	assert.ok(mapClientError(sdkError) instanceof DevspecAuthUnavailableError);
+	assert.equal(shouldEndBondOnPollFailure(sdkError), false);
+});
+
+test("structured invalid-token and invalid-capability codes are credential rejection", () => {
+	for (const code of ["invalid_api_token", "invalid_connection_capability"]) {
+		const sdkError = Object.assign(
+			new Error(
+				`Streamable HTTP error: Error POSTing to endpoint: {"error":"Denied.","code":"${code}","retryable":false}`,
+			),
+			{ code: 401 },
+		);
+		assert.ok(mapClientError(sdkError) instanceof DevspecAuthError, code);
+		assert.equal(shouldEndBondOnPollFailure(sdkError), true, code);
+	}
+});
+
+test("the server retryable verdict wins over any status heuristic", () => {
+	const sdkError = Object.assign(new Error('Streamable HTTP error: Error POSTing to endpoint: {"code":"auth_validation_unavailable","retryable":true}'), { code: 401 });
+	assert.ok(mapClientError(sdkError) instanceof DevspecAuthUnavailableError);
+});
+
+test("status arrives via code, status, or statusCode — string codes are transport noise", () => {
+	assert.equal(readStructuredFailure(Object.assign(new Error("x"), { code: 503 })).status, 503);
+	assert.equal(readStructuredFailure(Object.assign(new Error("x"), { status: 401 })).status, 401);
+	assert.equal(readStructuredFailure(Object.assign(new Error("x"), { statusCode: 429 })).status, 429);
+	assert.equal(readStructuredFailure(Object.assign(new Error("x"), { code: "ECONNREFUSED" })).status, null);
+});
+
+test("ambiguous 401s with no server code are recoverable, not proof of revocation", () => {
+	// Proxy/gateway 401s, bare statuses, OAuth-shaped tokens: none of these
+	// prove the credential is dead, so none may end the bond (item 781886cf).
+	for (const text of ["HTTP 401", "401 Unauthorized", "invalid_token", "Missing or invalid Authorization header", "Proxy 401: authenticate"]) {
+		const mapped = mapClientError(new Error(text));
+		assert.ok(mapped instanceof DevspecApiError, text);
+		assert.ok(!(mapped instanceof DevspecAuthError), text);
+		assert.equal(shouldEndBondOnPollFailure(new Error(text)), false, text);
+	}
+});
+
+test("exact legacy server strings still classify as rejection (old servers)", () => {
+	assert.ok(mapClientError(new Error('Streamable HTTP error: Error POSTing to endpoint: {"error":"Invalid or revoked API token"}')) instanceof DevspecAuthError);
+	assert.ok(mapClientError(new Error("Invalid or expired connection capability")) instanceof DevspecAuthError);
+});
+
+test("unavailable-validation text never trips the rate-limit path", () => {
+	const mapped = mapClientError(Object.assign(new Error('{"code":"auth_validation_unavailable","retryable":true}'), { code: 503 }));
+	assert.equal(parseRateLimitRetryMs(mapped.message), null);
 });
 
 test("maps network failures to DevspecApiError with guidance", () => {
@@ -63,11 +139,13 @@ test("only a rejected token ends the bond from the client", () => {
 	assert.equal(isRecoverableTransportError(auth), false);
 });
 
-test("explicit human, host-death, and auth server ends are sticky", () => {
+test("only deliberate human ends are sticky; owner_gone and auth revive", () => {
+	// Matches the server's PERMANENT_END_REASONS (ui / local_stop). owner_gone
+	// and auth are recoverable ends the revive path re-validates (item 781886cf).
 	assert.equal(isPermanentServerEnd("ended", "ui"), true);
 	assert.equal(isPermanentServerEnd("ended", "local_stop"), true);
-	assert.equal(isPermanentServerEnd("ended", "owner_gone"), true);
-	assert.equal(isPermanentServerEnd("ended", "auth"), true);
+	assert.equal(isPermanentServerEnd("ended", "owner_gone"), false);
+	assert.equal(isPermanentServerEnd("ended", "auth"), false);
 	assert.equal(isPermanentServerEnd("ended", null), false);
 	assert.equal(isPermanentServerEnd("not_found", null), false);
 	assert.equal(isPermanentServerEnd("ended", "idle_timeout"), false);

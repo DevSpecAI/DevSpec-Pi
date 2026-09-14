@@ -178,6 +178,26 @@ const SUBAGENT_FLEET_TASK_ID = "pi-subagents:active-fleet";
 const POLL_WAIT_MS = 25_000;
 /** Hold + margin; must stay under the MCP client default timeout. */
 const POLL_TIMEOUT_MS = 45_000;
+/**
+ * Push-mode safety cadence: the longest the pump goes without a presence
+ * stamp while SSE is up (item 7b649070).
+ *
+ * Four clocks, four values — never merged because all are durations:
+ * presence cadence here (45s), display freshness server-side (90s
+ * REMOTE_AGENT_LIVE_MS), working-attempt lease (server-owned), and the
+ * irreversible-end cutoff (10min REMOTE_AGENT_END_CUTOFF_MS, sweep only).
+ *
+ * 45s is half the 90s display window, so a live agent survives one fully
+ * missed safety lap plus poll latency and still stamps before the chip can
+ * call it offline. The previous 75s left 15s of nominal headroom — less than
+ * one slow auth round trip — which is why healthy idle Pi agents flickered.
+ * Load: 1.33 req/min/agent against the 60/min token bucket (a 12-agent room
+ * ≈ 16/min), each lap one poll = one presence write. The numerical match
+ * with POLL_TIMEOUT_MS is coincidence, not a relationship — do not merge
+ * them. Transport mode (SSE vs held-poll fallback) is orthogonal to busy vs
+ * idle: Pi can use SSE while busy, and wakes shorten observed gaps in both.
+ */
+export const PUSH_SAFETY_MS = 45_000;
 const ERROR_BACKOFF_MS = 5_000;
 const MAX_CONSECUTIVE_ERRORS = 10;
 
@@ -1790,7 +1810,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 	startPushChannel(active, token, endpoint);
 	let pushMode = true;
 	// The safety tick keeps presence fresh and catches anything the stream missed.
-	const PUSH_SAFETY_MS = 75_000;
+	// Cadence is module-scope PUSH_SAFETY_MS (pinned by presence-cadence tests).
 	let notifiedFallback = false;
 
 	while (pump === active && !active.stop) {

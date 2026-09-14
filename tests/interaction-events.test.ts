@@ -653,3 +653,40 @@ test("remote wiring uses idle claim/application and post-message_end disk proof"
 	assert.equal((remote.match(/async function pumpLoop/g) ?? []).length, 1);
 	assert.equal((remote.match(/openPushChannel\(/g) ?? []).length, 1);
 });
+
+test("preempt abort budget: one abort per event until applied, surviving claim rotation", () => {
+	const journal = new InteractionEventJournal();
+	assert.equal(journal.notePreemptAbort(event.event_id), false, "unknown events never abort");
+	assert.equal(journal.observe(details), "new");
+	assert.equal(journal.notePreemptAbort(event.event_id), true, "first abort spends the budget");
+	assert.equal(journal.notePreemptAbort(event.event_id), false, "second abort is suppressed");
+	const redelivered = { ...details, event: { ...event, claim_token: "77777777-7777-4777-8777-777777777777", lease_expires_at: "2026-08-25T12:01:00.000Z" } };
+	assert.equal(journal.observe(redelivered), "redelivery");
+	assert.equal(journal.notePreemptAbort(event.event_id), false, "budget survives token rotation");
+});
+
+test("quarantined events never spend the abort budget and have no refreshable event", () => {
+	const journal = new InteractionEventJournal();
+	journal.rejectCollision(event.event_id, event.response_id);
+	assert.equal(journal.notePreemptAbort(event.event_id), false);
+	assert.equal(journal.eventFor(event.event_id), undefined);
+});
+
+test("eventFor returns the latest rotated claim for retries, undefined when unknown", () => {
+	const journal = new InteractionEventJournal();
+	assert.equal(journal.eventFor(event.event_id), undefined);
+	journal.observe(details);
+	assert.equal(journal.eventFor(event.event_id)?.claim_token, event.claim_token);
+	const rotated = { ...details, event: { ...event, claim_token: "88888888-8888-4888-8888-888888888888", lease_expires_at: "2026-08-25T12:01:30.000Z" } };
+	journal.observe(rotated);
+	assert.equal(journal.eventFor(event.event_id)?.claim_token, "88888888-8888-4888-8888-888888888888");
+});
+
+test("reconstruction starts un-aborted: a reloaded process may abort once per pending event", () => {
+	const journal = InteractionEventJournal.reconstruct(
+		[branchEntry(customEntry("observed"), "e1", null)],
+		"pi-session",
+	);
+	assert.equal(journal.notePreemptAbort(event.event_id), true);
+	assert.equal(journal.notePreemptAbort(event.event_id), false);
+});

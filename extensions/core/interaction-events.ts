@@ -405,6 +405,11 @@ function parseApplicationDetails(value: unknown): InteractionEventApplicationDet
 interface ReceiptState extends InteractionEventApplicationDetails {
 	applied: boolean;
 	acknowledged: boolean;
+	// Preempt-abort budget (item 4221d08e): at most one abort per event until it
+	// is applied. Repeatedly aborting newer turns for an event that cannot apply
+	// (background-held occupancy, slow settle) destroys work without progressing
+	// the answer; after the first abort, later laps await idle without aborting.
+	aborted: boolean;
 }
 
 function answersEqual(left: InteractionEventAnswer, right: InteractionEventAnswer): boolean {
@@ -521,7 +526,7 @@ export class InteractionEventJournal {
 			this.quarantine(details, [eventMatch, responseMatch]);
 			return;
 		}
-		const state: ReceiptState = eventMatch ?? responseMatch ?? { ...details, applied: false, acknowledged: false };
+		const state: ReceiptState = eventMatch ?? responseMatch ?? { ...details, applied: false, acknowledged: false, aborted: false };
 		if (this.isConflicted(state)) return;
 		const claimChanged = state.event.claim_token !== details.event.claim_token;
 		if (details.attempt_id) {
@@ -590,6 +595,19 @@ export class InteractionEventJournal {
 		return Boolean(state?.applied && !this.isConflicted(state));
 	}
 
+	notePreemptAbort(eventId: string): boolean {
+		const state = this.byEvent.get(eventId);
+		if (!state || this.isConflicted(state) || state.aborted) return false;
+		state.aborted = true;
+		return true;
+	}
+
+	eventFor(eventId: string): DirectedQuestionEventV1 | undefined {
+		const state = this.byEvent.get(eventId);
+		if (!state || this.isConflicted(state)) return undefined;
+		return state.event;
+	}
+
 	isConflictedFor(eventId: string, responseId: string): boolean {
 		return this.conflictedEventIds.has(eventId) || this.conflictedResponseIds.has(responseId);
 	}
@@ -603,7 +621,7 @@ export class InteractionEventJournal {
 		if (!sourceSessionId) return [];
 		return [...this.byEvent.values()]
 			.filter((state) => !this.isConflicted(state) && !state.applied && state.connection_id === connectionId && state.source_session_id === sourceSessionId)
-			.map(({ applied: _applied, acknowledged: _acknowledged, ...details }) => details);
+			.map(({ applied: _applied, acknowledged: _acknowledged, aborted: _aborted, ...details }) => details);
 	}
 
 	nextAck(connectionId: string, sourceSessionId?: string | null): InteractionEventAckV1 | null {
@@ -621,7 +639,7 @@ export class InteractionEventJournal {
 	detailsFor(eventId: string): InteractionEventApplicationDetails | null {
 		const state = this.byEvent.get(eventId);
 		if (!state || this.isConflicted(state)) return null;
-		const { applied: _applied, acknowledged: _acknowledged, ...details } = state;
+		const { applied: _applied, acknowledged: _acknowledged, aborted: _aborted, ...details } = state;
 		return details;
 	}
 }

@@ -130,3 +130,24 @@ test("a busy question answer aborts then applies the exact continuation, never a
 	assert.match(apply, /retainInteractionStartRetry\(active, event, ctx\.sessionManager\.getSessionId\(\)\)/);
 	assert.match(apply, /started\.outcome === "blocked_by_activity"[^]*retainInteractionStartRetry/s);
 });
+
+test("interaction preempt aborts once per event, then awaits idle without re-aborting (4221d08e)", () => {
+	const pump = between("if (interactionEvent) {", "// Titles are job-generated");
+	assert.match(pump, /interactionJournal\.observe\(interactionApplicationDetails\(active, ctx, interactionEvent\)\)/);
+	assert.match(pump, /if \(interactionJournal\.notePreemptAbort\(interactionEvent\.event_id\)\)/);
+	assert.ok(pump.indexOf("notePreemptAbort") < pump.indexOf("pi_abort()"), "budget gates the abort");
+	assert.match(pump, /interaction preempt already aborted for event; awaiting idle/);
+	assert.match(pump, /await applyInteractionEvent\(active, ctx, interactionEvent\)/);
+	assert.ok(pump.indexOf("await applyInteractionEvent") > pump.indexOf("notePreemptAbort"), "apply still follows every lap");
+});
+
+test("stale retained retries refresh their claim token from the journal before applying", () => {
+	const drain = between("async function drainInteractionRetries", "armInteractionRetryWake(active);\n\treturn attempted;");
+	assert.match(drain, /interactionJournal\.eventFor\(eventId\)/);
+	assert.match(drain, /pending\.event = freshEvent/);
+});
+
+test("deferred applications log which blocker held them, without content", () => {
+	const apply = between("async function applyInteractionEvent", "async function drainInteractionRetries");
+	assert.match(apply, /interaction apply deferred", \{ busy: active\.busy, occupancyBusy: active\.runtimeOccupancy\.isBusy\(\), ctxIdle: ctx\.isIdle\(\) \}/);
+});

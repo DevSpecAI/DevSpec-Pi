@@ -1209,6 +1209,7 @@ async function applyInteractionEvent(
 			sourceSessionId: active.bond.sessionId,
 		})) return false;
 	if (active.busy || active.runtimeOccupancy.isBusy() || !ctx.isIdle()) {
+		debug("interaction apply deferred", { busy: active.busy, occupancyBusy: active.runtimeOccupancy.isBusy(), ctxIdle: ctx.isIdle() });
 		retainInteractionStartRetry(active, event, ctx.sessionManager.getSessionId());
 		return false;
 	}
@@ -1332,6 +1333,13 @@ async function drainInteractionRetries(active: PumpState, ctx: ExtensionContext)
 		if (active.busy || active.runtimeOccupancy.isBusy() || !ctx.isIdle()) {
 			pending.nextAt = Date.now() + 1_000;
 			continue;
+		}
+		// A retained retry may hold a lease-expired claim token while fresher polls
+		// already rotated the journal. Refresh from the journal so the retry uses
+		// the newest token instead of failing on a stale one forever (4221d08e).
+		const freshEvent = interactionJournal.eventFor(eventId);
+		if (freshEvent && freshEvent.claim_token !== pending.event.claim_token) {
+			pending.event = freshEvent;
 		}
 		attempted = true;
 		await applyInteractionEvent(active, ctx, pending.event);
@@ -2079,13 +2087,18 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				preemptEnabled: preemptOwnerCached,
 				hasEvent: true,
 			}) === "preempt") {
-				debug("preempt: aborting running turn for question answer");
-				pi_abort();
-				const settled = await waitUntil(
-					() => ctx.isIdle() && !active.busy && !active.runtimeOccupancy.isBusy(),
-					{ timeoutMs: 8_000, intervalMs: 50 },
-				);
-				debug("preempt", { settled });
+				interactionJournal.observe(interactionApplicationDetails(active, ctx, interactionEvent));
+				if (interactionJournal.notePreemptAbort(interactionEvent.event_id)) {
+					debug("preempt: aborting running turn for question answer");
+					pi_abort();
+					const settled = await waitUntil(
+						() => ctx.isIdle() && !active.busy && !active.runtimeOccupancy.isBusy(),
+						{ timeoutMs: 8_000, intervalMs: 50 },
+					);
+					debug("preempt", { settled });
+				} else {
+					debug("interaction preempt already aborted for event; awaiting idle");
+				}
 				if (pump !== active || active.stop) continue;
 			}
 			if (!await applyInteractionEvent(active, ctx, interactionEvent)) {
@@ -2690,6 +2703,7 @@ export default function (pi: ExtensionAPI) {
 			if (!active || newInteractionRun.active !== active || newInteractionRun.application === "released" ||
 				!interactionAuthorityCurrent(newInteractionRun.authority)) {
 				active?.runtimeOccupancy.finish(occupancy);
+				debug("interaction authority revoked before agent start");
 				ctx.abort();
 				await releaseInteractionBeforePersistence(newInteractionRun, "interaction_authority_changed_before_agent_start");
 				return;
@@ -2699,6 +2713,7 @@ export default function (pi: ExtensionAPI) {
 			!interactionAuthorityCurrent(continuedInteractionRun.authority))) {
 			// A retry start after detach/replacement cannot fall through to generic
 			// owner activity under the new attachment.
+			debug("interaction authority revoked before agent start");
 			ctx.abort();
 			if (active) revokeInteractionForAttachmentChange(active, ctx);
 			return;
@@ -3066,6 +3081,7 @@ export default function (pi: ExtensionAPI) {
 				success: false,
 				terminatingReceipt: false,
 			}, revision);
+			debug("stale tool receipt abort");
 			ctx.abort();
 		}
 	});

@@ -51,3 +51,11 @@ test("delivery boundaries post the old exact command before rebinding the new se
 	assert.match(source, /pump !== active \|\| active\.stop/);
 	assert.match(source, /pump !== active \|\| !isPumpAuthorityCurrent\(authority/);
 });
+
+test("local turns are marked local_turn and bindings die with their command (6f4136d8)", () => {
+	assert.match(source, /\.\.\.\(opts\.localTurn \? \{ local_turn: true \} : \{\}\)/);
+	assert.match(source, /localTurn: isCommandTurnUnbound\(t\) && !t\.interaction/);
+	assert.match(source, /localTurn: isCommandTurnUnbound\(postingTurn\) && !postingTurn\.interaction/);
+	assert.match(source, /postToSession\(plan\.prompt, \{ turnKind: "local_prompt", localTurn: true \}\)/);
+	assert.match(source, /commandTurnBindings\.forgetByCommand\(commandTurnId, commandMessageId\)/);
+});

@@ -491,7 +491,7 @@ function replyModelArgs(agentStats?: AgentStatsReport): Record<string, unknown> 
 	return { model: { providerID, modelID } };
 }
 
-async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; agentStats?: AgentStatsReport } = {}): Promise<boolean> {
+async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; localTurn?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; agentStats?: AgentStatsReport } = {}): Promise<boolean> {
 	const active = pump;
 	const bond = getBond();
 	if (!active || !bond?.sessionId) return false;
@@ -510,6 +510,7 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 			...(opts.commandTurnId ? { command_turn_id: opts.commandTurnId } : {}),
 			...(opts.commandMessageId ? { command_message_id: opts.commandMessageId } : {}),
 			...(opts.commandTurnUnbound || opts.interaction ? { command_turn_unbound: true } : {}),
+			...(opts.localTurn ? { local_turn: true } : {}),
 			...(opts.interaction ? exactInteractionContinuationArgs(opts.interaction) : {}),
 			...(opts.phase ? { phase: opts.phase } : {}),
 			...(opts.completeTurn === true ? { complete_turn: true } : opts.completeTurn === false ? { complete_turn: false } : {}),
@@ -576,7 +577,7 @@ function trailTick(): void {
 	turn.posts += 1;
 	turn.lastPostAt = now;
 	const postingTurn = turn;
-	postingTurn.trailPostFence.track(postToSession(rendered, { phase: "trail", commandTurnId: postingTurn.commandTurnId, commandMessageId: postingTurn.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(postingTurn), interaction: interactionIdentity(postingTurn.interaction), trailEvents: activityEvents }));
+	postingTurn.trailPostFence.track(postToSession(rendered, { phase: "trail", commandTurnId: postingTurn.commandTurnId, commandMessageId: postingTurn.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(postingTurn), localTurn: isCommandTurnUnbound(postingTurn) && !postingTurn.interaction, interaction: interactionIdentity(postingTurn.interaction), trailEvents: activityEvents }));
 }
 
 /**
@@ -607,6 +608,9 @@ async function reportComplete(reason: string, commandTurnId?: string, commandMes
 			...(interaction ? exactInteractionContinuationArgs(interaction) : {}),
 			...(prePersistenceFailure ? { interaction_pre_persistence_failure: true } : {}),
 		}, { timeoutMs: 10_000, lane: "pump", ...(interaction && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}) });
+		// The command is closed: drop any never-taken binding strays for it so a
+		// later terminal input with identical text cannot inherit them (6f4136d8).
+		commandTurnBindings.forgetByCommand(commandTurnId, commandMessageId);
 		return true;
 	} catch {
 		/* lease expiry + disconnect remain backstops for best-effort callers */
@@ -716,13 +720,14 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 	if (t.tracker.userKind === "harness") return false;
 	if (plan.kind === "final") {
 		// phase 'answer' closes the trail bubble (preserved as "Show work").
-		return await postToSession(plan.message, { phase: "answer", completeTurn, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), interaction: interactionIdentity(t.interaction), workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
+		const localTurn = isCommandTurnUnbound(t) && !t.interaction;
+		return await postToSession(plan.message, { phase: "answer", completeTurn, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), localTurn, interaction: interactionIdentity(t.interaction), workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
 	} else if (plan.kind === "local_mirror") {
-		await postToSession(plan.prompt, { turnKind: "local_prompt" });
-		return await postToSession(plan.answer, { phase: "answer", completeTurn, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), interaction: interactionIdentity(t.interaction), workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
+		await postToSession(plan.prompt, { turnKind: "local_prompt", localTurn: true });
+		return await postToSession(plan.answer, { phase: "answer", completeTurn, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), localTurn: true, interaction: interactionIdentity(t.interaction), workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
 	}
 	if (t.dirty && activityTrail && !t.receiptBatch.suppressEmptyFallback(t.revision)) {
-		await postToSession(activityTrail, { phase: "trail", commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), interaction: interactionIdentity(t.interaction), trailEvents: finalEvents });
+		await postToSession(activityTrail, { phase: "trail", commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), localTurn: isCommandTurnUnbound(t) && !t.interaction, interaction: interactionIdentity(t.interaction), trailEvents: finalEvents });
 	}
 	return false;
 }
@@ -1761,6 +1766,9 @@ async function reviveRecoverableBond(
 		active.connectionIdentity = recoveredScope.connectionIdentity;
 		if (changedConnection) {
 			resetDirectedQuestionReceiptBatch();
+			// A replacement row is different authority: pending bindings for the old
+			// connection's turns must not be inherited here (item 6f4136d8).
+			commandTurnBindings.clear();
 			active.advisoryCarry = [];
 			active.attachmentRetryAttempts.clear();
 			active.automationQueue.invalidate();
@@ -2020,6 +2028,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			// interaction on detach/reattach. Abort local execution immediately so
 			// no model/tool side effect continues under revoked source authority.
 			revokeInteractionForAttachmentChange(active, ctx);
+			// A new room (or detach) invalidates pending bindings for the old room's
+			// turns: identical terminal text must not inherit them (item 6f4136d8).
+			commandTurnBindings.clear();
 			const next = {
 				...active.bond,
 				sessionId: serverSessionId ?? undefined,

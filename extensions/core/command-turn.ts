@@ -6,6 +6,12 @@
  * retains immutable server identity out-of-band until Pi emits the exact user
  * message back through message_start. Matching the complete text (not a preview
  * or content hash) keeps repeated owner messages as separate segments.
+ *
+ * Lifetime (item 6f4136d8): a binding is valid from remember() until its
+ * message_start take(). Anything still pending after its command closes is a
+ * stray that a later terminal input with identical text must never inherit.
+ * Callers drop those via forgetByCommand() on completion and clear() on every
+ * authority rotation (stop, revive/replacement, attach change).
  */
 export interface CanonicalQueueItem {
 	hiddenContent: string;
@@ -51,6 +57,14 @@ export class CommandTurnBindings {
 			entry.binding.commandMessageId === commandMessageId
 		);
 		if (index !== -1) this.pending.splice(index, 1);
+	}
+
+	forgetByCommand(turnId: string | undefined, commandMessageId: string | undefined): void {
+		if (!turnId) return;
+		this.pending = this.pending.filter((entry) =>
+			entry.binding.turnId !== turnId ||
+			(commandMessageId !== undefined && entry.binding.commandMessageId !== commandMessageId)
+		);
 	}
 
 	clear(): void {

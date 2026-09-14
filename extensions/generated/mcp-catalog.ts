@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 2e40c18a56f19f80dcb1d4a5dfb7b5098dc1b23d5e068e954f98898f43963eb2
- * Description fingerprint: d5fe99c63e4c281075d1d2f4426fadbd79117c686decb07935727ce216e6af27
- * Regenerated: 2026-09-11T13:38:02.544Z
+ * Schema fingerprint: ca80b8104c7b69378889231ef690a68ef837c0ca9a91008f2479f41948b8c3af
+ * Description fingerprint: 50263eb09d1cdb661e5a2da273fcb442d66b8470a53076871be38da75f04313e
+ * Regenerated: 2026-09-14T10:42:40.128Z
  */
-export const MCP_CATALOG_FINGERPRINT = "2e40c18a56f19f80dcb1d4a5dfb7b5098dc1b23d5e068e954f98898f43963eb2";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "d5fe99c63e4c281075d1d2f4426fadbd79117c686decb07935727ce216e6af27";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-11T13:38:02.544Z";
+export const MCP_CATALOG_FINGERPRINT = "ca80b8104c7b69378889231ef690a68ef837c0ca9a91008f2479f41948b8c3af";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "50263eb09d1cdb661e5a2da273fcb442d66b8470a53076871be38da75f04313e";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-14T10:42:40.128Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -4728,7 +4728,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "post_session_message",
 		"label": "DevSpec: Post Session Message",
-		"description": "Post a message into an active DevSpec session's live chat, attributed to your local agent. Prefer connection_id (connection-native): the server resolves the connection's CURRENT attached session — correct after reattach, and rejects if the connection is sessionless. session_id remains supported for back-compat. Writes a session_messages row; live clients receive it via Broadcast. Shown as \"<agent> (<token owner's name>)\". For two-sided remote transcripts, pass turn_kind='local_prompt' when mirroring a prompt the owner typed in the local terminal. On the FINAL agent answer pass complete_turn=true so Working/dots clear in the same request as the bubble (omit on mid-turn progress posts). While a turn is still working, pass phase='trail' with your cumulative terminal output to grow ONE live bubble instead of posting a message per step. When OpenCode (or a peer) is blocked on a human question, pass phase='needs_input' with needs_input.request_id so the room shows Needs your input — the owner answers via Send-to-agent; do not treat advisory room chatter as the answer. Requires message (markdown) and either connection_id or session_id.",
+		"description": "Post a message into an active DevSpec session's live chat, attributed to your local agent. Prefer connection_id (connection-native): the server resolves the connection's CURRENT attached session — correct after reattach, and rejects if the connection is sessionless. session_id remains supported for back-compat. Writes a session_messages row; live clients receive it via Broadcast. Shown as \"<agent> (<token owner's name>)\". For two-sided remote transcripts, pass turn_kind='local_prompt' when mirroring a prompt the owner typed in the local terminal. On the FINAL agent answer pass complete_turn=true so Working/dots clear in the same request as the bubble (omit on mid-turn progress posts). While a turn is still working, pass phase='trail' with your cumulative terminal output to grow ONE live bubble instead of posting a message per step. When OpenCode (or a peer) is blocked on a human question, pass phase='needs_input' with needs_input.request_id so the room shows Needs your input — the owner answers via Send-to-agent; do not treat advisory room chatter as the answer. Requires message (markdown) and either connection_id or session_id. On every post of a terminal-started turn (prompt mirror, trail, answer), also pass local_turn=true alongside command_turn_unbound so the server admits the trail without a room dispatch.",
 		"promptSnippet": "Post a message into an active DevSpec session's live chat, attributed to your local agent.",
 		"inputSchema": {
 			"type": "object",
@@ -4752,6 +4752,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"command_turn_unbound": {
 					"type": "boolean",
 					"description": "Optional explicit local/synthetic generation marker. True means this output began with no poll-delivered command turn; it may close only a source-less activity captured for this connection, never a newer owner command. Mutually exclusive with command_turn_id."
+				},
+				"local_turn": {
+					"type": "boolean",
+					"description": "Optional. True when this post belongs to a turn the owner started by typing in the local terminal (not a poll-delivered room command). The server admits the trail without requiring an unanswered room dispatch; the turn still needs its own open source-less activity attempt. Pass alongside command_turn_unbound on every post of a local turn (prompt mirror, trail, answer) for a consistent identity story. Consumed by phase=trail/needs_input; accepted and ignored on answer/error posts, which never had the dispatch gate."
 				},
 				"attempt_id": {
 					"type": "string",

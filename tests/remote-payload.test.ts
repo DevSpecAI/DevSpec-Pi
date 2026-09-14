@@ -442,3 +442,16 @@ test("idle poll never falls back to legacy top-level executable arrays", () => {
 	assert.equal(pkg.ownerBundle, undefined);
 	assert.equal(pkg.cursorV2, undefined);
 });
+
+test("injected command text carries unique delivery identity, so terminal text cannot collide by accident", () => {
+	// Bindings match the complete injected text (command-turn.ts): the framing
+	// must keep unique per-delivery ids, or a future "simplification" silently
+	// widens the collision window for terminal-typed text (item 6f4136d8).
+	const bundle = parsePollPayload(canonicalPoll({ delegated: true }), ME).ownerBundle!;
+	const injected = formatInboundBundleMessage(bundle);
+	assert.ok(injected.includes(`canonical turn:${bundle.commandTurnId}`));
+	for (const command of bundle.commands) {
+		assert.ok(injected.includes(`message:${command.id}`));
+		assert.ok(injected.includes(`--- end command:${command.id} ---`));
+	}
+});

@@ -84,3 +84,27 @@ test("clear removes queued identities on detach or shutdown", () => {
 	bindings.clear();
 	assert.equal(bindings.take("queued"), undefined);
 });
+
+test("forgetByCommand drops only the closed command's strays, never a queued sibling", () => {
+	const bindings = new CommandTurnBindings();
+	bindings.remember("first command", "turn-1", "message-1");
+	bindings.remember("second command", "turn-1", "message-2");
+	bindings.remember("other turn", "turn-2", "message-3");
+	assert.deepEqual(bindings.take("first command"), { turnId: "turn-1", commandMessageId: "message-1" });
+	// A never-delivered stray for the closed command must not survive it...
+	bindings.remember("first command", "turn-1", "message-1");
+	bindings.forgetByCommand("turn-1", "message-1");
+	assert.equal(bindings.take("first command"), undefined);
+	// ...while the queued sibling in the same turn and other turns survive.
+	assert.deepEqual(bindings.take("second command"), { turnId: "turn-1", commandMessageId: "message-2" });
+	assert.deepEqual(bindings.take("other turn"), { turnId: "turn-2", commandMessageId: "message-3" });
+});
+
+test("forgetByCommand without a message id drops the whole closed turn", () => {
+	const bindings = new CommandTurnBindings();
+	bindings.remember("a", "turn-1", "message-1");
+	bindings.remember("b", "turn-1", "message-2");
+	bindings.forgetByCommand("turn-1", undefined);
+	assert.equal(bindings.take("a"), undefined);
+	assert.equal(bindings.take("b"), undefined);
+});

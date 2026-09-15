@@ -31,12 +31,20 @@ import {
 	TOOL_LOADER_PROMPT_METADATA,
 	allModelFacingTools,
 	hotToolPromptMetadata,
+	rareModelVerbs,
 	searchRareModelTools,
 	toolLoaderInputSchema,
 	withDirectedQuestionToolActive,
 	withPlanToolActive,
 	withPollToolActive,
 } from "./core/model-surface.ts";
+import {
+	planDuplicateRecovery,
+	RECOVERY_ENTRY_TYPE,
+	scanTranscriptToolState,
+	withRestoredTools,
+} from "./core/activation-recovery.ts";
+import { debugRemote } from "./core/debug.ts";
 import { projectedToolResult, toolErrorResult, toolTextResult, unwrapMcpResult } from "./core/result.ts";
 import {
 	noteModelToolResult,
@@ -332,6 +340,17 @@ function registerCatalogTool(pi: ExtensionAPI, def: CatalogEntry): void {
 	});
 }
 
+/** Rare verbs are the loader's domain; transcript-announced restores are scoped to them. */
+const RARE_VERB_SET: ReadonlySet<string> = new Set(rareModelVerbs());
+const MODEL_VERB_SET: ReadonlySet<string> = new Set(MODEL_VERB_NAMES);
+
+/**
+ * Tools deactivated by duplicate-tool recovery (item dc8f52d4). Re-seeded from
+ * the transcript on every session_start, so it survives an in-process /reload
+ * of the same session but never leaks into a different one.
+ */
+const sessionDeniedTools = new Set<string>();
+
 function registerToolLoader(pi: ExtensionAPI): void {
 	pi.registerTool({
 		name: TOOL_LOADER_NAME,
@@ -351,15 +370,30 @@ function registerToolLoader(pi: ExtensionAPI): void {
 				}));
 			}
 
+			// Tools deactivated by duplicate-tool recovery must stay inactive:
+			// re-activating re-announces them, and a transcript carrying two
+			// announcements for one tool is exactly what bricked dc8f52d4.
+			const loadable = matches.filter((name) => !sessionDeniedTools.has(name));
+			const unavailable = matches.filter((name) => sessionDeniedTools.has(name));
+			if (loadable.length === 0) {
+				return measuredToolResult(TOOL_LOADER_NAME, toolTextResult(
+					`Matching DevSpec tools are unavailable this session (deactivated after a provider duplicate-tool error): ${unavailable.join(", ")}`,
+					{ matches, added: [], unavailable },
+				));
+			}
+
 			const active = pi.getActiveTools();
 			const activeSet = new Set(active);
-			const added = matches.filter((name) => !activeSet.has(name));
+			const added = loadable.filter((name) => !activeSet.has(name));
 			if (added.length > 0) pi.setActiveTools([...active, ...added]);
+			const unavailableNote = unavailable.length > 0
+				? `; unavailable this session (deactivated after a provider duplicate-tool error): ${unavailable.join(", ")}`
+				: "";
 			return measuredToolResult(TOOL_LOADER_NAME, toolTextResult(
-				added.length > 0
+				(added.length > 0
 					? `Loaded DevSpec tools: ${added.join(", ")}`
-					: `Matching DevSpec tools already active: ${matches.join(", ")}`,
-				{ matches, added },
+					: `Matching DevSpec tools already active: ${loadable.join(", ")}`) + unavailableNote,
+				{ matches, added, unavailable },
 			));
 		},
 	});
@@ -386,12 +420,63 @@ export default function (pi: ExtensionAPI) {
 	registerContextBudgetToolNames([...MODEL_VERB_NAMES, TOOL_LOADER_NAME]);
 	for (const entry of allModelFacingTools()) registerCatalogTool(pi, entry);
 	registerToolLoader(pi);
-	pi.on("session_start", () => {
+	pi.on("session_start", (_event, ctx) => {
 		const bond = getBond();
 		const initial = initialActiveTools(pi.getActiveTools());
+		// Resume/reload: the transcript keeps every addedToolNames announcement
+		// forever, so re-activate exactly what this branch already announced
+		// (item dc8f52d4) — otherwise the loader re-announces a stripped tool and
+		// Kimi-mode serializers put the same definition on the wire twice. Fresh
+		// sessions have no announcements, so the happy path is unchanged.
+		const { restore, denied } = scanTranscriptToolState(
+			ctx?.sessionManager?.getBranch?.() ?? [],
+			(name) => RARE_VERB_SET.has(name),
+		);
+		sessionDeniedTools.clear();
+		for (const name of denied) sessionDeniedTools.add(name);
+		const withRestored = withRestoredTools(initial, restore);
 		const attached = Boolean(bond?.sessionId && bond.connectionCapability);
-		const withPlan = withPlanToolActive(initial, Boolean(bond?.sessionId));
+		const withPlan = withPlanToolActive(withRestored, Boolean(bond?.sessionId));
 		const withPoll = withPollToolActive(withPlan, attached);
 		pi.setActiveTools(withDirectedQuestionToolActive(withPoll, attached));
+	});
+
+	// Safety net (item dc8f52d4): if a duplicate-tools provider error still
+	// occurs — e.g. a transcript poisoned before the resume fix — deactivate the
+	// named tools and continue the turn instead of letting the session brick.
+	// Compensates for Pi's Kimi deferred-tools serializer re-injecting a tool
+	// definition after every announcing toolResult group; the serializer-side
+	// fix is upstream (see the follow-up item linked from dc8f52d4).
+	pi.on("agent_end", async (event, ctx) => {
+		const plan = planDuplicateRecovery(event.messages, {
+			isCatalogTool: (name) => MODEL_VERB_SET.has(name),
+			isActive: (name) => pi.getActiveTools().includes(name),
+			isDenied: (name) => sessionDeniedTools.has(name),
+		});
+		if (!plan) return;
+		for (const name of plan.names) sessionDeniedTools.add(name);
+		pi.setActiveTools(pi.getActiveTools().filter((name) => !plan.names.includes(name)));
+		debugRemote("duplicate-tool recovery", { count: plan.names.length });
+		// Persist the denial with the session (appendEntry never reaches the
+		// model) so a later resume does not restore a twice-announced tool.
+		try {
+			pi.appendEntry(RECOVERY_ENTRY_TYPE, { denied: plan.names, error: plan.errorMessage });
+		} catch (err) {
+			debugRemote("duplicate-tool recovery persist failed", { errorPresent: Boolean(err) });
+		}
+		if (ctx.hasUI) {
+			ctx.ui.notify(
+				`DevSpec recovered from a provider error — deactivated for this session: ${plan.names.join(", ")}`,
+				"warning",
+			);
+		}
+		try {
+			pi.sendUserMessage(
+				`DevSpec recovery: the provider rejected the last request because the tool${plan.names.length === 1 ? "" : "s"} ${plan.names.join(", ")} ${plan.names.length === 1 ? "was" : "were"} defined twice. ${plan.names.length === 1 ? "It is" : "They are"} deactivated for the rest of this session and cannot be re-loaded here — please continue without ${plan.names.length === 1 ? "it" : "them"}.`,
+				{ deliverAs: "followUp" },
+			);
+		} catch (err) {
+			debugRemote("duplicate-tool recovery continue failed", { errorPresent: Boolean(err) });
+		}
 	});
 }

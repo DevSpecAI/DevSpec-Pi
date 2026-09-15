@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Resumed sessions no longer brick on duplicate tool definitions
+
+Loading a less-common tool with `search_devspec_tools`, then resuming or
+reloading the session and loading the same tool again, could make some
+providers reject every following request with "duplicate tool names are not
+allowed" — the session could not continue. On resume, tools the conversation
+had already loaded are active again exactly as before, so nothing is announced
+twice. And if a provider ever does reject a request for a duplicated tool, the
+extension now deactivates just that tool for the rest of the session and
+continues working, instead of stopping.
+
+
 ### Auto-bond works when you have more than one project
 
 Pi used to send `register_connection` with no folder identity, then retry with

@@ -14,6 +14,7 @@ import {
 	validateCommitSha,
 	type GitResolver,
 } from "../extensions/core/commit-ledger.ts";
+import { applyCommitLedgerVerdict } from "../extensions/devspec-tools.ts";
 
 const FULL = "fbe44cdd05c52551e70119e28fdf3d8cb6e47e3a";
 const FULL_A = "aaa111105c52551e70119e28fdf3d8cb6e47e3a";
@@ -81,12 +82,24 @@ test("validate: an exact ledger SHA passes; a prefix resolves to the full SHA", 
 	assert.deepEqual(prefix, { ok: true, sha: FULL_A, autoFilled: false });
 });
 
-test("validate: a SHA that resolves nowhere is REFUSED with the candidate list", () => {
+test("validate: a SHA that resolves nowhere LOCALLY passes through as an unverified hint (item b07a518f)", () => {
+	// The 4221d08e incident: a real, pushed, tagged commit on a sibling repo was
+	// refused six times because one process's cwd could not see it. A local miss
+	// is never a verdict in a multi-repo project — the server resolves it
+	// across every tracked repo, or stores it provisional.
 	const verdict = validateCommitSha("deadbeef05c52551e70119e28fdf3d8cb6e47e3a", resolverReturning(null));
-	assert.equal(verdict.ok, false);
-	if (!verdict.ok) {
-		assert.match(verdict.error, /resolves nowhere/);
-		assert.match(verdict.error, /aaa1111/, "the error names the observed candidates");
+	assert.deepEqual(verdict, {
+		ok: true,
+		sha: "deadbeef05c52551e70119e28fdf3d8cb6e47e3a",
+		autoFilled: false,
+		unverified: true,
+	});
+});
+
+test("validate: shape garbage is still refused — that check is about shape, never identity", () => {
+	for (const garbage of ["HEAD", "manual", "not a sha", "deadbeef ".repeat(6)]) {
+		const verdict = validateCommitSha(garbage, resolverReturning(null));
+		assert.equal(verdict.ok, false, `expected refusal for ${JSON.stringify(garbage)}`);
 	}
 });
 
@@ -106,21 +119,33 @@ test("validate: omitted SHA auto-fills when exactly one recent commit exists", (
 	assert.deepEqual(verdict, { ok: true, sha: FULL_C, autoFilled: true });
 });
 
-test("validate: omitted SHA with no or multiple candidates is an honest error", () => {
+test("validate: omitted SHA with no unique candidate sends nothing — the server fill owns that call (item b07a518f)", () => {
 	resetLedger();
 	const none = validateCommitSha(undefined, resolverReturning(null));
-	assert.equal(none.ok, false);
-	if (!none.ok) assert.match(none.error, /none observed this session/);
+	assert.deepEqual(none, { ok: true, sha: null, autoFilled: false, unverified: true });
 
 	resetLedger();
 	captureGitCommit("git commit -m a", "[feat/a aaa1111] a", resolverReturning(FULL_A));
 	captureGitCommit("git commit -m b", "[feat/b bbb2222] b", resolverReturning(FULL_B));
 	const several = validateCommitSha(undefined, resolverReturning(null));
-	assert.equal(several.ok, false);
-	if (!several.ok) {
-		assert.match(several.error, /aaa1111/);
-		assert.match(several.error, /bbb2222/);
-	}
+	assert.deepEqual(several, { ok: true, sha: null, autoFilled: false, unverified: true });
+});
+
+test("applyCommitLedgerVerdict: a null sha omits the key entirely so the server fill runs", () => {
+	const out = applyCommitLedgerVerdict(
+		{ commit_sha: "model-typed", action_item_id: "x" },
+		{ ok: true, sha: null, autoFilled: false, unverified: true },
+	);
+	assert.equal("commit_sha" in out, false);
+	assert.equal(out.action_item_id, "x");
+});
+
+test("applyCommitLedgerVerdict: an unverified hint passes the model's value through unchanged", () => {
+	const out = applyCommitLedgerVerdict(
+		{ commit_sha: "model-typed", action_item_id: "x" },
+		{ ok: true, sha: "deadbeef05c52551e70119e28fdf3d8cb6e47e3a", autoFilled: false, unverified: true },
+	);
+	assert.equal(out.commit_sha, "deadbeef05c52551e70119e28fdf3d8cb6e47e3a");
 });
 
 test("repoCommitMessage reads immutable bytes for a strict full SHA", (t) => {

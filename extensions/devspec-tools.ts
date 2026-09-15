@@ -183,10 +183,14 @@ export function applyCommitLedgerVerdict(
 	verdict: Extract<ReturnType<typeof validateCommitSha>, { ok: true }>,
 ): Record<string, unknown> {
 	// Provenance source is a host observation, never a model-authored parameter.
-	const { commit_provenance_source: _modelSource, ...hostSafeParams } = params;
+	const { commit_provenance_source: _modelSource, commit_sha: _modelSha, ...hostSafeParams } = params;
 	return {
 		...hostSafeParams,
-		commit_sha: verdict.sha,
+		// sha null = no sha sent at all: the server's own mechanical fill (or the
+		// tag on the landed commit) carries the identity — never write a null key.
+		// A non-null value may be ledger-verified, cwd-resolved, or an unverified
+		// hint the server resolves project-wide (item b07a518f, ADR 60efaed0).
+		...(verdict.sha !== null ? { commit_sha: verdict.sha } : {}),
 		// Pi can mechanically attach a recognized commit object's message, but
 		// cannot prove that a Bash surface authored its DevSpec reference. Source
 		// therefore stays absent and the server records conservative linkage.
@@ -197,9 +201,11 @@ export function applyCommitLedgerVerdict(
 /** Per-verb argument transforms that cannot live in the generated catalog. */
 const AUGMENTS: Record<string, (params: Record<string, unknown>, ctx: CallCtx) => Record<string, unknown>> = {
 	record_implementation: (params, ctx) => {
-		// The ledger guard (item efe7e0a7): never let a transcribed SHA reach
-		// the server unverified. Throws → the model gets the candidate list
-		// back as the tool error and corrects immediately.
+		// The ledger (item efe7e0a7) is accuracy assistance, not a gate: a ledger
+		// or cwd hit attaches the mechanical message and canonical sha; a miss
+		// passes the model's value through as a hint the server resolves across
+		// every tracked repo of the project (item b07a518f, ADR 60efaed0). Only
+		// shape garbage still throws — never identity.
 		const verdict = validateCommitSha(params.commit_sha as string | undefined, repoResolver(ctx.cwd));
 		if (!verdict.ok) throw new Error(verdict.error);
 		return applyCommitLedgerVerdict(params, verdict);

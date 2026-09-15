@@ -137,15 +137,19 @@ export function captureGitCommit(command: string, output: string, resolve: GitRe
 	return null;
 }
 
-function formatCandidates(commits: LedgerCommit[]): string {
-	if (commits.length === 0) return "none observed this session";
-	return commits.map((c) => `${c.shortSha} (${c.branch})`).join(", ");
-}
-
 export type CommitShaVerdict = {
 	ok: true;
-	sha: string;
+	/** The sha to send, or null to send none (the server's own fill runs). */
+	sha: string | null;
 	autoFilled: boolean;
+	/**
+	 * True when the value is a HINT the local process could not verify: not in
+	 * this session's ledger, not resolvable in the session cwd's object store.
+	 * Hints pass through to the server, which resolves across ALL tracked repos
+	 * and stores what it cannot resolve as provisional (ADR 60efaed0). A local
+	 * miss is never a verdict in a multi-repo project.
+	 */
+	unverified?: boolean;
 	commitMessage?: string;
 } | { ok: false; error: string };
 
@@ -160,22 +164,22 @@ function ledgerVerdict(commit: LedgerCommit, autoFilled: boolean): CommitShaVerd
 
 /**
  * Validate (or fill) the commit_sha for record_implementation — BEFORE the
- * server call. A SHA that neither matches the ledger nor resolves in the repo
- * is refused with the candidate list, so the model corrects immediately
- * instead of recording a broken link. (Tonight's incident: a hand-typed SHA
- * wrong past the short prefix would have been caught here.)
+ * server call. The ledger and the local object store are ACCURACY ASSISTANCE:
+ * a hit attaches the mechanically-captured message and the canonical 40-char
+ * value. A miss is a hint, never an error — the server resolves project-wide
+ * (item b07a518f; the 4221d08e incident: a real, pushed, tagged commit on a
+ * sibling repo was refused six times by the old hard gate). The only refusal
+ * left is shape: values that are not hex at all (`HEAD`, `manual`, 41/42-char
+ * mistypes) — garbage, not identity.
  */
 export function validateCommitSha(input: string | undefined, resolve: GitResolver, now: number = Date.now()): CommitShaVerdict {
 	const recent = recentCommits().filter((c) => now - c.at <= RECENT_MS);
 
 	if (!input || !input.trim()) {
 		if (recent.length === 1) return ledgerVerdict(recent[0], true);
-		return {
-			ok: false,
-			error:
-				`record_implementation needs a commit_sha, and the ledger cannot pick one (recent commits: ${formatCandidates(recent)}). ` +
-				`Run \`git rev-parse HEAD\` in the work tree and pass that.`,
-		};
+		// No sha sent at all: the server's mechanical fill (claim-scoped
+		// observation) and the tag on the landed commit carry the identity.
+		return { ok: true, sha: null, autoFilled: false, unverified: true };
 	}
 
 	const sha = input;
@@ -191,10 +195,7 @@ export function validateCommitSha(input: string | undefined, resolve: GitResolve
 	const resolved = resolve(`${sha}^{commit}`);
 	if (resolved) return { ok: true, sha: resolved, autoFilled: false };
 
-	return {
-		ok: false,
-		error:
-			`commit_sha ${sha} resolves nowhere — not in this session's ledger, not a commit in this repo. ` +
-			`Recent commits: ${formatCandidates(recent)}. Check with \`git rev-parse HEAD\` and pass the real SHA.`,
-	};
+	// Local miss → the value passes through as a hint. The server resolves it
+	// against every tracked repo of the project or stores it provisional.
+	return { ok: true, sha, autoFilled: false, unverified: true };
 }

@@ -752,27 +752,49 @@ test("leftover-only [bg completed] still posts no answer (56b9a3b4)", () => {
 });
 
 test("only typed automation-run envelopes have remote run identity", () => {
-	const automation = { kind: "automation_run", run_id: "run-1", automation_name: "Deploy recovery" };
+	const automation = {
+		id: "run-1",
+		kind: "automation_run",
+		run_id: "run-1",
+		automation_id: "automation-1",
+		automation_name: "Deploy recovery",
+		trigger_kind: "scheduled",
+		owner: { user_id: "owner-1", display_name: "Ali Price" },
+		permission: "can_commit",
+		queued_at: "2026-08-20T12:00:00.000Z",
+		delivery_connection_id: "conn-1",
+		requester: null,
+	};
 	assert.equal(isAutomationRunEnvelope(automation), true);
 	assert.equal(automationRunId(automation), "run-1");
 	assert.equal(isAutomationRunEnvelope({ id: "legacy-envelope", members: [{ action_item_id: "item-1" }] }), false);
 	assert.equal(automationRunId({ kind: "assignment", id: "legacy-envelope" }), undefined);
 	assert.equal(automationRunId({ kind: "automation_run" }), undefined);
+	assert.equal(isAutomationRunEnvelope({ ...automation, instruction: "old payload" }), false);
 });
 
 test("automation message has an automation-only model-visible envelope", () => {
 	const value = {
+		id: "run-1",
 		kind: "automation_run",
 		run_id: "run-1",
 		automation_id: "automation-1",
 		automation_name: "Deploy recovery",
+		trigger_kind: "event",
+		owner: { user_id: "owner-1", display_name: "Ali Price" },
+		permission: "look_only",
+		queued_at: "2026-08-20T12:00:00.000Z",
+		delivery_connection_id: "conn-1",
+		requester: null,
 	};
 	const message = formatAutomationRunMessage(value, "Wary Wolf");
 	assert.match(message, /^\[DevSpec remote — automation run to Wary Wolf\]/);
-	assert.match(message, /DevSpec automation run run-1 is ready/);
+	assert.match(message, /DevSpec automation run run-1 \(Deploy recovery\) is ready/);
 	assert.match(message, /claim_automation_run/);
+	assert.match(message, /Owner: Ali Price/);
 	assert.match(message, /Automation run envelope:/);
 	assert.doesNotMatch(message, /work dispatch|assignment|local_agent_dispatch|been dispatched/i);
+	assert.doesNotMatch(message, /follow the supplied instruction/);
 	assert.throws(
 		() => formatAutomationRunMessage({ kind: "automation_run" }, "Wary Wolf"),
 		/requires a run id/,

@@ -179,9 +179,26 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// surface at 7,418 tokens of the 8,000 ceiling. The regenerating commit
 	// (8a71a84) shipped without this step and left main red for a day: the guard
 	// worked, the step it guards was skipped.
+	// Rebaselined 2026-09-15 for DevSpec item 93840514: regenerated the catalog
+	// against post-be4a5094 tool definitions. The real delta, measured by the
+	// regeneration diff: (1) commit_sha descriptions on record_implementation,
+	// update_action_item and add_commit_reference now say short/full/omitted,
+	// resolved across the project's tracked repositories, provisional until
+	// indexed (the commit-identity direction, ADR 60efaed0); (2) new model verb
+	// manage_knowledge_links (85 model verbs now, was 84) — assigned to the
+	// full/lossless projection family beside the other revisioned manage_*
+	// ledgers, since a dropped companion row would read as "not linked";
+	// (3) description-only server deltas already on staging: get_project_summary
+	// drops the removed test_commands setting, get_automation_runs says waiting
+	// entries are inbox metadata, record_memory/supersede_memory/
+	// supersede_resource carry the comparison-gate rewrite (with a new optional
+	// connection_id on the two supersedes), and post_session_message's
+	// command_turn_unbound wording follows the local-turn change. No projection
+	// family other than the new verb's assignment moved; the new verb is
+	// wire-only (not in the hot set), so the model prefix budget is untouched.
 	assert.equal(
 		fingerprint,
-		"0e6000ef2ba182e7254e7997a58283668cfc361f5951c8e83d02af2f09d6a661",
+		"4190f8c79954eee4bffc6e237375b0fb9fcf6de27de6a231a9128ec9d5110a72",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

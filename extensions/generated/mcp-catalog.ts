@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: ca80b8104c7b69378889231ef690a68ef837c0ca9a91008f2479f41948b8c3af
- * Description fingerprint: 50263eb09d1cdb661e5a2da273fcb442d66b8470a53076871be38da75f04313e
- * Regenerated: 2026-09-14T10:42:40.128Z
+ * Schema fingerprint: ceab60faf041e32cc9a821fd3e4169f9859fe7647cd1aee1c7eb5985c89f08f4
+ * Description fingerprint: 8a0ef5d73e311006bdc29f05ecf7bca9ee3ca1be49f730ccc7e69061b139570f
+ * Regenerated: 2026-09-15T19:40:16.569Z
  */
-export const MCP_CATALOG_FINGERPRINT = "ca80b8104c7b69378889231ef690a68ef837c0ca9a91008f2479f41948b8c3af";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "50263eb09d1cdb661e5a2da273fcb442d66b8470a53076871be38da75f04313e";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-14T10:42:40.128Z";
+export const MCP_CATALOG_FINGERPRINT = "ceab60faf041e32cc9a821fd3e4169f9859fe7647cd1aee1c7eb5985c89f08f4";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "8a0ef5d73e311006bdc29f05ecf7bca9ee3ca1be49f730ccc7e69061b139570f";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-15T19:40:16.570Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -122,6 +122,7 @@ export const MODEL_VERB_NAMES = [
 	"manage_plan",
 	"manage_poll",
 	"manage_discussion_point",
+	"manage_knowledge_links",
 	"manage_directed_question",
 	"update_personal_instructions"
 ] as const;
@@ -146,7 +147,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_project_summary",
 		"label": "DevSpec: Get Project Summary",
-		"description": "Get a high-level summary of a project including repo count, indexed file count, recent session activity, connected integrations, and project members. The response includes a `members` array with user IDs and display names — use this to resolve named assignees when assigning action items to a specific person's runner. It also returns a `repos` array — each tracked repo with the `target_branch` DevSpec follows for it (null falls back to `default_branch`) — so an agent pushes each repo to its own branch instead of one global branch. It also returns a `database_targets` array — each connected database with its non-secret `identity` (e.g. the Supabase project ref), declared `environment`, and the `branch_name` whose migrations target it — so when work involves a migration you point your OWN db tooling at the right database (match `branch_name` to the repo `target_branch`) instead of whatever your local tooling defaults to. It also returns an `execution` object — the unified, on-by-default execution settings (`branch_prefix`, `commit_message_prefix`, `custom_instructions`, `agent_rules`, `test_commands`, `protected_paths`, `auto_push`, `auto_merge`) that apply to every run; read these to decide push/merge and which test commands to run. Note the two instruction tiers: `custom_instructions` is the team PRINCIPLES (philosophy/standards — you and the in-session AI both follow these) and `agent_rules` is the team EXECUTION MECHANICS for coding agents like you (e.g. which checks to run before pushing, how to handle branches, what a commit may contain) — treat both as mandatory during implementation. The response also returns `owner_agent_rules` — the CALLING user's personal machine/tooling rules (their installed tools, ports, local workflow); apply it alongside the team `agent_rules`. Read the `execution` object: the legacy `local_plugin_settings` and `autopilot` objects are deprecated aliases of the same values, kept for older plugins. There are no orchestration settings — nothing polls, stages or schedules unattended runs.",
+		"description": "Get a high-level summary of a project including repo count, indexed file count, recent session activity, connected integrations, and project members. The response includes a `members` array with user IDs and display names — use this to resolve named assignees when assigning action items to a specific person's runner. It also returns a `repos` array — each tracked repo with the `target_branch` DevSpec follows for it (null falls back to `default_branch`) — so an agent pushes each repo to its own branch instead of one global branch. It also returns a `database_targets` array — each connected database with its non-secret `identity` (e.g. the Supabase project ref), declared `environment`, and the `branch_name` whose migrations target it — so when work involves a migration you point your OWN db tooling at the right database (match `branch_name` to the repo `target_branch`) instead of whatever your local tooling defaults to. It also returns an `execution` object — the unified, on-by-default execution settings (`branch_prefix`, `commit_message_prefix`, `custom_instructions`, `agent_rules`, `protected_paths`, `auto_push`, `auto_merge`) that apply to every run; read these to decide push/merge. There is no test-command field — what to run before pushing is part of the team `agent_rules`, which can say it in whatever form the project's language and toolchain actually take. Note the two instruction tiers: `custom_instructions` is the team PRINCIPLES (philosophy/standards — you and the in-session AI both follow these) and `agent_rules` is the team EXECUTION MECHANICS for coding agents like you (e.g. which checks to run before pushing, how to handle branches, what a commit may contain) — treat both as mandatory during implementation. The response also returns `owner_agent_rules` — the CALLING user's personal machine/tooling rules (their installed tools, ports, local workflow); apply it alongside the team `agent_rules`. Read the `execution` object: the legacy `local_plugin_settings` and `autopilot` objects are deprecated aliases of the same values, kept for older plugins. There are no orchestration settings — nothing polls, stages or schedules unattended runs.",
 		"promptSnippet": "Get a high-level summary of a project including repo count, indexed file count, recent session activity, connected integrations, and project members.",
 		"inputSchema": {
 			"type": "object",
@@ -1498,7 +1499,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_automation_runs",
 		"label": "DevSpec: Get Automation Runs",
-		"description": "Automation runs. With no arguments: the runs WAITING for you to pick up, filtered to the ones this agent may take — an automation naming a different agent is listed under not_for_you and is not yours to run. Pass your provider/model so that filter is accurate. With automation_id: that automation's run history instead, and `query` alongside it searches those runs' captured text (summary, failure reason, output) so you can find the run where something happened rather than reading them all. The loop is get_automation_runs, then claim_automation_run, then do the work, then record_automation_run.",
+		"description": "Automation runs. With no arguments: the runs WAITING for you to pick up, filtered to the ones this agent may take — an automation naming a different agent is listed under not_for_you and is not yours to run. Waiting entries are inbox metadata (name, trigger kind, owner, permission, queued time), not the instruction — claim_automation_run returns that. With automation_id: that automation's run history instead, and `query` alongside it searches those runs' captured text (summary, failure reason, output) so you can find the run where something happened rather than reading them all. The loop is get_automation_runs, then claim_automation_run, then do the work, then record_automation_run.",
 		"promptSnippet": "Automation runs.",
 		"inputSchema": {
 			"type": "object",
@@ -1912,7 +1913,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"commit_sha": {
 					"type": "string",
-					"description": "The commit to link, short or full — both are accepted, and the server resolves a short one against the tracked repository. Never pad a short SHA out to 40 characters: that invents a commit that does not exist. Auto-sets agent_commit_sha when agent_activity is finished."
+					"description": "The commit to link, short or full, and always optional — the server resolves it across the project's tracked repositories, and a commit that is not indexed yet is stored as a provisional reference that resolves itself when it lands. Never pad a short SHA out to 40 characters: that invents a commit that does not exist. Auto-sets agent_commit_sha when agent_activity is finished."
 				},
 				"note": {
 					"type": "string",
@@ -2161,7 +2162,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"commit_sha": {
 					"type": "string",
-					"description": "The commit to reference, short or full — both are accepted, and the server resolves a short one against the tracked repository and stores the canonical 40. Never pad a short SHA out to 40 characters yourself: that invents a commit that does not exist."
+					"description": "The commit to reference, short or full — both are accepted, and the server resolves it across the project's tracked repositories and stores the canonical 40 when found. A commit not indexed yet is stored provisional and resolves itself when it lands. Never pad a short SHA out to 40 characters yourself: that invents a commit that does not exist."
 				},
 				"commit_message": {
 					"type": "string",
@@ -3180,7 +3181,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"commit_sha": {
 					"type": "string",
-					"description": "The commit this implementation landed in, short or full — both are accepted, and the server resolves a short one against the tracked repository. Never pad a short SHA out to 40 characters: that invents a commit that does not exist, and it is the single most common way this call goes wrong. Pass what `git log --oneline` gave you, or run `git rev-parse HEAD`."
+					"description": "The commit this implementation landed in — short, full, or omitted. Omitted, the server uses the claiming host's own mechanical commit observation when one exists. Supplied, the server resolves it across the project's tracked repositories; a commit not indexed yet is stored provisional and resolves itself when it lands. Never pad a short SHA out to 40 characters: that invents a commit that does not exist."
 				},
 				"commit_message": {
 					"type": "string",
@@ -4198,7 +4199,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_memory",
 		"label": "DevSpec: Record Memory",
-		"description": "Record a project memory (decision, convention, architecture note, risk, insight, etc.). The create runs a hybrid recall FIRST (you do not have to call search_memories yourself): if a near-duplicate exists above the similarity threshold, the memory is NOT recorded and the response carries reconcile_required + closest_match — prefer supersede_memory on it, link/relate it, or re-call with confirm_new: true + a reason if it is genuinely distinct. The response also includes potential_conflicts (advisory, below the gate). AUTHORITY: judged per call by the served contract (devspec://product/implementation-contract → authority_contract), never by this description. Read the `outcome`: `committed` applied now; `queued_for_review` carries a `proposal_id` and touches NOTHING until a maintainer accepts it — say which happened, and never report a queued change as done. An attended write may set state \"decided\". In interactive mode, propose the memory to the user before recording. Record deviations from the planned approach, discovered constraints, and non-obvious findings; do NOT record transient details or things obvious from code.",
+		"description": "Record a project memory (decision, convention, architecture note, risk, insight, etc.). The create compares your draft against the records it finds FIRST (you do not have to call search_memories yourself), and it READS them rather than scoring them. Two findings stop the write: this is already recorded, or it disagrees with a named record — and a disagreement quotes the exact conflicting passage. The response then carries reconcile_required + closest_match + guidance saying which of the two it was. Supersede the record you are correcting, link/relate it, or — only when the finding is that it is already recorded — re-call with confirm_new: true + a reason. If the comparison cannot complete, the memory IS recorded and marked as not yet compared: an outage never costs you the write. The response also includes potential_conflicts (advisory). AUTHORITY: judged per call by the served contract (devspec://product/implementation-contract → authority_contract), never by this description. Read the `outcome`: `committed` applied now; `queued_for_review` carries a `proposal_id` and touches NOTHING until a maintainer accepts it — say which happened, and never report a queued change as done. An attended write may set state \"decided\". In interactive mode, propose the memory to the user before recording. Record deviations from the planned approach, discovered constraints, and non-obvious findings; do NOT record transient details or things obvious from code.",
 		"promptSnippet": "Record a project memory (decision, convention, architecture note, risk, insight, etc.).",
 		"inputSchema": {
 			"type": "object",
@@ -4265,7 +4266,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"confirm_new": {
 					"type": "boolean",
-					"description": "Set true only after consciously deciding this is genuinely distinct from a near-duplicate the create gate surfaced. Bypasses the soft gate and records anyway (a proposal is still a proposal)."
+					"description": "Set true only after consciously deciding this is genuinely distinct from the record the comparison says already covers it. It does NOT skip the comparison, and it overrides exactly one finding — already recorded, which is a judgement about redundancy you are entitled to disagree with. It never overrides a disagreement, which is a claim about truth: a draft that contradicts a named record cannot be confirmed through. When it does override, the finding is kept as a flag on both records, so whoever reviews the pair later sees why it was written anyway (a proposal is still a proposal)."
 				},
 				"runner_session_id": {
 					"type": "string",
@@ -4303,7 +4304,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "supersede_memory",
 		"label": "DevSpec: Supersede Memory",
-		"description": "Supersede an existing memory with a new version (non-destructive — the prior version is kept via thread_id and marked superseded). Use this instead of creating a duplicate when record_memory surfaces a conflicting or outdated entry. The system verifies the target is the closest match to your new content first: if a DIFFERENT entry is closer, nothing is superseded and the response carries reconcile_required + closest_match — supersede that one instead, or pass confirm_new: true to supersede the named target anyway. AUTHORITY: judged per call by the served contract (devspec://product/implementation-contract → authority_contract), never by this description. Read the `outcome`: `committed` applied now; `queued_for_review` carries a `proposal_id` and touches NOTHING until a maintainer accepts it — say which happened, and never report a queued change as done. A proposed supersede leaves the original decided and current; the replacement text sits on the ledger beside it.",
+		"description": "Supersede an existing memory with a new version (non-destructive — the prior version is kept via thread_id and marked superseded). Use this instead of creating a duplicate when record_memory surfaces a conflicting or outdated entry. Naming the target IS your statement of what you are replacing, so a contradiction this supersede RESOLVES reads as an authorised amendment rather than a disagreement. What stops it is a disagreement with a DIFFERENT record — named, with the conflicting passage quoted — in which case nothing is superseded and the response carries reconcile_required + closest_match + guidance. Being nearer in vector space is not one of the things that stops it, and confirm_new does not override a disagreement. AUTHORITY: judged per call by the served contract (devspec://product/implementation-contract → authority_contract), never by this description. Read the `outcome`: `committed` applied now; `queued_for_review` carries a `proposal_id` and touches NOTHING until a maintainer accepts it — say which happened, and never report a queued change as done. A proposed supersede leaves the original decided and current; the replacement text sits on the ledger beside it.",
 		"promptSnippet": "Supersede an existing memory with a new version (non-destructive — the prior version is kept via thread_id and marked superseded).",
 		"inputSchema": {
 			"type": "object",
@@ -4384,6 +4385,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"inputSchema": {
 			"type": "object",
 			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Optional but STRONGLY preferred when you are a connected agent: your own connection id. It records WHICH AGENT retired this, and which conversation it happened in. Without it the record cannot say either. It can never name a person by itself — the requester is resolved server-side, never from anything you send."
+				},
 				"id": {
 					"type": "string",
 					"description": "The id of the memory to retract."
@@ -4485,7 +4490,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "supersede_resource",
 		"label": "DevSpec: Supersede Resource",
-		"description": "Supersede an AI-generated artifact with a replacement (atomic: creates the new version and archives the predecessor with lineage). Use when a plan/ADR has been materially rewritten rather than tweaked. Uploaded documents cannot be superseded. The system verifies the target is the closest match to your replacement content first: if a DIFFERENT artifact is closer, nothing is superseded and the response carries reconcile_required + closest_match — supersede that one instead, or pass confirm_new: true. AUTHORITY: judged per call by the served contract (devspec://product/implementation-contract → authority_contract), never by this description. Read the `outcome`: `committed` applied now; `queued_for_review` carries a `proposal_id` and touches NOTHING until a maintainer accepts it — say which happened, and never report a queued change as done.",
+		"description": "Supersede an AI-generated artifact with a replacement (atomic: creates the new version and archives the predecessor with lineage). Use when a plan/ADR has been materially rewritten rather than tweaked. Uploaded documents cannot be superseded. Naming the target IS your statement of what you are replacing, so a contradiction this supersede RESOLVES reads as an authorised amendment rather than a disagreement. What stops it is a disagreement with a DIFFERENT document — named, with the conflicting passage quoted — in which case nothing is superseded and the response carries reconcile_required + closest_match + guidance. Being nearer in vector space is not one of the things that stops it, and confirm_new does not override a disagreement. AUTHORITY: judged per call by the served contract (devspec://product/implementation-contract → authority_contract), never by this description. Read the `outcome`: `committed` applied now; `queued_for_review` carries a `proposal_id` and touches NOTHING until a maintainer accepts it — say which happened, and never report a queued change as done.",
 		"promptSnippet": "Supersede an AI-generated artifact with a replacement (atomic: creates the new version and archives the predecessor with lineage).",
 		"inputSchema": {
 			"type": "object",
@@ -4553,6 +4558,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"inputSchema": {
 			"type": "object",
 			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Optional but STRONGLY preferred when you are a connected agent: your own connection id. It records WHICH AGENT retired this, and which conversation it happened in. Without it the record cannot say either. It can never name a person by itself — the requester is resolved server-side, never from anything you send."
+				},
 				"id": {
 					"type": "string",
 					"description": "The id of the artifact to archive."
@@ -4755,7 +4764,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"local_turn": {
 					"type": "boolean",
-					"description": "Optional. True when this post belongs to a turn the owner started by typing in the local terminal (not a poll-delivered room command). The server admits the trail without requiring an unanswered room dispatch; the turn still needs its own open source-less activity attempt. Pass alongside command_turn_unbound on every post of a local turn (prompt mirror, trail, answer) for a consistent identity story. Consumed by phase=trail/needs_input; accepted and ignored on answer/error posts, which never had the dispatch gate."
+					"description": "Optional. True when this post belongs to a turn the owner started by typing in the local terminal (not a poll-delivered room command). The server admits the trail without requiring an unanswered room dispatch, and opens the turn's source-less activity attempt on demand when none is open yet. Pass alongside command_turn_unbound on every post of a local turn (prompt mirror, trail, answer) for a consistent identity story."
 				},
 				"attempt_id": {
 					"type": "string",
@@ -6790,6 +6799,65 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"kind": "model"
 	},
 	{
+		"name": "manage_knowledge_links",
+		"label": "DevSpec: Manage Knowledge Links",
+		"description": "Link two pieces of project knowledge as companions — \"read these together\". Works between memories and AI-written documents (ADRs, guides, plans, runbooks) in any combination: memory to memory, document to document, or one of each. Uploaded documents are cited as sources rather than linked, and action items keep their own relationships (link_action_items); both are refused here.\n\nWHAT A LINK IS FOR: a specific useful association a reader would want — how a convention is written, beside the document that says where it belongs. Tags are the topical axis; use those for \"these are both about billing\". A link says \"if you are reading this, read that too\".\n\nWHAT IT IS NOT, and none of this happens: it does not say the two agree, clear a review flag, settle a conflict, grant anyone authority, create a dependency, or make either record more trusted. If two records contradict each other, rule on the flag — linking them is not a resolution.\n\nThe link is on the RECORD, not the version: it follows each side to whatever that record currently says, and every change is stamped with the versions you were looking at. One link is visible from both ends — you never link the same pair twice from the other side, and `list` on either one finds it.\n\nA `note` is REQUIRED when you link or re-explain one: one or two sentences saying why they belong together, for whoever reads it later without you there. Up to 1,000 characters, never truncated — an over-long note is refused so you can shorten it yourself. `unlink` needs no note. `set_note` and `unlink` take `expected_revision` from the last `list`, so you cannot overwrite a change someone made in between.",
+		"promptSnippet": "Link two pieces of project knowledge as companions — \"read these together\".",
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"action": {
+					"type": "string",
+					"enum": [
+						"link",
+						"unlink",
+						"set_note",
+						"list"
+					],
+					"description": "link and set_note require a note; list reads one record's companions."
+				},
+				"id": {
+					"type": "string",
+					"description": "The memory or AI-written document this is about. For list, the record whose companions you want."
+				},
+				"counterpart_id": {
+					"type": "string",
+					"description": "The other memory or document, for link / unlink / set_note."
+				},
+				"note": {
+					"type": "string",
+					"maxLength": 4000,
+					"description": "Why these belong together, in a sentence or two. Required for link and set_note; up to 1,000 characters."
+				},
+				"expected_revision": {
+					"type": "number",
+					"description": "The revision you last read for this link, from list. Refuses the write if it has changed since."
+				},
+				"runner_session_id": {
+					"type": "string",
+					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
+				},
+				"project_id": {
+					"type": "string",
+					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins."
+				},
+				"git_remote": {
+					"type": "string",
+					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
+				}
+			},
+			"required": [
+				"action",
+				"id"
+			]
+		},
+		"kind": "model"
+	},
+	{
 		"name": "manage_directed_question",
 		"label": "DevSpec: Manage Directed Question",
 		"description": "Ask the one person driving this session a question, via your coding tool's DevSpec helper rather than a direct call. A direct call cannot carry the connection identity this needs; your remote-control skill names the helper. Creates and manages canonical session-agent questions for the authenticated live connection. New questions derive project, owner, current source session, and responder server-side; omitted provenance uses the unique open primary requester or owner only when no command delivery is open. create requires a caller-generated UUID client_request_id. A successful create ends the asking turn so the room does not show Working while you wait; pass keep_turn true only when you still have work to do. list/get/cancel target only this exact originating connection and remain available after detach/reattach. cancel requires expected_revision.",
@@ -6923,8 +6991,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 98,
-	model: 84,
+	total: 99,
+	model: 85,
 	pump: 13,
 	never_model: 1,
 } as const;

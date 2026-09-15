@@ -92,6 +92,9 @@ const FULL_READ_VERBS = new Set([
 	"manage_plan",
 	"manage_poll",
 	"manage_directed_question",
+	// Same shape: revisioned link mutations plus `list`, whose companion rows
+	// must reach the model whole — a silently dropped link reads as "not linked".
+	"manage_knowledge_links",
 ]);
 
 const ACK_VERBS = new Set([

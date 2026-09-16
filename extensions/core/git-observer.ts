@@ -9,7 +9,7 @@
 import { execFileSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
@@ -66,13 +66,19 @@ function store(): GitObserverStore {
 function findRealGit(): string | null {
 	try {
 		const command = process.platform === "win32" ? "where" : "which";
-		const candidate = execFileSync(command, [process.platform === "win32" ? "git.exe" : "git"], {
+		const candidates = execFileSync(command, process.platform === "win32" ? ["git.exe"] : ["-a", "git"], {
 			encoding: "utf8",
 			stdio: ["ignore", "pipe", "ignore"],
 			timeout: 5000,
 			windowsHide: true,
-		}).trim().split(/\r?\n/u)[0];
-		return candidate && existsSync(candidate) ? candidate : null;
+		}).trim().split(/\r?\n/u);
+		// Skip our own observer shims: with a stale shim dir on PATH, plain
+		// `which git` returns the shim and delegation recurses without bound
+		// (item 8729992e). The first non-shim candidate is the real Git.
+		for (const candidate of candidates) {
+			if (candidate && !basename(dirname(candidate)).startsWith("devspec-pi-git-") && existsSync(candidate)) return candidate;
+		}
+		return null;
 	} catch {
 		return null;
 	}

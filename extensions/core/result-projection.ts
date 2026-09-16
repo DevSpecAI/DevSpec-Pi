@@ -85,6 +85,9 @@ const FULL_READ_VERBS = new Set([
 	"create_session",
 	"claim_automation_run",
 	"claim_review",
+	// Every review-queue entry is a decision waiting on a person; a dropped row
+	// reads as "nothing outstanding", so the whole queue survives projection.
+	"get_review_queue",
 	"import_instruction_rules",
 	"update_personal_instructions",
 	// Every connection-bound ledger mutation/read returns the authoritative

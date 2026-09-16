@@ -24,7 +24,18 @@ function runtime(sessionId = "session-a", cwd = process.cwd()) {
 	return { cwd, sessionManager: { getSessionId: () => sessionId } };
 }
 
-const settleAsync = () => new Promise<void>((resolve) => setTimeout(resolve, 25));
+const settleAsync = (ms = 25) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+// Positive-delivery assertions poll to a deadline: resolveGitRemote alone costs
+// ~28ms (one git spawn), so a fixed 25ms window flakes on any loaded machine.
+const waitFor = async (predicate: () => boolean, timeoutMs = 2_000): Promise<boolean> => {
+	const deadline = Date.now() + timeoutMs;
+	while (Date.now() < deadline) {
+		if (predicate()) return true;
+		await settleAsync(10);
+	}
+	return predicate();
+};
 
 function successfulClaim(id = ITEM, projectId = PROJECT) {
 	return { details: { claim_success: true, action_item: { id, project_id: projectId } } };
@@ -180,13 +191,14 @@ test("registered tool handler injects one model-visible steer without blocking",
 		const ctx = runtime("session-a", cwd);
 		assert.equal(await handlers.get("tool_call")?.({ toolName: "bash", input: { command: "touch x" } }, ctx), undefined);
 		assert.equal(await handlers.get("tool_call")?.({ toolName: "write", input: { path: "x" } }, ctx), undefined);
-		await settleAsync();
+		// Absence can only be bounded-waited: the window must comfortably exceed
+		// the full jurisdiction resolution (~30ms) on a loaded machine.
+		await settleAsync(250);
 		assert.equal(sent.length, 0, "an unpinned folder has no positive local jurisdiction");
 
 		await commands.get("devspec.pin")?.handler(PROJECT, { cwd, ui: { notify() {} } });
 		assert.equal(handlers.get("tool_call")?.({ toolName: "edit", input: { path: "x" } }, ctx), undefined, "tool_call returns synchronously");
-		await settleAsync();
-		assert.equal(sent.length, 1);
+		assert.equal(await waitFor(() => sent.length === 1), true, "the pinned nudge arrives");
 		assert.equal(sent[0]?.message.customType, "devspec-provenance-nudge");
 		assert.equal(sent[0]?.message.display, true);
 		assert.deepEqual(sent[0]?.options, { deliverAs: "steer", triggerTurn: false });
@@ -242,7 +254,9 @@ test("reload during detached resolution cannot deliver stale or consume the mark
 	} as unknown as ExtensionAPI);
 	oldHandlers.get("tool_call")?.({ toolName: "edit", input: {} }, ctx);
 	oldHandlers.get("session_shutdown")?.({ reason: "reload" }, ctx);
-	await settleAsync();
+	// Absence is bounded-waited: the window must exceed the ~30ms jurisdiction
+	// resolution so a stale delivery would have had time to (wrongly) arrive.
+	await settleAsync(250);
 	assert.equal(delivered, 0);
 
 	const newHandlers = new Map<string, (...args: any[]) => unknown>();
@@ -252,8 +266,7 @@ test("reload during detached resolution cannot deliver stale or consume the mark
 		registerCommand() {},
 	} as unknown as ExtensionAPI);
 	newHandlers.get("tool_call")?.({ toolName: "edit", input: {} }, ctx);
-	await settleAsync();
-	assert.equal(delivered, 1);
+	assert.equal(await waitFor(() => delivered === 1), true, "the post-reload nudge arrives");
 	rmSync(cwd, { recursive: true, force: true });
 });
 

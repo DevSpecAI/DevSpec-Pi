@@ -11,7 +11,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { appendFileSync, mkdirSync, realpathSync, rmSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { createServer } from "node:net";
 
 const FULL_SHA = /^[0-9a-f]{40}$/u;
@@ -235,6 +235,17 @@ const actualSession = env("PI_SESSION_ID");
 const args = process.argv.slice(2);
 
 if (!realGit) process.exit(126);
+
+// Never delegate into another observer shim. If a stale generation's dir
+// reaches PATH, findRealGit can hand us a shim as "the real git"; every hop
+// then re-runs preflight through the next shim, which inherits this env and
+// self-spawns without bound (measured: >1,100 processes, 12G swap, machine
+// lockup — item 8729992e). Refusing the call fails one git command instead.
+try {
+	if (basename(dirname(realpathSync(realGit))).startsWith("devspec-pi-git-")) process.exit(126);
+} catch {
+	process.exit(126);
+}
 
 const eligible = Boolean(
 	observerDir && journal && generation && observationId && expectedSession && actualSession === expectedSession &&

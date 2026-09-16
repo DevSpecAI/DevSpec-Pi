@@ -211,7 +211,9 @@ test("colloquial requests route across materially different rare tool families",
 		["surface chronological action items into this session", "surface_session_action_items"],
 		["surface the oldest action items into their source session", "surface_session_action_items"],
 		["surface action items created in this session", "surface_session_action_items"],
-		["is there anything waiting for me to review?", "get_claimable_reviews"],
+		// Since 2026-09-16 the person-facing queue (get_review_queue) outranks the
+		// agent-claim verb for "waiting for me" — that is the better route.
+		["is there anything waiting for me to review?", "get_review_queue"],
 		["show my recurring automations", "get_automations"],
 		["what objectives are we working toward?", "get_project_goals"],
 		["what team policies should agents follow?", "get_project_instruction_rules"],

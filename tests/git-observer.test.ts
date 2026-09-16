@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { test, type TestContext } from "node:test";
 import { corroborateObservedCommit } from "../extensions/devspec-commit-ledger.ts";
 import {
@@ -276,4 +277,47 @@ test("conflicting Trace2 state and stale child session delegate Git but do not o
 	bash(`${prepared.prefix}git -C ${JSON.stringify(stale)} commit -q -m stale`, "different-session");
 	assert.ok(git(stale, "rev-parse", "HEAD"));
 	assert.deepEqual(drainGitObservations(), []);
+});
+
+// Item 8729992e: a stale shim dir on PATH once made findRealGit resolve a shim
+// as "the real git"; delegation then self-spawned without bound (>1,100
+// processes, 12G swap, machine lockup). Both layers of the guard are pinned:
+// the shim refuses a shim as its real Git, and install skips shim dirs on PATH.
+
+test("shim refuses to delegate into another observer shim (fork-bomb guard)", (t) => {
+	const dir = mkdtempSync(join(tmpdir(), "devspec-pi-git-"));
+	t.after(() => rmSync(dir, { recursive: true, force: true }));
+	const fakeShim = join(dir, "git");
+	writeFileSync(fakeShim, "#!/bin/sh\nexit 1\n", { mode: 0o700 });
+	const shimModule = fileURLToPath(new URL("../runtime/git-observer-shim.mjs", import.meta.url));
+	const result = spawnSync(process.execPath, [shimModule, "rev-parse", "--show-toplevel"], {
+		env: { ...process.env, DEVSPEC_PI_REAL_GIT: fakeShim },
+		encoding: "utf8",
+		timeout: 15_000,
+	});
+	assert.notEqual(result.error?.code, "ETIMEDOUT", "a shim chain must fail fast, never recurse");
+	assert.equal(result.status, 126, "a shim pointed at another shim refuses the call");
+});
+
+test("install resolves real Git past a stale shim dir on PATH", (t) => {
+	const dir = mkdtempSync(join(tmpdir(), "devspec-pi-git-"));
+	const originalPath = process.env.PATH;
+	t.after(() => {
+		if (originalPath === undefined) delete process.env.PATH;
+		else process.env.PATH = originalPath;
+		resetGitObserverForTests();
+		rmSync(dir, { recursive: true, force: true });
+	});
+	writeFileSync(join(dir, "git"), "#!/bin/sh\nexit 1\n", { mode: 0o700 });
+	process.env.PATH = `${dir}:${originalPath ?? ""}`;
+	resetGitObserverForTests();
+	assert.equal(initializeGitObserver("session-poisoned-path"), true);
+	const prepared = prepareGitObservation({
+		toolCallId: "tool-poisoned-path",
+		piSessionId: "session-poisoned-path",
+		connectionId: CONNECTION,
+		projectId: PROJECT,
+	});
+	assert.ok(prepared);
+	assert.ok(!prepared.prefix.includes(dir), `real Git must not resolve into a shim dir, got prefix: ${prepared.prefix}`);
 });

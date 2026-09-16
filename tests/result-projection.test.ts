@@ -196,9 +196,21 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// command_turn_unbound wording follows the local-turn change. No projection
 	// family other than the new verb's assignment moved; the new verb is
 	// wire-only (not in the hot set), so the model prefix budget is untouched.
+	// Rebaselined 2026-09-16 for DevSpec items cc93671a + 8729992e: regenerated
+	// the catalog against staging e736963bd. Measured delta: (1) record_memory's
+	// description gains the memory durability test (durable knowledge only;
+	// work-in-flight state belongs on action items — the phantom approval-rule
+	// fix, cc93671a); (2) one new model verb absorbed from staging drift:
+	// get_review_queue, assigned to the full/lossless family beside
+	// claim_review (a dropped queue entry would read as "nothing outstanding").
+	// No verb removed; no other family moved. Budget: `npm run benchmark:context`
+	// measures the initial surface at 7,459 tokens of the 8,000 ceiling (was
+	// 7,418). Same commit fixes the git-observer shim fork bomb (8729992e) that
+	// made this full suite unrunnable on the shared machine — the suite is the
+	// verification again.
 	assert.equal(
 		fingerprint,
-		"4190f8c79954eee4bffc6e237375b0fb9fcf6de27de6a231a9128ec9d5110a72",
+		"09572043bc428309ce251d3f72eb2974ec078acb6d79966b1f7e195cc7a455d0",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

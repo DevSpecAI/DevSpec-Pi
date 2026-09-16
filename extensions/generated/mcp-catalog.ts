@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: ceab60faf041e32cc9a821fd3e4169f9859fe7647cd1aee1c7eb5985c89f08f4
- * Description fingerprint: 8a0ef5d73e311006bdc29f05ecf7bca9ee3ca1be49f730ccc7e69061b139570f
- * Regenerated: 2026-09-15T19:40:16.569Z
+ * Schema fingerprint: ef037a24f0d9c00d29c1d7729c28c18120f3d02c6574c08921e4d30b094d39a7
+ * Description fingerprint: a3e6d71ae5c541ad101263a671dfb4d79cb82a397079c79ebffd77ec228142c7
+ * Regenerated: 2026-09-16T11:56:48.330Z
  */
-export const MCP_CATALOG_FINGERPRINT = "ceab60faf041e32cc9a821fd3e4169f9859fe7647cd1aee1c7eb5985c89f08f4";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "8a0ef5d73e311006bdc29f05ecf7bca9ee3ca1be49f730ccc7e69061b139570f";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-15T19:40:16.570Z";
+export const MCP_CATALOG_FINGERPRINT = "ef037a24f0d9c00d29c1d7729c28c18120f3d02c6574c08921e4d30b094d39a7";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "a3e6d71ae5c541ad101263a671dfb4d79cb82a397079c79ebffd77ec228142c7";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-16T11:56:48.330Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -59,6 +59,7 @@ export const MODEL_VERB_NAMES = [
 	"get_memory",
 	"search_memories",
 	"get_decisions",
+	"get_review_queue",
 	"get_conventions",
 	"get_unresolved_questions",
 	"generate_commit_message",
@@ -1114,6 +1115,86 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"all"
 					],
 					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = those last two together; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+				},
+				"project_id": {
+					"type": "string",
+					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins."
+				},
+				"git_remote": {
+					"type": "string",
+					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
+				},
+				"pinned_project_id": {
+					"type": "string",
+					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
+				}
+			}
+		},
+		"kind": "model"
+	},
+	{
+		"name": "get_review_queue",
+		"label": "DevSpec: Get Review Queue",
+		"description": "Everything in this project that needs a PERSON to decide, once each: records that disagree with each other, records flagged as out of date, and changes waiting to be accepted. The same set, order and total the project's Review surfaces show, so you can tell someone what is outstanding without guessing or counting twice. A pair flagged from both ends is ONE entry. Findings whose only evidence is a similarity score are excluded — those are not a question anyone can answer. Every entry carries the words the finding actually read, the record it stands against, and what you may do about it. If `gaps` is non-empty the list is INCOMPLETE: say so rather than reporting it as everything.",
+		"promptSnippet": "Everything in this project that needs a PERSON to decide, once each: records that disagree with each other, records flagged as out of date, and changes waiting to be accepted.",
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"key": {
+					"type": "string",
+					"description": "Read ONE entry in full, by the `key` a previous call returned — including its whole history: what raised it, what anyone has ruled, and what they ruled it on. Every other parameter is ignored when this is set."
+				},
+				"kind": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"question",
+							"proposal"
+						]
+					},
+					"description": "Narrow to unanswered questions, or to changes waiting to be accepted. Omit for both."
+				},
+				"claim": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"possible_conflict",
+							"possibly_contradictory",
+							"contradicts_decision",
+							"possibly_stale"
+						]
+					},
+					"description": "Filter to particular kinds of question. Omit for all of them."
+				},
+				"subject": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"memory",
+							"artifact",
+							"action_item"
+						]
+					},
+					"description": "Filter to questions touching these kinds of record, on either end."
+				},
+				"search": {
+					"type": "string",
+					"description": "Match against either end's title and the words of the finding itself."
+				},
+				"limit": {
+					"type": "number",
+					"description": "Page size, 1-200. Defaults to 50. `total` is always the size of the whole filtered set, never of the page."
+				},
+				"cursor": {
+					"type": "string",
+					"description": "From a previous call's `next_cursor`. Reads the next page."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Optional. Your agent_connections id, so this read is attributed to your connection and its attached session in the organisation's usage view. Omit when you are not running as a connection."
 				},
 				"project_id": {
 					"type": "string",
@@ -4199,7 +4280,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_memory",
 		"label": "DevSpec: Record Memory",
-		"description": "Record a project memory (decision, convention, architecture note, risk, insight, etc.). The create compares your draft against the records it finds FIRST (you do not have to call search_memories yourself), and it READS them rather than scoring them. Two findings stop the write: this is already recorded, or it disagrees with a named record — and a disagreement quotes the exact conflicting passage. The response then carries reconcile_required + closest_match + guidance saying which of the two it was. Supersede the record you are correcting, link/relate it, or — only when the finding is that it is already recorded — re-call with confirm_new: true + a reason. If the comparison cannot complete, the memory IS recorded and marked as not yet compared: an outage never costs you the write. The response also includes potential_conflicts (advisory). AUTHORITY: judged per call by the served contract (devspec://product/implementation-contract → authority_contract), never by this description. Read the `outcome`: `committed` applied now; `queued_for_review` carries a `proposal_id` and touches NOTHING until a maintainer accepts it — say which happened, and never report a queued change as done. An attended write may set state \"decided\". In interactive mode, propose the memory to the user before recording. Record deviations from the planned approach, discovered constraints, and non-obvious findings; do NOT record transient details or things obvious from code.",
+		"description": "Record a project memory (decision, convention, architecture note, risk, insight, etc.). The create compares your draft against the records it finds FIRST (you do not have to call search_memories yourself), and it READS them rather than scoring them. Two findings stop the write: this is already recorded, or it disagrees with a named record — and a disagreement quotes the exact conflicting passage. The response then carries reconcile_required + closest_match + guidance saying which of the two it was. Supersede the record you are correcting, link/relate it, or — only when the finding is that it is already recorded — re-call with confirm_new: true + a reason. If the comparison cannot complete, the memory IS recorded and marked as not yet compared: an outage never costs you the write. The response also includes potential_conflicts (advisory). AUTHORITY: judged per call by the served contract (devspec://product/implementation-contract → authority_contract), never by this description. Read the `outcome`: `committed` applied now; `queued_for_review` carries a `proposal_id` and touches NOTHING until a maintainer accepts it — say which happened, and never report a queued change as done. An attended write may set state \"decided\". In interactive mode, propose the memory to the user before recording. Record what a future agent needs to know: settled decisions, conventions, architecture facts, risks, deviations from the planned approach, discovered constraints, and non-obvious findings. Do NOT record transient details, things obvious from code, or the state of work in flight (\"approved, not yet built\", \"awaiting a pick\", \"blocked on someone\") — that belongs on an action item, where it can be completed; in memory it decays into a phantom standing rule.",
 		"promptSnippet": "Record a project memory (decision, convention, architecture note, risk, insight, etc.).",
 		"inputSchema": {
 			"type": "object",
@@ -6991,8 +7072,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 99,
-	model: 85,
+	total: 100,
+	model: 86,
 	pump: 13,
 	never_model: 1,
 } as const;

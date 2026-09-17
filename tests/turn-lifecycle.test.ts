@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { formatAutomationRunMessage, isAutomationRunEnvelope, automationRunId } from "../extensions/core/dispatch.ts";
 import { INTERACTION_EVENT_CUSTOM_TYPE, formatInteractionEventContinuation, type InteractionEventV1 } from "../extensions/core/interaction-events.ts";
-import { automaticBackgroundTaskId, backgroundTaskNotificationId, classifyUserKind, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, isSubagentAsyncNotification, isWaitNarration, isProcessClose, planSettle, shouldPauseSettle, shouldSplitFirstAnswer, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
+import { automaticBackgroundTaskId, backgroundTaskNotificationId, classifyUserKind, isBackgroundCompletionOrigin, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, isReceiptAcknowledgement, isSubagentAsyncNotification, isWaitNarration, isProcessClose, planSettle, shouldSplitSpeech, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 
 function remoteTurn(answer: string): TurnTracker {
 	const t = new TurnTracker();
@@ -165,29 +165,33 @@ test("the next assistant round after a text-only close is a delivery boundary", 
 	assert.equal(isClosedAnswerBoundary(empty), false);
 });
 
-test("first user-facing text after a user message splits even when the same message has tools (f0df6c3e r2)", () => {
+test("every user-facing text on a tool-carrying message splits into its own bubble (759f2818/8f2e3224)", () => {
 	const t = new TurnTracker();
 	t.userMessage("[DevSpec remote — message from Ali to Wary Wolf]\ninterrupt");
 	assert.equal(t.awaitingFirstAnswer, true);
 	assert.equal(
-		shouldSplitFirstAnswer(t, { text: "Yes Ali — interrupt landed. Carrying on.", hasToolCalls: true }),
+		shouldSplitSpeech(t, { text: "Yes Ali — interrupt landed. Carrying on.", hasToolCalls: true }),
 		true,
 	);
 	// Consume the first answer the way message_end does.
-	t.assistantFinal("Yes Ali — interrupt landed. Carrying on.", true);
+	assert.equal(t.assistantFinal("Yes Ali — interrupt landed. Carrying on.", true), "stored");
 	assert.equal(t.awaitingFirstAnswer, false);
-	assert.equal(shouldSplitFirstAnswer(t, { text: "looking", hasToolCalls: true }), false, "later tool-loop narration does not split again");
+	// Kimi-style bundling: narration rides every tool-carrying round, and every
+	// one of them is a bubble now — the first-answer-only gate lost them all.
+	assert.equal(shouldSplitSpeech(t, { text: "looking at the ledger first", hasToolCalls: true }), true);
 
 	const next = new TurnTracker();
 	next.carryUser(t.userText);
 	assert.equal(next.awaitingFirstAnswer, false);
 	assert.equal(next.userKind, "remote");
-	assert.equal(shouldSplitFirstAnswer(next, { text: "looking", hasToolCalls: true }), false);
+	assert.equal(shouldSplitSpeech(next, { text: "still narrating", hasToolCalls: true }), true);
 
 	const silent = new TurnTracker();
 	silent.userMessage("[DevSpec remote — message from Ali to Wary Wolf]\nhi");
-	assert.equal(shouldSplitFirstAnswer(silent, { text: "", hasToolCalls: true }), false);
-	assert.equal(shouldSplitFirstAnswer(silent, { text: "Ali, I'll check the attachments.", hasToolCalls: false }), false, "text-only first close waits for the next round or settle so Working can clear");
+	assert.equal(shouldSplitSpeech(silent, { text: "", hasToolCalls: true }), false);
+	assert.equal(shouldSplitSpeech(silent, { text: "Ali, I'll check the attachments.", hasToolCalls: false }), false, "text-only closes stay deferred to the next round or settle so the final answer rides complete_turn:true");
+	// Wait-narration never splits, tools or not.
+	assert.equal(shouldSplitSpeech(t, { text: "I'll wait for the suite, then commit. Independent work is done.", hasToolCalls: true }), false);
 });
 
 test("typed slash commands stay local — we do not filter a leading /", () => {
@@ -395,40 +399,36 @@ test("remote wait-narration + bg completed + wrap-up posts the wrap-up, not the 
 	assert.deepEqual(planSettle(t, true), { kind: "final", message: wrapUp });
 });
 
-test("bg_run then text-only close then [bg completed] posts the wrap-up (6ea9aa47)", () => {
+test("bg_run then wait-narration close then [bg completed] posts the wrap-up (6ea9aa47)", () => {
+	// Wiring-faithful: the opener rode a tool-carrying message, so message_end
+	// split-posted it and the continuation segment starts empty (carryUser).
+	const opened = new TurnTracker();
+	opened.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\nCan you take over?");
+	assert.equal(shouldSplitSpeech(opened, { text: "I'll pick this up properly.", hasToolCalls: true }), true);
+	opened.assistantFinal("I'll pick this up properly.", true);
+
 	const t = new TurnTracker();
-	t.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\nCan you take over?");
-	assert.equal(t.userKind, "remote");
-	t.assistantFinal("I'll pick this up properly.", false);
+	t.carryUser(opened.userText, opened);
 	t.noteBackgroundTask("typecheck-panel");
 	const parked = "Typecheck is still running. I’ll wait for that, then lint, commit, and check the panel in a real browser.";
-	assert.equal(isClosedAnswer({
-		text: parked,
-		hasToolCalls: false,
-		stopReason: "stop",
-		awaitingBackground: true,
-	}), false);
-	t.assistantFinal(parked, isClosedAnswer({
-		text: parked,
-		hasToolCalls: false,
-		stopReason: "stop",
-		awaitingBackground: true,
-	}));
+	assert.equal(isClosedAnswer({ text: parked, hasToolCalls: false, stopReason: "stop" }), false);
+	assert.equal(t.assistantFinal(parked, false), "process");
 	assert.equal(t.lastCloseWasProcess, true);
 	assert.equal(t.lastCloseWasAnswer, false);
 	assert.equal(isClosedAnswerBoundary(t), false);
-	assert.equal(shouldPauseSettle(t), true);
-	assert.deepEqual(planSettle(t, true), { kind: "none" }, "parked wait must not settle as the answer");
-	assert.equal(t.lastAssistantText, "I'll pick this up properly.");
+	// No pause any more: the settle delivers nothing new (the opener already
+	// posted) and the turn closes — Working ends instead of spinning.
+	assert.deepEqual(planSettle(t, true), { kind: "none" }, "wait text never settles as the answer");
+	assert.equal(t.lastAssistantText, "");
 
+	// The completion wake is a NEW harness segment (settle released the old
+	// one); receipt acknowledgements stay trail-only…
 	t.userMessage("[bg completed] Typecheck panel tabs", {
 		customType: "background-task-notification",
 		backgroundTaskId: "typecheck-panel",
 	});
 	assert.equal(t.userKind, "remote", "bg completed must not steal the owner turn");
 	assert.equal(t.awaitingBackground, false);
-	assert.equal(t.lastCloseWasProcess, true);
-	assert.equal(shouldPauseSettle(t), true, "parked wait stays paused until the wrap-up lands");
 
 	const wrapUp = "Ali — slice 1 is actually on origin/staging now, not just announced.";
 	t.assistantFinal(wrapUp, isClosedAnswer({ text: wrapUp, hasToolCalls: false, stopReason: "stop" }));
@@ -436,25 +436,29 @@ test("bg_run then text-only close then [bg completed] posts the wrap-up (6ea9aa4
 	assert.deepEqual(planSettle(t, true), { kind: "final", message: wrapUp });
 });
 
-test("a text-only close after bg_run is process even without wait wording (6ea9aa47)", () => {
+test("a substantive text-only close after bg_run is speech — pending tasks never eat it (759f2818)", () => {
+	// The 2026-09-17 morning session: the 2.6k-char final report closed
+	// text-only while deploy watchers were pending, and the old blanket rule
+	// (text-only + awaitingBackground = process) discarded it whole. Pending
+	// background work is irrelevant to speech classification now.
 	const t = new TurnTracker();
 	t.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\ncontinue");
 	t.noteBackgroundTask("lint");
-	const parked = "Independent useful work is queued. Coming back when lint finishes.";
-	assert.equal(isWaitNarration(parked), false);
-	assert.equal(isProcessClose({ text: parked, awaitingBackground: true }), true);
-	t.assistantFinal(parked, isClosedAnswer({
-		text: parked,
-		hasToolCalls: false,
-		stopReason: "stop",
-		awaitingBackground: true,
-	}));
-	assert.equal(t.lastCloseWasProcess, true);
-	assert.equal(t.lastAssistantText, "");
-	assert.equal(shouldPauseSettle(t), true);
+	const report = "Done — diagnosed, fixed, shipped, and verified live. " + "Detail. ".repeat(200);
+	assert.equal(isWaitNarration(report), false);
+	assert.equal(isProcessClose({ text: report }), false, "pending bg tasks cannot make substantive speech process");
+	assert.equal(isClosedAnswer({ text: report, hasToolCalls: false, stopReason: "stop" }), true);
+	assert.equal(t.assistantFinal(report, true), "stored");
+	assert.equal(t.lastCloseWasProcess, false);
+	assert.deepEqual(planSettle(t, true), { kind: "final", message: report.trim() });
+
+	// The wait-class shapes the blanket rule was built for are still process,
+	// via isWaitNarration alone.
+	const parked = "Independent work is done. I'll wait for the lint results.";
+	assert.equal(isProcessClose({ text: parked }), true);
 });
 
-test("new command speech outranks inherited background wait, then recap continues (6f4424bd)", () => {
+test("new command speech posts normally with inherited background work, then the wake recap is its own bubble (6f4424bd)", () => {
 	const t = new TurnTracker();
 	t.userMessage("[DevSpec remote — message from Ali Price to Honest Crocodile]\nShip the sync fix.");
 	t.noteBackgroundTask("staging-ci");
@@ -462,21 +466,20 @@ test("new command speech outranks inherited background wait, then recap continue
 	t.assistantFinal(parked, false);
 	assert.equal(t.lastCloseWasProcess, true);
 
+	// The owner interrupts: the new command's first response needs no override
+	// machinery any more — bundled speech splits like any other, and a
+	// text-only answer settles complete_turn:true (the turn closes; the
+	// pending CI task does not hold it open).
 	const command = "[DevSpec remote — message from Ali Price to Honest Crocodile]\nExplain the NUL item.";
 	t.userMessage(command);
-	assert.equal(t.firstAnswerOverridesBackground, true);
 	const answer = "It is unrelated housekeeping and does not change the Features work.";
-	assert.equal(shouldSplitFirstAnswer(t, { text: answer, hasToolCalls: false }), true);
+	assert.equal(shouldSplitSpeech(t, { text: answer, hasToolCalls: false }), false, "text-only answers post at settle, not mid-message");
 	t.assistantFinal(answer, true);
-	assert.equal(t.answerClosesBeforeBackgroundContinuation, true);
-	assert.equal(shouldPauseSettle(t), false, "captured answer segment must post now");
 	assert.deepEqual(planSettle(t, true), { kind: "final", message: answer });
 
 	const continuation = new TurnTracker();
 	continuation.carryUser(t.userText, t);
-	assert.deepEqual(continuation.pendingBackgroundTasks(), ["staging-ci"]);
-	assert.equal(continuation.answerClosesBeforeBackgroundContinuation, false);
-	assert.equal(shouldPauseSettle(continuation), true, "same working attempt remains parked");
+	assert.deepEqual(continuation.pendingBackgroundTasks(), ["staging-ci"], "ownership survives for wake correlation/bookkeeping only");
 	continuation.userMessage("[bg completed] staging CI", {
 		customType: "background-task-notification",
 		backgroundTaskId: "staging-ci",
@@ -486,13 +489,13 @@ test("new command speech outranks inherited background wait, then recap continue
 	assert.deepEqual(planSettle(continuation, true), { kind: "final", message: recap });
 });
 
-test("background-interrupted local and automation commands use the same speech boundary (6f4424bd)", () => {
+test("background-interrupted local and automation commands answer normally (6f4424bd)", () => {
 	const local = new TurnTracker();
 	local.userMessage("Start the long check.");
 	local.noteBackgroundTask("local-check");
 	local.userMessage("What does that result mean?");
 	const localAnswer = "It means the runtime behavior is unchanged.";
-	assert.equal(shouldSplitFirstAnswer(local, { text: localAnswer, hasToolCalls: false }), true);
+	assert.equal(shouldSplitSpeech(local, { text: localAnswer, hasToolCalls: false }), false);
 	local.assistantFinal(localAnswer, true);
 	assert.deepEqual(planSettle(local, true), {
 		kind: "local_mirror",
@@ -505,7 +508,7 @@ test("background-interrupted local and automation commands use the same speech b
 	automation.noteBackgroundTask("automation-check");
 	automation.userMessage("[DevSpec remote — automation run Beta]\nExplain status.");
 	const automationAnswer = "The first gate passed; the second remains active.";
-	assert.equal(shouldSplitFirstAnswer(automation, { text: automationAnswer, hasToolCalls: false }), true);
+	assert.equal(shouldSplitSpeech(automation, { text: automationAnswer, hasToolCalls: false }), false);
 	automation.assistantFinal(automationAnswer, true);
 	assert.deepEqual(planSettle(automation, true), { kind: "final", message: automationAnswer });
 });
@@ -516,25 +519,21 @@ test("explicit wait narration after a new command remains process-only (6f4424bd
 	t.noteBackgroundTask("ci");
 	t.userMessage("[DevSpec remote — message from Ali Price to Honest Crocodile]\nAny update?");
 	const wait = "CI is still running, Ali. I’ll wait for it, then report the result.";
-	assert.equal(t.firstAnswerOverridesBackground, true);
 	assert.equal(isWaitNarration(wait), true, "addressing Ali does not make a work wait conversational");
-	assert.equal(shouldSplitFirstAnswer(t, { text: wait, hasToolCalls: false }), false);
+	assert.equal(shouldSplitSpeech(t, { text: wait, hasToolCalls: false }), false);
+	assert.equal(shouldSplitSpeech(t, { text: wait, hasToolCalls: true }), false, "wait-narration never splits a bubble, tools or not");
 	t.assistantFinal(wait, false);
 	assert.equal(t.lastCloseWasProcess, true);
 	assert.deepEqual(planSettle(t, true), { kind: "none" });
 });
 
-test("first-answer split preserves parked wait state (9b66a177)", () => {
+test("speech split preserves wait state on the continuation (9b66a177)", () => {
 	const t = new TurnTracker();
 	t.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\ncontinue");
 	t.noteBackgroundTask("typecheck");
 	const wait = "Typecheck is still running. I’ll wait for it, then lint from the worktree and ship.";
-	t.assistantFinal(wait, isClosedAnswer({
-		text: wait,
-		hasToolCalls: true,
-		stopReason: "toolUse",
-		awaitingBackground: true,
-	}));
+	assert.equal(shouldSplitSpeech(t, { text: wait, hasToolCalls: true }), false, "wait-narration never splits");
+	t.assistantFinal(wait, isClosedAnswer({ text: wait, hasToolCalls: true, stopReason: "toolUse" }));
 	assert.equal(t.lastCloseWasProcess, true);
 	assert.equal(t.awaitingBackground, true);
 	const next = new TurnTracker();
@@ -542,7 +541,7 @@ test("first-answer split preserves parked wait state (9b66a177)", () => {
 	assert.equal(next.awaitingBackground, true);
 	assert.equal(next.lastCloseWasProcess, true);
 	assert.equal(next.lastAssistantText, "");
-	assert.equal(shouldPauseSettle(next), true);
+	assert.deepEqual(planSettle(next, true), { kind: "none" });
 });
 
 test("empty assistantFinal does not clear lastCloseWasProcess (9b66a177)", () => {
@@ -556,7 +555,7 @@ test("empty assistantFinal does not clear lastCloseWasProcess (9b66a177)", () =>
 	t.assistantFinal("\u200B", true);
 	assert.equal(t.lastCloseWasProcess, true);
 	assert.equal(t.lastCloseWasAnswer, false);
-	assert.equal(shouldPauseSettle(t), true);
+	assert.deepEqual(planSettle(t, true), { kind: "none" }, "nothing stored — settle closes without a bubble");
 });
 
 test("harness [bg completed] keeps lastCloseWasProcess on a live owner turn (9b66a177)", () => {
@@ -573,30 +572,23 @@ test("harness [bg completed] keeps lastCloseWasProcess on a live owner turn (9b6
 	assert.equal(t.userKind, "remote");
 	assert.equal(t.awaitingBackground, false);
 	assert.equal(t.lastCloseWasProcess, true);
-	assert.equal(shouldPauseSettle(t), true);
 });
 
-test("first-answer + bg_run + wait + empty close + [bg completed] posts the wrap-up (9b66a177)", () => {
+test("speech + bg_run + wait + empty close + [bg completed] posts the wrap-up (9b66a177)", () => {
 	const t = new TurnTracker();
 	t.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\nAmazing ok let's continue");
 	const opener = "Continuing with the header Agents menu: live headline plus a jump into the Agents tab.";
-	assert.equal(shouldSplitFirstAnswer(t, { text: opener, hasToolCalls: true }), true);
+	assert.equal(shouldSplitSpeech(t, { text: opener, hasToolCalls: true }), true);
 	t.assistantFinal(opener, true);
 	const next = new TurnTracker();
 	next.carryUser(t.userText, t);
 	next.noteBackgroundTask("typecheck-menu");
 	const wait = "Selection wiring is already there. Typecheck is running; I’ll wait for it, then lint from the worktree and ship.";
-	next.assistantFinal(wait, isClosedAnswer({
-		text: wait,
-		hasToolCalls: true,
-		stopReason: "toolUse",
-		awaitingBackground: true,
-	}));
+	next.assistantFinal(wait, isClosedAnswer({ text: wait, hasToolCalls: true, stopReason: "toolUse" }));
 	assert.equal(next.lastAssistantText, "");
 	assert.equal(next.lastCloseWasProcess, true);
 	next.assistantFinal("");
 	assert.equal(next.lastCloseWasProcess, true);
-	assert.equal(shouldPauseSettle(next), true);
 	assert.deepEqual(planSettle(next, true), { kind: "none" });
 	next.userMessage("[bg completed] Typecheck header menu", {
 		customType: "background-task-notification",
@@ -628,50 +620,35 @@ test("automatic background task receipts require a successful notifying wake", (
 	assert.equal(automaticBackgroundTaskId("fusion_validate", { details: { task: { id: "missing-flags" } } }), null);
 });
 
-test("async subagent ownership survives intermediate speech until the completion wake", () => {
+test("async subagent ownership: parent settles honestly, the completion wake posts the recap (759f2818)", () => {
 	const t = new TurnTracker();
 	t.userMessage("[DevSpec remote — message from Ali Price to Fearless Walrus]\nImplement the ledger foundation.");
 	const opener = "I’ve claimed the foundation and delegated the implementation review.";
-	assert.equal(shouldSplitFirstAnswer(t, { text: opener, hasToolCalls: true }), true);
+	assert.equal(shouldSplitSpeech(t, { text: opener, hasToolCalls: true }), true);
 	t.assistantFinal(opener, true);
 
 	const continuation = new TurnTracker();
 	continuation.carryUser(t.userText, t);
 	continuation.noteBackgroundTask("pi-subagents:active-fleet");
+	// "Still active" status is foreground speech — it posts like anything else.
+	// Pending children never hold the turn open; the run settled, so the turn
+	// closes and Working clears until the completion wake reopens it.
 	const parked = "The child implementation is still active; I’ll resume when it finishes.";
-	continuation.assistantFinal(parked, isClosedAnswer({
-		text: parked,
-		hasToolCalls: false,
-		stopReason: "stop",
-		awaitingBackground: continuation.awaitingBackground,
-	}));
-	assert.equal(continuation.lastCloseWasProcess, true);
-	assert.equal(shouldPauseSettle(continuation), true, "parent Working remains parked with the child");
-	assert.deepEqual(planSettle(continuation, true), { kind: "none" });
+	continuation.assistantFinal(parked, isClosedAnswer({ text: parked, hasToolCalls: false, stopReason: "stop" }));
+	assert.deepEqual(planSettle(continuation, true), { kind: "final", message: parked });
 
-	assert.equal(continuation.resolveBackgroundTask("pi-subagents:stale-fleet"), false);
-	assert.equal(shouldPauseSettle(continuation), true, "stale completion cannot clear active work");
+	assert.equal(continuation.resolveBackgroundTask("pi-subagents:stale-fleet"), false, "stale completion cannot consume active bookkeeping");
 	assert.equal(continuation.resolveBackgroundTask("pi-subagents:active-fleet"), true);
-	const recap = "The delegated implementation is complete and all checks passed.";
-	continuation.assistantFinal(recap, true);
-	assert.equal(shouldPauseSettle(continuation), false);
-	assert.deepEqual(planSettle(continuation, true), { kind: "final", message: recap });
 
-	// If the completion-wake status read is transiently unavailable, speech must
-	// still cross an incomplete boundary while ownership remains active. A later
-	// fresh settle snapshot can clear Working without swallowing the recap.
-	const fallback = new TurnTracker();
-	fallback.userMessage("[DevSpec remote — message from Ali Price to Fearless Walrus]\nContinue.");
-	fallback.noteBackgroundTask("pi-subagents:active-fleet");
-	fallback.assistantFinal("The child is still running; I’ll wait for it.", false);
-	fallback.allowNextAnswerBeforeBackgroundContinuation();
-	assert.equal(shouldSplitFirstAnswer(fallback, { text: recap, hasToolCalls: false }), true);
-	fallback.assistantFinal(recap, true);
-	assert.equal(fallback.answerClosesBeforeBackgroundContinuation, true);
-	assert.deepEqual(planSettle(fallback, true), { kind: "final", message: recap });
-	const fallbackContinuation = new TurnTracker();
-	fallbackContinuation.carryUser(fallback.userText, fallback);
-	assert.equal(shouldPauseSettle(fallbackContinuation), true);
+	// The completion wake is a fresh harness segment — and because the wake was
+	// a background completion, its substantive recap is room content.
+	const wake = new TurnTracker();
+	wake.userMessage("Background task completed: **fleet**\n\nAll children settled.", { customType: "subagent-notify" });
+	assert.equal(wake.userKind, "harness");
+	assert.equal(wake.harnessSpeechAllowed, true);
+	const recap = "The delegated implementation is complete and all checks passed.";
+	assert.equal(wake.assistantFinal(recap, true), "stored");
+	assert.deepEqual(planSettle(wake, true), { kind: "final", message: recap });
 });
 
 test("terminal notification ids prefer structured details and fall back to the envelope", () => {
@@ -683,17 +660,18 @@ test("terminal notification ids prefer structured details and fall back to the e
 	assert.equal(backgroundTaskNotificationId("[bg killed] unknown"), null);
 });
 
-test("overlapping background completions preserve the owner turn until the final wrap-up (15cb0983)", () => {
+test("overlapping background completions keep idempotent bookkeeping; speech is never gated on them (15cb0983)", () => {
 	const t = new TurnTracker();
 	t.userMessage("[DevSpec remote — message from Ali Price to Amber Hawk]\nImplement the next slices.");
 	t.noteBackgroundTask("gate-a");
 	t.noteBackgroundTask("gate-b");
 	assert.deepEqual(t.pendingBackgroundTasks(), ["gate-a", "gate-b"]);
 
-	const parked = "The gates are running; I’ll merge and browser-check when green.";
-	t.assistantFinal(parked, false);
-	assert.equal(t.lastCloseWasProcess, true);
-	assert.equal(shouldPauseSettle(t), true);
+	// Gate progress is foreground speech: it posts even while a sibling task
+	// runs. Nothing parks the turn any more.
+	const progress = "The gates are running; I’ll merge and browser-check when green.";
+	t.assistantFinal(progress, false);
+	assert.equal(t.lastCloseWasProcess, false);
 
 	// A completes twice (before_agent_start + message_start). The duplicate is
 	// idempotent and must not consume sibling B.
@@ -704,12 +682,11 @@ test("overlapping background completions preserve the owner turn until the final
 	t.userMessage("[bg completed] gate A", completeA);
 	t.userMessage("[bg completed] gate A", completeA);
 	assert.deepEqual(t.pendingBackgroundTasks(), ["gate-b"]);
-	assert.equal(shouldPauseSettle(t), true);
 
-	// The process-only response to A still cannot settle while B is live.
+	// The mid-run wake response is speech too (it posts); B still pending is
+	// irrelevant to classification.
 	t.assistantFinal("That was gate A; gate B remains active.", false);
-	assert.equal(t.lastCloseWasProcess, true);
-	assert.deepEqual(planSettle(t, true), { kind: "none" });
+	assert.equal(t.lastCloseWasProcess, false);
 
 	// An unrelated leftover cannot consume B.
 	t.userMessage("[bg killed] stale task", {
@@ -719,7 +696,7 @@ test("overlapping background completions preserve the owner turn until the final
 	assert.deepEqual(t.pendingBackgroundTasks(), ["gate-b"]);
 
 	// B may complete, fail, or be killed: terminal state is represented by the
-	// same matching id. The resulting substantive recap is the one answer.
+	// same matching id. The substantive wrap-up is the closing answer.
 	t.userMessage("[bg failed] gate B", {
 		customType: "background-task-notification",
 		backgroundTaskId: "gate-b",
@@ -741,6 +718,72 @@ test("pending background task identities survive delivery segment splits (15cb09
 	continuation.resolveBackgroundTask("deploy");
 	assert.deepEqual(first.pendingBackgroundTasks(), ["deploy", "browser-review"], "split copies ownership rather than aliasing it");
 	assert.deepEqual(continuation.pendingBackgroundTasks(), ["browser-review"]);
+});
+
+test("2026-09-17 replay: the substantive report settles the turn; delayed bg receipts cannot replace it (759f2818)", () => {
+	// Session 9f671595 / Pi file 01a0ae9d: four bg tasks (install, two builds,
+	// deploy watcher) pending when the 2.6k-char final report closed text-only.
+	// Old behaviour: process-classified, settle paused, and the last wake's
+	// receipt posted as THE answer. New contract, step by step:
+	const t = new TurnTracker();
+	t.userMessage("[DevSpec remote — message from Ali Price to Dapper Wolf]\nI can't upload screenshots…");
+	for (const id of ["install", "build-1", "build-2", "deploy-watch"]) t.noteBackgroundTask(id);
+	const report = "Done — diagnosed, fixed, shipped, and verified live. The item is recorded as done.\n\n## What was actually wrong\n\n" + "Signal desktop wrote JPEG bytes under a .png filename. ".repeat(40);
+	// The report is speech even with four tasks pending, and the settle posts it.
+	assert.equal(t.assistantFinal(report, true), "stored");
+	assert.deepEqual(planSettle(t, true), { kind: "final", message: report.trim() });
+
+	// Each delayed wake is its own harness segment now (the owner segment
+	// settled). Pure receipts stay trail-only and cannot become room content.
+	const receipts = [
+		"That's just the completion receipt for the worktree npm install from earlier — already consumed and accounted for. No action needed; the work it supported is finished and shipped.",
+		"Another delayed receipt for a check I already consumed (the pre-merge production build — it passed, and the post-rebase build passed too). Nothing left open: the fix is on staging.",
+		"Final receipt (the deploy watcher) — already acted on: that deploy is the one I verified the fix against. Everything is closed out; nothing further to do.",
+	];
+	for (const receipt of receipts) {
+		const wake = new TurnTracker();
+		wake.userMessage("<background-task-notification><task-id>x</task-id><status>completed</status></background-task-notification>");
+		assert.equal(wake.userKind, "harness");
+		assert.equal(wake.harnessSpeechAllowed, true);
+		assert.equal(isReceiptAcknowledgement(receipt), true, `receipt classified: ${receipt.slice(0, 40)}`);
+		assert.equal(wake.assistantFinal(receipt, true), "process");
+		assert.deepEqual(planSettle(wake, true), { kind: "none" }, "receipts never become the room answer");
+	}
+
+	// …but a wake carrying real news (a failed gate, fresh verification) posts.
+	const wake = new TurnTracker();
+	wake.userMessage("[bg failed] staging deploy", { customType: "background-task-notification" });
+	const news = "The deploy watcher came back red: the staging build failed on a type error in the telemetry merge. I've filed it and am checking whether my change is implicated.";
+	assert.equal(isReceiptAcknowledgement(news), false);
+	assert.equal(wake.assistantFinal(news, true), "stored");
+	assert.deepEqual(planSettle(wake, true), { kind: "final", message: news });
+});
+
+test("receipt acknowledgements are short and formulaic; substance always escapes (759f2818)", () => {
+	assert.equal(isReceiptAcknowledgement("Expected teardown of the last verification server — everything is shipped, merged to staging, and recorded. Nothing outstanding on my side."), true);
+	assert.equal(isReceiptAcknowledgement("All done. No further action."), true);
+	// Over 500 chars is never a receipt — the length cap is the safety rail.
+	assert.equal(isReceiptAcknowledgement("No action needed. " + "x".repeat(600)), false);
+	assert.equal(isReceiptAcknowledgement("The watcher fired and the deploy is LIVE — I re-ran Ali's exact file through the composer and it sent."), false);
+	assert.equal(isReceiptAcknowledgement(""), false);
+});
+
+test("only background completions arm harness speech — context injections stay silent (60cf5f00)", () => {
+	assert.equal(isBackgroundCompletionOrigin("<background-task-notification><task-id>t</task-id><status>completed</status></background-task-notification>", null), true);
+	assert.equal(isBackgroundCompletionOrigin("[bg completed] Lint (abc123)", null), true);
+	assert.equal(isBackgroundCompletionOrigin("anything", "background-task-notification"), true);
+	assert.equal(isBackgroundCompletionOrigin("anything", "subagent-notify"), true);
+	assert.equal(isBackgroundCompletionOrigin("### DevSpec memory — auto-recall\ncards", "devspec-proactive"), false);
+	assert.equal(isBackgroundCompletionOrigin("[DevSpec remote — bond context for X]\nYou are attached", "devspec-attach-context"), false);
+	assert.equal(isBackgroundCompletionOrigin("typed text", null), false);
+
+	// A context-injection wake cannot store speech even if the model talks.
+	const recall = new TurnTracker();
+	recall.userMessage("### DevSpec memory — auto-recall\nMechanically recalled", { customType: "devspec-proactive" });
+	assert.equal(recall.userKind, "harness");
+	assert.equal(recall.harnessSpeechAllowed, false);
+	assert.equal(recall.assistantFinal("Looking good now, Ali.", true), "process");
+	assert.deepEqual(planSettle(recall, true), { kind: "none" });
 });
 
 test("leftover-only [bg completed] still posts no answer (56b9a3b4)", () => {

@@ -16,7 +16,7 @@ test("Pi carries immutable turn + command identity through every activity output
 	assert.match(source, /reportComplete\("process_exit", openTurn\.commandTurnId, openTurn\.commandMessageId, isCommandTurnUnbound\(openTurn\), interactionIdentity\(openTurn\.interaction\)\)/);
 });
 
-test("async subagents retain parent Working until the authoritative fleet is empty", () => {
+test("async subagents reconcile the fleet, and settle closes Working honestly (759f2818)", () => {
 	assert.match(source, /snapshot = await subagentFleet\.refreshFresh\(\)/);
 	assert.match(source, /snapshot\.totalActive > 0/);
 	assert.match(source, /noteBackgroundTask\(SUBAGENT_FLEET_TASK_ID\)/);
@@ -24,15 +24,16 @@ test("async subagents retain parent Working until the authoritative fleet is emp
 	assert.match(source, /turn !== trackedTurn \|\| trackedTurn\.revision !== expectedRevision/);
 	const settled = source.slice(source.indexOf('pi.on("agent_settled"'), source.indexOf('// ---- Turn lifecycle events'));
 	assert.match(settled, /reconciliation === "stale"\) return/);
-	assert.match(settled, /const keepWorking = !completionNeutral && Boolean\(settlingTurn && shouldPauseSettle\(settlingTurn\.tracker\)\)/);
-	assert.match(settled, /if \(pump && activityPolicy\.reportPresence\)/);
-	assert.match(settled, /pump\.busy = keepWorking/);
-	assert.match(settled, /beatBusy\(keepWorking, agentStats\)/);
-	assert.doesNotMatch(settled, /pump\.busy = false|beatBusy\(false/);
+	// Owner direction 2026-09-17: Working follows the model run. A settled run
+	// clears presence even while owned background work pends — the completion
+	// wake reopens it. The old shouldPauseSettle park spun Working for 70
+	// minutes behind never-terminating tasks.
+	assert.match(settled, /pump\.busy = false/);
+	assert.match(settled, /beatBusy\(false, agentStats\)/);
+	assert.doesNotMatch(settled, /shouldPauseSettle/);
 	const messageStart = source.slice(source.indexOf('pi.on("message_start"'), source.indexOf('pi.on("message_update"'));
 	assert.match(messageStart, /isSubagentAsyncNotification\(text, customType\)/);
-	assert.match(messageStart, /await reconcileSubagentFleetOwnership\(notificationTurn\)/);
-	assert.match(messageStart, /allowNextAnswerBeforeBackgroundContinuation\(\)/);
+	assert.match(messageStart, /await reconcileSubagentFleetOwnership\(turn\)/);
 	const agentStart = source.slice(source.indexOf('pi.on("agent_start"'), source.indexOf('pi.on("agent_settled"'));
 	assert.match(agentStart, /turn\.occupancy = occupancy \?\? undefined;[^]*turn\.revision = nextTurnRevision\+\+/);
 });

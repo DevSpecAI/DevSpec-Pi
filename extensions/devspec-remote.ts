@@ -72,7 +72,7 @@ import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } f
 import { SubagentFleetClient, type SubagentFleetSnapshot } from "./core/subagent-fleet.ts";
 import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
 import { takeContextBudgetReport } from "./core/context-budget.ts";
-import { automaticBackgroundTaskId, backgroundTaskNotificationId, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitFirstAnswer, isHarnessOrigin, isSubagentAsyncNotification, shouldPauseSettle, TurnTracker } from "./core/turn-lifecycle.ts";
+import { automaticBackgroundTaskId, backgroundTaskNotificationId, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitSpeech, isHarnessOrigin, isSubagentAsyncNotification, TurnTracker } from "./core/turn-lifecycle.ts";
 import {
 	formatAutomationRunMessage,
 	isAutomationRunEnvelope,
@@ -716,8 +716,11 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 	const finalEvents = t.trail.events();
 	const activityTrail = finalEvents.length > 0 ? finalTrail : undefined;
 	const plan = planSettle(t.tracker, true);
-	debug("settle segment", { completeTurn, trailChars: finalTrail.length });
-	if (t.tracker.userKind === "harness") return false;
+	debug("settle segment", { completeTurn, planFinal: plan.kind === "final", planMirror: plan.kind === "local_mirror", trailChars: finalTrail.length, answerChars: t.tracker.lastAssistantText.length, pendingBg: t.tracker.pendingBackgroundTasks().length, harness: t.tracker.userKind === "harness" });
+	// Context-injection / leftover harness segments never leave room content
+	// (60cf5f00). A background-completion wake MAY speak (its own bubble) and
+	// flushes its trail like any segment.
+	if (t.tracker.userKind === "harness" && !t.tracker.harnessSpeechAllowed) return false;
 	if (plan.kind === "final") {
 		// phase 'answer' closes the trail bubble (preserved as "Show work").
 		const localTurn = isCommandTurnUnbound(t) && !t.interaction;
@@ -741,15 +744,15 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 async function settleTurn(agentStats: AgentStatsReport | null, completeTurn = true): Promise<boolean> {
 	const t = turn;
 	if (!t) { debug("settleTurn: no turn state"); return false; }
-	// Wait / unresolved bg_run: park the owner tracker. The next
-	// [bg completed] agent_start continues this turn (item 6ea9aa47).
-	if (shouldPauseSettle(t.tracker)) {
-		debug("settleTurn: pause — wait/bg_run close, keeping owner tracker");
-		return true;
-	}
+	// No pause (759f2818, owner direction 2026-09-17): the run ending is the
+	// truth. An unposted answer posts complete_turn:true; a process-only/
+	// silent settle flushes its trail and reportComplete closes the attempt
+	// (sweeping any open trail row) instead of spinning Working. A later
+	// bg-completion wake opens its own segment and speaks for itself.
 	turn = null;
 	if (t.interval) clearInterval(t.interval);
 	await t.trailPostFence.drain();
+	debug("settleTurn: settle", { answerChars: t.tracker.lastAssistantText.length, pendingBg: t.tracker.pendingBackgroundTasks().length, harness: t.tracker.userKind === "harness" });
 	return await postSegmentAnswer(t, agentStats, "run_end", completeTurn);
 }
 
@@ -2776,11 +2779,14 @@ export default function (pi: ExtensionAPI) {
 		// Keep the pump authoritative Working signal alive until the final owned
 		// continuation settles; otherwise polls broadcast false and close the
 		// durable attempt while an async child is visibly still running.
-		const keepWorking = !completionNeutral && Boolean(settlingTurn && shouldPauseSettle(settlingTurn.tracker));
+		// Working follows the model run, honestly (owner direction 2026-09-17):
+		// background tasks keep working on their own and their completion wake
+		// reopens presence — a parked Working clock spinning 70 minutes behind a
+		// dev-server task was the 759f2818 symptom, not a feature.
 		if (pump && activityPolicy.reportPresence) {
-			pump.busy = keepWorking;
-			if (!interactionRun) void beatBusy(keepWorking, agentStats);
-			const trueIdle = !keepWorking && !pump.runtimeOccupancy.isBusy() && ctx.isIdle();
+			pump.busy = false;
+			if (!interactionRun) void beatBusy(false, agentStats);
+			const trueIdle = !pump.runtimeOccupancy.isBusy() && ctx.isIdle();
 			if (pump.idleBoundaryWake.consumeAtIdle(trueIdle)) signalWake(pump);
 		} else if (pump) {
 			const trueIdle = !pump.busy && !pump.runtimeOccupancy.isBusy() && ctx.isIdle();
@@ -2807,7 +2813,7 @@ export default function (pi: ExtensionAPI) {
 		// idle. The next custom run remains unbound from every owner generation.
 		if (completionNeutral) systemNoticeTurnPending = false;
 		systemNoticeRunActive = false;
-		if (!keepWorking && pump && !pump.busy && ctx.isIdle()) {
+		if (pump && !pump.busy && ctx.isIdle()) {
 			try { deliverQueuedSystemNotices(pump, ctx); } catch (error) {
 				debug("system notice settle drain failed", { errorPresent: Boolean(error) });
 			}
@@ -2976,16 +2982,11 @@ export default function (pi: ExtensionAPI) {
 			}
 			// Idle triggerTurn custom messages bypass before_agent_start in Pi. The
 			// awaited message_start event is the earliest common point before the
-			// completion-wake model can author its recap.
+			// completion-wake model can author its recap. Fleet reconciliation is
+			// side-effect only now: wake speech is never gated on background state
+			// (759f2818), so a transient status miss cannot swallow anything.
 			if (harness && isSubagentAsyncNotification(text, customType)) {
-				const notificationTurn = turn;
-				const reconciliation = await reconcileSubagentFleetOwnership(notificationTurn);
-				// If bounded status is temporarily unavailable, do not declare the
-				// fleet done. Still let substantive speech cross an incomplete answer
-				// boundary so a transient miss cannot swallow the user-facing recap.
-				if (reconciliation === "unknown" && turn === notificationTurn) {
-					notificationTurn.tracker.allowNextAnswerBeforeBackgroundContinuation();
-				}
+				await reconcileSubagentFleetOwnership(turn);
 			}
 		}
 		// A new assistant message = a new LLM round. If the previous close was
@@ -3036,16 +3037,16 @@ export default function (pi: ExtensionAPI) {
 			// Round sealed: the next deltas open fresh entries (cc9e8c43).
 			turn.trail.beginAssistantMessage();
 			turn.dirty = true;
-			const firstSplit = shouldSplitFirstAnswer(turn.tracker, { text, hasToolCalls });
-			turn.tracker.assistantFinal(text, firstSplit || isClosedAnswer({
+			// Every user-facing text on a tool-carrying message is its own bubble
+			// (owner direction 2026-09-17 — terminal parity), not just the first.
+			const speechSplit = shouldSplitSpeech(turn.tracker, { text, hasToolCalls });
+			const classification = turn.tracker.assistantFinal(text, speechSplit || isClosedAnswer({
 				text,
 				hasToolCalls,
 				stopReason,
-				awaitingBackground: turn.tracker.awaitingBackground,
 			}));
-			// First user-facing line after a user message is the answer for the
-			// thinking so far, even when this same message also starts tools.
-			if (firstSplit) splitTurnAtBoundary("first_answer", false);
+			debug("speech", { stored: classification === "stored", process: classification === "process", split: speechSplit, chars: text.trim().length, tools: hasToolCalls, closedStop: stopReason === "stop" });
+			if (speechSplit) splitTurnAtBoundary("speech", false);
 		}
 	});
 

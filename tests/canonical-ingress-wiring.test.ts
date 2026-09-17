@@ -49,8 +49,10 @@ test("system notices use a fresh harness custom turn and never user/followUp/ste
 	assert.ok(started.indexOf("const completionNeutral = occupancy?.kind === \"system_notice\"") < started.indexOf("active.busy = true"));
 	assert.match(started, /const activityPolicy = remoteRunActivityPolicy\(completionNeutral\)[^]*else if \(active && activityPolicy\.reportPresence\)[^]*active\.busy = true[^]*beatBusy\(true\)/);
 	const settled = bodyBetween('pi.on("agent_settled"', "// ---- Turn lifecycle events");
-	assert.match(settled, /const activityPolicy = remoteRunActivityPolicy\(completionNeutral\)[^]*if \(pump && activityPolicy\.reportPresence\)[^]*pump\.busy = keepWorking[^]*beatBusy\(keepWorking/);
-	assert.match(settled, /!keepWorking && pump && !pump\.busy && ctx\.isIdle\(\)[^]*deliverQueuedSystemNotices/);
+	// Settle always clears presence now (759f2818): a queued notice drains as
+	// soon as Pi and the pump are idle, never behind a parked Working clock.
+	assert.match(settled, /const activityPolicy = remoteRunActivityPolicy\(completionNeutral\)[^]*if \(pump && activityPolicy\.reportPresence\)[^]*pump\.busy = false[^]*beatBusy\(false/);
+	assert.match(settled, /pump && !pump\.busy && ctx\.isIdle\(\)[^]*deliverQueuedSystemNotices/);
 	assert.match(settled, /!posted && activityPolicy\.reportCompletion[^]*reportComplete\("turn_end"/);
 	const runtimeStamp = bodyBetween("function scheduleRuntimeStamp", "/** Settle the turn's usage");
 	assert.match(runtimeStamp, /const completionNeutralAtSchedule = systemNoticeRunActive \|\| systemNoticeTurnPending/);

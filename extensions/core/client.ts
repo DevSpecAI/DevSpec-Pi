@@ -391,9 +391,8 @@ function mcpToolErrorText(raw: unknown, name: string): string | null {
 /**
  * The server reports a terminal projection outcome as a tool error string:
  * "Your message was NOT stored (<outcome>). …" (item fa834f2e). Extract the
- * outcome so a dropped answer is LOGGED and self-healable (759f2818: an
- * unbound wake post during a parked command turn is fenced stale_generation
- * and otherwise vanishes without a trace). Returns null when the raw result
+ * outcome for legacy diagnostics only. A stale binding is not permission to
+ * retry unbound or to assume the message was delivered. Returns null when the raw result
  * is not a not-stored rejection.
  */
 export function remotePostRejectionFromError(err: unknown): string | null {
@@ -430,6 +429,10 @@ export function isPermanentServerEnd(status?: string | null, endReason?: string 
 }
 
 export interface CallOptions {
+	/** Non-idempotent mechanical delivery: no transport, scope, or rate-limit replay. */
+	retry?: "never";
+	/** Recheck captured authority after cooldown/client acquisition, immediately before send. */
+	beforeSend?: () => void;
 	/** Request timeout (default 60s). Long-poll callers pass hold + margin. */
 	timeoutMs?: number;
 	/** Hidden host-held capability. It is stamped as a transport header, never an argument. */
@@ -520,7 +523,10 @@ export async function callDevspec(
 				options.connectionCapability,
 				timeoutMs,
 				name,
-				(client) => client.callTool({ name, arguments: callArgs }, undefined, { timeout: timeoutMs }),
+				(client) => {
+					options.beforeSend?.();
+					return client.callTool({ name, arguments: callArgs }, undefined, { timeout: timeoutMs });
+				},
 			);
 			const toolError = mcpToolErrorText(raw, name);
 			if (toolError) throw new DevspecToolError(toolError);
@@ -533,7 +539,7 @@ export async function callDevspec(
 			if (retryMs !== null) {
 				rateLimitStore().until = Date.now() + retryMs;
 				rateLimitRetries += 1;
-				if (rateLimitRetries > 1) throw new DevspecRateLimitError(mapped.message, retryMs);
+				if (options.retry === "never" || rateLimitRetries > 1) throw new DevspecRateLimitError(mapped.message, retryMs);
 				await new Promise((r) => setTimeout(r, Math.min(retryMs, MAX_COOLDOWN_WAIT_MS)));
 				attempt--; // the rate-limit wait-retry doesn't consume a transport attempt
 				continue;
@@ -541,7 +547,7 @@ export async function callDevspec(
 			// Project-scope retry, including MCP isError. Not a transport retry:
 			// same client, extra folder facts, never close()/re-init.
 			if (
-				!scopedRetryDone &&
+				options.retry !== "never" && !scopedRetryDone &&
 				!(mapped instanceof DevspecAuthError) &&
 				!argsHaveProjectScope(callArgs) &&
 				needsProjectScope(mapped.message)
@@ -564,7 +570,7 @@ export async function callDevspec(
 				resetClientCache(lane);
 				break;
 			}
-			if (!isRecoverableTransportError(mapped)) throw mapped;
+			if (options.retry === "never" || !isRecoverableTransportError(mapped)) throw mapped;
 		}
 	}
 	throw mapClientError(lastError);

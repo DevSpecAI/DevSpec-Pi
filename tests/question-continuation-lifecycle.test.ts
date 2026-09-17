@@ -142,7 +142,7 @@ test("interaction preempt aborts once per event, then awaits idle without re-abo
 });
 
 test("stale retained retries refresh their claim token from the journal before applying", () => {
-	const drain = between("async function drainInteractionRetries", "armInteractionRetryWake(active);\n\treturn attempted;");
+	const drain = between("async function drainInteractionRetries", "async function acknowledgeInteractionApplication");
 	assert.match(drain, /interactionJournal\.eventFor\(eventId\)/);
 	assert.match(drain, /pending\.event = freshEvent/);
 });

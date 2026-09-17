@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 24191b52c6b27e78b492432b155ed2418c530c31af9f6baae2f209cb58acd723
+ * Schema fingerprint: 6580e623885fc072b04a6ae87f9b8ffb3131300d61357c1e40caacf62eb60a37
  * Description fingerprint: f4954ec8d42c9806f1a5da49a04c59e8f55ff157388b38d8dee039b865c5249e
- * Regenerated: 2026-09-17T18:13:14.299Z
+ * Regenerated: 2026-09-17T22:03:48.067Z
  */
-export const MCP_CATALOG_FINGERPRINT = "24191b52c6b27e78b492432b155ed2418c530c31af9f6baae2f209cb58acd723";
+export const MCP_CATALOG_FINGERPRINT = "6580e623885fc072b04a6ae87f9b8ffb3131300d61357c1e40caacf62eb60a37";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "f4954ec8d42c9806f1a5da49a04c59e8f55ff157388b38d8dee039b865c5249e";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-17T18:13:14.299Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-17T22:03:48.067Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -4504,6 +4504,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"id": {
 					"type": "string",
 					"description": "The id of the artifact to update."
+				},
+				"confirm_new": {
+					"type": "boolean",
+					"description": "Set true only after reading the artifact named in closest_match and deciding the edit is genuinely distinct from it. The check that stops an update is instant and finds the CLOSEST existing document to your new text — which on a rewrite is often a companion rather than a duplicate. It is a ruling, not a retry: give a real reason, and if the document it named is someone else’s settled work, say what you found and ask rather than overruling it quietly."
 				},
 				"title": {
 					"type": "string"

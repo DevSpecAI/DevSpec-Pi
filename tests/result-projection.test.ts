@@ -223,9 +223,23 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// Budget: `npm run benchmark:context` measures the initial surface at 7,456
 	// tokens of the 8,000 ceiling — three LOWER than the last baseline, because
 	// the memory write verbs are wire-only and not in the model hot set.
+	// Rebaselined 2026-09-17 (later) for DevSpec item 4b5cdc59: regenerated the
+	// catalog against staging ac714890c. Exactly one property added and nothing
+	// else moved — `confirm_new` on update_resource (DevSpec bd84df869).
+	//   The gate that stops an artifact edit told the caller to "re-call with
+	//   confirm_new", and update_resource did not declare it, so the argument was
+	//   stripped against the cached schema and the caller could only loop on the
+	//   same refusal. A DevSpec agent stood in that dead end this morning; Pi
+	//   would have hit it identically the first time it amended an artifact.
+	//   create and supersede already had the parameter, which is why only update
+	//   was affected.
+	// No verb added or removed, no projection family changed. Budget:
+	// `npm run benchmark:context` measures the initial surface at 7,456 tokens of
+	// the 8,000 ceiling — UNCHANGED, because update_resource is wire-only and not
+	// in the model hot set.
 	assert.equal(
 		fingerprint,
-		"849dd253ca45ef43498a0466843a16b7f3061e5e2191758eddde1db4835df9d9",
+		"0420c9952c63070b113864ae234e26976c8787c47f26e626f5dee7106626ad5a",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

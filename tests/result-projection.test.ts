@@ -208,9 +208,24 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// 7,418). Same commit fixes the git-observer shim fork bomb (8729992e) that
 	// made this full suite unrunnable on the shared machine — the suite is the
 	// verification again.
+	// Rebaselined 2026-09-17 for DevSpec item 4b5cdc59: regenerated the catalog
+	// against staging 7359938af. Three descriptions moved, no verb added or
+	// removed, so no projection family changed.
+	//   (1) record_memory and supersede_memory: the write path stopped calling a
+	//       model. The old text said the create READS the records and quotes the
+	//       conflicting passage; it now does neither, so an agent told that was
+	//       being told something untrue. The new text says the check is instant,
+	//       that the judgement is the caller's, that asking the person is a real
+	//       outcome, and that confirm_new is a recorded ruling rather than the
+	//       way past the check.
+	//   (2) resolve_action_item_conflict: absorbed from staging drift, "Review
+	//       tab" -> "Review page, under Proposed changes" (R3's navigation fix).
+	// Budget: `npm run benchmark:context` measures the initial surface at 7,456
+	// tokens of the 8,000 ceiling — three LOWER than the last baseline, because
+	// the memory write verbs are wire-only and not in the model hot set.
 	assert.equal(
 		fingerprint,
-		"09572043bc428309ce251d3f72eb2974ec078acb6d79966b1f7e195cc7a455d0",
+		"849dd253ca45ef43498a0466843a16b7f3061e5e2191758eddde1db4835df9d9",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

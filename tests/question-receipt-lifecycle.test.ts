@@ -213,7 +213,7 @@ test("remote wiring suppresses only fallback trail and still exact-completes act
 	const answerEnd = remote.indexOf("async function settleTurn", answerStart);
 	const answer = remote.slice(answerStart, answerEnd);
 	assert.match(answer, /plan\.kind === "final"[^]*postToSession/);
-	assert.match(answer, /t\.dirty && activityTrail && !t\.receiptBatch\.suppressEmptyFallback\(t\.revision\)/);
+	assert.match(answer, /t\.trailDelivery\.dirty && !t\.trailDelivery\.blocked && activityTrail && !t\.receiptBatch\.suppressEmptyFallback\(t\.revision\)/);
 	const startHandler = remote.slice(remote.indexOf('pi.on("tool_execution_start"'), remote.indexOf('pi.on("tool_execution_update"'));
 	assert.match(startHandler, /potentialReceipt[^]*receiptBatch\.start[^]*await trackedTurn\.trailPostFence\.drain\(\)[^]*turn === trackedTurn[^]*trackedTurn\.revision === revision[^]*ctx\.abort\(\)/);
 	const resetStart = remote.indexOf("function resetDirectedQuestionReceiptBatch");
@@ -222,7 +222,7 @@ test("remote wiring suppresses only fallback trail and still exact-completes act
 	const settledStart = remote.indexOf('pi.on("agent_settled"');
 	const settledEnd = remote.indexOf("// ---- Turn lifecycle events", settledStart);
 	const settled = remote.slice(settledStart, settledEnd);
-	assert.match(settled, /if \(!posted && activityPolicy\.reportCompletion && pendingBackgroundTaskIds\.size === 0\)[^]*reportComplete\("turn_end"/);
+	assert.match(settled, /if \(!posted && activityPolicy\.reportCompletion && pendingBackgroundTaskIds\.size === 0 && \(settlingTurn\?\.canPost\(\) \?\? pump === activeAtSettle\)\)[^]*reportComplete\("turn_end"/);
 });
 
 test("answer-event ingress stays transcript-neutral until Pi authors substantive follow-up", () => {

@@ -32,7 +32,7 @@ import {
 	DevspecAuthError,
 	isPermanentServerEnd,
 	MODEL_TIMEOUT_MS,
-	remotePostRejectionFromError,
+	DevspecToolError,
 	shouldEndBondOnPollFailure,
 } from "./core/client.ts";
 import { connectionCapabilityFromResult, getBond, setBond, type BondState } from "./core/bond-state.ts";
@@ -52,7 +52,7 @@ import {
 } from "./core/remote-payload.ts";
 import { CommandTurnBindings, type CanonicalQueueItem } from "./core/command-turn.ts";
 import { compactWithContext, executeControlCommand, parseControlCommand, reloadWithContext, runReloadLap } from "./core/control.ts";
-import { withLiveUi } from "./core/ctx-guard.ts";
+import { safeHasUI, withLiveUi } from "./core/ctx-guard.ts";
 import { commandReloadContext, rememberExtensionRunner } from "./core/command-runner.ts";
 import { collectModelCatalog, type ModelCatalogSnapshot } from "./core/model-catalog.ts";
 import {
@@ -69,6 +69,7 @@ import {
 import { unwrapMcpResult } from "./core/result.ts";
 import { bondedRemoteAction, namedSessionFromRemoteArg } from "./core/remote-session-arg.ts";
 import { shapeTranscript } from "./core/attach-context.ts";
+import { parsePostSessionReceipt, TrailDeliveryState } from "./core/post-session-receipt.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { SubagentFleetClient, type SubagentFleetSnapshot } from "./core/subagent-fleet.ts";
 import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
@@ -351,7 +352,9 @@ interface TurnState {
 	receiptBatch: DirectedQuestionReceiptBatch;
 	/** Every asynchronous projection that can still mutate this turn's pointer. */
 	trailPostFence: TrailPostFence;
-	dirty: boolean;
+	trailDelivery: TrailDeliveryState;
+	/** Captured connection/room authority; delayed segments cannot follow a reattach. */
+	canPost: () => boolean;
 	interval: ReturnType<typeof setInterval> | null;
 	/** Trail posts so far this run — drives the adaptive cadence. */
 	posts: number;
@@ -368,9 +371,6 @@ interface TurnState {
 export function nextTrailDelayMs(postsSoFar: number): number {
 	return Math.min(1_000 * 2 ** postsSoFar, 10_000);
 }
-
-/** One rate-limit/failure warning per turn is enough; the rest go to debug. */
-let postWarnedThisTurn = false;
 
 let turn: TurnState | null = null;
 let systemNoticeTurnPending = false;
@@ -409,8 +409,8 @@ const pendingBackgroundTaskIds = new Set<string>();
  * Wake turns therefore ADOPT this identity (they are the command's own work
  * continuing), and it clears when the turn genuinely closes: a successful
  * complete_turn:true post, a reportComplete for it, or any authority
- * rotation. A stale adoption that still fences is self-healed by one
- * unbound retry (content over association).
+ * rotation. A stale adoption that still fences fails explicitly; it must never
+ * shed its source identity to bypass the server fence.
  */
 let activeCommandTurnIdentity: { turnId: string; commandMessageId: string } | null = null;
 
@@ -438,8 +438,7 @@ function ensureTurn(): void {
 	const revision = nextTurnRevision++;
 	const receiptBatch = new DirectedQuestionReceiptBatch();
 	receiptBatch.reset(revision);
-	turn = { revision, tracker: new TurnTracker(pendingBackgroundTaskIds), trail: new TrailBuilder(), completionNeutral: false, receiptBatch, trailPostFence: new TrailPostFence(), dirty: false, interval: null, posts: 0, lastPostAt: 0 };
-	postWarnedThisTurn = false;
+	turn = { revision, tracker: new TurnTracker(pendingBackgroundTaskIds), trail: new TrailBuilder(), completionNeutral: false, receiptBatch, trailPostFence: new TrailPostFence(), trailDelivery: new TrailDeliveryState(), canPost: capturePostAuthority(), interval: null, posts: 0, lastPostAt: 0 };
 	debug("ensureTurn: tracking (run-scoped)");
 	turn.interval = setInterval(trailTick, TRAIL_INTERVAL_MS);
 	// Don't hold the process open for the trail timer in headless runs.
@@ -534,26 +533,47 @@ function replyModelArgs(agentStats?: AgentStatsReport): Record<string, unknown> 
 	return { model: { providerID, modelID } };
 }
 
-async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; localTurn?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; agentStats?: AgentStatsReport } = {}): Promise<boolean> {
+/** Bind before any await, including deferred segment/fence work. */
+function capturePostAuthority(): () => boolean {
 	const active = pump;
 	const bond = getBond();
-	if (!active || !bond?.sessionId) { debug("post skipped", { notAttached: true }); return false; }
-	const authority = capturePumpAuthority({ generation: active.generation, connectionId: bond.connectionId });
-	const resolved = await resolveToken();
-	if (!resolved) { debug("post skipped", { tokenMissing: true }); return false; }
-	if (pump !== active || !isPumpAuthorityCurrent(authority, {
-		generation: active.generation,
-		connectionId: active.bond.connectionId,
-	})) { debug("post skipped", { authorityStale: true }); return false; }
-	if (active.stop && !active.closing) { debug("post skipped", { stopping: true }); return false; }
-	const buildArgs = (unbound: boolean) => ({
+	const connectionId = bond?.connectionId;
+	const sessionId = bond?.sessionId;
+	const generation = active?.generation;
+	return () => Boolean(active && pump === active && active.generation === generation &&
+		active.bond.connectionId === connectionId && active.bond.sessionId === sessionId &&
+		getBond()?.connectionId === connectionId && getBond()?.sessionId === sessionId &&
+		(!active.stop || active.closing));
+}
+
+async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; localTurn?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; isCurrent?: () => boolean; agentStats?: AgentStatsReport } = {}): Promise<boolean> {
+	const active = pump;
+	const bond = getBond();
+	const ctx = lastCtx;
+	const current = capturePostAuthority();
+	const failure = (status: "skipped" | "rejected" | "malformed" | "unknown"): false => {
+		// No raw server/transport error, prompt, token, or thinking in diagnostics.
+		debug("post delivery failed", { skipped: status === "skipped", rejected: status === "rejected", malformed: status === "malformed", unknown: status === "unknown" });
+		const warning = `DevSpec remote: ${opts.turnKind === "local_prompt" ? "local prompt" : opts.phase === "trail" ? "trail" : "answer"} delivery ${status}; storage not confirmed. Not replaying automatically; check the room before resending.`;
+		if (safeHasUI(ctx)) notify(ctx, warning, "warning");
+		else console.error(warning);
+		return false;
+	};
+	if (!active || !bond?.sessionId) return failure("skipped");
+	const authority = { connectionId: bond.connectionId, sessionId: bond.sessionId };
+	const parkedIdentity = activeCommandTurnIdentity;
+	const isCurrent = () => current() && (opts.isCurrent?.() ?? true);
+	let resolved;
+	try { resolved = await resolveToken(); } catch { return failure("skipped"); }
+	if (!resolved || !isCurrent()) return failure("skipped");
+	const args = {
 		connection_id: authority.connectionId,
 		message,
 		agent_name: AGENT_NAME,
-		...(unbound ? {} : opts.commandTurnId ? { command_turn_id: opts.commandTurnId } : {}),
-		...(unbound ? {} : opts.commandMessageId ? { command_message_id: opts.commandMessageId } : {}),
-		...(unbound || opts.commandTurnUnbound || opts.interaction ? { command_turn_unbound: true } : {}),
-		...(unbound || opts.localTurn ? { local_turn: true } : {}),
+		...(opts.commandTurnId ? { command_turn_id: opts.commandTurnId } : {}),
+		...(opts.commandMessageId ? { command_message_id: opts.commandMessageId } : {}),
+		...(opts.commandTurnUnbound || opts.interaction ? { command_turn_unbound: true } : {}),
+		...(opts.localTurn ? { local_turn: true } : {}),
 		...(opts.interaction ? exactInteractionContinuationArgs(opts.interaction) : {}),
 		...(opts.phase ? { phase: opts.phase } : {}),
 		...(opts.completeTurn === true ? { complete_turn: true } : opts.completeTurn === false ? { complete_turn: false } : {}),
@@ -564,52 +584,29 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 			: {}),
 		...(opts.agentStats ? { agent_stats: opts.agentStats } : {}),
 		...replyModelArgs(opts.agentStats),
-	});
-	const laneOpts = { lane: "pump" as const, ...(opts.interaction && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}) };
+	};
+
+	const laneOpts = {
+		lane: "pump" as const,
+		retry: "never" as const,
+		beforeSend: () => { if (!isCurrent()) throw new DevspecToolError("Post authority changed before send."); },
+		...(opts.interaction && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}),
+	};
 	try {
-		await callDevspec(resolved.token, "post_session_message", buildArgs(false), laneOpts);
-		// A successful complete_turn:true post closes the command turn
-		// server-side — forget the parked identity so the next wake posts
-		// unbound instead of fencing against a dead turn.
-		if (opts.completeTurn === true) noteCommandTurnClosed(opts.commandTurnId);
+		const raw = await callDevspec(resolved.token, "post_session_message", args, laneOpts);
+		const receipt = parsePostSessionReceipt(raw, {
+			...authority, phase: opts.phase ?? "answer", turnKind: opts.turnKind,
+		});
+		if (receipt.status !== "stored" && receipt.status !== "idempotently_stored") return failure(receipt.status);
+		debug("post stored", { idempotent: receipt.status === "idempotently_stored" });
+		if (isCurrent() && activeCommandTurnIdentity === parkedIdentity) {
+			if (opts.completeTurn === true) noteCommandTurnClosed(opts.commandTurnId);
+		}
 		return true;
 	} catch (err) {
-		debug("post to session failed", { errorPresent: Boolean(err) });
-		// The server reports a fenced drop as a tool error naming the outcome
-		// (fa834f2e). Log the exact class — a silently dropped answer was
-		// today's diagnostic hole — and self-heal a stale bound identity with
-		// one unbound retry: the content lands, only the turn association goes.
-		const outcome = remotePostRejectionFromError(err);
-		if (outcome) {
-			debug("post rejected", {
-				staleGeneration: outcome === "stale_generation",
-				staleAttempt: outcome === "stale_attempt",
-				attemptClosed: outcome === "activity_attempt_closed",
-				alreadyFinalized: outcome === "already_finalized",
-				noOpenAttempt: outcome === "no_open_attempt",
-				other: !(outcome === "stale_generation" || outcome === "stale_attempt" || outcome === "activity_attempt_closed" || outcome === "already_finalized" || outcome === "no_open_attempt"),
-			});
-			// Bound posts whose turn/segment is gone retry once unbound — the
-			// server opens a source-less attempt for local_turn posts, so the
-			// content lands; only the association degrades.
-			if ((outcome === "stale_generation" || outcome === "stale_attempt" || outcome === "no_open_attempt") &&
-				!opts.commandTurnUnbound && (opts.commandTurnId || opts.commandMessageId) && !opts.interaction) {
-				noteCommandTurnClosed(opts.commandTurnId);
-				try {
-					await callDevspec(resolved.token, "post_session_message", buildArgs(true), laneOpts);
-					debug("post retried unbound", { landed: true });
-					if (opts.completeTurn === true) noteCommandTurnClosed(opts.commandTurnId);
-					return true;
-				} catch {
-					debug("post retried unbound", { landed: false });
-				}
-			}
-		}
-		if (!postWarnedThisTurn) {
-			postWarnedThisTurn = true;
-			notify(lastCtx, `DevSpec remote: post failed (${err instanceof Error ? err.message.slice(0, 120) : err}) — further failures this turn logged to debug only.`, "warning");
-		}
-		return false;
+		// Response loss may follow a successful write. Never turn UNKNOWN into
+		// NOT STORED, and never replay non-idempotent speech/local_prompt.
+		return failure(err instanceof DevspecToolError ? "rejected" : "unknown");
 	}
 }
 
@@ -646,18 +643,19 @@ function trailTick(): void {
 		turn.lastInteractionKeepaliveAt = now;
 		void keepInteractionContinuationAlive(turn.interaction);
 	}
-	if (!turn.dirty || now - turn.lastPostAt < nextTrailDelayMs(turn.posts)) return;
+	if (!turn.trailDelivery.dirty || turn.trailDelivery.blocked || now - turn.lastPostAt < nextTrailDelayMs(turn.posts)) return;
 	const activityEvents = turn.trail.events();
 	// Assistant speech belongs to the transcript. A text-only progress/final
 	// message must not open an empty Activity record containing a duplicate.
 	if (activityEvents.length === 0) return;
 	const rendered = turn.trail.render(undefined, false);
 	if (!rendered) return;
-	turn.dirty = false;
 	turn.posts += 1;
 	turn.lastPostAt = now;
 	const postingTurn = turn;
-	postingTurn.trailPostFence.track(postToSession(rendered, { phase: "trail", commandTurnId: postingTurn.commandTurnId, commandMessageId: postingTurn.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(postingTurn), localTurn: isCommandTurnUnbound(postingTurn) && !postingTurn.interaction, interaction: interactionIdentity(postingTurn.interaction), trailEvents: activityEvents }));
+	const snapshot = postingTurn.trailDelivery.begin();
+	if (snapshot === null) return;
+	postingTurn.trailPostFence.track(postToSession(rendered, { phase: "trail", isCurrent: postingTurn.canPost, commandTurnId: postingTurn.commandTurnId, commandMessageId: postingTurn.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(postingTurn), localTurn: isCommandTurnUnbound(postingTurn) && !postingTurn.interaction, interaction: interactionIdentity(postingTurn.interaction), trailEvents: activityEvents }).then(stored => postingTurn.trailDelivery.finish(snapshot, stored)));
 }
 
 /**
@@ -785,9 +783,6 @@ async function releaseInteractionBeforePersistence(run: ExactInteractionRun, rea
  */
 async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | null, why: string, completeTurn = true): Promise<boolean> {
 	if (!remoteRunActivityPolicy(t.completionNeutral).reportTranscript) return false;
-	const bond = getBond();
-	if (!bond?.sessionId) { debug("settle segment not attached"); return false; }
-
 	// The final render rides the answer post (item 9b7455df): the server
 	// REPLACES the fold-merged accumulation with this canonical final render —
 	// every tool closed, the whole segment's thinking — so the preserved
@@ -807,13 +802,17 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 	if (plan.kind === "final") {
 		// phase 'answer' closes the trail bubble (preserved as "Show work").
 		const localTurn = isCommandTurnUnbound(t) && !t.interaction;
-		return await postToSession(plan.message, { phase: "answer", completeTurn, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), localTurn, interaction: interactionIdentity(t.interaction), workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
+		return await postToSession(plan.message, { phase: "answer", completeTurn, isCurrent: t.canPost, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), localTurn, interaction: interactionIdentity(t.interaction), workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
 	} else if (plan.kind === "local_mirror") {
-		await postToSession(plan.prompt, { turnKind: "local_prompt", localTurn: true });
-		return await postToSession(plan.answer, { phase: "answer", completeTurn, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), localTurn: true, interaction: interactionIdentity(t.interaction), workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
+		const promptStored = await postToSession(plan.prompt, { turnKind: "local_prompt", localTurn: true, isCurrent: t.canPost });
+		const answerStored = await postToSession(plan.answer, { phase: "answer", completeTurn, isCurrent: t.canPost, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), localTurn: true, interaction: interactionIdentity(t.interaction), workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
+		return promptStored && answerStored;
 	}
-	if (t.dirty && activityTrail && !t.receiptBatch.suppressEmptyFallback(t.revision)) {
-		await postToSession(activityTrail, { phase: "trail", commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), localTurn: isCommandTurnUnbound(t) && !t.interaction, interaction: interactionIdentity(t.interaction), trailEvents: finalEvents });
+	if (t.trailDelivery.dirty && !t.trailDelivery.blocked && activityTrail && !t.receiptBatch.suppressEmptyFallback(t.revision)) {
+		const snapshot = t.trailDelivery.begin();
+		if (snapshot === null) return false;
+		const stored = await postToSession(activityTrail, { phase: "trail", isCurrent: t.canPost, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), localTurn: isCommandTurnUnbound(t) && !t.interaction, interaction: interactionIdentity(t.interaction), trailEvents: finalEvents });
+		t.trailDelivery.finish(snapshot, stored);
 	}
 	return false;
 }
@@ -880,18 +879,18 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 		interaction: t.interaction,
 		occupancy: t.occupancy,
 		lastInteractionKeepaliveAt: t.lastInteractionKeepaliveAt,
-		dirty: false,
+		trailDelivery: new TrailDeliveryState(),
+		canPost: t.canPost,
 		posts: 0,
 		lastPostAt: 0,
 		interval,
 	};
-	postWarnedThisTurn = false;
 	debug("delivery boundary", { completeTurn });
 	const previousPolicy = remoteRunActivityPolicy(t.completionNeutral);
 	const boundaryPost = (async () => {
 		await t.trailPostFence.drain();
 		const posted = await postSegmentAnswer(t, null, why, completeTurn);
-		if (completeTurn && !posted && previousPolicy.reportCompletion) {
+		if (completeTurn && !posted && previousPolicy.reportCompletion && t.canPost()) {
 			await reportComplete(why, t.commandTurnId, t.commandMessageId, isCommandTurnUnbound(t), interactionIdentity(t.interaction));
 		}
 	})();
@@ -2681,7 +2680,7 @@ export default function (pi: ExtensionAPI) {
 		void subagentFleet.refresh().then((snapshot) => {
 			// A late optional-RPC reply must never mutate a later delivery segment.
 			if (!snapshot || turn !== trackedTurn) return;
-			if (trackedTurn.trail.applySubagentFleet(toolCallId, snapshot)) trackedTurn.dirty = true;
+			if (trackedTurn.trail.applySubagentFleet(toolCallId, snapshot)) trackedTurn.trailDelivery.markDirty();
 		});
 	};
 	pi_appendInteractionEntry = (state, details) => {
@@ -2897,7 +2896,7 @@ export default function (pi: ExtensionAPI) {
 			// failed) — close the exact activity honestly. Outstanding owned
 			// background work is the one exception: the attempt stays open so
 			// Working persists until the last completion wake settles.
-			if (!posted && activityPolicy.reportCompletion && pendingBackgroundTaskIds.size === 0) {
+			if (!posted && activityPolicy.reportCompletion && pendingBackgroundTaskIds.size === 0 && (settlingTurn?.canPost() ?? pump === activeAtSettle)) {
 				await reportComplete("turn_end", commandTurnId, commandMessageId, commandTurnUnbound, interactionIdentity(interactionRun));
 			}
 			if (interactionRun) {
@@ -3113,7 +3112,7 @@ export default function (pi: ExtensionAPI) {
 		const { text, thinking } = extractAssistantParts(event.message);
 		turn.trail.setThinking(thinking);
 		turn.trail.setText(text);
-		turn.dirty = true;
+		turn.trailDelivery.markDirty();
 	});
 
 	pi.on("message_end", (event, ctx) => {
@@ -3143,7 +3142,7 @@ export default function (pi: ExtensionAPI) {
 			turn.trail.setText(text);
 			// Round sealed: the next deltas open fresh entries (cc9e8c43).
 			turn.trail.beginAssistantMessage();
-			turn.dirty = true;
+			turn.trailDelivery.markDirty();
 			// Every user-facing text on a tool-carrying message is its own bubble
 			// (owner direction 2026-09-17 — terminal parity), not just the first.
 			const speechSplit = shouldSplitSpeech(turn.tracker, { text, hasToolCalls });
@@ -3152,7 +3151,7 @@ export default function (pi: ExtensionAPI) {
 				hasToolCalls,
 				stopReason,
 			}));
-			debug("speech", { stored: classification === "stored", process: classification === "process", split: speechSplit, chars: text.trim().length, tools: hasToolCalls, closedStop: stopReason === "stop" });
+			debug("speech", { candidate: classification === "stored", process: classification === "process", split: speechSplit, chars: text.trim().length, tools: hasToolCalls, closedStop: stopReason === "stop" });
 			if (speechSplit) splitTurnAtBoundary("speech", false);
 		}
 	});
@@ -3169,7 +3168,7 @@ export default function (pi: ExtensionAPI) {
 		// cannot open a pointer that overtakes canonical receipt takeover.
 		trackedTurn.receiptBatch.start(event.toolCallId, revision, potentialReceipt);
 		trackedTurn.trail.toolStart(event.toolCallId, event.toolName, event.args);
-		trackedTurn.dirty = true;
+		trackedTurn.trailDelivery.markDirty();
 		if (event.toolName === "subagent_wait") refreshSubagentFleet(event.toolCallId, trackedTurn);
 		if (!potentialReceipt) return;
 
@@ -3198,7 +3197,7 @@ export default function (pi: ExtensionAPI) {
 		lastCtx = ctx;
 		if (!turn) return;
 		turn.trail.toolUpdate(event.toolCallId, event.partialResult);
-		turn.dirty = true;
+		turn.trailDelivery.markDirty();
 		// Reuse the host tool's existing progress cadence; the client deduplicates
 		// overlapping requests, so this creates no independent polling loop.
 		if (event.toolName === "subagent_wait") refreshSubagentFleet(event.toolCallId, turn);
@@ -3224,7 +3223,7 @@ export default function (pi: ExtensionAPI) {
 			terminatingReceipt,
 		}, turn.revision);
 		turn.trail.toolEnd(event.toolCallId, event.toolName, !event.isError, event.result);
-		turn.dirty = true;
+		turn.trailDelivery.markDirty();
 	});
 
 	pi.on("session_shutdown", async () => {

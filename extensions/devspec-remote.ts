@@ -32,6 +32,7 @@ import {
 	DevspecAuthError,
 	isPermanentServerEnd,
 	MODEL_TIMEOUT_MS,
+	remotePostRejectionFromError,
 	shouldEndBondOnPollFailure,
 } from "./core/client.ts";
 import { connectionCapabilityFromResult, getBond, setBond, type BondState } from "./core/bond-state.ts";
@@ -399,6 +400,37 @@ const TRAIL_INTERVAL_MS = 1_000;
  */
 const pendingBackgroundTaskIds = new Set<string>();
 
+/**
+ * The command turn currently open server-side, if any (759f2818, live repro
+ * in session ea7704f4 20:04–20:08). A settle with complete_turn:false parks
+ * the command turn open; a completion-wake turn is born with NO command ids,
+ * and an unbound post while a command turn is parked is fenced server-side as
+ * stale_generation and silently dropped — the wake report vanished today.
+ * Wake turns therefore ADOPT this identity (they are the command's own work
+ * continuing), and it clears when the turn genuinely closes: a successful
+ * complete_turn:true post, a reportComplete for it, or any authority
+ * rotation. A stale adoption that still fences is self-healed by one
+ * unbound retry (content over association).
+ */
+let activeCommandTurnIdentity: { turnId: string; commandMessageId: string } | null = null;
+
+/** A completion-wake segment with no ids of its own rides the parked command
+ *  turn it is continuing. Never for interaction runs (exact identity) or
+ *  mid-owner-turn injections (the turn is already bound). */
+function adoptParkedCommandIdentity(t: { commandTurnId?: string; commandMessageId?: string; interaction?: unknown } | null, kind: string | null): void {
+	if (!t || t.interaction || kind !== "harness") return;
+	if (t.commandTurnId || t.commandMessageId) return;
+	if (!activeCommandTurnIdentity) return;
+	t.commandTurnId = activeCommandTurnIdentity.turnId;
+	t.commandMessageId = activeCommandTurnIdentity.commandMessageId;
+}
+
+function noteCommandTurnClosed(turnId: string | undefined): void {
+	if (turnId && activeCommandTurnIdentity?.turnId === turnId) {
+		activeCommandTurnIdentity = null;
+	}
+}
+
 function ensureTurn(): void {
 	if (turn) return;
 	if (!getBond()?.sessionId) { debug("ensureTurn: not attached"); return; }
@@ -504,37 +536,70 @@ function replyModelArgs(agentStats?: AgentStatsReport): Record<string, unknown> 
 async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; localTurn?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; agentStats?: AgentStatsReport } = {}): Promise<boolean> {
 	const active = pump;
 	const bond = getBond();
-	if (!active || !bond?.sessionId) return false;
+	if (!active || !bond?.sessionId) { debug("post skipped", { notAttached: true }); return false; }
 	const authority = capturePumpAuthority({ generation: active.generation, connectionId: bond.connectionId });
 	const resolved = await resolveToken();
-	if (!resolved) return false;
+	if (!resolved) { debug("post skipped", { tokenMissing: true }); return false; }
 	if (pump !== active || !isPumpAuthorityCurrent(authority, {
 		generation: active.generation,
 		connectionId: active.bond.connectionId,
-	}) || (active.stop && !active.closing)) return false;
+	})) { debug("post skipped", { authorityStale: true }); return false; }
+	if (active.stop && !active.closing) { debug("post skipped", { stopping: true }); return false; }
+	const buildArgs = (unbound: boolean) => ({
+		connection_id: authority.connectionId,
+		message,
+		agent_name: AGENT_NAME,
+		...(unbound ? {} : opts.commandTurnId ? { command_turn_id: opts.commandTurnId } : {}),
+		...(unbound ? {} : opts.commandMessageId ? { command_message_id: opts.commandMessageId } : {}),
+		...(unbound || opts.commandTurnUnbound || opts.interaction ? { command_turn_unbound: true } : {}),
+		...(unbound || opts.localTurn ? { local_turn: true } : {}),
+		...(opts.interaction ? exactInteractionContinuationArgs(opts.interaction) : {}),
+		...(opts.phase ? { phase: opts.phase } : {}),
+		...(opts.completeTurn === true ? { complete_turn: true } : opts.completeTurn === false ? { complete_turn: false } : {}),
+		...(opts.turnKind ? { turn_kind: opts.turnKind } : {}),
+		...(opts.workTrail ? { work_trail: opts.workTrail } : {}),
+		...(opts.trailEvents && Array.isArray(opts.trailEvents) && opts.trailEvents.length > 0
+			? { trail_events: opts.trailEvents }
+			: {}),
+		...(opts.agentStats ? { agent_stats: opts.agentStats } : {}),
+		...replyModelArgs(opts.agentStats),
+	});
+	const laneOpts = { lane: "pump" as const, ...(opts.interaction && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}) };
 	try {
-		await callDevspec(resolved.token, "post_session_message", {
-			connection_id: authority.connectionId,
-			message,
-			agent_name: AGENT_NAME,
-			...(opts.commandTurnId ? { command_turn_id: opts.commandTurnId } : {}),
-			...(opts.commandMessageId ? { command_message_id: opts.commandMessageId } : {}),
-			...(opts.commandTurnUnbound || opts.interaction ? { command_turn_unbound: true } : {}),
-			...(opts.localTurn ? { local_turn: true } : {}),
-			...(opts.interaction ? exactInteractionContinuationArgs(opts.interaction) : {}),
-			...(opts.phase ? { phase: opts.phase } : {}),
-			...(opts.completeTurn === true ? { complete_turn: true } : opts.completeTurn === false ? { complete_turn: false } : {}),
-			...(opts.turnKind ? { turn_kind: opts.turnKind } : {}),
-			...(opts.workTrail ? { work_trail: opts.workTrail } : {}),
-			...(opts.trailEvents && Array.isArray(opts.trailEvents) && opts.trailEvents.length > 0
-				? { trail_events: opts.trailEvents }
-				: {}),
-			...(opts.agentStats ? { agent_stats: opts.agentStats } : {}),
-			...replyModelArgs(opts.agentStats),
-		}, { lane: "pump", ...(opts.interaction && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}) });
+		await callDevspec(resolved.token, "post_session_message", buildArgs(false), laneOpts);
+		// A successful complete_turn:true post closes the command turn
+		// server-side — forget the parked identity so the next wake posts
+		// unbound instead of fencing against a dead turn.
+		if (opts.completeTurn === true) noteCommandTurnClosed(opts.commandTurnId);
 		return true;
 	} catch (err) {
 		debug("post to session failed", { errorPresent: Boolean(err) });
+		// The server reports a fenced drop as a tool error naming the outcome
+		// (fa834f2e). Log the exact class — a silently dropped answer was
+		// today's diagnostic hole — and self-heal a stale bound identity with
+		// one unbound retry: the content lands, only the turn association goes.
+		const outcome = remotePostRejectionFromError(err);
+		if (outcome) {
+			debug("post rejected", {
+				staleGeneration: outcome === "stale_generation",
+				staleAttempt: outcome === "stale_attempt",
+				attemptClosed: outcome === "activity_attempt_closed",
+				alreadyFinalized: outcome === "already_finalized",
+				other: !(outcome === "stale_generation" || outcome === "stale_attempt" || outcome === "activity_attempt_closed" || outcome === "already_finalized"),
+			});
+			if ((outcome === "stale_generation" || outcome === "stale_attempt") &&
+				!opts.commandTurnUnbound && (opts.commandTurnId || opts.commandMessageId) && !opts.interaction) {
+				noteCommandTurnClosed(opts.commandTurnId);
+				try {
+					await callDevspec(resolved.token, "post_session_message", buildArgs(true), laneOpts);
+					debug("post retried unbound", { landed: true });
+					if (opts.completeTurn === true) noteCommandTurnClosed(opts.commandTurnId);
+					return true;
+				} catch {
+					debug("post retried unbound", { landed: false });
+				}
+			}
+		}
 		if (!postWarnedThisTurn) {
 			postWarnedThisTurn = true;
 			notify(lastCtx, `DevSpec remote: post failed (${err instanceof Error ? err.message.slice(0, 120) : err}) — further failures this turn logged to debug only.`, "warning");
@@ -621,6 +686,9 @@ async function reportComplete(reason: string, commandTurnId?: string, commandMes
 		// The command is closed: drop any never-taken binding strays for it so a
 		// later terminal input with identical text cannot inherit them (6f4136d8).
 		commandTurnBindings.forgetByCommand(commandTurnId, commandMessageId);
+		// reportComplete closes the command turn server-side — forget the parked
+		// identity so later wakes post unbound instead of fencing (759f2818).
+		noteCommandTurnClosed(commandTurnId);
 		return true;
 	} catch {
 		/* lease expiry + disconnect remain backstops for best-effort callers */
@@ -1017,6 +1085,7 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	pump = null;
 	commandTurnBindings.clear();
 	pendingBackgroundTaskIds.clear();
+	activeCommandTurnIdentity = null;
 	setBond(null);
 	pi_setPlanToolActive(false);
 	pi_setQuestionToolActive(false);
@@ -1796,6 +1865,7 @@ async function reviveRecoverableBond(
 			// connection's turns must not be inherited here (item 6f4136d8).
 			commandTurnBindings.clear();
 			pendingBackgroundTaskIds.clear();
+			activeCommandTurnIdentity = null;
 			active.advisoryCarry = [];
 			active.attachmentRetryAttempts.clear();
 			active.automationQueue.invalidate();
@@ -2059,6 +2129,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			// turns: identical terminal text must not inherit them (item 6f4136d8).
 			commandTurnBindings.clear();
 			pendingBackgroundTaskIds.clear();
+			activeCommandTurnIdentity = null;
 			const next = {
 				...active.bond,
 				sessionId: serverSessionId ?? undefined,
@@ -2921,6 +2992,10 @@ export default function (pi: ExtensionAPI) {
 			customType,
 			backgroundTaskId: backgroundTaskNotificationId(content, details),
 		});
+		// A completion wake rides the parked command turn it continues — an
+		// unbound wake post while a command turn is parked is fenced as
+		// stale_generation server-side and drops silently (759f2818 live repro).
+		adoptParkedCommandIdentity(turn, turn.tracker.userKind);
 		return injected;
 	});
 
@@ -2988,6 +3063,11 @@ export default function (pi: ExtensionAPI) {
 				turn.receiptBatch.reset(turn.revision);
 				turn.commandTurnId = incomingCommand?.turnId;
 				turn.commandMessageId = incomingCommand?.commandMessageId;
+				// The newest bound command owns the open server turn; completion
+				// wakes adopt this identity until a complete_turn closes it (759f2818).
+				if (incomingCommand?.turnId && incomingCommand?.commandMessageId) {
+					activeCommandTurnIdentity = { turnId: incomingCommand.turnId, commandMessageId: incomingCommand.commandMessageId };
+				}
 				turn.interaction = undefined;
 				turn.lastInteractionKeepaliveAt = undefined;
 				turn.tracker.userMessage(text, { customType });
@@ -3000,6 +3080,7 @@ export default function (pi: ExtensionAPI) {
 					customType,
 					backgroundTaskId: harness ? backgroundTaskNotificationId(text, msg?.details) : null,
 				});
+				if (harness) adoptParkedCommandIdentity(turn, turn.tracker.userKind);
 			}
 			// Idle triggerTurn custom messages bypass before_agent_start in Pi. The
 			// awaited message_start event is the earliest common point before the
@@ -3192,6 +3273,7 @@ export default function (pi: ExtensionAPI) {
 		pump = null;
 		commandTurnBindings.clear();
 		pendingBackgroundTaskIds.clear();
+		activeCommandTurnIdentity = null;
 		setBond(null);
 		pi_setPlanToolActive(false);
 		pi_setQuestionToolActive(false);

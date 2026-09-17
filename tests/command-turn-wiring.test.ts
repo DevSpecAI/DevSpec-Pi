@@ -56,9 +56,34 @@ test("delivery boundaries post the old exact command before rebinding the new se
 });
 
 test("local turns are marked local_turn and bindings die with their command (6f4136d8)", () => {
-	assert.match(source, /\.\.\.\(opts\.localTurn \? \{ local_turn: true \} : \{\}\)/);
+	assert.match(source, /\.\.\.\(unbound \|\| opts\.localTurn \? \{ local_turn: true \} : \{\}\)/);
 	assert.match(source, /localTurn: isCommandTurnUnbound\(t\) && !t\.interaction/);
 	assert.match(source, /localTurn: isCommandTurnUnbound\(postingTurn\) && !postingTurn\.interaction/);
 	assert.match(source, /postToSession\(plan\.prompt, \{ turnKind: "local_prompt", localTurn: true \}\)/);
 	assert.match(source, /commandTurnBindings\.forgetByCommand\(commandTurnId, commandMessageId\)/);
+});
+
+test("completion wakes adopt the parked command identity; drops are logged and self-healed (759f2818)", () => {
+	// Live repro 2026-09-17 20:04–20:08: a settle with complete_turn:false
+	// parks the command turn open server-side; a fresh wake turn's unbound post
+	// is then fenced as stale_generation and silently dropped. Wake turns adopt
+	// the parked identity instead, and a stale adoption self-heals unbound.
+	assert.match(source, /let activeCommandTurnIdentity/);
+	assert.match(source, /function adoptParkedCommandIdentity/);
+	assert.match(source, /if \(incomingCommand\?\.turnId && incomingCommand\?\.commandMessageId\)[^]*activeCommandTurnIdentity = \{ turnId: incomingCommand\.turnId/);
+	const messageStart = source.slice(source.indexOf('pi.on("message_start"'), source.indexOf('pi.on("message_update"'));
+	assert.match(messageStart, /if \(harness\) adoptParkedCommandIdentity\(turn, turn\.tracker\.userKind\)/);
+	const beforeStart = source.slice(source.indexOf('pi.on("before_agent_start"'), source.indexOf('pi.on("message_start"'));
+	assert.match(beforeStart, /adoptParkedCommandIdentity\(turn, turn\.tracker\.userKind\)/);
+	// Cleared exactly when the parked turn closes, never mid-park.
+	assert.match(source, /if \(opts\.completeTurn === true\) noteCommandTurnClosed\(opts\.commandTurnId\)/);
+	assert.match(source, /noteCommandTurnClosed\(commandTurnId\);/);
+	const clears = source.match(/activeCommandTurnIdentity = null/g) ?? [];
+	assert.ok(clears.length >= 4, `identity clears on every authority rotation (${clears.length} sites)`);
+	// Silent drops are dead: every guard skip and every fenced rejection logs.
+	assert.match(source, /debug\("post skipped", \{ notAttached: true \}\)/);
+	assert.match(source, /debug\("post skipped", \{ authorityStale: true \}\)/);
+	assert.match(source, /const outcome = remotePostRejectionFromError\(err\)/);
+	assert.match(source, /debug\("post rejected", \{/);
+	assert.match(source, /debug\("post retried unbound", \{ landed: true \}\)/);
 });

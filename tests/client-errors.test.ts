@@ -9,6 +9,7 @@ import {
 	mapClientError,
 	parseRateLimitRetryMs,
 	readStructuredFailure,
+	remotePostRejectionFromError,
 	shouldEndBondOnPollFailure,
 	withHardTimeout,
 } from "../extensions/core/client.ts";
@@ -164,4 +165,14 @@ test("withHardTimeout rejects a hung call without waiting for it", async () => {
 		},
 	);
 	assert.ok(Date.now() - started < 500);
+});
+
+test("remotePostRejectionFromError extracts the server's not-stored outcome (759f2818)", () => {
+	const stored = new Error("Your message was NOT stored (stale_generation). Do not retry this post — the connection or its turn is gone.");
+	assert.equal(remotePostRejectionFromError(stored), "stale_generation");
+	assert.equal(remotePostRejectionFromError(new Error("Your message was NOT stored (stale_attempt). …")), "stale_attempt");
+	assert.equal(remotePostRejectionFromError(new Error("Your message was NOT stored (activity_attempt_closed). …")), "activity_attempt_closed");
+	assert.equal(remotePostRejectionFromError(new Error("network timeout")), null, "transport errors carry no projection outcome");
+	assert.equal(remotePostRejectionFromError("stale_generation"), null, "non-Error input is not an outcome");
+	assert.equal(remotePostRejectionFromError(null), null);
 });

@@ -389,6 +389,19 @@ function mcpToolErrorText(raw: unknown, name: string): string | null {
 }
 
 /**
+ * The server reports a terminal projection outcome as a tool error string:
+ * "Your message was NOT stored (<outcome>). …" (item fa834f2e). Extract the
+ * outcome so a dropped answer is LOGGED and self-healable (759f2818: an
+ * unbound wake post during a parked command turn is fenced stale_generation
+ * and otherwise vanishes without a trace). Returns null when the raw result
+ * is not a not-stored rejection.
+ */
+export function remotePostRejectionFromError(err: unknown): string | null {
+	if (!(err instanceof Error)) return null;
+	return /NOT stored \((\w+)\)/.exec(err.message)?.[1] ?? null;
+}
+
+/**
  * Only a REJECTED credential ends the bond from the client. Unavailable
  * validation, transport noise, and ambiguous 401s are recoverable by
  * construction of mapClientError — they never reach this predicate as

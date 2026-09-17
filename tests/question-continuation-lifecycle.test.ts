@@ -123,7 +123,7 @@ test("a busy question answer aborts then applies the exact continuation, never a
 	const pump = between("if (interactionEvent) {", "// Titles are job-generated");
 	assert.match(pump, /decideInteractionDelivery\(\{[^]*hasEvent: true[^]*\}\) === "preempt"/s);
 	assert.match(pump, /pi_abort\(\)/);
-	assert.match(pump, /waitUntil\([^]*ctx\.isIdle\(\) && !active\.busy && !active\.runtimeOccupancy\.isBusy\(\)/s);
+	assert.match(pump, /waitUntil\([^]*interactionForegroundReady\(active, ctx\)/s);
 	assert.ok(pump.indexOf("pi_abort()") < pump.indexOf("await applyInteractionEvent"));
 	assert.doesNotMatch(pump, /sendUserMessage|pi_send\(/);
 	const apply = between("async function applyInteractionEvent", "async function drainInteractionRetries");

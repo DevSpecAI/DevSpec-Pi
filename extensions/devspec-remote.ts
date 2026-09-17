@@ -230,6 +230,7 @@ interface PumpState {
 	connectionIdentity: RemoteConnectionIdentity;
 	/** globalThis notice state key: Pi session + connection + pump generation. */
 	systemNoticeKey: string;
+	/** Presence includes owned background work; it is not foreground readiness. */
 	busy: boolean;
 	stop: boolean;
 	/** Shutdown blocks intake but still permits exact terminal fallback posts. */
@@ -1286,7 +1287,16 @@ function interactionDeliveryPort(active: PumpState, run?: ExactInteractionRun): 
 }
 
 /**
- * Idle-only observation/application. ACK eligibility is granted later, from
+ * Background ownership (including an unconsumed receipt) does not occupy Pi.
+ * This only permits an exact start request; server activity arbitration still
+ * decides whether the event can own the foreground before any persistence.
+ */
+function interactionForegroundReady(active: PumpState, ctx: ExtensionContext): boolean {
+	return !active.runtimeOccupancy.isBusy() && ctx.isIdle();
+}
+
+/**
+ * Foreground-idle observation/application. ACK eligibility is granted later, from
  * the exact custom message's message_end path after a fresh JSONL disk read.
  */
 async function applyInteractionEvent(
@@ -1299,7 +1309,7 @@ async function applyInteractionEvent(
 			connectionId: active.bond.connectionId,
 			sourceSessionId: active.bond.sessionId,
 		})) return false;
-	if (active.busy || active.runtimeOccupancy.isBusy() || !ctx.isIdle()) {
+	if (!interactionForegroundReady(active, ctx)) {
 		debug("interaction apply deferred", { busy: active.busy, occupancyBusy: active.runtimeOccupancy.isBusy(), ctxIdle: ctx.isIdle() });
 		retainInteractionStartRetry(active, event, ctx.sessionManager.getSessionId());
 		return false;
@@ -1339,7 +1349,7 @@ async function applyInteractionEvent(
 			(started.sourceSessionId === event.source_session_id &&
 				started.sourceSessionId === active.bond.sessionId);
 		const authorityStillCurrent = startedSourceMatches && interactionAuthorityCurrent(authority)
-			&& !active.busy && !active.runtimeOccupancy.isBusy() && ctx.isIdle();
+			&& interactionForegroundReady(active, ctx);
 		const startAction = interactionContinuationStartAction(started, authorityStillCurrent);
 		if (startAction === "ignore") return true;
 		if (startAction === "defer") {
@@ -1421,7 +1431,7 @@ async function drainInteractionRetries(active: PumpState, ctx: ExtensionContext)
 			active.pendingInteractionStarts.delete(eventId);
 			continue;
 		}
-		if (active.busy || active.runtimeOccupancy.isBusy() || !ctx.isIdle()) {
+		if (!interactionForegroundReady(active, ctx)) {
 			pending.nextAt = Date.now() + 1_000;
 			continue;
 		}
@@ -1535,9 +1545,9 @@ function confirmInteractionMessageAfterPersistence(
 
 /** Recover observed-before-application and applied-before-receipt crash windows. */
 function resumePersistedInteractionEvents(active: PumpState, ctx: ExtensionContext): void {
-	if (active.busy || !ctx.isIdle()) return;
+	if (!interactionForegroundReady(active, ctx)) return;
 	for (const details of interactionJournal.pendingApplications(active.bond.connectionId, active.bond.sessionId)) {
-		if (pump !== active || active.stop || active.busy || !ctx.isIdle()) return;
+		if (pump !== active || active.stop || !interactionForegroundReady(active, ctx)) return;
 		void applyInteractionEvent(active, ctx, details.event);
 	}
 	if (interactionJournal.hasPendingAck(active.bond.connectionId)) signalWake(active);
@@ -1984,8 +1994,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			? interactionJournal.nextAck(active.bond.connectionId, active.bond.sessionId)
 			: null;
 		const interactionClaimIdle = interactionEventsRelevant(active)
-			&& Boolean(active.bond.sessionId) && !active.busy
-			&& !active.runtimeOccupancy.isBusy() && ctx.isIdle();
+			&& Boolean(active.bond.sessionId) && interactionForegroundReady(active, ctx);
 		// Busy + preempt on: claim the event so we can abort, then apply once idle.
 		// Do not mix this with an ACK catch_up lap (that lane is event-free).
 		const interactionClaimBusyPreempt = interactionEventsRelevant(active)
@@ -2176,7 +2185,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		}
 
 		if (interactionEvent) {
-			const idle = !active.busy && !active.runtimeOccupancy.isBusy() && ctx.isIdle();
+			const idle = interactionForegroundReady(active, ctx);
 			if (decideInteractionDelivery({
 				idle,
 				preemptEnabled: preemptOwnerCached,
@@ -2187,7 +2196,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					debug("preempt: aborting running turn for question answer");
 					pi_abort();
 					const settled = await waitUntil(
-						() => ctx.isIdle() && !active.busy && !active.runtimeOccupancy.isBusy(),
+						() => interactionForegroundReady(active, ctx),
 						{ timeoutMs: 8_000, intervalMs: 50 },
 					);
 					debug("preempt", { settled });
@@ -2881,10 +2890,12 @@ export default function (pi: ExtensionAPI) {
 		if (pump && activityPolicy.reportPresence) {
 			pump.busy = keepWorking;
 			if (!interactionRun) void beatBusy(keepWorking, agentStats);
-			const trueIdle = !keepWorking && !pump.runtimeOccupancy.isBusy() && ctx.isIdle();
+			// Replay interaction wakes at foreground idle even while presence remains
+			// Working. Owner/notice delivery retains its own gates in the pump.
+			const trueIdle = interactionForegroundReady(pump, ctx);
 			if (pump.idleBoundaryWake.consumeAtIdle(trueIdle)) signalWake(pump);
 		} else if (pump) {
-			const trueIdle = !pump.busy && !pump.runtimeOccupancy.isBusy() && ctx.isIdle();
+			const trueIdle = interactionForegroundReady(pump, ctx);
 			if (pump.idleBoundaryWake.consumeAtIdle(trueIdle)) signalWake(pump);
 		}
 		if (!completionNeutral && untitledAttached() && pump?.bond.sessionId) {

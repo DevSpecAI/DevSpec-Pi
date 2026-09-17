@@ -172,6 +172,7 @@ test("remotePostRejectionFromError extracts the server's not-stored outcome (759
 	assert.equal(remotePostRejectionFromError(stored), "stale_generation");
 	assert.equal(remotePostRejectionFromError(new Error("Your message was NOT stored (stale_attempt). …")), "stale_attempt");
 	assert.equal(remotePostRejectionFromError(new Error("Your message was NOT stored (activity_attempt_closed). …")), "activity_attempt_closed");
+	assert.equal(remotePostRejectionFromError(new Error("phase='trail' requires an exact open activity attempt for this command segment.")), "no_open_attempt");
 	assert.equal(remotePostRejectionFromError(new Error("network timeout")), null, "transport errors carry no projection outcome");
 	assert.equal(remotePostRejectionFromError("stale_generation"), null, "non-Error input is not an outcome");
 	assert.equal(remotePostRejectionFromError(null), null);

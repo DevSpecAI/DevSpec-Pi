@@ -148,6 +148,11 @@ export class TurnTracker {
 		// A leftover wake may replay the last typed prompt as a user message.
 		// Once this segment is harness, stay harness — do not remirror that prompt.
 		if (this.userKind === "harness" && kind !== "remote" && kind !== "automation") {
+			// A second completion arriving ON a harness wake segment must still
+			// resolve its task — the early return leaked B2's id live on
+			// 2026-09-17 (session ea7704f4), parking Working at a stuck timer long
+			// after every task had finished (759f2818).
+			if (origin?.backgroundTaskId) this.resolveBackgroundTask(origin.backgroundTaskId);
 			this.awaitingFirstAnswer = false;
 			this.shouldMirrorPrompt = false;
 			return;

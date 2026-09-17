@@ -811,6 +811,26 @@ test("only background completions arm harness speech — context injections stay
 	assert.deepEqual(planSettle(recall, true), { kind: "none" });
 });
 
+test("a completion arriving on an already-harness segment still resolves its task (759f2818 live)", () => {
+	// Live 2026-09-17 (session ea7704f4): B2 completed while A2's wake turn
+	// was still running. The second notification landed on the already-harness
+	// tracker; the once-harness early return skipped resolution, leaking B2 —
+	// every later settle saw pendingBg=1 and Working parked at a stuck timer
+	// with everything finished.
+	const shared = new Set<string>();
+	const owner = new TurnTracker(shared);
+	owner.userMessage("[DevSpec remote — message from Ali Price to Nimble Rabbit]\nrun the monitors");
+	owner.noteBackgroundTask("pulse-a2");
+	owner.noteBackgroundTask("watch-b2");
+	const wake = new TurnTracker(shared);
+	wake.userMessage("[bg completed] Presence pulse A2", { customType: "background-task-notification", backgroundTaskId: "pulse-a2" });
+	assert.equal(wake.userKind, "harness");
+	assert.deepEqual(wake.pendingBackgroundTasks(), ["watch-b2"]);
+	wake.userMessage("[bg completed] Presence watch B2", { customType: "background-task-notification", backgroundTaskId: "watch-b2" });
+	assert.deepEqual(wake.pendingBackgroundTasks(), [], "harness-on-harness completion resolves");
+	assert.equal(wake.userKind, "harness", "still no remirror/no owner-kind theft");
+});
+
 test("leftover-only [bg completed] still posts no answer (56b9a3b4)", () => {
 	const leftover = new TurnTracker();
 	leftover.userMessage("[bg completed] Isolated typecheck", { customType: "background-task-notification" });

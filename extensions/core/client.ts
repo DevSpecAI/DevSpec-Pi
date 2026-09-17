@@ -398,7 +398,13 @@ function mcpToolErrorText(raw: unknown, name: string): string | null {
  */
 export function remotePostRejectionFromError(err: unknown): string | null {
 	if (!(err instanceof Error)) return null;
-	return /NOT stored \((\w+)\)/.exec(err.message)?.[1] ?? null;
+	const notStored = /NOT stored \((\w+)\)/.exec(err.message)?.[1];
+	if (notStored) return notStored;
+	// The attempt-gate failure (phase='trail' requires an exact open activity
+	// attempt for this command segment) — a distinct class from projection
+	// outcomes, hit by bound trail posts whose segment attempt is gone.
+	if (/requires an exact open activity attempt/.test(err.message)) return "no_open_attempt";
+	return null;
 }
 
 /**

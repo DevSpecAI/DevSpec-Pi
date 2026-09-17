@@ -423,6 +423,7 @@ function adoptParkedCommandIdentity(t: { commandTurnId?: string; commandMessageI
 	if (!activeCommandTurnIdentity) return;
 	t.commandTurnId = activeCommandTurnIdentity.turnId;
 	t.commandMessageId = activeCommandTurnIdentity.commandMessageId;
+	debug("wake adopted command turn");
 }
 
 function noteCommandTurnClosed(turnId: string | undefined): void {
@@ -585,9 +586,13 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 				staleAttempt: outcome === "stale_attempt",
 				attemptClosed: outcome === "activity_attempt_closed",
 				alreadyFinalized: outcome === "already_finalized",
-				other: !(outcome === "stale_generation" || outcome === "stale_attempt" || outcome === "activity_attempt_closed" || outcome === "already_finalized"),
+				noOpenAttempt: outcome === "no_open_attempt",
+				other: !(outcome === "stale_generation" || outcome === "stale_attempt" || outcome === "activity_attempt_closed" || outcome === "already_finalized" || outcome === "no_open_attempt"),
 			});
-			if ((outcome === "stale_generation" || outcome === "stale_attempt") &&
+			// Bound posts whose turn/segment is gone retry once unbound — the
+			// server opens a source-less attempt for local_turn posts, so the
+			// content lands; only the association degrades.
+			if ((outcome === "stale_generation" || outcome === "stale_attempt" || outcome === "no_open_attempt") &&
 				!opts.commandTurnUnbound && (opts.commandTurnId || opts.commandMessageId) && !opts.interaction) {
 				noteCommandTurnClosed(opts.commandTurnId);
 				try {
@@ -794,7 +799,7 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 	const finalEvents = t.trail.events();
 	const activityTrail = finalEvents.length > 0 ? finalTrail : undefined;
 	const plan = planSettle(t.tracker, true);
-	debug("settle segment", { completeTurn, planFinal: plan.kind === "final", planMirror: plan.kind === "local_mirror", trailChars: finalTrail.length, answerChars: t.tracker.lastAssistantText.length, pendingBg: t.tracker.pendingBackgroundTasks().length, harness: t.tracker.userKind === "harness" });
+	debug("settle segment", { completeTurn, planFinal: plan.kind === "final", planMirror: plan.kind === "local_mirror", trailChars: finalTrail.length, answerChars: t.tracker.lastAssistantText.length, pendingBg: t.tracker.pendingBackgroundTasks().length, harness: t.tracker.userKind === "harness", bound: Boolean(t.commandTurnId || t.commandMessageId) });
 	// Context-injection / leftover harness segments never leave room content
 	// (60cf5f00). A background-completion wake MAY speak (its own bubble) and
 	// flushes its trail like any segment.

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { TrailBuilder } from "../extensions/core/trail.ts";
+import { toolErrorResult } from "../extensions/core/result.ts";
 import { domainIdentity, writeOutcomeFromResult } from "../extensions/core/trail-events.ts";
 
 const SOURCE = "74000000-0000-4000-8000-000000000001";
@@ -112,6 +113,26 @@ test("explicit failed receipts clear an identity even if the transport reports s
 		assert.equal(event.action, "failed");
 		assert.equal(event.id, undefined);
 	}
+});
+
+for (const name of ["update_resource", "retract_memory", "archive_resource", "update_action_item", "claim_work_item", "record_implementation"]) {
+	test(`${name}: native adapter errors fail without linking the source or exposing private error text`, () => {
+		const result = toolErrorResult(PRIVATE);
+		assert.equal(writeOutcomeFromResult(result), "failed");
+		assert.equal(domainIdentity(name, { id: SOURCE }, result).id, undefined);
+		// executeVerb returns this normally, so the host can report transport success.
+		// completed also checks private-text exclusion in both typed and markdown trails.
+		const event = completed(name, result, true);
+		assert.equal(event.status, "error");
+		assert.equal(event.action, "failed");
+		assert.equal(event.id, undefined);
+		assert.equal(event.result, "outcome=failed");
+	});
+}
+
+test("native error classification uses the structured string marker, not message truthiness", () => {
+	assert.equal(writeOutcomeFromResult(toolErrorResult("")), "failed");
+	assert.equal(completed("update_resource", { outcome: "committed", id: RETURNED, error: null }).id, RETURNED);
 });
 
 test("transport failure overrides an apparent successful receipt", () => {

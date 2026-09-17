@@ -172,6 +172,9 @@ export type TrailWriteOutcome = "committed" | "queued_for_review" | "not_applied
 export function writeOutcomeFromResult(result: unknown): TrailWriteOutcome | undefined {
 	const row = unwrapResult(result);
 	if (!row) return undefined;
+	// Native toolErrorResult returns normally with details.error, not an isError flag.
+	// Classify the structured marker without projecting the private message.
+	if (typeof row.error === "string") return "failed";
 	if (asRecord(result)?.isError === true || row.isError === true || row.success === false || row.ok === false
 		|| row.outcome === "failed" || row.outcome === "error") return "failed";
 	// Queued creates explicitly say recorded/created=false. Keep the proposal

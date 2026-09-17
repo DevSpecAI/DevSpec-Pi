@@ -17,6 +17,7 @@ import {
 	type SubagentTrailEvent,
 	type TrailEvent,
 	type ToolTrailEvent,
+	type TrailWriteOutcome,
 } from "./trail-events.ts";
 import { projectTrailArgs, projectTrailResult, safeTrailLabel } from "./trail-projection.ts";
 import type { SubagentFleetSnapshot } from "./subagent-fleet.ts";
@@ -49,8 +50,8 @@ interface ToolLine {
 	open: boolean;
 	ok?: boolean;
 	resultSummary?: string;
-	/** The server's `outcome` for a write, when it reported one (queued vs committed). */
-	writeOutcome?: string;
+	/** Public disposition selected from explicit receipt fields, never inferred from prose. */
+	writeOutcome?: TrailWriteOutcome;
 	subagentChildren?: SubagentTrailChild[];
 	subagentSummary?: string;
 	startedAt: number;
@@ -316,14 +317,20 @@ export class TrailBuilder {
 			if (e.line.open && (e.line.toolCallId === toolCallId || e.line.name === name)) {
 				const completedAt = Date.now();
 				e.line.open = false;
-				e.line.ok = ok;
-				const resultIdentity = domainIdentity(name, undefined, result);
+				const domain = classifyDomainTool(name);
+				e.line.writeOutcome = domain ? (ok ? writeOutcomeFromResult(result) : "failed") : undefined;
+				e.line.ok = ok && e.line.writeOutcome !== "failed";
+				// Reuse only the already-safe start identity as an argument fallback.
+				// An empty completed receipt is distinct from a still-running call.
+				const resultIdentity = domainIdentity(name, e.line.identity, result ?? {});
 				e.line.identity = {
-					id: resultIdentity.id ?? e.line.identity.id,
+					id: e.line.ok ? resultIdentity.id : undefined,
 					title: resultIdentity.title ?? e.line.identity.title,
 				};
-				e.line.resultSummary = summarizeResult(name, result);
-				e.line.writeOutcome = writeOutcomeFromResult(result);
+				const resultSummary = summarizeResult(name, result);
+				e.line.resultSummary = e.line.writeOutcome
+					? [`outcome=${e.line.writeOutcome}`, resultSummary].filter(Boolean).join("; ")
+					: resultSummary;
 				if (name === "subagent" || name === "subagent_wait") {
 					const children = subagentChildren(result);
 					// A terminal tool result owns the terminal child projection. Clear

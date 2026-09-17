@@ -166,14 +166,25 @@ export function classifyDomainTool(name: string, _args?: unknown): DomainSpec | 
 	return DOMAIN_BY_NAME[name] ?? null;
 }
 
-/**
- * The server's own word for what happened to a write, when it says one. A write
- * the server queued rather than committed comes back `outcome: queued_for_review`
- * (served authority_contract).
- */
-export function writeOutcomeFromResult(result: unknown): string | undefined {
+/** Fixed public dispositions only; receipt bodies and arbitrary outcome strings stay private. */
+export type TrailWriteOutcome = "committed" | "queued_for_review" | "not_applied" | "failed";
+
+export function writeOutcomeFromResult(result: unknown): TrailWriteOutcome | undefined {
 	const row = unwrapResult(result);
-	return typeof row?.outcome === "string" && row.outcome.trim() ? row.outcome.trim() : undefined;
+	if (!row) return undefined;
+	if (asRecord(result)?.isError === true || row.isError === true || row.success === false || row.ok === false
+		|| row.outcome === "failed" || row.outcome === "error") return "failed";
+	// Queued creates explicitly say recorded/created=false. Keep the proposal
+	// distinct from a comparison gate or failure, without borrowing its source ID.
+	if (row.outcome === "queued_for_review") return "queued_for_review";
+	if (row.reconcile_required === true || [
+		"applied", "committed", "recorded", "created", "updated", "superseded",
+		"retracted", "archived", "claim_success", "implementation_recorded", "resolved",
+	].some((key) => row[key] === false)) return "not_applied";
+	if (row.outcome === "committed") return "committed";
+	// A new explicit disposition is not evidence that the default write happened.
+	if (typeof row.outcome === "string" && row.outcome.trim()) return "not_applied";
+	return undefined;
 }
 
 /** The word a queued write gets instead of the committed one, per domain. */
@@ -189,7 +200,9 @@ const QUEUED_ACTION_BY_DOMAIN: Partial<Record<TrailDomain, string>> = {
  * record or supersede anything, and saying it did is the failure the proposals
  * ledger exists to prevent (DevSpec item 689d44cb).
  */
-export function domainAction(spec: DomainSpec, outcome?: string): string {
+export function domainAction(spec: DomainSpec, outcome?: TrailWriteOutcome): string {
+	if (outcome === "not_applied") return "not applied";
+	if (outcome === "failed") return "failed";
 	if (outcome !== "queued_for_review") return spec.action;
 	return QUEUED_ACTION_BY_DOMAIN[spec.domain] ?? "proposed";
 }
@@ -218,7 +231,13 @@ export function domainIdentity(name: string, args?: unknown, result?: unknown): 
 		: spec.domain === "resource"
 			? ["resource_id", "id"]
 			: ["action_item_id", "id"];
-	const id = safeTrailId(pickString(nested, resultIdKeys) ?? pickString(a, argIdKeys));
 	const title = safeTrailLabel(pickString(nested, ["title"]) ?? pickString(a, ["title"]), 240);
+	const outcome = writeOutcomeFromResult(result);
+	if (outcome && outcome !== "committed") return { title };
+	// Creates and supersedes mint a new identity. A missing replacement ID must
+	// never fall back to the old row merely because the host reported success.
+	const mintsIdentity = ["create_action_item", "record_memory", "create_resource", "supersede_memory", "supersede_resource"].includes(name);
+	const fallbackId = result !== undefined && mintsIdentity ? undefined : pickString(a, argIdKeys);
+	const id = safeTrailId(pickString(nested, resultIdKeys) ?? fallbackId);
 	return { id, title };
 }

@@ -628,7 +628,7 @@ test("remote wiring uses idle claim/application and post-message_end disk proof"
 	assert.match(remote, /"poll_connection"/);
 	assert.match(remote, /interaction_event_version: 1/);
 	assert.match(remote, /interactionEventAckArgs\(interactionEventAck\)/);
-	assert.match(remote, /const interactionClaimIdle = interactionEventsRelevant\(active\)[^]*!active\.busy[^]*!active\.runtimeOccupancy\.isBusy\(\)[^]*ctx\.isIdle\(\)/s);
+	assert.match(remote, /const interactionClaimIdle = interactionEventsRelevant\(active\)[^]*interactionForegroundReady\(active, ctx\)/s);
 	assert.match(remote, /const interactionClaimBusyPreempt = interactionEventsRelevant\(active\)[^]*preemptOwnerCached[^]*!interactionClaimIdle[^]*!interactionEventAck/s);
 	assert.match(remote, /const interactionEventNegotiated = interactionClaimIdle \|\| interactionClaimBusyPreempt \|\| Boolean\(interactionEventAck\)/);
 	assert.match(remote, /pi\.sendMessage\(\{\s*customType: interactionEventCustomType\(details.event\)/s);

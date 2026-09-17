@@ -389,13 +389,23 @@ const TRAIL_INTERVAL_MS = 1_000;
  * agent_start (or the first attached turn_start after a mid-run attach) and
  * lives until agent_settled — never recreated per round.
  */
+/**
+ * Connection-scoped outstanding auto-wake background tasks (759f2818, owner
+ * direction 2026-09-17 PM). Presence — and ONLY presence — follows this set:
+ * Working persists while owned bg work is outstanding and clears when the
+ * last task resolves. Speech and turn-closing never consult it. Module scope
+ * because it must survive per-segment tracker replacement across settles and
+ * completion wakes (each new TurnTracker receives this same set).
+ */
+const pendingBackgroundTaskIds = new Set<string>();
+
 function ensureTurn(): void {
 	if (turn) return;
 	if (!getBond()?.sessionId) { debug("ensureTurn: not attached"); return; }
 	const revision = nextTurnRevision++;
 	const receiptBatch = new DirectedQuestionReceiptBatch();
 	receiptBatch.reset(revision);
-	turn = { revision, tracker: new TurnTracker(), trail: new TrailBuilder(), completionNeutral: false, receiptBatch, trailPostFence: new TrailPostFence(), dirty: false, interval: null, posts: 0, lastPostAt: 0 };
+	turn = { revision, tracker: new TurnTracker(pendingBackgroundTaskIds), trail: new TrailBuilder(), completionNeutral: false, receiptBatch, trailPostFence: new TrailPostFence(), dirty: false, interval: null, posts: 0, lastPostAt: 0 };
 	postWarnedThisTurn = false;
 	debug("ensureTurn: tracking (run-scoped)");
 	turn.interval = setInterval(trailTick, TRAIL_INTERVAL_MS);
@@ -745,15 +755,19 @@ async function settleTurn(agentStats: AgentStatsReport | null, completeTurn = tr
 	const t = turn;
 	if (!t) { debug("settleTurn: no turn state"); return false; }
 	// No pause (759f2818, owner direction 2026-09-17): the run ending is the
-	// truth. An unposted answer posts complete_turn:true; a process-only/
-	// silent settle flushes its trail and reportComplete closes the attempt
-	// (sweeping any open trail row) instead of spinning Working. A later
-	// bg-completion wake opens its own segment and speaks for itself.
+	// truth. An unposted answer always posts; a process-only/silent settle
+	// flushes its trail and (when no background work is outstanding)
+	// reportComplete closes the attempt, sweeping any open trail row. While
+	// owned background work IS outstanding the bubble still posts — just with
+	// complete_turn:false, so the Working attempt honestly persists until the
+	// last completion wake's settle closes it. Presence is the only axis the
+	// pending set feeds; speech never consults it.
 	turn = null;
 	if (t.interval) clearInterval(t.interval);
 	await t.trailPostFence.drain();
+	const bgPending = pendingBackgroundTaskIds.size > 0;
 	debug("settleTurn: settle", { answerChars: t.tracker.lastAssistantText.length, pendingBg: t.tracker.pendingBackgroundTasks().length, harness: t.tracker.userKind === "harness" });
-	return await postSegmentAnswer(t, agentStats, "run_end", completeTurn);
+	return await postSegmentAnswer(t, agentStats, "run_end", completeTurn && !bgPending);
 }
 
 /**
@@ -771,7 +785,7 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 	if (t.interval) clearInterval(t.interval);
 	const interval = setInterval(trailTick, TRAIL_INTERVAL_MS);
 	if (typeof interval.unref === "function") interval.unref();
-	const next = new TurnTracker();
+	const next = new TurnTracker(pendingBackgroundTaskIds);
 	if (t.tracker.userText && !t.completionNeutral) next.carryUser(t.tracker.userText, t.tracker);
 	// A user-facing progress answer closes one transcript segment. Activity after
 	// it belongs to the next segment; carrying the old builder duplicated the
@@ -1002,6 +1016,7 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	if (stoppingTrailFence) await stoppingTrailFence.drain();
 	pump = null;
 	commandTurnBindings.clear();
+	pendingBackgroundTaskIds.clear();
 	setBond(null);
 	pi_setPlanToolActive(false);
 	pi_setQuestionToolActive(false);
@@ -1780,6 +1795,7 @@ async function reviveRecoverableBond(
 			// A replacement row is different authority: pending bindings for the old
 			// connection's turns must not be inherited here (item 6f4136d8).
 			commandTurnBindings.clear();
+			pendingBackgroundTaskIds.clear();
 			active.advisoryCarry = [];
 			active.attachmentRetryAttempts.clear();
 			active.automationQueue.invalidate();
@@ -2042,6 +2058,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			// A new room (or detach) invalidates pending bindings for the old room's
 			// turns: identical terminal text must not inherit them (item 6f4136d8).
 			commandTurnBindings.clear();
+			pendingBackgroundTaskIds.clear();
 			const next = {
 				...active.bond,
 				sessionId: serverSessionId ?? undefined,
@@ -2779,14 +2796,17 @@ export default function (pi: ExtensionAPI) {
 		// Keep the pump authoritative Working signal alive until the final owned
 		// continuation settles; otherwise polls broadcast false and close the
 		// durable attempt while an async child is visibly still running.
-		// Working follows the model run, honestly (owner direction 2026-09-17):
-		// background tasks keep working on their own and their completion wake
-		// reopens presence — a parked Working clock spinning 70 minutes behind a
-		// dev-server task was the 759f2818 symptom, not a feature.
+		// Presence follows outstanding background work (owner direction
+		// 2026-09-17 PM): with owned bg tasks still pending the agent is still
+		// working — the run settled but the job has not. The wake of the last
+		// task's completion re-runs this with an empty set and clears Working.
+		// This parks PRESENCE ONLY: the answer already posted above regardless
+		// (759f2818), so a long-running task can never hold speech hostage.
+		const keepWorking = !completionNeutral && pendingBackgroundTaskIds.size > 0;
 		if (pump && activityPolicy.reportPresence) {
-			pump.busy = false;
-			if (!interactionRun) void beatBusy(false, agentStats);
-			const trueIdle = !pump.runtimeOccupancy.isBusy() && ctx.isIdle();
+			pump.busy = keepWorking;
+			if (!interactionRun) void beatBusy(keepWorking, agentStats);
+			const trueIdle = !keepWorking && !pump.runtimeOccupancy.isBusy() && ctx.isIdle();
 			if (pump.idleBoundaryWake.consumeAtIdle(trueIdle)) signalWake(pump);
 		} else if (pump) {
 			const trueIdle = !pump.busy && !pump.runtimeOccupancy.isBusy() && ctx.isIdle();
@@ -2797,10 +2817,11 @@ export default function (pi: ExtensionAPI) {
 		}
 		trackTerminalPost((async () => {
 			const posted = await settleTurn(agentStats, true);
-			// Pause (wait/bg_run) keeps the tracker and the working attempt.
 			// No complete_turn post landed (aborted/empty turn, or the post
-			// failed) — close the exact activity honestly.
-			if (!posted && activityPolicy.reportCompletion) {
+			// failed) — close the exact activity honestly. Outstanding owned
+			// background work is the one exception: the attempt stays open so
+			// Working persists until the last completion wake settles.
+			if (!posted && activityPolicy.reportCompletion && pendingBackgroundTaskIds.size === 0) {
 				await reportComplete("turn_end", commandTurnId, commandMessageId, commandTurnUnbound, interactionIdentity(interactionRun));
 			}
 			if (interactionRun) {
@@ -3170,6 +3191,7 @@ export default function (pi: ExtensionAPI) {
 		}
 		pump = null;
 		commandTurnBindings.clear();
+		pendingBackgroundTaskIds.clear();
 		setBond(null);
 		pi_setPlanToolActive(false);
 		pi_setQuestionToolActive(false);

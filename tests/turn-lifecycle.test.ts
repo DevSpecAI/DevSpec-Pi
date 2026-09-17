@@ -716,8 +716,33 @@ test("pending background task identities survive delivery segment splits (15cb09
 	continuation.carryUser(first.userText, first);
 	assert.deepEqual(continuation.pendingBackgroundTasks(), ["deploy", "browser-review"]);
 	continuation.resolveBackgroundTask("deploy");
-	assert.deepEqual(first.pendingBackgroundTasks(), ["deploy", "browser-review"], "split copies ownership rather than aliasing it");
+	assert.deepEqual(first.pendingBackgroundTasks(), ["deploy", "browser-review"], "standalone trackers still copy rather than alias");
 	assert.deepEqual(continuation.pendingBackgroundTasks(), ["browser-review"]);
+});
+
+test("the wiring's connection-scoped pending set is shared across segments and wakes (759f2818 presence)", () => {
+	// Presence must survive the per-segment tracker replacement at splits and
+	// the settle→wake handoff: every tracker the wiring builds gets the SAME
+	// set, so a task noted on one segment keeps Working alive until its
+	// completion resolves it on whichever segment is current.
+	const shared = new Set<string>();
+	const first = new TurnTracker(shared);
+	first.userMessage("[DevSpec remote — message from Ali Price to Amber Hawk]\nContinue.");
+	first.noteBackgroundTask("pulse-check");
+	const continuation = new TurnTracker(shared);
+	continuation.carryUser(first.userText, first);
+	continuation.noteBackgroundTask("commit-watch");
+	assert.deepEqual(first.pendingBackgroundTasks(), ["pulse-check", "commit-watch"], "a later segment's launch is visible to the earlier one");
+	const wake = new TurnTracker(shared);
+	wake.userMessage("[bg completed] pulse check", {
+		customType: "background-task-notification",
+		backgroundTaskId: "pulse-check",
+	});
+	assert.deepEqual(first.pendingBackgroundTasks(), ["commit-watch"], "a resolve anywhere resolves everywhere");
+	assert.equal(wake.awaitingBackground, true, "the sibling task still holds presence");
+	wake.resolveBackgroundTask("commit-watch");
+	assert.equal(wake.awaitingBackground, false);
+	assert.equal(first.awaitingBackground, false, "last resolution releases Working for every segment");
 });
 
 test("2026-09-17 replay: the substantive report settles the turn; delayed bg receipts cannot replace it (759f2818)", () => {

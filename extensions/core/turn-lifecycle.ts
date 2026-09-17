@@ -39,6 +39,10 @@
  *   needed", ≤500 chars, receipt vocabulary) stays trail-only (56b9a3b4 /
  *   15d7aa56). Context injections (auto-recall, attach block, orientation)
  *   still never produce room content: their segments store no speech at all.
+ * - Presence and speech are separate axes (owner direction 2026-09-17 PM):
+ *   Working persists while owned background tasks are outstanding — across
+ *   settles and completion wakes via the connection-scoped pending set —
+ *   and clears when the last one resolves. Bubbles never consult it.
  * - Runs started by a LOCAL prompt (typed in the terminal while attached)
  *   also mirror the prompt as turn_kind:'local_prompt' before the answer, so
  *   the DevSpec transcript is two-sided. Mirror once per typed prompt —
@@ -120,12 +124,18 @@ export class TurnTracker {
 	harnessSpeechAllowed = false;
 	/**
 	 * Owner-started automatic-wake tasks that have not reached terminal state.
-	 * Pure bookkeeping since 2026-09-17 (759f2818): pending background work
-	 * never suppresses speech or delays a settle — a never-terminating task
-	 * (dev server) or a lost notification otherwise poisoned every later
-	 * segment. Kept for debug logging and wake correlation.
+	 * Never gates speech or settles (759f2818). The WIRING passes one shared
+	 * connection-scoped set into every segment's tracker (TurnTracker ctor):
+	 * presence (Working) follows outstanding background work across settles
+	 * and completion wakes (owner direction 2026-09-17 PM — bubbles stay
+	 * decoupled, but "bg 2 running" means still working). Standalone trackers
+	 * (tests) get an independent set.
 	 */
-	private pendingBackgroundTaskIds = new Set<string>();
+	private pendingBackgroundTaskIds: Set<string>;
+
+	constructor(sharedPendingBackgroundTaskIds?: Set<string>) {
+		this.pendingBackgroundTaskIds = sharedPendingBackgroundTaskIds ?? new Set();
+	}
 	/** Compatibility/readability projection used by lifecycle predicates. */
 	get awaitingBackground(): boolean {
 		return this.pendingBackgroundTaskIds.size > 0;
@@ -158,6 +168,11 @@ export class TurnTracker {
 		this.shouldMirrorPrompt = kind === "local";
 		if (kind === "harness") {
 			this.harnessSpeechAllowed = isBackgroundCompletionOrigin(text, origin?.customType);
+			// A fresh completion-wake segment resolves its task too — with the
+			// connection-scoped shared set this is what releases Working when the
+			// last task completes (the old parked-tracker model resolved on the
+			// surviving owner tracker; there is no surviving tracker any more).
+			if (origin?.backgroundTaskId) this.resolveBackgroundTask(origin.backgroundTaskId);
 		}
 	}
 
@@ -168,7 +183,12 @@ export class TurnTracker {
 		this.userKind = classifyUserKind(text);
 		this.shouldMirrorPrompt = false;
 		if (from) {
-			this.pendingBackgroundTaskIds = new Set(from.pendingBackgroundTaskIds);
+			// Merge, never replace: the wiring hands every segment the SAME
+			// connection-scoped set, so a resolve on any segment is visible to
+			// all (15cb0983's copy-not-alias is superseded by sharing).
+			if (this.pendingBackgroundTaskIds !== from.pendingBackgroundTaskIds) {
+				for (const id of from.pendingBackgroundTasks()) this.pendingBackgroundTaskIds.add(id);
+			}
 			this.lastCloseWasProcess = from.lastCloseWasProcess;
 			this.harnessSpeechAllowed = from.harnessSpeechAllowed;
 		}

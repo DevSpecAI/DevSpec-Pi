@@ -24,12 +24,14 @@ test("async subagents reconcile the fleet, and settle closes Working honestly (7
 	assert.match(source, /turn !== trackedTurn \|\| trackedTurn\.revision !== expectedRevision/);
 	const settled = source.slice(source.indexOf('pi.on("agent_settled"'), source.indexOf('// ---- Turn lifecycle events'));
 	assert.match(settled, /reconciliation === "stale"\) return/);
-	// Owner direction 2026-09-17: Working follows the model run. A settled run
-	// clears presence even while owned background work pends — the completion
-	// wake reopens it. The old shouldPauseSettle park spun Working for 70
-	// minutes behind never-terminating tasks.
-	assert.match(settled, /pump\.busy = false/);
-	assert.match(settled, /beatBusy\(false, agentStats\)/);
+	// Owner direction 2026-09-17 PM: presence follows the connection-scoped
+	// pending-bg set — Working persists while owned background work is
+	// outstanding and clears when the last task resolves. Speech/turn-closing
+	// never consult it (the 759f2818 fix), so this park cannot hold speech
+	// hostage the way the deleted shouldPauseSettle did.
+	assert.match(settled, /const keepWorking = !completionNeutral && pendingBackgroundTaskIds\.size > 0/);
+	assert.match(settled, /pump\.busy = keepWorking/);
+	assert.match(settled, /beatBusy\(keepWorking, agentStats\)/);
 	assert.doesNotMatch(settled, /shouldPauseSettle/);
 	const messageStart = source.slice(source.indexOf('pi.on("message_start"'), source.indexOf('pi.on("message_update"'));
 	assert.match(messageStart, /isSubagentAsyncNotification\(text, customType\)/);

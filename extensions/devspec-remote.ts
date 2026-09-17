@@ -1342,9 +1342,19 @@ async function applyInteractionEvent(
 		const observed = interactionJournal.observe(observedDetails);
 		if (observed === "conflict") return false;
 		pi_appendInteractionEntry("observed", observedDetails);
+		const pending = active.pendingInteractionStarts.get(event.event_id);
+		if (pending && pending.nextAt > Date.now()) {
+			// Polls may refresh this claim while its exact start is backed off.
+			// Keep the fresh token, but a wake must not bypass the retry deadline.
+			pending.event = event;
+			return true;
+		}
 		const started = await startInteractionContinuation(active, event);
-		active.pendingInteractionStarts.delete(event.event_id);
-		armInteractionRetryWake(active);
+		// Preserve the attempt count for another blocked start so backoff grows.
+		if (started.outcome !== "blocked_by_activity") {
+			active.pendingInteractionStarts.delete(event.event_id);
+			armInteractionRetryWake(active);
+		}
 		const startedSourceMatches = started.outcome !== "started" ||
 			(started.sourceSessionId === event.source_session_id &&
 				started.sourceSessionId === active.bond.sessionId);
@@ -1403,8 +1413,7 @@ async function applyInteractionEvent(
 	}
 }
 
-async function drainInteractionRetries(active: PumpState, ctx: ExtensionContext): Promise<boolean> {
-	let attempted = false;
+async function drainInteractionRetries(active: PumpState, ctx: ExtensionContext): Promise<void> {
 	const now = Date.now();
 	for (const [eventId, pending] of [...active.pendingInteractionReleases]) {
 		if (pending.nextAt > now) continue;
@@ -1418,7 +1427,6 @@ async function drainInteractionRetries(active: PumpState, ctx: ExtensionContext)
 			interactionRunsByEvent.delete(eventId);
 			continue;
 		}
-		attempted = true;
 		await releaseInteractionBeforePersistence(run, "interaction_release_retry");
 	}
 	for (const [eventId, pending] of [...active.pendingInteractionStarts]) {
@@ -1442,11 +1450,9 @@ async function drainInteractionRetries(active: PumpState, ctx: ExtensionContext)
 		if (freshEvent && freshEvent.claim_token !== pending.event.claim_token) {
 			pending.event = freshEvent;
 		}
-		attempted = true;
 		await applyInteractionEvent(active, ctx, pending.event);
 	}
 	armInteractionRetryWake(active);
-	return attempted;
 }
 
 async function acknowledgeInteractionApplication(run: ExactInteractionRun): Promise<boolean> {
@@ -1976,12 +1982,11 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (active.pushEnded !== undefined) continue; // handled at the top
 			if (active.pushClosed) continue; // fall through to long-poll next lap
 		}
-		const retryAt = nextInteractionRetryAt(active);
-		if (retryAt !== null && retryAt > Date.now()) {
-			await new Promise((resolve) => setTimeout(resolve, retryAt - Date.now()));
-			if (active.stop || pump !== active) return;
-		}
-		if (await drainInteractionRetries(active, ctx)) continue;
+		// The retry timer wakes this same pump when due. An earlier owner/control
+		// wake must poll immediately, not sleep behind a future retry deadline.
+		// A deferred start/release likewise cannot consume every polling lap.
+		await drainInteractionRetries(active, ctx);
+		if (active.stop || pump !== active) return;
 
 		// The server can claim ten at once. Negotiate only when that complete batch
 		// fits; otherwise ordinary 1.3 command polling continues while notices stay

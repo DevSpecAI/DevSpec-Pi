@@ -1,58 +1,7 @@
-/**
- * DevSpec Pi — mechanical turn lifecycle (pure, unit-tested).
- *
- * Decides what the extension posts to DevSpec when an agent RUN settles
- * (item cc9e8c43, owner direction 2026-08-12):
- *
- * - There is exactly ONE writer, and it is mechanical. The model never posts
- *   conversational content: it thinks, tool-calls, and ends its run with a
- *   final terminal message; the extension delivers that message as the
- *   session answer with complete_turn:true. No complete_turn discipline, no
- *   tool-post precedence, no suppression state — the dual-writer failure
- *   class (857d984c, three patches, still leaking) is deleted, not fixed.
- * - This state is RUN-scoped: pi fires turn_start once per LLM round
- *   ("repeats while LLM calls tools"), so the tracker is created on
- *   agent_start / first turn_start and lives until agent_settled — never
- *   reset per round. Per-round state was the double-bubble root cause:
- *   suppression marks landed on a tracker the next round threw away.
- * - …and SEGMENT-delimited (item b1fb756a + f0df6c3e): a user message injected
- *   mid-run is a delivery boundary. Later tools/thinking open a fresh Working
- *   trail. The run is the execution unit; the segment is the delivery unit.
- * - EVERY user-facing text is its own bubble (owner direction 2026-09-17,
- *   item 759f2818 + 8f2e3224): "anything in the Pi terminal which is
- *   foreground text goes into a transcript bubble… let's not fight the harness
- *   or the model." Any non-process text on a tool-carrying message splits and
- *   posts immediately (shouldSplitSpeech) — models like Kimi bundle narration
- *   with toolCalls in ~every round, so a first-answer-only gate dropped ~98%
- *   of their narration. A text-only close stays deferred (next-round split or
- *   the settle post) so the final answer still rides complete_turn:true.
- * - Process stays trail-only, but process is now purely TEXTUAL (15d7aa56):
- *   wait-narration ("I'll wait for the build…") is process; pending
- *   background tasks NEVER make speech process. The old blanket rule
- *   (text-only close + awaitingBackground → process, 6ea9aa47) ate a 2.6k-char
- *   final report on 2026-09-17 and is deleted: the run settling is the truth,
- *   the answer posts, the turn closes. A bg-completion wake opens a NEW
- *   segment that speaks for itself — no parked tracker, no answer overwrite.
- * - Harness wakes (Pi <background-task-notification> / [bg completed]) MAY
- *   post: substantive wake news (a failed gate, a verified deploy) is real
- *   room content. Only the pure receipt class ("expected teardown… no action
- *   needed", ≤500 chars, receipt vocabulary) stays trail-only (56b9a3b4 /
- *   15d7aa56). Context injections (auto-recall, attach block, orientation)
- *   still never produce room content: their segments store no speech at all.
- * - Presence and speech are separate axes (owner direction 2026-09-17 PM):
- *   Working persists while owned background tasks are outstanding — across
- *   settles and completion wakes via the connection-scoped pending set —
- *   and clears when the last one resolves. Bubbles never consult it.
- * - Runs started by a LOCAL prompt (typed in the terminal while attached)
- *   also mirror the prompt as turn_kind:'local_prompt' before the answer, so
- *   the DevSpec transcript is two-sided. Mirror once per typed prompt —
- *   continuation segments (carryUser) post only the answer (item 56b9a3b4).
- * - Typed slash commands stay local — we classify by origin, not by a
- *   leading `/`.
- * - Nothing posts when unattached (sessionless) or when there is no answer
- *   text (e.g. a run that was pure tool calls with no closing message).
- */
+/** Turn/activity bookkeeping. Assistant speech admission is structural only;
+ * source capture and delivery live in assistant-speech.ts and the controller. */
 
+import { hasAssistantSpeech } from "./assistant-speech.ts";
 import { INTERACTION_EVENT_CUSTOM_TYPE } from "./interaction-events.ts";
 
 export type UserKind = "remote" | "automation" | "interaction" | "local" | "harness";
@@ -115,12 +64,7 @@ export class TurnTracker {
 	awaitingFirstAnswer = false;
 	/** True only for a freshly typed local prompt — never after carryUser. */
 	shouldMirrorPrompt = false;
-	/**
-	 * Harness-origin segments may speak only when the wake was a background
-	 * task completion (a failed gate / landed deploy is real news). Context
-	 * injections (auto-recall, attach, orientation) and other leftovers store
-	 * no speech at all, so they can never create room content (60cf5f00).
-	 */
+	/** Historical harness trail eligibility. Never gates actual assistant speech. */
 	harnessSpeechAllowed = false;
 	/**
 	 * Owner-started automatic-wake tasks that have not reached terminal state.
@@ -215,37 +159,17 @@ export class TurnTracker {
 		return [...this.pendingBackgroundTaskIds];
 	}
 
-	/**
-	 * Record a finalized assistant text. Returns the classification for the
-	 * extension's debug log: "empty" (nothing user-facing), "process"
-	 * (wait-narration / harness receipt / suppressed harness segment — trail
-	 * only), or "stored" (room speech).
-	 */
+	/** Retain raw finalized assistant text. "process" remains in the legacy debug
+	 * type only; wording and input provenance no longer suppress actual speech. */
 	assistantFinal(text: string, closedAnswer = false): "empty" | "process" | "stored" {
-		// Zero-width/format characters are not text: a "​" final is not an
-		// answer and must never produce a bubble (857d984c, instance 4).
-		const cleaned = text.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
-		if (!cleaned) {
-			return "empty";
-		}
-		// Process is purely textual now (owner direction 2026-09-17,
-		// 759f2818): wait-narration stays trail-only, but pending background
-		// work never converts real speech into process — that blanket rule ate
-		// a 2.6k final report in session 9f671595. Harness segments store
-		// nothing unless the wake was a background completion, and even then a
-		// pure receipt acknowledgement stays on the trail (56b9a3b4).
-		const process = isProcessClose({ text: cleaned })
-			|| (this.userKind === "harness" && !this.harnessSpeechAllowed)
-			|| (this.userKind === "harness" && isReceiptAcknowledgement(cleaned));
-		if (!process) {
-			this.lastAssistantText = cleaned;
-			this.awaitingFirstAnswer = false;
-		}
-		// Only a real stored close can be an answer; wait/receipt never is.
-		this.lastCloseWasAnswer = closedAnswer && !process;
-		this.lastCloseWasProcess = process;
-		return process ? "process" : "stored";
+		if (!hasAssistantSpeech(text)) return "empty";
+		this.lastAssistantText = text;
+		this.awaitingFirstAnswer = false;
+		this.lastCloseWasAnswer = closedAnswer;
+		this.lastCloseWasProcess = false;
+		return "stored";
 	}
+
 }
 
 export type SettlePlan =
@@ -334,32 +258,13 @@ export function isClosedAnswerBoundary(tracker: TurnTracker): boolean {
 	return tracker.lastCloseWasAnswer && tracker.lastAssistantText !== "";
 }
 
-/**
- * First user-facing text after a user message, when that same assistant
- * message also starts tools (item f0df6c3e round 2). That line is the
- * finished answer for the thinking so far — even though hasToolCalls would
- * make isClosedAnswer false. Later tool events belong on a new trail.
- */
-/**
- * Any user-facing text on a tool-carrying message is a finished bubble
- * (owner direction 2026-09-17, items 759f2818 + 8f2e3224): post it
- * immediately (complete_turn=false) and let the message's tools open a fresh
- * trail. This generalizes the old first-answer split (f0df6c3e) — Kimi-style
- * models bundle narration with toolCalls in ~every round, so gating on the
- * first text per segment lost all later narration before it ever posted.
- * Text-only closes stay deferred (closed-answer split at the next round, or
- * the settle post) so a normal one-shot still posts once, complete_turn=true.
- */
+/** Legacy split predicate; the source-aware controller never splits execution
+ * for speech. Kept for compatibility with bookkeeping callers/tests. */
 export function shouldSplitSpeech(
 	tracker: TurnTracker,
 	input: { text: string; hasToolCalls: boolean },
 ): boolean {
-	if (!input.hasToolCalls) return false;
-	const cleaned = input.text.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
-	if (!cleaned || isWaitNarration(cleaned)) return false;
-	if (tracker.userKind === "harness" && !tracker.harnessSpeechAllowed) return false;
-	if (tracker.userKind === "harness" && isReceiptAcknowledgement(cleaned)) return false;
-	return true;
+	return input.hasToolCalls && hasAssistantSpeech(input.text);
 }
 
 const CLOSED_ANSWER_STOPS = new Set(["stop"]);
@@ -470,9 +375,8 @@ export function isClosedAnswer(input: {
 
 export function planSettle(tracker: TurnTracker, attached: boolean): SettlePlan {
 	if (!attached) return { kind: "none" };
-	// Harness segments store no speech unless the wake was a background
-	// completion (assistantFinal), so an empty plan is the only veto needed —
-	// a bg wake with real news settles as its own complete_turn:true bubble.
+	// Legacy planner only. Source-aware controller speech bypasses settlement;
+	// this helper cannot grant source authority or decide execution completion.
 	if (!tracker.lastAssistantText) return { kind: "none" };
 	if (tracker.userKind === "local" && tracker.shouldMirrorPrompt) {
 		return { kind: "local_mirror", prompt: tracker.userText, answer: tracker.lastAssistantText };

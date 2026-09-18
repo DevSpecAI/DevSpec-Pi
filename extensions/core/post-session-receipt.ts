@@ -9,6 +9,8 @@ export interface ExpectedPostReceipt {
 	sessionId: string;
 	phase: string;
 	turnKind?: string;
+	/** Source-aware delivery must not accept a different row's legacy receipt. */
+	assistantSourceId?: string;
 }
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -30,6 +32,8 @@ export function parsePostSessionReceipt(raw: unknown, expected: ExpectedPostRece
 		data.connection_id !== expected.connectionId ||
 		(expected.turnKind !== undefined && data.turn_kind !== expected.turnKind) ||
 		typeof data.message_id !== "string" || !data.message_id.trim()) return { status: "malformed" };
+	if (expected.assistantSourceId !== undefined &&
+		(data.assistant_source_id !== expected.assistantSourceId || !receipt)) return { status: "malformed" };
 	if (data.delivery !== undefined) {
 		if (!receipt || (receipt.status !== "stored" && receipt.status !== "idempotently_stored") ||
 			receipt.message_id !== data.message_id) return { status: "malformed" };

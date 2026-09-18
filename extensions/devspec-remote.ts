@@ -20,6 +20,7 @@
  * - Headless: works in -p/rpc/json; notifications degrade to no-ops.
  */
 
+import { AssistantSpeechSource, AssistantSpeechQueue, assistantSpeechWithinBudget } from "./core/assistant-speech.ts";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getSupportedThinkingLevels, type ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { readFileSync } from "node:fs";
@@ -332,7 +333,18 @@ let preemptOwnerCached = true;
 // ---- Mechanical turn lifecycle (trail + final answer) ---------------------
 // All of this is extension-mechanical: zero tokens, no model compliance.
 
+interface SpeechBinding {
+	readonly args: Readonly<Record<string, unknown>>;
+	readonly current: () => boolean;
+	readonly capability: string;
+	readonly ready: Promise<{ args: Readonly<Record<string, unknown>>; token: string } | null>;
+}
 interface TurnState {
+	speechManaged?: boolean;
+	speechScopeCaptured?: boolean;
+	speechBinding?: SpeechBinding;
+	assistantSpeech?: { source: AssistantSpeechSource; binding?: SpeechBinding; model: Record<string, unknown> };
+
 	/** Monotonic segment revision; protects awaited settle reconciliation. */
 	revision: number;
 	tracker: TurnTracker;
@@ -443,6 +455,95 @@ function ensureTurn(): void {
 	turn.interval = setInterval(trailTick, TRAIL_INTERVAL_MS);
 	// Don't hold the process open for the trail timer in headless runs.
 	if (typeof turn.interval.unref === "function") turn.interval.unref();
+}
+
+const assistantSpeechQueue = new AssistantSpeechQueue();
+
+/** Consumed input is known at context, unlike turn_start (which precedes user events). */
+function prepareAssistantSpeech(t: TurnState): Promise<void> {
+	t.speechManaged = true; // Failure must never fall back to legacy normalization/finalization.
+	const source = new AssistantSpeechSource();
+	const active = pump;
+	const bond = getBond();
+	const connectionId = bond?.connectionId;
+	const sessionId = bond?.sessionId;
+	const attachedAt = bond?.attachedAt;
+	const attachmentId = bond?.speechAttachmentId;
+	const capability = bond?.connectionCapability;
+	const generation = active?.generation;
+	const current = () => Boolean(active && pump === active && active.generation === generation && !active.stop &&
+		getBond()?.connectionId === connectionId && getBond()?.sessionId === sessionId &&
+		getBond()?.attachedAt === attachedAt && getBond()?.speechAttachmentId === attachmentId && getBond()?.connectionCapability === capability);
+	const firstScope = !t.speechScopeCaptured;
+	t.speechScopeCaptured = true;
+	const completeCommandIdentity = Boolean(t.commandTurnId) === Boolean(t.commandMessageId);
+	const missingInteractionIdentity = t.occupancy?.kind === "interaction" && !t.interaction;
+	if (firstScope && active && connectionId && sessionId && attachedAt && attachmentId && capability && !t.completionNeutral && completeCommandIdentity && !missingInteractionIdentity) {
+		const interaction = interactionIdentity(t.interaction);
+		const args = Object.freeze({ connection_id: connectionId, expected_session_id: sessionId, expected_attached_at: attachedAt, expected_attachment_id: attachmentId,
+			...(interaction ? exactInteractionContinuationArgs(interaction) : t.commandTurnId && t.commandMessageId
+				? { command_turn_id: t.commandTurnId, command_message_id: t.commandMessageId }
+				: { local_turn: true }),
+		});
+		// Freeze all authority before resolveToken/network work. The promise is cached
+		// for this consumed input, not rerun at each provider round or on failure.
+		const ready = (async () => {
+			try {
+				const resolved = await resolveToken();
+				if (!resolved || !current()) return null;
+				const raw = await callDevspec(resolved.token, "report_pickup", { ...args, speech_scope: true }, {
+					lane: "pump", retry: "never", connectionCapability: capability,
+					beforeSend: () => { if (!current()) throw new DevspecToolError("Speech scope changed."); },
+				});
+				const result = unwrapMcpResult(raw);
+				const details = result.details as Record<string, unknown> | undefined;
+				if (!current() || result.isError || !details || typeof details.attempt_id !== "string" ||
+					details.expected_session_id !== sessionId || details.expected_attached_at !== attachedAt || details.expected_attachment_id !== attachmentId) return null;
+				return Object.freeze({ args: Object.freeze({ ...args, attempt_id: details.attempt_id }), token: resolved.token });
+			} catch { return null; }
+		})();
+		t.speechBinding = Object.freeze({ args, current, capability, ready });
+	}
+	t.assistantSpeech = { source, binding: t.speechBinding, model: replyModelArgs() };
+	return (t.speechBinding?.ready ?? Promise.resolve(null)).then(() => undefined);
+}
+
+/** Actual assistant messages only; journals contain no cap/claim/token and are not a replay outbox. */
+function deliverAssistantSpeech(t: TurnState, message: unknown, append: (type: string, data: unknown) => void): void {
+	const captured = t.assistantSpeech;
+	const record = captured?.source.finalize(message);
+	if (!record) return;
+	const binding = captured?.binding;
+	append("devspec-assistant-speech", { ...record, connectionId: binding?.args.connection_id,
+		expectedSessionId: binding?.args.expected_session_id, expectedAttachedAt: binding?.args.expected_attached_at, expectedAttachmentId: binding?.args.expected_attachment_id,
+		commandTurnId: binding?.args.command_turn_id, commandMessageId: binding?.args.command_message_id,
+		interactionEventId: binding?.args.interaction_event_id ?? binding?.args.question_dismissal_event_id });
+	trackTerminalPost(assistantSpeechQueue.enqueue(async () => {
+		let stored = false;
+		let attemptId: unknown;
+		try {
+			const ready = await binding?.ready;
+			const scope = ready?.args;
+			attemptId = scope?.attempt_id;
+			if (scope && binding?.current() && assistantSpeechWithinBudget(record.text)) {
+				if (ready && binding.current()) {
+					const raw = await callDevspec(ready.token, "post_session_message", {
+						...scope, assistant_source_id: record.assistantSourceId, message: record.text,
+						phase: "answer", complete_turn: false, ...captured!.model,
+					}, { lane: "pump", retry: "never", connectionCapability: binding.capability,
+						beforeSend: () => { if (!binding.current()) throw new DevspecToolError("Speech scope changed."); } });
+					const receipt = parsePostSessionReceipt(raw, { connectionId: String(scope.connection_id), sessionId: String(scope.expected_session_id), phase: "answer", assistantSourceId: record.assistantSourceId });
+					stored = receipt.status === "stored" || receipt.status === "idempotently_stored";
+				}
+			}
+		} catch { /* Exact raw text and source remain in JSONL; never relabel or replay. */ }
+		append("devspec-assistant-speech-receipt", { assistantSourceId: record.assistantSourceId, attemptId, stored });
+		if (!stored) {
+			const warning = "DevSpec: assistant speech storage not confirmed; original text retained in Pi session. No automatic replay.";
+			if (safeHasUI(lastCtx)) notify(lastCtx, warning, "warning");
+			else console.error(warning);
+		}
+	}));
 }
 
 // Per-turn telemetry (item 1906e21f): mechanical, zero-token. Accumulates from
@@ -793,7 +894,7 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 	const finalTrail = t.trail.render(FINAL_TRAIL_CHARS, false);
 	const finalEvents = t.trail.events();
 	const activityTrail = finalEvents.length > 0 ? finalTrail : undefined;
-	const plan = planSettle(t.tracker, true);
+	const plan = t.speechManaged ? { kind: "none" as const } : planSettle(t.tracker, true);
 	debug("settle segment", { completeTurn, planFinal: plan.kind === "final", planMirror: plan.kind === "local_mirror", trailChars: finalTrail.length, answerChars: t.tracker.lastAssistantText.length, pendingBg: t.tracker.pendingBackgroundTasks().length, harness: t.tracker.userKind === "harness", bound: Boolean(t.commandTurnId || t.commandMessageId) });
 	// Context-injection / leftover harness segments never leave room content
 	// (60cf5f00). A background-completion wake MAY speak (its own bubble) and
@@ -1809,6 +1910,8 @@ async function reviveRecoverableBond(
 		if (!connectionId || !connectionCapability || active.stop || pump !== active) return false;
 
 		let sessionId = typeof details.session_id === "string" ? details.session_id : undefined;
+		let attachedAt = typeof details.attached_at === "string" ? details.attached_at : undefined;
+		let speechAttachmentId = typeof details.speech_attachment_id === "string" ? details.speech_attachment_id : undefined;
 		if (!sessionId && prior.sessionId) {
 			const attachRaw = await callDevspec(token, "attach_connection", {
 				connection_id: connectionId,
@@ -1818,6 +1921,8 @@ async function reviveRecoverableBond(
 			if (attach.isError || active.stop || pump !== active) return false;
 			const attached = (attach.details ?? {}) as Record<string, unknown>;
 			sessionId = typeof attached.session_id === "string" ? attached.session_id : prior.sessionId;
+			attachedAt = typeof attached.attached_at === "string" ? attached.attached_at : undefined;
+			speechAttachmentId = typeof attached.speech_attachment_id === "string" ? attached.speech_attachment_id : undefined;
 		}
 
 		const recoveredScope = planRecoveredConnectionScope({
@@ -1840,6 +1945,8 @@ async function reviveRecoverableBond(
 			connectionCapability,
 			codename: typeof details.codename === "string" ? details.codename : prior.codename,
 			sessionId,
+			attachedAt,
+			speechAttachmentId,
 			instructions: {
 				owner_custom_instructions: (details.owner_custom_instructions as string | undefined) ?? prior.instructions?.owner_custom_instructions,
 				owner_agent_rules: (details.owner_agent_rules as string | undefined) ?? prior.instructions?.owner_agent_rules,
@@ -2123,7 +2230,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		// the UI — the bouncing-dots regression of item ce5a1432. Applies to detach
 		// too (server session_id null → posting stops).
 		const serverSessionId = (payload as { session_id?: string | null } | null)?.session_id ?? null;
-		if (serverSessionId !== (active.bond.sessionId ?? null)) {
+		const serverAttachedAt = (payload as { attached_at?: string | null } | null)?.attached_at ?? undefined;
+		const serverAttachmentId = (payload as { speech_attachment_id?: string | null } | null)?.speech_attachment_id ?? undefined;
+		if (serverSessionId !== (active.bond.sessionId ?? null) || serverAttachedAt !== active.bond.attachedAt || serverAttachmentId !== active.bond.speechAttachmentId) {
 			resetDirectedQuestionReceiptBatch();
 			// The server migration atomically seals/releases an in-flight exact
 			// interaction on detach/reattach. Abort local execution immediately so
@@ -2137,6 +2246,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			const next = {
 				...active.bond,
 				sessionId: serverSessionId ?? undefined,
+				attachedAt: serverAttachedAt,
+				speechAttachmentId: serverAttachmentId,
 				// A new room (or detach) must not keep the previous room's title.
 				sessionTitle: undefined,
 				ownerName: undefined,
@@ -2497,6 +2608,8 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 		connectionCapability,
 		codename: typeof d.codename === "string" ? d.codename : undefined,
 		sessionId: (d.session_id as string | undefined) ?? undefined,
+		attachedAt: typeof d.attached_at === "string" ? d.attached_at : undefined,
+		speechAttachmentId: typeof d.speech_attachment_id === "string" ? d.speech_attachment_id : undefined,
 		instructions: {
 			owner_custom_instructions: d.owner_custom_instructions as string | undefined,
 			owner_agent_rules: d.owner_agent_rules as string | undefined,
@@ -2518,6 +2631,8 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 			} else {
 				const ad = (att.details ?? {}) as Record<string, unknown>;
 				bond.sessionId = (ad.session_id as string | undefined) ?? bond.sessionId;
+				bond.attachedAt = typeof ad.attached_at === "string" ? ad.attached_at : undefined;
+				bond.speechAttachmentId = typeof ad.speech_attachment_id === "string" ? ad.speech_attachment_id : undefined;
 				attached = true;
 			}
 		} catch (err) {
@@ -2918,6 +3033,19 @@ export default function (pi: ExtensionAPI) {
 
 	// ---- Turn lifecycle events (mechanical trail + final answer) ------------
 
+	pi.on("context", async (_event, ctx) => {
+		lastCtx = ctx;
+		ensureTurn();
+		const t = turn;
+		if (!t) return;
+		const prepared = prepareAssistantSpeech(t);
+		if (t.tracker.shouldMirrorPrompt && t.tracker.userText) {
+			t.tracker.shouldMirrorPrompt = false;
+			await postToSession(t.tracker.userText, { turnKind: "local_prompt", localTurn: true, isCurrent: t.canPost });
+		}
+		await prepared;
+	});
+
 	pi.on("turn_start", (_event, ctx) => {
 		lastCtx = ctx;
 		// Per-LLM-round event — the state must SURVIVE it, never be recreated
@@ -3074,6 +3202,8 @@ export default function (pi: ExtensionAPI) {
 				}
 				turn.interaction = undefined;
 				turn.lastInteractionKeepaliveAt = undefined;
+				turn.speechBinding = undefined;
+				turn.speechScopeCaptured = false;
 				turn.tracker.userMessage(text, { customType });
 				if (activityTransition?.beginBusyPresence && pump) {
 					pump.busy = true;
@@ -3099,7 +3229,7 @@ export default function (pi: ExtensionAPI) {
 		// a finished text-only answer, that bubble is done — split it off
 		// (complete_turn=false) so this round's thinking/tools open a new trail.
 		else if (msg?.role === "assistant") {
-			if (isClosedAnswerBoundary(turn.tracker)) splitTurnAtBoundary("closed_answer", false);
+			if (!turn.speechManaged && isClosedAnswerBoundary(turn.tracker)) splitTurnAtBoundary("closed_answer", false);
 			turn.trail.beginAssistantMessage();
 		}
 	});
@@ -3132,6 +3262,7 @@ export default function (pi: ExtensionAPI) {
 		}
 		if (!turn) { debug("message_end: no turn"); return; }
 		if (msg?.role === "assistant") {
+			deliverAssistantSpeech(turn, event.message, (type, data) => pi.appendEntry(type, data));
 			// Feed the trail from the finalized message too: message_update
 			// streams live in the TUI, but headless modes (RPC/print/SDK) emit
 			// no deltas — this keeps the trail complete there (flushed at
@@ -3152,7 +3283,7 @@ export default function (pi: ExtensionAPI) {
 				stopReason,
 			}));
 			debug("speech", { candidate: classification === "stored", process: classification === "process", split: speechSplit, chars: text.trim().length, tools: hasToolCalls, closedStop: stopReason === "stop" });
-			if (speechSplit) splitTurnAtBoundary("speech", false);
+			if (!turn.speechManaged && speechSplit) splitTurnAtBoundary("speech", false);
 		}
 	});
 

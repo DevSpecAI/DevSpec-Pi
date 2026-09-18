@@ -15,6 +15,10 @@ export interface BondState {
 	codename?: string;
 	/** Attached DevSpec session, when attached (sessionless otherwise). */
 	sessionId?: string;
+	/** Verbatim server attachment fence, not a locally reconstructed Date. */
+	attachedAt?: string;
+	/** Server-owned speech-only epoch; explicit attachment writes rotate it. */
+	speechAttachmentId?: string;
 	/** The attached session's title, learned by the attach-time context fetch. */
 	sessionTitle?: string;
 	/** The bond owner's display name (e.g. "Ali Price") — envelopes say names, not roles. */

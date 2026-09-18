@@ -132,7 +132,7 @@ test("segments deliver per message: each message's answer is its own bubble (b1f
 	s3.userMessage("<background-task-notification>\n  <status>completed</status>\n</background-task-notification>");
 	s3.assistantFinal("That lint receipt is the isolated check that already passed. No further action.");
 	assert.equal(s3.userKind, "harness");
-	assert.deepEqual(planSettle(s3, true), { kind: "none" });
+	assert.deepEqual(planSettle(s3, true), { kind: "final", message: s3.lastAssistantText });
 });
 
 test("a text-only assistant close is a finished answer (f0df6c3e)", () => {
@@ -190,8 +190,8 @@ test("every user-facing text on a tool-carrying message splits into its own bubb
 	silent.userMessage("[DevSpec remote — message from Ali to Wary Wolf]\nhi");
 	assert.equal(shouldSplitSpeech(silent, { text: "", hasToolCalls: true }), false);
 	assert.equal(shouldSplitSpeech(silent, { text: "Ali, I'll check the attachments.", hasToolCalls: false }), false, "text-only closes stay deferred to the next round or settle so the final answer rides complete_turn:true");
-	// Wait-narration never splits, tools or not.
-	assert.equal(shouldSplitSpeech(t, { text: "I'll wait for the suite, then commit. Independent work is done.", hasToolCalls: true }), false);
+	// Actual wait narration is speech too.
+	assert.equal(shouldSplitSpeech(t, { text: "I'll wait for the suite, then commit. Independent work is done.", hasToolCalls: true }), true);
 });
 
 test("typed slash commands stay local — we do not filter a leading /", () => {
@@ -209,7 +209,7 @@ test("typed slash commands stay local — we do not filter a leading /", () => {
 	});
 });
 
-test("leftover [bg completed] / customType is harness: no remirror, no answer", () => {
+test("leftover [bg completed] / customType is harness: no remirror, but actual assistant speech is retained", () => {
 	assert.equal(isHarnessOrigin("[bg completed] Isolated lint (abc123)"), true);
 	assert.equal(isHarnessOrigin("hello", "background-task-notification"), true);
 	assert.equal(isHarnessOrigin("synthetic extension content", "future-extension-message"), true);
@@ -218,7 +218,7 @@ test("leftover [bg completed] / customType is harness: no remirror, no answer", 
 	const xml = new TurnTracker();
 	xml.userMessage("<background-task-notification>\n  <task-id>abc</task-id>\n</background-task-notification>");
 	xml.assistantFinal("That typecheck receipt is the isolated run that already passed. No further action.");
-	assert.deepEqual(planSettle(xml, true), { kind: "none" });
+	assert.deepEqual(planSettle(xml, true), { kind: "final", message: xml.lastAssistantText });
 
 	const typedThenLeftover = new TurnTracker();
 	typedThenLeftover.userMessage("Also just to confirm native tools?");
@@ -243,7 +243,7 @@ test("leftover [bg completed] / customType is harness: no remirror, no answer", 
 	leftover.assistantFinal("That typecheck receipt already passed. No further action.");
 	assert.equal(leftover.userKind, "harness");
 	assert.equal(leftover.shouldMirrorPrompt, false);
-	assert.deepEqual(planSettle(leftover, true), { kind: "none" });
+	assert.deepEqual(planSettle(leftover, true), { kind: "final", message: leftover.lastAssistantText });
 });
 
 test("pi-subagents completion notifications are synthetic, not owner prompts", () => {
@@ -271,7 +271,7 @@ test("pi-subagents completion notifications are synthetic, not owner prompts", (
 	assert.equal(notification.userKind, "harness");
 	assert.equal(notification.shouldMirrorPrompt, false);
 	const notificationPlan = planSettle(notification, true);
-	assert.deepEqual(notificationPlan, { kind: "none" });
+	assert.deepEqual(notificationPlan, { kind: "final", message: notification.lastAssistantText });
 	assert.doesNotMatch(JSON.stringify(notificationPlan), /39192d20|subagent-artifacts|owner-dispatch\.md/);
 
 	const remote = "[DevSpec remote — message from Ali Price to Ivory Koala]\nWhy is this attributed to me?";
@@ -309,17 +309,17 @@ test("display:false DevSpec context injections never remirror as local prompts",
 	recall.assistantFinal("Looking good now, Ali.");
 	assert.equal(recall.userKind, "harness");
 	assert.equal(recall.shouldMirrorPrompt, false);
-	assert.deepEqual(planSettle(recall, true), { kind: "none" });
+	assert.deepEqual(planSettle(recall, true), { kind: "final", message: recall.lastAssistantText });
 
 	const attach = new TurnTracker();
 	attach.userMessage("[DevSpec remote — bond context for Rapid Quokka]\nYou are attached", { customType: "devspec-attach-context" });
 	attach.assistantFinal("ok");
-	assert.deepEqual(planSettle(attach, true), { kind: "none" });
+	assert.deepEqual(planSettle(attach, true), { kind: "final", message: attach.lastAssistantText });
 
 	const orient = new TurnTracker();
 	orient.userMessage("[DevSpec remote — room orientation for Rapid Quokka]\nRecent activity", { customType: "devspec-room-orientation" });
 	orient.assistantFinal("ok");
-	assert.deepEqual(planSettle(orient, true), { kind: "none" });
+	assert.deepEqual(planSettle(orient, true), { kind: "final", message: orient.lastAssistantText });
 
 	// A real owner envelope that quotes the recall heading stays remote.
 	const quoted = new TurnTracker();
@@ -373,7 +373,7 @@ test("wait-narration is process, not a closed answer (15d7aa56)", () => {
 	assert.equal(isWaitNarration("Lint is still running. I’ll push and merge as soon as it finishes."), true);
 });
 
-test("remote wait-narration + bg completed + wrap-up posts the wrap-up, not the wait", () => {
+test("remote wait-narration + bg completed retains each actual close without stealing owner input", () => {
 	const t = new TurnTracker();
 	t.userMessage("[DevSpec remote — message from Ali Price to Drifting Mantis]\nOkay. I reloaded, so let's continue.");
 	assert.equal(t.userKind, "remote");
@@ -382,8 +382,8 @@ test("remote wait-narration + bg completed + wrap-up posts the wrap-up, not the 
 	t.assistantFinal(wait, isClosedAnswer({ text: wait, hasToolCalls: false, stopReason: "stop" }));
 	assert.equal(t.lastCloseWasAnswer, false);
 	assert.equal(isClosedAnswerBoundary(t), false, "wait-narration must not split a bubble");
-	assert.equal(t.lastAssistantText, "", "wait text never becomes the stored answer");
-	assert.equal(t.awaitingFirstAnswer, true);
+	assert.equal(t.lastAssistantText, wait, "actual speech is retained verbatim");
+	assert.equal(t.awaitingFirstAnswer, false);
 
 	// Several wait-splits later, a leftover bg receipt must stay harness and
 	// must not overwrite the live remote turn (60cf5f00 still holds).
@@ -412,14 +412,14 @@ test("bg_run then wait-narration close then [bg completed] posts the wrap-up (6e
 	t.noteBackgroundTask("typecheck-panel");
 	const parked = "Typecheck is still running. I’ll wait for that, then lint, commit, and check the panel in a real browser.";
 	assert.equal(isClosedAnswer({ text: parked, hasToolCalls: false, stopReason: "stop" }), false);
-	assert.equal(t.assistantFinal(parked, false), "process");
-	assert.equal(t.lastCloseWasProcess, true);
+	assert.equal(t.assistantFinal(parked, false), "stored");
+	assert.equal(t.lastCloseWasProcess, false);
 	assert.equal(t.lastCloseWasAnswer, false);
 	assert.equal(isClosedAnswerBoundary(t), false);
 	// No pause any more: the settle delivers nothing new (the opener already
 	// posted) and the turn closes — Working ends instead of spinning.
-	assert.deepEqual(planSettle(t, true), { kind: "none" }, "wait text never settles as the answer");
-	assert.equal(t.lastAssistantText, "");
+	assert.deepEqual(planSettle(t, true), { kind: "final", message: t.lastAssistantText }, "the legacy planner retains actual wait text too");
+	assert.equal(t.lastAssistantText, parked);
 
 	// The completion wake is a NEW harness segment (settle released the old
 	// one); receipt acknowledgements stay trail-only…
@@ -450,7 +450,7 @@ test("a substantive text-only close after bg_run is speech — pending tasks nev
 	assert.equal(isClosedAnswer({ text: report, hasToolCalls: false, stopReason: "stop" }), true);
 	assert.equal(t.assistantFinal(report, true), "stored");
 	assert.equal(t.lastCloseWasProcess, false);
-	assert.deepEqual(planSettle(t, true), { kind: "final", message: report.trim() });
+	assert.deepEqual(planSettle(t, true), { kind: "final", message: report });
 
 	// The wait-class shapes the blanket rule was built for are still process,
 	// via isWaitNarration alone.
@@ -464,7 +464,7 @@ test("new command speech posts normally with inherited background work, then the
 	t.noteBackgroundTask("staging-ci");
 	const parked = "CI is still running. I’ll wait for it before closing the item.";
 	t.assistantFinal(parked, false);
-	assert.equal(t.lastCloseWasProcess, true);
+	assert.equal(t.lastCloseWasProcess, false);
 
 	// The owner interrupts: the new command's first response needs no override
 	// machinery any more — bundled speech splits like any other, and a
@@ -513,7 +513,7 @@ test("background-interrupted local and automation commands answer normally (6f44
 	assert.deepEqual(planSettle(automation, true), { kind: "final", message: automationAnswer });
 });
 
-test("explicit wait narration after a new command remains process-only (6f4424bd)", () => {
+test("explicit wait narration after a new command remains speech (6f4424bd)", () => {
 	const t = new TurnTracker();
 	t.userMessage("[DevSpec remote — message from Ali Price to Honest Crocodile]\nStart checks.");
 	t.noteBackgroundTask("ci");
@@ -521,10 +521,10 @@ test("explicit wait narration after a new command remains process-only (6f4424bd
 	const wait = "CI is still running, Ali. I’ll wait for it, then report the result.";
 	assert.equal(isWaitNarration(wait), true, "addressing Ali does not make a work wait conversational");
 	assert.equal(shouldSplitSpeech(t, { text: wait, hasToolCalls: false }), false);
-	assert.equal(shouldSplitSpeech(t, { text: wait, hasToolCalls: true }), false, "wait-narration never splits a bubble, tools or not");
+	assert.equal(shouldSplitSpeech(t, { text: wait, hasToolCalls: true }), true, "wording does not gate actual speech");
 	t.assistantFinal(wait, false);
-	assert.equal(t.lastCloseWasProcess, true);
-	assert.deepEqual(planSettle(t, true), { kind: "none" });
+	assert.equal(t.lastCloseWasProcess, false);
+	assert.deepEqual(planSettle(t, true), { kind: "final", message: t.lastAssistantText });
 });
 
 test("speech split preserves wait state on the continuation (9b66a177)", () => {
@@ -532,46 +532,46 @@ test("speech split preserves wait state on the continuation (9b66a177)", () => {
 	t.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\ncontinue");
 	t.noteBackgroundTask("typecheck");
 	const wait = "Typecheck is still running. I’ll wait for it, then lint from the worktree and ship.";
-	assert.equal(shouldSplitSpeech(t, { text: wait, hasToolCalls: true }), false, "wait-narration never splits");
+	assert.equal(shouldSplitSpeech(t, { text: wait, hasToolCalls: true }), true, "wording does not gate actual speech");
 	t.assistantFinal(wait, isClosedAnswer({ text: wait, hasToolCalls: true, stopReason: "toolUse" }));
-	assert.equal(t.lastCloseWasProcess, true);
+	assert.equal(t.lastCloseWasProcess, false);
 	assert.equal(t.awaitingBackground, true);
 	const next = new TurnTracker();
 	next.carryUser(t.userText, t);
 	assert.equal(next.awaitingBackground, true);
-	assert.equal(next.lastCloseWasProcess, true);
+	assert.equal(next.lastCloseWasProcess, false);
 	assert.equal(next.lastAssistantText, "");
 	assert.deepEqual(planSettle(next, true), { kind: "none" });
 });
 
-test("empty assistantFinal does not clear lastCloseWasProcess (9b66a177)", () => {
+test("empty assistantFinal does not discard preceding speech (9b66a177)", () => {
 	const t = new TurnTracker();
 	t.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\ncontinue");
 	t.noteBackgroundTask("typecheck");
 	const wait = "Typecheck is still running. I’ll wait for it, then lint from the worktree and ship.";
 	t.assistantFinal(wait, false);
-	assert.equal(t.lastCloseWasProcess, true);
+	assert.equal(t.lastCloseWasProcess, false);
 	t.assistantFinal("");
 	t.assistantFinal("\u200B", true);
-	assert.equal(t.lastCloseWasProcess, true);
+	assert.equal(t.lastCloseWasProcess, false);
 	assert.equal(t.lastCloseWasAnswer, false);
-	assert.deepEqual(planSettle(t, true), { kind: "none" }, "nothing stored — settle closes without a bubble");
+	assert.deepEqual(planSettle(t, true), { kind: "final", message: t.lastAssistantText }, "an empty close does not erase preceding speech");
 });
 
-test("harness [bg completed] keeps lastCloseWasProcess on a live owner turn (9b66a177)", () => {
+test("harness [bg completed] preserves owner identity and resolves background ownership (9b66a177)", () => {
 	const t = new TurnTracker();
 	t.userMessage("[DevSpec remote — message from Ali Price to Lucky Meerkat]\ncontinue");
 	t.noteBackgroundTask("typecheck-header");
 	const wait = "Typecheck is still running. I’ll wait for it, then lint from the worktree and ship.";
 	t.assistantFinal(wait, false);
-	assert.equal(t.lastCloseWasProcess, true);
+	assert.equal(t.lastCloseWasProcess, false);
 	t.userMessage("[bg completed] Typecheck header menu", {
 		customType: "background-task-notification",
 		backgroundTaskId: "typecheck-header",
 	});
 	assert.equal(t.userKind, "remote");
 	assert.equal(t.awaitingBackground, false);
-	assert.equal(t.lastCloseWasProcess, true);
+	assert.equal(t.lastCloseWasProcess, false);
 });
 
 test("speech + bg_run + wait + empty close + [bg completed] posts the wrap-up (9b66a177)", () => {
@@ -585,17 +585,17 @@ test("speech + bg_run + wait + empty close + [bg completed] posts the wrap-up (9
 	next.noteBackgroundTask("typecheck-menu");
 	const wait = "Selection wiring is already there. Typecheck is running; I’ll wait for it, then lint from the worktree and ship.";
 	next.assistantFinal(wait, isClosedAnswer({ text: wait, hasToolCalls: true, stopReason: "toolUse" }));
-	assert.equal(next.lastAssistantText, "");
-	assert.equal(next.lastCloseWasProcess, true);
+	assert.equal(next.lastAssistantText, wait);
+	assert.equal(next.lastCloseWasProcess, false);
 	next.assistantFinal("");
-	assert.equal(next.lastCloseWasProcess, true);
-	assert.deepEqual(planSettle(next, true), { kind: "none" });
+	assert.equal(next.lastCloseWasProcess, false);
+	assert.deepEqual(planSettle(next, true), { kind: "final", message: next.lastAssistantText });
 	next.userMessage("[bg completed] Typecheck header menu", {
 		customType: "background-task-notification",
 		backgroundTaskId: "typecheck-menu",
 	});
 	assert.equal(next.userKind, "remote");
-	assert.equal(next.lastCloseWasProcess, true);
+	assert.equal(next.lastCloseWasProcess, false);
 	const wrapUp = "Ali — slice 3 is on staging. Header Agents menu now shows a working agent’s live headline.";
 	next.assistantFinal(wrapUp, isClosedAnswer({ text: wrapUp, hasToolCalls: false, stopReason: "stop" }));
 	assert.equal(next.lastCloseWasAnswer, true);
@@ -756,7 +756,7 @@ test("2026-09-17 replay: the substantive report settles the turn; delayed bg rec
 	const report = "Done — diagnosed, fixed, shipped, and verified live. The item is recorded as done.\n\n## What was actually wrong\n\n" + "Signal desktop wrote JPEG bytes under a .png filename. ".repeat(40);
 	// The report is speech even with four tasks pending, and the settle posts it.
 	assert.equal(t.assistantFinal(report, true), "stored");
-	assert.deepEqual(planSettle(t, true), { kind: "final", message: report.trim() });
+	assert.deepEqual(planSettle(t, true), { kind: "final", message: report });
 
 	// Each delayed wake is its own harness segment now (the owner segment
 	// settled). Pure receipts stay trail-only and cannot become room content.
@@ -771,8 +771,8 @@ test("2026-09-17 replay: the substantive report settles the turn; delayed bg rec
 		assert.equal(wake.userKind, "harness");
 		assert.equal(wake.harnessSpeechAllowed, true);
 		assert.equal(isReceiptAcknowledgement(receipt), true, `receipt classified: ${receipt.slice(0, 40)}`);
-		assert.equal(wake.assistantFinal(receipt, true), "process");
-		assert.deepEqual(planSettle(wake, true), { kind: "none" }, "receipts never become the room answer");
+		assert.equal(wake.assistantFinal(receipt, true), "stored");
+		assert.deepEqual(planSettle(wake, true), { kind: "final", message: wake.lastAssistantText }, "actual receipt narration is speech, not the input notification");
 	}
 
 	// …but a wake carrying real news (a failed gate, fresh verification) posts.
@@ -793,7 +793,7 @@ test("receipt acknowledgements are short and formulaic; substance always escapes
 	assert.equal(isReceiptAcknowledgement(""), false);
 });
 
-test("only background completions arm harness speech — context injections stay silent (60cf5f00)", () => {
+test("context injections are not owner input but cannot suppress actual assistant output (60cf5f00)", () => {
 	assert.equal(isBackgroundCompletionOrigin("<background-task-notification><task-id>t</task-id><status>completed</status></background-task-notification>", null), true);
 	assert.equal(isBackgroundCompletionOrigin("[bg completed] Lint (abc123)", null), true);
 	assert.equal(isBackgroundCompletionOrigin("anything", "background-task-notification"), true);
@@ -802,13 +802,13 @@ test("only background completions arm harness speech — context injections stay
 	assert.equal(isBackgroundCompletionOrigin("[DevSpec remote — bond context for X]\nYou are attached", "devspec-attach-context"), false);
 	assert.equal(isBackgroundCompletionOrigin("typed text", null), false);
 
-	// A context-injection wake cannot store speech even if the model talks.
+	// Context itself is not speech; actual assistant output still is.
 	const recall = new TurnTracker();
 	recall.userMessage("### DevSpec memory — auto-recall\nMechanically recalled", { customType: "devspec-proactive" });
 	assert.equal(recall.userKind, "harness");
 	assert.equal(recall.harnessSpeechAllowed, false);
-	assert.equal(recall.assistantFinal("Looking good now, Ali.", true), "process");
-	assert.deepEqual(planSettle(recall, true), { kind: "none" });
+	assert.equal(recall.assistantFinal("Looking good now, Ali.", true), "stored");
+	assert.deepEqual(planSettle(recall, true), { kind: "final", message: recall.lastAssistantText });
 });
 
 test("a completion arriving on an already-harness segment still resolves its task (759f2818 live)", () => {
@@ -831,12 +831,12 @@ test("a completion arriving on an already-harness segment still resolves its tas
 	assert.equal(wake.userKind, "harness", "still no remirror/no owner-kind theft");
 });
 
-test("leftover-only [bg completed] still posts no answer (56b9a3b4)", () => {
+test("leftover-only [bg completed] does not suppress actual assistant output (56b9a3b4)", () => {
 	const leftover = new TurnTracker();
 	leftover.userMessage("[bg completed] Isolated typecheck", { customType: "background-task-notification" });
 	leftover.assistantFinal("I'll wait for nothing — that receipt already passed.");
 	assert.equal(leftover.userKind, "harness");
-	assert.deepEqual(planSettle(leftover, true), { kind: "none" });
+	assert.deepEqual(planSettle(leftover, true), { kind: "final", message: leftover.lastAssistantText });
 });
 
 test("only typed automation-run envelopes have remote run identity", () => {

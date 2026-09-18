@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 6580e623885fc072b04a6ae87f9b8ffb3131300d61357c1e40caacf62eb60a37
+ * Schema fingerprint: 2d8bf80d2f14e54bfb2adc25821b09d08edc3c2a2ea4d77d4ab2459eb9dda08c
  * Description fingerprint: f4954ec8d42c9806f1a5da49a04c59e8f55ff157388b38d8dee039b865c5249e
- * Regenerated: 2026-09-17T22:03:48.067Z
+ * Regenerated: 2026-09-18T10:54:18.086Z
  */
-export const MCP_CATALOG_FINGERPRINT = "6580e623885fc072b04a6ae87f9b8ffb3131300d61357c1e40caacf62eb60a37";
+export const MCP_CATALOG_FINGERPRINT = "2d8bf80d2f14e54bfb2adc25821b09d08edc3c2a2ea4d77d4ab2459eb9dda08c";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "f4954ec8d42c9806f1a5da49a04c59e8f55ff157388b38d8dee039b865c5249e";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-17T22:03:48.067Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-18T10:54:18.086Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -4851,6 +4851,25 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "boolean",
 					"description": "Optional. True when this post belongs to a turn the owner started by typing in the local terminal (not a poll-delivered room command). The server admits the trail without requiring an unanswered room dispatch, and opens the turn's source-less activity attempt on demand when none is open yet. Pass alongside command_turn_unbound on every post of a local turn (prompt mirror, trail, answer) for a consistent identity story."
 				},
+				"assistant_source_id": {
+					"type": "string",
+					"format": "uuid",
+					"x-devspec-host-only": true
+				},
+				"expected_session_id": {
+					"type": "string",
+					"format": "uuid",
+					"x-devspec-host-only": true
+				},
+				"expected_attached_at": {
+					"type": "string",
+					"x-devspec-host-only": true
+				},
+				"expected_attachment_id": {
+					"type": "string",
+					"format": "uuid",
+					"x-devspec-host-only": true
+				},
 				"attempt_id": {
 					"type": "string",
 					"format": "uuid",
@@ -6122,6 +6141,38 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"connection_id": {
 					"type": "string"
+				},
+				"speech_scope": {
+					"type": "boolean",
+					"x-devspec-host-only": true
+				},
+				"command_turn_id": {
+					"type": "string",
+					"format": "uuid",
+					"x-devspec-host-only": true
+				},
+				"command_message_id": {
+					"type": "string",
+					"format": "uuid",
+					"x-devspec-host-only": true
+				},
+				"local_turn": {
+					"type": "boolean",
+					"x-devspec-host-only": true
+				},
+				"expected_session_id": {
+					"type": "string",
+					"format": "uuid",
+					"x-devspec-host-only": true
+				},
+				"expected_attached_at": {
+					"type": "string",
+					"x-devspec-host-only": true
+				},
+				"expected_attachment_id": {
+					"type": "string",
+					"format": "uuid",
+					"x-devspec-host-only": true
 				},
 				"attempt_id": {
 					"type": "string",

@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { captureAssistantSpeech, hasAssistantSpeech, ProjectionPostQueue, type SpeechAuthoritySnapshot } from "../extensions/core/assistant-speech.ts";
+import { beginAssistantSpeechSource, captureAssistantSpeech, hasAssistantSpeech, preflightAssistantSpeech, ProjectionPostQueue, type SpeechAuthoritySnapshot } from "../extensions/core/assistant-speech.ts";
 
 const authority = (): SpeechAuthoritySnapshot => ({
 	connectionId: "connection", expectedSessionId: "room", pumpGeneration: 1,
-	connectionCapability: "private-capability",
+	expectedRuntimeGeneration: "12345678-1234-1234-1234-123456789abc",
+	expectedAttachedAt: "2026-09-17T21:09:32.123456Z",
 	source: { kind: "command", commandTurnId: "command", commandMessageId: "owner-message" },
 });
 const assistant = (text: string, stopReason = "stop") => ({ role: "assistant", content: [{ type: "text", text }], stopReason });
@@ -77,15 +78,16 @@ test("authority, exact interaction and model are copied and frozen before asynch
 	const model = { providerID: "provider", modelID: "model" };
 	const speech = captureAssistantSpeech(assistant("answer"), auth, model)!;
 	auth.expectedSessionId = "foreign-room";
-	auth.connectionCapability = "replacement";
+	auth.expectedRuntimeGeneration = "87654321-4321-4321-4321-cba987654321";
 	identity.claimToken = "replacement";
 	model.modelID = "replacement";
 	assert.equal(speech.authority.expectedSessionId, "room");
-	assert.equal(speech.authority.connectionCapability, "private-capability");
+	assert.equal(speech.authority.expectedRuntimeGeneration, "12345678-1234-1234-1234-123456789abc");
 	assert.equal(speech.model?.modelID, "model");
 	assert.equal(speech.authority.source.kind, "interaction");
 	if (speech.authority.source.kind === "interaction") {
-		assert.equal(speech.authority.source.identity.claimToken, "claim");
+		assert.equal(speech.authority.source.identity.responseId, "response");
+		assert.equal("claimToken" in speech.authority.source.identity, false);
 		assert.ok(Object.isFrozen(speech.authority.source.identity));
 	}
 	assert.ok(Object.isFrozen(speech.authority));
@@ -167,4 +169,144 @@ test("drain includes pointer work added while a predecessor is pending", async (
 	second.resolve();
 	await draining;
 	assert.equal(drained, true);
+});
+
+test("begin pins room, epoch, full attachment stamp, consumed command and model before first output and streaming", async () => {
+	const auth = { ...authority(), source: { kind: "command" as const, commandTurnId: "consumed", commandMessageId: "consumed-input" } };
+	const model = { providerID: "provider-A", modelID: "model-A" };
+	const source = beginAssistantSpeechSource(auth, model);
+	const diagnosticSourceId = source.assistantSourceId;
+	// Mutation before an assistant start event: provider request is still pending.
+	auth.expectedSessionId = "room-B";
+	auth.expectedRuntimeGeneration = "87654321-4321-4321-4321-cba987654321";
+	auth.expectedAttachedAt = "2026-09-17T21:09:32.999999Z";
+	auth.source.commandTurnId = "queued-not-consumed";
+	auth.source.commandMessageId = "queued-input";
+	model.modelID = "model-B";
+	await Promise.resolve();
+	// Further mutation during streaming must not become message_end authority.
+	auth.expectedSessionId = "room-C";
+	model.providerID = "provider-C";
+	const captured = source.finalize(assistant("  original room answer 👩‍💻\n"))!;
+	assert.equal(captured.assistantSourceId, diagnosticSourceId);
+	assert.equal(captured.authority.expectedSessionId, "room");
+	assert.equal(captured.authority.expectedRuntimeGeneration, authority().expectedRuntimeGeneration);
+	assert.equal(captured.authority.expectedAttachedAt, "2026-09-17T21:09:32.123456Z");
+	assert.deepEqual(captured.authority.source, { kind: "command", commandTurnId: "consumed", commandMessageId: "consumed-input" });
+	assert.deepEqual(captured.model, { providerID: "provider-A", modelID: "model-A" });
+	assert.ok(Object.isFrozen(source));
+});
+
+test("same token returns exact captured identity and rejects conflicting raw text without leaking it", () => {
+	const source = beginAssistantSpeechSource(authority());
+	const captured = source.finalize(assistant(" private raw text \n"))!;
+	assert.equal(source.finalize(assistant(" private raw text \n", "error")), captured);
+	for (const conflict of ["private raw text", "replacement", "", "\uFE0F"]) {
+		assert.throws(() => source.finalize(assistant(conflict)), { message: "Assistant speech source text conflict." });
+		assert.equal(source.finalize(assistant(" private raw text \n")), captured);
+	}
+	const independent = beginAssistantSpeechSource(authority());
+	assert.notEqual(independent.finalize(assistant(captured.text))!.assistantSourceId, captured.assistantSourceId);
+});
+
+test("non-assistant events do not finalize a source; empty assistant finals seal without bubbles", () => {
+	for (const text of ["", " \n", "\u034F\uFE0F\u{E0100}"]) {
+		const source = beginAssistantSpeechSource(authority());
+		for (const role of ["custom", "user", "toolResult", "system"]) {
+			assert.equal(source.finalize({ ...assistant("not speech"), role }), null);
+		}
+		assert.equal(source.finalize(assistant(text)), null);
+		assert.equal(source.finalize(assistant(text)), null);
+		assert.throws(() => source.finalize(assistant("later speech needs a new source")), /source text conflict/);
+	}
+});
+
+test("partial abort is sealed under its original token; subsequent provider work begins a distinct source", () => {
+	const first = beginAssistantSpeechSource(authority());
+	const partial = first.finalize(assistant("partial 👩‍💻", "aborted"))!;
+	const second = beginAssistantSpeechSource({ ...authority(), expectedSessionId: "next-room" });
+	assert.notEqual(first.assistantSourceId, second.assistantSourceId);
+	const later = second.finalize(assistant("new answer"))!;
+	assert.equal(partial.text, "partial 👩‍💻");
+	assert.equal(partial.authority.expectedSessionId, "room");
+	assert.equal(later.authority.expectedSessionId, "next-room");
+});
+
+test("missing scope or invalid server UUID epoch stays unsupported even if current scope later becomes available", () => {
+	for (const key of ["expectedSessionId", "expectedRuntimeGeneration", "expectedAttachedAt"] as const) {
+		const auth = { ...authority(), [key]: undefined };
+		const source = beginAssistantSpeechSource(auth);
+		auth[key] = authority()[key];
+		const captured = source.finalize(assistant("retained without a grant"))!;
+		assert.deepEqual(captured.authority.source, { kind: "unsupported", reason: "missing_scope" });
+		assert.equal(captured.authority[key], undefined);
+	}
+	for (const epoch of ["1", "2026-09-17", " 12345678-1234-1234-1234-123456789abc "]) {
+		const source = beginAssistantSpeechSource({ ...authority(), expectedRuntimeGeneration: epoch });
+		assert.deepEqual(source.finalize(assistant("retained"))!.authority.source, { kind: "unsupported", reason: "invalid_scope" });
+	}
+	const uppercase = "ABCDEF01-2345-6789-ABCD-EF0123456789";
+	assert.equal(beginAssistantSpeechSource({ ...authority(), expectedRuntimeGeneration: uppercase }).authority.expectedRuntimeGeneration, uppercase);
+});
+
+test("two-phase unsupported-origin capture remains speech without a publication grant", () => {
+	for (const reason of ["notice_publication_unavailable", "unknown_origin"] as const) {
+		const source = beginAssistantSpeechSource({ ...authority(), source: { kind: "unsupported", reason } });
+		assert.deepEqual(source.finalize(assistant("real speech"))!.authority.source, { kind: "unsupported", reason });
+	}
+});
+
+test("source/token JSON excludes capability AND interaction claim tokens even from structurally wider input", () => {
+	const auth = { ...authority(), connectionCapability: "ephemeral-secret", accessToken: "other-secret",
+		source: { kind: "interaction" as const, identity: {
+			attemptId: "attempt", eventId: "event", responseId: "response", claimToken: "private-claim-secret",
+		} },
+	};
+	const model = { providerID: "provider", modelID: "model", connectionCapability: "model-secret" };
+	const source = beginAssistantSpeechSource(auth, model);
+	const captured = source.finalize(assistant("retained text"))!;
+	for (const value of [source, captured]) {
+		assert.doesNotMatch(JSON.stringify(value), /ephemeral-secret|other-secret|model-secret|private-claim-secret|connectionCapability|accessToken|claimToken/);
+		assert.deepEqual(value.authority.source, { kind: "interaction", identity: {
+			attemptId: "attempt", eventId: "event", responseId: "response",
+		} });
+	}
+});
+
+test("preflight accepts exactly 100000 code points; astral and combining text count code points, not UTF16 or graphemes", () => {
+	for (const text of ["a".repeat(100_000), "😀".repeat(100_000), "é".repeat(50_000)]) {
+		const result = preflightAssistantSpeech(text);
+		assert.equal(result.status, "within_budget");
+		assert.equal(result.codePoints, 100_000);
+		assert.equal(result.jsonTextBytes, Buffer.byteLength(JSON.stringify(text), "utf8"));
+		assert.equal(preflightAssistantSpeech(text + "a").status, "over_budget");
+	}
+	assert.deepEqual(preflightAssistantSpeech("a".repeat(99_999)), { status: "within_budget", codePoints: 99_999, jsonTextBytes: 100_001 });
+	assert.equal(preflightAssistantSpeech("😀".repeat(100_000)).jsonTextBytes, 400_002);
+});
+
+test("preflight enforces exact 512000 JSON-encoded UTF8 bytes including escapes and surrounding quotes", () => {
+	// Each control character encodes as six ASCII bytes; source still <100k code points.
+	const atBound = "\u0001".repeat(85_333); // 511998 escaped bytes + two quotes
+	assert.deepEqual(preflightAssistantSpeech(atBound), { status: "within_budget", codePoints: 85_333, jsonTextBytes: 512_000 });
+	assert.deepEqual(preflightAssistantSpeech(atBound + "a"), { status: "over_budget", codePoints: 85_334, jsonTextBytes: 512_001 });
+	assert.equal(preflightAssistantSpeech(atBound.slice(1)).status, "within_budget");
+	for (const [text, bytes] of [['"\\\n\t', 10], ["👩‍💻", 13], ["é", 5], ["字\u{E0100}", 9]] as const) {
+		assert.equal(preflightAssistantSpeech(text).jsonTextBytes, bytes);
+	}
+});
+
+test("budget rejection retains whole frozen source; preflight never claims sent/stored or authorizes unsupported speech", () => {
+	for (const text of ["a".repeat(100_001), "\u0001".repeat(85_334)]) {
+		const source = beginAssistantSpeechSource(authority());
+		const captured = source.finalize(assistant(text))!;
+		const result = preflightAssistantSpeech(captured.text);
+		assert.equal(result.status, "over_budget");
+		assert.equal(captured.text, text);
+		assert.equal(source.finalize(assistant(text)), captured);
+		assert.deepEqual(Object.keys(result).sort(), ["codePoints", "jsonTextBytes", "status"]);
+	}
+	const unsupported = beginAssistantSpeechSource({ ...authority(), expectedRuntimeGeneration: undefined }).finalize(assistant("small"))!;
+	assert.equal(preflightAssistantSpeech(unsupported.text).status, "within_budget");
+	assert.deepEqual(unsupported.authority.source, { kind: "unsupported", reason: "missing_scope" });
 });

@@ -65,3 +65,19 @@ test("failed snapshots stay dirty and stop automatic replay; only acknowledged r
 	successful.finish(successful.begin()!, true);
 	assert.equal(successful.dirty, false);
 });
+
+test("source-aware receipt requires exact source, room, kind and typed storage, never legacy success", () => {
+	const sourceExpected = { ...expected, turnKind: "agent", assistantSourceId: "source-uuid" };
+	const sourceAnswer = { ...answer, assistant_source_id: "source-uuid", complete_turn: false,
+		delivery: { status: "stored", message_id: "message" } };
+	for (const status of ["stored", "idempotently_stored"] as const) {
+		assert.deepEqual(parsePostSessionReceipt(envelope({ ...sourceAnswer,
+			delivery: { status, message_id: "message" } }), sourceExpected), { status, messageId: "message" });
+	}
+	for (const altered of [
+		{ assistant_source_id: "other-source" }, { assistant_source_id: undefined },
+		{ session_id: "foreign-room" }, { turn_kind: "local_prompt" },
+		{ delivery: undefined }, { delivery: { status: "stored", message_id: "other-row" } },
+	]) assert.equal(parsePostSessionReceipt(envelope({ ...sourceAnswer, ...altered }), sourceExpected).status, "malformed");
+	assert.equal(parsePostSessionReceipt(envelope({ ...sourceAnswer, error: "source_content_conflict" }), sourceExpected).status, "rejected");
+});

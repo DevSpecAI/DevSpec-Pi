@@ -214,3 +214,46 @@ test("a failed local prompt is reported even when the answer stores successfully
 	assert.equal(h.requests.length, 2, "one prompt and one answer, not a prompt retry");
 	assert.match(h.warnings[0]!, /local prompt delivery rejected/);
 });
+
+for (const [phase, reason] of [
+	...["stale_generation", "stale_attempt", "attempt_finalized", "no_unanswered_dispatch", "conflict"].map(reason => ["trail", reason]),
+	["answer", "already_finalized"],
+	["needs_input", "connection_ended"],
+]) {
+	test(`MCP isError with structured ${phase}/${reason} receipt reports rejected, never unknown or replayed`, async () => {
+		const raw = { ...envelope({ session_id: "session", connection_id: "connection", phase,
+			skipped: true, noop: true, reason, retryable: false,
+			delivery: { status: reason === "connection_ended" ? "rejected" : "skipped", reason, retryable: false },
+		}), isError: true };
+		assert.equal(parsePostSessionReceipt(raw, { sessionId: "session", connectionId: "connection", phase: phase! }).status, "rejected");
+		const h = harness(async () => raw);
+		assert.equal(await h.postToSession("private speech", { ...bound, phase }), false);
+		assert.equal(h.requests.length, 1);
+		assert.equal(h.requests[0]!.command_turn_id, "command");
+		assert.equal(h.requests[0]!.command_message_id, "source");
+		assert.equal(h.requests[0]!.command_turn_unbound, undefined);
+		assert.equal(h.warnings.length, 1);
+		assert.match(h.warnings[0]!, /delivery rejected/);
+		assert.doesNotMatch(h.warnings[0]!, /unknown/);
+		const failure = h.logs.find(([event]) => event === "post delivery failed")?.[1] as Record<string, boolean>;
+		assert.equal(failure.rejected, true);
+		assert.equal(failure.unknown, false);
+		assert.ok(!h.logs.some(([event]) => event === "post stored"));
+		assert.doesNotMatch(JSON.stringify([h.logs, h.warnings]), /private speech|secret-token|secret-capability|session_id|retryable|stale_generation|stale_attempt|attempt_finalized|no_unanswered_dispatch|conflict|already_finalized|connection_ended/);
+	});
+}
+
+test("lifecycle-only noop_error is successful MCP work but never a content-storage acknowledgement", async () => {
+	const raw = envelope({ session_id: "session", connection_id: "connection", phase: "error",
+		closed_trail_turn: false, noop: true,
+		delivery: { status: "skipped", reason: "noop_error", retryable: false },
+	});
+	const h = harness(async () => raw);
+	const result = await callDevspec("secret-token", "post_session_message", {
+		connection_id: "connection", command_turn_id: "command", command_message_id: "source",
+		phase: "error", message: "cleanup only",
+	}, { lane: "pump", retry: "never" });
+	assert.equal(result, raw);
+	assert.equal(h.requests.length, 1);
+	assert.equal(parsePostSessionReceipt(result, { sessionId: "session", connectionId: "connection", phase: "error" }).status, "skipped");
+});

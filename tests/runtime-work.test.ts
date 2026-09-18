@@ -113,3 +113,31 @@ test("genuine observed idle prohibits resurrecting an ended span even with a lat
 	assert.notEqual(state.currentSpan()?.id, origin.span.id);
 	assert.equal(state.currentSpan()?.startedAt, new Date(now).toISOString());
 });
+
+test("unknown background proof bridges settlement and a new foreground without a clock reset", () => {
+	let now = Date.parse("2026-09-18T00:05:00Z");
+	const state = new RuntimeWorkState(() => now); state.setScope(scope, "connection");
+	const first = state.begin();
+	state.observeBackground(first, { state: "known", activeCount: 1 });
+	const span = state.currentSpan();
+	now += 30_000;
+	state.observeBackground(first, { state: "unknown", activeCount: 0 });
+	state.finish(first);
+	now += 30_000;
+	state.begin();
+	assert.deepEqual(state.currentSpan(), span);
+});
+
+test("expired unknown background proof cannot bridge a later foreground", () => {
+	let now = Date.parse("2026-09-18T00:05:00Z");
+	const state = new RuntimeWorkState(() => now); state.setScope(scope, "connection");
+	const first = state.begin();
+	state.observeBackground(first, { state: "known", activeCount: 1 });
+	const span = state.currentSpan();
+	state.observeBackground(first, { state: "unknown", activeCount: 0 });
+	state.finish(first);
+	now += 5 * 60_000 + 1;
+	state.begin();
+	assert.notDeepEqual(state.currentSpan(), span);
+	assert.equal(state.currentSpan()?.startedAt, new Date(now).toISOString());
+});

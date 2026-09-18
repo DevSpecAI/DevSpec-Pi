@@ -29,10 +29,19 @@ test("only a receipt-owning successful directed-question create requests Pi term
 	assert.ok(tools.indexOf("const projected = unwrapOrThrow") < tools.indexOf("terminate: true as const"));
 });
 
-test("installed Pi termination is batch-safe and stops only an all-terminating tool batch", () => {
+test("installed Pi preserves keep_turn=false end intent without terminating a mixed question/read/work batch", () => {
 	const loop = readFileSync(new URL("../node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-agent-core/dist/agent-loop.js", import.meta.url), "utf8");
-	assert.match(loop, /hasMoreToolCalls = !executedToolBatch\.terminate/);
-	assert.match(loop, /finalizedCalls\.length > 0 && finalizedCalls\.every\(\(finalized\) => finalized\.result\.terminate === true\)/);
+	const from = loop.indexOf("function shouldTerminateToolBatch(");
+	const to = loop.indexOf("function prepareToolCallArguments(", from);
+	assert.ok(from >= 0 && to > from);
+	// Execute the installed SDK decision, not a copied `.every` policy or source pin.
+	const terminateBatch = new Function(`${loop.slice(from, to)}; return shouldTerminateToolBatch`)() as (rows: Array<{ result: { terminate?: boolean } }>) => boolean;
+	const receipt = { details: { question: { transcriptMessageId: "11111111-1111-4111-8111-111111111111" } } };
+	const question = { result: { terminate: shouldTerminateAfterDirectedQuestionCreate("manage_directed_question", { action: "create", keep_turn: false }, receipt) } };
+	assert.equal(question.result.terminate, true, "public end/wait intent is not rewritten");
+	assert.equal(terminateBatch([question]), true);
+	assert.equal(terminateBatch([question, { result: {} }]), false, "read/work sibling must continue; question creation is not settlement");
+	assert.equal(terminateBatch([{ result: { terminate: shouldTerminateAfterDirectedQuestionCreate("manage_directed_question", { action: "create", keep_turn: true }, receipt) } }]), false);
 });
 
 test("exact interaction activity starts before custom persistence and never uses connection-scoped pickup", () => {

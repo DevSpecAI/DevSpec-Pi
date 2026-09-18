@@ -37,6 +37,9 @@ export class RuntimeWorkState {
 	private foreground: RuntimeWorkReport["foreground_state"] = "idle";
 	private background: BackgroundObservation = { state: "unknown", activeCount: 0 };
 	private span: WorkSpan | null = null;
+	/** Same five-minute proof horizon as the server; unknown never renews it. */
+	private backgroundProofExpiresAt: number | null = null;
+	private backgroundObservedAt: number | null = null;
 	private lastIdleAt: number | null = null;
 	private readonly now: () => number;
 	constructor(now: () => number = Date.now) { this.now = now; }
@@ -53,6 +56,8 @@ export class RuntimeWorkState {
 		this.scope = scope ? { ...scope } : null;
 		this.epoch++; this.revision = 0;
 		this.background = { state: "unknown", activeCount: 0 };
+		this.backgroundProofExpiresAt = null;
+		this.backgroundObservedAt = null;
 		// An actually continuous local foreground is fresh same-work evidence.
 		// Background-only restoration needs a fresh exact-root status instead.
 		if (!continuingForeground) this.span = null;
@@ -62,6 +67,7 @@ export class RuntimeWorkState {
 	capture(): RuntimeWorkFence { return { epoch: this.epoch, execution: this.execution }; }
 	isCurrent(fence: RuntimeWorkFence): boolean { return fence.epoch === this.epoch && fence.execution === this.execution; }
 	begin(): RuntimeWorkFence {
+		this.discardUnsupportedSpan();
 		this.execution++;
 		this.executionId ??= randomUUID(); // retry/compaction does not invent a new logical run
 		this.foreground = "working";
@@ -71,13 +77,17 @@ export class RuntimeWorkState {
 	finish(fence: RuntimeWorkFence): boolean {
 		if (!this.isCurrent(fence)) return false;
 		this.executionId = null; this.foreground = "idle";
-		if (this.background.state === "unknown" && this.background.activeCount === 0) this.span = null;
+		this.expireBackgroundObservation();
+		this.discardUnsupportedSpan();
 		this.endKnownIdleSpan();
 		return true;
 	}
 	observeBackground(fence: RuntimeWorkFence, observation: BackgroundObservation, revalidatedSpan?: WorkSpan): boolean {
 		if (!this.isCurrent(fence)) return false;
 		this.background = { ...observation };
+		this.backgroundObservedAt = this.now();
+		if (observation.activeCount > 0) this.backgroundProofExpiresAt = this.now() + 5 * 60_000;
+		else if (observation.state === "known") this.backgroundProofExpiresAt = null;
 		if (observation.activeCount > 0) {
 			if (revalidatedSpan && Number.isFinite(Date.parse(revalidatedSpan.startedAt)) && Date.parse(revalidatedSpan.startedAt) <= this.now() &&
 				(this.lastIdleAt === null || Date.parse(revalidatedSpan.startedAt) > this.lastIdleAt)) {
@@ -88,16 +98,26 @@ export class RuntimeWorkState {
 		this.endKnownIdleSpan();
 		return true;
 	}
-	currentSpan(): WorkSpan | null { return this.span ? { ...this.span } : null; }
+	currentSpan(): WorkSpan | null { this.discardUnsupportedSpan(); return this.span ? { ...this.span } : null; }
 	currentExecutionId(): string | null { return this.executionId; }
-	isWorking(): boolean { return this.foreground === "working" || this.background.activeCount > 0; }
+	isWorking(): boolean { this.expireBackgroundObservation(); return this.foreground === "working" || this.background.activeCount > 0; }
 	/** Called synchronously at send capture. An old request can only carry an older revision. */
 	report(): RuntimeWorkReport | null {
 		if (!this.scope) return null;
+		this.expireBackgroundObservation();
+		this.discardUnsupportedSpan();
 		return { ...this.scope, revision: ++this.revision,
 			foreground_execution_id: this.executionId, foreground_state: this.foreground,
 			background_state: this.background.state, background_active_count: this.background.activeCount,
 			work_span_id: this.span?.id ?? null, work_started_at: this.span?.startedAt ?? null };
+	}
+	private expireBackgroundObservation(): void {
+		if (this.backgroundObservedAt === null || this.now() - this.backgroundObservedAt >= 5 * 60_000) {
+			this.background = { state: "unknown", activeCount: 0 };
+		}
+	}
+	private discardUnsupportedSpan(): void {
+		if (this.foreground !== "working" && (this.backgroundProofExpiresAt ?? 0) <= this.now()) this.span = null;
 	}
 	private ensureSpan(): void { this.span ??= { id: randomUUID(), startedAt: new Date(this.now()).toISOString() }; }
 	private endKnownIdleSpan(): void {

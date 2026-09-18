@@ -17,6 +17,7 @@ class FakeBus implements SubagentEventBus {
 		omitted: 0,
 	};
 	capability = true;
+	asyncSnapshot: unknown;
 
 	on(event: string, handler: (data: unknown) => void): () => void {
 		const listeners = this.handlers.get(event) ?? new Set();
@@ -39,7 +40,7 @@ class FakeBus implements SubagentEventBus {
 				success: true,
 				data: method === "ping"
 					? { capabilities: this.capability ? { fleetStatus: { version: 1 } } : {} }
-					: { fleet: this.fleet, text: "private terminal rendering must not be parsed" },
+					: { fleet: this.fleet, asyncSnapshot: this.asyncSnapshot, text: "private terminal rendering must not be parsed" },
 			}));
 			return;
 		}
@@ -170,4 +171,21 @@ test("overflow is explicit and malformed or unsupported DTOs fail to the generic
 	assert.equal(await absent.refresh(), null);
 	assert.equal(absentBus.requests.length, 1, "an absent optional extension is not polled repeatedly");
 	absent.dispose();
+});
+
+
+test("root status counts public async roots once and never interprets opaque fleet keys", async () => {
+	const bus = new FakeBus();
+	bus.fleet = { version: 1, entries: [{ key: "not-a-run-id" }], totalActive: 7, omitted: 0 };
+	bus.asyncSnapshot = { kind: "pi-subagents.async-status-snapshot", version: 1,
+		omitted: { runs: 0, children: 0, byteLimitExceeded: false },
+		runs: [{ id: "owned-root", state: "running", label: "private", children: [{ id: "child", state: "running" }] }] };
+	const client = new SubagentFleetClient(bus);
+	assert.deepEqual(await client.rootStatus(), { tasks: [{ id: "owned-root", status: "running" }], complete: true });
+	bus.asyncSnapshot = { kind: "pi-subagents.async-status-snapshot", version: 1,
+		omitted: { runs: 1, children: 0, byteLimitExceeded: false }, runs: [] };
+	assert.deepEqual(await client.rootStatus(), { tasks: [], complete: false });
+	bus.asyncSnapshot = undefined;
+	assert.equal(await client.rootStatus(), null);
+	client.dispose();
 });

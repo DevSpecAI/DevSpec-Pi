@@ -113,6 +113,7 @@ export class OwnedBackgroundTasks<Scope> {
 	}
 
 	scopeFor(taskId: string): Scope | undefined { return this.owned.get(taskId)?.scope; }
+	statusFor(taskId: string): BackgroundTaskState | undefined { return this.owned.get(taskId)?.status; }
 
 	observe(snapshot: BackgroundTaskStatus[] | null, belongs: (scope: Scope) => boolean): BackgroundObservation {
 		if (snapshot === null) return { state: "unknown", activeCount: 0 };

@@ -163,6 +163,34 @@ export class SubagentFleetClient {
 		return this.startLoad();
 	}
 
+	/** Public root projection only; fleet display keys are never interpreted as identities. */
+	async rootStatus(): Promise<{ tasks: import("./background-work.ts").BackgroundTaskStatus[]; complete: boolean } | null> {
+		if (this.disposed) return null;
+		const value = asRecord(await this.request("status"));
+		if (this.disposed) return null;
+		if (value?.version !== 1 || value.success !== true) return null;
+		const data = asRecord(value.data);
+		const snapshot = asRecord(data?.asyncSnapshot);
+		const omitted = asRecord(snapshot?.omitted);
+		if (snapshot?.kind !== "pi-subagents.async-status-snapshot" || snapshot.version !== 1 || !Array.isArray(snapshot.runs) || snapshot.runs.length > 4096) return null;
+		const tasks: import("./background-work.ts").BackgroundTaskStatus[] = [];
+		let uncertainRoot = false;
+		const rootIds = new Set<string>();
+		for (const raw of snapshot.runs) {
+			const root = asRecord(raw);
+			if (typeof root?.id !== "string" || !root.id || root.id.length > 200 || root.id !== root.id.trim() || rootIds.has(root.id)) return null;
+			rootIds.add(root.id);
+			if (typeof root.state !== "string" || !["queued", "running", "complete", "failed", "partial", "paused", "stopped", "rejected"].includes(root.state)) return null;
+			// Paused can be an interrupted root OR a workflow waiting on a live
+			// child's supervisor. This bounded root DTO does not prove terminality.
+			if (root.state === "paused") { uncertainRoot = true; continue; }
+			tasks.push({ id: root.id, status: root.state === "queued" || root.state === "running" ? "running" : root.state === "complete" ? "completed" : root.state === "stopped" ? "killed" : "failed" });
+		}
+		if (new Set(tasks.map(task => task.id)).size !== tasks.length) return null;
+		const fleet = asRecord(data?.fleet);
+		return { tasks, complete: !uncertainRoot && omitted?.runs === 0 && omitted.byteLimitExceeded === false && !(tasks.length === 0 && Number(fleet?.totalActive) > 0) };
+	}
+
 	dispose(): void {
 		if (this.disposed) return;
 		this.disposed = true;

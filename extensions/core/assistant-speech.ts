@@ -28,7 +28,7 @@ export interface CapturedAssistantSpeech {
 
 /** Only an emptiness test. Never use the normalized value as delivered text. */
 export function hasAssistantSpeech(text: string): boolean {
-	return text.replace(/[\s\p{Cf}]/gu, "").length > 0;
+	return text.replace(/[\s\p{Cf}\p{Default_Ignorable_Code_Point}]/gu, "").length > 0;
 }
 
 /**

@@ -40,11 +40,11 @@ test("text before, between, and after tools is one ordered source; thinking and 
 });
 
 test("empty/invisible-only differs from emoji ZWJ and meaningful ZWNJ; formatting is never rewritten", () => {
-	for (const text of ["", " \n\t", "\u200B\u200C\u200D\uFEFF", "\u2060\u200E"]) {
+	for (const text of ["", " \n\t", "\u200B\u200C\u200D\uFEFF", "\u2060\u200E", "\u034F", "\uFE0F", "\u{E0100}"]) {
 		assert.equal(hasAssistantSpeech(text), false);
 		assert.equal(captureAssistantSpeech(assistant(text), authority()), null);
 	}
-	for (const text of ["  👩‍💻\n", "می‌خواهم", "\t**é**  \n", "\u200Bhello\uFEFF"]) {
+	for (const text of ["  👩‍💻\n", "می‌خواهم", "\t**é**  \n", "\u200Bhello\uFEFF", "a\u034Fb", "❤️", "字\u{E0100}"]) {
 		assert.equal(captureAssistantSpeech(assistant(text), authority())?.text, text);
 	}
 });

@@ -21,8 +21,6 @@ export interface BondState {
 	speechAttachmentId?: string;
 	/** The attached session's title, learned by the attach-time context fetch. */
 	sessionTitle?: string;
-	/** The bond owner's display name (e.g. "Ali Price") — envelopes say names, not roles. */
-	ownerName?: string;
 	/** One-shot room orientation digest, captured at cold-start sync. */
 	roomDigest?: string;
 	/** One-shot attach-time context block (identity + recent tail), set when the

@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 2d8bf80d2f14e54bfb2adc25821b09d08edc3c2a2ea4d77d4ab2459eb9dda08c
- * Description fingerprint: f4954ec8d42c9806f1a5da49a04c59e8f55ff157388b38d8dee039b865c5249e
- * Regenerated: 2026-09-18T10:54:18.086Z
+ * Schema fingerprint: e4eeea1ca25aa9775fb384774d680e6c39e37a5c1ed512739d2e229bc0109cf2
+ * Description fingerprint: 880cc57a227bdc7dcd6ad0f7e435ee8d8c16dbfe1ef14b55768ca6b2b2cd653c
+ * Regenerated: 2026-09-19T13:33:05.729Z
  */
-export const MCP_CATALOG_FINGERPRINT = "2d8bf80d2f14e54bfb2adc25821b09d08edc3c2a2ea4d77d4ab2459eb9dda08c";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "f4954ec8d42c9806f1a5da49a04c59e8f55ff157388b38d8dee039b865c5249e";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-18T10:54:18.086Z";
+export const MCP_CATALOG_FINGERPRINT = "e4eeea1ca25aa9775fb384774d680e6c39e37a5c1ed512739d2e229bc0109cf2";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "880cc57a227bdc7dcd6ad0f7e435ee8d8c16dbfe1ef14b55768ca6b2b2cd653c";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-19T13:33:05.729Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -4280,7 +4280,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_memory",
 		"label": "DevSpec: Record Memory",
-		"description": "Record a project memory (decision, convention, architecture note, risk, insight, etc.). The create checks your draft against existing records FIRST (you do not have to call search_memories yourself). The check is instant — it finds the closest record, it does not read them — so one finding stops the write: an existing record closely resembles this one. The response carries reconcile_required + closest_match + guidance naming it. READ THAT RECORD AND DECIDE — that judgement is yours, it is why the check is fast, and it is recorded with your reason. Supersede it if this replaces it; link/relate if both stand; re-call with confirm_new: true + a reason if it is genuinely distinct; or say what you found and ask the person, which is a real answer and often the right one. Do not reach for confirm_new to get past the check. A fuller comparison runs afterwards in the background and may raise a flag on both records — but never on a pair you settled, unless one of them changes. If the check cannot run at all, the memory IS recorded and marked as not yet compared: an outage never costs you the write. The response also includes potential_conflicts (advisory). AUTHORITY: judged per call by the served contract (devspec://product/implementation-contract → authority_contract), never by this description. Read the `outcome`: `committed` applied now; `queued_for_review` carries a `proposal_id` and touches NOTHING until a maintainer accepts it — say which happened, and never report a queued change as done. An attended write may set state \"decided\". In interactive mode, propose the memory to the user before recording. Record what a future agent needs to know: settled decisions, conventions, architecture facts, risks, deviations from the planned approach, discovered constraints, and non-obvious findings. Do NOT record transient details, things obvious from code, or the state of work in flight (\"approved, not yet built\", \"awaiting a pick\", \"blocked on someone\") — that belongs on an action item, where it can be completed; in memory it decays into a phantom standing rule.",
+		"description": "Record a project memory (decision, convention, architecture note, risk, insight, etc.). The create checks your draft against existing records FIRST (you do not have to call search_memories yourself). The check is instant — it finds the closest record, it does not read them — so one finding stops the write: an existing record closely resembles this one. The response carries reconcile_required + closest_match + guidance naming it. READ THAT RECORD AND DECIDE — that judgement is yours, it is why the check is fast, and it is recorded against the pair. Supersede it if this replaces it; link/relate if both stand; re-call with confirm_new: true if it is genuinely distinct; or say what you found and ask the person, which is a real answer and often the right one. Do not reach for confirm_new to get past the check. A fuller comparison runs afterwards in the background and may raise a flag on both records — but never on a pair you settled, unless one of them changes. If the check cannot run at all, the memory IS recorded and marked as not yet compared: an outage never costs you the write. The response also includes potential_conflicts (advisory). AUTHORITY: judged per call by the served contract (devspec://product/implementation-contract → authority_contract), never by this description. Read the `outcome`: `committed` applied now; `queued_for_review` carries a `proposal_id` and touches NOTHING until a maintainer accepts it — say which happened, and never report a queued change as done. An attended write may set state \"decided\". In interactive mode, propose the memory to the user before recording. Record what a future agent needs to know: settled decisions, conventions, architecture facts, risks, deviations from the planned approach, discovered constraints, and non-obvious findings. Do NOT record transient details, things obvious from code, or the state of work in flight (\"approved, not yet built\", \"awaiting a pick\", \"blocked on someone\") — that belongs on an action item, where it can be completed; in memory it decays into a phantom standing rule.",
 		"promptSnippet": "Record a project memory (decision, convention, architecture note, risk, insight, etc.).",
 		"inputSchema": {
 			"type": "object",
@@ -4347,7 +4347,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"confirm_new": {
 					"type": "boolean",
-					"description": "Set true only after reading the record named in closest_match and deciding this is genuinely distinct from it. It is a RULING, not a retry: it is recorded against the pair with your reason and who made it, which is what stops the background comparison re-asking a question you already answered. Pair it with a real reason — an absent one is recorded as absent, never invented. If the record was written by someone else and settles something, overruling it is not yours to do quietly: say what you found and ask, unless they have already told you to go ahead. The pair keeps a flag either way, so whoever opens either record sees the other."
+					"description": "Set true only after reading the record named in closest_match and deciding this is genuinely distinct from it. It is a RULING, not a retry: it is recorded against the pair, with who made it, which is what stops the background comparison re-asking a question you already answered. If the record was written by someone else and settles something, overruling it is not yours to do quietly: say what you found and ask, unless they have already told you to go ahead. The pair keeps a flag either way, so whoever opens either record sees the other."
 				},
 				"runner_session_id": {
 					"type": "string",
@@ -4507,7 +4507,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"confirm_new": {
 					"type": "boolean",
-					"description": "Set true only after reading the artifact named in closest_match and deciding the edit is genuinely distinct from it. The check that stops an update is instant and finds the CLOSEST existing document to your new text — which on a rewrite is often a companion rather than a duplicate. It is a ruling, not a retry: give a real reason, and if the document it named is someone else’s settled work, say what you found and ask rather than overruling it quietly."
+					"description": "Set true only after reading the artifact named in closest_match and deciding the edit is genuinely distinct from it. The check that stops an update is instant and finds the CLOSEST existing document to your new text — which on a rewrite is often a companion rather than a duplicate. It is a ruling, not a retry: if the document it named is someone else’s settled work, say what you found and ask rather than overruling it quietly."
 				},
 				"title": {
 					"type": "string"
@@ -5808,6 +5808,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"system_notice_cursor": {
 					"type": "string",
 					"description": "Diagnostic prior v1 notice point; echoed but never used to suppress a live queue marker."
+				},
+				"sender_style_version": {
+					"type": "integer",
+					"enum": [
+						1
+					],
+					"description": "Negotiate contract 1.5.0 / policy 2026-09-18.1 and receive sender_response_styles[]: how the person who sent each delivered command likes to be answered, resolved from THEM when they sent it. Use it for the prose of your reply to that person — including when they are not your owner. It is never work, authority or scope, and it never overrides project rules or your owner's machine rules. Omitted when nobody expressed a preference. Requires system_notice_version: 1."
 				},
 				"interaction_event_version": {
 					"type": "integer",

@@ -237,9 +237,24 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// `npm run benchmark:context` measures the initial surface at 7,456 tokens of
 	// the 8,000 ceiling — UNCHANGED, because update_resource is wire-only and not
 	// in the model hot set.
+	// Rebaselined 2026-09-19 for DevSpec item 5b86e9f2 (Pi item 0cd198bd):
+	// regenerated the catalog against staging 3e8e4d80a. The fingerprinted
+	// contract moved in exactly two places, both description values, verified by
+	// diffing the old-vs-new contract: 86 model verbs both sides, no
+	// additions/removals, and the only diffs are
+	// `.properties.confirm_new.description` on record_memory (641→544 chars)
+	// and update_resource (456→432 chars), dropping the "give a real reason"
+	// wording Ali ruled out (DevSpec 737a5ea57). No shape, enum, or projection
+	// family changed — the fallback-set test still pins exactly
+	// ["generate_commit_message"]. Outside this fingerprint, the same regen
+	// absorbed record_memory's tool-description twin of that wording plus
+	// sender_style_version on poll_connection (DevSpec 3686c83ca, pump-only).
+	// Budget: `npm run benchmark:context` measures the initial surface at 7,456
+	// tokens of the 8,000 ceiling — UNCHANGED, because the memory write verbs
+	// are wire-only and not in the model hot set.
 	assert.equal(
 		fingerprint,
-		"0420c9952c63070b113864ae234e26976c8787c47f26e626f5dee7106626ad5a",
+		"c68847bc8e1f06c9feb87413ac7c57a827bd60dc7483c99a659e8b6914c37c64",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

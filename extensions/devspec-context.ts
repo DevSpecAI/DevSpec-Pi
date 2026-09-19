@@ -12,8 +12,8 @@ import { getBond } from "./core/bond-state.ts";
 import { buildDevspecInstructions } from "./core/instructions.ts";
 import { noteInjectedContext, noteStaticContextBudget } from "./core/context-budget.ts";
 
-/** Extra block while this session is bonded as remote capacity. */
-function buildBondedInstructions(): string | null {
+/** Extra block while this session is bonded as remote capacity. Exported for unit tests (byte-stability pins). */
+export function buildBondedInstructions(): string | null {
 	const bond = getBond();
 	if (!bond) return null;
 	// Identity is named, never discovered (item 9dcbd157): the room's title +
@@ -37,7 +37,9 @@ function buildBondedInstructions(): string | null {
 	const tiers = bond.instructions ?? {};
 	if (tiers.project_custom_instructions) lines.push(`Project principles: ${tiers.project_custom_instructions}`);
 	if (tiers.project_agent_rules) lines.push(`Project agent rules (mandatory): ${tiers.project_agent_rules}`);
-	if (tiers.owner_custom_instructions) lines.push(`Owner style: ${tiers.owner_custom_instructions}`);
+	// Response style is NOT a system-prompt tier (item 6a511dab): it rides
+	// each delivered command on the per-message rail, so a preference edit
+	// never alters this block and the prefix cache stays stable.
 	if (tiers.owner_agent_rules) lines.push(`Owner machine rules: ${tiers.owner_agent_rules}`);
 	return lines.join("\n");
 }

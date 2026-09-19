@@ -8,6 +8,7 @@ import { TurnTracker, shouldSplitSpeech, isClosedAnswer } from "../extensions/co
 import { extractAssistantParts, TrailBuilder } from "../extensions/core/trail.ts";
 import { unwrapMcpResult } from "../extensions/core/result.ts";
 import { parsePostSessionReceipt, TrailDeliveryState } from "../extensions/core/post-session-receipt.ts";
+import { formatSenderStyleRepair, REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE, senderStyleRepairNeeded } from "../extensions/core/remote-payload.ts";
 
 const source = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 const speech = source.slice(source.indexOf("const assistantSpeechQueue ="), source.indexOf("// Per-turn telemetry"));
@@ -37,6 +38,7 @@ function harness(gate?: Promise<void>, receipt?: (args: Record<string, unknown>)
 		DevspecToolError: Error, safeHasUI: () => true, notify: (_ctx: unknown, warning: string) => warnings.push(warning),
 		trackTerminalPost: (post: Promise<void>) => posts.push(post), debug() {}, telemetry: { addMessageUsage() {} },
 		INTERACTION_EVENT_CUSTOM_TYPE: "interaction", QUESTION_DISMISSAL_EVENT_CUSTOM_TYPE: "dismissal", splitTurnAtBoundary() { throw new Error("speech split execution"); },
+		activeCommandStyles: new Map(), senderStyleRepairNeeded, formatSenderStyleRepair, REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE,
 		remoteRunActivityPolicy: () => ({ reportTranscript: true }), FINAL_TRAIL_CHARS: 100000,
 		planSettle() { throw new Error("legacy speech planner called"); }, isCommandTurnUnbound: () => false,
 		postToSession: async (_text: string, opts: { phase?: string }) => { assert.equal(opts.phase, "trail"); return true; },
@@ -154,4 +156,28 @@ test("sources ignore non-assistant/empty content, preserve concatenation, and re
 	assert.equal(assistantSpeechWithinBudget("x".repeat(100001)), false);
 	assert.equal(assistantSpeechWithinBudget("\u0001".repeat(85333)), true);
 	assert.equal(assistantSpeechWithinBudget("\u0001".repeat(85334)), false);
+});
+
+test("context hook re-attaches a styled turn's response style only when its delivery context is gone", async () => {
+	const h = harness();
+	const styles = [{ id: "command-message", responseStyleNotes: ["Talk to me like a person talking aloud."] }];
+	(h.sandbox.activeCommandStyles as Map<string, unknown>).set("command", styles);
+	// Delivery context present: no-op, hook returns undefined.
+	const present = await h.hooks.context({ messages: [{ role: "user" }, { role: "custom", customType: "devspec-remote-ingress-context" }] }, h.ctx);
+	assert.equal(present, undefined);
+	// Delivery context gone (compacted away): repair appends a style-only message.
+	const repaired: any = await h.hooks.context({ messages: [{ role: "user" }] }, h.ctx);
+	assert.equal(repaired.messages.length, 2);
+	const repair = repaired.messages[1];
+	assert.equal(repair.role, "custom");
+	assert.equal(repair.customType, "devspec-remote-ingress-context");
+	assert.equal(repair.display, false);
+	assert.ok(String(repair.content).includes("command turn:command"));
+	assert.ok(String(repair.content).includes("Talk to me like a person talking aloud."));
+});
+
+test("context hook never repairs without an active styled turn", async () => {
+	const h = harness();
+	const out = await h.hooks.context({ messages: [{ role: "user" }] }, h.ctx);
+	assert.equal(out, undefined);
 });

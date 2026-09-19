@@ -129,7 +129,7 @@ test("automation retry revalidation cannot cross recovered connection authority"
 
 test("canonical parser output stays independent from automation dispatch and control paths", () => {
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
-	assert.match(pump, /parsePollPayload\(payload, active\.connectionIdentity, \{ systemNoticeNegotiated \}\)/);
+	assert.match(pump, /parsePollPayload\(payload, active\.connectionIdentity, \{ systemNoticeNegotiated, senderStyleNegotiated \}\)/);
 	assert.match(pump, /pkg\.ownerBundle/);
 	assert.match(pump, /pkg\.control/);
 	assert.match(pump, /for \(const dispatch of dispatches\) enqueueAutomationRun/);
@@ -197,7 +197,7 @@ test("all send modes use the same visible bundle binding and idle retains hidden
 	const beforeStart = bodyBetween('pi.on("before_agent_start"', 'pi.on("message_start"');
 	assert.match(beforeStart, /commandTurnBindings\.peek\(event\.prompt\)/);
 	assert.match(beforeStart, /appendActivePlanTail\(\s*appendActivePlanTail\(canonicalQueueItem\?\.hiddenContent \?\? "", planTail\),\s*pollTail/s);
-	assert.match(beforeStart, /customType: canonicalQueueItem \? "devspec-remote-ingress-context" : "devspec-active-session-plans"/);
+	assert.match(beforeStart, /customType: canonicalQueueItem \? REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE : "devspec-active-session-plans"/);
 	assert.match(beforeStart, /content: hiddenContent/);
 	assert.match(beforeStart, /display: false/);
 });
@@ -246,4 +246,21 @@ test("auto-bond surfaces a failed register instead of staying silent", () => {
 	assert.match(start, /auto-bonded as \$\{outcome\.codename/);
 	assert.match(start, /auto-bond failed: \$\{outcome\.error\}/);
 	assert.match(start, /outcome\.errorKind === "auth" \? "warning" : "error"/);
+});
+
+test("main Pi poll negotiates sender style with system notices and keeps styles in force per LLM call", () => {
+	const calls = [...source.matchAll(/callDevspec\([^]*?"poll_connection"[^]*?\{([^]*?)\}, \{/gu)];
+	// Sender style rides the same negotiated spread: the server requires
+	// system_notice_version: 1 as its prerequisite (item 6a511dab).
+	assert.match(calls[2]![1], /system_notice_version: 1[^]*sender_style_version: 1/);
+	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
+	assert.match(pump, /const senderStyleNegotiated = systemNoticeNegotiated/);
+	assert.match(pump, /parsePollPayload\(payload, active\.connectionIdentity, \{ systemNoticeNegotiated, senderStyleNegotiated \}\)/);
+	assert.match(pump, /activeCommandStyles\.set\(hydrated\.commandTurnId, deliveredStyles\)/);
+	const context = bodyBetween('pi.on("context"', 'pi.on("turn_start"');
+	assert.match(context, /senderStyleRepairNeeded\(event\.messages, true\)/);
+	assert.match(context, /formatSenderStyleRepair\(styledTurnId, styledCommands\)/);
+	const clears = [...source.matchAll(/activeCommandStyles\.clear\(\);/g)];
+	assert.equal(clears.length, 4, "style state clears everywhere bindings clear");
+	assert.match(source, /activeCommandStyles\.delete\(commandTurnId\)/);
 });

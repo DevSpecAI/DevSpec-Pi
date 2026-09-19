@@ -9,7 +9,10 @@ import {
 	formatCanonicalDeliveryContext,
 	formatInboundBundleMessage,
 	formatIngressAdvisoryContext,
+	formatSenderResponseStyles,
+	formatSenderStyleRepair,
 	parsePollPayload,
+	senderStyleRepairNeeded,
 } from "../extensions/core/remote-payload.ts";
 import { classifyUserKind } from "../extensions/core/turn-lifecycle.ts";
 import { canonicalPoll, DELEGATED_PROJECT_INSTRUCTION, IDS, TEST_CONNECTION } from "./canonical-ingress-fixture.ts";
@@ -256,12 +259,15 @@ test("all typed actor context binds to exact command identities without duplicat
 
 test("envelope with an unknown top-level section still parses and delivers its commands", () => {
 	const payload = canonicalPoll();
-	(payload.ingress as Record<string, unknown>).sender_response_styles = { policy: "v1" };
+	// NOTE (item 6a511dab): this test formerly used sender_response_styles as
+	// its example unknown section; that section is now implemented, so the
+	// example moved to a still-unknown name. The skip behavior is unchanged.
+	(payload.ingress as Record<string, unknown>).future_section_v99 = { policy: "v1" };
 	const pkg = parsePollPayload(payload, ME);
 	assert.equal(pkg.canonicalState, "valid");
 	assert.equal(pkg.ownerBundle?.commands.length, 1);
 	assert.equal(pkg.ownerBundle?.commands[0]?.text, "do the exact thing");
-	assert.deepEqual(pkg.unknownEnvelopeSections, ["sender_response_styles"]);
+	assert.deepEqual(pkg.unknownEnvelopeSections, ["future_section_v99"]);
 });
 
 test("unknown wake kind still fails closed: new delivery semantics are a major version", () => {
@@ -477,4 +483,173 @@ test("injected command text carries unique delivery identity, so terminal text c
 		assert.ok(injected.includes(`message:${command.id}`));
 		assert.ok(injected.includes(`--- end command:${command.id} ---`));
 	}
+});
+
+const STYLE_15 = { systemNoticeNegotiated: true, senderStyleNegotiated: true };
+const NOTE_A1 = "Response-style preference set by Owner Name, who sent this message.";
+const NOTE_A2 = "Talk to me like a person talking aloud. Be brief.";
+const NOTE_B1 = "Antworte auf Deutsch, kurz und direkt.";
+
+function styleEntry(messageId: string, notes: unknown) {
+	return { message_id: messageId, notes };
+}
+
+test("negotiated sender styles attach to their delivered commands on contract 1.5.0", () => {
+	const payload = canonicalPoll({
+		bodies: ["first command", "second command"],
+		senderStyleNegotiated: true,
+		senderResponseStyles: [
+			styleEntry(IDS.command, [NOTE_A1, NOTE_A2]),
+			styleEntry(IDS.command2, [NOTE_B1]),
+		],
+	});
+	assert.equal(payload.ingress.contract_version, "1.5.0");
+	assert.equal(payload.ingress.policy_version, "2026-09-18.1");
+	const pkg = parsePollPayload(payload, ME, STYLE_15);
+	assert.equal(pkg.canonicalState, "valid");
+	assert.equal(pkg.ownerBundle?.commands.length, 2);
+	// Each command carries its own sender's notes: a message from someone who
+	// is not the connection owner is answered in that sender's style.
+	assert.deepEqual(pkg.ownerBundle!.commands[0].responseStyleNotes, [NOTE_A1, NOTE_A2]);
+	assert.deepEqual(pkg.ownerBundle!.commands[1].responseStyleNotes, [NOTE_B1]);
+	assert.equal(pkg.unboundSenderStyleIds, undefined);
+});
+
+test("negotiated-but-absent sender styles parse clean: the server omits the section when empty", () => {
+	const payload = canonicalPoll({ senderStyleNegotiated: true });
+	assert.ok(!("sender_response_styles" in payload.ingress));
+	const pkg = parsePollPayload(payload, ME, STYLE_15);
+	assert.equal(pkg.canonicalState, "valid");
+	assert.equal(pkg.ownerBundle?.commands[0].responseStyleNotes, undefined);
+});
+
+test("unnegotiated sender styles are rejected: negotiation is honored", () => {
+	const payload = canonicalPoll({ senderResponseStyles: [styleEntry(IDS.command, [NOTE_A1])] });
+	const pkg = parsePollPayload(payload, ME);
+	assert.equal(pkg.canonicalState, "invalid");
+	assert.match(pkg.canonicalError ?? "", /negotiation/);
+});
+
+test("contract 1.5.0 on the unnegotiated lane is rejected, not silently accepted", () => {
+	// Pi-side of the a845df00 lesson: the lane asked for and the lane stamped
+	// must agree, or the server's own envelope shape is suspect. No styles
+	// section here so the version gate is what fires (the negotiation gate
+	// fires first when the section is present — pinned by the test above).
+	const payload = canonicalPoll({ senderStyleNegotiated: true });
+	const pkg = parsePollPayload(payload, ME, { systemNoticeNegotiated: true });
+	assert.equal(pkg.canonicalState, "invalid");
+	assert.match(pkg.canonicalError ?? "", /contract_version/);
+});
+
+test("preserved 1.4.0 lane parses without styles and stays the tested default", () => {
+	const pkg = parsePollPayload(canonicalPoll(), ME);
+	assert.equal(pkg.canonicalState, "valid");
+	assert.equal(pkg.ownerBundle?.commands[0].responseStyleNotes, undefined);
+});
+
+test("malformed sender styles fail closed", () => {
+	const cases: Array<[string, unknown]> = [
+		["empty notes", [styleEntry(IDS.command, [])]],
+		["too many notes", [styleEntry(IDS.command, Array.from({ length: 9 }, (_, i) => `note ${i}`))]],
+		["empty note", [styleEntry(IDS.command, [""])]],
+		["non-string note", [styleEntry(IDS.command, [42])]],
+		["non-uuid message id", [styleEntry("not-a-uuid", [NOTE_A1])]],
+		["non-array section", { message_id: IDS.command, notes: [NOTE_A1] }],
+		["extra key in entry", [{ ...styleEntry(IDS.command, [NOTE_A1]), governs: "everything" }]],
+	];
+	for (const [name, styles] of cases) {
+		const payload = canonicalPoll({ senderStyleNegotiated: true, senderResponseStyles: styles as unknown[] });
+		const pkg = parsePollPayload(payload, ME, STYLE_15);
+		assert.equal(pkg.canonicalState, "invalid", name);
+	}
+});
+
+test("unbound style entries are reported and skipped; commands still deliver", () => {
+	// Binding is lenient by design (item 6a511dab): styles must never wedge
+	// the commands they arrived with.
+	const payload = canonicalPoll({
+		senderStyleNegotiated: true,
+		senderResponseStyles: [
+			styleEntry(IDS.command, [NOTE_A1]),
+			styleEntry(IDS.humanContext, [NOTE_B1]),
+		],
+	});
+	const pkg = parsePollPayload(payload, ME, STYLE_15);
+	assert.equal(pkg.canonicalState, "valid");
+	assert.deepEqual(pkg.ownerBundle?.commands[0].responseStyleNotes, [NOTE_A1]);
+	assert.deepEqual(pkg.unboundSenderStyleIds, [IDS.humanContext]);
+});
+
+test("duplicate style entries for one command resolve last-wins", () => {
+	const payload = canonicalPoll({
+		senderStyleNegotiated: true,
+		senderResponseStyles: [
+			styleEntry(IDS.command, [NOTE_A1]),
+			styleEntry(IDS.command, [NOTE_B1]),
+		],
+	});
+	const pkg = parsePollPayload(payload, ME, STYLE_15);
+	assert.equal(pkg.canonicalState, "valid");
+	assert.deepEqual(pkg.ownerBundle?.commands[0].responseStyleNotes, [NOTE_B1]);
+	assert.equal(pkg.unboundSenderStyleIds, undefined);
+});
+
+test("delivery context renders per-command style blocks verbatim", () => {
+	const bundle = parsePollPayload(canonicalPoll({
+		bodies: ["first command", "second command"],
+		senderStyleNegotiated: true,
+		senderResponseStyles: [
+			styleEntry(IDS.command, [NOTE_A1, NOTE_A2]),
+			styleEntry(IDS.command2, [NOTE_B1]),
+		],
+	}), ME, STYLE_15).ownerBundle!;
+	const hidden = formatCanonicalDeliveryContext(bundle, []);
+	assert.match(hidden, new RegExp(`response_style_for:${IDS.command}:`));
+	assert.ok(hidden.includes(NOTE_A1));
+	assert.ok(hidden.includes(NOTE_A2));
+	assert.match(hidden, new RegExp(`end_response_style_for:${IDS.command}`));
+	assert.match(hidden, new RegExp(`response_style_for:${IDS.command2}:`));
+	assert.ok(hidden.includes(NOTE_B1));
+	// Style rides the hidden typed context only — never the visible command text.
+	const visible = formatInboundBundleMessage(bundle);
+	assert.doesNotMatch(visible, /response_style_for/);
+	assert.ok(!visible.includes(NOTE_A1));
+
+	const plain = parsePollPayload(canonicalPoll(), ME).ownerBundle!;
+	assert.doesNotMatch(formatCanonicalDeliveryContext(plain, []), /response_style_for/);
+});
+
+test("sender style serializer emits one block per styled command, nothing otherwise", () => {
+	assert.equal(formatSenderResponseStyles([]), "");
+	assert.equal(formatSenderResponseStyles([{ id: IDS.command }]), "");
+	const out = formatSenderResponseStyles([
+		{ id: IDS.command, responseStyleNotes: [NOTE_A1] },
+		{ id: IDS.command2 },
+	]);
+	assert.ok(out.includes(`response_style_for:${IDS.command}:`));
+	assert.ok(out.includes(NOTE_A1));
+	assert.ok(out.includes(`end_response_style_for:${IDS.command}`));
+	assert.ok(!out.includes(IDS.command2));
+});
+
+test("sender style repair fires only when a styled turn is active and its context is gone", () => {
+	const delivery = { role: "custom", customType: "devspec-remote-ingress-context" };
+	const other = { role: "custom", customType: "devspec-active-session-plans" };
+	const user = { role: "user" };
+	assert.equal(senderStyleRepairNeeded([], false), false);
+	assert.equal(senderStyleRepairNeeded([user], false), false);
+	assert.equal(senderStyleRepairNeeded([user, delivery], true), false);
+	assert.equal(senderStyleRepairNeeded([user, other], true), true);
+	assert.equal(senderStyleRepairNeeded([], true), true);
+	assert.equal(senderStyleRepairNeeded([{ role: "custom" }], true), true);
+});
+
+test("sender style repair names the turn and carries its notes", () => {
+	const out = formatSenderStyleRepair(IDS.turn, [
+		{ id: IDS.command, responseStyleNotes: [NOTE_A1, NOTE_A2] },
+	]);
+	assert.ok(out.includes(`command turn:${IDS.turn}`));
+	assert.ok(out.includes(NOTE_A1));
+	assert.ok(out.includes(NOTE_A2));
+	assert.ok(out.includes(`response_style_for:${IDS.command}:`));
 });

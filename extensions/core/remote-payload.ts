@@ -31,6 +31,12 @@ const CONTRACT_VERSION = "1.4.0";
 const POLICY_VERSION = "2026-08-22.1";
 const PRESERVED_CONTRACT_VERSION = "1.3.0";
 const PRESERVED_POLICY_VERSION = "2026-08-21.1";
+// Sender-style lane (item 6a511dab): negotiated contract 1.5.0 carries an
+// optional sender_response_styles section. Versions stay per-lane constants
+// so the stamps cannot drift apart (server lesson a845df00).
+const SENDER_STYLE_VERSION = 1;
+const SENDER_STYLE_CONTRACT_VERSION = "1.5.0";
+const SENDER_STYLE_POLICY_VERSION = "2026-09-18.1";
 const DELEGATED_PROJECT_POLICY_ID = "delegated_project_v1";
 const SYSTEM_NOTICE_VERSION = 1;
 const SYSTEM_NOTICE_KIND = "unlinked_commit_item_review";
@@ -50,6 +56,7 @@ const SYSTEM_NOTICE_ALLOWED_TOOLS = [
 	"resolve_action_item_conflict",
 ] as const;
 const MAX_COMMANDS_PER_ENVELOPE = 128;
+const MAX_SENDER_STYLE_NOTES = 8;
 const MAX_CONTEXT_ENTRIES_PER_BUCKET = 500;
 const MAX_SYSTEM_NOTICES_PER_ENVELOPE = 25;
 const MAX_SYSTEM_NOTICE_TEXT_CHARS = 500;
@@ -103,7 +110,7 @@ export interface IngressTypedContext {
 }
 
 export interface IngressBoundedMetadata {
-	policy_version: typeof POLICY_VERSION | typeof PRESERVED_POLICY_VERSION;
+	policy_version: typeof POLICY_VERSION | typeof PRESERVED_POLICY_VERSION | typeof SENDER_STYLE_POLICY_VERSION;
 	returned: number;
 	total_known: number | null;
 	source_window: { start: IngressOrderPoint | null; end: IngressOrderPoint | null };
@@ -128,6 +135,12 @@ export interface DelegatedProjectScope {
 	instruction: string;
 }
 
+/** One sender's response-style notes, keyed to the delivered command they govern. */
+export interface SenderResponseStyle {
+	message_id: string;
+	notes: string[];
+}
+
 export interface OwnerCommand {
 	/** Exact complete canonical command body. Never trimmed or reconstructed. */
 	text: string;
@@ -138,6 +151,12 @@ export interface OwnerCommand {
 	commandTurnId: string;
 	attachments?: IngressAttachment[];
 	attachmentNotes?: string;
+	/**
+	 * Per-message response-style notes for this command (item 6a511dab).
+	 * Set at parse from the negotiated sender_response_styles section; absent
+	 * when the sender expressed no preference or the lane is unnegotiated.
+	 */
+	responseStyleNotes?: string[];
 	order: IngressOrderPoint;
 	requester: { user_id: string; display_name: string | null };
 	authority: {
@@ -203,6 +222,8 @@ export interface PollPackage {
 	control?: unknown;
 	/** Strict negotiated 1.3 inventory. Null means authoritative no active plans. */
 	activeSessionPlans?: ActiveSessionPlansProjection | null;
+	/** Style entries that named no delivered command; the pump debug-logs them (item 6a511dab). */
+	unboundSenderStyleIds?: string[];
 	/** Top-level advisory session_polls on changed packages. */
 	sessionPolls?: SessionPollsProjectionV1;
 	/** Top-level this-session Still to Discuss snapshot on changed packages. */
@@ -372,6 +393,23 @@ function systemNoticeCursor(value: unknown, path: string): string | undefined {
 	return parsed;
 }
 
+function senderResponseStyle(value: unknown, path: string): SenderResponseStyle {
+	const row = record(value, path);
+	exactKeys(row, ["message_id", "notes"], path);
+	const messageId = uuid(row.message_id, `${path}.message_id`);
+	if (!Array.isArray(row.notes)) fail(`${path}.notes`, "expected array");
+	if (row.notes.length < 1 || row.notes.length > MAX_SENDER_STYLE_NOTES) fail(`${path}.notes`, "expected 1..8 notes");
+	const notes = row.notes.map((note, index) => string(note, `${path}.notes[${index}]`));
+	return { message_id: messageId, notes };
+}
+
+function senderResponseStyleArray(value: unknown, path: string): SenderResponseStyle[] {
+	if (!Array.isArray(value)) fail(path, "expected array");
+	// Entries name delivered commands, so the command bound is the natural one.
+	if (value.length > MAX_COMMANDS_PER_ENVELOPE) fail(path, "sender style set exceeds safe bound");
+	return value.map((entry, index) => senderResponseStyle(entry, `${path}[${index}]`));
+}
+
 function attachment(value: unknown, path: string): IngressAttachment {
 	const row = record(value, path);
 	const materialization = oneOf(row.materialization, ["metadata", "unavailable"] as const, `${path}.materialization`);
@@ -493,7 +531,7 @@ function typedContext(value: unknown, path: string): IngressTypedContext {
 function boundedMetadata(
 	value: unknown,
 	path: string,
-	expectedPolicyVersion: typeof POLICY_VERSION | typeof PRESERVED_POLICY_VERSION,
+	expectedPolicyVersion: typeof POLICY_VERSION | typeof PRESERVED_POLICY_VERSION | typeof SENDER_STYLE_POLICY_VERSION,
 ): IngressBoundedMetadata {
 	const row = record(value, path);
 	exactKeys(row, ["policy_version", "returned", "total_known", "source_window", "truncated", "has_more", "next_cursor", "fetch_id", "omission_reason"], path);
@@ -626,6 +664,8 @@ interface ParsedEnvelope {
 	control?: unknown;
 	systemNotices: SystemNoticeV1[];
 	activeSessionPlans: ActiveSessionPlansProjection | null;
+	/** Style entries that named no delivered command: reported, never wedging (item 6a511dab). */
+	unboundSenderStyleIds: string[];
 	/** Top-level sections this parser skipped as unknown (item 4183bd89). */
 	unknownSections?: string[];
 	advisoryContext: IngressAdvisoryContext;
@@ -635,8 +675,10 @@ function parseEnvelope(
 	value: unknown,
 	expectedConnection: RemoteConnectionIdentity,
 	systemNoticeNegotiated: boolean,
+	senderStyleNegotiated: boolean,
 ): ParsedEnvelope {
 	const row = record(value, "ingress");
+	if (senderStyleNegotiated && !systemNoticeNegotiated) fail("ingress", "sender style requires negotiated system notices");
 	// A section this Pi does not implement is NOT a reason to reject the envelope
 	// (DevSpec item 4183bd89, mirroring 689d44cb for the contract document). Every
 	// section named below still has to be present and exactly the shape this parser
@@ -645,15 +687,22 @@ function parseEnvelope(
 	// because accepting unnegotiated content would break the version contract (a845df00).
 	const noticeKey = systemNoticeNegotiated ? ["system_notices"] : [];
 	if (!systemNoticeNegotiated && row.system_notices !== undefined) fail("ingress.system_notices", "notice section requires request negotiation");
+	if (!senderStyleNegotiated && row.sender_response_styles !== undefined) fail("ingress.sender_response_styles", "style section requires request negotiation");
 	const requiredEnvelopeKeys = ["kind", "schema_version", "contract_version", "policy_version", "envelope_id", "connection", "wake", "delivery_state", "command_message_ids", "commands", "control", "context", ...noticeKey, "window"];
 	for (const key of requiredEnvelopeKeys) {
 		if (!Object.hasOwn(row, key)) fail("ingress", `expected ${key}`);
 	}
-	const unknownSections = extraKeys(row, [...requiredEnvelopeKeys, "active_session_plans"]);
+	// sender_response_styles is optional-but-known like active_session_plans:
+	// the server omits it when no sender expressed a preference.
+	const unknownSections = extraKeys(row, [...requiredEnvelopeKeys, "active_session_plans", "sender_response_styles"]);
 	if (row.kind !== "devspec.remote_ingress") fail("ingress.kind", "unknown ingress kind");
 	if (row.schema_version !== SCHEMA_VERSION) fail("ingress.schema_version", "unknown schema version");
-	const expectedContractVersion = systemNoticeNegotiated ? CONTRACT_VERSION : PRESERVED_CONTRACT_VERSION;
-	const expectedPolicyVersion = systemNoticeNegotiated ? POLICY_VERSION : PRESERVED_POLICY_VERSION;
+	const expectedContractVersion = senderStyleNegotiated
+		? SENDER_STYLE_CONTRACT_VERSION
+		: systemNoticeNegotiated ? CONTRACT_VERSION : PRESERVED_CONTRACT_VERSION;
+	const expectedPolicyVersion = senderStyleNegotiated
+		? SENDER_STYLE_POLICY_VERSION
+		: systemNoticeNegotiated ? POLICY_VERSION : PRESERVED_POLICY_VERSION;
 	if (row.contract_version !== expectedContractVersion) fail("ingress.contract_version", "unknown or mismatched contract version");
 	if (row.policy_version !== expectedPolicyVersion) fail("ingress.policy_version", "unknown or mismatched policy version");
 	const envelopeId = uuid(row.envelope_id, "ingress.envelope_id");
@@ -702,6 +751,22 @@ function parseEnvelope(
 			fail("ingress.commands", "command delta must preserve one immutable turn primary");
 		}
 	}
+	// Bind sender styles to delivered commands (item 6a511dab). Shape is
+	// strict (above); binding is lenient by design: a style entry that names
+	// no delivered command cannot shape any reply, but it must never wedge
+	// the commands it arrived with. Unbound entries are reported for
+	// diagnosis and skipped. Duplicate entries for one command resolve
+	// last-wins; the server sends at most one by invariant.
+	const senderStyles = senderStyleNegotiated && row.sender_response_styles !== undefined
+		? senderResponseStyleArray(row.sender_response_styles, "ingress.sender_response_styles")
+		: [];
+	const styleByCommand = new Map<string, string[]>();
+	for (const entry of senderStyles) styleByCommand.set(entry.message_id, entry.notes);
+	const unboundSenderStyleIds = [...styleByCommand.keys()].filter((id) => !commandIdSet.has(id)).sort();
+	for (const item of commands) {
+		const notes = styleByCommand.get(item.id);
+		if (notes) item.responseStyleNotes = notes;
+	}
 	let parsedControl: unknown;
 	if (row.control === null) {
 		if (wakeKind === "control") fail("ingress.control", "control payload required for control wake");
@@ -732,7 +797,7 @@ function parseEnvelope(
 		: parseActiveSessionPlansProjection(row.active_session_plans);
 	const advisoryContext = { envelopeId, context, window };
 	for (const item of commands) item.advisoryContext = advisoryContext;
-	return { envelopeId, connection, wakeKind, wakeActive, deliveryState, commands, control: parsedControl, systemNotices, activeSessionPlans, ...(unknownSections.length > 0 ? { unknownSections } : {}), advisoryContext };
+	return { envelopeId, connection, wakeKind, wakeActive, deliveryState, commands, control: parsedControl, systemNotices, activeSessionPlans, unboundSenderStyleIds, ...(unknownSections.length > 0 ? { unknownSections } : {}), advisoryContext };
 }
 
 function contextEntryCount(context: IngressTypedContext): number {
@@ -742,6 +807,8 @@ function contextEntryCount(context: IngressTypedContext): number {
 export interface PollParseOptions {
 	/** Exact capability sent on the request that produced this response. */
 	systemNoticeNegotiated: boolean;
+	/** Sender-style lane: requests contract 1.5.0. Defaults off so the preserved 1.4.0 lane stays the tested default. */
+	senderStyleNegotiated?: boolean;
 }
 
 /** Parse a negotiated poll payload. Canonical ingress failures never wake or advance either live cursor. */
@@ -756,6 +823,7 @@ export function parsePollPayload(
 	const dispatchCount = Array.isArray(outer.dispatches) ? outer.dispatches.length : 0;
 	try {
 		const systemNoticeNegotiated = options.systemNoticeNegotiated;
+		const senderStyleNegotiated = options.senderStyleNegotiated ?? false;
 		if (systemNoticeNegotiated) {
 			if (outer.system_notice_version !== SYSTEM_NOTICE_VERSION) fail("system_notice_version", "expected negotiated version 1");
 		} else if (outer.system_notice_version !== undefined || outer.system_notice_cursor !== undefined || outer.system_notices !== undefined) {
@@ -783,7 +851,7 @@ export function parsePollPayload(
 
 		const topLevelAddressee = addressee(outer.addressed_to, "addressed_to");
 		if (!sameAddressee(topLevelAddressee, expectedConnection)) fail("addressed_to", "top-level addressee does not equal the frozen bonded connection");
-		const envelope = parseEnvelope(outer.ingress, expectedConnection, systemNoticeNegotiated);
+		const envelope = parseEnvelope(outer.ingress, expectedConnection, systemNoticeNegotiated, senderStyleNegotiated);
 		if (!sameAddressee(topLevelAddressee, envelope.connection)) fail("addressed_to", "top-level and canonical addressees differ");
 		if (JSON.stringify(topLevelNotices) !== JSON.stringify(envelope.systemNotices)) fail("system_notices", "top-level and canonical notice sets differ");
 		const cursorV2 = typeof outer.cursor_v2 === "string" && outer.cursor_v2.length > 0 ? outer.cursor_v2 : undefined;
@@ -830,6 +898,7 @@ export function parsePollPayload(
 			...(sessionPolls ? { sessionPolls } : {}),
 			...(stillToDiscuss ? { stillToDiscuss } : {}),
 			...(envelope.unknownSections ? { unknownEnvelopeSections: envelope.unknownSections } : {}),
+			...(envelope.unboundSenderStyleIds.length > 0 ? { unboundSenderStyleIds: envelope.unboundSenderStyleIds } : {}),
 			canonicalState: "valid",
 			...(contextEntryCount(envelope.advisoryContext.context) > 0 ? { advisoryContext: envelope.advisoryContext } : {}),
 		};
@@ -911,6 +980,58 @@ export function formatInboundBundleMessage(bundle: OwnerCommandBundle): string {
 	return lines.join("\n");
 }
 
+/** Hidden delivery context message type: the canonical turn's typed data rides it. */
+export const REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE = "devspec-remote-ingress-context";
+
+/**
+ * Serialize per-command response-style notes (item 6a511dab). Notes render
+ * verbatim — server-selected from the sender's authenticated profile, framed
+ * by the block markers, same trust as the command bodies they travel with.
+ * Returns "" when no command carries notes.
+ */
+export function formatSenderResponseStyles(
+	commands: readonly Pick<OwnerCommand, "id" | "responseStyleNotes">[],
+): string {
+	const lines: string[] = [];
+	for (const command of commands) {
+		if (!command.responseStyleNotes) continue;
+		lines.push(
+			`response_style_for:${command.id}:`,
+			...command.responseStyleNotes,
+			`end_response_style_for:${command.id}`,
+		);
+	}
+	return lines.join("\n");
+}
+
+/**
+ * Repair decision for the per-LLM-call context check (item 6a511dab,
+ * criterion 38280c99). Pure for testing: repair only when a styled command
+ * turn is active AND its delivery context is no longer in the messages
+ * (compacted away). Never repeats while present, so no growth and the
+ * prefix cache stays stable in the common case.
+ */
+export function senderStyleRepairNeeded(
+	messages: readonly { role?: unknown; customType?: unknown }[],
+	styleTurnActive: boolean,
+): boolean {
+	if (!styleTurnActive) return false;
+	return !messages.some((message) =>
+		message.role === "custom" && message.customType === REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE);
+}
+
+/** Compact re-attachment of a still-active turn's styles (see above). */
+export function formatSenderStyleRepair(
+	commandTurnId: string,
+	commands: readonly Pick<OwnerCommand, "id" | "responseStyleNotes">[],
+): string {
+	return [
+		`[DevSpec remote — response style still in force for command turn:${commandTurnId}]`,
+		"The active command turn's delivery context is no longer present in this context. These response-style notes still govern the prose of your reply when you answer:",
+		formatSenderResponseStyles(commands),
+	].join("\n");
+}
+
 /** Hidden typed data injected by before_agent_start in the same model turn. */
 export function formatCanonicalDeliveryContext(
 	bundle: OwnerCommandBundle,
@@ -945,6 +1066,8 @@ export function formatCanonicalDeliveryContext(
 				`end_delegated_project_instruction_for:${command.id}`,
 			);
 		}
+		const responseStyle = formatSenderResponseStyles([command]);
+		if (responseStyle) lines.push(responseStyle);
 	}
 	for (const context of contexts) lines.push(formatIngressAdvisoryContext(context, bundle.primaryCommand));
 	return lines.join("\n");

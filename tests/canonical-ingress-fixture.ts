@@ -184,6 +184,8 @@ export function canonicalPoll(options: {
 	stillToDiscuss?: ReturnType<typeof stillToDiscussProjection> | null;
 	systemNotices?: unknown[];
 	systemNoticeNegotiated?: boolean;
+	senderStyleNegotiated?: boolean;
+	senderResponseStyles?: unknown[];
 } = {}) {
 	const connectionId = options.connectionId ?? IDS.connection;
 	const delegated = options.delegated ?? false;
@@ -193,6 +195,7 @@ export function canonicalPoll(options: {
 	const bodies = options.bodies ?? [options.body ?? "do the exact thing"];
 	const systemNotices = options.systemNotices ?? [];
 	const systemNoticeNegotiated = options.systemNoticeNegotiated ?? true;
+	const senderStyleNegotiated = options.senderStyleNegotiated ?? false;
 	const messageIds = [IDS.command, IDS.command2];
 	const provenanceRefs = [IDS.provenance, IDS.provenance2];
 	const commands = liveCommand ? bodies.map((body, index) => ({
@@ -243,7 +246,7 @@ export function canonicalPoll(options: {
 	const context = { ...defaultContext, ...options.context };
 	const rows = [...Object.values(context).flat(), ...commands] as Array<{ order: ReturnType<typeof stamp> }>;
 	const window = options.window ?? {
-		policy_version: systemNoticeNegotiated ? "2026-08-22.1" : "2026-08-21.1",
+		policy_version: senderStyleNegotiated ? "2026-09-18.1" : systemNoticeNegotiated ? "2026-08-22.1" : "2026-08-21.1",
 		returned: rows.length,
 		total_known: rows.length,
 		source_window: rows.length > 0 ? { start: rows[0].order, end: rows[rows.length - 1].order } : { start: null, end: null },
@@ -280,8 +283,8 @@ export function canonicalPoll(options: {
 		ingress: {
 			kind: "devspec.remote_ingress",
 			schema_version: 1,
-			contract_version: systemNoticeNegotiated ? "1.4.0" : "1.3.0",
-			policy_version: systemNoticeNegotiated ? "2026-08-22.1" : "2026-08-21.1",
+			contract_version: senderStyleNegotiated ? "1.5.0" : systemNoticeNegotiated ? "1.4.0" : "1.3.0",
+			policy_version: senderStyleNegotiated ? "2026-09-18.1" : systemNoticeNegotiated ? "2026-08-22.1" : "2026-08-21.1",
 			envelope_id: IDS.envelope,
 			connection: addressedTo,
 			wake: {
@@ -296,6 +299,7 @@ export function canonicalPoll(options: {
 			context,
 			...(options.activePlans ? { active_session_plans: options.activePlans } : {}),
 			...(systemNoticeNegotiated ? { system_notices: systemNotices } : {}),
+			...(options.senderResponseStyles ? { sender_response_styles: options.senderResponseStyles } : {}),
 			window,
 		},
 	};

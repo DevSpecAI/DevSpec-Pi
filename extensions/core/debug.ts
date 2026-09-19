@@ -64,6 +64,8 @@ const DEBUG_FIELDS = {
 	"push wake": [],
 	recall: ["queryChars", "newHits"],
 	"recall failed": ["errorPresent"],
+	"sender style repair": ["commands"],
+	"sender styles without a delivered command": ["count"],
 	"session agenda error": ["errorPresent"],
 	"session agenda fetch failed": ["resultChars"],
 	"session enriched": ["titlePresent", "ownerPresent", "tail", "agenda", "attachContext"],

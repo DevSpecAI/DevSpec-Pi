@@ -157,7 +157,7 @@ import {
 } from "./core/interaction-events.ts";
 import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
 import { loadSettings, saveSettings } from "./core/settings.ts";
-import { decideInteractionDelivery, decideOwnerDelivery, waitUntil } from "./core/preempt.ts";
+import { decideInteractionDelivery, decideOwnerDelivery, shouldClearStrandedBusyAfterAbort, waitUntil } from "./core/preempt.ts";
 import {
 	SeenOwnerCommands,
 	sendModeAtSendTime,
@@ -2302,8 +2302,24 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 						{ timeoutMs: 8_000, intervalMs: 50 },
 					);
 					debug("preempt", { settled });
+					if (shouldClearStrandedBusyAfterAbort({ settled, ctxIdle: ctx.isIdle(), occupancyBusy: active.runtimeOccupancy.isBusy(), pumpBusy: active.busy })) {
+						// The abort landed but settle accounting never ran (item 3f07f97b):
+						// nothing is running, so busy is stranded, not live. Clear it so
+						// the event can apply instead of deferring forever.
+						active.busy = false;
+						void beatBusy(false);
+						debug("preempt: cleared stranded busy after unsettled abort");
+					}
 				} else {
 					debug("interaction preempt already aborted for event; awaiting idle");
+					if (shouldClearStrandedBusyAfterAbort({ settled: false, ctxIdle: ctx.isIdle(), occupancyBusy: active.runtimeOccupancy.isBusy(), pumpBusy: active.busy })) {
+						// Same recovery for a wedge that formed before this fix (item
+						// 3f07f97b): no fresh abort ran this lap, but nothing is running
+						// and busy is set, so it is stranded all the same.
+						active.busy = false;
+						void beatBusy(false);
+						debug("preempt: cleared stranded busy after unsettled abort");
+					}
 				}
 				if (pump !== active || active.stop) continue;
 			}

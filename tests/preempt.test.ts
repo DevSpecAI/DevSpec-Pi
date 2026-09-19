@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { decideInteractionDelivery, decideOwnerDelivery, sendModeFor, waitUntil } from "../extensions/core/preempt.ts";
+import { decideInteractionDelivery, decideOwnerDelivery, sendModeFor, shouldClearStrandedBusyAfterAbort, waitUntil } from "../extensions/core/preempt.ts";
 
 test("idle owner messages deliver immediately", () => {
 	assert.equal(
@@ -125,4 +125,36 @@ test("a pending answer aborts at most once across busy laps, then applies at idl
 	}
 	// Idle lap: no abort needed; the answer path applies (decide says apply).
 	assert.equal(decideInteractionDelivery({ idle: true, preemptEnabled: true, hasEvent: true }), "apply");
+});
+
+test("unsettled abort with nothing running clears stranded busy (3f07f97b)", () => {
+	// Live wedge 2026-09-18: preempt aborted, settle never ran, ctx idle and no
+	// occupancy, yet pump busy stayed true — every lap deferred the same event.
+	assert.equal(
+		shouldClearStrandedBusyAfterAbort({ settled: false, ctxIdle: true, occupancyBusy: false, pumpBusy: true }),
+		true,
+	);
+});
+
+test("stranded-busy clear fires only when busy is provably stale (3f07f97b)", () => {
+	// A completed settle owns busy accounting; never second-guess it.
+	assert.equal(
+		shouldClearStrandedBusyAfterAbort({ settled: true, ctxIdle: true, occupancyBusy: false, pumpBusy: true }),
+		false,
+	);
+	// A still-running model keeps busy, however long the wait ran.
+	assert.equal(
+		shouldClearStrandedBusyAfterAbort({ settled: false, ctxIdle: false, occupancyBusy: false, pumpBusy: true }),
+		false,
+	);
+	// Held occupancy (a settling run) keeps busy.
+	assert.equal(
+		shouldClearStrandedBusyAfterAbort({ settled: false, ctxIdle: true, occupancyBusy: true, pumpBusy: true }),
+		false,
+	);
+	// An already-idle pump needs no recovery.
+	assert.equal(
+		shouldClearStrandedBusyAfterAbort({ settled: false, ctxIdle: true, occupancyBusy: false, pumpBusy: false }),
+		false,
+	);
 });

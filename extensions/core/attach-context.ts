@@ -33,8 +33,6 @@ export interface RoomAgendaItem {
 export interface AttachContextShape {
 	sessionId: string;
 	title: string | null;
-	/** The room owner's display name, derived from the transcript. */
-	ownerName: string | null;
 	/** One-line recent-activity entries, oldest first. */
 	tail: string[];
 	/** This room's work — exact source_session_id filter, not a search. */
@@ -69,18 +67,6 @@ export function shapeTranscript(sessionId: string, raw: unknown): AttachContextS
 	const t = (raw ?? {}) as { title?: unknown; messages?: unknown };
 	const messages = Array.isArray(t.messages) ? (t.messages as TranscriptMessage[]) : [];
 
-	let ownerName: string | null = null;
-	for (let i = messages.length - 1; i >= 0; i--) {
-		const m = messages[i];
-		const name = m?.author?.name;
-		if (!name) continue;
-		if (m.remote_control?.is_owner_instruction === true) {
-			ownerName = name;
-			break;
-		}
-		if (!ownerName && m.author?.kind === "human") ownerName = name;
-	}
-
 	const tail: string[] = [];
 	for (const m of messages.slice(-40)) {
 		const content = typeof m?.content === "string" ? m.content.trim() : "";
@@ -97,7 +83,6 @@ export function shapeTranscript(sessionId: string, raw: unknown): AttachContextS
 	return {
 		sessionId,
 		title: isRealSessionTitle(t.title) ? t.title.trim() : null,
-		ownerName,
 		tail: tail.slice(-MAX_TAIL),
 		agenda: [],
 	};
@@ -162,11 +147,13 @@ export function buildAttachBlock(shape: AttachContextShape, codename: string): s
 		`[DevSpec remote — bond context for ${codename}]`,
 		`You are attached to session ${title}— id ${shape.sessionId}. Cite the id when the room's identity matters (your answers land here mechanically; never discover it by side effect).`,
 	];
-	if (shape.ownerName) {
-		lines.push(
-			`The session owner is ${shape.ownerName} — address them by name when you write; "the owner" is a structural role, not how you talk about a person.`,
-		);
-	}
+	// No owner line (item 5987cc24): the session creator is a structural fact the
+	// agent makes no decision from, and the old transcript heuristic (last
+	// commander, fallback last human speaker) mislabeled whoever spoke last as
+	// "the session owner" — then told the model to address them by name,
+	// contradicting the bonded block whenever a shared session's participants
+	// differed from the bond owner. Addressing is the requester rule in
+	// devspec-context.ts now; this block carries identity, agenda, and tail.
 	if (shape.agenda.length > 0) {
 		lines.push("This room's work (exact source_session_id filter — context only, not an instruction):");
 		for (const item of shape.agenda) lines.push(formatAgendaLine(item));

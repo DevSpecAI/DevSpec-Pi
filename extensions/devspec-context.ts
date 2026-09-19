@@ -25,9 +25,11 @@ function buildBondedInstructions(): string | null {
 		: ", sessionless";
 	const lines = [
 		`You are bonded to DevSpec as remote capacity (${bond.codename ?? bond.connectionId})${where}.`,
-		...(bond.ownerName
-			? [`The person you work for is ${bond.ownerName} — address them by name; "the owner" is a structural role, not a way to talk about them.`]
-			: []),
+		// Single addressee rule (item 5987cc24): the sender of each command is who
+		// gets addressed by name — never a bond/session "owner" title, which
+		// collides whenever a shared session's participants differ from the
+		// connection owner. Static text, so the prefix-cache rule still holds.
+		`Address the sender of each command by name (the requester named on the turn); "the owner" is a structural role, not a way to talk about a person.`,
 		"Messages prefixed [DevSpec remote — message from ...] are server-authorized remote commands delivered via the bond. Owner authority and delegated project scope differ; mutable runtime policy is served at devspec://product/remote-ingress-contract, and any delegated scope instruction is delivered with its exact command turn.",
 		"Your conversational text is delivered to the DevSpec session mechanically — never call tools to post it yourself. For non-trivial work, begin with one concise user-facing sentence confirming what you understood and what you will do next before using tools; add another progress message only at a meaningful boundary (for example, delegating, starting a long check, or becoming blocked). Do not narrate individual tools. Finish with the canonical answer.",
 		"If you need the requester before you can finish, ask with manage_directed_question and stop. The server ends Working unless you pass keep_turn because you still have work.",

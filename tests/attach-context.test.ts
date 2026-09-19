@@ -19,7 +19,7 @@ function msg(over: Record<string, unknown>) {
 	};
 }
 
-test("shapeTranscript learns title, owner name, and a bounded one-line tail", () => {
+test("shapeTranscript learns title and a bounded one-line tail", () => {
 	const raw = {
 		title: "Test DevSpec UI message delivery",
 		messages: [
@@ -31,7 +31,7 @@ test("shapeTranscript learns title, owner name, and a bounded one-line tail", ()
 	};
 	const shaped = shapeTranscript(SESSION, raw);
 	assert.equal(shaped.title, "Test DevSpec UI message delivery");
-	assert.equal(shaped.ownerName, "Ali Price");
+	assert.ok(!("ownerName" in shaped), "no owner heuristic is derived (5987cc24)");
 	assert.equal(shaped.tail.length, 3, "the presence marker is filtered");
 	assert.ok(!shaped.tail[1].includes("\n"), "tail entries are one line");
 	assert.match(shaped.tail[1], /an answer spread over lines/);
@@ -41,13 +41,13 @@ test("shapeTranscript learns title, owner name, and a bounded one-line tail", ()
 test("a brand-new session may have no title — and that is a fine answer (Ali: titles are job-generated)", () => {
 	const shaped = shapeTranscript(SESSION, { title: null, messages: [] });
 	assert.equal(shaped.title, null);
-	assert.equal(shaped.ownerName, null);
+	assert.ok(!("ownerName" in shaped));
 	assert.deepEqual(shaped.tail, []);
 	assert.deepEqual(shaped.agenda, []);
 	assert.equal(shapeTranscript(SESSION, { title: "New session", messages: [] }).title, null);
 });
 
-test("owner name prefers the owner-instruction author over any other human", () => {
+test("no owner is guessed from the transcript, even in a shared session", () => {
 	const raw = {
 		title: "x",
 		messages: [
@@ -55,7 +55,11 @@ test("owner name prefers the owner-instruction author over any other human", () 
 			msg({ author: { kind: "human", name: "Ali Price" }, content: "an instruction", remote_control: { is_owner_instruction: true } }),
 		],
 	};
-	assert.equal(shapeTranscript(SESSION, raw).ownerName, "Ali Price");
+	const shaped = shapeTranscript(SESSION, raw);
+	assert.ok(!("ownerName" in shaped));
+	const block = buildAttachBlock(shaped, "Jolly Toucan");
+	assert.doesNotMatch(block, /session owner/i);
+	assert.match(block, /d8883a49-5e1f-416f-8384-7fd65e2e016b/, "session identity is preserved");
 });
 
 test("the tail is capped and keeps the most recent activity", () => {
@@ -105,7 +109,8 @@ test("buildAttachBlock lists the room agenda with short ids", () => {
 	const block = buildAttachBlock(shaped, "Jolly Toucan");
 	assert.match(block, /d8883a49-5e1f-416f-8384-7fd65e2e016b/);
 	assert.match(block, /“Test session”/);
-	assert.match(block, /Ali Price/);
+	assert.match(block, /Ali Price/, "human names reach the block through the tail, not an owner line");
+	assert.doesNotMatch(block, /session owner/i);
 	assert.match(block, /source_session_id filter/);
 	assert.match(block, /brief 02f3f12b Pi-native by installation — open/);
 	assert.match(block, /item 274c9f15 Mechanical first-touch — open/);
@@ -113,7 +118,7 @@ test("buildAttachBlock lists the room agenda with short ids", () => {
 });
 
 test("buildAttachBlock with no history says so honestly", () => {
-	const block = buildAttachBlock({ sessionId: SESSION, title: null, ownerName: null, tail: [], agenda: [] }, "Jolly Toucan");
+	const block = buildAttachBlock({ sessionId: SESSION, title: null, tail: [], agenda: [] }, "Jolly Toucan");
 	assert.match(block, /No recent room activity/);
 	assert.match(block, /no linked action items/);
 });

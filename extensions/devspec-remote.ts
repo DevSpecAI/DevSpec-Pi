@@ -2250,7 +2250,6 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				speechAttachmentId: serverAttachmentId,
 				// A new room (or detach) must not keep the previous room's title.
 				sessionTitle: undefined,
-				ownerName: undefined,
 				attachContext: undefined,
 				roomDigest: undefined,
 			};
@@ -2765,12 +2764,11 @@ async function enrichBondWithSession(sessionId: string): Promise<void> {
 		if (!active?.bond || active.bond.sessionId !== sessionId) return;
 		const next: BondState = {
 			...active.bond,
-			sessionTitle: isRealSessionTitle(shaped.title)
+				sessionTitle: isRealSessionTitle(shaped.title)
 				? shaped.title
 				: isRealSessionTitle(active.bond.sessionTitle)
 					? active.bond.sessionTitle
 					: undefined,
-			ownerName: shaped.ownerName ?? active.bond.ownerName,
 		};
 		active.bond = next;
 		setBond(next);
@@ -2779,7 +2777,7 @@ async function enrichBondWithSession(sessionId: string): Promise<void> {
 			if (preview) setSessionPreview(preview);
 		}
 		setRemoteStatus(lastCtx);
-		debug("session enriched", { titlePresent: Boolean(shaped.title), ownerPresent: Boolean(shaped.ownerName), tail: 0, agenda: 0, attachContext: false });
+		debug("session enriched", { titlePresent: Boolean(shaped.title), tail: 0, agenda: 0, attachContext: false });
 	} catch (err) {
 		debug("session enrich error", { errorPresent: Boolean(err) });
 	}

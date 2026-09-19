@@ -254,6 +254,29 @@ test("all typed actor context binds to exact command identities without duplicat
 	assert.match(hidden, /"returned":6/);
 });
 
+test("envelope with an unknown top-level section still parses and delivers its commands", () => {
+	const payload = canonicalPoll();
+	(payload.ingress as Record<string, unknown>).sender_response_styles = { policy: "v1" };
+	const pkg = parsePollPayload(payload, ME);
+	assert.equal(pkg.canonicalState, "valid");
+	assert.equal(pkg.ownerBundle?.commands.length, 1);
+	assert.equal(pkg.ownerBundle?.commands[0]?.text, "do the exact thing");
+	assert.deepEqual(pkg.unknownEnvelopeSections, ["sender_response_styles"]);
+});
+
+test("unknown wake kind still fails closed: new delivery semantics are a major version", () => {
+	const payload = canonicalPoll();
+	(payload.ingress.wake as { kind: string }).kind = "teleport";
+	assert.equal(parsePollPayload(payload, ME).canonicalState, "invalid");
+});
+
+test("unknown nested command field still fails closed while unknown envelope sections skip", () => {
+	const payload = canonicalPoll();
+	(payload.ingress as Record<string, unknown>).sender_response_styles = { policy: "v1" };
+	(payload.ingress.commands[0] as Record<string, unknown>).future_field = 1;
+	assert.equal(parsePollPayload(payload, ME).canonicalState, "invalid");
+});
+
 test("missing, malformed, unknown, and wrong-addressee canonical ingress fail closed", () => {
 	const missing = canonicalPoll() as Record<string, unknown>;
 	delete missing.ingress;

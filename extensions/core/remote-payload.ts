@@ -207,6 +207,8 @@ export interface PollPackage {
 	sessionPolls?: SessionPollsProjectionV1;
 	/** Top-level this-session Still to Discuss snapshot on changed packages. */
 	stillToDiscuss?: StillToDiscussProjectionV1;
+	/** Sections this Pi skipped because it does not implement them; delivery still succeeded. */
+	unknownEnvelopeSections?: string[];
 	canonicalState: "idle" | "valid" | "invalid";
 	canonicalError?: string;
 	advisoryContext?: IngressAdvisoryContext;
@@ -238,6 +240,11 @@ function exactKeys(value: RecordValue, keys: readonly string[], path: string): v
 	if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
 		fail(path, `expected exactly ${expected.join(", ")}`);
 	}
+}
+
+/** Keys the envelope carries that this parser knows nothing about (item 4183bd89). */
+function extraKeys(value: RecordValue, expected: readonly string[]): string[] {
+	return Object.keys(value).filter((key) => !expected.includes(key)).sort();
 }
 
 function string(value: unknown, path: string, nonempty = true): string {
@@ -619,6 +626,8 @@ interface ParsedEnvelope {
 	control?: unknown;
 	systemNotices: SystemNoticeV1[];
 	activeSessionPlans: ActiveSessionPlansProjection | null;
+	/** Top-level sections this parser skipped as unknown (item 4183bd89). */
+	unknownSections?: string[];
 	advisoryContext: IngressAdvisoryContext;
 }
 
@@ -628,14 +637,19 @@ function parseEnvelope(
 	systemNoticeNegotiated: boolean,
 ): ParsedEnvelope {
 	const row = record(value, "ingress");
+	// A section this Pi does not implement is NOT a reason to reject the envelope
+	// (DevSpec item 4183bd89, mirroring 689d44cb for the contract document). Every
+	// section named below still has to be present and exactly the shape this parser
+	// verifies; unknown sections are skipped and reported, never silently required.
+	// Negotiation is still honored: an unnegotiated system_notices section is rejected,
+	// because accepting unnegotiated content would break the version contract (a845df00).
 	const noticeKey = systemNoticeNegotiated ? ["system_notices"] : [];
-	exactKeys(
-		row,
-		row.active_session_plans === undefined
-			? ["kind", "schema_version", "contract_version", "policy_version", "envelope_id", "connection", "wake", "delivery_state", "command_message_ids", "commands", "control", "context", ...noticeKey, "window"]
-			: ["kind", "schema_version", "contract_version", "policy_version", "envelope_id", "connection", "wake", "delivery_state", "command_message_ids", "commands", "control", "context", "active_session_plans", ...noticeKey, "window"],
-		"ingress",
-	);
+	if (!systemNoticeNegotiated && row.system_notices !== undefined) fail("ingress.system_notices", "notice section requires request negotiation");
+	const requiredEnvelopeKeys = ["kind", "schema_version", "contract_version", "policy_version", "envelope_id", "connection", "wake", "delivery_state", "command_message_ids", "commands", "control", "context", ...noticeKey, "window"];
+	for (const key of requiredEnvelopeKeys) {
+		if (!Object.hasOwn(row, key)) fail("ingress", `expected ${key}`);
+	}
+	const unknownSections = extraKeys(row, [...requiredEnvelopeKeys, "active_session_plans"]);
 	if (row.kind !== "devspec.remote_ingress") fail("ingress.kind", "unknown ingress kind");
 	if (row.schema_version !== SCHEMA_VERSION) fail("ingress.schema_version", "unknown schema version");
 	const expectedContractVersion = systemNoticeNegotiated ? CONTRACT_VERSION : PRESERVED_CONTRACT_VERSION;
@@ -646,6 +660,9 @@ function parseEnvelope(
 	const connection = addressee(row.connection, "ingress.connection");
 	if (!sameAddressee(connection, expectedConnection)) fail("ingress.connection", "envelope addressee does not equal the frozen bonded connection");
 	const wake = record(row.wake, "ingress.wake");
+	// The wake object stays exact and wake.kind stays a closed set: a new wake kind
+	// changes delivery semantics (what Pi must do), so it is a major-version matter
+	// that must fail closed here — never silently skipped like an additive section.
 	exactKeys(wake, ["kind", "active", "reason_id"], "ingress.wake");
 	const wakeKind = systemNoticeNegotiated
 		? oneOf(wake.kind, ["conversational_command", "control", "advisory_update", "history_reseed", "idle", "system_notice"] as const, "ingress.wake.kind")
@@ -715,7 +732,7 @@ function parseEnvelope(
 		: parseActiveSessionPlansProjection(row.active_session_plans);
 	const advisoryContext = { envelopeId, context, window };
 	for (const item of commands) item.advisoryContext = advisoryContext;
-	return { envelopeId, connection, wakeKind, wakeActive, deliveryState, commands, control: parsedControl, systemNotices, activeSessionPlans, advisoryContext };
+	return { envelopeId, connection, wakeKind, wakeActive, deliveryState, commands, control: parsedControl, systemNotices, activeSessionPlans, ...(unknownSections.length > 0 ? { unknownSections } : {}), advisoryContext };
 }
 
 function contextEntryCount(context: IngressTypedContext): number {
@@ -812,6 +829,7 @@ export function parsePollPayload(
 			activeSessionPlans: envelope.activeSessionPlans,
 			...(sessionPolls ? { sessionPolls } : {}),
 			...(stillToDiscuss ? { stillToDiscuss } : {}),
+			...(envelope.unknownSections ? { unknownEnvelopeSections: envelope.unknownSections } : {}),
 			canonicalState: "valid",
 			...(contextEntryCount(envelope.advisoryContext.context) > 0 ? { advisoryContext: envelope.advisoryContext } : {}),
 		};

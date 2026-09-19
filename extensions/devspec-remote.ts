@@ -45,7 +45,10 @@ import {
 import {
 	formatCanonicalDeliveryContext,
 	formatInboundBundleMessage,
+	formatSenderStyleRepair,
 	parsePollPayload,
+	REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE,
+	senderStyleRepairNeeded,
 	type IngressAdvisoryContext,
 	type OwnerCommand,
 	type OwnerCommandBundle,
@@ -390,6 +393,13 @@ let systemNoticeRunActive = false;
 let nextTurnRevision = 1;
 const pendingTerminalPosts = new Set<Promise<void>>();
 const commandTurnBindings = new CommandTurnBindings();
+/**
+ * Response styles of in-flight command turns (item 6a511dab): minimal
+ * per-command copies set at delivery, cleared when the turn closes. Same
+ * lifecycle as commandTurnBindings. Feeds the per-LLM-call repair that
+ * keeps the style in force at final-answer time.
+ */
+const activeCommandStyles = new Map<string, { id: string; responseStyleNotes: string[] }[]>();
 let lastCtx: ExtensionContext | null = null;
 const TRAIL_INTERVAL_MS = 1_000;
 
@@ -790,6 +800,8 @@ async function reportComplete(reason: string, commandTurnId?: string, commandMes
 		// The command is closed: drop any never-taken binding strays for it so a
 		// later terminal input with identical text cannot inherit them (6f4136d8).
 		commandTurnBindings.forgetByCommand(commandTurnId, commandMessageId);
+		// The turn's response styles close with it (item 6a511dab).
+		if (commandTurnId) activeCommandStyles.delete(commandTurnId);
 		// reportComplete closes the command turn server-side — forget the parked
 		// identity so later wakes post unbound instead of fencing (759f2818).
 		noteCommandTurnClosed(commandTurnId);
@@ -1189,6 +1201,7 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	if (stoppingTrailFence) await stoppingTrailFence.drain();
 	pump = null;
 	commandTurnBindings.clear();
+	activeCommandStyles.clear();
 	pendingBackgroundTaskIds.clear();
 	activeCommandTurnIdentity = null;
 	setBond(null);
@@ -1975,6 +1988,7 @@ async function reviveRecoverableBond(
 			// A replacement row is different authority: pending bindings for the old
 			// connection's turns must not be inherited here (item 6f4136d8).
 			commandTurnBindings.clear();
+			activeCommandStyles.clear();
 			pendingBackgroundTaskIds.clear();
 			activeCommandTurnIdentity = null;
 			active.advisoryCarry = [];
@@ -2084,6 +2098,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		// fits; otherwise ordinary 1.3 command polling continues while notices stay
 		// server-retained behind the still-aware SSE marker.
 		const systemNoticeNegotiated = hasSystemNoticeBatchCapacity(active.systemNoticeKey);
+		const senderStyleNegotiated = systemNoticeNegotiated;
 		// Claims are idle-only. A durable application ACK is different: it must
 		// travel immediately while the model is busy, before the 30-second event
 		// lease can redeliver. catch_up below keeps that ACK lap event/command-free.
@@ -2114,6 +2129,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					...(systemNoticeNegotiated ? {
 						system_notice_version: 1,
 						system_notice_cursor: active.systemNoticeCursor,
+						// Sender style rides the same gate: the server requires
+						// system_notice_version: 1 as its prerequisite (item 6a511dab).
+						sender_style_version: 1,
 					} : {}),
 					...(interactionEventNegotiated ? {
 						interaction_event_version: 1,
@@ -2241,6 +2259,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			// A new room (or detach) invalidates pending bindings for the old room's
 			// turns: identical terminal text must not inherit them (item 6f4136d8).
 			commandTurnBindings.clear();
+			activeCommandStyles.clear();
 			pendingBackgroundTaskIds.clear();
 			activeCommandTurnIdentity = null;
 			const next = {
@@ -2343,7 +2362,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			}
 		}
 
-		const pkg = parsePollPayload(payload, active.connectionIdentity, { systemNoticeNegotiated });
+		const pkg = parsePollPayload(payload, active.connectionIdentity, { systemNoticeNegotiated, senderStyleNegotiated });
 		if (pkg.canonicalState === "invalid") {
 			// A negotiated changed response without a valid known ingress envelope
 			// has no executable or contextual meaning. Keep the canonical cursor
@@ -2357,6 +2376,12 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			continue;
 		}
 
+		if (pkg.unboundSenderStyleIds && pkg.unboundSenderStyleIds.length > 0) {
+			// Binding is lenient by design (item 6a511dab): styles never wedge
+			// commands. Counts only — the entry names a command this delta did
+			// not deliver, so there is nothing to attach and nothing lost.
+			debug("sender styles without a delivered command", { count: pkg.unboundSenderStyleIds.length });
+		}
 		if (pkg.systemNotices.length > 0) {
 			if (!acceptSystemNotices(active.systemNoticeKey, pkg.systemNotices)) {
 				active.errors += 1;
@@ -2541,6 +2566,11 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					active.attachmentRetryAttempts.delete(hydrated.commandTurnId);
 					// Commit immediately after Pi accepts the sole queue item; later UI
 					// bookkeeping cannot turn an accepted send into a replay.
+					// Retain this turn's response styles for the per-LLM-call repair
+					// (item 6a511dab); cleared when the turn closes via reportComplete.
+					const deliveredStyles = hydrated.commands.flatMap((command) =>
+						command.responseStyleNotes ? [{ id: command.id, responseStyleNotes: command.responseStyleNotes }] : []);
+					if (deliveredStyles.length > 0) activeCommandStyles.set(hydrated.commandTurnId, deliveredStyles);
 					active.seenOwnerCommands.commitBundle(unseen);
 					notify(ctx, deliveryNotice);
 					if (untitledAttached()) {
@@ -3047,17 +3077,36 @@ export default function (pi: ExtensionAPI) {
 
 	// ---- Turn lifecycle events (mechanical trail + final answer) ------------
 
-	pi.on("context", async (_event, ctx) => {
+	pi.on("context", async (event, ctx) => {
 		lastCtx = ctx;
 		ensureTurn();
 		const t = turn;
-		if (!t) return;
+		if (!t) return undefined;
 		const prepared = prepareAssistantSpeech(t);
 		if (t.tracker.shouldMirrorPrompt && t.tracker.userText) {
 			t.tracker.shouldMirrorPrompt = false;
 			await postToSession(t.tracker.userText, { turnKind: "local_prompt", localTurn: true, isCurrent: t.canPost });
 		}
 		await prepared;
+		// Keep the active command turn's response style in force at every LLM
+		// call including the final answer (item 6a511dab, criterion 38280c99).
+		// Repair-only: while the delivery context is present this is a no-op,
+		// so long runs cost nothing until compaction actually drops it.
+		const styledTurnId = t.commandTurnId;
+		const styledCommands = styledTurnId ? activeCommandStyles.get(styledTurnId) : undefined;
+		if (styledTurnId && styledCommands && senderStyleRepairNeeded(event.messages, true)) {
+			debug("sender style repair", { commands: styledCommands.length });
+			return {
+				messages: [...event.messages, {
+					role: "custom" as const,
+					customType: REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE,
+					content: formatSenderStyleRepair(styledTurnId, styledCommands),
+					display: false,
+					timestamp: Date.now(),
+				}],
+			};
+		}
+		return undefined;
 	});
 
 	pi.on("turn_start", (_event, ctx) => {
@@ -3110,7 +3159,7 @@ export default function (pi: ExtensionAPI) {
 		);
 		const injected = hiddenContent ? {
 			message: {
-				customType: canonicalQueueItem ? "devspec-remote-ingress-context" : "devspec-active-session-plans",
+				customType: canonicalQueueItem ? REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE : "devspec-active-session-plans",
 				content: hiddenContent,
 				display: false,
 				...(canonicalQueueItem ? { details: canonicalQueueItem.details } : {}),
@@ -3421,6 +3470,7 @@ export default function (pi: ExtensionAPI) {
 		}
 		pump = null;
 		commandTurnBindings.clear();
+		activeCommandStyles.clear();
 		pendingBackgroundTaskIds.clear();
 		activeCommandTurnIdentity = null;
 		setBond(null);

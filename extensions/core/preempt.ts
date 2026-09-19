@@ -75,6 +75,26 @@ export async function waitUntil(
 	return true;
 }
 
+/**
+ * Stranded-busy recovery (item 3f07f97b). pi_abort() is cooperative: when the
+ * aborted run never settles, the settle wait times out while the model is
+ * already idle and nothing holds occupancy — yet active.busy stays true, so
+ * every later lap defers the same interaction event ("awaiting idle") and the
+ * event-only lane starves all command delivery (live wedge 2026-09-18, 73
+ * minutes). Clearing is safe exactly when nothing is running: a genuinely
+ * settling run keeps either ctx or occupancy busy. Deliberately not gated on
+ * background tasks: a stale pending entry must not preserve the wedge, and the
+ * applied event starts a run that reasserts busy within one lap.
+ */
+export function shouldClearStrandedBusyAfterAbort(input: {
+	settled: boolean;
+	ctxIdle: boolean;
+	occupancyBusy: boolean;
+	pumpBusy: boolean;
+}): boolean {
+	return !input.settled && input.ctxIdle && !input.occupancyBusy && input.pumpBusy;
+}
+
 /** Tail note so the model judges stop-vs-continue. Not an instruction to invent work. */
 export const PREEMPT_TAIL =
 	"[This interrupted a running turn. Answer this first. Then continue the prior work if that is appropriate — a short ack is enough to stop; do not throw the previous context away.]";

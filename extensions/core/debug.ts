@@ -54,6 +54,7 @@ const DEBUG_FIELDS = {
 	preempt: ["settled", "immediate"],
 	"preempt: aborting running turn for owner instruction": [],
 	"preempt: aborting running turn for question answer": [],
+	"preempt: cleared stranded busy after unsettled abort": [],
 	"push channel closed": ["reasonPresent"],
 	"push channel connect failed": ["errorPresent"],
 	"push ended recoverable": ["reasonPresent"],

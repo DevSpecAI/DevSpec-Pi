@@ -78,7 +78,7 @@ import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } f
 import { SubagentFleetClient, type SubagentFleetSnapshot } from "./core/subagent-fleet.ts";
 import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
 import { takeContextBudgetReport } from "./core/context-budget.ts";
-import { automaticBackgroundTaskId, backgroundTaskNotificationId, terminalBackgroundTaskIds, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitSpeech, isHarnessOrigin, isSubagentAsyncNotification, TurnTracker } from "./core/turn-lifecycle.ts";
+import { automaticBackgroundTaskId, backgroundTaskNotificationId, terminalBackgroundTaskIds, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitSpeech, isHarnessOrigin, isSubagentAsyncNotification, TurnTracker, noteProgressEvent, currentProgressMarker } from "./core/turn-lifecycle.ts";
 import {
 	formatAutomationRunMessage,
 	isAutomationRunEnvelope,
@@ -1037,6 +1037,9 @@ async function beatBusy(busy: boolean, agentStats?: AgentStatsReport | null): Pr
 			status: "live",
 			busy,
 			agent_name: AGENT_NAME,
+			// Progress evidence (item 0b8035ac): the server renews the working
+			// lease only while this marker keeps changing.
+			progress_marker: currentProgressMarker(),
 			...(agentStats ? { agent_stats: agentStats } : {}),
 		}, { lane: "pump" });
 	} catch {
@@ -2144,7 +2147,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					...(interactionEventAck && (active.busy || active.runtimeOccupancy.isBusy()) ? { catch_up: true } : {}),
 					// Generic busy projection is forbidden for exact interaction attempts;
 					// their lease is refreshed with report_keepalive and exact tuple.
-					...(!activeInteractionRun(active) ? { busy: active.busy } : {}),
+					...(!activeInteractionRun(active) ? { busy: active.busy, progress_marker: currentProgressMarker() } : {}),
 					listener_armed: true,
 					agent_name: AGENT_NAME,
 					agent_stats: runtimeAgentStats(ctx),
@@ -2939,6 +2942,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("agent_start", async (_event, ctx) => {
+		noteProgressEvent();
 		lastCtx = ctx;
 		const active = pump;
 		const newInteractionRun = startingInteractionRun;
@@ -2993,6 +2997,7 @@ export default function (pi: ExtensionAPI) {
 		}
 	});
 	pi.on("agent_settled", async (_event, ctx) => {
+		noteProgressEvent();
 		lastCtx = ctx;
 		const activeAtSettle = pump;
 		const occupancyAtSettle = activeAtSettle?.runtimeOccupancy.capture() ?? null;
@@ -3110,6 +3115,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("turn_start", (_event, ctx) => {
+		noteProgressEvent();
 		lastCtx = ctx;
 		// Per-LLM-round event — the state must SURVIVE it, never be recreated
 		// (cc9e8c43). Lazily covers a mid-run attach too.
@@ -3122,6 +3128,7 @@ export default function (pi: ExtensionAPI) {
 	// as a user message. Stamp harness origin here so that replay cannot
 	// remirror (item 56b9a3b4). Typed /commands never take this path.
 	pi.on("before_agent_start", (event, ctx) => {
+		noteProgressEvent();
 		const canonicalQueueItem = commandTurnBindings.peek(event.prompt)?.canonicalQueueItem;
 		const active = pump;
 		// A queued owner turn may start after a newer projection arrived. Bind its
@@ -3195,6 +3202,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("message_start", async (event, ctx) => {
+		noteProgressEvent();
 		lastCtx = ctx;
 		const msg = event.message as { role?: string; customType?: string; details?: unknown } | undefined;
 		const customType = typeof msg?.customType === "string" ? msg.customType : null;
@@ -3298,6 +3306,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("message_update", (event, ctx) => {
+		noteProgressEvent();
 		lastCtx = ctx;
 		if (!turn) return;
 		const msg = event.message as { role?: string } | undefined;
@@ -3309,6 +3318,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("message_end", (event, ctx) => {
+		noteProgressEvent();
 		lastCtx = ctx;
 		// Telemetry accumulates for EVERY assistant message while bonded —
 		// including turns the trail skips (unattached/local), so sessionless
@@ -3351,6 +3361,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("tool_execution_start", async (event, ctx) => {
+		noteProgressEvent();
 		lastCtx = ctx;
 		noteVerbStart(event.toolCallId, event.toolName, event.args);
 		paintStatus(ctx);
@@ -3388,6 +3399,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("tool_execution_update", (event, ctx) => {
+		noteProgressEvent();
 		lastCtx = ctx;
 		if (!turn) return;
 		turn.trail.toolUpdate(event.toolCallId, event.partialResult);
@@ -3398,6 +3410,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("tool_execution_end", (event, ctx) => {
+		noteProgressEvent();
 		lastCtx = ctx;
 		noteVerbEnd(event.toolCallId);
 		paintStatus(ctx);

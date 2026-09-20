@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { formatAutomationRunMessage, isAutomationRunEnvelope, automationRunId } from "../extensions/core/dispatch.ts";
 import { INTERACTION_EVENT_CUSTOM_TYPE, formatInteractionEventContinuation, type InteractionEventV1 } from "../extensions/core/interaction-events.ts";
-import { automaticBackgroundTaskId, backgroundTaskNotificationId, terminalBackgroundTaskIds, classifyUserKind, isBackgroundCompletionOrigin, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, isReceiptAcknowledgement, isSubagentAsyncNotification, isWaitNarration, isProcessClose, planSettle, shouldSplitSpeech, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
+import { automaticBackgroundTaskId, backgroundTaskNotificationId, terminalBackgroundTaskIds, noteProgressEvent, currentProgressMarker, classifyUserKind, isBackgroundCompletionOrigin, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, isReceiptAcknowledgement, isSubagentAsyncNotification, isWaitNarration, isProcessClose, planSettle, shouldSplitSpeech, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 
 function remoteTurn(answer: string): TurnTracker {
 	const t = new TurnTracker();
@@ -944,4 +944,18 @@ test("automation message has an automation-only model-visible envelope", () => {
 		() => formatAutomationRunMessage({ kind: "automation_run" }, "Wary Wolf"),
 		/requires a run id/,
 	);
+});
+
+test("progress marker is an opaque monotonically advancing string (0b8035ac)", () => {
+	// The server compares for CHANGE, never meaning: the only contract is that
+	// work makes it move. A wedged tracker (pendingBg frozen at 1, session
+	// ea7704f4 2026-09-20) stops calling noteProgressEvent because every event
+	// stream froze — which is exactly what lets the lease finally elapse.
+	const before = Number(currentProgressMarker());
+	assert.ok(Number.isInteger(before) && before >= 0);
+	noteProgressEvent();
+	noteProgressEvent();
+	const after = Number(currentProgressMarker());
+	assert.equal(after, before + 2);
+	assert.equal(typeof currentProgressMarker(), "string");
 });

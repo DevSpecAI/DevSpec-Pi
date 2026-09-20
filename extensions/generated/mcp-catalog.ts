@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 75ef3f4961fceb1a3259833131377cd9e37e2265f390d8a25c33e0c4dfbd7d1f
+ * Schema fingerprint: cbacf576944c0470fad3f712adae0c7b60f15e3b44e984c1839cd6a2fcada992
  * Description fingerprint: 6ec3a068971918fabea269de824a115d061df4f6a2d236c7a1541d563fa3dada
- * Regenerated: 2026-09-20T19:20:54.012Z
+ * Regenerated: 2026-09-20T20:02:44.830Z
  */
-export const MCP_CATALOG_FINGERPRINT = "75ef3f4961fceb1a3259833131377cd9e37e2265f390d8a25c33e0c4dfbd7d1f";
+export const MCP_CATALOG_FINGERPRINT = "cbacf576944c0470fad3f712adae0c7b60f15e3b44e984c1839cd6a2fcada992";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "6ec3a068971918fabea269de824a115d061df4f6a2d236c7a1541d563fa3dada";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-20T19:20:54.012Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-20T20:02:44.830Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -5522,6 +5522,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "boolean",
 					"description": "Optional (status=live). Agent mid-turn activity — the agent is the SOLE authority for Working…. true when a turn starts (re-assert on keep-alives); false when idle; omit to leave unchanged."
 				},
+				"progress_marker": {
+					"type": "string",
+					"description": "Optional (status=live). Opaque progress token (e.g. your count of session events). Once supplied, the working lease renews only while it keeps changing — a frozen token past the staleness bound is declined and the attempt expires on its lease. Omit for legacy unconditional renewal.",
+					"x-devspec-host-only": true
+				},
 				"check_tier": {
 					"type": "string",
 					"enum": [
@@ -5907,6 +5912,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"busy": {
 					"type": "boolean",
 					"description": "Agent mid-turn activity — you are the SOLE authority for Working…. true when a turn starts, false when idle; omit to leave unchanged."
+				},
+				"progress_marker": {
+					"type": "string",
+					"description": "Optional opaque progress token riding the folded heartbeat (e.g. your count of session events). Once supplied, the working lease renews only while it keeps changing — a frozen token past the staleness bound is declined and the attempt expires on its lease. Omit for legacy unconditional renewal.",
+					"x-devspec-host-only": true
 				},
 				"check_tier": {
 					"type": "string",
@@ -6313,6 +6323,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"format": "uuid",
 					"description": "Optional — a specific working attempt to keep alive. Omit to refresh this connection’s current working attempt."
+				},
+				"progress_marker": {
+					"type": "string",
+					"description": "Optional opaque progress token (e.g. your count of session events). Once supplied, the lease renews only while the token keeps changing — a frozen token past the staleness bound is declined and the attempt expires on its lease. Omit for legacy unconditional renewal.",
+					"x-devspec-host-only": true
 				},
 				"interaction_event_id": {
 					"type": "string",

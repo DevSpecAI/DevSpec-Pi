@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### Working stops lying when the tracker wedges
+
+Pi now sends an opaque progress marker with every working-lease beat (the poll
+tick and the heartbeat): a plain count of the session events this process has
+seen — turns, messages, tool calls, their streaming updates. Paired with the
+DevSpec server change (migration 952, DevSpecV2 staging `a914cad1b`), a lease
+renews only while that marker keeps changing. If the extension ever wedges
+again the way it did on 2026-09-20 — a killed background task froze the turn
+tracker and Working showed for five hours of idle — the marker freezes with it,
+the server declines renewal after its staleness bound, and the attempt expires
+through the ordinary lease path instead of lying.
+
+Nothing changes when work is genuinely flowing: every turn, message, tool event
+and streaming update moves the marker, so long quiet stretches inside a real
+turn (a big build, a slow test suite) keep Working exactly as before. Hosts and
+builds that never send a marker get the legacy behaviour untouched.
+
+
 ### The write check tells you which document it matched, on either corpus
 
 DevSpec stops a knowledge write when something close already exists, and the

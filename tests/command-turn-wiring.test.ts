@@ -103,3 +103,25 @@ test("killed/terminal tasks observed in tool results reconcile the pending set (
 	assert.match(end, /debug\("background task noted", \{ pendingBg: turn\.tracker\.pendingBackgroundTasks\(\)\.length \}\)/);
 	assert.match(end, /debug\("background task resolved from tool result", \{ pendingBg: turn\.tracker\.pendingBackgroundTasks\(\)\.length \}\)/);
 });
+
+test("both working-lease beats carry the progress marker, fed by the event handlers (0b8035ac)", () => {
+	// The server (migration 952) renews a working lease only while the marker
+	// keeps changing; a wedged tracker's frozen marker stops renewing after the
+	// staleness bound and the attempt expires instead of lying Working for hours
+	// (live 2026-09-20: 5h stuck on connection 7d451716).
+	assert.match(source, /progress_marker: currentProgressMarker\(\)/);
+	const beat = source.slice(source.indexOf("async function beatBusy"), source.indexOf("function notify"));
+	assert.match(beat, /progress_marker: currentProgressMarker\(\)/, "heartbeat_connection carries the marker");
+	const commentAt = source.indexOf("Generic busy projection is forbidden");
+	const poll = source.slice(commentAt, commentAt + 400);
+	assert.match(poll, /busy: active\.busy, progress_marker: currentProgressMarker\(\)/, "the folded poll heartbeat carries the marker next to busy");
+	// The marker is fed by every event that IS work evidence: turns, messages,
+	// tool executions, and their streaming updates — the exact streams that
+	// froze in the incident.
+	for (const handler of ["before_agent_start", "agent_start", "turn_start", "message_start", "message_update", "message_end", "tool_execution_start", "tool_execution_update", "tool_execution_end", "agent_settled"]) {
+		const begin = source.indexOf(`pi.on("${handler}"`);
+		assert.notEqual(begin, -1, handler);
+		const head = source.slice(begin, begin + 120);
+		assert.match(head, /noteProgressEvent\(\)/, `${handler} bumps the progress counter`);
+	}
+});

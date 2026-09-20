@@ -55,6 +55,7 @@ import {
 	type RemoteConnectionIdentity,
 } from "./core/remote-payload.ts";
 import { CommandTurnBindings, type CanonicalQueueItem } from "./core/command-turn.ts";
+import { noteDeliveredCommandRefs, clearDealtRefs } from "./core/provenance-refs.ts";
 import { compactWithContext, executeControlCommand, parseControlCommand, reloadWithContext, runReloadLap } from "./core/control.ts";
 import { safeHasUI, withLiveUi } from "./core/ctx-guard.ts";
 import { commandReloadContext, rememberExtensionRunner } from "./core/command-runner.ts";
@@ -1227,6 +1228,7 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	if (stoppingTrailFence) await stoppingTrailFence.drain();
 	pump = null;
 	commandTurnBindings.clear();
+	clearDealtRefs();
 	activeCommandStyles.clear();
 	pendingBackgroundTaskIds.clear();
 	activeCommandTurnIdentity = null;
@@ -2014,6 +2016,7 @@ async function reviveRecoverableBond(
 			// A replacement row is different authority: pending bindings for the old
 			// connection's turns must not be inherited here (item 6f4136d8).
 			commandTurnBindings.clear();
+			clearDealtRefs();
 			activeCommandStyles.clear();
 			pendingBackgroundTaskIds.clear();
 			activeCommandTurnIdentity = null;
@@ -2285,6 +2288,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			// A new room (or detach) invalidates pending bindings for the old room's
 			// turns: identical terminal text must not inherit them (item 6f4136d8).
 			commandTurnBindings.clear();
+			clearDealtRefs();
 			activeCommandStyles.clear();
 			pendingBackgroundTaskIds.clear();
 			activeCommandTurnIdentity = null;
@@ -2519,6 +2523,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		let commandRetryDelayMs = 0;
 		if (pkg.rejectedBundle) {
 			const unseen = active.seenOwnerCommands.takeUnseen(pkg.rejectedBundle.commands);
+					noteDeliveredCommandRefs(unseen);
 			if (unseen.length > 0) {
 				const rejected = ownerBundleSubset(pkg.rejectedBundle, unseen);
 				// Unavailable attachments are terminal for this immutable envelope, but
@@ -2541,6 +2546,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 
 		if (pkg.ownerBundle) {
 			const unseen = active.seenOwnerCommands.takeUnseen(pkg.ownerBundle.commands);
+				noteDeliveredCommandRefs(unseen);
 			if (unseen.length > 0) {
 				const selectedBundle = ownerBundleSubset(pkg.ownerBundle, unseen);
 				let attachmentLease: AttachmentDeliveryLease | undefined;
@@ -3522,6 +3528,7 @@ export default function (pi: ExtensionAPI) {
 		}
 		pump = null;
 		commandTurnBindings.clear();
+		clearDealtRefs();
 		activeCommandStyles.clear();
 		pendingBackgroundTaskIds.clear();
 		activeCommandTurnIdentity = null;

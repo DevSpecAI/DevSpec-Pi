@@ -20,6 +20,7 @@ import { addFlags, extractFlags } from "./core/conflict-watch.ts";
 import { jsonSchemaToTypebox } from "./core/json-schema.ts";
 import { consumeDeliveryLifecycle } from "./core/active-deliveries.ts";
 import { observeSuccessfulWorkResult } from "./core/work-state.ts";
+import { guardWriteRefs, observeResultClaimRefs } from "./core/provenance-refs.ts";
 import { directedQuestionTranscriptReceiptId } from "./core/question-receipt-lifecycle.ts";
 import {
 	DIRECTED_QUESTION_TOOL_NAME,
@@ -142,6 +143,9 @@ export function consumeResultMechanics(
 	projectId?: string,
 ): void {
 	watchForSignals(name, result);
+	// Claim refs are dealt through results, not deliveries — observe them so the
+	// guard knows them (item a03ba7ab).
+	observeResultClaimRefs(result);
 	// executeVerb calls this only after unwrapOrThrow has established MCP success.
 	// This observation drives status and nudge suppression only; it grants no permission.
 	const claimArmed = sessionId
@@ -293,6 +297,11 @@ export function stampKnownScope(params: Record<string, unknown>, name?: string):
 }
 
 async function executeVerb(name: string, params: Record<string, unknown>, ctx: CallCtx) {
+	// The provenance-ref guard (item a03ba7ab): a ref this process was never
+	// dealt is a transcription error — refuse it locally, before any network.
+	// Omission is always allowed: the server attributes to the open turn.
+	const refVerdict = guardWriteRefs(params);
+	if (!refVerdict.ok) return measuredToolResult(name, toolErrorResult(refVerdict.message));
 	const resolved = await resolveToken();
 	if (!resolved) return measuredToolResult(name, toolErrorResult(NOT_CONNECTED));
 	try {

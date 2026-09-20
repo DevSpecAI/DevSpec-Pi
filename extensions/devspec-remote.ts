@@ -340,6 +340,8 @@ interface SpeechBinding {
 	readonly args: Readonly<Record<string, unknown>>;
 	readonly current: () => boolean;
 	readonly capability: string;
+	/** The bond's session at capture — the receipt expectation, on either lane. */
+	readonly sessionId: string;
 	readonly ready: Promise<{ args: Readonly<Record<string, unknown>>; token: string } | null>;
 }
 interface TurnState {
@@ -488,7 +490,24 @@ function prepareAssistantSpeech(t: TurnState): Promise<void> {
 	t.speechScopeCaptured = true;
 	const completeCommandIdentity = Boolean(t.commandTurnId) === Boolean(t.commandMessageId);
 	const missingInteractionIdentity = t.occupancy?.kind === "interaction" && !t.interaction;
-	if (firstScope && active && connectionId && sessionId && attachedAt && attachmentId && capability && !t.completionNeutral && completeCommandIdentity && !missingInteractionIdentity) {
+	// The v2 lane (item bf84793b, server migration 953): ordinary speech is
+	// append-only — connection + source id + text, no expected_* scope and no
+	// pinned attempt. The server lands the text in the live session and
+	// annotates the open attempt/turn after the fact, so a scope that went stale
+	// mid-turn can no longer wedge the post. The exact interaction path keeps
+	// the v1 binding: its attempt is claim-token-bound by design (938).
+	const isInteraction = t.occupancy?.kind === "interaction";
+	if (firstScope && !isInteraction && active && connectionId && sessionId && capability && !t.completionNeutral) {
+		const v2Args = Object.freeze({ connection_id: connectionId, ingest_version: 2 });
+		const ready = (async () => {
+			try {
+				const resolved = await resolveToken();
+				if (!resolved || !current()) return null;
+				return Object.freeze({ args: v2Args, token: resolved.token });
+			} catch { return null; }
+		})();
+		t.speechBinding = Object.freeze({ args: v2Args, current, capability, sessionId, ready });
+	} else if (firstScope && active && connectionId && sessionId && attachedAt && attachmentId && capability && !t.completionNeutral && completeCommandIdentity && !missingInteractionIdentity) {
 		const interaction = interactionIdentity(t.interaction);
 		const args = Object.freeze({ connection_id: connectionId, expected_session_id: sessionId, expected_attached_at: attachedAt, expected_attachment_id: attachmentId,
 			...(interaction ? exactInteractionContinuationArgs(interaction) : t.commandTurnId && t.commandMessageId
@@ -512,7 +531,7 @@ function prepareAssistantSpeech(t: TurnState): Promise<void> {
 				return Object.freeze({ args: Object.freeze({ ...args, attempt_id: details.attempt_id }), token: resolved.token });
 			} catch { return null; }
 		})();
-		t.speechBinding = Object.freeze({ args, current, capability, ready });
+		t.speechBinding = Object.freeze({ args, current, capability, sessionId, ready });
 	}
 	t.assistantSpeech = { source, binding: t.speechBinding, model: replyModelArgs() };
 	return (t.speechBinding?.ready ?? Promise.resolve(null)).then(() => undefined);
@@ -525,9 +544,10 @@ function deliverAssistantSpeech(t: TurnState, message: unknown, append: (type: s
 	if (!record) return;
 	const binding = captured?.binding;
 	append("devspec-assistant-speech", { ...record, connectionId: binding?.args.connection_id,
-		expectedSessionId: binding?.args.expected_session_id, expectedAttachedAt: binding?.args.expected_attached_at, expectedAttachmentId: binding?.args.expected_attachment_id,
+		expectedSessionId: binding?.args.expected_session_id ?? binding?.sessionId, expectedAttachedAt: binding?.args.expected_attached_at, expectedAttachmentId: binding?.args.expected_attachment_id,
 		commandTurnId: binding?.args.command_turn_id, commandMessageId: binding?.args.command_message_id,
-		interactionEventId: binding?.args.interaction_event_id ?? binding?.args.question_dismissal_event_id });
+		interactionEventId: binding?.args.interaction_event_id ?? binding?.args.question_dismissal_event_id,
+		...(binding?.args.ingest_version === 2 ? { ingestVersion: 2 } : {}) });
 	trackTerminalPost(assistantSpeechQueue.enqueue(async () => {
 		let stored = false;
 		let attemptId: unknown;
@@ -542,7 +562,10 @@ function deliverAssistantSpeech(t: TurnState, message: unknown, append: (type: s
 						phase: "answer", complete_turn: false, ...captured!.model,
 					}, { lane: "pump", retry: "never", connectionCapability: binding.capability,
 						beforeSend: () => { if (!binding.current()) throw new DevspecToolError("Speech scope changed."); } });
-					const receipt = parsePostSessionReceipt(raw, { connectionId: String(scope.connection_id), sessionId: String(scope.expected_session_id), phase: "answer", assistantSourceId: record.assistantSourceId });
+					// v2 carries no expected session: the receipt's expectation is the
+					// bond's session at capture, and current() above guarantees the bond
+					// has not moved since (the drop-on-move policy is unchanged).
+					const receipt = parsePostSessionReceipt(raw, { connectionId: String(scope.connection_id), sessionId: binding.sessionId ?? String(scope.expected_session_id), phase: "answer", assistantSourceId: record.assistantSourceId });
 					stored = receipt.status === "stored" || receipt.status === "idempotently_stored";
 				}
 			}

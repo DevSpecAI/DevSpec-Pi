@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: f069b7f46bf591a6e34531cb175146e0c1bc69caaa6928d32eb7b37c96bc7ccb
+ * Schema fingerprint: 6313a226219c2ab74f773f4a55278ff68704e4f234deba3009c98b1d097c21e9
  * Description fingerprint: 6ec3a068971918fabea269de824a115d061df4f6a2d236c7a1541d563fa3dada
- * Regenerated: 2026-09-20T20:23:35.821Z
+ * Regenerated: 2026-09-20T21:11:52.286Z
  */
-export const MCP_CATALOG_FINGERPRINT = "f069b7f46bf591a6e34531cb175146e0c1bc69caaa6928d32eb7b37c96bc7ccb";
+export const MCP_CATALOG_FINGERPRINT = "6313a226219c2ab74f773f4a55278ff68704e4f234deba3009c98b1d097c21e9";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "6ec3a068971918fabea269de824a115d061df4f6a2d236c7a1541d563fa3dada";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-20T20:23:35.821Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-20T21:11:52.286Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -4858,6 +4858,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"assistant_source_id": {
 					"type": "string",
 					"format": "uuid",
+					"x-devspec-host-only": true
+				},
+				"ingest_version": {
+					"type": "integer",
+					"enum": [
+						2
+					],
+					"description": "Optional (with assistant_source_id). Version 2 is the append-only lane: no expected_* scope or binding fields — the server lands the text in the connection's current session and annotates its open attempt/turn afterwards (never refuses for staleness). Omit for the pinned-scope v1 path.",
 					"x-devspec-host-only": true
 				},
 				"expected_session_id": {

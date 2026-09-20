@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Speech posts can no longer wedge on a stale scope
+
+Ordinary assistant speech now posts on the server's append-only v2 lane
+(DevSpecV2 migration 953, staging `c766ab75b`): the extension sends your
+connection, the text and its idempotency key — and nothing about where the text
+"belongs". The server lands it in the room you're attached to right now and
+annotates the open attempt and turn afterwards, when they exist.
+
+Before this, a speech post carried an exact pinned scope — the session, the
+attachment stamp and the attempt — and the server refused the post when any of
+it had moved. A reattach or reload at the wrong moment turned a finished answer
+into a rejection. The words are the thing that must survive; where they belong
+is the server's reading, not the client's memory.
+
+What hasn't changed: speech still drops (with the same warning) if the bond
+moves mid-turn, directed-question continuations keep their exact
+claim-token-bound path, and every other host's posting path is untouched.
+
+
 ### Write attribution teaches omission as the default
 
 The provenance_ref parameter's description now says plainly what has always

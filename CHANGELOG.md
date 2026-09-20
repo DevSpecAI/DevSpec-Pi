@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### One command for the lifecycle-critical test path
+
+`npm run test:core-paths` runs the nine suites that pin the remote/lifecycle
+contract — turn lifecycle, command-turn and canonical-ingress wiring, speech
+delivery, post receipts, catalog drift, attach context, recovery wiring and
+debug privacy — sequentially, so it is safe on the shared machine where the
+full parallel suite is not. This exists because a real miss happened: a
+turn-lifecycle change needed a new global in the speech harness's sandbox, and
+the ad-hoc single-file habit skipped that file. When you touch the remote pump,
+the turn tracker, or the speech/trail paths, run this.
+
+
 ### Speech posts can no longer wedge on a stale scope
 
 Ordinary assistant speech now posts on the server's append-only v2 lane

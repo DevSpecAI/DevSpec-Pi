@@ -1,6 +1,6 @@
 {
   "name": "@devspec/pi-plugin",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "description": "DevSpec for Pi \u2014 native tools, auth, remote control, and memory for the Pi coding agent. One install, everything included.",
   "type": "module",
   "license": "MIT",
@@ -32,7 +32,8 @@
     "check": "npm run typecheck && npm test && npm run benchmark:context",
     "typecheck": "tsc --noEmit",
     "generate:catalog": "node scripts/generate-mcp-catalog.mjs",
-    "test": "node --test --test-concurrency=2 tests/*.test.ts"
+    "test": "node --test --test-concurrency=2 tests/*.test.ts",
+    "test:core-paths": "node --test --test-concurrency=2 tests/turn-lifecycle.test.ts tests/command-turn-wiring.test.ts tests/canonical-ingress-wiring.test.ts tests/assistant-speech-delivery.test.ts tests/post-session-receipt.test.ts tests/catalog-drift.test.ts tests/attach-context.test.ts tests/recovery-wiring.test.ts tests/debug-privacy.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0"

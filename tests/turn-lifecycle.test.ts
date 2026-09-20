@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { formatAutomationRunMessage, isAutomationRunEnvelope, automationRunId } from "../extensions/core/dispatch.ts";
 import { INTERACTION_EVENT_CUSTOM_TYPE, formatInteractionEventContinuation, type InteractionEventV1 } from "../extensions/core/interaction-events.ts";
-import { automaticBackgroundTaskId, backgroundTaskNotificationId, classifyUserKind, isBackgroundCompletionOrigin, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, isReceiptAcknowledgement, isSubagentAsyncNotification, isWaitNarration, isProcessClose, planSettle, shouldSplitSpeech, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
+import { automaticBackgroundTaskId, backgroundTaskNotificationId, terminalBackgroundTaskIds, classifyUserKind, isBackgroundCompletionOrigin, isClosedAnswer, isClosedAnswerBoundary, isDeliveryBoundary, isHarnessOrigin, isReceiptAcknowledgement, isSubagentAsyncNotification, isWaitNarration, isProcessClose, planSettle, shouldSplitSpeech, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 
 function remoteTurn(answer: string): TurnTracker {
 	const t = new TurnTracker();
@@ -658,6 +658,63 @@ test("terminal notification ids prefer structured details and fall back to the e
 	assert.equal(backgroundTaskNotificationId("<task-id>running</task-id><status>running</status>"), null);
 	assert.equal(backgroundTaskNotificationId("<task-id>done</task-id>", { status: "completed" }), "done");
 	assert.equal(backgroundTaskNotificationId("[bg killed] unknown"), null);
+});
+
+test("killed and status-observed terminal tasks resolve from tool results (f453c61f)", () => {
+	// Ground-truth shapes from the live 2026-09-20 incident (session file
+	// 01a0bb1e): bg_kill returns details.task with an explicit terminal
+	// status; bg_status returns details.tasks[].
+	const kill = { details: { task: { id: "b68788a72", status: "killed" } } };
+	assert.deepEqual(terminalBackgroundTaskIds("bg_kill", kill), ["b68788a72"]);
+	assert.deepEqual(terminalBackgroundTaskIds("bg_kill", kill, true), [], "failed kill resolves nothing — the task may still run");
+	assert.deepEqual(terminalBackgroundTaskIds("bg_kill", { details: { task: { id: "x", status: "running" } } }), []);
+	assert.deepEqual(terminalBackgroundTaskIds("bg_kill", { details: { task: { id: "  " , status: "killed" } } }), []);
+	assert.deepEqual(terminalBackgroundTaskIds("bg_kill", null), []);
+
+	const status = {
+		details: {
+			tasks: [
+				{ id: "done-1", status: "completed" },
+				{ id: "run-1", status: "running" },
+				{ id: "dead-1", status: "KILLED" },
+				{ id: "oops", status: "failed" },
+				{ id: "mystery", status: "marching" },
+				{ status: "completed" },
+			],
+		},
+	};
+	assert.deepEqual(terminalBackgroundTaskIds("bg_status", status), ["done-1", "dead-1", "oops"]);
+	assert.deepEqual(terminalBackgroundTaskIds("bg_status", status, true), []);
+	assert.deepEqual(terminalBackgroundTaskIds("bg_status", { details: {} }), []);
+	assert.deepEqual(terminalBackgroundTaskIds("bg_run", kill), [], "only management tools reconcile");
+	assert.deepEqual(terminalBackgroundTaskIds("bg_logs", status), [], "inspection receipts never resolve either");
+});
+
+test("killed-task replay: launch, kill-observed resolve, settle closes (f453c61f)", () => {
+	const t = new TurnTracker();
+	t.userMessage("[DevSpec remote — message from Ali Price to Rapid Panther]\nInvestigate the stuck Working indicator.");
+	t.noteBackgroundTask("b68788a72");
+	assert.equal(t.awaitingBackground, true);
+	// The kill produced no completion message; the kill TOOL result reconciles.
+	for (const id of terminalBackgroundTaskIds("bg_kill", { details: { task: { id: "b68788a72", status: "killed" } } })) {
+		assert.equal(t.resolveBackgroundTask(id), true);
+	}
+	assert.equal(t.awaitingBackground, false);
+	const answer = "Found it: the killed dev server left a phantom pending id.";
+	t.assistantFinal(answer, true);
+	assert.deepEqual(planSettle(t, true), { kind: "final", message: answer });
+});
+
+test("reconciliation cannot resolve running work or foreign ids (f453c61f)", () => {
+	const t = new TurnTracker();
+	t.userMessage("[DevSpec remote — message from Ali Price to Rapid Panther]\nKeep the watcher running.");
+	t.noteBackgroundTask("watcher-live");
+	// A status listing from anywhere only resolves ids it proves terminal —
+	// and resolve is still scoped to this tracker's own set.
+	for (const id of terminalBackgroundTaskIds("bg_status", { details: { tasks: [{ id: "other-session-task", status: "killed" }] } })) {
+		assert.equal(t.resolveBackgroundTask(id), false);
+	}
+	assert.equal(t.awaitingBackground, true, "genuine running work keeps presence parked");
 });
 
 test("overlapping background completions keep idempotent bookkeeping; speech is never gated on them (15cb0983)", () => {

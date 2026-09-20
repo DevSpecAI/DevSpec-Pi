@@ -216,6 +216,64 @@ export function automaticBackgroundTaskId(
 	return typeof receipt.id === "string" && receipt.id.trim() ? receipt.id.trim() : null;
 }
 
+/**
+ * Terminally-finished background task ids from background-management tool
+ * results (item f453c61f).
+ *
+ * Completion custom-messages are the primary resolution path, but a task
+ * killed from outside (bg_kill) never produces one — and a kill result only
+ * lands here, in tool_execution_end. Without this the id leaks and every
+ * later settle posts complete_turn:false forever (live 2026-09-20: 5h stuck
+ * Working on a killed dev server). bg_status results reconcile the same way
+ * for tasks that died without any notice at all.
+ *
+ * Resolve ONLY on explicit terminal states. Failed-tool results, running or
+ * unknown states, malformed shapes and missing lists resolve nothing: a
+ * wrong resolve shows Idle while work runs, which is worse than the leak.
+ * Ids absent from the pending set are naturally no-ops at resolve time, so
+ * a status listing that spans sessions cannot disturb this turn's bookkeeping.
+ */
+const TERMINAL_BG_TASK_STATUSES = new Set(["completed", "failed", "killed"]);
+
+function terminalTaskId(task: unknown): string | null {
+	if (!task || typeof task !== "object") return null;
+	const receipt = task as { id?: unknown; status?: unknown };
+	if (typeof receipt.id !== "string" || !receipt.id.trim()) return null;
+	if (typeof receipt.status !== "string") return null;
+	if (!TERMINAL_BG_TASK_STATUSES.has(receipt.status.trim().toLowerCase())) return null;
+	return receipt.id.trim();
+}
+
+export function terminalBackgroundTaskIds(
+	toolName: string,
+	result: unknown,
+	isError = false,
+): string[] {
+	if (isError || !result || typeof result !== "object") return [];
+	const outer = result as { details?: unknown; task?: unknown; tasks?: unknown };
+	if (toolName === "bg_kill") {
+		const details = outer.details && typeof outer.details === "object"
+			? (outer.details as { task?: unknown })
+			: outer;
+		const id = terminalTaskId(details.task);
+		return id ? [id] : [];
+	}
+	if (toolName === "bg_status") {
+		const details = outer.details && typeof outer.details === "object"
+			? (outer.details as { tasks?: unknown })
+			: outer;
+		const tasks = (details as { tasks?: unknown }).tasks;
+		if (!Array.isArray(tasks)) return [];
+		const ids: string[] = [];
+		for (const task of tasks) {
+			const id = terminalTaskId(task);
+			if (id) ids.push(id);
+		}
+		return ids;
+	}
+	return [];
+}
+
 /** Terminal task id from Pi's custom notification envelope/details. */
 export function backgroundTaskNotificationId(text: string, details?: unknown): string | null {
 	let structuredId: string | null = null;

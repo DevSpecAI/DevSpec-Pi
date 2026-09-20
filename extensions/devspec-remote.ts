@@ -78,7 +78,7 @@ import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } f
 import { SubagentFleetClient, type SubagentFleetSnapshot } from "./core/subagent-fleet.ts";
 import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
 import { takeContextBudgetReport } from "./core/context-budget.ts";
-import { automaticBackgroundTaskId, backgroundTaskNotificationId, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitSpeech, isHarnessOrigin, isSubagentAsyncNotification, TurnTracker } from "./core/turn-lifecycle.ts";
+import { automaticBackgroundTaskId, backgroundTaskNotificationId, terminalBackgroundTaskIds, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitSpeech, isHarnessOrigin, isSubagentAsyncNotification, TurnTracker } from "./core/turn-lifecycle.ts";
 import {
 	formatAutomationRunMessage,
 	isAutomationRunEnvelope,
@@ -3406,7 +3406,23 @@ export default function (pi: ExtensionAPI) {
 		// both terminal notification and automatic wake. tool_execution_start is
 		// too early: a failed launch would otherwise park the turn forever.
 		const backgroundTaskId = automaticBackgroundTaskId(event.toolName, event.result, event.isError);
-		if (backgroundTaskId) turn.tracker.noteBackgroundTask(backgroundTaskId);
+		if (backgroundTaskId) {
+			turn.tracker.noteBackgroundTask(backgroundTaskId);
+			// Numeric-only vocabulary by design (debug.ts drops all strings):
+			// the pendingBg count after each note/resolve makes a leak
+			// computable (notes minus resolves) without naming tasks.
+			debug("background task noted", { pendingBg: turn.tracker.pendingBackgroundTasks().length });
+		}
+		// Reconcile terminally-finished tasks observed in management results
+		// (item f453c61f): a kill produces no completion message, so without
+		// this the id leaks and every later settle posts complete_turn:false
+		// forever. Only explicit terminal states resolve; anything else (and
+		// any id this turn never owned) is a no-op by construction.
+		for (const terminalId of terminalBackgroundTaskIds(event.toolName, event.result, event.isError)) {
+			if (turn.tracker.resolveBackgroundTask(terminalId)) {
+				debug("background task resolved from tool result", { pendingBg: turn.tracker.pendingBackgroundTasks().length });
+			}
+		}
 		const terminatingReceipt = isReceiptOwningDirectedQuestionCreate(
 			event.toolName,
 			event.result,

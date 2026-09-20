@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: e4eeea1ca25aa9775fb384774d680e6c39e37a5c1ed512739d2e229bc0109cf2
- * Description fingerprint: 880cc57a227bdc7dcd6ad0f7e435ee8d8c16dbfe1ef14b55768ca6b2b2cd653c
- * Regenerated: 2026-09-19T13:33:05.729Z
+ * Schema fingerprint: 75ef3f4961fceb1a3259833131377cd9e37e2265f390d8a25c33e0c4dfbd7d1f
+ * Description fingerprint: 6ec3a068971918fabea269de824a115d061df4f6a2d236c7a1541d563fa3dada
+ * Regenerated: 2026-09-20T19:20:54.012Z
  */
-export const MCP_CATALOG_FINGERPRINT = "e4eeea1ca25aa9775fb384774d680e6c39e37a5c1ed512739d2e229bc0109cf2";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "880cc57a227bdc7dcd6ad0f7e435ee8d8c16dbfe1ef14b55768ca6b2b2cd653c";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-19T13:33:05.729Z";
+export const MCP_CATALOG_FINGERPRINT = "75ef3f4961fceb1a3259833131377cd9e37e2265f390d8a25c33e0c4dfbd7d1f";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "6ec3a068971918fabea269de824a115d061df4f6a2d236c7a1541d563fa3dada";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-20T19:20:54.012Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -2878,7 +2878,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "create_resource",
 		"label": "DevSpec: Create Resource",
-		"description": "Create a new artifact (AI-generated deliverable) in the project. The response includes a system-computed `related_candidates` object — existing artifacts that may already cover this (each with its current lifecycle signals, e.g. possibly_stale / superseded_but_live) and decided memories the artifact might contradict. Review it: if an existing artifact already covers this, prefer updating or superseding it instead of adding a duplicate, and never contradict a decided memory without raising it.",
+		"description": "Create a new artifact (AI-generated deliverable) in the project. The create checks your draft against the existing artifacts FIRST (you do not have to search yourself). The check is instant — it finds the closest document, it does not read them — so one finding stops the write: an existing artifact closely resembles this one. The response then carries reconcile_required + closest_match + guidance naming it, and NOTHING was created. READ THAT DOCUMENT AND DECIDE — that judgement is yours, it is why the check is fast, and it is recorded against the pair. Supersede it if this replaces it, update it if this belongs in it, or re-call with confirm_new: true if it is genuinely distinct. Do not reach for confirm_new to get past the check. A create is the one write that cannot consult an earlier ruling, because a draft has no identity yet to have been ruled on — so this asks once, per new document. When the write does land, the response includes a system-computed `related_candidates` object — existing artifacts that may already cover this (each with its current lifecycle signals, e.g. possibly_stale / superseded_but_live) and decided memories the artifact might contradict; that half is advisory and never blocks. AUTHORITY: judged per call by the served contract (devspec://product/implementation-contract → authority_contract), never by this description. Read the `outcome`: `committed` applied now; `queued_for_review` carries a `proposal_id` and touches NOTHING until a maintainer accepts it — say which happened, and never report a queued change as done.",
 		"promptSnippet": "Create a new artifact (AI-generated deliverable) in the project.",
 		"inputSchema": {
 			"type": "object",
@@ -2886,6 +2886,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Optional but STRONGLY preferred when you are a connected agent: your own connection id. It records WHICH AGENT wrote this, and lets the server attribute the write to whoever actually asked for it when you are acting on a command from a teammate. It can never name a person by itself — the requester is resolved server-side, never from anything you send."
+				},
+				"confirm_new": {
+					"type": "boolean",
+					"description": "Set true only after reading the artifact named in closest_match and deciding this is genuinely a separate document from it. It is a RULING, not a retry: it is recorded against the pair, with who made it, which is what stops the background comparison re-asking a question you already answered. If the document it named is someone else’s settled work, say what you found and ask rather than overruling it quietly."
 				},
 				"title": {
 					"type": "string",
@@ -5359,7 +5363,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"local_id": {
 					"type": "string",
-					"description": "The stable local conversation id (CLAUDE_SESSION_ID / the plugin-minted bond id). This is the bond key — the same value across the life of this local agent conversation, so re-registering finds the same connection."
+					"description": "The bond key: the stable id YOUR OWN host uses for this conversation, or one your plugin mints and persists where the host exposes none. Read only your own host's value — when one agent launches another the parent's id is in the environment too, and adopting it makes you act as that conversation. Claude Code: `CLAUDE_SESSION_ID`. Cursor: `CURSOR_CONVERSATION_ID`. Codex: `CODEX_THREAD_ID`. Grok Build: `GROK_SESSION_ID`. Pi: `PI_SESSION_ID`. The same value across the life of this local agent conversation, so re-registering finds the same connection."
 				},
 				"agent_name": {
 					"type": "string",

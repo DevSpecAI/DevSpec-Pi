@@ -2,7 +2,8 @@
  * DevSpec Pi — conflict watch (shared store + pure extractors, unit-tested).
  *
  * DevSpec payloads already carry the signals — unresolved_conflicts on items,
- * reconcile_required / potential_conflicts on memory writes, related_candidates
+ * reconcile_required on any knowledge write (memories AND documents, since
+ * devspecv2 134f4454), potential_conflicts on memory writes, related_candidates
  * on item creates. They arrive as TEXT the model might read. The watch makes
  * them structural: a shared flag store, a per-turn system-prompt nudge while
  * anything is open, and a /devspec.conflicts listing. Surfacing, never silent
@@ -11,7 +12,7 @@
 
 export interface ConflictFlag {
 	key: string;
-	kind: "item_conflict" | "related_candidates" | "memory_reconcile" | "memory_conflict";
+	kind: "item_conflict" | "related_candidates" | "write_gate" | "memory_conflict";
 	/** Display line. */
 	label: string;
 }
@@ -79,13 +80,21 @@ export function extractFlags(toolName: string, details: unknown): ConflictFlag[]
 		});
 	}
 
+	// The write gate, on either corpus. It stops a memory write and a document
+	// write alike (devspecv2 134f4454 wired the artifact corridors), so the noun
+	// comes from the verb rather than being assumed to be "memory" — and the
+	// reader gets the match's NAME, which is the whole point of the gate. It
+	// asks for no reason: that demand was removed in devspecv2 5b86e9f2.
 	if (d.reconcile_required) {
 		const match = d.closest_match as Record<string, unknown> | undefined;
 		const id = (match?.id ?? "unknown") as string;
+		const title = typeof match?.title === "string" && match.title ? match.title : null;
+		const corpus = toolName.includes("resource") ? "document" : "memory";
+		const named = title ? `"${title}" (…${String(id).slice(-8)})` : `…${String(id).slice(-8)}`;
 		flags.push({
-			key: `memory_reconcile:${id}`,
-			kind: "memory_reconcile",
-			label: `memory write recall-gated — near-duplicate …${String(id).slice(-8)} (supersede it, or confirm_new with reason)`,
+			key: `write_gate:${id}`,
+			kind: "write_gate",
+			label: `${corpus} write gated — closest is ${named} (read it, then supersede/update it, or confirm_new if it is genuinely separate)`,
 		});
 	}
 

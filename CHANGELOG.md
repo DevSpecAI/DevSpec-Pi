@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+### The write check tells you which document it matched, on either corpus
+
+DevSpec stops a knowledge write when something close already exists, and the
+reply names the record it matched so you can go and read it. Pi described that
+as a memory-only thing, because when it was written it was: the artifact write
+corridors could not answer the check at all (fixed server-side in DevSpec
+134f4454, staging `f5c89d8b3`).
+
+Three things were saying something untrue, and one was actively misleading:
+
+- The flag the session keeps open said "memory write recall-gated" whatever you
+  had been writing, and told you to re-call "with reason" — a demand DevSpec
+  removed on 2026-09-18. It now says memory or document from the verb, names the
+  match by **title** rather than only an id suffix, and asks for no reason.
+- The result projection labelled the match "Closest memory match" and told you to
+  fetch it with `get_memory` — which returns nothing for a document id, so a
+  document refusal read as the gate matching a record that does not exist. It now
+  names the right reader per corpus.
+- The always-on instructions said only `record_memory` was gated. They now say
+  every knowledge write is, and what to do when one is stopped.
+
+The catalog is regenerated against that staging commit: `create_resource` gains
+`confirm_new`, and a `register_connection` description that had drifted since
+2026-09-19 is picked up in the same pass. Same 100 verbs, same projection
+families. The initial model surface measures 7,480 tokens of the 8,000 ceiling,
+up 24 — all of it the instructions line, none of it the catalog.
+
 ### Resumed sessions no longer brick on duplicate tool definitions
 
 Loading a less-common tool with `search_devspec_tools`, then resuming or

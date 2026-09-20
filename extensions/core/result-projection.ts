@@ -765,7 +765,9 @@ function conflictBlocks(root: Row): string[] {
 		if (unresolved.length > RELATED_LIMIT) lines.push(`- ${unresolved.length - RELATED_LIMIT} additional unresolved conflict(s) omitted; fetch the exact item and inspect its unresolved_conflicts before proceeding.`);
 		blocks.push(lines.join("\n"));
 	}
-	if (root.reconcile_required === true) blocks.push("Gate — memory reconciliation: required before creating or updating a duplicate.");
+	// The write gate stops memory AND document writes alike (devspecv2 134f4454).
+	// Nothing was written, and the closest record is named below.
+	if (root.reconcile_required === true) blocks.push("Gate — the write check named a close existing record; nothing was written. Read it, then supersede/update it, or re-call with confirm_new if it is genuinely separate.");
 	if (root.claimed === false) blocks.push("Gate — claim rejected/not acquired.");
 	if (root.blocked === true || root.is_blocked === true) blocks.push("Gate — result is blocked.");
 	return blocks;
@@ -977,8 +979,16 @@ function ackProjection(toolName: string, details: unknown): string | null {
 	}
 	const closestMatch = root.closest_match ?? memoryReconciliation?.closest_match;
 	if (closestMatch != null) {
-		required.push(mandatoryCategoryBlock("Closest memory match", [closestMatch]));
-		optional.push(relatedBlock("Closest memory match", [closestMatch], "use get_memory(id), then reconcile before writing"));
+		// Which corpus decides which reader to name. Sending a document id to
+		// get_memory returns nothing, which reads as "the gate matched something
+		// that does not exist" — the exact dead end 134f4454 removed.
+		const isDocument = toolName.includes("resource");
+		const label = isDocument ? "Closest existing document" : "Closest existing memory";
+		const fetch = isDocument
+			? "use get_resource(id) and read it, then update/supersede it — or confirm_new if it is genuinely separate"
+			: "use get_memory(id) and read it, then supersede it — or confirm_new if it is genuinely separate";
+		required.push(mandatoryCategoryBlock(label, [closestMatch]));
+		optional.push(relatedBlock(label, [closestMatch], fetch));
 	}
 
 	const budget = toolName === "record_implementation"

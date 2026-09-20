@@ -47,7 +47,8 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /relay both/);
 	assert.match(text, /never report the change as done/i);
 	assert.match(text, /not a rule to remember here/);
-	assert.match(text, /recall-gates near-duplicates/);
+	assert.match(text, /memory or document/);
+	assert.match(text, /the reply names the record/);
 	assert.doesNotMatch(text, /interactive authority|maintainer-only|always queues/i);
 	assert.match(text, /server reconciliation/);
 	assert.doesNotMatch(text, /trusted subprocess|trusted child/i);

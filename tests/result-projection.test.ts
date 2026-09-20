@@ -252,9 +252,28 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// Budget: `npm run benchmark:context` measures the initial surface at 7,456
 	// tokens of the 8,000 ceiling — UNCHANGED, because the memory write verbs
 	// are wire-only and not in the model hot set.
+	// Rebaselined 2026-09-20 for DevSpec item 134f4454, which gave every write-gate
+	// corridor the affordances the repository always returned. Regenerated against
+	// staging f5c89d8b3. The fingerprinted contract moved in exactly ONE place,
+	// verified by diffing the old-vs-new contract object: 86 model verbs both
+	// sides, no additions or removals, and the only diff is create_resource
+	// gaining an optional `confirm_new` boolean (2,420 → 2,881 chars). No enum, no
+	// required field and no projection family changed — create_resource is still
+	// `ack`, and it is not in the hot set, so the surface pays only its first
+	// sentence, which is unchanged.
+	//
+	// Outside this fingerprint the same regen absorbed create_resource's tool
+	// description (it now says the check exists, which it never did) and a
+	// register_connection bond-key description that had drifted since 2026-09-19
+	// (pump-only, not model-facing).
+	//
+	// Budget: `npm run benchmark:context` measures the initial surface at 7,480
+	// tokens of the 8,000 ceiling, up 24 from 7,456. The catalog contributed none
+	// of that — every token is the instructions bullet, which stopped claiming
+	// only memories are gated and now says what to do when a write is stopped.
 	assert.equal(
 		fingerprint,
-		"c68847bc8e1f06c9feb87413ac7c57a827bd60dc7483c99a659e8b6914c37c64",
+		"4119358ea2be3a6b4810e9de4b3b766d83e7cb389a7d71f116cc87b2f1c0b180",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -605,13 +624,44 @@ test("create/update projections keep decision, reconciliation, conflict, and dup
 		assert.match(text, /check_against_decisions.*related decisions/i);
 		assert.match(text, /Related decisions:[\s\S]*decision-1/);
 		assert.match(text, /memory reconciliation.*required: true/i);
-		assert.match(text, /Closest memory match:[\s\S]*memory-1/);
+		assert.match(text, /Closest existing memory:[\s\S]*memory-1/);
 		assert.match(text, /Potential conflicts:[\s\S]*conflict-1/);
 		assert.match(text, /Near duplicates:[\s\S]*duplicate-1/);
 		assert.match(text, /item-conflict.*overlap/);
 		assert.match(text, /Related candidates: 5; showing top 3/);
 		assert.doesNotMatch(text, /candidate-4|REPEATED-INPUT/);
 	}
+});
+
+/**
+ * The write gate refuses documents as well as memories (DevSpec 134f4454), and a
+ * refusal is only useful if the reader can go and open what it matched. Sending a
+ * document id to get_memory returns nothing, which reads as "the gate matched
+ * something that does not exist" — the dead end that item removed.
+ */
+test("a gated document write points at get_resource, and a gated memory write at get_memory", () => {
+	const payload = {
+		created: false,
+		reconcile_required: true,
+		closest_match: { id: "artifact-77", title: "The other ADR" },
+		affordances: ["supersede", "link", "dismiss", "proceed_new"],
+		guidance: "This closely resembles a record that already exists.",
+	};
+
+	const document = projectModelText({ toolName: "create_resource", text: JSON.stringify(payload), details: payload });
+	assert.match(document, /Closest existing document/);
+	assert.match(document, /artifact-77/);
+	// The reader is what mattered: the old label said "memory" whatever the verb,
+	// and its fetch hint said get_memory — which returns nothing for a document id.
+	assert.doesNotMatch(document, /get_memory/);
+	assert.doesNotMatch(document, /Closest existing memory/);
+	// It must read as "nothing was written", not as a fault.
+	assert.match(document, /nothing was written/i);
+
+	const memory = projectModelText({ toolName: "record_memory", text: JSON.stringify(payload), details: payload });
+	assert.match(memory, /Closest existing memory/);
+	assert.doesNotMatch(memory, /get_resource/);
+	assert.doesNotMatch(memory, /Closest existing document/);
 });
 
 test("record_implementation clearly preserves own and brief criterion follow-through plus human steps", () => {
@@ -733,7 +783,7 @@ test("acknowledgements reserve every simultaneous reconciliation category", () =
 		["Potential conflicts", "conflict-1"],
 		["Near duplicates", "duplicate-1"],
 		["Related candidates", "related-1"],
-		["Closest memory match", "closest-1"],
+		["Closest existing memory", "closest-1"],
 	] as const) {
 		assert.match(text, new RegExp(`Gate category — ${label}:[^\\n]*\\[${id}\\]`), label);
 	}

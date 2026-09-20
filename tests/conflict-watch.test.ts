@@ -24,7 +24,7 @@ test("extractFlags finds the memory recall gate and potential conflicts", () => 
 		closest_match: { id: "mem-99998888" },
 		potential_conflicts: [{ id: "mem-11112222" }],
 	});
-	assert.deepEqual(flags.map((f) => f.kind).sort(), ["memory_conflict", "memory_reconcile"]);
+	assert.deepEqual(flags.map((f) => f.kind).sort(), ["memory_conflict", "write_gate"]);
 });
 
 test("related_candidates only flag from create_action_item", () => {

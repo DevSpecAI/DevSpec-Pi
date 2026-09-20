@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: cbacf576944c0470fad3f712adae0c7b60f15e3b44e984c1839cd6a2fcada992
+ * Schema fingerprint: f069b7f46bf591a6e34531cb175146e0c1bc69caaa6928d32eb7b37c96bc7ccb
  * Description fingerprint: 6ec3a068971918fabea269de824a115d061df4f6a2d236c7a1541d563fa3dada
- * Regenerated: 2026-09-20T20:02:44.830Z
+ * Regenerated: 2026-09-20T20:23:35.821Z
  */
-export const MCP_CATALOG_FINGERPRINT = "cbacf576944c0470fad3f712adae0c7b60f15e3b44e984c1839cd6a2fcada992";
+export const MCP_CATALOG_FINGERPRINT = "f069b7f46bf591a6e34531cb175146e0c1bc69caaa6928d32eb7b37c96bc7ccb";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "6ec3a068971918fabea269de824a115d061df4f6a2d236c7a1541d563fa3dada";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-20T20:02:44.830Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-20T20:23:35.821Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -2060,7 +2060,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"provenance_ref": {
 					"type": "string",
-					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omit to use the active turn's server-defined primary command; send an explicit ref only for work caused by another command in that same turn. Never send a requester user id."
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omission is the default and the safe path: the server attributes the write to your connection's single current open turn — one server-owned pointer, never a choice you have to make. Send an explicit ref only for work caused by another command in that same turn; a wrong ref fails closed, so when unsure, omit. Never send a requester user id."
 				}
 			},
 			"required": [
@@ -2208,7 +2208,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"provenance_ref": {
 					"type": "string",
-					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omit to use the active turn's server-defined primary command; send an explicit ref only for work caused by another command in that same turn. Never send a requester user id."
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omission is the default and the safe path: the server attributes the write to your connection's single current open turn — one server-owned pointer, never a choice you have to make. Send an explicit ref only for work caused by another command in that same turn; a wrong ref fails closed, so when unsure, omit. Never send a requester user id."
 				},
 				"work_claim_ref": {
 					"type": "string",
@@ -2931,7 +2931,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"provenance_ref": {
 					"type": "string",
-					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omit to use the active turn's server-defined primary command; send an explicit ref only for work caused by another command in that same turn. Never send a requester user id."
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omission is the default and the safe path: the server attributes the write to your connection's single current open turn — one server-owned pointer, never a choice you have to make. Send an explicit ref only for work caused by another command in that same turn; a wrong ref fails closed, so when unsure, omit. Never send a requester user id."
 				},
 				"work_claim_ref": {
 					"type": "string",
@@ -3107,7 +3107,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"provenance_ref": {
 					"type": "string",
-					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omit to use the active turn's server-defined primary command; send an explicit ref only for work caused by another command in that same turn. Never send a requester user id."
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omission is the default and the safe path: the server attributes the write to your connection's single current open turn — one server-owned pointer, never a choice you have to make. Send an explicit ref only for work caused by another command in that same turn; a wrong ref fails closed, so when unsure, omit. Never send a requester user id."
 				},
 				"project_id": {
 					"type": "string",
@@ -3195,7 +3195,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"provenance_ref": {
 					"type": "string",
-					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omit to use the active turn's server-defined primary command; send an explicit ref only for work caused by another command in that same turn. Never send a requester user id."
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omission is the default and the safe path: the server attributes the write to your connection's single current open turn — one server-owned pointer, never a choice you have to make. Send an explicit ref only for work caused by another command in that same turn; a wrong ref fails closed, so when unsure, omit. Never send a requester user id."
 				}
 			},
 			"required": [
@@ -3235,7 +3235,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"provenance_ref": {
 					"type": "string",
-					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omit to use the active turn's server-defined primary command; send an explicit ref only for work caused by another command in that same turn. Never send a requester user id."
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omission is the default and the safe path: the server attributes the write to your connection's single current open turn — one server-owned pointer, never a choice you have to make. Send an explicit ref only for work caused by another command in that same turn; a wrong ref fails closed, so when unsure, omit. Never send a requester user id."
 				},
 				"work_claim_ref": {
 					"type": "string",
@@ -3428,7 +3428,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"provenance_ref": {
 					"type": "string",
-					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omit to use the active turn's server-defined primary command; send an explicit ref only for work caused by another command in that same turn. Never send a requester user id."
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omission is the default and the safe path: the server attributes the write to your connection's single current open turn — one server-owned pointer, never a choice you have to make. Send an explicit ref only for work caused by another command in that same turn; a wrong ref fails closed, so when unsure, omit. Never send a requester user id."
 				},
 				"work_claim_ref": {
 					"type": "string",
@@ -3500,7 +3500,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"provenance_ref": {
 					"type": "string",
-					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omit to use the active turn's server-defined primary command; send an explicit ref only for work caused by another command in that same turn. Never send a requester user id."
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omission is the default and the safe path: the server attributes the write to your connection's single current open turn — one server-owned pointer, never a choice you have to make. Send an explicit ref only for work caused by another command in that same turn; a wrong ref fails closed, so when unsure, omit. Never send a requester user id."
 				},
 				"work_claim_ref": {
 					"type": "string",
@@ -3710,7 +3710,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"provenance_ref": {
 					"type": "string",
-					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omit to use the active turn's server-defined primary command; send an explicit ref only for work caused by another command in that same turn. Never send a requester user id."
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omission is the default and the safe path: the server attributes the write to your connection's single current open turn — one server-owned pointer, never a choice you have to make. Send an explicit ref only for work caused by another command in that same turn; a wrong ref fails closed, so when unsure, omit. Never send a requester user id."
 				},
 				"work_claim_ref": {
 					"type": "string",
@@ -4359,7 +4359,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"provenance_ref": {
 					"type": "string",
-					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omit to use the active turn's server-defined primary command; send an explicit ref only for work caused by another command in that same turn. Never send a requester user id."
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omission is the default and the safe path: the server attributes the write to your connection's single current open turn — one server-owned pointer, never a choice you have to make. Send an explicit ref only for work caused by another command in that same turn; a wrong ref fails closed, so when unsure, omit. Never send a requester user id."
 				},
 				"work_claim_ref": {
 					"type": "string",
@@ -4447,7 +4447,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"provenance_ref": {
 					"type": "string",
-					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omit to use the active turn's server-defined primary command; send an explicit ref only for work caused by another command in that same turn. Never send a requester user id."
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omission is the default and the safe path: the server attributes the write to your connection's single current open turn — one server-owned pointer, never a choice you have to make. Send an explicit ref only for work caused by another command in that same turn; a wrong ref fails closed, so when unsure, omit. Never send a requester user id."
 				},
 				"work_claim_ref": {
 					"type": "string",
@@ -4563,7 +4563,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"provenance_ref": {
 					"type": "string",
-					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omit to use the active turn's server-defined primary command; send an explicit ref only for work caused by another command in that same turn. Never send a requester user id."
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omission is the default and the safe path: the server attributes the write to your connection's single current open turn — one server-owned pointer, never a choice you have to make. Send an explicit ref only for work caused by another command in that same turn; a wrong ref fails closed, so when unsure, omit. Never send a requester user id."
 				},
 				"work_claim_ref": {
 					"type": "string",
@@ -4624,7 +4624,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"provenance_ref": {
 					"type": "string",
-					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omit to use the active turn's server-defined primary command; send an explicit ref only for work caused by another command in that same turn. Never send a requester user id."
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omission is the default and the safe path: the server attributes the write to your connection's single current open turn — one server-owned pointer, never a choice you have to make. Send an explicit ref only for work caused by another command in that same turn; a wrong ref fails closed, so when unsure, omit. Never send a requester user id."
 				},
 				"work_claim_ref": {
 					"type": "string",

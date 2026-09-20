@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Write attribution teaches omission as the default
+
+The provenance_ref parameter's description now says plainly what has always
+been the safe path: leave it out and the server attributes the write to your
+connection's single current open turn — one server-owned pointer, not a choice
+the model has to make — and send an explicit ref only for work caused by
+another command in that same turn. A wrong ref fails closed, so when unsure,
+omit. This is the lesson of the 2026-09-20 transcription incident (a model
+copied a 36-char delivery UUID with a fabricated tail and was rightly refused);
+the default path makes that failure impossible rather than unlikely. Catalog
+regenerated for the new wording.
+
+
 ### Working stops lying when the tracker wedges
 
 Pi now sends an opaque progress marker with every working-lease beat (the poll

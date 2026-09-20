@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### A mistyped provenance ref dies at the door, with the way out named
+
+Tool calls carrying `provenance_ref` or `work_claim_ref` are now checked
+against the refs this process has actually been dealt — delivery refs from
+validated ingress, claim refs observed in claim results — before the call
+costs a server round-trip. A ref that was never dealt here (watched live on
+2026-09-20: a model retyped a 36-char delivery UUID with a fabricated tail,
+and the server rightly refused it) is refused locally with the current turn's
+refs named and the safe path taught: omit the parameter and the server
+attributes the write to the active turn by default. Refs are never silently
+rewritten, dealt-but-old refs still pass (liveness is the server's call), and
+omission is never checked. The typed-delivery text now says the omission rule
+out loud, and the dealt set clears with the turn bindings on bond resets.
+`test:core-paths` gains the new suite.
+
+
 ### One command for the lifecycle-critical test path
 
 `npm run test:core-paths` runs the nine suites that pin the remote/lifecycle

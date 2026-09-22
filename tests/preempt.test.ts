@@ -1,14 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-	decideInteractionDelivery,
-	decideOwnerDelivery,
-	sendModeFor,
-	shouldClearStrandedBusyAfterAbort,
-	shouldRecoverHungOwnerTurn,
-	TURN_SILENCE_MS,
-	waitUntil,
-} from "../extensions/core/preempt.ts";
+import { decideInteractionDelivery, decideOwnerDelivery, sendModeFor, shouldClearStrandedBusyAfterAbort, waitUntil } from "../extensions/core/preempt.ts";
 
 test("idle owner messages deliver immediately", () => {
 	assert.equal(
@@ -163,56 +155,6 @@ test("stranded-busy clear fires only when busy is provably stale (3f07f97b)", ()
 	// An already-idle pump needs no recovery.
 	assert.equal(
 		shouldClearStrandedBusyAfterAbort({ settled: false, ctxIdle: true, occupancyBusy: false, pumpBusy: false }),
-		false,
-	);
-});
-
-test("hung-turn recover: silent busy + new owner command (4284a43c)", () => {
-	const now = 1_000_000;
-	assert.equal(
-		shouldRecoverHungOwnerTurn({
-			hasOwnerCommand: true,
-			runtimeIdle: false,
-			lastProgressAtMs: now - TURN_SILENCE_MS,
-			nowMs: now,
-		}),
-		true,
-	);
-});
-
-test("hung-turn recover: recent progress renews the silence window (4284a43c)", () => {
-	const now = 1_000_000;
-	assert.equal(
-		shouldRecoverHungOwnerTurn({
-			hasOwnerCommand: true,
-			runtimeIdle: false,
-			lastProgressAtMs: now - (TURN_SILENCE_MS - 1),
-			nowMs: now,
-		}),
-		false,
-	);
-});
-
-test("hung-turn recover: idle uses the normal immediate path (4284a43c)", () => {
-	assert.equal(
-		shouldRecoverHungOwnerTurn({
-			hasOwnerCommand: true,
-			runtimeIdle: true,
-			lastProgressAtMs: 0,
-			nowMs: TURN_SILENCE_MS * 10,
-		}),
-		false,
-	);
-});
-
-test("hung-turn recover: no owner command never force-recovers (4284a43c)", () => {
-	assert.equal(
-		shouldRecoverHungOwnerTurn({
-			hasOwnerCommand: false,
-			runtimeIdle: false,
-			lastProgressAtMs: 0,
-			nowMs: TURN_SILENCE_MS * 10,
-		}),
 		false,
 	);
 });

@@ -1,18 +1,18 @@
 # Changelog
 
-## 0.3.10
+## 0.3.11
 
-### Live no longer means deaf after a hung mid-turn
+### Restore the configured interruption behaviour
 
-When a new owner command arrives and the local turn has produced no progress
-for 90s, the remote pump force-recovers that silent turn (abort, clear
-stranded busy if needed, prefer a fresh `now` send) instead of waiting forever
-for a cooperative settle. Heartbeats alone cannot leave a Live bond deaf —
-Fierce Octopus 2026-09-22 class. Real model/tool progress renews the silence
-window via `noteProgressEvent` / `currentProgressAtMs`. Policy is pure
-(`shouldRecoverHungOwnerTurn`); wiring is pinned in recovery-wiring + preempt
-unit tests.
+Reverts the silence-based recovery introduced in 0.3.10. New messages again
+respect the configured choice to interrupt or queue, including during long
+operations that produce no intermediate output. Background work continues to
+keep the agent marked Working until it finishes.
 
+The reported unresponsive-turn problem remains under investigation; this
+rollback does not claim to fix it. After updating, reload or restart Pi to
+load the changed extension. `/devspec.remote reconnect` only retries the
+existing connection and does not load new code.
 
 ## Unreleased
 

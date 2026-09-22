@@ -114,7 +114,8 @@ test("ambiguous start and release calls retain exact pump retries", () => {
 
 test("owner polling is deferred by server activity while Pi suppresses generic busy mutation", () => {
 	const pump = between("async function pumpLoop", "interface BondOutcome");
-	assert.match(pump, /!activeInteractionRun\(active\) \? \{ busy: active\.busy \} : \{\}/);
+	// Both generic presence fields stay absent during an exact interaction run.
+	assert.match(pump, /!activeInteractionRun\(active\) \? \{ busy: active\.busy, progress_marker: currentProgressMarker\(\) \} : \{\}/);
 	assert.match(pump, /interactionEventAck[^]*catch_up: true/);
 	assert.match(pump, /await applyInteractionEvent\(active, ctx, interactionEvent\)/);
 });

@@ -291,23 +291,15 @@ export function terminalBackgroundTaskIds(
  * beat reads as progress (the marker differs from whatever the attempt held).
  */
 let progressEventCounter = 0;
-/** Wall clock of the most recent noteProgressEvent — local hung-turn recovery (item 4284a43c). */
-let lastProgressAtMs = Date.now();
 
 /** Record one unit of observed work. Called from the extension's event handlers. */
-export function noteProgressEvent(nowMs: number = Date.now()): void {
+export function noteProgressEvent(): void {
 	progressEventCounter += 1;
-	lastProgressAtMs = nowMs;
 }
 
 /** The current opaque marker value to ride the next keepalive/heartbeat. */
 export function currentProgressMarker(): string {
 	return String(progressEventCounter);
-}
-
-/** When the process last observed real turn progress (speech/tools/settled…). */
-export function currentProgressAtMs(): number {
-	return lastProgressAtMs;
 }
 
 /** Terminal task id from Pi's custom notification envelope/details. */

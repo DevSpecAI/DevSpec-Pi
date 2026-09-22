@@ -79,7 +79,7 @@ import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } f
 import { SubagentFleetClient, type SubagentFleetSnapshot } from "./core/subagent-fleet.ts";
 import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
 import { takeContextBudgetReport } from "./core/context-budget.ts";
-import { automaticBackgroundTaskId, backgroundTaskNotificationId, terminalBackgroundTaskIds, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitSpeech, isHarnessOrigin, isSubagentAsyncNotification, TurnTracker, noteProgressEvent, currentProgressMarker } from "./core/turn-lifecycle.ts";
+import { automaticBackgroundTaskId, backgroundTaskNotificationId, terminalBackgroundTaskIds, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitSpeech, isHarnessOrigin, isSubagentAsyncNotification, TurnTracker, noteProgressEvent, currentProgressMarker, currentProgressAtMs } from "./core/turn-lifecycle.ts";
 import {
 	formatAutomationRunMessage,
 	isAutomationRunEnvelope,
@@ -161,7 +161,7 @@ import {
 } from "./core/interaction-events.ts";
 import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
 import { loadSettings, saveSettings } from "./core/settings.ts";
-import { decideInteractionDelivery, decideOwnerDelivery, shouldClearStrandedBusyAfterAbort, waitUntil } from "./core/preempt.ts";
+import { decideInteractionDelivery, decideOwnerDelivery, shouldClearStrandedBusyAfterAbort, shouldRecoverHungOwnerTurn, waitUntil } from "./core/preempt.ts";
 import {
 	SeenOwnerCommands,
 	sendModeAtSendTime,
@@ -2556,11 +2556,19 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					const hydration = await hydrateOwnerBundle(selectedBundle, active.bond.connectionId);
 					const hydrated = hydration.bundle;
 					attachmentLease = new AttachmentDeliveryLease(hydration.materialised);
-					const mode = decideOwnerDelivery({
-						idle: ctx.isIdle(),
-						preemptEnabled: preemptOwnerCached,
+					const runtimeIdle = ctx.isIdle();
+					const hungRecover = shouldRecoverHungOwnerTurn({
 						hasOwnerCommand: true,
+						runtimeIdle,
+						lastProgressAtMs: currentProgressAtMs(),
 					});
+					const mode = hungRecover
+						? "preempt"
+						: decideOwnerDelivery({
+							idle: runtimeIdle,
+							preemptEnabled: preemptOwnerCached,
+							hasOwnerCommand: true,
+						});
 					const formatted = formatInboundBundleMessage(hydrated);
 					const contextByEnvelope = new Map(
 						[...active.advisoryCarry, hydrated.advisoryContext].map((context) => [context.envelopeId, context]),
@@ -2576,16 +2584,32 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					let sendMode: "now" | "steer" | "followUp";
 					let deliveryNotice: string;
 					if (mode === "preempt") {
-						debug("preempt: aborting running turn for owner instruction");
+						debug(hungRecover
+							? "hung-turn: force-recovering silent mid-turn for owner instruction"
+							: "preempt: aborting running turn for owner instruction");
 						pi_abort();
 						const settled = await waitUntil(() => ctx.isIdle(), {
-							timeoutMs: 8_000,
+							timeoutMs: hungRecover ? 12_000 : 8_000,
 							intervalMs: 50,
 						});
+						if (shouldClearStrandedBusyAfterAbort({
+							settled,
+							ctxIdle: ctx.isIdle(),
+							occupancyBusy: active.runtimeOccupancy.isBusy(),
+							pumpBusy: active.busy,
+						})) {
+							active.busy = false;
+							debug("preempt: cleared stranded busy after unsettled abort");
+						}
 						sendMode = sendModeAtSendTime(mode, ctx.isIdle(), settled);
-						debug("preempt", { settled, immediate: sendMode === "now" });
+						// After a silence-window recover, prefer a fresh turn when idle —
+						// steering into a dead generation is how Live stayed deaf.
+						if (hungRecover && ctx.isIdle()) sendMode = "now";
+						debug("preempt", { settled, immediate: sendMode === "now", hungRecover });
 						if (pump !== active || active.stop) throw new Error("Remote bond changed during owner preemption.");
-						deliveryNotice = `DevSpec remote: interrupted — ${requester} first.`;
+						deliveryNotice = hungRecover
+							? `DevSpec remote: recovered hung turn — ${requester} first.`
+							: `DevSpec remote: interrupted — ${requester} first.`;
 					} else {
 						sendMode = sendModeAtSendTime(mode, ctx.isIdle());
 						if (pump !== active || active.stop) throw new Error("Remote bond changed before owner send.");

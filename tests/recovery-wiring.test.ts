@@ -46,6 +46,24 @@ test("prolonged failure warns once with the manual action; recovery is reported 
 	assert.match(remote, /connection recovered\./, "recovery is reported");
 });
 
+test("owner delivery recovers a silent mid-turn before deciding preempt/queue", () => {
+	// Item 4284a43c: Fierce Octopus stayed Live-but-deaf after an empty stub;
+	// the next owner command must force-recover on local silence, not wait forever.
+	assert.match(remote, /shouldRecoverHungOwnerTurn/, "hung-turn recover policy is imported/called");
+	assert.match(remote, /currentProgressAtMs\(\)/, "silence window reads local progress wall-clock");
+	const ownerAt = remote.indexOf("if (pkg.ownerBundle)");
+	assert.ok(ownerAt > 0, "ownerBundle delivery branch missing");
+	const window = remote.slice(ownerAt, ownerAt + 3500);
+	assert.match(window, /shouldRecoverHungOwnerTurn\(/, "owner path calls hung-turn recover");
+	assert.match(window, /hungRecover/, "hung recover gates delivery mode");
+	assert.match(
+		window,
+		/hung-turn: force-recovering silent mid-turn for owner instruction/,
+		"hung recover has a distinct debug event",
+	);
+	assert.match(window, /recovered hung turn/, "owner-facing notice names hung recovery");
+});
+
 test("/devspec.remote reconnect hurries the next lap without rebuilding state", () => {
 	assert.match(remote, /arg === "reconnect" \|\| arg === "retry"/, "reconnect subcommand exists");
 	const at = remote.indexOf('arg === "reconnect"');

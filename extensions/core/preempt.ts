@@ -14,6 +14,14 @@ export type OwnerDeliveryMode = "immediate" | "queue" | "preempt";
 /** How sendUserMessage must be called for that mode. */
 export type OwnerSendMode = "now" | "steer" | "followUp";
 
+/**
+ * Host silence window for a wedged mid-turn (item 4284a43c / Cursor Colorful
+ * Dolphin intent). Independent of the server's working-lease progress marker:
+ * this is the local pump deciding to force-recover when a new owner command
+ * arrives and the runtime has produced no progress events for this long.
+ */
+export const TURN_SILENCE_MS = 90_000;
+
 export function decideOwnerDelivery(input: {
 	idle: boolean;
 	preemptEnabled: boolean;
@@ -23,6 +31,27 @@ export function decideOwnerDelivery(input: {
 	if (input.idle) return "immediate";
 	if (input.preemptEnabled) return "preempt";
 	return "queue";
+}
+
+/**
+ * True when a new owner command must force-recover a silent mid-turn rather
+ * than wait forever for cooperative abort/settle (Fierce Octopus 2026-09-22:
+ * empty stub, heartbeats alive, later commands never woke).
+ *
+ * Idle runtimes use the normal immediate path. Active turns with recent
+ * progress renew the window. Only silence + a new command force recovery.
+ */
+export function shouldRecoverHungOwnerTurn(input: {
+	hasOwnerCommand: boolean;
+	runtimeIdle: boolean;
+	lastProgressAtMs: number;
+	nowMs?: number;
+	windowMs?: number;
+}): boolean {
+	if (!input.hasOwnerCommand || input.runtimeIdle) return false;
+	const now = input.nowMs ?? Date.now();
+	const windowMs = input.windowMs ?? TURN_SILENCE_MS;
+	return now - input.lastProgressAtMs >= windowMs;
 }
 
 /** How a directed-question answer should meet a running Pi turn (item 4221d08e). */

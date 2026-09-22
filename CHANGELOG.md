@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.10
+
+### Live no longer means deaf after a hung mid-turn
+
+When a new owner command arrives and the local turn has produced no progress
+for 90s, the remote pump force-recovers that silent turn (abort, clear
+stranded busy if needed, prefer a fresh `now` send) instead of waiting forever
+for a cooperative settle. Heartbeats alone cannot leave a Live bond deaf —
+Fierce Octopus 2026-09-22 class. Real model/tool progress renews the silence
+window via `noteProgressEvent` / `currentProgressAtMs`. Policy is pure
+(`shouldRecoverHungOwnerTurn`); wiring is pinned in recovery-wiring + preempt
+unit tests.
+
+
 ## Unreleased
 
 ### A mistyped provenance ref dies at the door, with the way out named

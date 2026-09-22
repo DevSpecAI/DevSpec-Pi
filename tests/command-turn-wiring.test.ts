@@ -46,7 +46,9 @@ test("delivery boundaries post the old exact command before rebinding the new se
 	assert.match(split, /commandMessageId: t\.commandMessageId/);
 	assert.match(source, /splitTurnAtBoundary\(\);[\s\S]{0,2400}turn\.commandTurnId = incomingCommand\?\.turnId;[\s\S]{0,200}turn\.commandMessageId = incomingCommand\?\.commandMessageId/);
 	assert.doesNotMatch(source, /commandTurnBindings\.has\(/, "client queue guesses must not own server completion");
-	assert.match(source, /pure tool-call\/no-text segment[\s\S]{0,500}trackTerminalPost\(reportComplete/);
+	// The close still happens — provider-killed segments route to the error post
+	// (e99d158b), everything else to reportComplete exactly as before.
+	assert.match(source, /pure tool-call\/no-text segment[\s\S]{0,800}trackTerminalPost\(\(previousTurn\.terminalError[\s\S]{0,200}reportTerminalError\(previousTurn, null\)[\s\S]{0,400}reportComplete\(/);
 	assert.match(source, /await Promise\.allSettled\(\[\.\.\.pendingTerminalPosts\]\)/);
 	const shutdown = source.slice(source.indexOf('pi.on("session_shutdown"'));
 	assert.ok(shutdown.indexOf("active.stop = true") < shutdown.indexOf("await Promise.allSettled"));

@@ -174,14 +174,17 @@ function subagentChildren(value: unknown): SubagentTrailChild[] {
 	});
 }
 
-/** Extract text, thinking, tool-call presence, and stopReason from an assistant message. */
+/** Extract text, thinking, tool-call presence, stopReason and any provider
+ * errorMessage from an assistant message. A terminally failed provider call
+ * lands as stopReason "error" + errorMessage (item e99d158b) — never speech. */
 export function extractAssistantParts(message: unknown): {
 	text: string;
 	thinking: string;
 	hasToolCalls: boolean;
 	stopReason: string | null;
+	errorMessage: string | null;
 } {
-	const m = message as { content?: unknown; stopReason?: unknown } | null;
+	const m = message as { content?: unknown; stopReason?: unknown; errorMessage?: unknown } | null;
 	const blocks = Array.isArray(m?.content) ? (m.content as Array<Record<string, unknown>>) : [];
 	let text = "";
 	let thinking = "";
@@ -192,7 +195,8 @@ export function extractAssistantParts(message: unknown): {
 		if (b?.type === "toolCall") hasToolCalls = true;
 	}
 	const stopReason = typeof m?.stopReason === "string" ? m.stopReason : null;
-	return { text, thinking, hasToolCalls, stopReason };
+	const errorMessage = typeof m?.errorMessage === "string" ? m.errorMessage : null;
+	return { text, thinking, hasToolCalls, stopReason, errorMessage };
 }
 
 /** Extract plain text from any message (user prompts included). */

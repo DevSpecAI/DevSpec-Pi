@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.12
+
+### Provider errors are visible in the room
+
+When the model provider refuses a request — an exhausted balance, an expired
+key, rate limits that outlast the automatic retries — the room now shows the
+error and what to do next, instead of the agent simply going quiet. The turn
+closes in an explicit error state, the Working indicator clears, and after
+the cause is fixed in the terminal, the next message continues as normal.
+Nothing is retried or replayed automatically. After updating, reload or
+restart Pi to load the changed extension.
+
 ## 0.3.11
 
 ### Restore the configured interruption behaviour

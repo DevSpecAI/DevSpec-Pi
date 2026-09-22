@@ -43,6 +43,7 @@ test("extractAssistantParts separates text and thinking", () => {
 		thinking: "hmm",
 		hasToolCalls: false,
 		stopReason: null,
+		errorMessage: null,
 	});
 });
 
@@ -60,7 +61,26 @@ test("extractAssistantParts flags toolCall blocks and stopReason", () => {
 		thinking: "",
 		hasToolCalls: true,
 		stopReason: "toolUse",
+		errorMessage: null,
 	});
+});
+
+test("extractAssistantParts surfaces a terminal provider error (item e99d158b)", () => {
+	const msg = {
+		role: "assistant",
+		stopReason: "error",
+		errorMessage: "402 {\"error\":{\"message\":\"Insufficient balance\"}}",
+		content: [],
+	};
+	assert.deepEqual(extractAssistantParts(msg), {
+		text: "",
+		thinking: "",
+		hasToolCalls: false,
+		stopReason: "error",
+		errorMessage: "402 {\"error\":{\"message\":\"Insufficient balance\"}}",
+	});
+	// A non-string errorMessage never reaches the room.
+	assert.equal(extractAssistantParts({ role: "assistant", stopReason: "error", errorMessage: 402 }).errorMessage, null);
 });
 
 test("extractText handles string and block content", () => {

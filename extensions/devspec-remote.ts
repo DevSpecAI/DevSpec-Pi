@@ -361,6 +361,13 @@ interface TurnState {
 	commandMessageId?: string;
 	/** Harness notice runs never post/complete owner command activity. */
 	completionNeutral: boolean;
+	/**
+	 * Terminal provider failure reason for this run (item e99d158b): a
+	 * stopReason "error" assistant message is never speech and never settles
+	 * as an answer, so without this the room sees a silent stop. The settle
+	 * fallback posts it with phase "error" instead of reportComplete.
+	 */
+	terminalError?: string;
 	/** Exact event/claim-bound activity for a directed-question continuation. */
 	interaction?: ExactInteractionRun;
 	/** Runtime run generation; older settle callbacks cannot clear a newer run. */
@@ -681,7 +688,7 @@ function capturePostAuthority(): () => boolean {
 		(!active.stop || active.closing));
 }
 
-async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; localTurn?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; isCurrent?: () => boolean; agentStats?: AgentStatsReport } = {}): Promise<boolean> {
+async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; localTurn?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; isCurrent?: () => boolean; agentStats?: AgentStatsReport; onReceipt?: (status: "stored" | "idempotently_stored" | "skipped" | "rejected" | "malformed") => void } = {}): Promise<boolean> {
 	const active = pump;
 	const bond = getBond();
 	const ctx = lastCtx;
@@ -732,7 +739,14 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 		const receipt = parsePostSessionReceipt(raw, {
 			...authority, phase: opts.phase ?? "answer", turnKind: opts.turnKind,
 		});
-		if (receipt.status !== "stored" && receipt.status !== "idempotently_stored") return failure(receipt.status);
+		// onReceipt fires ONLY on a parsed server receipt (or storage) — never
+		// for pre-send skips or response loss, so callers can tell a server-side
+		// noop (activity completed, content refused) from "never reached".
+		if (receipt.status !== "stored" && receipt.status !== "idempotently_stored") {
+			opts.onReceipt?.(receipt.status);
+			return failure(receipt.status);
+		}
+		opts.onReceipt?.(receipt.status);
 		debug("post stored", { idempotent: receipt.status === "idempotently_stored" });
 		if (isCurrent() && activeCommandTurnIdentity === parkedIdentity) {
 			if (opts.completeTurn === true) noteCommandTurnClosed(opts.commandTurnId);
@@ -833,6 +847,71 @@ async function reportComplete(reason: string, commandTurnId?: string, commandMes
 	} catch {
 		/* lease expiry + disconnect remain backstops for best-effort callers */
 		return false;
+	}
+}
+
+/** Cap for the provider's own error text inside the room bubble. */
+const TERMINAL_ERROR_PROVIDER_CHARS = 2_000;
+
+/**
+ * Room-facing render of a terminal provider error (item e99d158b). Customer
+ * copy: what happened and what to do next — no internals, no ids. Display
+ * only by owner direction: no retry affordance, no replaying the owner's
+ * command — the human fixes the cause and sends the next message; whatever
+ * they originally said is still in the agent's context.
+ */
+export function renderTerminalErrorPost(errorMessage: string): string {
+	const cleaned = errorMessage.replace(/\r/g, "").trim();
+	const detail = cleaned.length > TERMINAL_ERROR_PROVIDER_CHARS
+		? `${cleaned.slice(0, TERMINAL_ERROR_PROVIDER_CHARS)}…`
+		: cleaned;
+	// Four-backtick fence: the provider text itself may contain backticks.
+	return `**I couldn't finish that — the model provider returned an error:**\n\n\`\`\`\`\n${detail}\n\`\`\`\`\n\nFix the cause in the terminal (for example, an expired key or a provider balance that needs topping up), then send another message here and I'll carry on.`;
+}
+
+/**
+ * Post the reason a run died on a terminal provider error (item e99d158b),
+ * replacing the silent reportComplete fallback for that case only. The
+ * phase "error" post finalizes an open bubble in the explicit error state
+ * AND completes the activity (turn_error) server-side. When nothing streamed
+ * this segment the server deliberately refuses to invent a bubble
+ * (noop_error → receipt "skipped") but still completes the activity — so the
+ * reason is re-posted once as a plain message: a first-call failure must
+ * never be invisible either. Pre-send skips and lost responses never fall
+ * back (no receipt = no server action = no double-post risk).
+ */
+async function reportTerminalError(t: TurnState, agentStats: AgentStatsReport | null): Promise<void> {
+	if (!t.terminalError) return;
+	const finalTrail = t.trail.render(FINAL_TRAIL_CHARS, false);
+	const finalEvents = t.trail.events();
+	const activityTrail = finalEvents.length > 0 ? finalTrail : undefined;
+	const identity = {
+		commandTurnId: t.commandTurnId,
+		commandMessageId: t.commandMessageId,
+		commandTurnUnbound: isCommandTurnUnbound(t),
+		localTurn: isCommandTurnUnbound(t) && !t.interaction,
+		interaction: interactionIdentity(t.interaction),
+	};
+	const message = renderTerminalErrorPost(t.terminalError);
+	let receipt: string | undefined;
+	const stored = await postToSession(message, {
+		...identity, phase: "error", completeTurn: true, isCurrent: t.canPost,
+		workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined,
+		onReceipt: (status) => { receipt = status; },
+	});
+	if (receipt === "skipped") {
+		// noop_error: no open bubble existed; the activity is already closed
+		// (turn_error). This second post is transcript-only — omit complete_turn.
+		await postToSession(message, { ...identity, phase: "answer", isCurrent: t.canPost });
+	}
+	// Parity with reportComplete's success cleanup: the server acted on the
+	// command turn (stored it, or completed it via noop_error), so drop the
+	// binding/style strays and unpark the identity. On rejected/malformed or a
+	// lost response we know nothing — leave them, as reportComplete does.
+	if (stored || receipt === "skipped") {
+		commandTurnBindings.forgetByCommand(t.commandTurnId, t.commandMessageId);
+		if (t.commandTurnId) activeCommandStyles.delete(t.commandTurnId);
+		noteCommandTurnClosed(t.commandTurnId);
 	}
 }
 
@@ -1028,7 +1107,8 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 		await t.trailPostFence.drain();
 		const posted = await postSegmentAnswer(t, null, why, completeTurn);
 		if (completeTurn && !posted && previousPolicy.reportCompletion && t.canPost()) {
-			await reportComplete(why, t.commandTurnId, t.commandMessageId, isCommandTurnUnbound(t), interactionIdentity(t.interaction));
+			if (t.terminalError) await reportTerminalError(t, null);
+			else await reportComplete(why, t.commandTurnId, t.commandMessageId, isCommandTurnUnbound(t), interactionIdentity(t.interaction));
 		}
 	})();
 	// A create in the fresh segment must wait for this predecessor projection too:
@@ -3090,7 +3170,13 @@ export default function (pi: ExtensionAPI) {
 			// background work is the one exception: the attempt stays open so
 			// Working persists until the last completion wake settles.
 			if (!posted && activityPolicy.reportCompletion && pendingBackgroundTaskIds.size === 0 && (settlingTurn?.canPost() ?? pump === activeAtSettle)) {
-				await reportComplete("turn_end", commandTurnId, commandMessageId, commandTurnUnbound, interactionIdentity(interactionRun));
+				// A run that died on a terminal provider error posts its reason
+				// (item e99d158b); every other silent close is unchanged.
+				if (settlingTurn?.terminalError) {
+					await reportTerminalError(settlingTurn, agentStats);
+				} else {
+					await reportComplete("turn_end", commandTurnId, commandMessageId, commandTurnUnbound, interactionIdentity(interactionRun));
+				}
 			}
 			if (interactionRun) {
 				interactionRunsByEvent.delete(interactionRun.details.event.event_id);
@@ -3266,13 +3352,17 @@ export default function (pi: ExtensionAPI) {
 				const previousPolicy = activityTransition?.previousPolicy ??
 					remoteRunActivityPolicy(previousTurn.completionNeutral);
 				if (previousPolicy.reportCompletion) {
-					trackTerminalPost(reportComplete(
-						"turn_end",
-						previousTurn.commandTurnId,
-						previousTurn.commandMessageId,
-						isCommandTurnUnbound(previousTurn),
-						interactionIdentity(previousTurn.interaction),
-					).then(() => undefined));
+					// A provider-killed segment keeps its reason even when the close
+					// races the next user message (item e99d158b).
+					trackTerminalPost((previousTurn.terminalError
+						? reportTerminalError(previousTurn, null)
+						: reportComplete(
+							"turn_end",
+							previousTurn.commandTurnId,
+							previousTurn.commandMessageId,
+							isCommandTurnUnbound(previousTurn),
+							interactionIdentity(previousTurn.interaction),
+						)).then(() => undefined));
 				}
 			}
 			// Atomically leave notice neutrality before starting the real segment.
@@ -3369,7 +3459,15 @@ export default function (pi: ExtensionAPI) {
 			// streams live in the TUI, but headless modes (RPC/print/SDK) emit
 			// no deltas — this keeps the trail complete there (flushed at
 			// settle) without double-posting in the TUI (cumulative snapshots).
-			const { text, thinking, hasToolCalls, stopReason } = extractAssistantParts(event.message);
+			const { text, thinking, hasToolCalls, stopReason, errorMessage } = extractAssistantParts(event.message);
+			// Terminal provider failure (402 out-of-credit, auth, exhausted
+			// retries…): pi persists it exactly once (auto-retry omits the
+			// intermediate attempts) and it is never an answer, so capture the
+			// reason for the settle fallback (item e99d158b). Observation only —
+			// no classification, speech, or lifecycle behaviour changes here.
+			if (stopReason === "error") {
+				turn.terminalError = errorMessage?.trim() || "The model provider returned an error.";
+			}
 			turn.receiptBatch.noteAssistantText(text, turn.revision);
 			turn.trail.setThinking(thinking);
 			turn.trail.setText(text);

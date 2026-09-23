@@ -226,8 +226,10 @@ export interface PollPackage {
 	unboundSenderStyleIds?: string[];
 	/** Top-level advisory session_polls on changed packages. */
 	sessionPolls?: SessionPollsProjectionV1;
-	/** Top-level this-session Still to Discuss snapshot on changed packages. */
-	stillToDiscuss?: StillToDiscussProjectionV1;
+	/** Changed packages: null means unavailable, rows:[] means empty. Idle: undefined. */
+	stillToDiscuss?: StillToDiscussProjectionV1 | null;
+	/** Closed section names only; never raw payloads or parser error text. */
+	advisoryRejections?: Array<"session_polls" | "still_to_discuss">;
 	/** Sections this Pi skipped because it does not implement them; delivery still succeeded. */
 	unknownEnvelopeSections?: string[];
 	canonicalState: "idle" | "valid" | "invalid";
@@ -242,10 +244,11 @@ function fail(path: string, message: string): never {
 }
 
 /** Advisory sidecars must not invalidate canonical command delivery (item 54902803). */
-function tryParseAdvisory<T>(value: unknown, parse: (value: unknown) => T): T | undefined {
+function tryParseAdvisory<T>(value: unknown, parse: (value: unknown) => T, rejected: () => void): T | undefined {
 	try {
 		return parse(value);
 	} catch {
+		rejected();
 		return undefined;
 	}
 }
@@ -878,12 +881,13 @@ export function parsePollPayload(
 			if (bundle.commands.some((item) => item.attachments?.some((attachment) => attachment.materialization === "unavailable"))) rejectedBundle = bundle;
 			else ownerBundle = bundle;
 		}
+		const advisoryRejections: NonNullable<PollPackage["advisoryRejections"]> = [];
 		const sessionPolls = outer.session_polls === undefined
 			? undefined
-			: tryParseAdvisory(outer.session_polls, parseSessionPollsProjection);
+			: tryParseAdvisory(outer.session_polls, parseSessionPollsProjection, () => advisoryRejections.push("session_polls"));
 		const stillToDiscuss = outer.still_to_discuss === undefined
-			? undefined
-			: tryParseAdvisory(outer.still_to_discuss, parseStillToDiscussProjection);
+			? null
+			: tryParseAdvisory(outer.still_to_discuss, parseStillToDiscussProjection, () => advisoryRejections.push("still_to_discuss")) ?? null;
 		return {
 			changed: true,
 			cursorV2,
@@ -896,7 +900,8 @@ export function parsePollPayload(
 			control: actionableControl ? envelope.control : undefined,
 			activeSessionPlans: envelope.activeSessionPlans,
 			...(sessionPolls ? { sessionPolls } : {}),
-			...(stillToDiscuss ? { stillToDiscuss } : {}),
+			stillToDiscuss,
+			...(advisoryRejections.length > 0 ? { advisoryRejections } : {}),
 			...(envelope.unknownSections ? { unknownEnvelopeSections: envelope.unknownSections } : {}),
 			...(envelope.unboundSenderStyleIds.length > 0 ? { unboundSenderStyleIds: envelope.unboundSenderStyleIds } : {}),
 			canonicalState: "valid",

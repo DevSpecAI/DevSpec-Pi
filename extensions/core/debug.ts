@@ -49,6 +49,7 @@ const DEBUG_FIELDS = {
 	"launcher install": ["installed", "keptNewer", "current"],
 	"launcher install failed": ["errorPresent"],
 	"message_end: no turn": [],
+	"optional room state rejected": ["sessionPolls", "stillToDiscuss"],
 	"poll recoverable": ["errors", "errorPresent"],
 	"poll recoverable server response": ["ended", "reasonPresent"],
 	"post delivery failed": ["skipped", "rejected", "malformed", "unknown"],

@@ -57,6 +57,7 @@ test("malformed session_polls omits the sidecar and still delivers the owner com
 		assert.equal(parsed.canonicalState, "valid");
 		assert.ok(parsed.ownerBundle);
 		assert.equal(parsed.sessionPolls, undefined);
+		assert.deepEqual(parsed.advisoryRejections, ["session_polls"]);
 	}
 	assert.throws(() => parseSessionPollsProjection({ ...sessionPollsProjection(), polls: [] }), /1\.\.21 polls/);
 });

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.13
+
+### Keep Still to Discuss context current
+
+Pi can read the current room's discussion points when the server updates its
+explanatory wording. That wording is treated as data, not permission: Pi keeps
+its own advisory guidance and still validates the projection's version,
+identities and shape. Empty and unavailable snapshots now replace older lists
+explicitly, so missing context is not mistaken for an empty room.
+
+Optional room-state rejection is visible in privacy-safe debug metadata and
+cannot swallow a valid command. Tests exercise the paired server's actual
+projection producer as well as the Pi parser and delivery-tail transitions.
+After updating, reload or restart Pi to load the changed extension; reconnect
+alone does not load new code.
+
 ## 0.3.12
 
 ### Provider errors are visible in the room

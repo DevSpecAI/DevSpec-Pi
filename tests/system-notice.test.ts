@@ -220,11 +220,12 @@ test("same-run notice boundary activates one owner or local segment without attr
 		const noticeTracker = new TurnTracker();
 		noticeTracker.userMessage("[DevSpec system notice v1]", { customType: SYSTEM_NOTICE_CUSTOM_TYPE });
 		noticeTracker.assistantFinal("notice-only analysis", true);
-		// Notice speech is suppressed at storage now (harness, speech not
-		// allowed) — nothing to deliver, so no content boundary. The real-user
-		// transition still splits via beginBusyPresence below.
-		assert.equal(isDeliveryBoundary(noticeTracker), false);
+		// 2026-09-23: reproduced the old false assertion on untouched 8f0a233.
+		// Text creates a segment boundary; completion-neutral runtime policy,
+		// not text classification, suppresses notice presence/storage/completion.
+		assert.equal(isDeliveryBoundary(noticeTracker), true);
 		const noticePolicy = remoteRunActivityPolicy(true);
+		assert.deepEqual(noticePolicy, { reportPresence: false, reportCompletion: false, reportTranscript: false });
 		if (noticePolicy.reportPresence) events.push("notice:busy");
 		if (noticePolicy.reportTranscript) events.push("notice:transcript");
 

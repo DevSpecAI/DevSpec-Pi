@@ -2486,6 +2486,13 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			continue;
 		}
 
+		if (pkg.advisoryRejections?.length) {
+			debug("optional room state rejected", {
+				sessionPolls: pkg.advisoryRejections.includes("session_polls"),
+				stillToDiscuss: pkg.advisoryRejections.includes("still_to_discuss"),
+			});
+		}
+
 		if (pkg.unboundSenderStyleIds && pkg.unboundSenderStyleIds.length > 0) {
 			// Binding is lenient by design (item 6a511dab): styles never wedge
 			// commands. Counts only — the entry names a command this delta did
@@ -2533,6 +2540,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		}
 
 		if (pkg.stillToDiscuss !== undefined) {
+			// A changed package supplies a snapshot or explicit unavailability. Both
+			// replace prior awareness; an idle response leaves it alone (01b7c2e2).
 			const discussTail = serializeStillToDiscussProjection(pkg.stillToDiscuss);
 			if (discussTail !== active.stillToDiscussTail) active.pendingStillToDiscussTail = discussTail;
 			active.stillToDiscussTail = discussTail;

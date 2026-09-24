@@ -26,6 +26,10 @@ import {
 	type StillToDiscussProjectionV1,
 } from "./still-to-discuss.ts";
 
+import { ROOM_CONTEXT_LANE, parseRoomContext, parseActivityIndex, type RoomContext, type ActivityIndex } from "./room-context.ts";
+
+const ROOM_CONTRACT_VERSION = ROOM_CONTEXT_LANE.contractVersion;
+const ROOM_POLICY_VERSION = ROOM_CONTEXT_LANE.policyVersion;
 const SCHEMA_VERSION = 1;
 const CONTRACT_VERSION = "1.4.0";
 const POLICY_VERSION = "2026-08-22.1";
@@ -110,7 +114,7 @@ export interface IngressTypedContext {
 }
 
 export interface IngressBoundedMetadata {
-	policy_version: typeof POLICY_VERSION | typeof PRESERVED_POLICY_VERSION | typeof SENDER_STYLE_POLICY_VERSION;
+	policy_version: typeof POLICY_VERSION | typeof PRESERVED_POLICY_VERSION | typeof SENDER_STYLE_POLICY_VERSION | typeof ROOM_POLICY_VERSION;
 	returned: number;
 	total_known: number | null;
 	source_window: { start: IngressOrderPoint | null; end: IngressOrderPoint | null };
@@ -207,7 +211,19 @@ export interface SystemNoticeV1 {
 	allowed_tools: [...typeof SYSTEM_NOTICE_ALLOWED_TOOLS];
 }
 
+export type RoomRecord = Pick<IngressContextEntry, "message_id" | "order" | "actor" | "source_type" | "content">;
+export interface RoomPage {
+	room: RoomContext;
+	records: RoomRecord[];
+	window: IngressBoundedMetadata;
+	/** Read-only history responses are never fed into command admission. */
+	history: boolean;
+}
+
 export interface PollPackage {
+	roomPage?: RoomPage;
+	/** ID-only discovery index, never cached current record state. */
+	sessionActivity?: ActivityIndex | null;
 	changed: boolean;
 	/** Top-level opaque live-delivery cursor; never window.next_cursor. */
 	cursorV2?: string;
@@ -229,7 +245,7 @@ export interface PollPackage {
 	/** Changed packages: null means unavailable, rows:[] means empty. Idle: undefined. */
 	stillToDiscuss?: StillToDiscussProjectionV1 | null;
 	/** Closed section names only; never raw payloads or parser error text. */
-	advisoryRejections?: Array<"session_polls" | "still_to_discuss">;
+	advisoryRejections?: Array<"session_polls" | "still_to_discuss" | "session_activity">;
 	/** Sections this Pi skipped because it does not implement them; delivery still succeeded. */
 	unknownEnvelopeSections?: string[];
 	canonicalState: "idle" | "valid" | "invalid";
@@ -534,7 +550,7 @@ function typedContext(value: unknown, path: string): IngressTypedContext {
 function boundedMetadata(
 	value: unknown,
 	path: string,
-	expectedPolicyVersion: typeof POLICY_VERSION | typeof PRESERVED_POLICY_VERSION | typeof SENDER_STYLE_POLICY_VERSION,
+	expectedPolicyVersion: IngressBoundedMetadata["policy_version"],
 ): IngressBoundedMetadata {
 	const row = record(value, path);
 	exactKeys(row, ["policy_version", "returned", "total_known", "source_window", "truncated", "has_more", "next_cursor", "fetch_id", "omission_reason"], path);
@@ -658,6 +674,9 @@ function control(value: unknown, path: string): unknown {
 }
 
 interface ParsedEnvelope {
+	activityRejected?: boolean;
+	roomPage?: RoomPage;
+	sessionActivity?: ActivityIndex | null;
 	envelopeId: string;
 	connection: RemoteConnectionIdentity;
 	wakeKind: "conversational_command" | "control" | "advisory_update" | "history_reseed" | "idle" | "system_notice";
@@ -679,9 +698,11 @@ function parseEnvelope(
 	expectedConnection: RemoteConnectionIdentity,
 	systemNoticeNegotiated: boolean,
 	senderStyleNegotiated: boolean,
+	roomContextNegotiated: boolean,
 ): ParsedEnvelope {
 	const row = record(value, "ingress");
 	if (senderStyleNegotiated && !systemNoticeNegotiated) fail("ingress", "sender style requires negotiated system notices");
+	if (roomContextNegotiated && !senderStyleNegotiated) fail("ingress", "room context requires the complete sender-style lane");
 	// A section this Pi does not implement is NOT a reason to reject the envelope
 	// (DevSpec item 4183bd89, mirroring 689d44cb for the contract document). Every
 	// section named below still has to be present and exactly the shape this parser
@@ -691,19 +712,19 @@ function parseEnvelope(
 	const noticeKey = systemNoticeNegotiated ? ["system_notices"] : [];
 	if (!systemNoticeNegotiated && row.system_notices !== undefined) fail("ingress.system_notices", "notice section requires request negotiation");
 	if (!senderStyleNegotiated && row.sender_response_styles !== undefined) fail("ingress.sender_response_styles", "style section requires request negotiation");
-	const requiredEnvelopeKeys = ["kind", "schema_version", "contract_version", "policy_version", "envelope_id", "connection", "wake", "delivery_state", "command_message_ids", "commands", "control", "context", ...noticeKey, "window"];
+	const requiredEnvelopeKeys = ["kind", "schema_version", "contract_version", "policy_version", "envelope_id", "connection", "wake", "delivery_state", "command_message_ids", "commands", "control", "context", ...noticeKey, "window", ...(roomContextNegotiated ? ["room_context"] : [])];
 	for (const key of requiredEnvelopeKeys) {
 		if (!Object.hasOwn(row, key)) fail("ingress", `expected ${key}`);
 	}
 	// sender_response_styles is optional-but-known like active_session_plans:
 	// the server omits it when no sender expressed a preference.
-	const unknownSections = extraKeys(row, [...requiredEnvelopeKeys, "active_session_plans", "sender_response_styles"]);
+	const unknownSections = extraKeys(row, [...requiredEnvelopeKeys, "active_session_plans", "sender_response_styles", ...(roomContextNegotiated ? ["session_activity"] : [])]);
 	if (row.kind !== "devspec.remote_ingress") fail("ingress.kind", "unknown ingress kind");
 	if (row.schema_version !== SCHEMA_VERSION) fail("ingress.schema_version", "unknown schema version");
-	const expectedContractVersion = senderStyleNegotiated
+	const expectedContractVersion = roomContextNegotiated ? ROOM_CONTRACT_VERSION : senderStyleNegotiated
 		? SENDER_STYLE_CONTRACT_VERSION
 		: systemNoticeNegotiated ? CONTRACT_VERSION : PRESERVED_CONTRACT_VERSION;
-	const expectedPolicyVersion = senderStyleNegotiated
+	const expectedPolicyVersion = roomContextNegotiated ? ROOM_POLICY_VERSION : senderStyleNegotiated
 		? SENDER_STYLE_POLICY_VERSION
 		: systemNoticeNegotiated ? POLICY_VERSION : PRESERVED_POLICY_VERSION;
 	if (row.contract_version !== expectedContractVersion) fail("ingress.contract_version", "unknown or mismatched contract version");
@@ -800,7 +821,31 @@ function parseEnvelope(
 		: parseActiveSessionPlansProjection(row.active_session_plans);
 	const advisoryContext = { envelopeId, context, window };
 	for (const item of commands) item.advisoryContext = advisoryContext;
-	return { envelopeId, connection, wakeKind, wakeActive, deliveryState, commands, control: parsedControl, systemNotices, activeSessionPlans, unboundSenderStyleIds, ...(unknownSections.length > 0 ? { unknownSections } : {}), advisoryContext };
+	let roomPage: RoomPage | undefined;
+	let sessionActivity: ActivityIndex | null | undefined;
+	let activityRejected = false;
+	if (roomContextNegotiated) {
+		const room = parseRoomContext(row.room_context, allRows, commandIdSet, end, {
+			order: orderPoint, attachment,
+			entry: (value, path) => {
+				const entry = record(value, path);
+				const who = record(entry.actor, `${path}.actor`);
+				return contextEntry(value, oneOf(who.kind, ["human", "agent", "ai", "system"] as const, `${path}.actor.kind`), path);
+			},
+		});
+		// A tombstone cannot carry readable text, even if an upstream renderer
+		// accidentally retained it. This changes no current command body.
+		const deleted = new Set(room.messages.filter(m => m.state === "deleted").map(m => m.message_id));
+		for (const entry of contextEntries) if (deleted.has(entry.message_id.toLowerCase())) entry.content = "";
+		const records: RoomRecord[] = [
+			...contextEntries.map(({ message_id, order, actor, source_type, content }) => ({ message_id, order, actor, source_type, content })),
+			...commands.map(c => ({ message_id: c.message_id, order: c.order, actor: { kind: "human" as const, user_id: c.requester.user_id, display_name: c.requester.display_name ?? "Person", agent_tool: null, model: null }, source_type: "user", content: c.text })),
+		].map(r => ({ ...r, message_id: r.message_id.toLowerCase(), order: { ...r.order, message_id: r.message_id.toLowerCase() } })).sort((a, b) => compareOrder(a.order, b.order));
+		roomPage = { room, records, window, history: deliveryState !== "live" };
+		try { sessionActivity = row.session_activity === undefined ? null : parseActivityIndex(row.session_activity); }
+		catch { sessionActivity = null; activityRejected = true; }
+	}
+	return { envelopeId, connection, wakeKind, wakeActive, deliveryState, commands, control: parsedControl, systemNotices, activeSessionPlans, unboundSenderStyleIds, ...(unknownSections.length > 0 ? { unknownSections } : {}), advisoryContext, ...(roomPage ? { roomPage, sessionActivity, activityRejected } : {}) };
 }
 
 function contextEntryCount(context: IngressTypedContext): number {
@@ -812,6 +857,7 @@ export interface PollParseOptions {
 	systemNoticeNegotiated: boolean;
 	/** Sender-style lane: requests contract 1.5.0. Defaults off so the preserved 1.4.0 lane stays the tested default. */
 	senderStyleNegotiated?: boolean;
+	roomContextNegotiated?: boolean;
 }
 
 /** Parse a negotiated poll payload. Canonical ingress failures never wake or advance either live cursor. */
@@ -854,7 +900,7 @@ export function parsePollPayload(
 
 		const topLevelAddressee = addressee(outer.addressed_to, "addressed_to");
 		if (!sameAddressee(topLevelAddressee, expectedConnection)) fail("addressed_to", "top-level addressee does not equal the frozen bonded connection");
-		const envelope = parseEnvelope(outer.ingress, expectedConnection, systemNoticeNegotiated, senderStyleNegotiated);
+		const envelope = parseEnvelope(outer.ingress, expectedConnection, systemNoticeNegotiated, senderStyleNegotiated, options.roomContextNegotiated ?? false);
 		if (!sameAddressee(topLevelAddressee, envelope.connection)) fail("addressed_to", "top-level and canonical addressees differ");
 		if (JSON.stringify(topLevelNotices) !== JSON.stringify(envelope.systemNotices)) fail("system_notices", "top-level and canonical notice sets differ");
 		const cursorV2 = typeof outer.cursor_v2 === "string" && outer.cursor_v2.length > 0 ? outer.cursor_v2 : undefined;
@@ -882,6 +928,7 @@ export function parsePollPayload(
 			else ownerBundle = bundle;
 		}
 		const advisoryRejections: NonNullable<PollPackage["advisoryRejections"]> = [];
+		if (envelope.activityRejected) advisoryRejections.push("session_activity");
 		const sessionPolls = outer.session_polls === undefined
 			? undefined
 			: tryParseAdvisory(outer.session_polls, parseSessionPollsProjection, () => advisoryRejections.push("session_polls"));
@@ -905,6 +952,7 @@ export function parsePollPayload(
 			...(envelope.unknownSections ? { unknownEnvelopeSections: envelope.unknownSections } : {}),
 			...(envelope.unboundSenderStyleIds.length > 0 ? { unboundSenderStyleIds: envelope.unboundSenderStyleIds } : {}),
 			canonicalState: "valid",
+			...(envelope.roomPage ? { roomPage: envelope.roomPage, sessionActivity: envelope.sessionActivity } : {}),
 			...(contextEntryCount(envelope.advisoryContext.context) > 0 ? { advisoryContext: envelope.advisoryContext } : {}),
 		};
 	} catch (error) {

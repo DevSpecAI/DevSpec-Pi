@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.15
+
+### Recoverable local room history
+
+Pi can retain room history across restarts, load older pages in the background,
+and reconcile messages that finish or are deleted. Message data and recovery
+positions commit together in private local storage. Switching rooms isolates the
+copies; stopping or losing access invalidates the affected copy.
+
+The activity index stores record IDs and relationships, not cached lifecycle or
+supersession claims. Current action-item, memory and resource facts still come
+from the existing online native tools. Other saved room views are timestamped
+observations, not a guarantee of current state.
+
+This is the storage slice: current command delivery, attachment hydration and the
+single speech writer remain in place. Native local read/search and compact context
+delivery follow separately. The feature requires the advertised room-context
+contract and Node's SQLite support; older supported ingress lanes remain available.
+Reload existing terminals after updating to activate the new code.
+
 ## 0.3.14
 
 ### Current memory editing and review tools

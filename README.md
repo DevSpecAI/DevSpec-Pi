@@ -34,12 +34,29 @@ remote-ingress 1.4 adds capacity-gated exact-connection system notices through
 an activity-neutral, generation-scoped harness turn, with preserved 1.3 command
 intake under notice backpressure. See VISION.md.
 
+### Recoverable room history
+
+When the server advertises room-context1.6, Pi keeps a private, recoverable room
+copy using Node's SQLite support (available in the current stock Pi runtime).
+Messages and recovery positions commit together. Current commands and speech
+still use their existing paths; this storage release does not replace online
+record reads or introduce local model-facing read tools yet.
+
+The session activity index contains IDs and relationships only. Lifecycle,
+supersession and other current record facts must come from the native online
+getters. Saved plans, polls and discussion views are explicitly last-observed
+snapshots. See [storage, privacy and recovery boundaries](docs/ROOM-CONTEXT.md).
+
+On an older runtime without SQLite, ordinary remote delivery stays on its
+supported lane. Existing sessions need a reload to load this feature.
+
 ## Development
 
 ```bash
 npm install
 npm run check                 # typecheck + full tests + deterministic context benchmark
 npm run benchmark:context     # print the current prefix/result budget baseline
+npm run test:room-runtime     # disposable real Pi host, loopback MCP, no model calls
 
 # Dogfood against staging (dev Clerk/Supabase) without installing:
 export DEVSPEC_ENV=staging                 # or DEVSPEC_MCP_URL=https://api.devspecstaging.com/api/mcp

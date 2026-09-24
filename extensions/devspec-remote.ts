@@ -6,8 +6,9 @@
  *
  * Design (VISION.md):
  * - Bond key = the pi session id (conversation id — never cwd/shell).
- * - ONE negotiated poll_connection long-poll carries heartbeat and canonical
- *   ingress; commands arrive as REAL user messages (sendUserMessage).
+ * - ONE live poll_connection loop carries heartbeat and canonical commands.
+ *   Bounded history-only recovery reads never admit commands or mutate its cursor.
+ *   Commands arrive as REAL user messages (sendUserMessage).
  * - Runtime ingress semantics are served at
  *   devspec://product/remote-ingress-contract rather than duplicated here.
  * - Egress is runtime-mechanical (item cc9e8c43): the extension delivers
@@ -30,6 +31,7 @@ import { DeliveryQueue, StaleDeliveryError, nextDeliveryRetryDelayMs, type Deliv
 import { revalidateAutomationRunRetry } from "./core/automation-run-retry.ts";
 import {
 	callDevspec,
+	readDevspecResource,
 	DevspecAuthError,
 	isPermanentServerEnd,
 	MODEL_TIMEOUT_MS,
@@ -37,6 +39,9 @@ import {
 	shouldEndBondOnPollFailure,
 } from "./core/client.ts";
 import { connectionCapabilityFromResult, getBond, setBond, type BondState } from "./core/bond-state.ts";
+import { openRoomStore, roomPrincipalFingerprint } from "./core/room-store.ts";
+import { advertisesRoomContext } from "./core/room-context.ts";
+import { RoomSync } from "./core/room-sync.ts";
 import {
 	capturePumpAuthority,
 	isPumpAuthorityCurrent,
@@ -291,6 +296,9 @@ interface PumpState {
 	attachmentRetryAttempts: Map<string, number>;
 	/** Pi local session identity scopes minimal awareness across reload/rebond. */
 	awarenessKey: string;
+	roomSync?: RoomSync;
+	roomSyncKey?: string;
+	roomSyncAttemptAt?: number;
 	/** Latest validated 1.3 projection tail and its not-yet-injected revision. */
 	activePlanTail: string;
 	pendingActivePlanTail: string;
@@ -1279,6 +1287,8 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	const stoppingTurn = turn;
 	const stoppingTrailFence = stoppingTurn?.trailPostFence;
 	active.stop = true;
+	active.roomSync?.close(true);
+	active.roomSync = undefined;
 	if (active.interactionRetryTimer) clearTimeout(active.interactionRetryTimer);
 	active.interactionRetryTimer = undefined;
 	const starting = startingInteractionRun?.active === active ? startingInteractionRun : null;
@@ -2143,6 +2153,82 @@ async function reviveRecoverableBond(
 	}
 }
 
+async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: string, endpoint: string): Promise<void> {
+	const effective = await resolveToken();
+	const effectiveEndpoint = await resolveEndpoint();
+	if (pump !== active || active.stop) return;
+	if (effective?.token !== token || effectiveEndpoint !== endpoint) {
+		active.roomSync?.close(true); active.roomSync = undefined; return;
+	}
+	const b = active.bond;
+	if (!b.projectId || !b.sessionId || !b.speechAttachmentId) {
+		active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncKey = undefined; return;
+	}
+	// Connection identity fences the authenticated principal; credentials are never
+	// part of the persisted scope. Endpoint credentials/query strings are omitted.
+	const url = new URL(endpoint);
+	const scope = { endpoint: `${url.origin}${url.pathname}`, projectId: b.projectId, nativeSessionId: active.localSessionId, connectionId: b.connectionId, sessionId: b.sessionId, attachmentId: b.speechAttachmentId };
+	const capability = b.connectionCapability;
+	const key = JSON.stringify([scope, capability]); // process memory only
+	if (active.roomSyncKey === key && (active.roomSync || Date.now() - (active.roomSyncAttemptAt ?? 0) < 60_000)) return;
+	const old = active.roomSync;
+	active.roomSync = undefined;
+	old?.close(old.store.scope.sessionId !== scope.sessionId || old.store.scope.attachmentId !== scope.attachmentId || old.store.scope.connectionId !== scope.connectionId);
+	active.roomSyncKey = key; active.roomSyncAttemptAt = Date.now();
+	const current = () => pump === active && !active.stop && ctx.sessionManager.getSessionId() === active.localSessionId && getBond()?.connectionId === scope.connectionId && getBond()?.connectionCapability === capability && active.bond.connectionId === scope.connectionId && active.bond.sessionId === scope.sessionId && active.bond.speechAttachmentId === scope.attachmentId && active.bond.connectionCapability === capability;
+	try {
+		const advertised = await readDevspecResource(token, "devspec://product/remote-ingress-contract", { lane: "pump", timeoutMs: 5_000 });
+		if (!current() || !advertisesRoomContext(advertised)) return;
+		const store = await openRoomStore(scope, { current, principalFingerprint: roomPrincipalFingerprint(token) });
+		if (!current()) { store.close(true); return; }
+		active.roomSync = new RoomSync({
+			store, current, liveCursor: () => active.cursor,
+			wake: () => { if (current()) signalWake(active); },
+			onError: () => debug("room storage unavailable", { errorPresent: true }),
+			fetchHistory: async (args) => {
+				if (!current()) throw new Error("room attachment changed");
+				let raw: unknown;
+				try {
+					raw = await callDevspec(token, "poll_connection", {
+						connection_id: scope.connectionId, ingress_version: 1, delegated_scope_version: 1,
+						active_plan_projection_version: 1, system_notice_version: 1, sender_style_version: 1,
+						room_context_version: 1, wait_ms: 0, ...args,
+					}, { timeoutMs: POLL_TIMEOUT_MS, cwd: ctx.cwd, lane: "pump", beforeSend: () => { if (!current()) throw new DevspecToolError("Room history attachment changed before send."); }, ...(capability ? { connectionCapability: capability } : {}) });
+				} catch (error) {
+					// The embedded client raises MCP refusals before unwrapMcpResult.
+					if (current() && (error instanceof DevspecToolError || error instanceof DevspecAuthError)) {
+						active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncAttemptAt = Date.now();
+						signalWake(active);
+					}
+					throw error;
+				}
+				const response = unwrapMcpResult(raw);
+				if (response.isError) {
+					// A server refusal is not permission to keep using cached room data.
+					if (current()) { active.roomSync?.close(true); active.roomSync = undefined; }
+					throw new Error("room history refused");
+				}
+				const details = response.details as { session_id?: unknown; speech_attachment_id?: unknown } | null;
+				if (!current()) throw new Error("room history attachment changed");
+				if (details?.session_id !== scope.sessionId || details?.speech_attachment_id !== scope.attachmentId) {
+					active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncAttemptAt = Date.now();
+					signalWake(active); // only the main pump adopts the new attachment
+					throw new Error("room history attachment mismatch");
+				}
+				return parsePollPayload(response.details, active.connectionIdentity, { systemNoticeNegotiated: true, senderStyleNegotiated: true, roomContextNegotiated: true });
+			},
+		});
+		if (current()) { active.roomSync.schedule(); signalWake(active); }
+	} catch (error) {
+		if (!current()) return;
+		debug("room storage unavailable", { errorPresent: true });
+		const unsupported = (error as { code?: unknown } | null)?.code === "ERR_UNKNOWN_BUILTIN_MODULE";
+		notify(ctx, unsupported
+			? "Local room history needs Node.js 22.19 or later. Command delivery and online reads still work."
+			: "Local room history is temporarily unavailable. Command delivery and online reads still work.", "warning");
+	}
+}
+
 async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 	const active = pump;
 	if (!active) return;
@@ -2206,8 +2292,20 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		// The server can claim ten at once. Negotiate only when that complete batch
 		// fits; otherwise ordinary 1.3 command polling continues while notices stay
 		// server-retained behind the still-aware SSE marker.
+		void ensureRoomSync(active, ctx, token, endpoint).catch(() => debug("room storage unavailable", { errorPresent: true }));
+		if (active.stop || pump !== active) return;
 		const systemNoticeNegotiated = hasSystemNoticeBatchCapacity(active.systemNoticeKey);
 		const senderStyleNegotiated = systemNoticeNegotiated;
+		let roomContextNegotiated = senderStyleNegotiated && Boolean(active.roomSync);
+		let roomWatch: Record<string, unknown> = {};
+		if (roomContextNegotiated) {
+			try { roomWatch = active.roomSync!.store.watch(); }
+			catch {
+				active.roomSync?.close(); active.roomSync = undefined;
+				active.roomSyncAttemptAt = Date.now(); roomContextNegotiated = false;
+				debug("room storage unavailable", { errorPresent: true });
+			}
+		}
 		// Claims are idle-only. A durable application ACK is different: it must
 		// travel immediately while the model is busy, before the 30-second event
 		// lease can redeliver. catch_up below keeps that ACK lap event/command-free.
@@ -2247,6 +2345,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 						question_dismissal_event_version: 1,
 						...(interactionEventAck ? interactionEventAckArgs(interactionEventAck) : {}),
 					} : {}),
+					...(roomContextNegotiated ? { room_context_version: 1, ...roomWatch } : {}),
 					cursor_v2: active.cursor,
 					dispatch_cursor: active.dispatchCursor,
 					wait_ms: pushMode ? 0 : POLL_WAIT_MS,
@@ -2261,7 +2360,10 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				{ timeoutMs: POLL_TIMEOUT_MS, cwd: ctx.cwd, lane: "pump", ...(interactionEventNegotiated && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}) },
 			);
 			const { details, isError, text } = unwrapMcpResult(raw);
-			if (isError) throw new Error(text || "poll_connection failed");
+			if (isError) {
+				active.roomSync?.close(true); active.roomSync = undefined;
+				throw new Error(text || "poll_connection failed");
+			}
 			payload = details;
 			if (notifiedDegraded) {
 				notifiedDegraded = false;
@@ -2269,6 +2371,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			}
 			active.errors = 0;
 		} catch (err) {
+			if (err instanceof DevspecToolError || err instanceof DevspecAuthError) {
+				active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncAttemptAt = Date.now();
+			} else active.roomSync?.store.markOffline();
 			// Only CONFIRMED credential rejection ends the bond (item 781886cf).
 			// Unavailable validation, transport noise, and ambiguous 401s ride
 			// out the backoff below. An auth-shaped failure first gets one
@@ -2382,7 +2487,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				attachContext: undefined,
 				roomDigest: undefined,
 			};
+			active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncKey = undefined;
 			active.bond = next;
+			void ensureRoomSync(active, ctx, token, endpoint).catch(() => debug("room storage unavailable", { errorPresent: true }));
 			const detachTail = authoritativeActivePlanTransitionTail(
 				active.awarenessKey,
 				active.activePlanTail,
@@ -2415,6 +2522,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		}
 
 		if (interactionEvent) {
+			try { active.roomSync?.store.observeQuestion(interactionEvent); }
+			catch { debug("room storage unavailable", { errorPresent: true }); }
 			const idle = !active.busy && !active.runtimeOccupancy.isBusy() && ctx.isIdle();
 			if (decideInteractionDelivery({
 				idle,
@@ -2472,8 +2581,14 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			}
 		}
 
-		const pkg = parsePollPayload(payload, active.connectionIdentity, { systemNoticeNegotiated, senderStyleNegotiated });
+		const pkg = parsePollPayload(payload, active.connectionIdentity, { systemNoticeNegotiated, senderStyleNegotiated, roomContextNegotiated });
 		if (pkg.canonicalState === "invalid") {
+			if (roomContextNegotiated) {
+				// Re-request the preserved lane; never reinterpret a malformed1.6
+				// payload as an older envelope or let cache availability wedge intake.
+				active.roomSync?.close(); active.roomSync = undefined;
+				active.roomSyncAttemptAt = Date.now();
+			}
 			// A negotiated changed response without a valid known ingress envelope
 			// has no executable or contextual meaning. Keep the canonical cursor
 			// unchanged so a corrected response can be retried.
@@ -2486,10 +2601,15 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			continue;
 		}
 
+		// Additive read model: no storage result is used for command admission,
+		// notice/question ACKs, Working, attachment hydration or speech.
+		active.roomSync?.observe(pkg);
+
 		if (pkg.advisoryRejections?.length) {
 			debug("optional room state rejected", {
 				sessionPolls: pkg.advisoryRejections.includes("session_polls"),
 				stillToDiscuss: pkg.advisoryRejections.includes("still_to_discuss"),
+				...(pkg.advisoryRejections.includes("session_activity") ? { sessionActivity: true } : {}),
 			});
 		}
 
@@ -2715,6 +2835,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (pkg.cursorV2) active.cursor = pkg.cursorV2;
 			if (pkg.ownerBundle) active.advisoryCarry = [];
 		}
+		active.roomSync?.schedule();
 		const dispatches = (payload as { dispatches?: unknown[] } | null)?.dispatches ?? [];
 		for (const dispatch of dispatches) enqueueAutomationRun(active, token, dispatch, ctx);
 		if (pkg.dispatchCursor) active.dispatchCursor = pkg.dispatchCursor;
@@ -3618,6 +3739,8 @@ export default function (pi: ExtensionAPI) {
 		active.pendingInteractionReleases.clear();
 		active.closing = true;
 		active.stop = true;
+		active.roomSync?.close(); // keep the transaction checkpoint across reload/exit
+		active.roomSync = undefined;
 		revokeSystemNoticeState(active.systemNoticeKey);
 		active.pushGenerationFence.invalidate();
 		active.pushAbort?.abort();

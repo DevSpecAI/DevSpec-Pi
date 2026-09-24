@@ -38,9 +38,11 @@ intake under notice backpressure. See VISION.md.
 
 When the server advertises room-context1.6, Pi keeps a private, recoverable room
 copy using Node's SQLite support (available in the current stock Pi runtime).
-Messages and recovery positions commit together. Current commands and speech
-still use their existing paths; this storage release does not replace online
-record reads or introduce local model-facing read tools yet.
+Messages and recovery positions commit together. `read_room_context` offers local
+history, search, exact message reads and observed-state snapshots, with explicit
+continuation and freshness. When the local copy is ready, compact awareness replaces
+repeated background-history dumps; full current commands and speech keep their
+existing paths. The online transcript and current-record tools remain available.
 
 The session activity index contains IDs and relationships only. Lifecycle,
 supersession and other current record facts must come from the native online
@@ -57,6 +59,7 @@ npm install
 npm run check                 # typecheck + full tests + deterministic context benchmark
 npm run benchmark:context     # print the current prefix/result budget baseline
 npm run test:room-runtime     # disposable real Pi host, loopback MCP, no model calls
+npm run test:room-readers-runtime # scripted-provider host/tool/cutover qualification
 
 # Dogfood against staging (dev Clerk/Supabase) without installing:
 export DEVSPEC_ENV=staging                 # or DEVSPEC_MCP_URL=https://api.devspecstaging.com/api/mcp
@@ -69,8 +72,10 @@ Production (`https://api.devspec.ai/api/mcp`) is the default when no override is
 ### Regression and context-budget workflow
 
 GitHub Actions runs `npm run check` on every pull request and push to `main`.
-The suite enforces the 2–8k-token initial DevSpec surface, measured one-tool plan
-activation delta, per-family model-visible result budgets, lossless exact reads,
+The suite measures the initial DevSpec surface and plan activation delta. A generous
+anti-bloat alarm catches accidental catalogue/contract dumps; useful instructions
+and tool access are not sacrificed to meet a token target. It also checks per-family
+model-visible result budgets, lossless exact reads,
 privacy boundaries, deferred-tool routing,
 and provider serialization. A checked-in fingerprint makes every model-facing
 schema or projection-family change an explicit review event. `npm run

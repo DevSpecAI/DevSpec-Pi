@@ -28,6 +28,18 @@ Coverage is checked at the server's fixed order point over unique IDs, not again
 
 On reload, authenticate the current attachment before reusing its exact namespace. Resume the saved older-history frontier; fill any newer gap independently. A missing/failed coverage read makes no completeness claim. A storage failure rolls back the page/checkpoint together, marks local context unavailable/behind, and does not prevent a valid foreground command.
 
+## Native reading and delivery
+
+`read_room_context` is one small native hot tool, independent of the MCP wire catalogue. The complete online transcript tool stays immediately available alongside it, as do the current action-item/memory/resource getters. Useful access is not removed merely to fit a numeric prompt target. It offers status, newest-first history, stable message anchors, literal search, since-checkpoint navigation and observed room-state reads. It performs no network requests. History pages and search-result windows return bounded previews with continuation; literal search applies across the cache before limiting matching results, so finding an old message does not require model-driven scanning; exact message/state reads return complete JSON or lossless bounded JSON fragments. Changed fragment sources and foreign-scope cursors require an explicit restart, not silent joining of different versions.
+
+Every result is labelled a local snapshot, with observation time and fixed-cutoff coverage. An index is not live entity state. Use the existing live record getters for current facts and deliberate resource retrieval. Offline selection uses the current credential fingerprint and this native conversation's last-known attachment; explicit denial/detach suppresses selection. Scope markers are non-context Pi custom entries and never restore execution authority.
+
+When the current page is safely stored and the reader is available, ordinary command delivery omits bulky advisory history and adds a compact snapshot notice at the current delivery tail. Full current command text, exact requester/authority/scope, style and direct-command attachment handling remain unchanged. If storage/reader readiness is missing, retain the supported delivery fallback. Question/control/notice protocols stay separate; room changes alone do not start model turns. Checkpoints are navigation, never a claim that the model read those messages.
+
+## Quality before numeric targets
+
+Ali's2026-09-24 clarification: prioritize useful instructions, complete access and real results over the former8k prompt ceiling. The larger prefix alarm catches accidental catalogue/contract dumps, not necessary growth. Bounded local pages remain lossless through explicit continuation; they do not ration the available history. Focused correctness checks are the shipping gate. Comparable provider measurements are needed before making savings claims, not as a reason to postpone a safe release indefinitely.
+
 ## Verification
 
 Run one test file at a time on the shared machine. Exercise real SQLite transactions and reopen the database at injected crash boundaries; >60 history, >500 live rows/tombstones, late deletion, restart during paging, stale final/partial replies, concurrent scope changes, unavailable/empty snapshots, privacy and denied access. Pair parser fixtures with the current server producer/schema. Use a disposable room/host for live qualification, never fault-inject Ali's working room. Treat runtime activation separately from an on-disk update.

@@ -12,6 +12,7 @@ import {
 	MODEL_VERB_NAMES,
 	type CatalogEntry,
 } from "../generated/mcp-catalog.ts";
+import { ROOM_READ_DESCRIPTION, ROOM_READ_SCHEMA, ROOM_READ_TOOL, ROOM_READ_PROMPT_METADATA } from "./room-reader.ts";
 
 /** Everyday work. Order is the initial prompt order. */
 export const HOT_SET_VERBS = [
@@ -434,10 +435,12 @@ export function estimatePrefixChars(instructions: string): number {
 	const promptContribution = activePromptContribution([
 		...hotTools.map((entry) => ({ name: entry.name, metadata: hotToolPromptMetadata(entry) })),
 		{ name: TOOL_LOADER_NAME, metadata: TOOL_LOADER_PROMPT_METADATA },
+		{ name: ROOM_READ_TOOL, metadata: ROOM_READ_PROMPT_METADATA },
 	]);
 	return (
 		JSON.stringify(tools).length +
 		JSON.stringify(loader).length +
+		JSON.stringify({ name: ROOM_READ_TOOL, description: ROOM_READ_DESCRIPTION, inputSchema: ROOM_READ_SCHEMA }).length +
 		instructions.length +
 		promptContribution.length
 	);
@@ -473,10 +476,13 @@ export function withPollToolActive(active: readonly string[], enabled: boolean):
 	return enabled ? [...withoutPoll, POLL_TOOL_NAME] : withoutPoll;
 }
 
-/** Conservative token estimate (chars/4). Target band is 2–8k. */
+/** Conservative diagnostic estimate (chars/4), never a quota on useful context. */
 export function estimatePrefixTokens(instructions: string): number {
 	return Math.ceil(estimatePrefixChars(instructions) / 4);
 }
 
-export const PREFIX_TOKEN_MAX = 8000;
+// Anti-bloat alarm for accidental catalogue/contract dumps, not a target to
+// optimize toward. Ali2026-09-24: retain useful tools/instructions; raise this
+// guard rather than degrading quality to fit an arbitrary8k ceiling.
+export const PREFIX_TOKEN_MAX = 16000;
 export const PREFIX_TOKEN_MIN = 2000;

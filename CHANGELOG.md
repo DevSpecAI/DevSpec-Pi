@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.17
+
+### Read room context locally
+
+The native `read_room_context` tool reads and searches the saved room copy,
+including older messages, observed state and file references. Exact reads have
+lossless continuation; missing, partial and changed snapshots are explicit.
+Current item, memory and resource facts still come from the existing live getters.
+
+When the local copy is ready, a compact availability notice replaces repeated
+background-history dumps. Current commands, their authority and response style
+still arrive in full. The online transcript tool stays immediately available.
+Prompt-size checks now allow useful growth rather than enforcing the old8k target;
+no provider-cost saving is claimed without measurement.
+
+Reload existing terminals to activate the new reader and delivery behavior.
+
 ## 0.3.16
 
 ### Keep large-file history references available

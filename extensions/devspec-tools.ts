@@ -13,6 +13,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { resolveToken } from "./core/auth-store.ts";
 import { getBond } from "./core/bond-state.ts";
+import { registerRoomReader } from "./core/room-tools.ts";
+import { ROOM_READ_TOOL } from "./core/room-reader.ts";
 import { connectionsUrl, TOKEN_ENV_VAR } from "./core/config.ts";
 import { callDevspec, MODEL_TIMEOUT_MS } from "./core/client.ts";
 import { repoResolver, validateCommitSha } from "./core/commit-ledger.ts";
@@ -351,7 +353,7 @@ function registerCatalogTool(pi: ExtensionAPI, def: CatalogEntry): void {
 
 /** Rare verbs are the loader's domain; transcript-announced restores are scoped to them. */
 const RARE_VERB_SET: ReadonlySet<string> = new Set(rareModelVerbs());
-const MODEL_VERB_SET: ReadonlySet<string> = new Set(MODEL_VERB_NAMES);
+const MODEL_VERB_SET: ReadonlySet<string> = new Set([...MODEL_VERB_NAMES, ROOM_READ_TOOL]);
 
 /**
  * Tools deactivated by duplicate-tool recovery (item dc8f52d4). Re-seeded from
@@ -418,17 +420,24 @@ export function initialActiveTools(active: readonly string[]): string[] {
 	const devspecVerbs = new Set(modelFacingCatalog().map((entry) => entry.name));
 	return [
 		...new Set([
-			...active.filter((name) => !devspecVerbs.has(name) && name !== TOOL_LOADER_NAME),
+			...active.filter((name) => !devspecVerbs.has(name) && name !== TOOL_LOADER_NAME && name !== ROOM_READ_TOOL),
 			...HOT_SET_VERBS,
 			TOOL_LOADER_NAME,
+			ROOM_READ_TOOL,
 		]),
 	];
 }
 
 export default function (pi: ExtensionAPI) {
-	registerContextBudgetToolNames([...MODEL_VERB_NAMES, TOOL_LOADER_NAME]);
+	registerContextBudgetToolNames([...MODEL_VERB_NAMES, TOOL_LOADER_NAME, ROOM_READ_TOOL]);
 	for (const entry of allModelFacingTools()) registerCatalogTool(pi, entry);
 	registerToolLoader(pi);
+	registerRoomReader(pi, () => {
+		if (sessionDeniedTools.has("get_session_transcript")) return false;
+		const active = pi.getActiveTools();
+		if (!active.includes("get_session_transcript")) pi.setActiveTools([...active, "get_session_transcript"]);
+		return true;
+	});
 	pi.on("session_start", (_event, ctx) => {
 		const bond = getBond();
 		const initial = initialActiveTools(pi.getActiveTools());
@@ -439,7 +448,7 @@ export default function (pi: ExtensionAPI) {
 		// sessions have no announcements, so the happy path is unchanged.
 		const { restore, denied } = scanTranscriptToolState(
 			ctx?.sessionManager?.getBranch?.() ?? [],
-			(name) => RARE_VERB_SET.has(name),
+			(name) => RARE_VERB_SET.has(name) || name === ROOM_READ_TOOL,
 		);
 		sessionDeniedTools.clear();
 		for (const name of denied) sessionDeniedTools.add(name);
@@ -447,7 +456,8 @@ export default function (pi: ExtensionAPI) {
 		const attached = Boolean(bond?.sessionId && bond.connectionCapability);
 		const withPlan = withPlanToolActive(withRestored, Boolean(bond?.sessionId));
 		const withPoll = withPollToolActive(withPlan, attached);
-		pi.setActiveTools(withDirectedQuestionToolActive(withPoll, attached));
+		const withQuestion = withDirectedQuestionToolActive(withPoll, attached);
+		pi.setActiveTools(sessionDeniedTools.has(ROOM_READ_TOOL) ? withQuestion.filter(name => name !== ROOM_READ_TOOL) : withQuestion);
 	});
 
 	// Safety net (item dc8f52d4): if a duplicate-tools provider error still

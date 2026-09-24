@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { ROOM_READ_DESCRIPTION, ROOM_READ_SCHEMA, ROOM_READ_TOOL, ROOM_READ_PROMPT_METADATA } from "../extensions/core/room-reader.ts";
 import { test } from "node:test";
 import { Value } from "typebox/value";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -262,6 +263,8 @@ test("initial activation preserves other tools and contains hot set plus loader 
 	assert.ok(initial.includes("read"));
 	assert.ok(initial.includes("custom_tool"));
 	assert.ok(initial.includes(TOOL_LOADER_NAME));
+	assert.ok(initial.includes(ROOM_READ_TOOL));
+	assert.ok(initial.includes("get_session_transcript"));
 	for (const name of HOT_SET_VERBS) assert.ok(initial.includes(name));
 	for (const name of rareModelVerbs()) assert.ok(!initial.includes(name), `${name} initially active`);
 	assert.equal(initial.length, new Set(initial).size);
@@ -360,7 +363,7 @@ test("registration exposes complete real schemas and loader activation is purely
 	registerDevspecTools(pi);
 	assert.deepEqual(
 		definitions.map((def) => def.name),
-		[...MODEL_VERB_NAMES, TOOL_LOADER_NAME],
+		[...MODEL_VERB_NAMES, TOOL_LOADER_NAME, ROOM_READ_TOOL],
 	);
 	assert.ok(!definitions.some((def) => def.name === "devspec"), "opaque gateway remains registered");
 	for (const forbidden of [...PUMP_VERBS, ...NEVER_MODEL_VERBS]) {
@@ -482,7 +485,7 @@ test("search_sessions is a schema-complete deferred tool activated by ordinary l
 	}
 });
 
-test("prefix estimate includes Pi's active snippets and lands in the 2–8k token band", () => {
+test("prefix estimate counts useful native tools and detects accidental surface bloat", () => {
 	const instructions = buildDevspecInstructions();
 	const hotTools = modelFacingSurface();
 	const schemaChars = JSON.stringify(
@@ -500,14 +503,15 @@ test("prefix estimate includes Pi's active snippets and lands in the 2–8k toke
 	const availableToolLines = [
 		...hotTools.map((entry) => `- ${entry.name}: ${entry.promptSnippet}`),
 		`- ${TOOL_LOADER_NAME}: ${TOOL_LOADER_PROMPT_METADATA.promptSnippet}`,
+		`- ${ROOM_READ_TOOL}: ${ROOM_READ_PROMPT_METADATA.promptSnippet}`,
 	].join("\n");
 	assert.equal(
 		estimatePrefixChars(instructions),
-		schemaChars + loaderChars + instructions.length + availableToolLines.length,
+		schemaChars + loaderChars + JSON.stringify({ name: ROOM_READ_TOOL, description: ROOM_READ_DESCRIPTION, inputSchema: ROOM_READ_SCHEMA }).length + instructions.length + availableToolLines.length,
 	);
 
 	const tokens = estimatePrefixTokens(instructions);
 	assert.ok(tokens >= PREFIX_TOKEN_MIN, `prefix too small to be real: ${tokens}`);
-	assert.ok(tokens <= PREFIX_TOKEN_MAX, `prefix still too fat: ${tokens}`);
+	assert.ok(tokens <= PREFIX_TOKEN_MAX, `unexpected catalogue/contract-scale prefix growth: ${tokens}`);
 	assert.deepEqual(hotTools.map((entry) => entry.name), [...HOT_SET_VERBS]);
 });

@@ -184,7 +184,7 @@ a **Pi-shaped surface**, not a 1:1 dump of `tool-definitions.ts`:
   automatically on active-plan resume); unrelated rare schemas remain cold
 - extension stamps `git_remote` / project / session / bond ids and the hidden
   per-connection capability transport header — the model is never asked
-- target initial prefix for DevSpec tools + workflow block: **2–8k tokens**, not ~60k
+- keep the DevSpec prefix deliberate, not a ~60k catalogue dump; **quality and complete useful access come first**. The former2–8k estimate is not a quota (Ali,2026-09-24).
 
 The generated catalog (`523f1512`) stays the wire map + drift test, not the
 initial active model surface.
@@ -441,7 +441,7 @@ current contract, adopted here first, migrated to other hosts only if proven.
    (embedded MCP client, `/devspec.login|logout|status`, staging/prod.
    Completeness of verbs shipped as a catalog dump in `523f1512`; the
    **product** starts with a Pi-shaped hot set — ~15 always-on tools plus
-   deferred rare-tool search, ~2–8k prefix. Custom TUI renderers still TODO)
+   deferred rare-tool search and a measured, non-rationed prefix. Custom TUI renderers still TODO)
 3. **System-prompt injection + slash commands** — workflows native. ✅
    (`before_agent_start` workflow block is tight: no "Check DevSpec first",
    no 76-verb when-X-call-Y dump. `/devspec.work` with live item completion;

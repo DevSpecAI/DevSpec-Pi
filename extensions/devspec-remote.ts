@@ -39,7 +39,10 @@ import {
 	shouldEndBondOnPollFailure,
 } from "./core/client.ts";
 import { connectionCapabilityFromResult, getBond, setBond, type BondState } from "./core/bond-state.ts";
-import { openRoomStore, roomPrincipalFingerprint } from "./core/room-store.ts";
+import { openRoomStore, roomPrincipalFingerprint, type RoomStoreScope } from "./core/room-store.ts";
+import { readRoomForContext } from "./core/room-tools.ts";
+import { observeRoomAccess } from "./core/room-access.ts";
+import { compactRoomAwareness, previousRoomCheckpoint, roomScopeFromEntries, ROOM_READ_TOOL, ROOM_SCOPE_ENTRY, ROOM_NAV_ENTRY } from "./core/room-reader.ts";
 import { advertisesRoomContext } from "./core/room-context.ts";
 import { RoomSync } from "./core/room-sync.ts";
 import {
@@ -83,7 +86,7 @@ import { parsePostSessionReceipt, TrailDeliveryState } from "./core/post-session
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { SubagentFleetClient, type SubagentFleetSnapshot } from "./core/subagent-fleet.ts";
 import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
-import { takeContextBudgetReport } from "./core/context-budget.ts";
+import { takeContextBudgetReport, noteInjectedContext } from "./core/context-budget.ts";
 import { automaticBackgroundTaskId, backgroundTaskNotificationId, terminalBackgroundTaskIds, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitSpeech, isHarnessOrigin, isSubagentAsyncNotification, TurnTracker, noteProgressEvent, currentProgressMarker } from "./core/turn-lifecycle.ts";
 import {
 	formatAutomationRunMessage,
@@ -1289,6 +1292,7 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	active.stop = true;
 	active.roomSync?.close(true);
 	active.roomSync = undefined;
+	pi_appendRoomScope(null, active.localSessionId);
 	if (active.interactionRetryTimer) clearTimeout(active.interactionRetryTimer);
 	active.interactionRetryTimer = undefined;
 	const starting = startingInteractionRun?.active === active ? startingInteractionRun : null;
@@ -2158,11 +2162,11 @@ async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: s
 	const effectiveEndpoint = await resolveEndpoint();
 	if (pump !== active || active.stop) return;
 	if (effective?.token !== token || effectiveEndpoint !== endpoint) {
-		active.roomSync?.close(true); active.roomSync = undefined; return;
+		active.roomSync?.close(true); active.roomSync = undefined; pi_appendRoomScope(null, active.localSessionId); return;
 	}
 	const b = active.bond;
 	if (!b.projectId || !b.sessionId || !b.speechAttachmentId) {
-		active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncKey = undefined; return;
+		active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncKey = undefined; pi_appendRoomScope(null, active.localSessionId); return;
 	}
 	// Connection identity fences the authenticated principal; credentials are never
 	// part of the persisted scope. Endpoint credentials/query strings are omitted.
@@ -2198,6 +2202,7 @@ async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: s
 					// The embedded client raises MCP refusals before unwrapMcpResult.
 					if (current() && (error instanceof DevspecToolError || error instanceof DevspecAuthError)) {
 						active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncAttemptAt = Date.now();
+						pi_appendRoomScope(null, active.localSessionId);
 						signalWake(active);
 					}
 					throw error;
@@ -2205,20 +2210,21 @@ async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: s
 				const response = unwrapMcpResult(raw);
 				if (response.isError) {
 					// A server refusal is not permission to keep using cached room data.
-					if (current()) { active.roomSync?.close(true); active.roomSync = undefined; }
+					if (current()) { active.roomSync?.close(true); active.roomSync = undefined; pi_appendRoomScope(null, active.localSessionId); }
 					throw new Error("room history refused");
 				}
 				const details = response.details as { session_id?: unknown; speech_attachment_id?: unknown } | null;
 				if (!current()) throw new Error("room history attachment changed");
 				if (details?.session_id !== scope.sessionId || details?.speech_attachment_id !== scope.attachmentId) {
 					active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncAttemptAt = Date.now();
+					pi_appendRoomScope(null, active.localSessionId);
 					signalWake(active); // only the main pump adopts the new attachment
 					throw new Error("room history attachment mismatch");
 				}
 				return parsePollPayload(response.details, active.connectionIdentity, { systemNoticeNegotiated: true, senderStyleNegotiated: true, roomContextNegotiated: true });
 			},
 		});
-		if (current()) { active.roomSync.schedule(); signalWake(active); }
+		if (current()) { pi_appendRoomScope(scope); active.roomSync.schedule(); signalWake(active); }
 	} catch (error) {
 		if (!current()) return;
 		debug("room storage unavailable", { errorPresent: true });
@@ -2362,6 +2368,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			const { details, isError, text } = unwrapMcpResult(raw);
 			if (isError) {
 				active.roomSync?.close(true); active.roomSync = undefined;
+				pi_appendRoomScope(null, active.localSessionId);
 				throw new Error(text || "poll_connection failed");
 			}
 			payload = details;
@@ -2373,6 +2380,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		} catch (err) {
 			if (err instanceof DevspecToolError || err instanceof DevspecAuthError) {
 				active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncAttemptAt = Date.now();
+				pi_appendRoomScope(null, active.localSessionId);
 			} else active.roomSync?.store.markOffline();
 			// Only CONFIRMED credential rejection ends the bond (item 781886cf).
 			// Unavailable validation, transport noise, and ambiguous 401s ride
@@ -2488,6 +2496,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				roomDigest: undefined,
 			};
 			active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncKey = undefined;
+			pi_appendRoomScope(null, active.localSessionId);
 			active.bond = next;
 			void ensureRoomSync(active, ctx, token, endpoint).catch(() => debug("room storage unavailable", { errorPresent: true }));
 			const detachTail = authoritativeActivePlanTransitionTail(
@@ -2774,10 +2783,14 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					const contextByEnvelope = new Map(
 						[...active.advisoryCarry, hydrated.advisoryContext].map((context) => [context.envelopeId, context]),
 					);
-					const contexts = [...contextByEnvelope.values()];
+					let localHistory = false;
+					try { localHistory = Boolean(pkg.roomPage && pi_roomReaderAvailable() && active.roomSync && !active.roomSync.store.status().storageError); } catch { /* keep the supported delivery fallback */ }
+					const contexts = localHistory ? [] : [...contextByEnvelope.values()];
 					const queueItem = {
 						hiddenContent: formatCanonicalDeliveryContext(hydrated, contexts),
-						details: { bundle: hydrated, contexts },
+						details: localHistory
+							? { local_room: { session_id: active.bond.sessionId, attachment_id: active.bond.speechAttachmentId }, command_message_ids: hydrated.commands.map(c => c.id) }
+							: { bundle: hydrated, contexts },
 					};
 					const primary = hydrated.primaryCommand;
 					const requester = primary.requester.display_name ?? primary.requester.user_id;
@@ -3012,6 +3025,8 @@ let pi_reload: () => Promise<void> = async () => {};
 let pi_setThinking: (level: string) => string = () => { throw new Error("setThinkingLevel is not available"); };
 let pi_setModel: (modelId: string) => Promise<boolean> = async () => false;
 let pi_setPlanToolActive: (enabled: boolean) => void = () => {};
+let pi_roomReaderAvailable: () => boolean = () => false;
+let pi_appendRoomScope: (scope: RoomStoreScope | null, nativeSessionId?: string) => void = () => {};
 let pi_setQuestionToolActive: (enabled: boolean) => void = () => {};
 let pi_setPollToolActive: (enabled: boolean) => void = () => {};
 
@@ -3159,6 +3174,17 @@ export default function (pi: ExtensionAPI) {
 		const model = lastCtx?.modelRegistry?.find?.(provider, id);
 		if (!model) return false;
 		return Boolean(await pi.setModel?.(model));
+	};
+	pi_roomReaderAvailable = () => pi.getActiveTools().includes(ROOM_READ_TOOL);
+	let lastRoomScope: string | undefined;
+	pi_appendRoomScope = (scope, nativeSessionId = scope?.nativeSessionId) => {
+		if (!nativeSessionId) return;
+		observeRoomAccess(nativeSessionId, scope);
+		if (lastCtx?.sessionManager.getSessionId() !== nativeSessionId) return;
+		const serialized = JSON.stringify([nativeSessionId, scope]);
+		if (serialized === lastRoomScope) return;
+		try { pi.appendEntry(ROOM_SCOPE_ENTRY, { version: 1, scope }); lastRoomScope = serialized; }
+		catch { debug("room storage unavailable", { errorPresent: true }); }
 	};
 	pi_setPlanToolActive = (enabled) => {
 		const next = withPlanToolActive(pi.getActiveTools(), enabled);
@@ -3372,7 +3398,7 @@ export default function (pi: ExtensionAPI) {
 	// background-task-notification) and may then replay the last typed prompt
 	// as a user message. Stamp harness origin here so that replay cannot
 	// remirror (item 56b9a3b4). Typed /commands never take this path.
-	pi.on("before_agent_start", (event, ctx) => {
+	pi.on("before_agent_start", async (event, ctx) => {
 		noteProgressEvent();
 		const canonicalQueueItem = commandTurnBindings.peek(event.prompt)?.canonicalQueueItem;
 		const active = pump;
@@ -3402,13 +3428,27 @@ export default function (pi: ExtensionAPI) {
 			active?.pendingStillToDiscussTail ?? "",
 		);
 		if (active && discussTail) active.pendingStillToDiscussTail = "";
-		const hiddenContent = appendActivePlanTail(
+		let hiddenContent = appendActivePlanTail(
 			appendActivePlanTail(
 				appendActivePlanTail(canonicalQueueItem?.hiddenContent ?? "", planTail),
 				pollTail,
 			),
 			discussTail,
 		);
+		if (pi_roomReaderAvailable() && (active?.bond.sessionId || canonicalQueueItem || roomScopeFromEntries(ctx.sessionManager.getBranch()))) {
+			const expected = (canonicalQueueItem?.details as { local_room?: { session_id?: string; attachment_id?: string } } | undefined)?.local_room;
+			const stillSameRoom = !expected || (expected.session_id === active?.bond.sessionId && expected.attachment_id === active?.bond.speechAttachmentId);
+			let status: Record<string, unknown> = stillSameRoom ? await readRoomForContext(ctx, { view: "status" }) : { availability: "unavailable" };
+			if (expected && (status.room_id !== expected.session_id || expected.attachment_id !== active?.bond.speechAttachmentId)) status = { availability: "unavailable", room_id: expected.session_id };
+			if (typeof status.checkpoint === "string") {
+				status.since_previous_context = previousRoomCheckpoint(ctx.sessionManager.getBranch(), status.checkpoint);
+				try { pi.appendEntry(ROOM_NAV_ENTRY, { version: 1, checkpoint: status.checkpoint }); }
+				catch { debug("room storage unavailable", { errorPresent: true }); }
+			}
+			const awareness = compactRoomAwareness(status);
+			hiddenContent = appendActivePlanTail(hiddenContent, awareness);
+			noteInjectedContext("roomDigest", awareness.length);
+		}
 		const injected = hiddenContent ? {
 			message: {
 				customType: canonicalQueueItem ? REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE : "devspec-active-session-plans",

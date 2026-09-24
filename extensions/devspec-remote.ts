@@ -85,9 +85,11 @@ import { shapeTranscript } from "./core/attach-context.ts";
 import { parsePostSessionReceipt, TrailDeliveryState } from "./core/post-session-receipt.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { SubagentFleetClient, type SubagentFleetSnapshot } from "./core/subagent-fleet.ts";
+import { BackgroundWorkObserver, backgroundTaskFromLaunch, backgroundTasksFromManagement, type BackgroundObservation } from "./core/background-observer.ts";
+import { BACKGROUND_WORK_ENTRY, backgroundScopeKey, backgroundWorkEntry, restoreBackgroundWork, type BackgroundWorkScope } from "./core/background-journal.ts";
 import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
 import { takeContextBudgetReport, noteInjectedContext } from "./core/context-budget.ts";
-import { automaticBackgroundTaskId, backgroundTaskNotificationId, terminalBackgroundTaskIds, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitSpeech, isHarnessOrigin, isSubagentAsyncNotification, TurnTracker, noteProgressEvent, currentProgressMarker } from "./core/turn-lifecycle.ts";
+import { backgroundTaskNotificationId, terminalBackgroundTaskIds, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitSpeech, isHarnessOrigin, isSubagentAsyncNotification, TurnTracker, noteProgressEvent, currentProgressMarker } from "./core/turn-lifecycle.ts";
 import {
 	formatAutomationRunMessage,
 	isAutomationRunEnvelope,
@@ -826,18 +828,18 @@ function trailTick(): void {
  * otherwise strand the Working indicator until lease expiry. report_complete
  * is the explicit channel; idempotent when the attempt already closed.
  */
-async function reportComplete(reason: string, commandTurnId?: string, commandMessageId?: string, commandTurnUnbound = false, interaction?: ExactInteractionContinuationIdentity, prePersistenceFailure = false): Promise<boolean> {
+async function reportComplete(reason: string, commandTurnId?: string, commandMessageId?: string, commandTurnUnbound = false, interaction?: ExactInteractionContinuationIdentity, prePersistenceFailure = false, stillCurrent: () => boolean = () => true): Promise<boolean> {
 	const active = pump;
 	if (!active || (active.stop && !active.closing)) return false;
 	const authority = capturePumpAuthority({ generation: active.generation, connectionId: active.bond.connectionId });
 	const resolved = await resolveToken();
-	if (!resolved) return false;
+	if (!resolved || !stillCurrent()) return false;
 	if (pump !== active || !isPumpAuthorityCurrent(authority, {
 		generation: active.generation,
 		connectionId: active.bond.connectionId,
 	}) || (active.stop && !active.closing)) return false;
 	try {
-		await callDevspec(resolved.token, "report_complete", {
+		const raw = await callDevspec(resolved.token, "report_complete", {
 			connection_id: authority.connectionId,
 			reason,
 			...(commandTurnId ? { command_turn_id: commandTurnId } : {}),
@@ -845,7 +847,14 @@ async function reportComplete(reason: string, commandTurnId?: string, commandMes
 			...(commandTurnUnbound && !interaction ? { command_turn_unbound: true } : {}),
 			...(interaction ? exactInteractionContinuationArgs(interaction) : {}),
 			...(prePersistenceFailure ? { interaction_pre_persistence_failure: true } : {}),
-		}, { timeoutMs: 10_000, lane: "pump", ...(interaction && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}) });
+		}, { timeoutMs: 10_000, lane: "pump", ...(interaction && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}),
+			beforeSend: () => { if (!stillCurrent()) throw new DevspecToolError("Completion observation changed before send."); },
+		});
+		const receipt = unwrapMcpResult(raw);
+		const completed = receipt.details as Record<string, unknown> | undefined;
+		if (receipt.isError || completed?.connection_id !== authority.connectionId || completed.phase !== "done" ||
+			(interaction && completed.attempt_id !== interaction.attemptId) ||
+			(commandTurnId && completed.command_turn_id !== commandTurnId) || !stillCurrent()) return false;
 		// The command is closed: drop any never-taken binding strays for it so a
 		// later terminal input with identical text cannot inherit them (6f4136d8).
 		commandTurnBindings.forgetByCommand(commandTurnId, commandMessageId);
@@ -1321,6 +1330,7 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	resetDirectedQuestionReceiptBatch();
 	if (stoppingTrailFence) await stoppingTrailFence.drain();
 	pump = null;
+	pi_syncBackgroundScope();
 	commandTurnBindings.clear();
 	clearDealtRefs();
 	activeCommandStyles.clear();
@@ -2293,6 +2303,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			await new Promise((resolve) => setTimeout(resolve, retryAt - Date.now()));
 			if (active.stop || pump !== active) return;
 		}
+		// In-process status reads share the existing safety cadence and never wake
+		// the model or block command polling on a missing provider.
+		void pi_refreshBackgroundWork();
 		if (await drainInteractionRetries(active, ctx)) continue;
 
 		// The server can claim ten at once. Negotiate only when that complete batch
@@ -2511,6 +2524,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			active.pendingStillToDiscussTail = "";
 			active.stillToDiscussTail = "";
 			setBond(next);
+			pi_syncBackgroundScope();
 			pi_setPlanToolActive(Boolean(serverSessionId));
 			pi_setQuestionToolActive(Boolean(serverSessionId && next.connectionCapability));
 			pi_setPollToolActive(Boolean(serverSessionId && next.connectionCapability));
@@ -2766,6 +2780,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			const unseen = active.seenOwnerCommands.takeUnseen(pkg.ownerBundle.commands);
 				noteDeliveredCommandRefs(unseen);
 			if (unseen.length > 0) {
+				pi_backgroundInputPending();
 				const selectedBundle = ownerBundleSubset(pkg.ownerBundle, unseen);
 				let attachmentLease: AttachmentDeliveryLease | undefined;
 				try {
@@ -2984,6 +2999,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 		stillToDiscussTail: "",
 		pendingStillToDiscussTail: "",
 	};
+	pi_syncBackgroundScope();
 	pi_setPlanToolActive(Boolean(bond.sessionId));
 	pi_setQuestionToolActive(Boolean(bond.sessionId && bond.connectionCapability));
 	pi_setPollToolActive(Boolean(bond.sessionId && bond.connectionCapability));
@@ -3029,6 +3045,9 @@ let pi_roomReaderAvailable: () => boolean = () => false;
 let pi_appendRoomScope: (scope: RoomStoreScope | null, nativeSessionId?: string) => void = () => {};
 let pi_setQuestionToolActive: (enabled: boolean) => void = () => {};
 let pi_setPollToolActive: (enabled: boolean) => void = () => {};
+let pi_syncBackgroundScope: () => void = () => {};
+let pi_refreshBackgroundWork: () => Promise<void> = async () => {};
+let pi_backgroundInputPending: () => void = () => {};
 
 /**
  * Refresh display identity only. Conversational/model context is accepted
@@ -3073,6 +3092,95 @@ async function enrichBondWithSession(sessionId: string): Promise<void> {
 export default function (pi: ExtensionAPI) {
 	rememberExtensionRunner();
 	const subagentFleet = new SubagentFleetClient(pi.events);
+	let observationScope: BackgroundWorkScope | null = null;
+	let restoringBackground = false;
+	let foregroundEpoch = 0;
+	let parkedBackground: { active: PumpState; scope: string; epoch: number; settled: TurnState; ready: Promise<void> } | null = null;
+	let completingBackground = false;
+	const observedIds = new Set<string>();
+	const journalStates = new Map<string, string>();
+	const launchScopes = new Map<string, string>();
+	const currentBackgroundScope = (): BackgroundWorkScope | null => {
+		const active = pump;
+		if (!active || active.stop || !active.bond.sessionId || !active.bond.speechAttachmentId ||
+			lastCtx?.sessionManager.getSessionId() !== active.localSessionId) return null;
+		return { nativeSessionId: active.localSessionId, connectionId: active.bond.connectionId,
+			sessionId: active.bond.sessionId, attachmentId: active.bond.speechAttachmentId };
+	};
+	const completeObservedIdle = async (): Promise<void> => {
+		const candidate = parkedBackground;
+		if (!candidate || completingBackground) return;
+		const { settled, active } = candidate;
+		// No connection-scoped or "latest unbound" completion from an async
+		// callback. Local unbound completion needs the stage-2 exact foreground
+		// reference; observation must not guess it from another job or message.
+		if (!settled.interaction && (!settled.commandTurnId || !settled.commandMessageId)) return;
+		const current = () => parkedBackground === candidate && pump === active && !active.stop &&
+			foregroundEpoch === candidate.epoch && observationScope !== null &&
+			backgroundScopeKey(observationScope) === candidate.scope && settled.canPost() &&
+			pendingBackgroundTaskIds.size === 0 && turn === null && !active.runtimeOccupancy.isBusy() &&
+			lastCtx?.isIdle() === true && !lastCtx.hasPendingMessages();
+		if (!current()) return;
+		completingBackground = true;
+		try {
+			await candidate.ready;
+			if (!current()) return;
+			const completed = await reportComplete("turn_end", settled.commandTurnId, settled.commandMessageId,
+				false, interactionIdentity(settled.interaction), false, current);
+			if (completed && current()) {
+				parkedBackground = null;
+				active.busy = false;
+				void beatBusy(false);
+				signalWake(active);
+			}
+		} catch { debug("background observation reconciliation failed", { errorPresent: true }); }
+		finally { completingBackground = false; }
+	};
+	const applyBackgroundObservation = (observation: BackgroundObservation): void => {
+		const scope = currentBackgroundScope();
+		if (restoringBackground || !scope || observation.scope !== backgroundScopeKey(scope)) return;
+		for (const id of observedIds) pendingBackgroundTaskIds.delete(id);
+		observedIds.clear();
+		for (const task of observation.tasks) {
+			observedIds.add(task.id);
+			if (task.state === "running" || task.state === "unknown") pendingBackgroundTaskIds.add(task.id);
+			const stateKey = `${task.startTime}:${task.state}`;
+			if (journalStates.get(task.id) === stateKey) continue;
+			try {
+				pi.appendEntry(BACKGROUND_WORK_ENTRY, backgroundWorkEntry(scope, task));
+				journalStates.set(task.id, stateKey);
+			} catch { debug("background observation persistence failed", { errorPresent: true }); }
+		}
+		debug("background observation", { pendingBg: pendingBackgroundTaskIds.size,
+			unknown: observation.tasks.filter(task => task.state === "unknown").length });
+		void completeObservedIdle();
+	};
+	const backgroundObserver = new BackgroundWorkObserver(pi.events, applyBackgroundObservation);
+	pi_backgroundInputPending = () => { foregroundEpoch += 1; parkedBackground = null; };
+	pi_syncBackgroundScope = () => {
+		const scope = currentBackgroundScope();
+		const key = scope ? backgroundScopeKey(scope) : null;
+		if ((observationScope ? backgroundScopeKey(observationScope) : null) === key) return;
+		pi_backgroundInputPending();
+		for (const id of observedIds) pendingBackgroundTaskIds.delete(id);
+		observedIds.clear(); journalStates.clear(); launchScopes.clear();
+		observationScope = scope;
+		restoringBackground = true;
+		try {
+			backgroundObserver.bind(key);
+			if (scope && key && lastCtx) {
+				for (const task of restoreBackgroundWork(lastCtx.sessionManager.getBranch(), scope)) backgroundObserver.track(task, key);
+			}
+		} finally { restoringBackground = false; }
+		applyBackgroundObservation(backgroundObserver.snapshot());
+	};
+	pi_refreshBackgroundWork = async () => {
+		try {
+			pi_syncBackgroundScope();
+			await backgroundObserver.refresh();
+			await completeObservedIdle();
+		} catch { debug("background observation reconciliation failed", { errorPresent: true }); }
+	};
 	const reconcileSubagentFleetOwnership = async (
 		trackedTurn: TurnState,
 		attempts = 2,
@@ -3138,6 +3246,7 @@ export default function (pi: ExtensionAPI) {
 		}
 	};
 	pi_send = (message, mode = "now", commandTurnId, commandMessageId, canonicalQueueItem) => {
+		pi_backgroundInputPending();
 		commandTurnBindings.remember(message, commandTurnId, commandMessageId, canonicalQueueItem);
 		try {
 			// Exactly one Pi queue item. Delegated scope is already in its visible
@@ -3209,6 +3318,8 @@ export default function (pi: ExtensionAPI) {
 	pi.on("agent_start", async (_event, ctx) => {
 		noteProgressEvent();
 		lastCtx = ctx;
+		pi_backgroundInputPending();
+		pi_syncBackgroundScope();
 		const active = pump;
 		const newInteractionRun = startingInteractionRun;
 		const continuedInteractionRun = turn?.interaction ?? (active ? activeInteractionRun(active) : undefined);
@@ -3268,6 +3379,7 @@ export default function (pi: ExtensionAPI) {
 		const occupancyAtSettle = activeAtSettle?.runtimeOccupancy.capture() ?? null;
 		const turnAtSettle = turn;
 		const revisionAtSettle = turnAtSettle?.revision;
+		await pi_refreshBackgroundWork();
 		await Promise.all([...pendingInteractionConfirmations].map((confirmation) =>
 			attemptInteractionPersistenceConfirmation(confirmation, true)));
 		// The parent model may be locally finished while async children still own
@@ -3319,7 +3431,7 @@ export default function (pi: ExtensionAPI) {
 		if (!completionNeutral && untitledAttached() && pump?.bond.sessionId) {
 			scheduleTitleRefresh(pump.bond.sessionId);
 		}
-		trackTerminalPost((async () => {
+		const terminalPost = (async () => {
 			const posted = await settleTurn(agentStats, true);
 			// No complete_turn post landed (aborted/empty turn, or the post
 			// failed) — close the exact activity honestly. Outstanding owned
@@ -3338,7 +3450,13 @@ export default function (pi: ExtensionAPI) {
 				interactionRunsByEvent.delete(interactionRun.details.event.event_id);
 				if (startingInteractionRun === interactionRun) startingInteractionRun = null;
 			}
-		})());
+		})();
+		trackTerminalPost(terminalPost);
+		if (keepWorking && settlingTurn && activeAtSettle && observationScope) {
+			parkedBackground = { active: activeAtSettle, settled: settlingTurn, epoch: foregroundEpoch,
+				scope: backgroundScopeKey(observationScope), ready: terminalPost };
+			void completeObservedIdle();
+		}
 		// Local telemetry above is safe; from here onward the notice run is over.
 		// Busy notices may wake only after final settlement proves both Pi and pump
 		// idle. The next custom run remains unbound from every owner generation.
@@ -3471,14 +3589,11 @@ export default function (pi: ExtensionAPI) {
 					.join("\n")
 				: "";
 		if (!isHarnessOrigin(content, customType)) return injected;
-		// Context/harness may wake the model. Do not close the live owner
-		// turn as complete (item 60cf5f00). A terminal task notification
-		// resolves only its matching owner-started task (item 15cb0983).
+		// Notification consumption is communication, not task liveness. It can
+		// prompt an in-process status refresh, never directly resolve ownership.
 		const details = (leaf as { details?: unknown }).details;
-		turn.tracker.userMessage(content, {
-			customType,
-			backgroundTaskId: backgroundTaskNotificationId(content, details),
-		});
+		if (backgroundTaskNotificationId(content, details)) void pi_refreshBackgroundWork();
+		turn.tracker.userMessage(content, { customType });
 		// A completion wake rides the parked command turn it continues — an
 		// unbound wake post while a command turn is parked is fenced as
 		// stale_generation server-side and drops silently (759f2818 live repro).
@@ -3539,6 +3654,7 @@ export default function (pi: ExtensionAPI) {
 			// Bind immutable command identity (or clear it for local input), then
 			// begin normal busy presence exactly once for this same-run transition.
 			if (isRealUserMessage) {
+				pi_backgroundInputPending();
 				// A genuine user follow-up promotes the one run-level occupancy. Low-level
 				// retry starts never do this merely because the pending flag was cleared.
 				if (pump && turn.occupancy?.kind === "system_notice") {
@@ -3570,10 +3686,8 @@ export default function (pi: ExtensionAPI) {
 					void beatBusy(true);
 				}
 			} else {
-				turn.tracker.userMessage(text, {
-					customType,
-					backgroundTaskId: harness ? backgroundTaskNotificationId(text, msg?.details) : null,
-				});
+				if (harness && backgroundTaskNotificationId(text, msg?.details)) void pi_refreshBackgroundWork();
+				turn.tracker.userMessage(text, { customType });
 				if (harness) adoptParkedCommandIdentity(turn, turn.tracker.userKind);
 			}
 			// Idle triggerTurn custom messages bypass before_agent_start in Pi. The
@@ -3660,6 +3774,8 @@ export default function (pi: ExtensionAPI) {
 	pi.on("tool_execution_start", async (event, ctx) => {
 		noteProgressEvent();
 		lastCtx = ctx;
+		pi_syncBackgroundScope();
+		if (observationScope) launchScopes.set(event.toolCallId, backgroundScopeKey(observationScope));
 		noteVerbStart(event.toolCallId, event.toolName, event.args);
 		paintStatus(ctx);
 		if (!turn) return;
@@ -3711,28 +3827,30 @@ export default function (pi: ExtensionAPI) {
 		lastCtx = ctx;
 		noteVerbEnd(event.toolCallId);
 		paintStatus(ctx);
-		if (!turn) return;
-		// Register ownership only from a successful launch receipt that promises
-		// both terminal notification and automatic wake. tool_execution_start is
-		// too early: a failed launch would otherwise park the turn forever.
-		const backgroundTaskId = automaticBackgroundTaskId(event.toolName, event.result, event.isError);
-		if (backgroundTaskId) {
-			turn.tracker.noteBackgroundTask(backgroundTaskId);
-			// Numeric-only vocabulary by design (debug.ts drops all strings):
-			// the pendingBg count after each note/resolve makes a leak
-			// computable (notes minus resolves) without naming tasks.
-			debug("background task noted", { pendingBg: turn.tracker.pendingBackgroundTasks().length });
-		}
-		// Reconcile terminally-finished tasks observed in management results
-		// (item f453c61f): a kill produces no completion message, so without
-		// this the id leaks and every later settle posts complete_turn:false
-		// forever. Only explicit terminal states resolve; anything else (and
-		// any id this turn never owned) is a no-op by construction.
-		for (const terminalId of terminalBackgroundTaskIds(event.toolName, event.result, event.isError)) {
-			if (turn.tracker.resolveBackgroundTask(terminalId)) {
-				debug("background task resolved from tool result", { pendingBg: turn.tracker.pendingBackgroundTasks().length });
+		const launchScope = launchScopes.get(event.toolCallId);
+		launchScopes.delete(event.toolCallId);
+		pi_syncBackgroundScope();
+		if (launchScope && observationScope && launchScope === backgroundScopeKey(observationScope)) {
+			const task = backgroundTaskFromLaunch(event.toolName, event.result, event.isError);
+			if (task && backgroundObserver.track(task, launchScope)) {
+				debug("background task noted", { pendingBg: pendingBackgroundTaskIds.size });
+				void pi_refreshBackgroundWork();
+			}
+			const before = pendingBackgroundTaskIds.size;
+			for (const task of backgroundTasksFromManagement(event.toolName, event.result, event.isError)) {
+				backgroundObserver.observe(task, launchScope);
+			}
+			// Preserve strict f453c61f reconciliation for existing non-provider ids;
+			// registered provider executions additionally match their start identity.
+			for (const id of terminalBackgroundTaskIds(event.toolName, event.result, event.isError)) {
+				if (!observedIds.has(id)) pendingBackgroundTaskIds.delete(id);
+			}
+			if (pendingBackgroundTaskIds.size < before) {
+				debug("background task resolved from tool result", { pendingBg: pendingBackgroundTaskIds.size });
+				void completeObservedIdle();
 			}
 		}
+		if (!turn) return;
 		const terminatingReceipt = isReceiptOwningDirectedQuestionCreate(
 			event.toolName,
 			event.result,
@@ -3747,6 +3865,11 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", async () => {
+		pi_backgroundInputPending();
+		backgroundObserver.dispose();
+		launchScopes.clear();
+		pi_refreshBackgroundWork = async () => {};
+		pi_syncBackgroundScope = () => {};
 		subagentFleet.dispose();
 		for (const confirmation of pendingInteractionConfirmations) {
 			interactionDelivery.abandonMessage(confirmation.message);

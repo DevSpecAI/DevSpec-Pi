@@ -91,19 +91,23 @@ test("completion wakes adopt the parked command identity; drops are reported wit
 
 test("killed/terminal tasks observed in tool results reconcile the pending set (f453c61f)", () => {
 	const end = source.slice(source.indexOf('pi.on("tool_execution_end"'), source.indexOf('pi.on("session_shutdown"'));
-	// Launch registration is unchanged: only successful notifying wakes park.
-	assert.match(end, /automaticBackgroundTaskId\(event\.toolName, event\.result, event\.isError\)/);
+	// db495c8f: launch ownership no longer depends on notification/wake flags.
+	assert.match(end, /backgroundTaskFromLaunch\(event\.toolName, event\.result, event\.isError\)/);
+	assert.match(end, /launchScope === backgroundScopeKey\(observationScope\)/);
+	assert.match(end, /backgroundObserver\.track\(task, launchScope\)/);
 	// Terminal observations resolve: a kill produces no completion message,
 	// so without this the id leaks and every later settle posts
 	// complete_turn:false forever (live 2026-09-20: 5h stuck Working).
 	assert.match(end, /terminalBackgroundTaskIds\(event\.toolName, event\.result, event\.isError\)/);
-	assert.match(end, /turn\.tracker\.resolveBackgroundTask\(terminalId\)/);
+	assert.match(end, /backgroundTasksFromManagement\(event\.toolName, event\.result, event\.isError\)/);
+	assert.match(end, /backgroundObserver\.observe\(task, launchScope\)/);
+	assert.match(end, /!observedIds\.has\(id\)\) pendingBackgroundTaskIds\.delete\(id\)/);
 	// Observability: note/resolve events with the running count make the next
 	// leak computable (notes minus resolves) instead of needing forensics.
 	// (Counts only — debug.ts drops all strings by design, so ids stay out.)
 	// (Numeric counts only — debug.ts drops all strings by design.)
-	assert.match(end, /debug\("background task noted", \{ pendingBg: turn\.tracker\.pendingBackgroundTasks\(\)\.length \}\)/);
-	assert.match(end, /debug\("background task resolved from tool result", \{ pendingBg: turn\.tracker\.pendingBackgroundTasks\(\)\.length \}\)/);
+	assert.match(end, /debug\("background task noted", \{ pendingBg: pendingBackgroundTaskIds\.size \}\)/);
+	assert.match(end, /debug\("background task resolved from tool result", \{ pendingBg: pendingBackgroundTaskIds\.size \}\)/);
 });
 
 test("both working-lease beats carry the progress marker, fed by the event handlers (0b8035ac)", () => {

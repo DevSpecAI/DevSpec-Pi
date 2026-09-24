@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.18
+
+### Keep messages moving after questions
+
+Fixes a client polling stall that could delay new messages while a question
+answer was waiting to resume. Leaving a question also stops its old state from
+suppressing Working updates on later work. Exact answer acknowledgements and
+interruption preferences are preserved.
+
+Reload existing Pi terminals to activate these fixes. This is a targeted client
+repair, not the separate server-side change for interrupting an active question.
+
 ## 0.3.17
 
 ### Read room context locally

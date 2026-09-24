@@ -945,7 +945,7 @@ async function startInteractionContinuation(
 }
 
 function interactionRunIsLive(run: ExactInteractionRun): boolean {
-	return run.application !== "released";
+	return activeInteractionRun(run.active) === run;
 }
 
 async function keepInteractionContinuationAlive(run: ExactInteractionRun): Promise<boolean> {
@@ -1411,16 +1411,29 @@ function interactionEventsRelevant(active: PumpState): boolean {
 }
 
 function activeInteractionRun(active: PumpState): ExactInteractionRun | undefined {
-	return [...interactionRunsByEvent.values()].find((run) =>
-		run.active === active && run.application !== "released");
+	// The journal/map retain receipt bookkeeping; only the starting/current
+	// foreground can own presence. A completed question must not own later work.
+	return [startingInteractionRun, turn?.interaction].find((run): run is ExactInteractionRun =>
+		Boolean(run && run.active === active && run.application !== "released"));
+}
+
+function retireInteractionForeground(run: ExactInteractionRun | undefined): void {
+	if (!run) return;
+	const eventId = run.details.event.event_id;
+	if (interactionRunsByEvent.get(eventId) === run) interactionRunsByEvent.delete(eventId);
+	if (startingInteractionRun === run) startingInteractionRun = null;
+	// Do not mark application released: durable application/ACK retries remain
+	// valid, and captured speech/completion still uses the exact original tuple.
 }
 
 /** Server attachment authority changed; the old exact workflow cannot retarget. */
 function revokeInteractionForAttachmentChange(active: PumpState, ctx: ExtensionContext): boolean {
 	const running = [...interactionRunsByEvent.values()].filter((run) => run.active === active);
-	if (running.length === 0 && turn?.interaction?.active !== active &&
+	const foreground = activeInteractionRun(active);
+	const confirming = [...pendingInteractionConfirmations].some((confirmation) => confirmation.active === active);
+	if (running.length === 0 && !foreground && !confirming &&
 		active.pendingInteractionStarts.size === 0 && active.pendingInteractionReleases.size === 0) return false;
-	ctx.abort();
+	if (foreground) ctx.abort();
 	for (const confirmation of [...pendingInteractionConfirmations]) {
 		if (confirmation.active !== active) continue;
 		interactionDelivery.abandonMessage(confirmation.message);
@@ -1439,7 +1452,7 @@ function revokeInteractionForAttachmentChange(active: PumpState, ctx: ExtensionC
 	active.pendingInteractionStarts.clear();
 	active.pendingInteractionReleases.clear();
 	armInteractionRetryWake(active);
-	active.busy = false;
+	if (foreground) active.busy = false;
 	return true;
 }
 
@@ -2288,12 +2301,11 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (active.pushEnded !== undefined) continue; // handled at the top
 			if (active.pushClosed) continue; // fall through to long-poll next lap
 		}
-		const retryAt = nextInteractionRetryAt(active);
-		if (retryAt !== null && retryAt > Date.now()) {
-			await new Promise((resolve) => setTimeout(resolve, retryAt - Date.now()));
-			if (active.stop || pump !== active) return;
-		}
-		if (await drainInteractionRetries(active, ctx)) continue;
+		// Retry timers already wake the pump when due. Neither waiting for a
+		// future retry nor merely attempting a deferred start may starve the
+		// ordinary command/control poll (4284a43c / 4221d08e).
+		await drainInteractionRetries(active, ctx);
+		if (active.stop || pump !== active) return;
 
 		// The server can claim ten at once. Negotiate only when that complete batch
 		// fits; otherwise ordinary 1.3 command polling continues while notices stay
@@ -3291,6 +3303,7 @@ export default function (pi: ExtensionAPI) {
 		const commandMessageId = settlingTurn?.commandMessageId;
 		const commandTurnUnbound = settlingTurn ? isCommandTurnUnbound(settlingTurn) : false;
 		const interactionRun = settlingTurn?.interaction;
+		retireInteractionForeground(interactionRun);
 		const completionNeutral = occupancyAtSettle?.kind === "system_notice" || settlingTurn?.completionNeutral === true;
 		const activityPolicy = remoteRunActivityPolicy(completionNeutral);
 		// Settle telemetry FIRST so the idle/parked heartbeat and answer post carry
@@ -3334,10 +3347,7 @@ export default function (pi: ExtensionAPI) {
 					await reportComplete("turn_end", commandTurnId, commandMessageId, commandTurnUnbound, interactionIdentity(interactionRun));
 				}
 			}
-			if (interactionRun) {
-				interactionRunsByEvent.delete(interactionRun.details.event.event_id);
-				if (startingInteractionRun === interactionRun) startingInteractionRun = null;
-			}
+			retireInteractionForeground(interactionRun);
 		})());
 		// Local telemetry above is safe; from here onward the notice run is over.
 		// Busy notices may wake only after final settlement proves both Pi and pump
@@ -3497,6 +3507,7 @@ export default function (pi: ExtensionAPI) {
 		const harness = isHarnessOrigin(text, customType);
 		if (msg?.role === "user" || msg?.role === "custom" || harness) {
 			const isRealUserMessage = msg?.role === "user" && !harness;
+			const previousInteraction = isRealUserMessage ? turn.interaction : undefined;
 			if (customType === SYSTEM_NOTICE_CUSTOM_TYPE) turn.completionNeutral = true;
 			const activityTransition = isRealUserMessage
 				? transitionToRealUserActivity({
@@ -3541,7 +3552,7 @@ export default function (pi: ExtensionAPI) {
 			if (isRealUserMessage) {
 				// A genuine user follow-up promotes the one run-level occupancy. Low-level
 				// retry starts never do this merely because the pending flag was cleared.
-				if (pump && turn.occupancy?.kind === "system_notice") {
+				if (pump && (turn.occupancy?.kind === "system_notice" || turn.occupancy?.kind === "interaction")) {
 					const promoted = pump.runtimeOccupancy.promote(turn.occupancy, "owner");
 					if (promoted) {
 						turn.occupancy = promoted;
@@ -3560,6 +3571,7 @@ export default function (pi: ExtensionAPI) {
 				if (incomingCommand?.turnId && incomingCommand?.commandMessageId) {
 					activeCommandTurnIdentity = { turnId: incomingCommand.turnId, commandMessageId: incomingCommand.commandMessageId };
 				}
+				retireInteractionForeground(previousInteraction);
 				turn.interaction = undefined;
 				turn.lastInteractionKeepaliveAt = undefined;
 				turn.speechBinding = undefined;

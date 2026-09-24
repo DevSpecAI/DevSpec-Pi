@@ -90,6 +90,10 @@ const FULL_READ_VERBS = new Set([
 	"get_review_queue",
 	"import_instruction_rules",
 	"update_personal_instructions",
+	// Knowledge writes can return an exact preview/receipt or a new version id.
+	// Keep update_memory lossless: an acknowledgement alone would drop the
+	// preview that must be reviewed before an overrule, or its stale context.
+	"update_memory",
 	// Every connection-bound ledger mutation/read returns the authoritative
 	// revisioned object; there is no safe continuation for omitted state.
 	"manage_plan",

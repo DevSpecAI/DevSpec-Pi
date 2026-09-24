@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { Value } from "typebox/value";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { setBond } from "../extensions/core/bond-state.ts";
 import { buildDevspecInstructions } from "../extensions/core/instructions.ts";
@@ -141,6 +142,28 @@ test("no model-facing description is shipped elided mid-sentence", () => {
 		}
 	}
 	assert.deepEqual(elided, [], `elided instructions: ${elided.join(", ")}`);
+});
+
+test("catalog refresh exposes update_memory only on demand and allows one-record staleness rulings", () => {
+	const memory = allModelFacingTools().find((entry) => entry.name === "update_memory");
+	assert.ok(memory);
+	assert.equal(HOT_SET.has("update_memory"), false);
+	assert.ok(rareModelVerbs().includes("update_memory"));
+	assert.equal(searchRareModelTools("update_memory", 1)[0]?.name, "update_memory");
+	const memorySchema = jsonSchemaToTypebox(memory.inputSchema);
+	assert.equal(Value.Check(memorySchema, { id: "memory-id", state: "decided" }), true);
+	assert.equal(Value.Check(memorySchema, { id: "memory-id", state: "not-a-state" }), false);
+
+	const conflict = allModelFacingTools().find((entry) => entry.name === "resolve_action_item_conflict");
+	assert.ok(conflict);
+	const schema = jsonSchemaToTypebox(conflict.inputSchema);
+	const oneRecord = { action_item_id: "11111111-1111-4111-8111-111111111111", verdict: "not_a_conflict", note: "Still accurate after checking the implementation." };
+	assert.equal(Value.Check(schema, oneRecord), true, "native validation must not require a counterpart for a one-record ruling");
+	assert.equal(Value.Check(schema, { ...oneRecord, verdict: "discuss" }), true);
+	assert.equal(Value.Check(schema, { ...oneRecord, counterpart_item_id: "22222222-2222-4222-8222-222222222222" }), true, "existing pair rulings remain supported");
+	assert.equal(Value.Check(schema, { ...oneRecord, counterpart_item_id: 7 }), false);
+	assert.equal(Value.Check(schema, { ...oneRecord, verdict: "invented" }), false);
+	assert.equal(Value.Check(schema, { verdict: "not_a_conflict" }), false);
 });
 
 test("get_session_transcript keeps session_id as a model-facing target", () => {

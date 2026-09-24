@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 6313a226219c2ab74f773f4a55278ff68704e4f234deba3009c98b1d097c21e9
- * Description fingerprint: 6ec3a068971918fabea269de824a115d061df4f6a2d236c7a1541d563fa3dada
- * Regenerated: 2026-09-20T21:11:52.286Z
+ * Schema fingerprint: 6cb01bda4395d919e2a65b01eb8ec683a5c14a37427845cffe63cbb75d222cdf
+ * Description fingerprint: 53356c01d8853595461c42eec850e70879e6e291d286306aa9f777655a53013d
+ * Regenerated: 2026-09-24T07:03:52.393Z
  */
-export const MCP_CATALOG_FINGERPRINT = "6313a226219c2ab74f773f4a55278ff68704e4f234deba3009c98b1d097c21e9";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "6ec3a068971918fabea269de824a115d061df4f6a2d236c7a1541d563fa3dada";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-20T21:11:52.286Z";
+export const MCP_CATALOG_FINGERPRINT = "6cb01bda4395d919e2a65b01eb8ec683a5c14a37427845cffe63cbb75d222cdf";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "53356c01d8853595461c42eec850e70879e6e291d286306aa9f777655a53013d";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-24T07:03:52.393Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -109,6 +109,7 @@ export const MODEL_VERB_NAMES = [
 	"classify_criterion",
 	"record_memory",
 	"supersede_memory",
+	"update_memory",
 	"retract_memory",
 	"update_resource",
 	"supersede_resource",
@@ -1135,7 +1136,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_review_queue",
 		"label": "DevSpec: Get Review Queue",
-		"description": "Everything in this project that needs a PERSON to decide, once each: records that disagree with each other, records flagged as out of date, and changes waiting to be accepted. The same set, order and total the project's Review surfaces show, so you can tell someone what is outstanding without guessing or counting twice. A pair flagged from both ends is ONE entry. Findings whose only evidence is a similarity score are excluded — those are not a question anyone can answer. Every entry carries the words the finding actually read, the record it stands against, and what you may do about it. If `gaps` is non-empty the list is INCOMPLETE: say so rather than reporting it as everything.",
+		"description": "Everything in this project that needs a PERSON to decide, once each: records that disagree with each other, records flagged as out of date, and changes waiting to be accepted. The same set, order and total the project's Review surfaces show, so you can tell someone what is outstanding without guessing or counting twice. A pair flagged from both ends is ONE entry. Findings whose only evidence is a similarity score are excluded — those are not a question anyone can answer. Every entry carries the words the finding actually read, the record it stands against, and what you may do about it. To rule on one, use the tool for the record it is about: an action item → resolve_action_item_conflict (omit counterpart_item_id when the entry's counterpart is null) or resolve_action_item_decision_flag for a decision contradiction; a memory → resolve_memory_flag; an artifact → resolve_resource_flag. If `gaps` is non-empty the list is INCOMPLETE: say so rather than reporting it as everything.",
 		"promptSnippet": "Everything in this project that needs a PERSON to decide, once each: records that disagree with each other, records flagged as out of date, and changes waiting to be accepted.",
 		"inputSchema": {
 			"type": "object",
@@ -1182,7 +1183,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"search": {
 					"type": "string",
-					"description": "Match against either end's title and the words of the finding itself."
+					"description": "Search the WHOLE queue, the way the other search tools do: by exact words (full text over both records' titles, bodies and tags, and the finding's own words) and by meaning (embeddings over the records). Results come back best match first rather than newest first."
 				},
 				"limit": {
 					"type": "number",
@@ -1695,7 +1696,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"agent_tool": {
 					"type": "string",
-					"description": "Which coding tool you are (claude_code, codex_cli, cursor_ide, grok_build, antigravity, opencode), checked against the tools ticked in your opt-in. Defaults to the tool DevSpec resolves from your connection."
+					"description": "Which coding tool you are (claude_code, codex_cli, cursor_cli, grok_build, antigravity, opencode), checked against the tools ticked in your opt-in. Defaults to the tool DevSpec resolves from your connection."
 				},
 				"model": {
 					"type": "string",
@@ -1962,7 +1963,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"expected_version": {
 					"type": "number",
-					"description": "Optimistic-concurrency guard. Pass the `version` you read with the item and the update is REJECTED if its content changed since — instead of silently overwriting whoever got there first. `version` counts CONTENT revisions only (title/description/acceptance_criteria/intent/affected_files), so ordinary lifecycle, claim or deploy activity never invalidates it. Optional: omit it and the last write wins, as before. Targeted description_edits are already safe without it — this is mainly for full-field rewrites."
+					"description": "Optimistic-concurrency guard. Pass the `version` you read with the item and the update is REJECTED if its content changed since — instead of silently overwriting whoever got there first. `version` counts SPEC revisions only (title/description/acceptance_criteria/intent), so ordinary lifecycle, claim or deploy activity never invalidates it — nor does recording which files a round of work touched, which is a statement about the spec rather than a change to it. Optional: omit it and the last write wins, as before. Targeted description_edits are already safe without it — this is mainly for full-field rewrites."
 				},
 				"agent_error": {
 					"type": "string",
@@ -2509,7 +2510,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"agent_tool": {
 					"type": "string",
-					"description": "Which coding tool you are (claude_code, codex_cli, cursor_ide, grok_build, antigravity, opencode), re-checked against your opt-in at claim time. Defaults to the tool DevSpec resolves from your connection."
+					"description": "Which coding tool you are (claude_code, codex_cli, cursor_cli, grok_build, antigravity, opencode), re-checked against your opt-in at claim time. Defaults to the tool DevSpec resolves from your connection."
 				},
 				"model": {
 					"type": "string",
@@ -3323,7 +3324,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"testing_notes": {
 					"type": "string",
-					"description": "Step-by-step instructions for manually testing this change. Written in markdown with numbered steps. Should be specific enough that a tester unfamiliar with the code can verify the work. This is \"how to VERIFY\" — for \"what a human still has to DO to complete the work,\" use manual_followup_steps."
+					"description": "Step-by-step instructions for manually testing this change. Written in markdown: name any prerequisites or setup first, then numbered steps, then the expected result — a tester unfamiliar with the code should be able to tell where to start, what to do, and what should happen. This is \"how to VERIFY\" — for \"what a human still has to DO to complete the work,\" use manual_followup_steps."
 				},
 				"manual_followup_steps": {
 					"type": "array",
@@ -3674,7 +3675,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"testing_notes": {
 					"type": "string",
-					"description": "Step-by-step instructions for manually testing this change. Written in markdown with numbered steps. Should be specific enough that a tester unfamiliar with the code can verify the work. This is \"how to VERIFY\" — for \"what a human still has to DO to complete the work,\" use manual_followup_steps."
+					"description": "Step-by-step instructions for manually testing this change. Written in markdown: name any prerequisites or setup first, then numbered steps, then the expected result — a tester unfamiliar with the code should be able to tell where to start, what to do, and what should happen. This is \"how to VERIFY\" — for \"what a human still has to DO to complete the work,\" use manual_followup_steps."
 				},
 				"manual_followup_steps": {
 					"type": "array",
@@ -3900,7 +3901,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "resolve_action_item_conflict",
 		"label": "DevSpec: Resolve Action Item Conflict",
-		"description": "Resolve a `possible_conflict` or `possibly_stale` mark between TWO action items — the remedy that get_action_item, claim_work_item and update_action_item tell you to apply. One judgement clears BOTH items' marks; you never have to resolve the same pair twice from the other side. Verdicts: `supersedes` (one genuinely replaces the other — records the relationship AND closes the loser: never-shipped work is dismissed, shipped work closes as done. NO verification event is written for that closure: nobody verified the work, and the `supersedes` relationship is the record of why it closed. This is the honest way to retire something that shipped fine but is being replaced — you do NOT have to verify work you are discarding just to clear it from the queue. Any criterion verdicts it already had are left intact; the winner is never modified), `related` (both stay, records related_to), `not_a_conflict` (they do not clash — a SUPPRESSION scoped to the items as they are now, which lifts if their content materially changes; never say a flag \"won't be raised again\", only that it won't be raised again FOR THIS REASON), `discuss` (defers the judgement: opens a session seeded with both items and @mentions both creators, leaving the marks lit). Refuses a supersession that is structurally impossible (an item vs its own parent brief) or from a dismissed item (work that will never exist cannot replace anything).\n\nTWO TENSES: `supersedes` where the loser has shipped and the winner has NOT is the normal case (a new item exists to change what shipped) and is recorded at once as PENDING — the result carries `closure: pending` and `tense: pending`; the loser keeps its lifecycle and reads \"will be superseded\", and the supersession takes effect by itself when the winner reaches implemented or done (the loser then closes as done · superseded), or lapses if the winner is dismissed first. Everything else is effective now (`tense: effective`). Say which tense applied.\n\nAUTHORITY: judged per call by the served contract (devspec://product/implementation-contract → authority_contract; verbs `action_item.resolve_conflict` and `action_item.supersede`, `contested_rule`), never by this description. A ruling that comes back `outcome: queued_for_review` with a `proposal_id` and `contested: true` is recorded as a pair_judgement proposal: both items read `contested` instead of flagged, the claim is not blocked, and a maintainer accepts or declines it on the project's Review page, under Proposed changes. Report exactly that; never describe a contested pair as resolved. Call `preview_conflict_resolution` first to see which outcome your ruling would get.\n\nDEFAULT: ABSORB AND RESOLVE. A conflict flag is an input to your reasoning — a guard against the project having amnesia and people overriding each other's work unnoticed — NOT an authorization checkpoint. Read both items, decide, resolve, and record the `basis`. Do not narrate the flag at the user and wait; in particular never reply that you are blocked pending their say-so when the say-so is in the message you are answering.\n\nESCALATE FIRST only when one of these holds: (1) the verdict is `supersedes` — because something gets closed — UNLESS you can cite the user's own intent-level authorisation for retiring that specific item, in which case record the quote as the `basis` and proceed; (2) the counterpart was authored by a DIFFERENT person — deciding against your own past decision is not the same act as overruling a colleague's; (3) the user has not shown they understand what is being reversed. Otherwise resolve it yourself.\n\nThat exception on (1) is not a loophole, it is the point: a mechanical always-escalate on `supersedes` reproduces the exact behaviour this rule was written to remove, and it did — it fired on the person who had just designed the change, minutes after it shipped. \"They asked for this specific reversal and I can quote where\" is a different situation from \"I think this is probably fine\".\n\nUNDERSTANDING IS JUDGED AT THE INTENT LEVEL, NEVER THE CODE LEVEL. Sufficient: they grasp what the outcome is and what the point of the change is — \"yes, the new sweep replaces the old one\". NOT required: that they can state which function overlaps which commit. Demanding that is pedantry, and reporting a code-level conflict to a non-technical person for adjudication is a gotcha — they had no way to know. When you do escalate, state the CONSEQUENCE (what closes, whose work, what is unaffected), never the flag vocabulary.\n\nAn autonomous run (runner_session_id stamped) gets a proposal back and commits nothing.",
+		"description": "Resolve a `possible_conflict` or `possibly_stale` mark between TWO action items — the remedy that get_action_item, claim_work_item and update_action_item tell you to apply. One judgement clears BOTH items' marks; you never have to resolve the same pair twice from the other side.\n\nONE RECORD, NO COUNTERPART: the nightly staleness sweep also flags a single item as possibly out of date with no other item named (get_review_queue shows `counterpart: null`; the mark has no `superseded_by_item_id`). Rule on that by OMITTING counterpart_item_id: the verdict is `not_a_conflict` — what people see as \"Still accurate\" — or `discuss`. If the item really is out of date, that is not a verdict: correct it with update_action_item, or dismiss it if the work is no longer wanted. A mark that DOES name another item is a pair and still needs counterpart_item_id; omitting it is refused with the ids to pass. Verdicts: `supersedes` (one genuinely replaces the other — records the relationship AND closes the loser: never-shipped work is dismissed, shipped work closes as done. NO verification event is written for that closure: nobody verified the work, and the `supersedes` relationship is the record of why it closed. This is the honest way to retire something that shipped fine but is being replaced — you do NOT have to verify work you are discarding just to clear it from the queue. Any criterion verdicts it already had are left intact; the winner is never modified), `related` (both stay, records related_to), `not_a_conflict` (they do not clash — a SUPPRESSION scoped to the items as they are now, which lifts if their content materially changes; never say a flag \"won't be raised again\", only that it won't be raised again FOR THIS REASON), `discuss` (defers the judgement: opens a session seeded with both items and @mentions both creators, leaving the marks lit). Refuses a supersession that is structurally impossible (an item vs its own parent brief) or from a dismissed item (work that will never exist cannot replace anything).\n\nTWO TENSES: `supersedes` where the loser has shipped and the winner has NOT is the normal case (a new item exists to change what shipped) and is recorded at once as PENDING — the result carries `closure: pending` and `tense: pending`; the loser keeps its lifecycle and reads \"will be superseded\", and the supersession takes effect by itself when the winner reaches implemented or done (the loser then closes as done · superseded), or lapses if the winner is dismissed first. Everything else is effective now (`tense: effective`). Say which tense applied.\n\nAUTHORITY: judged per call by the served contract (devspec://product/implementation-contract → authority_contract; verbs `action_item.resolve_conflict` and `action_item.supersede`, `contested_rule`), never by this description. A ruling that comes back `outcome: queued_for_review` with a `proposal_id` and `contested: true` is recorded as a pair_judgement proposal: both items read `contested` instead of flagged, the claim is not blocked, and a maintainer accepts or declines it on the project's Review page, under Proposed changes. Report exactly that; never describe a contested pair as resolved. Call `preview_conflict_resolution` first to see which outcome your ruling would get.\n\nDEFAULT: ABSORB AND RESOLVE. A conflict flag is an input to your reasoning — a guard against the project having amnesia and people overriding each other's work unnoticed — NOT an authorization checkpoint. Read both items, decide, resolve, and record the `basis`. Do not narrate the flag at the user and wait; in particular never reply that you are blocked pending their say-so when the say-so is in the message you are answering.\n\nESCALATE FIRST only when one of these holds: (1) the verdict is `supersedes` — because something gets closed — UNLESS you can cite the user's own intent-level authorisation for retiring that specific item, in which case record the quote as the `basis` and proceed; (2) the counterpart was authored by a DIFFERENT person — deciding against your own past decision is not the same act as overruling a colleague's; (3) the user has not shown they understand what is being reversed. Otherwise resolve it yourself.\n\nThat exception on (1) is not a loophole, it is the point: a mechanical always-escalate on `supersedes` reproduces the exact behaviour this rule was written to remove, and it did — it fired on the person who had just designed the change, minutes after it shipped. \"They asked for this specific reversal and I can quote where\" is a different situation from \"I think this is probably fine\".\n\nUNDERSTANDING IS JUDGED AT THE INTENT LEVEL, NEVER THE CODE LEVEL. Sufficient: they grasp what the outcome is and what the point of the change is — \"yes, the new sweep replaces the old one\". NOT required: that they can state which function overlaps which commit. Demanding that is pedantry, and reporting a code-level conflict to a non-technical person for adjudication is a gotcha — they had no way to know. When you do escalate, state the CONSEQUENCE (what closes, whose work, what is unaffected), never the flag vocabulary.\n\nAn autonomous run (runner_session_id stamped) gets a proposal back and commits nothing.",
 		"promptSnippet": "Resolve a `possible_conflict` or `possibly_stale` mark between TWO action items — the remedy that get_action_item, claim_work_item and update_action_item tell you to apply.",
 		"inputSchema": {
 			"type": "object",
@@ -3911,7 +3912,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"counterpart_item_id": {
 					"type": "string",
-					"description": "The other item in the pair (from the mark: `conflicting_item_id` on a possible_conflict, or `superseded_by_item_id` on a possibly_stale)."
+					"description": "The other item in the pair (from the mark: `conflicting_item_id` on a possible_conflict, or `superseded_by_item_id` on a possibly_stale). Omit it ONLY for a possibly_stale flag that names no other item — see ONE RECORD above."
 				},
 				"verdict": {
 					"type": "string",
@@ -3951,7 +3952,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			},
 			"required": [
 				"action_item_id",
-				"counterpart_item_id",
 				"verdict"
 			]
 		},
@@ -4145,11 +4145,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"properties": {
 							"criterion_id": {
 								"type": "string",
-								"description": "The criterion id, from the acceptance_criteria list on get_action_item. Verdicts key by id and never by text, so they survive the criterion being reworded or reordered."
+								"description": "The criterion id, from the acceptance_criteria list on get_action_item. Verdicts key by id and never by text, so they survive the criteria being reordered. Rewording a criterion un-meets it: its verdict stays on record but stops counting until the new wording is checked."
 							},
 							"text": {
 								"type": "string",
-								"description": "A snapshot of the criterion text you judged, kept for the audit trail."
+								"description": "Your own short restatement of the criterion you checked, kept beside the verdict. DevSpec records the criterion's actual wording itself, so this does not need to match it."
 							},
 							"verdict": {
 								"type": "string",
@@ -4458,6 +4458,86 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"id",
 				"title",
 				"body"
+			]
+		},
+		"kind": "model"
+	},
+	{
+		"name": "update_memory",
+		"label": "DevSpec: Update Memory",
+		"description": "Change an existing memory without replacing it. Use it to move a memory from `in_discussion` to `decided` once the person has agreed — that is a change of state, not a new version, so the id stays the same and nothing is superseded. It also corrects confidence, tags and affected files in place, and fixes the wording of the title, summary or body; a change to the words is recorded as a new version in the same thread (the previous wording stays in its history) and the result names the new id. When the thinking itself has moved on and the old decision should stand as history, that is still `supersede_memory`. AUTHORITY: judged per call by the served contract (devspec://product/implementation-contract → authority_contract, verb `memory.update`), never by this description. Read the `outcome`: `committed` applied now; `queued_for_review` carries a `proposal_id` and touches NOTHING until a maintainer accepts it — say which happened, and never report a queued change as done.",
+		"promptSnippet": "Change an existing memory without replacing it.",
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Optional but STRONGLY preferred when you are a connected agent: your own connection id. It records WHICH AGENT made this change, and lets the server attribute it to whoever actually asked for it when you are acting on a command from a teammate. It can never name a person by itself — the requester is resolved server-side, never from anything you send."
+				},
+				"id": {
+					"type": "string",
+					"description": "The id of the memory to change (full id or the 8-char short code)."
+				},
+				"state": {
+					"type": "string",
+					"enum": [
+						"in_discussion",
+						"decided"
+					],
+					"description": "Promote to `decided` only when the person has agreed to the decision."
+				},
+				"confidence": {
+					"type": "number",
+					"description": "0 to 1."
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Replaces the tag list."
+				},
+				"affected_files": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Replaces the affected-files list."
+				},
+				"title": {
+					"type": "string",
+					"description": "A corrected single-line name (max 200 chars). Changing it records a new version."
+				},
+				"summary": {
+					"type": [
+						"string",
+						"null"
+					],
+					"description": "A corrected one-line restatement (max 400 chars), or null to clear it. Changing it records a new version."
+				},
+				"body": {
+					"type": "string",
+					"description": "The corrected body (markdown). Changing it records a new version."
+				},
+				"confirm_new": {
+					"type": "boolean",
+					"description": "Set true to keep an edited text even when the comparison finds a DIFFERENT record that closely resembles it. Never overrides a disagreement."
+				},
+				"runner_session_id": {
+					"type": "string",
+					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
+				},
+				"provenance_ref": {
+					"type": "string",
+					"description": "Opaque provenance_ref from the exact commands[] entry that asked for this work. Omission is the default and the safe path: the server attributes the write to your connection's single current open turn — one server-owned pointer, never a choice you have to make. Send an explicit ref only for work caused by another command in that same turn; a wrong ref fails closed, so when unsure, omit. Never send a requester user id."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "Opaque work_claim_ref returned by claim_work_item. Preserve it on writes produced by that work so requester attribution survives reconnects and cleared command state."
+				}
+			},
+			"required": [
+				"id"
 			]
 		},
 		"kind": "model"
@@ -5410,6 +5490,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						1
 					],
 					"description": "Mechanical host negotiation. Version 1 returns a rotated per-connection capability in MCP result _meta; never expose that value to the model."
+				},
+				"folder_scope_only": {
+					"type": "boolean",
+					"description": "For a registration your host makes by itself when it starts, not one a person asked for. Resolve the project from this folder's git remote or pin only, never from \"your only project\", so a session opened in an unrelated folder does not join a project. When honoured the response echoes `folder_scope_only: true`; if it does not, the server ignored the flag and you should not stay registered."
 				},
 				"runner_session_id": {
 					"type": "string",
@@ -7161,8 +7245,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 100,
-	model: 86,
+	total: 101,
+	model: 87,
 	pump: 13,
 	never_model: 1,
 } as const;

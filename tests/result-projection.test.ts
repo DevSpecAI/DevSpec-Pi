@@ -271,9 +271,27 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// tokens of the 8,000 ceiling, up 24 from 7,456. The catalog contributed none
 	// of that — every token is the instructions bullet, which stopped claiming
 	// only memories are gated and now says what to do when a write is stopped.
+	// Rebaselined 2026-09-24 for e2f895ac against server staging 524495b9d.
+	// Compared old/new generated objects by name/inputSchema, not commit prose:
+	// 86 -> 87 model verbs; update_memory is the only addition, none removed.
+	// Its full/lossless family preserves preview receipts, stale-context detail,
+	// queued proposals and replacement-version ids; it stays deferred, not hot.
+	// resolve_action_item_conflict drops counterpart_item_id from required and
+	// explains omission for one-record staleness (existing pair inputs remain).
+	// Other existing model schema diffs are descriptions only:
+	// get_review_queue.search; get_claimable_reviews/claim_review.agent_tool
+	// (cursor_cli); update_action_item.expected_version (spec, not file evidence);
+	// record_implementation/record_completed_work.testing_notes; and
+	// record_criterion_verdicts criterion_id/text (changed wording needs recheck;
+	// caller text is a restatement, server records exact wording).
+	// Tool-level descriptions changed on get_review_queue and conflict ruling.
+	// Outside this model fingerprint: register_connection.folder_scope_only is
+	// pump-only. No existing projection family or hot-set membership changed.
+	// Same deterministic benchmark before/after: initial surface 7,480 -> 7,477
+	// estimated tokens (ceiling 8,000); all projection fixture budgets unchanged.
 	assert.equal(
 		fingerprint,
-		"4119358ea2be3a6b4810e9de4b3b766d83e7cb389a7d71f116cc87b2f1c0b180",
+		"e02ecd47187ddad7a861d96c0cb7fc414c043cdc22c1679f2aeea5ae0fbdf7e4",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -859,6 +877,22 @@ test("create_session and read-like writes preserve their complete load-bearing r
 		const payload = { id: `${verb}-1`, permission: "look_only", preview: huge(`${verb}-LOAD-BEARING`, 8_000) };
 		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
 		assert.deepEqual(JSON.parse(text), payload, verb);
+	}
+});
+
+test("update_memory preserves version identity, proposals and exact refusal/preview data", () => {
+	assert.equal(projectionFamily("update_memory"), "full");
+	const payloads = [
+		{ id: "memory-new", updated: "memory-old", new_version: true, previous_version_id: "memory-old", outcome: "committed", note: "Cite the new id from now on." },
+		{ id: "memory-old", updated: "memory-old", new_version: false, outcome: "committed", note: "Changed in place." },
+		{ updated: false, outcome: "queued_for_review", proposal_id: "proposal-1", reason: "A maintainer must accept it." },
+		{ updated: false, outcome: "preview_required", receipt_id: "receipt-1", expires_at: "2026-09-24T09:00:00Z", preview: { id: "memory-old", before: huge("original words"), after: huge("proposed words") }, guidance: "Review the exact change before confirming." },
+		{ updated: false, outcome: "stale_context", reason: "The memory changed.", detail: { current_version: 4, expected_version: 3 } },
+		{ updated: false, reconcile_required: true, closest_match: { id: "other-memory", title: "Existing decision" }, affordances: ["supersede", "link"], guidance: "Read the counterpart first." },
+	];
+	for (const details of payloads) {
+		const projected = projectModelText({ toolName: "update_memory", text: JSON.stringify(details), details });
+		assert.deepEqual(JSON.parse(projected), details, "no version, proposal, preview or refusal field may disappear");
 	}
 });
 

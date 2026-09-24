@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.14
+
+### Current memory editing and review tools
+
+Pi now exposes the memory-editing tool through on-demand discovery, and an
+out-of-date flag on one action item can be addressed without supplying a
+second item. Tool guidance also reflects the current review queue, criterion
+wording and testing-note contracts.
+
+Memory-edit responses retain replacement-version identity, queued proposals,
+exact previews and refusal details. The everyday tool set is unchanged; this
+refresh does not add another posting path or change room-ingress negotiation.
+Reload or restart an existing Pi session after updating to load the refreshed
+tool schemas. Reconnect alone does not reload them.
+
 ## 0.3.13
 
 ### Keep Still to Discuss context current

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.16
+
+### Keep large-file history references available
+
+A historical file reference no longer prevents room history from synchronizing
+just because the file exceeds Pi's automatic download budget. History stores only
+the reference; current-command attachment and download limits remain unchanged.
+
 ## 0.3.15
 
 ### Recoverable local room history

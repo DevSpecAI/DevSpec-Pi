@@ -26,7 +26,7 @@ test("real server schemas, advertisement and attachment producer pair with Pi", 
 	const producer = await jiti.import(resolve(root, "apps/web/lib/mcp/typed-ingress-context.ts"));
 	const options = { systemNoticeNegotiated: true, senderStyleNegotiated: true, roomContextNegotiated: true };
 	const p = roomPoll();
-	const metadata = producer.buildRoomMessage({ id: IDS.agentContext, role: "user", target_connection_id: IDS.otherConnection, deleted: false, response_status: null, attachments: [{ filename: "history.png", type: "image", mimeType: "image/png", sizeBytes: 1024, resource_id: IDS.resource, storage_path: "private/path", bucket: "private", signed_url: "https://invalid.test?token=must-not-cross" }] }, new Map([[IDS.otherConnection, "Other agent"]]));
+	const metadata = producer.buildRoomMessage({ id: IDS.agentContext, role: "user", target_connection_id: IDS.otherConnection, deleted: false, response_status: null, attachments: [{ filename: "history.png", type: "image", mimeType: "image/png", sizeBytes: 1_000_000_000, resource_id: IDS.resource, storage_path: "private/path", bucket: "private", signed_url: "https://invalid.test?token=must-not-cross" }] }, new Map([[IDS.otherConnection, "Other agent"]]));
 	p.ingress.room_context.messages = p.ingress.room_context.messages.map(m => m.message_id === IDS.agentContext ? metadata : m);
 	const validated = server.RemoteIngressRoomContextEnvelopeV1Schema.safeParse(p.ingress);
 	assert(validated.success, JSON.stringify(validated.error?.issues));

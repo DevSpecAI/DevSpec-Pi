@@ -101,7 +101,7 @@ export function parseRoomContext(
 		}
 		const parsedState = state(m.state);
 		if (liveCommands.has(message_id) && parsedState !== "final") bad();
-		return { message_id, addressee, state: parsedState, attachments: list(m.attachments, 20).map(a => validate.attachment(a, "room.attachment")) };
+		return { message_id, addressee, state: parsedState, attachments: list(m.attachments, Number.MAX_SAFE_INTEGER).map(a => validate.attachment(a, "room.attachment")) };
 	});
 	if (seen.size !== emitted.size) bad();
 	let coverage: RoomCoverage | null = null;

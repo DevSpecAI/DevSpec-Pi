@@ -27,6 +27,17 @@ test("metadata references for another agent survive without file hydration", () 
 	assert.equal(parsed.roomPage?.room.messages.find(m => m.message_id === IDS.agentContext)?.attachments[0]?.resource_id, IDS.resource);
 });
 
+test("historical file references are not subject to current-command download budgets", () => {
+	const attachment = { materialization: "metadata", filename: "large.pdf", mime_type: "application/pdf", type: "document", size_bytes: 1_000_000_000, resource_id: IDS.resource };
+	const history = roomPoll(); history.ingress.room_context.messages.find(m => m.message_id === IDS.agentContext)!.attachments = Array.from({ length: 21 }, (_, i) => ({ ...attachment, filename: `large-${i}.pdf` }));
+	const parsed = parsePollPayload(history, TEST_CONNECTION, options);
+	assert.equal(parsed.canonicalState, "valid", parsed.canonicalError);
+	assert.equal(parsed.roomPage?.room.messages.find(m => m.message_id === IDS.agentContext)?.attachments[0]?.size_bytes, attachment.size_bytes);
+	assert.equal(parsed.roomPage?.room.messages.find(m => m.message_id === IDS.agentContext)?.attachments.length, 21);
+	const current = roomPoll({ attachments: [attachment] });
+	assert.equal(parsePollPayload(current, TEST_CONNECTION, options).canonicalState, "invalid", "current-command hydration limits must remain intact");
+});
+
 test("history and ambient room data cannot become a command", () => {
 	for (const p of [roomPoll({ wakeKind: "history_reseed", deliveryState: "replay" }), roomPoll({ wakeKind: "advisory_update" })]) {
 		const parsed = parsePollPayload(p, TEST_CONNECTION, options);

@@ -429,14 +429,14 @@ function senderResponseStyleArray(value: unknown, path: string): SenderResponseS
 	return value.map((entry, index) => senderResponseStyle(entry, `${path}[${index}]`));
 }
 
-function attachment(value: unknown, path: string): IngressAttachment {
+function attachment(value: unknown, path: string, enforceHydrationLimits = true): IngressAttachment {
 	const row = record(value, path);
 	const materialization = oneOf(row.materialization, ["metadata", "unavailable"] as const, `${path}.materialization`);
 	const type = string(row.type, `${path}.type`);
 	const sizeBytes = row.size_bytes === null
 		? null
 		: integer(row.size_bytes, `${path}.size_bytes`);
-	if (sizeBytes !== null && isAttachmentType(type) && sizeBytes > MAX_ATTACHMENT_BYTES[type]) {
+	if (enforceHydrationLimits && sizeBytes !== null && isAttachmentType(type) && sizeBytes > MAX_ATTACHMENT_BYTES[type]) {
 		fail(`${path}.size_bytes`, `declared ${type} attachment exceeds safe bound`);
 	}
 	const common = {
@@ -826,7 +826,10 @@ function parseEnvelope(
 	let activityRejected = false;
 	if (roomContextNegotiated) {
 		const room = parseRoomContext(row.room_context, allRows, commandIdSet, end, {
-			order: orderPoint, attachment,
+			order: orderPoint,
+			// History keeps references, not bytes; hydration limits still apply
+			// unchanged to the current command and any deliberate file fetch.
+			attachment: (value, path) => attachment(value, path, false),
 			entry: (value, path) => {
 				const entry = record(value, path);
 				const who = record(entry.actor, `${path}.actor`);

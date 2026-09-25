@@ -13,8 +13,9 @@ import { fileURLToPath } from "node:url";
 import { canonicalPoll, IDS, TEST_CONNECTION } from "../tests/canonical-ingress-fixture.ts";
 
 const completionRace = process.argv.includes("--completion-race");
-const race = process.argv.includes("--foreground-race") || completionRace;
-const local = process.argv.includes("--local") || completionRace;
+const queuedInterruption = process.argv.includes("--queued-interruption");
+const race = process.argv.includes("--foreground-race") || completionRace || queuedInterruption;
+const local = process.argv.includes("--local") || completionRace || queuedInterruption;
 let completionHeld = false;
 let releaseCompletion;
 let completionReleased = false;
@@ -116,7 +117,7 @@ try {
 		"--provider", "background-observer-probe", "--model", "scripted"], {
 		cwd: temp, env: { ...process.env, PI_CODING_AGENT_DIR: join(temp, "agent"), TMPDIR: temp, PI_BG_FEATURES: "process", PI_BG_DOCK_SHORTCUT: "off",
 			DEVSPEC_MCP_TOKEN: "fixture-only-not-real", DEVSPEC_MCP_URL: endpoint, DEVSPEC_DEBUG_REMOTE: "1", BACKGROUND_PROBE_TRACE: trace,
-			BACKGROUND_PROBE_ROOT: temp, BACKGROUND_PROBE_RACE: race ? "1" : "0" },
+			BACKGROUND_PROBE_ROOT: temp, BACKGROUND_PROBE_RACE: race ? "1" : "0", BACKGROUND_PROBE_QUEUED: queuedInterruption ? "1" : "0" },
 		stdio: ["pipe", "pipe", "pipe"],
 	});
 	let pending = ""; const decoder = new StringDecoder("utf8");
@@ -135,14 +136,30 @@ try {
 	await until(() => events.some(event => event.id === "bond" && event.success) && calls.some(call => call.name === "poll_connection"), "bond and first poll");
 	if (local) child.stdin.write(JSON.stringify({ id: "local", type: "prompt", message: "BACKGROUND-OBSERVER-PROBE" }) + "\n");
 	else { enabled = true; for (const stream of streams) stream.write("event: wake\ndata: {}\n\n"); }
-	await until(() => events.some(event => event.type === "agent_settled"), "foreground park");
-	const settledAt = events.find(event => event.type === "agent_settled").at;
+	if (queuedInterruption) await until(() => existsSync(join(temp, "initial-foreground-started")), "initial foreground held");
+	else await until(() => events.some(event => event.type === "agent_settled"), "foreground park");
+	let settledAt = events.find(event => event.type === "agent_settled")?.at;
 	const completesObservedRun = call => call.name === "report_complete" && (local
 		? call.attemptId === localAttempt : call.commandTurnId === IDS.turn && call.commandMessageId === IDS.command);
 	assert.equal(calls.some(completesObservedRun), false,
 		"the exact command must not complete while jobs run (startup unbound cleanup is a different identity)");
 	writeFileSync(join(temp, "job-0-release"), "release");
 	await until(() => terminalIds().size === 1, "first terminal observation");
+	if (queuedInterruption) {
+		const firstId = [...terminalIds()][0];
+		child.stdin.write(JSON.stringify({ id: "notification-state", type: "prompt", message: `/probe-notification-state ${firstId}` }) + "\n");
+		await until(() => existsSync(join(temp, "notification-handed-off.json")), "provider handed notice to busy host");
+		assert.deepEqual(JSON.parse(readFileSync(join(temp, "notification-handed-off.json"), "utf8")),
+			{ id: firstId, notified: true, notifyOnCompletion: true, triggerOnCompletion: true });
+		assert.equal(events.filter(event => event.customType === "background-task-notification").length, 0,
+			"notice has been queued by the busy host, not consumed by the model");
+		// Public RPC documentation specifies clear_queue then abort for Esc semantics.
+		child.stdin.write(JSON.stringify({ id: "clear-notice", type: "clear_queue" }) + "\n");
+		await until(() => events.some(event => event.id === "clear-notice" && event.success), "clear queued completion notice");
+		child.stdin.write(JSON.stringify({ id: "interrupt", type: "abort" }) + "\n");
+		await until(() => events.some(event => event.id === "interrupt" && event.success) && events.some(event => event.type === "agent_settled"), "interrupted foreground settled");
+		settledAt = events.find(event => event.type === "agent_settled").at;
+	}
 	assert.equal(calls.some(completesObservedRun), false, "first job cannot consume its still-running sibling");
 	let newerStartedAt;
 	const startNewer = async () => {
@@ -177,12 +194,12 @@ try {
 	assert.equal(new Set(terminal.map(row => row.task.id)).size, 2);
 	assert.equal(events.filter(event => event.type === "agent_start").length, race ? 2 : 1, "terminal observation must not wake model");
 	assert.equal(events.filter(event => event.customType === "background-task-notification").length, 0, "notices disabled");
-	assert.equal(calls.filter(call => call.sourceId).length, race ? 2 : 1, "one mechanical copy per authored final speech");
+	assert.equal(calls.filter(call => call.sourceId).length, queuedInterruption ? 1 : race ? 2 : 1, "one mechanical copy per authored final speech");
 	assert.equal(JSON.stringify(observed).includes("command"), false, "no provider commands in observation journal");
 	assert(terminal.every(row => typeof row.task.startTime === "number"));
 	const result = { result: "PASS", actualHost: "Pi RPC with installed public background provider", liveServer: false, paidModelRequests: 0,
-		scenario: `${local ? "local_" : "command_"}${completionRace ? "in_flight_completion_fenced" : race ? "newer_foreground_protected" : "exact_idle_completion"}`, controlledJobs: true,
-		jobs: 2, notifications: 0, modelRuns: race ? 2 : 1, sourceSpeechCopies: race ? 2 : 1,
+		scenario: `${local ? "local_" : "command_"}${queuedInterruption ? "queued_notice_cleared_before_abort" : completionRace ? "in_flight_completion_fenced" : race ? "newer_foreground_protected" : "exact_idle_completion"}`, controlledJobs: true,
+		jobs: 2, notifications: 0, notificationQueuedBeforeAbort: queuedInterruption, modelRuns: race ? 2 : 1, sourceSpeechCopies: queuedInterruption ? 1 : race ? 2 : 1,
 		exactCommandCompletion: !race && !local, exactLocalCompletion: !race && local, newerForegroundProtected: race, artifacts: temp };
 	writeFileSync(join(temp, "summary.json"), JSON.stringify(result, null, 2)); console.log(JSON.stringify(result, null, 2));
 } catch (error) { console.error(JSON.stringify({ result: "FAIL", error: String(error), artifacts: temp, calls: calls.slice(-12), events: events.slice(-8), failures }, null, 2)); process.exitCode = 1; }

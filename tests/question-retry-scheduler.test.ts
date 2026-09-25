@@ -18,10 +18,13 @@ async function replay(attempted: boolean, futureRetry: boolean) {
 	const active = { stop: false, pushEnded: undefined, pushClosed: false };
 	const sleeps: number[] = [];
 	let attempts = 0;
+	let observations = 0;
 	const scope: any = {
 		active, pump: active, ctx: {}, lastCtx: null, token: "fixture", endpoint: "loopback",
 		pushMode: false, notifiedFallback: false, polls: 0,
 		ensurePushInteractionNegotiation() {},
+		// An unavailable provider must not hold command polling behind its reply.
+		pi_refreshBackgroundWork: () => { observations += 1; return new Promise(() => {}); },
 		nextInteractionRetryAt: () => futureRetry ? 11_000 : null,
 		drainInteractionRetries: async () => { if (++attempts >= 3) active.stop = true; return attempted; },
 		Date: { now: () => 1_000 },
@@ -29,13 +32,14 @@ async function replay(attempted: boolean, futureRetry: boolean) {
 	};
 	vm.createContext(scope);
 	await vm.runInContext(probe, scope);
-	return { polls: scope.polls, attempts, sleeps };
+	return { polls: scope.polls, attempts, sleeps, observations };
 }
 
 test("a deferred retry attempt cannot consume the ordinary command/control poll", async () => {
 	const result = await replay(true, false);
 	assert.equal(result.polls, 1, "ordinary polling must run even when a retry was attempted");
 	assert.equal(result.attempts, 1);
+	assert.equal(result.observations, 1);
 });
 
 test("a future retry deadline cannot delay a ready ordinary poll", async () => {

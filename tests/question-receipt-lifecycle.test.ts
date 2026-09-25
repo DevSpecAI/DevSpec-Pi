@@ -222,7 +222,7 @@ test("remote wiring suppresses only fallback trail and still exact-completes act
 	const settledStart = remote.indexOf('pi.on("agent_settled"');
 	const settledEnd = remote.indexOf("// ---- Turn lifecycle events", settledStart);
 	const settled = remote.slice(settledStart, settledEnd);
-	assert.match(settled, /if \(!posted && activityPolicy\.reportCompletion && pendingBackgroundTaskIds\.size === 0 && \(settlingTurn\?\.canPost\(\) \?\? pump === activeAtSettle\)\)[^]*reportComplete\("turn_end"/);
+	assert.match(settled, /if \(!posted && activityPolicy\.reportCompletion && pendingBackgroundTaskIds\.size === 0 && \(settlingTurn\?\.canPost\(\) \?\? pump === activeAtSettle\)\)[^]*completeTurnActivity\(settlingTurn, "turn_end"/);
 });
 
 test("answer-event ingress stays transcript-neutral until Pi authors substantive follow-up", () => {

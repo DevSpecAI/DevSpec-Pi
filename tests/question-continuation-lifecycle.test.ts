@@ -66,8 +66,9 @@ test("trail, final, keepalive, fallback, and process exit carry the exact intera
 	assert.match(keepalive, /connection_id: run\.authority\.connectionId[^]*exactInteractionContinuationArgs\(run\.identity\)/);
 	assert.match(keepalive, /await callDevspec[^]*return interactionRunIsLive\(run\) && interactionAuthorityCurrent\(run\.authority\)/);
 	assert.doesNotMatch(keepalive, /active\.bond\.connectionId/);
-	assert.match(remote, /reportComplete\("turn_end", commandTurnId, commandMessageId, commandTurnUnbound, interactionIdentity\(interactionRun\)\)/);
-	assert.match(remote, /reportComplete\("process_exit", openTurn\.commandTurnId, openTurn\.commandMessageId, isCommandTurnUnbound\(openTurn\), interactionIdentity\(openTurn\.interaction\)\)/);
+	assert.match(remote, /completeTurnActivity\(settlingTurn, "turn_end"\)/);
+	assert.match(remote, /completeTurnActivity\(openTurn, "process_exit"\)/);
+	assert.match(remote, /const interaction = interactionIdentity\(t\.interaction\);[^]*reportComplete\(reason, commandTurnId, commandMessageId, false, interaction, false, current\)/);
 	assert.match(remote, /command_turn_unbound: true[^]*exactInteractionContinuationArgs/);
 });
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.19
+
+- Observe owned background jobs through the provider's public terminal/status API, even when completion notices are disabled, lost or never consumed. Unknown provider state remains unresolved.
+- Re-evaluate idle completion without a model wake, using exact command/interaction identity or a local activity receipt captured before execution. Late callbacks cannot complete a newer local activity.
+- Local admission uses a capability/attachment-bound `report_pickup` variant and existing activity IDs; ordinary speech stays independent. Requires the matching server local-admission endpoint. Missing or failed admission never falls back to completing the latest unbound activity.
+- Preserve 0.3.18's question ownership retirement and fair command polling. Runtime/API/browser qualification remain distinct; reload the plugin to activate these changes.
+
 ## 0.3.18
 
 ### Keep messages moving after questions

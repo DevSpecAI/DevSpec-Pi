@@ -12,8 +12,9 @@ test("Pi carries immutable turn + command identity through every activity output
 	assert.match(source, /command_message_id: opts\.commandMessageId/);
 	assert.match(source, /command_turn_unbound: true/);
 	assert.match(source, /commandTurnId: postingTurn\.commandTurnId, commandMessageId: postingTurn\.commandMessageId/);
-	assert.match(source, /reportComplete\("turn_end", commandTurnId, commandMessageId, commandTurnUnbound, interactionIdentity\(interactionRun\)\)/);
-	assert.match(source, /reportComplete\("process_exit", openTurn\.commandTurnId, openTurn\.commandMessageId, isCommandTurnUnbound\(openTurn\), interactionIdentity\(openTurn\.interaction\)\)/);
+	assert.match(source, /completeTurnActivity\(settlingTurn, "turn_end"\)/);
+	assert.match(source, /completeTurnActivity\(openTurn, "process_exit"\)/);
+	assert.match(source, /reportComplete\(reason, commandTurnId, commandMessageId, false, interaction, false, current\)/);
 });
 
 test("async subagents reconcile the fleet, and settle closes Working honestly (759f2818)", () => {
@@ -47,8 +48,8 @@ test("delivery boundaries post the old exact command before rebinding the new se
 	assert.match(source, /splitTurnAtBoundary\(\);[\s\S]{0,2400}turn\.commandTurnId = incomingCommand\?\.turnId;[\s\S]{0,200}turn\.commandMessageId = incomingCommand\?\.commandMessageId/);
 	assert.doesNotMatch(source, /commandTurnBindings\.has\(/, "client queue guesses must not own server completion");
 	// The close still happens — provider-killed segments route to the error post
-	// (e99d158b), everything else to reportComplete exactly as before.
-	assert.match(source, /pure tool-call\/no-text segment[\s\S]{0,800}trackTerminalPost\(\(previousTurn\.terminalError[\s\S]{0,200}reportTerminalError\(previousTurn, null\)[\s\S]{0,400}reportComplete\(/);
+	// (e99d158b), everything else through captured exact activity completion.
+	assert.match(source, /pure tool-call\/no-text segment[\s\S]{0,800}trackTerminalPost\(\(previousTurn\.terminalError[\s\S]{0,200}reportTerminalError\(previousTurn, null\)[\s\S]{0,400}completeTurnActivity\(previousTurn, "turn_end"\)/);
 	assert.match(source, /await Promise\.allSettled\(\[\.\.\.pendingTerminalPosts\]\)/);
 	const shutdown = source.slice(source.indexOf('pi.on("session_shutdown"'));
 	assert.ok(shutdown.indexOf("active.stop = true") < shutdown.indexOf("await Promise.allSettled"));
@@ -91,19 +92,23 @@ test("completion wakes adopt the parked command identity; drops are reported wit
 
 test("killed/terminal tasks observed in tool results reconcile the pending set (f453c61f)", () => {
 	const end = source.slice(source.indexOf('pi.on("tool_execution_end"'), source.indexOf('pi.on("session_shutdown"'));
-	// Launch registration is unchanged: only successful notifying wakes park.
-	assert.match(end, /automaticBackgroundTaskId\(event\.toolName, event\.result, event\.isError\)/);
+	// db495c8f: launch ownership no longer depends on notification/wake flags.
+	assert.match(end, /backgroundTaskFromLaunch\(event\.toolName, event\.result, event\.isError\)/);
+	assert.match(end, /launchScope === backgroundScopeKey\(observationScope\)/);
+	assert.match(end, /backgroundObserver\.track\(task, launchScope\)/);
 	// Terminal observations resolve: a kill produces no completion message,
 	// so without this the id leaks and every later settle posts
 	// complete_turn:false forever (live 2026-09-20: 5h stuck Working).
 	assert.match(end, /terminalBackgroundTaskIds\(event\.toolName, event\.result, event\.isError\)/);
-	assert.match(end, /turn\.tracker\.resolveBackgroundTask\(terminalId\)/);
+	assert.match(end, /backgroundTasksFromManagement\(event\.toolName, event\.result, event\.isError\)/);
+	assert.match(end, /backgroundObserver\.observe\(task, launchScope\)/);
+	assert.match(end, /!observedIds\.has\(id\)\) pendingBackgroundTaskIds\.delete\(id\)/);
 	// Observability: note/resolve events with the running count make the next
 	// leak computable (notes minus resolves) instead of needing forensics.
 	// (Counts only — debug.ts drops all strings by design, so ids stay out.)
 	// (Numeric counts only — debug.ts drops all strings by design.)
-	assert.match(end, /debug\("background task noted", \{ pendingBg: turn\.tracker\.pendingBackgroundTasks\(\)\.length \}\)/);
-	assert.match(end, /debug\("background task resolved from tool result", \{ pendingBg: turn\.tracker\.pendingBackgroundTasks\(\)\.length \}\)/);
+	assert.match(end, /debug\("background task noted", \{ pendingBg: pendingBackgroundTaskIds\.size \}\)/);
+	assert.match(end, /debug\("background task resolved from tool result", \{ pendingBg: pendingBackgroundTaskIds\.size \}\)/);
 });
 
 test("both working-lease beats carry the progress marker, fed by the event handlers (0b8035ac)", () => {

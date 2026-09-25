@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 1b900eea1a97365cca4c349678191a49f5c745aa236e4c95b6b30b14fda001bf
+ * Schema fingerprint: 3dfd4ce26167b052ee3ce2a10404c117292d1d24fcf950c3dd5335e75698233e
  * Description fingerprint: 53356c01d8853595461c42eec850e70879e6e291d286306aa9f777655a53013d
- * Regenerated: 2026-09-24T10:57:18.302Z
+ * Regenerated: 2026-09-25T06:48:18.899Z
  */
-export const MCP_CATALOG_FINGERPRINT = "1b900eea1a97365cca4c349678191a49f5c745aa236e4c95b6b30b14fda001bf";
+export const MCP_CATALOG_FINGERPRINT = "3dfd4ce26167b052ee3ce2a10404c117292d1d24fcf950c3dd5335e75698233e";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "53356c01d8853595461c42eec850e70879e6e291d286306aa9f777655a53013d";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-24T10:57:18.302Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-25T06:48:18.899Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -6315,6 +6315,23 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"speech_scope": {
 					"type": "boolean",
+					"x-devspec-host-only": true
+				},
+				"local_activity_version": {
+					"type": "integer",
+					"enum": [
+						1
+					],
+					"description": "Exact local-start admission, independent of speech.",
+					"x-devspec-host-only": true
+				},
+				"previous_attempt_id": {
+					"type": [
+						"string",
+						"null"
+					],
+					"format": "uuid",
+					"description": "Expected predecessor for exact local start; null explicitly expects no history.",
 					"x-devspec-host-only": true
 				},
 				"command_turn_id": {

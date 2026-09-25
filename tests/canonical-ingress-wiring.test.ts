@@ -61,7 +61,7 @@ test("system notices use a fresh harness custom turn and never user/followUp/ste
 	// shouldPauseSettle speech gate.
 	assert.match(settled, /const activityPolicy = remoteRunActivityPolicy\(completionNeutral\)[^]*if \(pump && activityPolicy\.reportPresence\)[^]*pump\.busy = keepWorking[^]*beatBusy\(keepWorking/);
 	assert.match(settled, /pump && !pump\.busy && ctx\.isIdle\(\)[^]*deliverQueuedSystemNotices/);
-	assert.match(settled, /!posted && activityPolicy\.reportCompletion[^]*reportComplete\("turn_end"/);
+	assert.match(settled, /!posted && activityPolicy\.reportCompletion[^]*completeTurnActivity\(settlingTurn, "turn_end"/);
 	const runtimeStamp = bodyBetween("function scheduleRuntimeStamp", "/** Settle the turn's usage");
 	assert.match(runtimeStamp, /const completionNeutralAtSchedule = systemNoticeRunActive \|\| systemNoticeTurnPending/);
 	assert.match(runtimeStamp, /if \(!completionNeutralAtSchedule && !systemNoticeRunActive\) void beatBusy/);
@@ -76,7 +76,7 @@ test("system notices use a fresh harness custom turn and never user/followUp/ste
 	assert.match(trail, /if \(!turn \|\| !remoteRunActivityPolicy\(turn\.completionNeutral\)\.reportTranscript\) return/);
 	const shutdown = bodyBetween('pi.on("session_shutdown"', 'pi.on("session_start"');
 	assert.match(shutdown, /revokeSystemNoticeState\(active\.systemNoticeKey\)/);
-	assert.match(shutdown, /if \(openTurn && remoteRunActivityPolicy\(openTurn\.completionNeutral\)\.reportCompletion\)[^]*reportComplete\("process_exit"/);
+	assert.match(shutdown, /if \(openTurn && remoteRunActivityPolicy\(openTurn\.completionNeutral\)\.reportCompletion\)[^]*completeTurnActivity\(openTurn, "process_exit"/);
 });
 
 test("same-run real user boundary ends notice neutrality before normal presence and settle", () => {
@@ -89,12 +89,12 @@ test("same-run real user boundary ends notice neutrality before normal presence 
 	const beginBusy = messageStart.indexOf("pump.busy = true", trackUser);
 	const beat = messageStart.indexOf("beatBusy(true)", beginBusy);
 	assert.ok(endNeutral >= 0 && endNeutral < bindTurn && bindTurn < trackUser && trackUser < beginBusy && beginBusy < beat);
-	assert.match(messageStart, /const previousPolicy = activityTransition\?\.previousPolicy[^]*if \(previousPolicy\.reportCompletion\)[^]*reportComplete/);
+	assert.match(messageStart, /const previousPolicy = activityTransition\?\.previousPolicy[^]*if \(previousPolicy\.reportCompletion\)[^]*completeTurnActivity/);
 	assert.match(messageStart, /turn\.occupancy\?\.kind === "system_notice"[^]*runtimeOccupancy\.promote\(turn\.occupancy, "owner"\)[^]*turn\.occupancy = promoted/);
 
 	const split = bodyBetween("function splitTurnAtBoundary", "/**\n * Assert busy presence");
 	assert.match(split, /const previousPolicy = remoteRunActivityPolicy\(t\.completionNeutral\)/);
-	assert.match(split, /!posted && previousPolicy\.reportCompletion[^]*reportComplete/);
+	assert.match(split, /!posted && previousPolicy\.reportCompletion[^]*completeTurnActivity/);
 	const settled = bodyBetween('pi.on("agent_settled"', "// ---- Turn lifecycle events");
 	assert.match(settled, /const completionNeutral = occupancyAtSettle\?\.kind === "system_notice" \|\| settlingTurn\?\.completionNeutral === true/);
 });

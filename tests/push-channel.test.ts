@@ -156,6 +156,36 @@ test("a genuine owner follow-up promotes an active notice run and still settles 
 	assert.equal(occupancy.isBusy(), false);
 });
 
+test("foreground identity survives retry and input promotion but rotates after real settlement", () => {
+	let generated = 0;
+	const occupancy = new RuntimeOccupancyFence(() => `execution-${++generated}`);
+	const first = occupancy.begin("interaction");
+	const retry = occupancy.begin("owner");
+	assert.equal(retry.executionId, first.executionId);
+	assert.equal(retry.kind, "interaction");
+	const promoted = occupancy.promote(retry, "owner");
+	assert.ok(promoted);
+	assert.equal(promoted.executionId, first.executionId, "changing causal input is not another native execution");
+	assert.equal(occupancy.finish(first), false);
+	assert.equal(occupancy.finish(retry), false);
+	assert.equal(occupancy.finish(promoted), true);
+	const next = occupancy.begin("owner");
+	assert.notEqual(next.executionId, first.executionId);
+	assert.equal(generated, 2);
+});
+
+test("an execution identity cannot be substituted even with matching kind and revision", () => {
+	const occupancy = new RuntimeOccupancyFence();
+	const current = occupancy.begin("owner");
+	assert.match(current.executionId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+	assert.equal(occupancy.finish({ ...current, executionId: "different-execution" }), false);
+	assert.equal(occupancy.isBusy(), true);
+	const copy = occupancy.capture()!;
+	copy.executionId = "caller-mutated-copy";
+	assert.equal(occupancy.capture()?.executionId, current.executionId);
+	assert.equal(occupancy.finish(current), true);
+});
+
 test("dynamic SSE restart fences an already-scheduled reconnect from opening a second stream", () => {
 	const fence = new PushChannelGenerationFence();
 	const first = fence.begin();

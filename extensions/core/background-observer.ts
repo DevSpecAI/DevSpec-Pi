@@ -32,6 +32,18 @@ export interface BackgroundObservation {
 	scope: BackgroundScope | null;
 	tasks: ObservedBackgroundTask[];
 }
+export interface NativeBackgroundSample {
+	readonly state: "active" | "idle" | "unknown";
+	readonly sample_sequence: number;
+}
+interface ObserverOptions {
+	timeoutMs?: number;
+	batchSize?: number;
+	concurrency?: number;
+	earlyLimit?: number;
+	/** A coalescible observation hint, never a model wake or an activity claim. */
+	onNativeChange?: () => void;
+}
 
 function record(value: unknown): Record<string, unknown> | null {
 	return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -92,14 +104,17 @@ export class BackgroundWorkObserver {
 	private readonly subscriptions: (() => void)[] = [];
 	private inFlight: Promise<void> | null = null;
 	private offset = 0;
+	private nativeVersion = 0;
+	private nativeSequence = 0;
+	private nativeFlight: Promise<NativeBackgroundSample | null> | null = null;
 	private readonly events: BackgroundEventBus;
 	private readonly onChange: (observation: BackgroundObservation) => void;
-	private readonly options: { timeoutMs?: number; batchSize?: number; concurrency?: number; earlyLimit?: number };
+	private readonly options: ObserverOptions;
 
 	constructor(
 		events: BackgroundEventBus,
 		onChange: (observation: BackgroundObservation) => void,
-		options: { timeoutMs?: number; batchSize?: number; concurrency?: number; earlyLimit?: number } = {},
+		options: ObserverOptions = {},
 	) {
 		this.events = events;
 		this.onChange = onChange;
@@ -122,8 +137,11 @@ export class BackgroundWorkObserver {
 		this.tasks.clear();
 		this.earlyTerminals.clear();
 		this.offset = 0;
+		this.nativeVersion += 1;
+		this.nativeSequence = 0;
 		for (const request of [...this.pending.values()]) request.finish(null);
 		this.inFlight = null;
+		this.nativeFlight = null;
 		this.changed();
 	}
 
@@ -142,6 +160,7 @@ export class BackgroundWorkObserver {
 		if (early?.startTime === task.startTime) current.state = early.state;
 		this.earlyTerminals.delete(task.id);
 		this.tasks.set(task.id, current);
+		this.nativeChanged();
 		this.changed();
 		return true;
 	}
@@ -150,6 +169,7 @@ export class BackgroundWorkObserver {
 	observe(task: ObservedBackgroundTask, scope: BackgroundScope): boolean {
 		const owned = this.tasks.get(task.id);
 		if (this.disposed || scope !== this.scope || !owned || !this.validIdentity(task) || owned.startTime !== task.startTime) return false;
+		this.nativeChanged();
 		this.apply(owned, task.state);
 		return true;
 	}
@@ -172,6 +192,59 @@ export class BackgroundWorkObserver {
 		return work;
 	}
 
+	/**
+	 * Current-native aggregate, NOT permission to adopt task origins. Public v1
+	 * status is bound to one initialized native session activation. This also
+	 * sees CLI launches and supported reload survivors without inventing their
+	 * room/command association. Only aggregate state leaves this adapter.
+	 */
+	sampleNative(): Promise<NativeBackgroundSample | null> {
+		if (this.disposed || !this.scope) return Promise.resolve(null);
+		if (this.nativeFlight) return this.nativeFlight;
+		const epoch = this.epoch;
+		const current = () => !this.disposed && this.epoch === epoch && this.scope !== null;
+		const sample = (state: NativeBackgroundSample["state"]): NativeBackgroundSample | null => {
+			if (!current() || !Number.isSafeInteger(this.nativeSequence + 1)) return null;
+			return Object.freeze({ state, sample_sequence: ++this.nativeSequence });
+		};
+		const work = (async (): Promise<NativeBackgroundSample | null> => {
+			if (!this.supported) {
+				const capabilities = await this.request("capabilities", {});
+				if (!current()) return null;
+				this.supported = capabilities?.api_version === 1 && capabilities.status === true;
+				if (!this.supported) return sample("unknown");
+			}
+			// A terminal/launch event can overtake the response. Retry once, not an
+			// unbounded "wait until quiet" loop. Persistent churn is uncertainty.
+			for (let pass = 0; pass < 2; pass += 1) {
+				const version = this.nativeVersion;
+				const result = await this.request("status", {});
+				if (!current()) return null;
+				if (version !== this.nativeVersion) continue;
+				if (!Array.isArray(result?.tasks)) return sample("unknown");
+				const byId = new Map<string, ObservedBackgroundTask>();
+				for (const raw of result.tasks) {
+					const task = projectBackgroundTask(raw);
+					if (!task || byId.has(task.id)) return sample("unknown");
+					byId.set(task.id, task);
+				}
+				// Reconcile only identities already owned in this attachment. Never
+				// give an unassociated registry task a conversational origin.
+				for (const task of this.tasks.values()) {
+					const observed = byId.get(task.id);
+					if (observed?.startTime === task.startTime && terminal(task.state) && observed.state === "running") return sample("unknown");
+					this.apply(task, observed?.startTime === task.startTime ? observed.state : "unknown");
+					if (!current()) return null;
+				}
+				if ([...byId.values()].some(task => task.state === "running")) return sample("active");
+				return sample(this.pendingIds().length > 0 ? "unknown" : "idle");
+			}
+			return sample("unknown");
+		})().finally(() => { if (this.epoch === epoch) this.nativeFlight = null; });
+		this.nativeFlight = work;
+		return work;
+	}
+
 	dispose(): void {
 		if (this.disposed) return;
 		this.bind(null);
@@ -184,6 +257,11 @@ export class BackgroundWorkObserver {
 		return typeof task.id === "string" && task.id.length > 0 && task.id.length <= 200 && task.id.trim() === task.id &&
 			Number.isSafeInteger(task.startTime) && task.startTime >= 0 &&
 			["running", "unknown", "completed", "failed", "killed"].includes(task.state);
+	}
+
+	private nativeChanged(): void {
+		this.nativeVersion += 1;
+		try { this.options.onNativeChange?.(); } catch { /* cannot break provider publication */ }
 	}
 
 	private changed(): void {
@@ -204,6 +282,7 @@ export class BackgroundWorkObserver {
 		if (frame?.schema_version !== TERMINAL_SCHEMA) return;
 		const task = projectBackgroundTask(frame.task);
 		if (!task || !terminal(task.state)) return;
+		this.nativeChanged();
 		const owned = this.tasks.get(task.id);
 		if (owned) {
 			if (owned.startTime === task.startTime) this.apply(owned, task.state);

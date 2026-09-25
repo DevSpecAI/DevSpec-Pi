@@ -173,6 +173,60 @@ test("dispose releases requests/listeners and late messages have no effects", as
 	assert.equal(observer.track({ id: "job", startTime: 1, state: "running" }, "native-A/attachment-A"), false);
 });
 
+test("fresh native aggregate sees unassociated native jobs without adopting their room origin", async () => {
+	const { bus, observer } = fixture();
+	provider(bus, () => ({ tasks: [{ id: "native-cli-job", startTime: 10, status: "running", command: "SECRET", outputPath: "/private" }] }));
+	const pending = observer.sampleNative();
+	assert.equal(observer.sampleNative(), pending, "one in-flight native inventory read");
+	assert.deepEqual(await pending, { state: "active", sample_sequence: 1 });
+	assert.deepEqual(observer.snapshot().tasks, [], "aggregate observation does not assign conversational ownership");
+	assert.deepEqual(observer.pendingIds(), []);
+	assert.deepEqual(await observer.sampleNative(), { state: "active", sample_sequence: 2 });
+	assert.equal(bus.requests.filter(request => request.operation === "status").length, 2);
+	assert(bus.requests.filter(request => request.operation === "status").every(request => Object.keys(request.payload).length === 0));
+	observer.dispose();
+});
+
+test("native empty inventory cannot resolve an owned missing job, but an explicit terminal can", async () => {
+	const { bus, observer, track } = fixture(); track("owned");
+	provider(bus, () => ({ tasks: [] }));
+	assert.deepEqual(await observer.sampleNative(), { state: "unknown", sample_sequence: 1 });
+	assert.deepEqual(observer.pendingIds(), ["owned"]);
+	provider(bus, () => ({ tasks: [{ id: "owned", startTime: 1, status: "completed" }] }));
+	assert.deepEqual(await observer.sampleNative(), { state: "idle", sample_sequence: 2 });
+	assert.deepEqual(observer.pendingIds(), []);
+	observer.dispose();
+});
+
+test("terminal events invalidate an older native inventory response and cause one fresh read", async () => {
+	const { bus, observer, track } = fixture(); track("owned");
+	let first: Request | undefined; let reads = 0;
+	bus.handle = request => {
+		if (request.operation === "capabilities") bus.reply(request, { api_version: 1, status: true });
+		else if (++reads === 1) first = request;
+		else bus.reply(request, { tasks: [{ id: "owned", startTime: 1, status: "completed" }] });
+	};
+	const pending = observer.sampleNative(); await tick(); assert.ok(first);
+	bus.finish("owned");
+	bus.reply(first, { tasks: [{ id: "owned", startTime: 1, status: "running" }] });
+	assert.deepEqual(await pending, { state: "idle", sample_sequence: 1 });
+	assert.equal(reads, 2);
+	observer.dispose();
+});
+
+test("native aggregate keeps unavailable/malformed results unknown and fences old scopes", async () => {
+	const { bus, observer } = fixture();
+	await observer.sampleNative();
+	provider(bus, () => ({ tasks: [{ id: "bad", status: "running" }] }));
+	assert.equal((await observer.sampleNative())?.state, "unknown");
+	let held: Request | undefined; bus.handle = request => { held = request; };
+	const pending = observer.sampleNative(); await tick(); assert.ok(held);
+	observer.bind("native-B/attachment-B");
+	bus.reply(held, { tasks: [] });
+	assert.equal(await pending, null);
+	observer.dispose();
+});
+
 test("consumer exceptions never break provider publication and unknown frames never resolve", () => {
 	const bus = new Bus(); const observer = new BackgroundWorkObserver(bus, () => { throw new Error("consumer failed"); });
 	observer.bind("scope"); observer.track({ id: "job", startTime: 1, state: "running" }, "scope");

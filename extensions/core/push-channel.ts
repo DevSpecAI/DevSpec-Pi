@@ -8,6 +8,8 @@
  * unavailable (older server, proxy that buffers SSE, etc).
  */
 
+import { randomUUID } from "node:crypto";
+
 export interface PushChannelHandlers {
 	/** A wake frame arrived — something moved; fetch now. */
 	onWake(): void;
@@ -82,6 +84,8 @@ export class PushChannelGenerationFence {
 export type RuntimeRunKind = "owner" | "interaction" | "system_notice";
 
 export interface RuntimeOccupancyRevision {
+	/** One identity for the high-level native execution, not each retry or bubble. */
+	executionId: string;
 	revision: number;
 	kind: RuntimeRunKind;
 }
@@ -94,12 +98,18 @@ export interface RuntimeOccupancyRevision {
 export class RuntimeOccupancyFence {
 	private nextRevision = 1;
 	private current: RuntimeOccupancyRevision | null = null;
+	private readonly newExecutionId: () => string;
+
+	constructor(newExecutionId: () => string = randomUUID) {
+		this.newExecutionId = newExecutionId;
+	}
 
 	begin(kind: RuntimeRunKind): RuntimeOccupancyRevision {
 		// Every low-level Pi start receives a newer settle token, while retries and
 		// compaction retain the existing run kind. An older awaited settle can no
 		// longer finish after a newer start has occurred.
 		const current = {
+			executionId: this.current?.executionId ?? this.newExecutionId(),
 			revision: this.nextRevision++,
 			kind: this.current?.kind ?? kind,
 		};
@@ -109,7 +119,7 @@ export class RuntimeOccupancyFence {
 
 	promote(candidate: RuntimeOccupancyRevision | null, kind: RuntimeRunKind): RuntimeOccupancyRevision | null {
 		if (!this.isCurrent(candidate) || !this.current) return null;
-		this.current = { revision: this.nextRevision++, kind };
+		this.current = { executionId: this.current.executionId, revision: this.nextRevision++, kind };
 		return { ...this.current };
 	}
 
@@ -119,6 +129,7 @@ export class RuntimeOccupancyFence {
 
 	isCurrent(candidate: RuntimeOccupancyRevision | null): boolean {
 		return Boolean(candidate && this.current
+			&& candidate.executionId === this.current.executionId
 			&& candidate.revision === this.current.revision
 			&& candidate.kind === this.current.kind);
 	}

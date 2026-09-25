@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.24
+
+- Background maintenance no longer causes an unchanged memory to be recalled again. Recall ignores the row's last-updated timestamp while still noticing new versions, state changes, proposals and disagreements.
+- Automatic recall no longer displays that maintenance timestamp as revision context. Existing messages remain unchanged. Reload or restart existing Pi sessions to activate this fix.
+
 ## 0.3.23
 
 - Keep proposal IDs, reasons, previews and operation receipts visible after formatting tool responses. An incomplete response never asks the agent to repeat a write.

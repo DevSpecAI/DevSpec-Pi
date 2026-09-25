@@ -36,6 +36,23 @@ test("unseenCards dedupes identical snapshots and caps at 4", () => {
 	assert.ok(!fresh.some((c) => c.id === "m0"));
 });
 
+test("maintenance timestamps change neither recall identity nor rendered context", () => {
+	const before = { id: "memory-a", version: 2, title: "Decision", summary: "Unchanged", updated_at: "before" };
+	const after = { ...before, updated_at: "after" };
+	const { updated_at: _clock, ...withoutClock } = before;
+	assert.equal(cardKey(before), cardKey(after));
+	assert.equal(cardKey(before), cardKey(withoutClock), "optional server clocks must not affect identity");
+	assert.equal(unseenCards([after], new Set([cardKey(before)!])).length, 0);
+	assert.equal(formatRecallBlock([before]), formatRecallBlock([after]));
+	assert.doesNotMatch(formatRecallBlock([before]), /updated_at/);
+	for (const change of [
+		{ id: "memory-b" }, { version: 3 }, { title: "New title" }, { summary: "New meaning" },
+		{ state: "decided" }, { tags: ["permissions"] }, { confidence: 0.8 }, { readable: false },
+		{ pending_proposals: [{ proposal_id: "p1" }] },
+		{ unresolved_disagreements: [{ key: "pair", evidence: { raisedAt: "new assessment" } }] },
+	]) assert.notEqual(cardKey(before), cardKey({ ...after, ...change }), "meaningful changes must remain visible");
+});
+
 test("formatRecallBlock marks binding semantics", () => {
 	const out = formatRecallBlock([{ id: "abc", title: "Two-pool billing", type: "decision", summary: "x" }]);
 	assert.match(out, /auto-recall/);

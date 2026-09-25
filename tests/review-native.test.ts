@@ -57,7 +57,7 @@ test("recall retains both claims; changed versions, findings and proposals reinj
 	const previous = formatRecallBlock([card]);
 	const seen = new Set([cardKey(card)!]);
 	assert.equal(unseenCards([card], seen).length, 0);
-	for (const change of [{ version: 2 }, { updated_at: "after" }, { unresolved_disagreements: [] }, { pending_proposals: [{ proposal_id: "p1" }] }]) {
+	for (const change of [{ version: 2 }, { unresolved_disagreements: [] }, { pending_proposals: [{ proposal_id: "p1" }] }]) {
 		assert.equal(unseenCards([{ ...card, ...change }], seen).length, 1);
 	}
 	assert.match(previous, /CLAIM_a/); assert.match(previous, /CLAIM_b/);
@@ -164,11 +164,15 @@ test("registered before_agent_start hook appends immutable revisions and rejects
 	assert.equal(first.systemPrompt, undefined); assert.equal(first.message.customType, "devspec-proactive");
 	assert.match(first.message.content, /CLAIM_a/); assert.match(first.message.content, /CLAIM_b/);
 	assert.equal(await handler(event, ctx), undefined, "identical snapshot is not reinjected");
+	current = { ...card, updated_at: "maintenance-only" };
+	assert.equal(await handler(event, ctx), undefined, "maintenance-only timestamp changes do not reinject recall or a nudge");
+	assert.equal(JSON.stringify(first), frozen, "maintenance does not rewrite earlier message bytes");
+	assert.doesNotMatch(first.message.content, /updated_at/);
 	current = { ...card, version: 2 };
 	const changed = await handler(event, ctx);
 	assert.match(changed.message.content, /"version": 2/);
 	assert.equal(JSON.stringify(first), frozen, "earlier message bytes remain unchanged");
-	assert.equal(calls, 3, "one recall call per turn, no full-record hydration fanout");
+	assert.equal(calls, 4, "one recall call per turn, no full-record hydration fanout");
 	current = { ...card, version: 3 }; switchDuringRead = true;
 	assert.equal(await handler(event, ctx), undefined, "old principal's late read is never injected under a new principal");
 });

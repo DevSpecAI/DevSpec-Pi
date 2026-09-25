@@ -63,7 +63,11 @@ export function cardKey(c: MemoryCard): string | null {
 	if (!c.id && !c.title) return null;
 	// Includes version, assessment, permissions and proposal changes. A same-ID
 	// changed finding is a NEW tail snapshot, never an edit of an earlier message.
-	return `${c.id ?? c.title}:${snapshotHash(c)}`;
+	// updated_at is a row-maintenance clock (indexing, review stamps, flags),
+	// not a knowledge revision. Keep all other context, including nested finding
+	// evidence, so genuine changes still reinject. Follow-up 8effd88f.
+	const { updated_at: _maintenanceClock, ...snapshot } = c;
+	return `${c.id ?? c.title}:${snapshotHash(snapshot)}`;
 }
 
 export function formatRecallBlock(cards: MemoryCard[]): string {
@@ -74,7 +78,7 @@ export function formatRecallBlock(cards: MemoryCard[]): string {
 		const disagreement = disagreementBlock(c);
 		const proposals = Array.isArray(c.pending_proposals) && c.pending_proposals.length
 			? reviewData({ pending_proposals: c.pending_proposals }) : "";
-		return [reviewData({ memory: `- ${type} ${c.title ?? "untitled"}${id}${summary}`, version: c.version, updated_at: c.updated_at }), disagreement, proposals].filter(Boolean).join("\n");
+		return [reviewData({ memory: `- ${type} ${c.title ?? "untitled"}${id}${summary}`, version: c.version }), disagreement, proposals].filter(Boolean).join("\n");
 	});
 	return [
 		"### DevSpec memory — auto-recall",

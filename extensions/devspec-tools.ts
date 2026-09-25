@@ -80,7 +80,7 @@ export function queuedForReviewRelay(details: unknown): string | null {
 		"QUEUED FOR A MAINTAINER — not in effect.",
 		proposalId ? `Proposal ${proposalId}.` : null,
 		reason ? `Reason: ${reason}` : null,
-		"Relay the proposal id and the reason to the user and say a maintainer has to accept it on the project's Review tab before it applies; do not report this change as done.",
+		"Relay the proposal id and the reason to the user and say a maintainer has to accept it on the project's Review page, under Proposed changes, before it applies; do not report this change as done.",
 	].filter(Boolean).join(" ");
 }
 

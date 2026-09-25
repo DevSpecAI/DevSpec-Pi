@@ -289,9 +289,19 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// pump-only. No existing projection family or hot-set membership changed.
 	// Same deterministic benchmark before/after: initial surface 7,480 -> 7,477
 	// estimated tokens (ceiling 8,000); all projection fixture budgets unchanged.
+	// Rebaselined 2026-09-25 for DevSpec item b69a7b53 (R7) against server staging
+	// d39cd98aa. Compared old/new generated objects by name/inputSchema: 87 model
+	// verbs before and after, none added or removed. The only model schema change
+	// is preview_conflict_resolution: counterpart_item_id is no longer required,
+	// and its description says to omit it for a staleness flag that names no
+	// other item (DevSpec e599545f — previewing a one-record staleness ruling was
+	// refused). Outside this model fingerprint: poll_connection gained the pump-only
+	// session_events_version / session_events_revision. Projection family is still
+	// "full". Same deterministic benchmark before/after: initial surface 7,732 ->
+	// 7,732 estimated tokens, because the verb is not in the hot set.
 	assert.equal(
 		fingerprint,
-		"e02ecd47187ddad7a861d96c0cb7fc414c043cdc22c1679f2aeea5ae0fbdf7e4",
+		"03fad1bf1c32ae1deb3c71ece7739f01eae5064923551b82d9f3b8c3660dc840",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

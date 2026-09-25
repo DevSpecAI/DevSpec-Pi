@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.22
+
+- A write that comes back queued for review now tells you a maintainer accepts it on the project's Review page, under Proposed changes. It used to point at a "Review tab", which no longer exists.
+- Refreshed the DevSpec tool catalogue: previewing a ruling on a staleness flag that names no other item no longer needs a counterpart.
+
 ## 0.3.21
 
 - Room history now includes server-recorded item changes and memory/document events with their original timestamps and attribution. Read them with `read_room_context` (`view: "events"`); use live getters for current record status.

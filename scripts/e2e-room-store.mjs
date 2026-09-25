@@ -36,7 +36,9 @@ const encode = (n, direction) => Buffer.from(JSON.stringify({ v: 1, connection_i
 const decode = cursor => { try { return JSON.parse(Buffer.from(cursor, "base64url").toString()); } catch { return null; } };
 const wake = () => { for (const stream of streams) stream.write('event: wake\ndata: {}\n\n'); };
 const response = details => ({ content: [{ type: "text", text: JSON.stringify(details) }] });
-const contract = { kind: "devspec.product.remote_ingress_contract", schema_version: 1, contract_version: "1.6.0", policy: { policy_version: "2026-09-24.1" }, activation: { room_context_negotiation_argument: "room_context_version", room_context_contract_requires: { ingress_version: 1, delegated_scope_version: 1, active_plan_projection_version: 1, system_notice_version: 1, sender_style_version: 1, room_context_version: 1 } } };
+const recordEvents = () => [{ id: `produced:${generation}`, at: attached, kind: "action_item", record_id: uid(9990), event: "produced", actor: { kind: "person", label: "Fixture person" } }, { id: `lifecycle:${generation}`, at: "2026-09-24T10:00:01.123456+00:00", kind: "action_item", record_id: uid(9990), event: "lifecycle_changed", from: "open", to: "implemented" }];
+const eventRevision = () => `sha256:${String(generation).repeat(64)}`;
+const contract = { kind: "devspec.product.remote_ingress_contract", schema_version: 1, contract_version: "1.6.0", policy: { policy_version: "2026-09-24.1" }, activation: { session_events_negotiation_argument: "session_events_version", session_events_revision_argument: "session_events_revision", session_events_requires: { room_context_version: 1, session_events_version: 1 }, room_context_negotiation_argument: "room_context_version", room_context_contract_requires: { ingress_version: 1, delegated_scope_version: 1, active_plan_projection_version: 1, system_notice_version: 1, sender_style_version: 1, room_context_version: 1 } } };
 function poll(args) {
 	const room = args.room_context_version === 1;
 	const notices = args.system_notice_version === 1;
@@ -68,6 +70,7 @@ function poll(args) {
 		command_message_ids: commands.map(c => c.message_id), commands, control: null,
 		...(current && style ? { sender_response_styles: [{ message_id: current.message_id, notes: ["KEEP-THIS-STYLE"] }] } : {}), context: { human_context: entries, agent_context: [], ai_context: [], system_context: [] }, window,
 		...(notices ? { system_notices: [] } : {}),
+		...(room && args.session_events_version === 1 ? { session_events: { version: 1, advisory: true, status: args.session_events_revision === eventRevision() ? "unchanged" : "available", as_of: attached, revision: eventRevision(), events: args.session_events_revision === eventRevision() ? [] : recordEvents(), truncated: false } } : {}),
 		...(room ? { room_context: { version: 1, messages: rawEntries.map(e => ({ message_id: e.message_id, state: "final", addressee: { kind: "connection", connection_id: commandEnabled && generation === 0 && e.order.sequence === 126 ? connectionId : uid(9007), label: commandEnabled && generation === 0 && e.order.sequence === 126 ? identity.label : "Another agent" }, attachments: readers && e.order.sequence === 1 ? [{ materialization: "metadata", filename: "context.txt", mime_type: "text/plain", type: "text", size_bytes: 13, resource_id: uid(9100) }] : [] })), coverage: { through: point(end), eligible_count: end, deleted_count: 0, open_message_ids: [] }, open_check: [], deletions: { message_ids: [], total: 0, truncated: false, seen: { through: null, total: 0 } } }, session_activity: { version: 1, advisory: true, status: "available", as_of: attached, revision: `sha256:${"a".repeat(64)}`, truncated: false, entries: [{ kind: "action_item", id: uid(9990), title: "Not a current title", status: "implemented", relation: "produced", creator: null }] } } : {}),
 	} };
 }
@@ -110,7 +113,7 @@ function snapshot() {
 	if (!existsSync(path)) return null;
 	try {
 		const db = new DatabaseSync(path, { readOnly: true });
-		try { return { count: Number(db.prepare("SELECT count(*) n FROM messages").get().n), progress: JSON.parse(db.prepare("SELECT value FROM meta WHERE key='progress'").get()?.value ?? "null"), activity: JSON.parse(db.prepare("SELECT value FROM meta WHERE key='snapshot:activity'").get()?.value ?? "null") }; }
+		try { return { count: Number(db.prepare("SELECT count(*) n FROM messages").get().n), progress: JSON.parse(db.prepare("SELECT value FROM meta WHERE key='progress'").get()?.value ?? "null"), activity: JSON.parse(db.prepare("SELECT value FROM meta WHERE key='snapshot:activity'").get()?.value ?? "null"), recordEvents: db.prepare("SELECT body FROM session_events ORDER BY json_extract(body,'$.at'),id").all().map(r => JSON.parse(r.body)) }; }
 		finally { db.close(); }
 	} catch { return null; }
 }
@@ -136,6 +139,7 @@ try {
 	assert(!existsSync(marker));
 	assert.deepEqual(snapshot()?.activity?.value?.entries, [{ kind: "action_item", id: uid(9990), relation: "produced" }]);
 	assert(!JSON.stringify(snapshot()?.activity).includes("implemented"));
+	assert.deepEqual(snapshot()?.recordEvents, recordEvents(), "server events survive the actual host restart exactly once");
 	if (readers) {
 		commandEnabled = true; count = 126; wake();
 		await until(() => speeches.some(s => String(s.message).includes("FIXTURE-READERS-PASS")), "native reader tool workflow", 60_000);
@@ -157,5 +161,5 @@ try {
 	send("stop", "/devspec.remote stop");
 	await until(() => events.some(e => e.type === "response" && e.id === "stop"), "stop response");
 	if (!readers) { assert.equal(events.some(e => e.type === "agent_start"), false); assert.equal(calls.includes("post_session_message"), false); }
-	console.log(JSON.stringify({ result: "PASS", host: "actual Pi RPC", transport: "loopback fixture, not deployed E2E", historyRecords: 125, restarted: true, reattachmentIsolated: true, refusalPurged: true, cachePurged: true, paidModelRequests: 0, ...(readers ? { nativeReaderWorkflow: true, fullCommand: true, stablePrefix: true, deliberateAttachmentFetch: true, speechCopies: 1 } : { modelTurns: 0 }) }));
+	console.log(JSON.stringify({ result: "PASS", host: "actual Pi RPC", transport: "loopback fixture, not deployed E2E", historyRecords: 125, restarted: true, reattachmentIsolated: true, refusalPurged: true, cachePurged: true, paidModelRequests: 0, serverRecordEvents: true, ...(readers ? { nativeReaderWorkflow: true, fullCommand: true, stablePrefix: true, deliberateAttachmentFetch: true, speechCopies: 1 } : { modelTurns: 0 }) }));
 } finally { await kill(); for (const s of streams) s.end(); await new Promise(r => server.close(r)); rmSync(temp, { recursive: true, force: true }); }

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.21
+
+- Room history now includes server-recorded item changes and memory/document events with their original timestamps and attribution. Read them with `read_room_context` (`view: "events"`); use live getters for current record status.
+- Event history survives reloads, deduplicates by event ID, and reports unavailable or truncated reads without discarding earlier history. Requires a server advertising the optional events section; older servers keep their existing behavior.
+
 ## 0.3.20
 
 - Messages waiting behind an active question can now request native interruption without prematurely replacing the question's authority. The matching server validates a non-executable availability offer, then performs an exact handoff only when Pi is ready.

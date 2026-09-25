@@ -23,9 +23,12 @@ export default function (pi: ExtensionAPI) {
 			let final = false;
 			if (local.length) {
 				const last = JSON.parse(text(local.at(-1)));
-				if (last.value?.content) {
+				if (last.value?.events) {
+					if (last.value.events.length !== 2 || last.value.events[0].actor?.label !== "Fixture person" || last.value.events[1].at !== "2026-09-24T10:00:01.123456+00:00" || last.value.events[1].to !== "implemented") throw new Error("server events not preserved by native reader");
+					final = true;
+				} else if (last.value?.content) {
 					if (!last.value.content.includes("VIOLET-ZEBRA")) throw new Error("old content not recovered");
-					if (resource) { if (!text(resource).includes("FILE-CODEWORD")) throw new Error("attachment not fetched"); final = true; }
+					if (resource) { if (!text(resource).includes("FILE-CODEWORD")) throw new Error("attachment not fetched"); args = { view: "events" }; }
 					else { name = "get_resource"; args = { id: last.value.attachments[0].resource_id }; }
 				} else if (last.records?.length) args = { view: "message", message_id: last.records[0].message_id };
 				else if (last.next_cursor) args = { view: "search", query: "secret-codeword", cursor: last.next_cursor };

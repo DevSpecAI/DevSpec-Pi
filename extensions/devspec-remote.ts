@@ -48,6 +48,7 @@ import { readRoomForContext } from "./core/room-tools.ts";
 import { observeRoomAccess } from "./core/room-access.ts";
 import { compactRoomAwareness, previousRoomCheckpoint, roomScopeFromEntries, ROOM_READ_TOOL, ROOM_SCOPE_ENTRY, ROOM_NAV_ENTRY } from "./core/room-reader.ts";
 import { advertisesRoomContext } from "./core/room-context.ts";
+import { advertisesSessionEvents } from "./core/session-events.ts";
 import { RoomSync } from "./core/room-sync.ts";
 import {
 	capturePumpAuthority,
@@ -2272,8 +2273,9 @@ async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: s
 		if (!current() || !advertisesRoomContext(advertised)) return;
 		const store = await openRoomStore(scope, { current, principalFingerprint: roomPrincipalFingerprint(token) });
 		if (!current()) { store.close(true); return; }
+		const sessionEventsNegotiated = advertisesSessionEvents(advertised);
 		active.roomSync = new RoomSync({
-			store, current, liveCursor: () => active.cursor,
+			store, sessionEventsNegotiated, current, liveCursor: () => active.cursor,
 			wake: () => { if (current()) signalWake(active); },
 			onError: () => debug("room storage unavailable", { errorPresent: true }),
 			fetchHistory: async (args) => {
@@ -2308,7 +2310,7 @@ async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: s
 					signalWake(active); // only the main pump adopts the new attachment
 					throw new Error("room history attachment mismatch");
 				}
-				return parsePollPayload(response.details, active.connectionIdentity, { systemNoticeNegotiated: true, senderStyleNegotiated: true, roomContextNegotiated: true });
+				return parsePollPayload(response.details, active.connectionIdentity, { systemNoticeNegotiated: true, senderStyleNegotiated: true, roomContextNegotiated: true, sessionEventsNegotiated });
 			},
 		});
 		if (current()) { pi_appendRoomScope(scope); active.roomSync.schedule(); signalWake(active); }
@@ -2394,7 +2396,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		let roomContextNegotiated = senderStyleNegotiated && Boolean(active.roomSync);
 		let roomWatch: Record<string, unknown> = {};
 		if (roomContextNegotiated) {
-			try { roomWatch = active.roomSync!.store.watch(); }
+			try { roomWatch = { ...active.roomSync!.store.watch(), ...active.roomSync!.eventsWatch() }; }
 			catch {
 				active.roomSync?.close(); active.roomSync = undefined;
 				active.roomSyncAttemptAt = Date.now(); roomContextNegotiated = false;
@@ -2687,7 +2689,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			}
 		}
 
-		const pkg = parsePollPayload(payload, active.connectionIdentity, { systemNoticeNegotiated, senderStyleNegotiated, roomContextNegotiated });
+		const pkg = parsePollPayload(payload, active.connectionIdentity, { systemNoticeNegotiated, senderStyleNegotiated, roomContextNegotiated, sessionEventsNegotiated: roomContextNegotiated && roomWatch.session_events_version === 1 });
 		if (pkg.canonicalState === "invalid") {
 			if (roomContextNegotiated) {
 				// Re-request the preserved lane; never reinterpret a malformed1.6
@@ -2716,6 +2718,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				sessionPolls: pkg.advisoryRejections.includes("session_polls"),
 				stillToDiscuss: pkg.advisoryRejections.includes("still_to_discuss"),
 				...(pkg.advisoryRejections.includes("session_activity") ? { sessionActivity: true } : {}),
+				...(pkg.advisoryRejections.includes("session_events") ? { sessionEvents: true } : {}),
 			});
 		}
 

@@ -142,7 +142,7 @@ test("automation retry revalidation cannot cross recovered connection authority"
 
 test("canonical parser output stays independent from automation dispatch and control paths", () => {
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
-	assert.match(pump, /parsePollPayload\(payload, active\.connectionIdentity, \{ systemNoticeNegotiated, senderStyleNegotiated, roomContextNegotiated \}\)/);
+	assert.match(pump, /parsePollPayload\(payload, active\.connectionIdentity, \{ systemNoticeNegotiated, senderStyleNegotiated, roomContextNegotiated, sessionEventsNegotiated: roomContextNegotiated && roomWatch\.session_events_version === 1 \}\)/);
 	assert.match(pump, /pkg\.ownerBundle/);
 	assert.match(pump, /pkg\.control/);
 	assert.match(pump, /for \(const dispatch of dispatches\) enqueueAutomationRun/);
@@ -271,7 +271,7 @@ test("main Pi poll negotiates sender style with system notices and keeps styles 
 	assert.match(calls[3]![1], /system_notice_version: 1[^]*sender_style_version: 1/);
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
 	assert.match(pump, /const senderStyleNegotiated = systemNoticeNegotiated/);
-	assert.match(pump, /parsePollPayload\(payload, active\.connectionIdentity, \{ systemNoticeNegotiated, senderStyleNegotiated, roomContextNegotiated \}\)/);
+	assert.match(pump, /parsePollPayload\(payload, active\.connectionIdentity, \{ systemNoticeNegotiated, senderStyleNegotiated, roomContextNegotiated, sessionEventsNegotiated: roomContextNegotiated && roomWatch\.session_events_version === 1 \}\)/);
 	assert.match(pump, /activeCommandStyles\.set\(hydrated\.commandTurnId, deliveredStyles\)/);
 	const context = bodyBetween('pi.on("context"', 'pi.on("turn_start"');
 	assert.match(context, /senderStyleRepairNeeded\(event\.messages, true\)/);

@@ -27,6 +27,7 @@ import {
 } from "./still-to-discuss.ts";
 
 import { ROOM_CONTEXT_LANE, parseRoomContext, parseActivityIndex, type RoomContext, type ActivityIndex } from "./room-context.ts";
+import { parseSessionEvents, type SessionEvents } from "./session-events.ts";
 
 const ROOM_CONTRACT_VERSION = ROOM_CONTEXT_LANE.contractVersion;
 const ROOM_POLICY_VERSION = ROOM_CONTEXT_LANE.policyVersion;
@@ -244,8 +245,10 @@ export interface PollPackage {
 	sessionPolls?: SessionPollsProjectionV1;
 	/** Changed packages: null means unavailable, rows:[] means empty. Idle: undefined. */
 	stillToDiscuss?: StillToDiscussProjectionV1 | null;
+	/** Server history only; null marks missing/unavailable advisory data. */
+	sessionEvents?: SessionEvents | null;
 	/** Closed section names only; never raw payloads or parser error text. */
-	advisoryRejections?: Array<"session_polls" | "still_to_discuss" | "session_activity">;
+	advisoryRejections?: Array<"session_polls" | "still_to_discuss" | "session_activity" | "session_events">;
 	/** Sections this Pi skipped because it does not implement them; delivery still succeeded. */
 	unknownEnvelopeSections?: string[];
 	canonicalState: "idle" | "valid" | "invalid";
@@ -674,6 +677,8 @@ function control(value: unknown, path: string): unknown {
 }
 
 interface ParsedEnvelope {
+	eventsRejected?: boolean;
+	sessionEvents?: SessionEvents | null;
 	activityRejected?: boolean;
 	roomPage?: RoomPage;
 	sessionActivity?: ActivityIndex | null;
@@ -699,6 +704,7 @@ function parseEnvelope(
 	systemNoticeNegotiated: boolean,
 	senderStyleNegotiated: boolean,
 	roomContextNegotiated: boolean,
+	sessionEventsNegotiated: boolean,
 ): ParsedEnvelope {
 	const row = record(value, "ingress");
 	if (senderStyleNegotiated && !systemNoticeNegotiated) fail("ingress", "sender style requires negotiated system notices");
@@ -718,7 +724,7 @@ function parseEnvelope(
 	}
 	// sender_response_styles is optional-but-known like active_session_plans:
 	// the server omits it when no sender expressed a preference.
-	const unknownSections = extraKeys(row, [...requiredEnvelopeKeys, "active_session_plans", "sender_response_styles", ...(roomContextNegotiated ? ["session_activity"] : [])]);
+	const unknownSections = extraKeys(row, [...requiredEnvelopeKeys, "active_session_plans", "sender_response_styles", ...(roomContextNegotiated ? ["session_activity"] : []), ...(sessionEventsNegotiated ? ["session_events"] : [])]);
 	if (row.kind !== "devspec.remote_ingress") fail("ingress.kind", "unknown ingress kind");
 	if (row.schema_version !== SCHEMA_VERSION) fail("ingress.schema_version", "unknown schema version");
 	const expectedContractVersion = roomContextNegotiated ? ROOM_CONTRACT_VERSION : senderStyleNegotiated
@@ -848,7 +854,13 @@ function parseEnvelope(
 		try { sessionActivity = row.session_activity === undefined ? null : parseActivityIndex(row.session_activity); }
 		catch { sessionActivity = null; activityRejected = true; }
 	}
-	return { envelopeId, connection, wakeKind, wakeActive, deliveryState, commands, control: parsedControl, systemNotices, activeSessionPlans, unboundSenderStyleIds, ...(unknownSections.length > 0 ? { unknownSections } : {}), advisoryContext, ...(roomPage ? { roomPage, sessionActivity, activityRejected } : {}) };
+	let sessionEvents: SessionEvents | null | undefined;
+	let eventsRejected = false;
+	if (roomPage && sessionEventsNegotiated) {
+		try { sessionEvents = row.session_events === undefined ? null : parseSessionEvents(row.session_events); }
+		catch { sessionEvents = null; eventsRejected = true; }
+	}
+	return { envelopeId, connection, wakeKind, wakeActive, deliveryState, commands, control: parsedControl, systemNotices, activeSessionPlans, unboundSenderStyleIds, ...(unknownSections.length > 0 ? { unknownSections } : {}), advisoryContext, ...(roomPage ? { roomPage, sessionActivity, activityRejected, sessionEvents, eventsRejected } : {}) };
 }
 
 function contextEntryCount(context: IngressTypedContext): number {
@@ -861,6 +873,7 @@ export interface PollParseOptions {
 	/** Sender-style lane: requests contract 1.5.0. Defaults off so the preserved 1.4.0 lane stays the tested default. */
 	senderStyleNegotiated?: boolean;
 	roomContextNegotiated?: boolean;
+	sessionEventsNegotiated?: boolean;
 }
 
 /** Parse a negotiated poll payload. Canonical ingress failures never wake or advance either live cursor. */
@@ -903,7 +916,7 @@ export function parsePollPayload(
 
 		const topLevelAddressee = addressee(outer.addressed_to, "addressed_to");
 		if (!sameAddressee(topLevelAddressee, expectedConnection)) fail("addressed_to", "top-level addressee does not equal the frozen bonded connection");
-		const envelope = parseEnvelope(outer.ingress, expectedConnection, systemNoticeNegotiated, senderStyleNegotiated, options.roomContextNegotiated ?? false);
+		const envelope = parseEnvelope(outer.ingress, expectedConnection, systemNoticeNegotiated, senderStyleNegotiated, options.roomContextNegotiated ?? false, options.sessionEventsNegotiated ?? false);
 		if (!sameAddressee(topLevelAddressee, envelope.connection)) fail("addressed_to", "top-level and canonical addressees differ");
 		if (JSON.stringify(topLevelNotices) !== JSON.stringify(envelope.systemNotices)) fail("system_notices", "top-level and canonical notice sets differ");
 		const cursorV2 = typeof outer.cursor_v2 === "string" && outer.cursor_v2.length > 0 ? outer.cursor_v2 : undefined;
@@ -932,6 +945,7 @@ export function parsePollPayload(
 		}
 		const advisoryRejections: NonNullable<PollPackage["advisoryRejections"]> = [];
 		if (envelope.activityRejected) advisoryRejections.push("session_activity");
+		if (envelope.eventsRejected) advisoryRejections.push("session_events");
 		const sessionPolls = outer.session_polls === undefined
 			? undefined
 			: tryParseAdvisory(outer.session_polls, parseSessionPollsProjection, () => advisoryRejections.push("session_polls"));
@@ -955,7 +969,7 @@ export function parsePollPayload(
 			...(envelope.unknownSections ? { unknownEnvelopeSections: envelope.unknownSections } : {}),
 			...(envelope.unboundSenderStyleIds.length > 0 ? { unboundSenderStyleIds: envelope.unboundSenderStyleIds } : {}),
 			canonicalState: "valid",
-			...(envelope.roomPage ? { roomPage: envelope.roomPage, sessionActivity: envelope.sessionActivity } : {}),
+			...(envelope.roomPage ? { roomPage: envelope.roomPage, sessionActivity: envelope.sessionActivity, sessionEvents: envelope.sessionEvents } : {}),
 			...(contextEntryCount(envelope.advisoryContext.context) > 0 ? { advisoryContext: envelope.advisoryContext } : {}),
 		};
 	} catch (error) {

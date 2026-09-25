@@ -4,6 +4,7 @@ import type { RoomStore } from "./room-store.ts";
 
 export interface RoomSyncOptions {
 	store: RoomStore;
+	sessionEventsNegotiated?: boolean;
 	current(): boolean;
 	liveCursor(): string | undefined;
 	fetchHistory(args: Record<string, unknown>): Promise<PollPackage>;
@@ -15,6 +16,8 @@ export interface RoomSyncOptions {
 }
 export class RoomSync {
 	readonly store: RoomStore;
+	get sessionEventsNegotiated(): boolean { return this.options.sessionEventsNegotiated === true; }
+	eventsWatch(): Record<string, unknown> { return this.sessionEventsNegotiated ? this.store.eventsWatch() : {}; }
 	private options: RoomSyncOptions;
 	private timer: ReturnType<typeof setTimeout> | undefined;
 	private running = false;
@@ -52,7 +55,7 @@ export class RoomSync {
 			const pkg = await this.options.fetchHistory({
 				cursor_v2: cursor, catch_up: true,
 				...(next.before ? { catch_up_cursor: next.before } : {}),
-				...this.store.watch(),
+				...this.store.watch(), ...this.eventsWatch(),
 			});
 			if (!this.current()) return;
 			if (pkg.canonicalState !== "valid" || !pkg.roomPage?.history || pkg.ownerBundle || pkg.rejectedBundle || pkg.control || pkg.systemNotices.length) throw new Error("repair response is not inactive room history");

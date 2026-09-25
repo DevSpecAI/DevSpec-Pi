@@ -7,6 +7,17 @@ import { devspecDir } from "./config.ts";
 import type { PollPackage, RoomRecord } from "./remote-payload.ts";
 import type { ActivityIndex, DeletionSeen, RoomAddressee, RoomCoverage, RoomMessage, RoomRowState } from "./room-context.ts";
 
+import type { SessionEvents } from "./session-events.ts";
+
+export interface StoredEventStatus {
+	availability: "available" | "unavailable";
+	as_of: string | null;
+	response_as_of: string | null;
+	checked_at: string;
+	revision: string | null;
+	truncated: boolean;
+}
+
 export interface RoomStoreScope {
 	endpoint: string;
 	projectId: string;
@@ -117,6 +128,8 @@ export class RoomStore {
 		if (format > 1) throw new Error("unsupported future room cache format");
 		db.exec("PRAGMA busy_timeout=100; PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA secure_delete=ON;");
 		db.exec("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, sequence INTEGER UNIQUE NOT NULL, state TEXT NOT NULL, body TEXT NOT NULL); CREATE TABLE IF NOT EXISTS tombstones (id TEXT PRIMARY KEY);");
+		// Additive table: existing v1 caches and older readers remain valid.
+		db.exec("CREATE TABLE IF NOT EXISTS session_events (id TEXT PRIMARY KEY, body TEXT NOT NULL);");
 		const prior = this.meta<RoomStoreScope>("scope");
 		if (prior && JSON.stringify(scopeIdentity(prior)) !== JSON.stringify(scopeIdentity(scope))) throw new Error("room cache scope mismatch");
 		const version = this.meta<number>("schema");
@@ -163,6 +176,24 @@ export class RoomStore {
 	private snapshot(key: string, value: unknown, available: boolean, now: string): void {
 		const old = this.meta<ObservedSnapshot>(`snapshot:${key}`);
 		this.setMeta(`snapshot:${key}`, { availability: available ? "available" : "unavailable", checkedAt: now, observedAt: available ? now : old?.observedAt ?? null, value: available ? value : old?.value ?? null } satisfies ObservedSnapshot);
+	}
+	private mergeEvents(section: SessionEvents | null, now: string): void {
+		const old = this.meta<StoredEventStatus>("session_events_status");
+		// Events arriving late still belong in history; observation time is not a cursor.
+		if (section?.status === "available") {
+			const insert = this.db.prepare("INSERT OR IGNORE INTO session_events VALUES (?,?)");
+			for (const event of section.events) insert.run(event.id, JSON.stringify(event));
+		}
+		if (section && old?.response_as_of && Date.parse(section.as_of) < Date.parse(old.response_as_of)) return;
+		const available = section && (section.status === "available" || (section.status === "unchanged" && section.revision === old?.revision));
+		this.setMeta("session_events_status", {
+			availability: available ? "available" : "unavailable",
+			as_of: available ? section.as_of : old?.as_of ?? null,
+			response_as_of: section?.as_of ?? old?.response_as_of ?? null, checked_at: now,
+			// Do not acknowledge a revision we did not commit. A mismatch requests a full list.
+			revision: available ? section.revision : null,
+			truncated: available ? section.truncated : old?.truncated ?? false,
+		} satisfies StoredEventStatus);
 	}
 	private suffixComplete(p: Progress): boolean {
 		if (!p.target || !p.frontier) return false;
@@ -262,6 +293,7 @@ export class RoomStore {
 				} : null;
 				this.snapshot("activity", index, Boolean(activity && activity.status === "available"), now);
 			}
+			if (pkg.sessionEvents !== undefined) this.mergeEvents(pkg.sessionEvents, now);
 			// This is a delivery observation, NOT the current pending-notice inventory.
 			if (kind === "live" && pkg.systemNotices.length) this.snapshot("notice_delivery", pkg.systemNotices.map(n => ({ notice_id: n.notice_id, action_item_id: n.action_item_id, kind: n.kind })), true, now);
 			this.assertCurrent(); this.crash?.("before_commit");
@@ -280,6 +312,10 @@ export class RoomStore {
 	watch(): { room_open_message_ids: string[]; room_deletions_seen: DeletionSeen | null } {
 		this.assertCurrent();
 		return { room_open_message_ids: this.db.prepare("SELECT id FROM messages WHERE state='in_progress' ORDER BY sequence LIMIT 500").all().map(r => String(r.id)), room_deletions_seen: this.progress().deletionsSeen };
+	}
+	eventsWatch(): { session_events_version: 1; session_events_revision: string | null } {
+		this.assertCurrent();
+		return { session_events_version: 1, session_events_revision: this.meta<StoredEventStatus>("session_events_status")?.revision ?? null };
 	}
 	nextRepair(): { kind: "older" | "repair"; before?: string } | null {
 		this.assertCurrent(); const p = this.progress();

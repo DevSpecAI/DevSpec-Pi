@@ -11,11 +11,17 @@ export default function (pi: ExtensionAPI) {
 	let requests = 0;
 	pi.on('session_start', (_event, ctx) => {
 		writeFileSync(join(root, 'tui-ready.json'), JSON.stringify({ mode: ctx.mode,
-			nativeSessionId: ctx.sessionManager.getSessionId(), cwd: ctx.cwd }), { mode: 0o600 });
+			nativeSessionId: ctx.sessionManager.getSessionId(), cwd: ctx.cwd, pid: process.pid }), { mode: 0o600 });
 	});
 	pi.registerTool({ name: 'probe_hold', label: 'Probe hold', description: 'Harmless controlled foreground latch.',
 		parameters: Type.Object({ phase: Type.String() }), async execute(_id, { phase }, signal) {
 			writeFileSync(join(root, `${phase}-started`), 'ready');
+			if (phase === 'question' && process.env.HANDOFF_PROBE_PERMANENT_STALL === '1') {
+				// Fault injection by construction, not a silence-based hang diagnosis.
+				while (!signal?.aborted) await new Promise(resolve => setTimeout(resolve, 25));
+				writeFileSync(join(root, 'injected-permanent-stall'), 'abort observed; controlled tool will never resolve');
+				await new Promise<never>(() => {});
+			}
 			while (!existsSync(join(root, `${phase}-release`))) {
 				if (signal?.aborted && process.env.HANDOFF_PROBE_IGNORE_ABORT !== '1') throw new Error('Probe cancelled');
 				await new Promise(resolve => setTimeout(resolve, 25));

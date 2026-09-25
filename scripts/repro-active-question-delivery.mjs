@@ -20,12 +20,14 @@ assert(serverRoot, 'Explicit paired server checkout required');
 const fixed = process.argv.includes('--fixed');
 const preempt = !process.argv.includes('--preempt-off');
 const nonsettling = process.argv.includes('--nonsettling-abort');
+const permanentStall = process.argv.includes('--permanent-stall');
 const background = process.argv.includes('--background');
 const quietMs = Number(process.argv.find(arg => arg.startsWith('--quiet-ms='))?.split('=')[1] ?? 0);
 const capability = 'dvsc_fixture_only_12345678901234567890';
 const capabilityHash = createHash('sha256').update(capability).digest('hex');
 const parseOfferRequest = fixed ? (await import(resolve(serverRoot, 'apps/web/lib/mcp/command-offer.ts'))).parseCommandOfferRequest : null;
 if (background) assert(process.env.PI_BACKGROUND_EXTENSION && existsSync(process.env.PI_BACKGROUND_EXTENSION), 'Public provider entrypoint required');
+if (permanentStall) assert(fixed && preempt && !background, 'Permanent-stall limit probe requires --fixed, preempt on, and no background jobs');
 const digest = path => createHash('sha256').update(readFileSync(path)).digest('hex');
 const extensionTreeHash = () => {
   const hash = createHash('sha256');
@@ -210,7 +212,7 @@ try {
   child = spawn('script', ['-q', '-f', '-e', '-c', argv.map(quote).join(' '), join(temp, 'terminal.typescript')], { detached: true, cwd: temp,
     env: { ...process.env, TERM: 'xterm-256color', COLUMNS: '120', LINES: '40', PI_CODING_AGENT_DIR: join(temp, 'agent'), TMPDIR: temp,
       DEVSPEC_MCP_TOKEN: 'fixture-only-not-real', DEVSPEC_MCP_URL: `http://127.0.0.1:${server.address().port}/api/mcp`, DEVSPEC_DEBUG_REMOTE: '1', HANDOFF_PROBE_ROOT: temp,
-      HANDOFF_PROBE_BACKGROUND: background ? '1' : '0', HANDOFF_PROBE_IGNORE_ABORT: nonsettling ? '1' : '0', PI_BG_FEATURES: 'process', PI_BG_DOCK_SHORTCUT: 'off' },
+      HANDOFF_PROBE_BACKGROUND: background ? '1' : '0', HANDOFF_PROBE_IGNORE_ABORT: nonsettling ? '1' : '0', HANDOFF_PROBE_PERMANENT_STALL: permanentStall ? '1' : '0', PI_BG_FEATURES: 'process', PI_BG_DOCK_SHORTCUT: 'off' },
     stdio: ['pipe', 'pipe', 'pipe'] });
   child.stdout.on('data', () => {}); child.stderr.on('data', () => {});
   await until(() => existsSync(join(temp, 'tui-ready.json')), 'actual TUI startup');
@@ -224,6 +226,18 @@ try {
   const abortCount = () => (debugText().match(/preempt: aborting exact question for validated command availability/g) ?? []).length;
   writeFileSync(join(temp, 'owner-release'), 'ready for the eventual owner response');
   const waitingAt = Date.now(); let releasedAt = null; ownerWaiting = true; wake();
+  if (permanentStall) {
+    await until(() => existsSync(join(temp, 'injected-permanent-stall')) && debugText().includes('command offer preempt settled=false'), 'constructed noncooperative fault', 15000);
+    assert.equal(ownerEntries().length, 0);
+    assert.equal(abortCount(), 1);
+    assert.equal(calls.some(call => call.name === 'delivery_admission' && call.ready), false);
+    assert.equal(sql('select count(*) from public.agent_command_deliveries'), '0');
+    assert.equal(extensionTreeHash(), treeHashAtStart);
+    const summary = { result: 'LIMIT_CONFIRMED', scope: 'general stuck-runtime recovery is NOT implemented by the bounded handoff fix',
+      fault: 'tool deliberately never resolves after observing native abort', actualHost: 'Pi interactive TUI in PTY', hostVersion, pluginVersion,
+      sourceHash: runtimeHashAtStart, ownerCopies: 0, aborts: 1, falseReadiness: false, liveServer: false, artifacts: temp };
+    writeFileSync(join(temp, 'summary.json'), JSON.stringify(summary, null, 2)); console.log(JSON.stringify(summary, null, 2));
+  } else {
   if (!fixed || !preempt) {
     for (let lap = 0; lap < 5; lap++) {
       const count = calls.filter(call => call.outcome === 'blocked_by_interaction').length;
@@ -276,11 +290,19 @@ try {
     deliveryBodyMd5, preempt, nonsettling, background, quietMs, debugEnabled: true, ownerLatencyMs, afterReleaseMs, aborts: abortCount(), blockedPolls: calls.filter(call => call.outcome === 'blocked_by_interaction').length,
     ownerCopies: ownerEntries().length, liveServer: false, realPostgresDeliveryFunction: true, paidModelRequests: 0, artifacts: temp };
   writeFileSync(join(temp, 'summary.json'), JSON.stringify(summary, null, 2)); console.log(JSON.stringify(summary, null, 2));
+  }
 } catch (error) { console.error(JSON.stringify({ result: 'FAIL', error: String(error), artifacts: temp, calls: calls.slice(-12), failures }, null, 2)); process.exitCode = 1; }
 finally {
   for (const index of [0, 1]) writeFileSync(join(temp, `bg-${index}-release`), 'cleanup');
   writeFileSync(join(temp, 'transport-metadata.json'), JSON.stringify(calls, null, 2));
   if (child && child.exitCode === null && child.signalCode === null) { try { process.kill(-child.pid, 'SIGTERM'); } catch {} }
+  if (permanentStall && existsSync(join(temp, 'tui-ready.json'))) {
+    // Kill only this known test child, whose injected promise cannot settle.
+    const pid = JSON.parse(readFileSync(join(temp, 'tui-ready.json'), 'utf8')).pid;
+    try {
+      if (Number.isSafeInteger(pid) && pid > 1 && readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').includes(session)) process.kill(pid, 'SIGKILL');
+    } catch { /* already exited */ }
+  }
   for (const stream of streams) stream.destroy(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
   if (pgStarted) execFileSync(join(pgBin, 'pg_ctl'), ['-D', data, '-m', 'immediate', 'stop'], { stdio: 'ignore' });
 }

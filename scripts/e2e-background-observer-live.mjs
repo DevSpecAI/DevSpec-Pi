@@ -27,12 +27,14 @@ mkdirSync(temp, { recursive: true, mode: 0o700 });
 const session = join(temp, "native.jsonl");
 assert(!existsSync(session), "Use a fresh probe directory");
 const native = randomUUID();
-writeFileSync(session, JSON.stringify({ type: "session", version: 3, id: native, cwd: temp, timestamp: new Date().toISOString() }) + "\n", { mode: 0o600 });
+writeFileSync(session, JSON.stringify({ type: "session", version: 3, id: native, cwd: root, timestamp: new Date().toISOString() }) + "\n", { mode: 0o600 });
 const events = [], failures = [];
 const child = spawn("pi", ["--mode", "rpc", "--offline", "--session", session, "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-context-files", "--no-builtin-tools",
 	"-e", provider, "-e", resolve(root, "extensions/devspec-remote.ts"), "-e", resolve(root, "scripts/background-observer-live-fixture.ts"),
 	"--provider", "background-observer-probe", "--model", "scripted"], {
-	cwd: temp, env: { ...process.env, PI_CODING_AGENT_DIR: join(temp, "agent"), TMPDIR: temp, PI_BG_FEATURES: "process", PI_BG_DOCK_SHORTCUT: "off",
+	// Keep a real tracked repository for account-wide token project resolution;
+	// session/artifact/provider-job identities remain isolated in temp.
+	cwd: root, env: { ...process.env, PI_CODING_AGENT_DIR: join(temp, "agent"), TMPDIR: temp, PI_BG_FEATURES: "process", PI_BG_DOCK_SHORTCUT: "off",
 		DEVSPEC_MCP_TOKEN: auth.token, DEVSPEC_MCP_URL: endpoint, DEVSPEC_DEBUG_REMOTE: "1", BACKGROUND_PROBE_TRACE: join(temp, "provider-metadata.jsonl"),
 		BACKGROUND_PROBE_ROOT: temp, BACKGROUND_PROBE_RACE: "0" }, stdio: ["pipe", "pipe", "pipe"],
 });
@@ -71,6 +73,8 @@ try {
 	await until(() => events.some(e => e.id === "bond" && e.success), "bond");
 	send("status", "/observer-probe-status");
 	await until(() => events.some(e => e.id === "status" && e.success), "metadata");
+	const bonded = JSON.parse(readFileSync(join(temp, "runtime-status.json"), "utf8"));
+	assert(bonded.connectionId && bonded.sessionId === room, "Remote command returned without attaching; no test jobs will be started");
 	send("work", "BACKGROUND-OBSERVER-PROBE");
 	await until(() => events.some(e => e.type === "agent_settled"), "foreground settled");
 	assert.equal(new Set(observations().map(row => row.data.task.id)).size, 2);

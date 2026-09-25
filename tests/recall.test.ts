@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+	cardKey,
 	extractCards,
 	formatRecallBlock,
 	recallQuery,
@@ -27,9 +28,9 @@ test("extractCards handles memories/results/absent shapes", () => {
 	assert.equal(extractCards(null).length, 0);
 });
 
-test("unseenCards dedupes by id and caps at 4", () => {
+test("unseenCards dedupes identical snapshots and caps at 4", () => {
 	const cards = Array.from({ length: 6 }, (_, i) => ({ id: `m${i}`, title: `t${i}` }));
-	const seen = new Set(["m0"]);
+	const seen = new Set([cardKey(cards[0])!]);
 	const fresh = unseenCards(cards, seen);
 	assert.equal(fresh.length, 4);
 	assert.ok(!fresh.some((c) => c.id === "m0"));

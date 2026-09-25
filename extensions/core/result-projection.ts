@@ -7,6 +7,8 @@
  * reads stay lossless, and every compact family has a production output budget.
  */
 
+import { disagreementBlock, reviewData } from "./review-context.ts";
+
 export interface ProjectionInput {
 	toolName: string;
 	text: string;
@@ -431,6 +433,8 @@ function card(raw: unknown, index: number): string {
 	if (timeline.length) required.push(`   ${timeline.join(" · ")}`);
 	if (why) required.push(`   ${why}`);
 	for (const line of pendingProposalLines(row, outer)) required.push(`   ${line}`);
+	const disagreements = disagreementBlock(row, 1_600);
+	if (disagreements) required.push(disagreements);
 	const optional: string[] = [];
 	const repos = Array.isArray(row.repos) ? row.repos : [];
 	if (repos.length) {
@@ -757,7 +761,8 @@ function projectSummary(details: unknown): string | null {
 }
 
 function conflictBlocks(root: Row): string[] {
-	const blocks: string[] = [];
+	const disagreements = disagreementBlock(root);
+	const blocks: string[] = disagreements ? [disagreements] : [];
 	const unresolved = Array.isArray(root.unresolved_conflicts) ? root.unresolved_conflicts : [];
 	if (unresolved.length) {
 		const lines = [`Gate — unresolved conflicts: ${unresolved.length}; showing top ${Math.min(unresolved.length, RELATED_LIMIT)}.`];
@@ -926,6 +931,18 @@ function ackProjection(toolName: string, details: unknown): string | null {
 	const facts = [id && `id=${id}`, title && `title=${title}`, state && `state=${state}`, outcome && `outcome=${outcome}`].filter(Boolean);
 	required.push(`${toolName}: ${facts.length ? facts.join(" ") : "recognized response (see gates/follow-through below)"}.`);
 	if (parent) required.push(`Parent/brief: ${parent}`);
+	// R7: these are operation receipts, not optional card metadata. In particular,
+	// never lose the proposal/reason or an exact preview to the ack budget.
+	const receipt: Row = {};
+	for (const key of [
+		"committed", "applied", "success", "created", "updated", "recorded", "superseded", "resolved",
+		"proposal_id", "reason", "note", "authority_note", "authority", "warnings", "flag_still_lit", "marks_cleared",
+		"closure", "tense", "verdict", "signal_type", "basis", "superseding_item_id", "superseded_item_id", "conflicting_id",
+		"receipt", "receipt_id", "operation_id", "draft_id", "read_status", "status_url", "preview",
+		"expires_at", "current_head", "expected_version", "version", "previous_id", "lineage",
+		"assessment", "assessment_receipt", "comparison_pending", "needs_clarification",
+	]) if (hasOwn(root, key)) receipt[key] = root[key];
+	if (Object.keys(receipt).length) required.push(`Operation details (server data):\n${reviewData(receipt)}`);
 	required.push(...conflictBlocks(root));
 	if (entity !== root) required.push(...conflictBlocks(entity));
 
@@ -1019,15 +1036,20 @@ function structuredFallback(toolName: string, details: unknown): string {
 			if (block) blocks.push(block);
 		}
 	}
-	blocks.push(`Rerun ${toolName} with narrower parameters if available. The complete payload is host-retained in details, which is not a model-visible continuation.`);
+	blocks.push(fallbackRecovery(toolName));
 	return withinBudget(blocks, PROJECTION_BUDGETS.fallback, "fallback field/element");
+}
+
+function fallbackRecovery(toolName: string): string {
+	if (ACK_VERBS.has(toolName)) return "Presentation is incomplete, not evidence that the operation failed. Do not repeat this mutation. Verify with the exact record's read tool or get_review_queue; if no record/status handle was returned, report the outcome as unknown.";
+	return `Rerun ${toolName} with narrower parameters if available. The complete payload is host-retained in details, which is not a model-visible continuation.`;
 }
 
 function boundedFallback(toolName: string, text: string, details: unknown): string {
 	if (details != null) return structuredFallback(toolName, details);
 	const source = text || "(empty response)";
 	if (source.length <= PROJECTION_BUDGETS.fallback) return source;
-	const note = `\n\n[Non-JSON source truncated; no structured details are available. Rerun ${toolName} with narrower parameters.]`;
+	const note = `\n\n[Non-JSON source truncated; no structured details are available. ${fallbackRecovery(toolName)}]`;
 	const available = Math.max(0, PROJECTION_BUDGETS.fallback - note.length);
 	return `${source.slice(0, available)}${note}`;
 }

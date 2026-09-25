@@ -112,6 +112,9 @@ const DOMAIN_BY_NAME: Record<string, DomainSpec> = {
 	resolve_action_item_conflict: { domain: "conflict", action: "resolved" },
 	resolve_action_item_decision_flag: { domain: "conflict", action: "resolved" },
 	record_memory: { domain: "memory", action: "recorded" },
+	update_memory: { domain: "memory", action: "updated" },
+	resolve_memory_flag: { domain: "memory", action: "reviewed" },
+	resolve_resource_flag: { domain: "resource", action: "reviewed" },
 	supersede_memory: { domain: "memory", action: "superseded" },
 	retract_memory: { domain: "memory", action: "retracted" },
 	create_resource: { domain: "resource", action: "created" },
@@ -167,7 +170,7 @@ export function classifyDomainTool(name: string, _args?: unknown): DomainSpec | 
 }
 
 /** Fixed public dispositions only; receipt bodies and arbitrary outcome strings stay private. */
-export type TrailWriteOutcome = "committed" | "queued_for_review" | "not_applied" | "failed";
+export type TrailWriteOutcome = "committed" | "queued_for_review" | "pending" | "discussed" | "not_applied" | "failed";
 
 export function writeOutcomeFromResult(result: unknown): TrailWriteOutcome | undefined {
 	const row = unwrapResult(result);
@@ -180,13 +183,16 @@ export function writeOutcomeFromResult(result: unknown): TrailWriteOutcome | und
 	// Queued creates explicitly say recorded/created=false. Keep the proposal
 	// distinct from a comparison gate or failure, without borrowing its source ID.
 	if (row.outcome === "queued_for_review") return "queued_for_review";
+	if (row.closure === "pending" || row.tense === "pending") return "pending";
+	if (row.verdict === "discuss" && (row.committed === true || row.outcome === "committed")) return "discussed";
 	if (row.reconcile_required === true || [
 		"applied", "committed", "recorded", "created", "updated", "superseded",
 		"retracted", "archived", "claim_success", "implementation_recorded", "resolved",
 	].some((key) => row[key] === false)) return "not_applied";
-	if (row.outcome === "committed") return "committed";
+	if (row.outcome === "committed" || (row.outcome === "duplicate" && row.original_outcome === "committed")) return "committed";
 	// A new explicit disposition is not evidence that the default write happened.
 	if (typeof row.outcome === "string" && row.outcome.trim()) return "not_applied";
+	if (["applied", "committed", "recorded", "created", "updated", "superseded", "retracted", "archived", "claim_success", "implementation_recorded", "resolved"].some((key) => row[key] === true)) return "committed";
 	return undefined;
 }
 
@@ -204,6 +210,9 @@ const QUEUED_ACTION_BY_DOMAIN: Partial<Record<TrailDomain, string>> = {
  * ledger exists to prevent (DevSpec item 689d44cb).
  */
 export function domainAction(spec: DomainSpec, outcome?: TrailWriteOutcome): string {
+	if (outcome === undefined) return "outcome unknown";
+	if (outcome === "pending") return "pending";
+	if (outcome === "discussed") return "discussion recorded";
 	if (outcome === "not_applied") return "not applied";
 	if (outcome === "failed") return "failed";
 	if (outcome !== "queued_for_review") return spec.action;
@@ -236,7 +245,7 @@ export function domainIdentity(name: string, args?: unknown, result?: unknown): 
 			: ["action_item_id", "id"];
 	const title = safeTrailLabel(pickString(nested, ["title"]) ?? pickString(a, ["title"]), 240);
 	const outcome = writeOutcomeFromResult(result);
-	if (outcome && outcome !== "committed") return { title };
+	if (result !== undefined && outcome !== "committed") return { title };
 	// Creates and supersedes mint a new identity. A missing replacement ID must
 	// never fall back to the old row merely because the host reported success.
 	const mintsIdentity = ["create_action_item", "record_memory", "create_resource", "supersede_memory", "supersede_resource"].includes(name);

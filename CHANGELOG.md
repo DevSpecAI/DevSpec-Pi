@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.23
+
+- Keep proposal IDs, reasons, previews and operation receipts visible after formatting tool responses. An incomplete response never asks the agent to repeat a write.
+- Recall changed memory revisions and disagreements as new context without rewriting earlier messages. Both sides remain visible, or the agent is told exactly what context is missing; unreadable records stay private.
+- Separate retrieval suggestions, unfinished write checks and unresolved issues. Observations are isolated by account, project and session; different pairs cannot collapse merely because they share a record.
+- Resolve exact tool names without substituting a related tool. Activity distinguishes unknown results, pending replacements and discussions from applied changes.
+- Reload or restart an existing Pi session to activate this release. Memory revision detection uses the server's card revision fields when available; older servers cannot identify a body-only change that leaves all returned card fields unchanged.
+
 ## 0.3.22
 
 - A write that comes back queued for review now tells you a maintainer accepts it on the project's Review page, under Proposed changes. It used to point at a "Review tab", which no longer exists.

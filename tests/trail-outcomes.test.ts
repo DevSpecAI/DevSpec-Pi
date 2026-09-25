@@ -96,7 +96,10 @@ test("returned nested entities and implementation action-item wrappers preserve 
 		["supersede_memory", { item: { memory: { id: RETURNED } } }],
 		["update_resource", { resource: { id: RETURNED } }],
 		["record_implementation", { item: { action_item: { id: RETURNED } } }],
-	] as const) assert.equal(completed(name, { details: result }).id, RETURNED);
+	] as const) {
+		assert.equal(completed(name, { details: { outcome: "committed", ...result } }).id, RETURNED);
+		assert.equal(completed(name, { details: result }).id, undefined, "an entity alone is not proof a write applied");
+	}
 });
 
 test("explicit failed receipts clear an identity even if the transport reports success", () => {

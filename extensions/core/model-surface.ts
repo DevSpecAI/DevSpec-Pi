@@ -366,8 +366,23 @@ function searchScore(entry: CatalogEntry, query: string, terms: string[]): numbe
 	return score;
 }
 
+/** An explicit canonical-name request is separate from capability discovery. */
+export function exactModelToolNames(query: string): string[] | null {
+	const names = query.trim().replace(/`/g, "").split(/[\s,]+/).map((name) => name.replace(/^\+/, ""));
+	return names.length && names.every((name) => /^[a-z][a-z0-9]*_[a-z0-9_]+$/.test(name)) ? [...new Set(names)] : null;
+}
+
 /** Deterministic lexical search over full generated metadata; results remain slim. */
 export function searchRareModelTools(query: string, limit = DEFAULT_SEARCH_LIMIT): CatalogEntry[] {
+	// Exact names (including already-hot tools) are identities, not topical hints.
+	// An unavailable name must never accidentally load an unrelated capability.
+	const names = exactModelToolNames(query);
+	if (names) {
+		return names.slice(0, MAX_SEARCH_LIMIT).flatMap((name) => {
+			const entry = catalogEntry(name);
+			return entry?.kind === "model" && !ACTIVATION_ONLY_VERBS.has(name) ? [slimCatalogEntry(entry)] : [];
+		});
+	}
 	const terms = searchTokens(query);
 	if (terms.length === 0) return [];
 	const boundedLimit = Math.max(1, Math.min(MAX_SEARCH_LIMIT, Math.trunc(limit) || DEFAULT_SEARCH_LIMIT));

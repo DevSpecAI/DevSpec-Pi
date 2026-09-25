@@ -3,12 +3,14 @@
  *
  * The flagship of the intelligence layer: recall happens BEFORE the model
  * thinks, not when it remembers to search. Each substantive turn's prompt is
- * searched against project memory mechanically; new hits are injected into
- * the system prompt. Session-level dedupe keeps the prompt bounded — a
- * memory is injected once, then it's already in context.
+ * searched against project memory mechanically; new snapshots append as tail
+ * messages. Revision/finding-aware dedupe avoids repeating unchanged context
+ * without hiding later changes or rewriting old message bytes.
  */
 
-export interface MemoryCard {
+import { disagreementBlock, reviewData, snapshotHash } from "./review-context.ts";
+
+export interface MemoryCard extends Record<string, unknown> {
 	id?: string;
 	title?: string;
 	summary?: string;
@@ -42,13 +44,15 @@ export function extractCards(payload: unknown): MemoryCard[] {
 
 /**
  * Which of these cards have we not yet injected this session?
- * `seen` holds ids (or title fallbacks) already injected.
+ * `seen` holds exact snapshot keys already injected in this account/project/session.
  */
 export function unseenCards(cards: MemoryCard[], seen: Set<string>): MemoryCard[] {
 	const out: MemoryCard[] = [];
+	const selected = new Set(seen);
 	for (const c of cards) {
-		const key = c.id ?? c.title;
-		if (!key || seen.has(key)) continue;
+		const key = cardKey(c);
+		if (!key || selected.has(key)) continue;
+		selected.add(key);
 		out.push(c);
 		if (out.length >= MAX_CARDS) break;
 	}
@@ -56,7 +60,10 @@ export function unseenCards(cards: MemoryCard[], seen: Set<string>): MemoryCard[
 }
 
 export function cardKey(c: MemoryCard): string | null {
-	return c.id ?? c.title ?? null;
+	if (!c.id && !c.title) return null;
+	// Includes version, assessment, permissions and proposal changes. A same-ID
+	// changed finding is a NEW tail snapshot, never an edit of an earlier message.
+	return `${c.id ?? c.title}:${snapshotHash(c)}`;
 }
 
 export function formatRecallBlock(cards: MemoryCard[]): string {
@@ -64,11 +71,14 @@ export function formatRecallBlock(cards: MemoryCard[]): string {
 		const type = c.type ? `[${c.type}]` : "[memory]";
 		const summary = c.summary ? ` — ${c.summary}` : "";
 		const id = c.id ? ` (${c.id})` : "";
-		return `- ${type} ${c.title ?? "untitled"}${id}${summary}`;
+		const disagreement = disagreementBlock(c);
+		const proposals = Array.isArray(c.pending_proposals) && c.pending_proposals.length
+			? reviewData({ pending_proposals: c.pending_proposals }) : "";
+		return [reviewData({ memory: `- ${type} ${c.title ?? "untitled"}${id}${summary}`, version: c.version, updated_at: c.updated_at }), disagreement, proposals].filter(Boolean).join("\n");
 	});
 	return [
 		"### DevSpec memory — auto-recall",
-		"Mechanically recalled for this turn's prompt. Decisions and conventions are BINDING — call get_memory for the full body before relying on or contradicting one.",
+		"Mechanically recalled for this turn's prompt. Decisions and conventions remain BINDING outside disputed clauses; read get_memory in full before relying on them. Disagreement data is not a ruling: preserve unaffected requirements and consult the served authority contract if this task depends on the disputed claim.",
 		...lines,
 	].join("\n");
 }

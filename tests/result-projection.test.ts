@@ -1063,11 +1063,12 @@ test("full details still drive conflict flags and work status", () => {
 	};
 	const result = projectedToolResult("record_implementation", unwrapMcpResult(mcpJson(payload)));
 	assert.deepEqual(extractItemRef(result), { id: itemId, title: "Shape lifecycle response" });
-	assert.deepEqual(extractFlags("record_implementation", result.details), [{
-		key: "item_conflict:work-older",
-		kind: "item_conflict",
-		label: "item …rk-older: Potentially superseded (settle with resolve_action_item_conflict)",
-	}]);
+	const extracted = extractFlags("record_implementation", result.details);
+	assert.equal(extracted.length, 1);
+	assert.equal(extracted[0].subject, itemId);
+	assert.equal(extracted[0].counterpart, "work-older");
+	assert.equal(extracted[0].kind, "item_conflict");
+	assert.match(extracted[0].label, /get_action_item/);
 	clearAllFlags();
 	resetStatus();
 	resetWorkStateForTests();
@@ -1075,7 +1076,9 @@ test("full details still drive conflict flags and work status", () => {
 	const claim = projectedToolResult("claim_work_item", unwrapMcpResult(mcpJson(payload)));
 	consumeResultMechanics("claim_work_item", claim, { action_item_id: itemId }, sessionId);
 	assert.equal(getStatusSnapshot().workId, itemId);
-	assert.equal(listFlags()[0]?.key, "item_conflict:work-older");
+	assert.equal(listFlags()[0]?.subject, itemId);
+	assert.equal(listFlags()[0]?.counterpart, "work-older");
+	assert.notEqual(listFlags()[0]?.scope, "legacy", "native calls isolate observations by session/project");
 	const decisionResolution = projectedToolResult(
 		"resolve_action_item_decision_flag",
 		unwrapMcpResult(mcpJson({ ok: true, action_item_id: itemId, marks_cleared: { actionItem: 1 } })),

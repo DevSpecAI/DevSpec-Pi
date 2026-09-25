@@ -18,7 +18,8 @@ import { ROOM_READ_TOOL } from "./core/room-reader.ts";
 import { connectionsUrl, TOKEN_ENV_VAR } from "./core/config.ts";
 import { callDevspec, MODEL_TIMEOUT_MS } from "./core/client.ts";
 import { repoResolver, validateCommitSha } from "./core/commit-ledger.ts";
-import { addFlags, extractFlags } from "./core/conflict-watch.ts";
+import { observeReviewResult, listFlags, type ConflictFlag } from "./core/conflict-watch.ts";
+import { reviewScope, reviewData } from "./core/review-context.ts";
 import { jsonSchemaToTypebox } from "./core/json-schema.ts";
 import { consumeDeliveryLifecycle } from "./core/active-deliveries.ts";
 import { observeSuccessfulWorkResult } from "./core/work-state.ts";
@@ -36,6 +37,7 @@ import {
 	hotToolPromptMetadata,
 	rareModelVerbs,
 	searchRareModelTools,
+	exactModelToolNames,
 	toolLoaderInputSchema,
 	withDirectedQuestionToolActive,
 	withPlanToolActive,
@@ -78,14 +80,13 @@ export function queuedForReviewRelay(details: unknown): string | null {
 	const reason = typeof row.reason === "string" && row.reason.trim() ? row.reason.trim() : null;
 	return [
 		"QUEUED FOR A MAINTAINER — not in effect.",
-		proposalId ? `Proposal ${proposalId}.` : null,
-		reason ? `Reason: ${reason}` : null,
+		reviewData({ proposal_id: proposalId, reason }),
 		"Relay the proposal id and the reason to the user and say a maintainer has to accept it on the project's Review page, under Proposed changes, before it applies; do not report this change as done.",
 	].filter(Boolean).join(" ");
 }
 
 /** Unwrap and project a DevSpec result, retaining complete data in details. */
-function unwrapOrThrow(name: string, raw: unknown) {
+export function unwrapOrThrow(name: string, raw: unknown) {
 	const unwrapped = unwrapMcpResult(raw);
 	const relay = unwrapped.isError ? null : queuedForReviewRelay(unwrapped.details);
 	const { details, isError } = unwrapped;
@@ -101,14 +102,17 @@ function unwrapOrThrow(name: string, raw: unknown) {
 		}
 		throw new Error(text || structuredError || `DevSpec tool ${name} failed.`);
 	}
-	return projectedToolResult(name, { text, details, isError });
+	const projected = projectedToolResult(name, { text: unwrapped.text, details, isError });
+	// Append AFTER projection: ack/full projections intentionally read details,
+	// so putting the relay into input.text silently threw it away.
+	return relay ? toolTextResult(`${relay}\n\n${projected.content[0].text}`, details) : projected;
 }
 
 /** Feed the conflict watch: signals in results become structural flags. */
-function watchForSignals(name: string, result: unknown): void {
+function watchForSignals(name: string, result: unknown, args: Record<string, unknown>, scope: string, observed?: readonly ConflictFlag[]): void {
 	try {
 		const details = (result as { details?: unknown }).details;
-		addFlags(extractFlags(name, details));
+		observeReviewResult(name, details, args, scope, observed);
 	} catch {
 		/* never let the watch break a tool call */
 	}
@@ -143,8 +147,10 @@ export function consumeResultMechanics(
 	args: Record<string, unknown> = {},
 	sessionId?: string,
 	projectId?: string,
+	scope = reviewScope(sessionId, projectId),
+	observed?: readonly ConflictFlag[],
 ): void {
-	watchForSignals(name, result);
+	watchForSignals(name, result, args, scope, observed);
 	// Claim refs are dealt through results, not deliveries — observe them so the
 	// guard knows them (item a03ba7ab).
 	observeResultClaimRefs(result);
@@ -317,6 +323,8 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 			ctx.sessionManager.getSessionId(),
 		);
 		const localSessionId = ctx.sessionManager.getSessionId();
+		const scope = reviewScope(localSessionId, bond?.projectId ?? ctx.cwd, resolved.token);
+		const observed = listFlags(scope);
 		const raw = await callDevspec(resolved.token, name, args, {
 			cwd: ctx.cwd,
 			lane: "work",
@@ -329,7 +337,7 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 		const result = shouldTerminateAfterDirectedQuestionCreate(name, args, projected)
 			? { ...projected, terminate: true as const }
 			: projected;
-		consumeResultMechanics(name, result, args, localSessionId, getBond()?.projectId);
+		consumeResultMechanics(name, result, args, localSessionId, bond?.projectId, scope, observed);
 		return measuredToolResult(name, result);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
@@ -374,8 +382,9 @@ function registerToolLoader(pi: ExtensionAPI): void {
 			const query = String(input.query ?? "").trim();
 			const limit = typeof input.limit === "number" ? input.limit : undefined;
 			const matches = searchRareModelTools(query, limit).map((entry) => entry.name);
+			const unreturned = (exactModelToolNames(query) ?? []).filter((name) => !matches.includes(name));
 			if (matches.length === 0) {
-				return measuredToolResult(TOOL_LOADER_NAME, toolTextResult(`No less-common DevSpec tools found for: ${query}`, {
+				return measuredToolResult(TOOL_LOADER_NAME, toolTextResult(`No callable DevSpec tool found for: ${query}. Exact names are not substituted with related tools; try a capability description for suggestions.`, {
 					matches: [],
 					added: [],
 				}));
@@ -397,14 +406,14 @@ function registerToolLoader(pi: ExtensionAPI): void {
 			const activeSet = new Set(active);
 			const added = loadable.filter((name) => !activeSet.has(name));
 			if (added.length > 0) pi.setActiveTools([...active, ...added]);
-			const unavailableNote = unavailable.length > 0
+			const unavailableNote = (unavailable.length > 0
 				? `; unavailable this session (deactivated after a provider duplicate-tool error): ${unavailable.join(", ")}`
-				: "";
+				: "") + (unreturned.length > 0 ? `; exact names not loaded (unavailable or beyond the 10-name batch): ${unreturned.join(", ")}. No substitute was selected.` : "");
 			return measuredToolResult(TOOL_LOADER_NAME, toolTextResult(
 				(added.length > 0
 					? `Loaded DevSpec tools: ${added.join(", ")}`
 					: `Matching DevSpec tools already active: ${loadable.join(", ")}`) + unavailableNote,
-				{ matches, added, unavailable },
+				{ matches, added, unavailable, unreturned },
 			));
 		},
 	});

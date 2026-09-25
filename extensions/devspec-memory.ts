@@ -35,32 +35,42 @@ import {
 	shouldRecall,
 	unseenCards,
 } from "./core/recall.ts";
-import { formatConflictNudge, listFlags } from "./core/conflict-watch.ts";
+import { formatConflictNudge, listFlags, observeReviewResult } from "./core/conflict-watch.ts";
+import { reviewScope, snapshotHash } from "./core/review-context.ts";
+import { getBond } from "./core/bond-state.ts";
 
-export default function (pi: ExtensionAPI) {
-	/** Ids injected this session (module state = per extension instance). */
-	const injected = new Set<string>();
+export default function (pi: ExtensionAPI, deps = { resolveToken, callDevspec, getBond }) {
+	/** Immutable snapshots already injected, isolated by account/project/session. */
+	const injectedByScope = new Map<string, Set<string>>();
 	/** Last injected conflict-set signature — nudge re-injects only on change. */
 	let lastNudgeSig = "";
 
 	pi.on("before_agent_start", async (event, ctx) => {
-		const resolved = await resolveToken();
+		const resolved = await deps.resolveToken();
 		if (!resolved) return undefined;
 
+		const bond = deps.getBond();
+		const scope = reviewScope(ctx.sessionManager.getSessionId(), bond?.projectId ?? ctx.cwd, resolved.token);
+		const injected = injectedByScope.get(scope) ?? new Set<string>();
+		injectedByScope.set(scope, injected);
 		const parts: string[] = [];
 
 		// 1. Auto-recall.
 		if (shouldRecall(event.prompt)) {
 			const query = recallQuery(event.prompt);
 			try {
-				const raw = await callDevspec(
+				const raw = await deps.callDevspec(
 					resolved.token,
 					"search_memories",
 					{ query, limit: 8 },
 					{ cwd: ctx.cwd, lane: "work", timeoutMs: MODEL_TIMEOUT_MS },
 				);
 				const { details, isError } = unwrapMcpResult(raw);
+				// A late read cannot move private context into a new account/project.
+				const currentToken = await deps.resolveToken();
+				if (!currentToken || scope !== reviewScope(ctx.sessionManager.getSessionId(), deps.getBond()?.projectId ?? ctx.cwd, currentToken.token)) return undefined;
 				if (!isError) {
+					observeReviewResult("search_memories", details, { query }, scope);
 					const fresh = unseenCards(extractCards(details), injected);
 					for (const c of fresh) {
 						const k = cardKey(c);
@@ -81,8 +91,9 @@ export default function (pi: ExtensionAPI) {
 		}
 
 		// 2. Conflict nudge — only when the open-set changed since last inject.
-		const flags = listFlags();
-		const sig = flags.map((f) => f.key).sort().join(",");
+		const flags = listFlags(scope);
+		const sig = snapshotHash([scope, flags]);
+		if (!flags.length) lastNudgeSig = "";
 		if (flags.length > 0 && sig !== lastNudgeSig) {
 			lastNudgeSig = sig;
 			const nudge = formatConflictNudge(flags);
@@ -103,15 +114,17 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("devspec.conflicts", {
-		description: "List open DevSpec signals (conflicts, reconcile gates, related candidates) seen this session.",
+		description: "List observed issues, write checks and retrieval suggestions in this session's project.",
 		handler: async (_args, ctx) => {
-			const flags = listFlags();
+			const token = await deps.resolveToken();
+			if (!token) return;
+			const flags = listFlags(reviewScope(ctx.sessionManager.getSessionId(), deps.getBond()?.projectId ?? ctx.cwd, token.token));
 			if (flags.length === 0) {
 				ctx.ui.notify("DevSpec: no open signals this session.", "info");
 				return;
 			}
 			ctx.ui.notify(
-				`Open signals (${flags.length}):\n${flags.map((f) => `  • ${f.label}`).join("\n")}`,
+				formatConflictNudge(flags) ?? "No observed Review context.",
 				"warning",
 			);
 		},

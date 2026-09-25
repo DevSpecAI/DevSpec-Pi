@@ -1,125 +1,134 @@
-/**
- * DevSpec Pi — conflict watch (shared store + pure extractors, unit-tested).
- *
- * DevSpec payloads already carry the signals — unresolved_conflicts on items,
- * reconcile_required on any knowledge write (memories AND documents, since
- * devspecv2 134f4454), potential_conflicts on memory writes, related_candidates
- * on item creates. They arrive as TEXT the model might read. The watch makes
- * them structural: a shared flag store, a per-turn system-prompt nudge while
- * anything is open, and a /devspec.conflicts listing. Surfacing, never silent
- * settling — verdicts belong to the model-with-facts or the human.
- */
+/** R7: local observations, not a second project issue ledger. */
+import { permittedDisagreement, reviewData, row, snapshotHash } from "./review-context.ts";
+import { writeOutcomeFromResult } from "./trail-events.ts";
 
 export interface ConflictFlag {
 	key: string;
 	kind: "item_conflict" | "related_candidates" | "write_gate" | "memory_conflict";
-	/** Display line. */
 	label: string;
+	scope?: string;
+	/** Complete pair identity and exact observed evidence, never counterpart alone. */
+	subject?: string;
+	counterpart?: string;
+	signal?: string;
+	revision?: string;
+	operation?: string;
 }
-
-// Cross-extension-file store (pi isolates module graphs per extension file).
-const GLOBAL_KEY = "__devspecPiConflictFlags";
-
+const GLOBAL_KEY = "__devspecPiReviewObservationsV2";
 function store(): Map<string, ConflictFlag> {
 	const g = globalThis as unknown as Record<string, Map<string, ConflictFlag> | undefined>;
-	if (!g[GLOBAL_KEY]) g[GLOBAL_KEY] = new Map();
-	return g[GLOBAL_KEY] as Map<string, ConflictFlag>;
+	return g[GLOBAL_KEY] ??= new Map();
 }
-
-export function listFlags(): ConflictFlag[] {
-	return [...store().values()];
+export function listFlags(scope?: string): ConflictFlag[] {
+	return [...store().values()].filter((f) => scope === undefined || f.scope === scope);
 }
-
 export function addFlags(flags: ConflictFlag[]): ConflictFlag[] {
-	const added: ConflictFlag[] = [];
+	const changed: ConflictFlag[] = [];
 	for (const f of flags) {
-		if (!store().has(f.key)) {
+		if (snapshotHash(store().get(f.key)) !== snapshotHash(f)) {
 			store().set(f.key, f);
-			added.push(f);
+			changed.push(f);
 		}
 	}
-	return added;
+	return changed;
 }
+export function clearFlag(key: string): void { store().delete(key); }
+export function clearAllFlags(): void { store().clear(); }
 
-export function clearFlag(key: string): void {
-	store().delete(key);
+/** Exclude attribution/confirmation, never semantic fields, from a write's identity. */
+function operationKey(tool: string, args: Record<string, unknown>): string {
+	const excluded = new Set(["confirm_new", "provenance_ref", "work_claim_ref", "connection_id", "session_id", "local_session_id", "provider", "git_remote", "project_id", "pinned_project_id"]);
+	return snapshotHash([tool, Object.fromEntries(Object.entries(args).filter(([key]) => !excluded.has(key)))]);
 }
+const text = (value: unknown): string | undefined => typeof value === "string" && value ? value : undefined;
 
-export function clearAllFlags(): void {
-	store().clear();
-}
-
-/** Scan a DevSpec tool result for conflict-ish signals. Pure. */
-export function extractFlags(toolName: string, details: unknown): ConflictFlag[] {
-	const d = details as Record<string, unknown> | null;
-	if (!d || typeof d !== "object") return [];
+export function extractFlags(toolName: string, details: unknown, scope = "legacy", args: Record<string, unknown> = {}): ConflictFlag[] {
+	const d = row(details);
+	if (!d) return [];
 	const flags: ConflictFlag[] = [];
-
-	const unresolved = d.unresolved_conflicts;
-	if (Array.isArray(unresolved)) {
-		for (const c of unresolved) {
-			const row = c as Record<string, unknown>;
-			const otherId = (row.conflicting_item_id ?? row.item_id ?? "unknown") as string;
-			const reason = typeof row.reason === "string" ? row.reason : "possible conflict";
-			flags.push({
-				key: `item_conflict:${otherId}`,
-				kind: "item_conflict",
-				label: `item …${String(otherId).slice(-8)}: ${reason} (settle with resolve_action_item_conflict)`,
-			});
-		}
+	const subject = text(d.id) ?? text(d.action_item_id) ?? text(args.action_item_id) ?? text(args.id);
+	const operation = operationKey(toolName, args);
+	for (const value of Array.isArray(d.unresolved_conflicts) ? d.unresolved_conflicts : []) {
+		const c = row(value);
+		if (!c) continue;
+		const counterpart = text(c.conflicting_item_id) ?? text(c.item_id);
+		if (!subject || !counterpart) continue; // Never merge unidentified pairs into "unknown".
+		flags.push({ key: snapshotHash([scope, "item_conflict", ...[subject, counterpart].sort()]), scope,
+			kind: "item_conflict", subject, counterpart, revision: snapshotHash(c),
+			label: reviewData({ subject, counterpart, context: "Incomplete historical observation; use get_action_item to read both current permitted records." }) });
 	}
-
-	const related = d.related_candidates;
-	if (Array.isArray(related) && related.length > 0 && toolName === "create_action_item") {
-		const first = related[0] as Record<string, unknown>;
-		const id = (first.id ?? first.action_item_id ?? "unknown") as string;
-		flags.push({
-			key: `related:${id}`,
-			kind: "related_candidates",
-			label: `create returned ${related.length} related candidate(s), first …${String(id).slice(-8)} — confirm no duplicate`,
-		});
+	for (const value of Array.isArray(d.unresolved_disagreements) ? d.unresolved_disagreements : []) {
+		const c = row(value);
+		if (!c || !text(c.key)) continue;
+		const safe = permittedDisagreement(c);
+		flags.push({ key: snapshotHash([scope, "issue", c.key]), scope, kind: "memory_conflict",
+			subject: text(row(c.subject)?.id), counterpart: text(row(c.counterpart)?.id), signal: text(c.claimType),
+			revision: snapshotHash(safe), label: reviewData({ key: c.key, status: c.status,
+				context: "Incomplete historical observation; use get_review_queue with this key for current permitted claims. A record that cannot be read is not expanded here." }) });
 	}
-
-	// The write gate, on either corpus. It stops a memory write and a document
-	// write alike (devspecv2 134f4454 wired the artifact corridors), so the noun
-	// comes from the verb rather than being assumed to be "memory" — and the
-	// reader gets the match's NAME, which is the whole point of the gate. It
-	// asks for no reason: that demand was removed in devspecv2 5b86e9f2.
-	if (d.reconcile_required) {
-		const match = d.closest_match as Record<string, unknown> | undefined;
-		const id = (match?.id ?? "unknown") as string;
-		const title = typeof match?.title === "string" && match.title ? match.title : null;
-		const corpus = toolName.includes("resource") ? "document" : "memory";
-		const named = title ? `"${title}" (…${String(id).slice(-8)})` : `…${String(id).slice(-8)}`;
-		flags.push({
-			key: `write_gate:${id}`,
-			kind: "write_gate",
-			label: `${corpus} write gated — closest is ${named} (read it, then supersede/update it, or confirm_new if it is genuinely separate)`,
-		});
+	if (d.reconcile_required === true) {
+		const match = row(d.closest_match);
+		flags.push({ key: snapshotHash([scope, "write_gate", operation]), scope, kind: "write_gate", operation,
+			revision: snapshotHash(match), label: reviewData({ write: toolName, status: "not written", closest_match: { id: match?.id, version: match?.version },
+				next: "Re-read the matched record for current permitted context, then follow the served reconciliation contract." }) });
 	}
-
-	const potential = d.potential_conflicts;
-	if (Array.isArray(potential) && potential.length > 0) {
-		const first = potential[0] as Record<string, unknown>;
-		const id = (first.id ?? "unknown") as string;
-		flags.push({
-			key: `memory_conflict:${id}`,
-			kind: "memory_conflict",
-			label: `${potential.length} potential memory conflict(s), first …${String(id).slice(-8)} — review when convenient`,
-		});
+	// Retrieval suggestions are not established conflicts, nor obligatory rulings.
+	for (const key of ["related_candidates", "potential_conflicts"] as const) {
+		if (key === "related_candidates" && toolName !== "create_action_item") continue;
+		const candidates = d[key];
+		if (!Array.isArray(candidates) || !candidates.length) continue;
+		flags.push({ key: snapshotHash([scope, "suggestions", operation, subject, key]), scope, kind: "related_candidates", operation,
+			revision: snapshotHash(candidates), label: reviewData({ tool: toolName, suggestions: candidates.length,
+				meaning: "Retrieval candidates only; not a project-conflict count. Read relevant records before judging." }) });
 	}
-
+	// Search/read list wrappers carry the same canonical disagreements as exact reads.
+	for (const key of ["memories", "results", "items", "resources", "artifacts"] as const) {
+		if (Array.isArray(d[key])) for (const value of d[key]) flags.push(...extractFlags(toolName, value, scope, args));
+	}
 	return flags;
 }
 
-/** The per-turn nudge while anything is open. Null when clear. */
+/** Only exact successful operations discharge their own checks/rulings. */
+export function observeReviewResult(tool: string, details: unknown, args: Record<string, unknown>, scope: string, observed: readonly ConflictFlag[] = []): void {
+	const d = row(details);
+	if (!d) return;
+	if (writeOutcomeFromResult(d) === "committed") {
+		const operation = operationKey(tool, args);
+		const unchanged = () => listFlags(scope).filter((f) => observed.some((old) => old.key === f.key && old.revision === f.revision));
+		for (const f of unchanged()) {
+			// A committed identical write is the existing server's comparison-completion
+			// receipt. Unrelated writes, changed text and proposals cannot discharge it.
+			if (f.kind === "write_gate" && f.operation === operation) clearFlag(f.key);
+		}
+		const subject = text(args.action_item_id) ?? text(args.id) ?? text(args.memory_id);
+		const counterpart = text(args.counterpart_item_id) ?? text(args.conflicting_id) ?? text(args.decision_memory_id);
+		const marks = row(d.marks_cleared);
+		const cleared = marks && Object.values(marks).some((value) => typeof value === "number" && value > 0);
+		const warnings = Array.isArray(d.warnings) && d.warnings.length > 0;
+		if (tool.startsWith("resolve_") && args.verdict !== "discuss" && cleared && !warnings && d.closure !== "pending") {
+			for (const f of unchanged()) {
+				const exactPair = subject && ((f.subject === subject && f.counterpart === counterpart)
+					|| (counterpart && f.subject === counterpart && f.counterpart === subject));
+				if (exactPair && (!f.signal || f.signal === args.signal_type) && f.kind !== "write_gate" && f.kind !== "related_candidates") clearFlag(f.key);
+			}
+		}
+	}
+	addFlags(extractFlags(tool, d, scope, args));
+}
+
 export function formatConflictNudge(flags: ConflictFlag[]): string | null {
-	if (flags.length === 0) return null;
-	const lines = flags.slice(0, 3).map((f) => `- ${f.label}`);
-	const more = flags.length > 3 ? `\n- …and ${flags.length - 3} more` : "";
-	return [
-		`### DevSpec — ${flags.length} open signal${flags.length === 1 ? "" : "s"} to settle`,
-		"Surfaced mechanically. Settle what the facts plainly settle yourself (related / not_a_conflict never close anything); escalate supersedes when someone's work would be closed. /devspec.conflicts lists all.",
-		...lines,
-	].join("\n") + more;
+	if (!flags.length) return null;
+	const issues = flags.filter((f) => f.kind === "item_conflict" || f.kind === "memory_conflict");
+	const checks = flags.filter((f) => f.kind === "write_gate");
+	const suggestions = flags.filter((f) => f.kind === "related_candidates");
+	const lines = ["### DevSpec — observed Review context",
+		`${issues.length} unresolved issue observation(s); ${checks.length} incomplete write check(s); ${suggestions.length} retrieval suggestion set(s). These are observations in this scope, not project totals.`,
+		"Use live records and the served authority contract. Candidates are not conflicts; finishing a session does not settle issues."];
+	let shown = 0;
+	for (const flag of [...issues, ...checks, ...suggestions]) {
+		if (lines.join("\n").length + flag.label.length > 6_000) continue;
+		lines.push(flag.label); shown++;
+	}
+	if (shown < flags.length) lines.push(`Incomplete context: ${flags.length - shown} observation(s) omitted. Use get_review_queue for current permitted issues or re-read the originating record; no omitted issue is settled.`);
+	return lines.join("\n");
 }

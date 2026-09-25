@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.25
+
+- An answer typed in your own words to Pi's multiple-choice question now reaches Pi when it is longer than 200 characters. DevSpec accepts up to 1000, but Pi kept its own, older copy of that limit, so a longer answer was refused. Pi now leaves answer limits to DevSpec, so a future change to them needs no Pi update. Reload or restart existing Pi sessions to activate this fix.
+
 ## 0.3.24
 
 - Background maintenance no longer causes an unchanged memory to be recalled again. Recall ignores the row's last-updated timestamp while still noticing new versions, state changes, proposals and disagreements.

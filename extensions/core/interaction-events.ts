@@ -11,9 +11,15 @@ export const INTERACTION_EVENT_VERSION = 1 as const;
 export const INTERACTION_EVENT_KIND = "devspec.interaction_event" as const;
 export const INTERACTION_EVENT_CUSTOM_TYPE = "devspec-directed-question-answer" as const;
 export const INTERACTION_EVENT_JOURNAL_TYPE = "devspec-interaction-event-v1" as const;
-export const INTERACTION_EVENT_TEXT_MAX_CODE_POINTS = 4_000;
-export const INTERACTION_EVENT_SELECT_MAX_CODE_POINTS = 200;
-export const INTERACTION_EVENT_MULTI_SELECT_MAX_ITEMS = 20;
+/*
+ * No answer length or item-count limits here, deliberately. How long an answer may
+ * be is the server's policy: it refuses an oversized answer when the person submits
+ * it, and validates every event against the served contract before sending it. A
+ * copy of those numbers can only ever disagree with the server — which it did: the
+ * server raised typed-in answers to 1000 characters while this file still said 200,
+ * so a longer answer failed the strict parse of the poll it arrived in (items
+ * 11c7f2cd, 2cf896e5). The parser checks the SHAPE of an event, strictly.
+ */
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const OFFSET_DATETIME_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|([+-])(\d{2}):(\d{2}))$/;
@@ -247,12 +253,9 @@ function datetime(value: unknown, path: string): string {
 	return value;
 }
 
-function boundedAnswer(value: unknown, path: string, max: number): string {
+function nonBlankAnswer(value: unknown, path: string): string {
 	if (typeof value !== "string") fail(path, "expected string");
-	const length = Array.from(value).length;
-	if (length < 1 || length > max || value.trim().length === 0) {
-		fail(path, `expected non-blank string of 1..${max} Unicode code points`);
-	}
+	if (value.trim().length === 0) fail(path, "expected non-blank string");
 	return value;
 }
 
@@ -271,18 +274,13 @@ export function parseInteractionEventV1(value: unknown, path = "interaction_even
 	}
 	let answer: InteractionEventAnswer;
 	if (row.response_kind === "multi_select") {
-		if (!Array.isArray(row.answer) || row.answer.length < 1 || row.answer.length > INTERACTION_EVENT_MULTI_SELECT_MAX_ITEMS) {
-			fail(`${path}.answer`, `expected 1..${INTERACTION_EVENT_MULTI_SELECT_MAX_ITEMS} answers`);
+		if (!Array.isArray(row.answer) || row.answer.length < 1) {
+			fail(`${path}.answer`, "expected at least one answer");
 		}
-		answer = row.answer.map((item, index) =>
-			boundedAnswer(item, `${path}.answer[${index}]`, INTERACTION_EVENT_SELECT_MAX_CODE_POINTS));
+		answer = row.answer.map((item, index) => nonBlankAnswer(item, `${path}.answer[${index}]`));
 		if (new Set(answer).size !== answer.length) fail(`${path}.answer`, "answers must be distinct");
 	} else {
-		answer = boundedAnswer(
-			row.answer,
-			`${path}.answer`,
-			row.response_kind === "text" ? INTERACTION_EVENT_TEXT_MAX_CODE_POINTS : INTERACTION_EVENT_SELECT_MAX_CODE_POINTS,
-		);
+		answer = nonBlankAnswer(row.answer, `${path}.answer`);
 	}
 	return {
 		kind: INTERACTION_EVENT_KIND,

@@ -429,7 +429,7 @@ function senderResponseStyleArray(value: unknown, path: string): SenderResponseS
 	return value.map((entry, index) => senderResponseStyle(entry, `${path}[${index}]`));
 }
 
-function attachment(value: unknown, path: string, enforceHydrationLimits = true): IngressAttachment {
+export function parseIngressAttachment(value: unknown, path: string, enforceHydrationLimits = true): IngressAttachment {
 	const row = record(value, path);
 	const materialization = oneOf(row.materialization, ["metadata", "unavailable"] as const, `${path}.materialization`);
 	const type = string(row.type, `${path}.type`);
@@ -602,7 +602,7 @@ function command(
 		fail(`${path}.attachments`, "attachment count exceeds safe bound across command bundle");
 	}
 	attachmentBounds.count += row.attachments.length;
-	const attachments = row.attachments.map((item, index) => attachment(item, `${path}.attachments[${index}]`));
+	const attachments = row.attachments.map((item, index) => parseIngressAttachment(item, `${path}.attachments[${index}]`));
 	attachmentBounds.declaredBytes += attachments.reduce((total, item) => total + (item.size_bytes ?? 0), 0);
 	if (attachmentBounds.declaredBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
 		fail(`${path}.attachments`, "declared attachment total exceeds safe bound across command bundle");
@@ -829,7 +829,7 @@ function parseEnvelope(
 			order: orderPoint,
 			// History keeps references, not bytes; hydration limits still apply
 			// unchanged to the current command and any deliberate file fetch.
-			attachment: (value, path) => attachment(value, path, false),
+			attachment: (value, path) => parseIngressAttachment(value, path, false),
 			entry: (value, path) => {
 				const entry = record(value, path);
 				const who = record(entry.actor, `${path}.actor`);

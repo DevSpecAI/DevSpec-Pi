@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 3dfd4ce26167b052ee3ce2a10404c117292d1d24fcf950c3dd5335e75698233e
+ * Schema fingerprint: 7f44b1ed88de724a3e9e1a2be13e7756f55f6e206f309675fc57bc3a9aaf88aa
  * Description fingerprint: 53356c01d8853595461c42eec850e70879e6e291d286306aa9f777655a53013d
- * Regenerated: 2026-09-25T06:48:18.899Z
+ * Regenerated: 2026-09-25T09:52:09.118Z
  */
-export const MCP_CATALOG_FINGERPRINT = "3dfd4ce26167b052ee3ce2a10404c117292d1d24fcf950c3dd5335e75698233e";
+export const MCP_CATALOG_FINGERPRINT = "7f44b1ed88de724a3e9e1a2be13e7756f55f6e206f309675fc57bc3a9aaf88aa";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "53356c01d8853595461c42eec850e70879e6e291d286306aa9f777655a53013d";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-25T06:48:18.899Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-25T09:52:09.118Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -5877,6 +5877,79 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "The connection polling (from register_connection)."
+				},
+				"command_offer_version": {
+					"type": "integer",
+					"enum": [
+						1
+					],
+					"x-devspec-host-only": true,
+					"description": "Mechanical non-executable availability while an exact question blocks canonical delivery."
+				},
+				"command_handoff_ready": {
+					"type": "object",
+					"x-devspec-host-only": true,
+					"description": "Exact captured question/source identity; send only after attachment validation and actual native foreground readiness.",
+					"properties": {
+						"source_message_id": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"attempt_id": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"attachment_id": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"interaction_event_id": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"interaction_response_id": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"interaction_claim_token": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"question_dismissal_event_id": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"question_dismissal_question_id": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"question_dismissal_claim_token": {
+							"type": "string",
+							"format": "uuid"
+						}
+					},
+					"required": [
+						"source_message_id",
+						"attempt_id",
+						"attachment_id"
+					],
+					"oneOf": [
+						{
+							"required": [
+								"interaction_event_id",
+								"interaction_response_id",
+								"interaction_claim_token"
+							]
+						},
+						{
+							"required": [
+								"question_dismissal_event_id",
+								"question_dismissal_question_id",
+								"question_dismissal_claim_token"
+							]
+						}
+					],
+					"additionalProperties": false
 				},
 				"ingress_version": {
 					"type": "integer",

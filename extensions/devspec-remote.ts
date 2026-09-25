@@ -23,7 +23,9 @@
 
 import { AssistantSpeechSource, AssistantSpeechQueue, assistantSpeechWithinBudget } from "./core/assistant-speech.ts";
 import { startLocalActivity } from "./core/local-activity.ts";
+import { CommandPreemptionBudget, commandOfferAction, parseCommandOfferPoll, type CommandOffer, type CommandOfferScope } from "./core/command-offer.ts";
 import { randomUUID } from "node:crypto";
+import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getSupportedThinkingLevels, type ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { readFileSync } from "node:fs";
@@ -76,6 +78,8 @@ import {
 	createAttachmentHydrationBudget,
 	formatAttachmentNotes,
 	materialiseAttachments,
+	attachmentDirFor,
+	defaultFetchUrl,
 	requireMaterialisedAttachments,
 	sanitizeAttachmentFailureReason,
 	type AttachmentHydrationBudget,
@@ -191,6 +195,8 @@ import {
 	shouldDeliverSystemNotices,
 	transitionToRealUserActivity,
 } from "./core/system-notice.ts";
+
+class StaleCommandHandoffError extends DevspecToolError {}
 
 const AGENT_NAME = "Pi";
 /** Aggregate current-session ownership; child identities remain inside pi-subagents. */
@@ -1307,10 +1313,16 @@ async function hydrateOwnerBundle(
 	connectionId: string,
 ): Promise<{ bundle: OwnerCommandBundle; materialised: MaterialisedAttachment[] }> {
 	const commands: OwnerCommand[] = [];
-	const materialised: MaterialisedAttachment[] = [];
 	const budget = createAttachmentHydrationBudget(bundle.commands.map((command) => command.attachments ?? []));
+	const prepared = await pi_takePreparedOfferAttachments(bundle.commands);
+	const materialised: MaterialisedAttachment[] = prepared ? [...prepared.materialised] : [];
+	budget.remainingBytes -= prepared?.budgetUsed ?? 0;
 	try {
 		for (const command of bundle.commands) {
+			if (prepared?.sourceId === command.id) {
+				commands.push({ ...command, attachmentNotes: formatAttachmentNotes(prepared.materialised) });
+				continue;
+			}
 			const hydrated = await withMaterialisedAttachments(command, connectionId, budget);
 			commands.push(hydrated.command);
 			materialised.push(...hydrated.materialised);
@@ -2406,6 +2418,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			&& !interactionClaimIdle
 			&& !interactionEventAck;
 		const interactionEventNegotiated = interactionClaimIdle || interactionClaimBusyPreempt || Boolean(interactionEventAck);
+		const commandOfferNegotiated = Boolean(active.bond.sessionId && active.bond.speechAttachmentId && active.bond.connectionCapability);
+		const commandHandoffReady = commandOfferNegotiated && !interactionEventAck ? pi_commandHandoffReady(active, ctx) : null;
 		let payload: unknown;
 		try {
 			const raw = await callDevspec(
@@ -2416,6 +2430,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					ingress_version: 1,
 					delegated_scope_version: 1,
 					active_plan_projection_version: 1,
+					...(commandOfferNegotiated ? { command_offer_version: 1,
+						...(commandHandoffReady ? { command_handoff_ready: commandHandoffReady } : {}) } : {}),
 					...(systemNoticeNegotiated ? {
 						system_notice_version: 1,
 						system_notice_cursor: active.systemNoticeCursor,
@@ -2440,7 +2456,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					agent_name: AGENT_NAME,
 					agent_stats: runtimeAgentStats(ctx),
 				},
-				{ timeoutMs: POLL_TIMEOUT_MS, cwd: ctx.cwd, lane: "pump", ...(interactionEventNegotiated && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}) },
+				{ timeoutMs: POLL_TIMEOUT_MS, cwd: ctx.cwd, lane: "pump",
+					beforeSend: () => { if (commandHandoffReady && pi_commandHandoffReady(active, ctx) !== commandHandoffReady) throw new StaleCommandHandoffError("Command readiness changed before send."); },
+					...((interactionEventNegotiated || commandOfferNegotiated) && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}) },
 			);
 			const { details, isError, text } = unwrapMcpResult(raw);
 			if (isError) {
@@ -2455,6 +2473,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			}
 			active.errors = 0;
 		} catch (err) {
+			if (err instanceof StaleCommandHandoffError) { signalWake(active); continue; }
 			if (err instanceof DevspecToolError || err instanceof DevspecAuthError) {
 				active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncAttemptAt = Date.now();
 				pi_appendRoomScope(null, active.localSessionId);
@@ -2815,6 +2834,16 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			active.advisoryCarry = [pkg.advisoryContext];
 		}
 
+		let commandOfferHoldsCursor = false;
+		if (commandOfferNegotiated) {
+			try {
+				const available = parseCommandOfferPoll(payload, { nativeSessionId: active.localSessionId,
+					connectionId: active.bond.connectionId, sessionId: active.bond.sessionId!, attachmentId: active.bond.speechAttachmentId! });
+				commandOfferHoldsCursor = Boolean(available.offer) || available.stale;
+			} catch { commandOfferHoldsCursor = true; } // an invalid availability sidecar cannot consume input
+		}
+		await pi_receiveCommandOffer(payload, active, ctx, pkg.ownerBundle?.commands ?? []);
+		if (pump !== active || active.stop) return;
 		let commandDeliveryFailed = false;
 		let commandRetryDelayMs = 0;
 		if (pkg.rejectedBundle) {
@@ -2829,6 +2858,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				if (reported) {
 					active.attachmentRetryAttempts.delete(rejected.commandTurnId);
 					active.seenOwnerCommands.commitBundle(unseen);
+					pi_offerCanonicalReceived(unseen);
 				} else {
 					active.seenOwnerCommands.releaseBundle(unseen);
 					commandDeliveryFailed = true;
@@ -2855,7 +2885,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					attachmentLease = new AttachmentDeliveryLease(hydration.materialised);
 					const mode = decideOwnerDelivery({
 						idle: ctx.isIdle(),
-						preemptEnabled: preemptOwnerCached,
+						preemptEnabled: preemptOwnerCached && !pi_offerAlreadyAborted(hydrated.primaryCommand.id),
 						hasOwnerCommand: true,
 					});
 					const formatted = formatInboundBundleMessage(hydrated);
@@ -2905,6 +2935,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 						command.responseStyleNotes ? [{ id: command.id, responseStyleNotes: command.responseStyleNotes }] : []);
 					if (deliveredStyles.length > 0) activeCommandStyles.set(hydrated.commandTurnId, deliveredStyles);
 					active.seenOwnerCommands.commitBundle(unseen);
+					pi_offerCanonicalReceived(unseen);
 					notify(ctx, deliveryNotice);
 					if (untitledAttached()) {
 						setSessionPreview(previewFromText(primary.text));
@@ -2923,7 +2954,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				}
 			}
 		}
-		if (!commandDeliveryFailed) {
+		if (!commandDeliveryFailed && !commandOfferHoldsCursor) {
 			if (pkg.cursorV2) active.cursor = pkg.cursorV2;
 			if (pkg.ownerBundle) active.advisoryCarry = [];
 		}
@@ -3112,6 +3143,11 @@ let pi_setPollToolActive: (enabled: boolean) => void = () => {};
 let pi_syncBackgroundScope: () => void = () => {};
 let pi_refreshBackgroundWork: () => Promise<void> = async () => {};
 let pi_backgroundInputPending: () => void = () => {};
+let pi_receiveCommandOffer: (payload: unknown, active: PumpState, ctx: ExtensionContext, commands: readonly OwnerCommand[]) => Promise<void> = async () => {};
+let pi_commandHandoffReady: (active: PumpState, ctx: ExtensionContext) => Record<string, unknown> | null = () => null;
+let pi_offerAlreadyAborted: (sourceId: string) => boolean = () => false;
+let pi_offerCanonicalReceived: (commands: readonly OwnerCommand[]) => void = () => {};
+let pi_takePreparedOfferAttachments: (commands: readonly OwnerCommand[]) => Promise<{ sourceId: string; materialised: MaterialisedAttachment[]; budgetUsed: number } | null> = async () => null;
 
 /**
  * Refresh display identity only. Conversational/model context is accepted
@@ -3161,6 +3197,7 @@ export default function (pi: ExtensionAPI) {
 	let foregroundEpoch = 0;
 	let parkedBackground: { active: PumpState; scope: string; epoch: number; settled: TurnState; ready: Promise<void> } | null = null;
 	let completingBackground = false;
+	let settledInteractionForOffer: { run: ExactInteractionRun; epoch: number; scope: string } | null = null;
 	const observedIds = new Set<string>();
 	const journalStates = new Map<string, string>();
 	const launchScopes = new Map<string, string>();
@@ -3170,6 +3207,127 @@ export default function (pi: ExtensionAPI) {
 			lastCtx?.sessionManager.getSessionId() !== active.localSessionId) return null;
 		return { nativeSessionId: active.localSessionId, connectionId: active.bond.connectionId,
 			sessionId: active.bond.sessionId, attachmentId: active.bond.speechAttachmentId };
+	};
+	type PendingOffer = { offer: CommandOffer; scope: CommandOfferScope; run: ExactInteractionRun; epoch: number;
+		materialised: MaterialisedAttachment[]; budgetUsed: number; preparing: Promise<void>; ready: Record<string, unknown> | null };
+	let pendingOffer: PendingOffer | null = null;
+	let offerCleanup: Promise<void> = Promise.resolve();
+	let offerWarningShown = false;
+	const offerBudget = new CommandPreemptionBudget();
+	const clearOffer = (): Promise<void> => {
+		const previous = pendingOffer; pendingOffer = null;
+		if (previous) offerCleanup = offerCleanup.then(async () => {
+			await previous.preparing.catch(() => {});
+			await cleanupMaterialisedAttachments(previous.materialised);
+		});
+		return offerCleanup;
+	};
+	const offerCurrent = (state: PendingOffer) => pendingOffer === state && pump === state.run.active && !state.run.active.stop &&
+		state.run.application === "applied" && interactionAuthorityCurrent(state.run.authority) &&
+		JSON.stringify(currentBackgroundScope()) === JSON.stringify(state.scope);
+	const foregroundIdleForOffer = (active: PumpState, ctx: ExtensionContext) => ctx.isIdle() && !active.runtimeOccupancy.isBusy();
+	pi_offerAlreadyAborted = source => offerBudget.has(source);
+	pi_offerCanonicalReceived = commands => {
+		const scope = currentBackgroundScope();
+		if (!scope) return;
+		try { for (const command of commands) offerBudget.received(command.id, scope, (type, data) => pi.appendEntry(type, data)); }
+		catch { debug("command offer preparation failed", { errorPresent: true }); } // never replay an accepted send for a journal failure
+	};
+	pi_commandHandoffReady = (active, ctx) => {
+		const state = pendingOffer;
+		return state && state.run.active === active && offerCurrent(state) && state.epoch === foregroundEpoch &&
+			foregroundIdleForOffer(active, ctx) && !ctx.hasPendingMessages() ? state.ready : null;
+	};
+	pi_takePreparedOfferAttachments = async commands => {
+		const state = pendingOffer;
+		if (!state) return null;
+		if (!offerCurrent(state)) { void clearOffer(); return null; }
+		await state.preparing.catch(() => {});
+		const command = commands.find(command => command.id === state.offer.source_message_id);
+		if (!offerCurrent(state) || !command || JSON.stringify(command.attachments ?? []) !== JSON.stringify(state.offer.attachments)) {
+			void clearOffer(); return null;
+		}
+		pendingOffer = null; // ownership passes to the ordinary canonical attachment lease
+		return { sourceId: command.id, materialised: state.materialised, budgetUsed: state.budgetUsed };
+	};
+	pi_receiveCommandOffer = async (payload, active, ctx, commands) => {
+		let ownedState: PendingOffer | null = null;
+		try {
+			const scope = currentBackgroundScope();
+			if (!scope || pump !== active || active.stop) return;
+			const parsed = parseCommandOfferPoll(payload, scope);
+			if (!parsed.supported) return;
+			if (parsed.stale) { void clearOffer(); signalWake(active); }
+			const offer = parsed.offer;
+			if (!offer) {
+				if (!commands.some(command => command.id === pendingOffer?.offer.source_message_id)) void clearOffer();
+				return;
+			}
+			const currentRun = activeInteractionRun(active);
+			const parkedRun = parkedBackground?.active === active ? parkedBackground.settled.interaction : undefined;
+			const retainedRun = foregroundIdleForOffer(active, ctx) ? pendingOffer?.run : undefined;
+			const settledRun = settledInteractionForOffer?.epoch === foregroundEpoch && settledInteractionForOffer.scope === backgroundScopeKey(scope)
+				? settledInteractionForOffer.run : undefined;
+			const run = [currentRun, parkedRun, retainedRun, settledRun].find(run => run?.identity.attemptId === offer.blocking_attempt_id && run.application === "applied");
+			if (!run || !interactionAuthorityCurrent(run.authority) || (!foregroundIdleForOffer(active, ctx) && run !== currentRun)) return;
+			if (!pendingOffer || JSON.stringify(pendingOffer.offer) !== JSON.stringify(offer) || !offerCurrent(pendingOffer)) {
+				void clearOffer();
+				const state: PendingOffer = { offer, scope, run, epoch: foregroundEpoch, materialised: [], budgetUsed: 0, preparing: Promise.resolve(), ready: null };
+				pendingOffer = state;
+				state.preparing = (async () => {
+					if (offer.attachments.length === 0) return;
+					const resolved = await resolveToken();
+					if (!resolved || !offerCurrent(state)) throw new Error("Command attachment scope unavailable");
+					const budget = createAttachmentHydrationBudget([offer.attachments]);
+					const initialBudget = budget.remainingBytes;
+					state.materialised = await materialiseAttachments(offer.attachments, { token: resolved.token, connectionId: scope.connectionId,
+						dir: join(attachmentDirFor(scope.connectionId), "offers", randomUUID()),
+						getResource: (token, args) => { if (!offerCurrent(state)) throw new StaleCommandHandoffError("Offer attachment changed"); return callDevspec(token, "get_resource", args, { lane: "pump" }); },
+						fetchUrl: async (url, maxBytes) => {
+							if (!offerCurrent(state)) throw new StaleCommandHandoffError("Offer attachment changed");
+							const bytes = await defaultFetchUrl(url, maxBytes);
+							if (!offerCurrent(state)) throw new StaleCommandHandoffError("Offer attachment changed");
+							return bytes;
+						},
+					}, offer.source_message_id, budget);
+					state.budgetUsed = initialBudget - budget.remainingBytes;
+					requireMaterialisedAttachments(state.materialised, offer.attachments.length);
+				})();
+			}
+			const state = pendingOffer;
+			ownedState = state;
+			state.epoch = foregroundEpoch; // a fresh server offer, not a late callback, permits this observation
+			await state.preparing;
+			if (!offerCurrent(state) || state.epoch !== foregroundEpoch) return;
+			debug("command offer prepared", { foregroundIdle: foregroundIdleForOffer(active, ctx), pendingBg: pendingBackgroundTaskIds.size });
+			let action = commandOfferAction({ current: true, exactInteractionApplied: run.application === "applied",
+				foregroundIdle: foregroundIdleForOffer(active, ctx), hasPendingMessages: ctx.hasPendingMessages(),
+				preemptEnabled: preemptOwnerCached, abortAlreadyRequested: offerBudget.has(offer.source_message_id) });
+			if (action === "abort") {
+				if (!offerBudget.request(offer.source_message_id, scope, (type, data) => pi.appendEntry(type, data))) return;
+				debug("preempt: aborting exact question for validated command availability");
+				pi_abort();
+				const settled = await waitUntil(() => foregroundIdleForOffer(active, ctx), { timeoutMs: 8_000, intervalMs: 50 });
+				debug("command offer preempt", { settled });
+				if (!settled || !offerCurrent(state) || state.epoch !== foregroundEpoch) return;
+				action = ctx.hasPendingMessages() ? "wait" : "ready";
+			}
+			if (action === "ready" && !state.ready) {
+				// Reuse the existing durable-application ACK; never fabricate one in the handoff.
+				if (!await acknowledgeInteractionApplication(run) || !offerCurrent(state) || state.epoch !== foregroundEpoch ||
+					!foregroundIdleForOffer(active, ctx) || ctx.hasPendingMessages()) return;
+				state.ready = { source_message_id: offer.source_message_id, attachment_id: scope.attachmentId, ...exactInteractionContinuationArgs(run.identity) };
+				debug("command handoff ready", { pendingBg: pendingBackgroundTaskIds.size });
+				signalWake(active);
+			}
+			offerWarningShown = false;
+		} catch {
+			if ((ownedState && pendingOffer !== ownedState) || pump !== active || active.stop) return;
+			void clearOffer();
+			debug("command offer preparation failed", { errorPresent: true });
+			if (!offerWarningShown) notify(ctx, "DevSpec remote: couldn't prepare an incoming message; it remains queued.", "warning");
+			offerWarningShown = true;
+		}
 	};
 	const completeObservedIdle = async (): Promise<void> => {
 		const candidate = parkedBackground;
@@ -3217,7 +3375,7 @@ export default function (pi: ExtensionAPI) {
 		void completeObservedIdle();
 	};
 	const backgroundObserver = new BackgroundWorkObserver(pi.events, applyBackgroundObservation);
-	pi_backgroundInputPending = () => { foregroundEpoch += 1; parkedBackground = null; };
+	pi_backgroundInputPending = () => { foregroundEpoch += 1; parkedBackground = null; settledInteractionForOffer = null; };
 	pi_syncBackgroundScope = () => {
 		const scope = currentBackgroundScope();
 		const key = scope ? backgroundScopeKey(scope) : null;
@@ -3226,6 +3384,8 @@ export default function (pi: ExtensionAPI) {
 		for (const id of observedIds) pendingBackgroundTaskIds.delete(id);
 		observedIds.clear(); journalStates.clear(); launchScopes.clear();
 		observationScope = scope;
+		void clearOffer();
+		offerBudget.bind(scope, lastCtx?.sessionManager.getBranch() ?? []);
 		restoringBackground = true;
 		try {
 			backgroundObserver.bind(key);
@@ -3490,6 +3650,8 @@ export default function (pi: ExtensionAPI) {
 		if (!completionNeutral && untitledAttached() && pump?.bond.sessionId) {
 			scheduleTitleRefresh(pump.bond.sessionId);
 		}
+		settledInteractionForOffer = interactionRun && observationScope
+			? { run: interactionRun, epoch: foregroundEpoch, scope: backgroundScopeKey(observationScope) } : null;
 		const terminalPost = (async () => {
 			const posted = await settleTurn(agentStats, true);
 			// No complete_turn post landed (aborted/empty turn, or the post
@@ -3513,6 +3675,7 @@ export default function (pi: ExtensionAPI) {
 				scope: backgroundScopeKey(observationScope), ready: terminalPost };
 			void completeObservedIdle();
 		}
+		if (pendingOffer && pump && foregroundIdleForOffer(pump, ctx)) signalWake(pump);
 		// Local telemetry above is safe; from here onward the notice run is over.
 		// Busy notices may wake only after final settlement proves both Pi and pump
 		// idle. The next custom run remains unbound from every owner generation.
@@ -3922,6 +4085,12 @@ export default function (pi: ExtensionAPI) {
 		backgroundObserver.dispose();
 		launchScopes.clear();
 		pi_refreshBackgroundWork = async () => {};
+		void clearOffer();
+		pi_receiveCommandOffer = async () => {};
+		pi_commandHandoffReady = () => null;
+		pi_takePreparedOfferAttachments = async () => null;
+		pi_offerAlreadyAborted = () => false;
+		pi_offerCanonicalReceived = () => {};
 		pi_syncBackgroundScope = () => {};
 		subagentFleet.dispose();
 		for (const confirmation of pendingInteractionConfirmations) {

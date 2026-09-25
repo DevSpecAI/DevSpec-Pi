@@ -38,7 +38,7 @@ test("main Pi poll capacity-gates system notices while control ack cannot claim 
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
 	assert.match(pump, /const systemNoticeNegotiated = hasSystemNoticeBatchCapacity\(active\.systemNoticeKey\)/);
 	assert.match(pump, /cursor_v2: active\.cursor/);
-	assert.match(pump, /if \(!commandDeliveryFailed\)[^]*active\.cursor = pkg\.cursorV2/);
+	assert.match(pump, /if \(!commandDeliveryFailed && !commandOfferHoldsCursor\)[^]*active\.cursor = pkg\.cursorV2/);
 	assert.match(pump, /acceptSystemNotices\(active\.systemNoticeKey, pkg\.systemNotices\)[^]*active\.systemNoticeCursor = pkg\.systemNoticeCursor/);
 	assert.doesNotMatch(pump, /active\.cursor\s*=\s*[^;]*next_cursor|\bcursor: active\.cursor/);
 });
@@ -146,7 +146,10 @@ test("canonical parser output stays independent from automation dispatch and con
 	assert.match(pump, /pkg\.ownerBundle/);
 	assert.match(pump, /pkg\.control/);
 	assert.match(pump, /for \(const dispatch of dispatches\) enqueueAutomationRun/);
-	assert.doesNotMatch(pump, /payload[^\n]*commands|buildRoomDigest|owner_ambient|\.room_context\b/);
+	// The offer controller receives the raw availability sidecar PLUS already-
+	// validated pkg commands; it must never read legacy payload.commands itself.
+	assert.doesNotMatch(pump, /\bpayload\s*(?:\??\.|\[)\s*["']?commands\b|\(\s*payload\s+as[^)\n]*\)\s*\??\.commands\b|buildRoomDigest|owner_ambient|\.room_context\b/);
+	assert.match(pump, /pi_receiveCommandOffer\(payload, active, ctx, pkg\.ownerBundle\?\.commands \?\? \[\]\)/);
 });
 
 test("multi-command hydration, send, seen state, and rollback are atomic for the unseen subset", () => {

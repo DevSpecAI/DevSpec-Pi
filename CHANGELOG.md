@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.20
+
+- Messages waiting behind an active question can now request native interruption without prematurely replacing the question's authority. The matching server validates a non-executable availability offer, then performs an exact handoff only when Pi is ready.
+- Preserve preempt-off, validate attachments before interruption, and request abort at most once per pending source. A non-settling abort stays pending rather than being reported as recovered.
+- Background jobs and ordinary speech keep their existing ownership and delivery paths. Prepared files are reused only for the identical authorized manifest; stale offers cannot consume the command cursor.
+- Requires the matching server handoff endpoint. Reload/restart to activate this release; it does not claim recovery from every historical unresponsive-agent incident.
+
 ## 0.3.19
 
 - Observe owned background jobs through the provider's public terminal/status API, even when completion notices are disabled, lost or never consumed. Unknown provider state remains unresolved.

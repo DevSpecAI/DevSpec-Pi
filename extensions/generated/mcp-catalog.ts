@@ -3,12 +3,12 @@
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
  * Schema fingerprint: a1792e97e44b0f234c335657c69a5ff703e0f0f7ca0a4661813d605cc9463094
- * Description fingerprint: e0933442bbe2fa6be8fee0887806d253c56b2389d50d7f514a7a14f4f70ae88b
- * Regenerated: 2026-09-25T16:07:10.231Z
+ * Description fingerprint: d607bef4e832f1e5064ab15551bcf941c05fd0cb2c62c06e839ff60fa89de029
+ * Regenerated: 2026-09-26T10:08:12.008Z
  */
 export const MCP_CATALOG_FINGERPRINT = "a1792e97e44b0f234c335657c69a5ff703e0f0f7ca0a4661813d605cc9463094";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "e0933442bbe2fa6be8fee0887806d253c56b2389d50d7f514a7a14f4f70ae88b";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-25T16:07:10.231Z";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "d607bef4e832f1e5064ab15551bcf941c05fd0cb2c62c06e839ff60fa89de029";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-26T10:08:12.008Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -1685,7 +1685,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_claimable_reviews",
 		"label": "DevSpec: Get Claimable Reviews",
-		"description": "Code reviews waiting for YOU to pick up on this project. Nothing is pushed — you take it if you want it — but a review arrives here two ways. Most are OFFERED to whoever opted in: work becomes reviewable, a review waits, and any of that person's opted-in agents may take it (Settings → Connections → Automated reviews). One can also be ADDRESSED to a single agent, because a person chose it by hand; that one is visible and claimable only by that connection, and needs no opt-in, since choosing the agent is the consent for that run. Either way you still claim it yourself and can still lose the race. Only what THIS agent may take is listed, so two of your agents polling the same project see different lists. Empty is the normal answer — nothing ready, nothing addressed to you, nobody opted in — and not a fault to investigate. The loop is get_claimable_reviews, then claim_review, then do the work, then record_review.",
+		"description": "Code reviews waiting for YOU to pick up on this project. Nothing is pushed — you take it if you want it — but a review arrives here two ways. Most are OFFERED to whoever opted in: work becomes reviewable, a review waits, and any of that person's opted-in agents may take it (You → Coding agents → Automated reviews). One can also be ADDRESSED to a single agent, because a person chose it by hand; that one is visible and claimable only by that connection, and needs no opt-in, since choosing the agent is the consent for that run. Either way you still claim it yourself and can still lose the race. Only what THIS agent may take is listed, so two of your agents polling the same project see different lists. Empty is the normal answer — nothing ready, nothing addressed to you, nobody opted in — and not a fault to investigate. The loop is get_claimable_reviews, then claim_review, then do the work, then record_review.",
 		"promptSnippet": "Code reviews waiting for YOU to pick up on this project.",
 		"inputSchema": {
 			"type": "object",
@@ -1753,7 +1753,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_personal_instructions",
 		"label": "DevSpec: Get Personal Instructions",
-		"description": "Read YOUR OWN personal instruction tiers — the two settings on the calling token's account. They are `personal_agent_rules` (Account → Personal Agent Rules: this machine and how this person works locally — installed tools, local ports, personal workflow; agents only, never shown to the in-session AI) and `chat_response_style` (Account → Chat Response Style: personal conversational tone). Null means the user has not set that one. Scope comes from the token, so there is no way to read another user's personal tiers here, and no project is involved. Use this before amending them with update_personal_instructions, or when the user asks what their current rules say. Note the team tiers are separate and are NOT here: project principles and project agent rules arrive with the project context (get_project_summary, claim_work_item).",
+		"description": "Read YOUR OWN personal instruction tiers — the two settings on the calling token's account. They are `personal_agent_rules` (You → Coding agents → Personal agent rules: this machine and how this person works locally — installed tools, local ports, personal workflow; agents only, never shown to the in-session AI) and `chat_response_style` (You → Replies & voice → Response style: personal conversational tone). Null means the user has not set that one. Scope comes from the token, so there is no way to read another user's personal tiers here, and no project is involved. Use this before amending them with update_personal_instructions, or when the user asks what their current rules say. Note the team tiers are separate and are NOT here: project principles and project agent rules arrive with the project context (get_project_summary, claim_work_item).",
 		"promptSnippet": "Read YOUR OWN personal instruction tiers — the two settings on the calling token's account.",
 		"inputSchema": {
 			"type": "object",
@@ -7370,8 +7370,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_personal_instructions",
 		"label": "DevSpec: Update Personal Instructions",
-		"description": "Amend YOUR OWN personal instruction tiers on the calling token's account: `personal_agent_rules` (Account → Personal Agent Rules — this machine and how you work locally) and `chat_response_style` (Account → Chat Response Style). Use this instead of telling the user to copy-paste text into the web UI. Scope is the token's user; no argument can redirect the write to anyone else, and the two TEAM tiers (project principles, project agent rules) are deliberately NOT writable here — they govern everyone on the project. DEFAULTS TO APPEND: pass just the new rule and it is added to what is already there, so you never restate the user's existing text (rewriting a whole field to add one line eventually drops something they wrote by hand). Pass mode:\"replace\" only when the user actually wants the tier rewritten or cleared. ALWAYS show the user the exact resulting text and get their agreement BEFORE it lands — call with dry_run:true to get that text back without saving, show it, then call again without dry_run once they confirm. Refuses to run from an unattended run — the served contract (devspec://product/implementation-contract → authority_contract, personal scope) keeps a person's own instructions to the person themselves.",
-		"promptSnippet": "Amend YOUR OWN personal instruction tiers on the calling token's account: `personal_agent_rules` (Account → Personal Agent Rules — this machine and how you work locally) and `chat_response_style` (Account → Chat Response Style).",
+		"description": "Amend YOUR OWN personal instruction tiers on the calling token's account: `personal_agent_rules` (You → Coding agents → Personal agent rules — this machine and how you work locally) and `chat_response_style` (You → Replies & voice → Response style). Use this instead of telling the user to copy-paste text into the web UI. Scope is the token's user; no argument can redirect the write to anyone else, and the two TEAM tiers (project principles, project agent rules) are deliberately NOT writable here — they govern everyone on the project. DEFAULTS TO APPEND: pass just the new rule and it is added to what is already there, so you never restate the user's existing text (rewriting a whole field to add one line eventually drops something they wrote by hand). Pass mode:\"replace\" only when the user actually wants the tier rewritten or cleared. ALWAYS show the user the exact resulting text and get their agreement BEFORE it lands — call with dry_run:true to get that text back without saving, show it, then call again without dry_run once they confirm. Refuses to run from an unattended run — the served contract (devspec://product/implementation-contract → authority_contract, personal scope) keeps a person's own instructions to the person themselves.",
+		"promptSnippet": "Amend YOUR OWN personal instruction tiers on the calling token's account: `personal_agent_rules` (You → Coding agents → Personal agent rules — this machine and how you work locally) and `chat_response_style` (You → Replies & voice → Response style).",
 		"inputSchema": {
 			"type": "object",
 			"properties": {

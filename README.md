@@ -63,7 +63,7 @@ npm run test:room-readers-runtime # scripted-provider host/tool/cutover qualific
 
 # Dogfood against staging (dev Clerk/Supabase) without installing:
 export DEVSPEC_ENV=staging                 # or DEVSPEC_MCP_URL=https://api.devspecstaging.com/api/mcp
-export DEVSPEC_MCP_TOKEN=<from https://app.devspecstaging.com/settings/connections>
+export DEVSPEC_MCP_TOKEN=<from https://app.devspecstaging.com/settings/coding-agents>
 pi -e ./extensions/devspec-auth.ts -e ./extensions/devspec-tools.ts
 ```
 

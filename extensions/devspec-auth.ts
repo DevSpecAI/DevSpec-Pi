@@ -2,8 +2,8 @@
  * DevSpec Pi — authentication extension.
  *
  * Commands:
- *   /devspec.login [token]   — verify + store a token (paste from the DevSpec
- *                              Connections page), or use DEVSPEC_MCP_TOKEN
+ *   /devspec.login [token]   — verify + store a token (paste from DevSpec's
+ *                              You → Coding agents page), or use DEVSPEC_MCP_TOKEN
  *   /devspec.logout          — remove the stored token
  *   /devspec.status          — show connection state
  *
@@ -17,7 +17,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAdapterGuardState, SUPPRESSION_NOTICE } from "./core/adapter-overlap.ts";
 import { clearAuth, resolveEndpoint, resolveToken, saveAuth } from "./core/auth-store.ts";
-import { connectionsUrl, mcpUrl, TOKEN_ENV_VAR } from "./core/config.ts";
+import { codingAgentsUrl, mcpUrl, TOKEN_ENV_VAR } from "./core/config.ts";
 import { DevspecAuthError, resetClientCache, verifyToken } from "./core/client.ts";
 import { unwrapMcpResult } from "./core/result.ts";
 
@@ -74,7 +74,7 @@ async function doLogin(token: string, ctx: ExtensionContext): Promise<boolean> {
 
 export default function (pi: ExtensionAPI) {
 	pi.registerCommand("devspec.login", {
-		description: `Connect to DevSpec. Paste an access token from ${connectionsUrl()} (or set ${TOKEN_ENV_VAR}).`,
+		description: `Connect to DevSpec. Paste an access token from ${codingAgentsUrl()} (or set ${TOKEN_ENV_VAR}).`,
 		handler: async (args, ctx) => {
 			const envToken = process.env[TOKEN_ENV_VAR];
 			let token = args.trim();
@@ -88,14 +88,14 @@ export default function (pi: ExtensionAPI) {
 				if (!ctx.hasUI) {
 					// Headless: no prompt possible. Tell the operator the env path.
 					ctx.ui.notify(
-						`DevSpec login: set ${TOKEN_ENV_VAR} (mint one at ${connectionsUrl()}) and re-run.`,
+						`DevSpec login: set ${TOKEN_ENV_VAR} (mint one at ${codingAgentsUrl()}) and re-run.`,
 						"warning",
 					);
 					return;
 				}
 				const entered = await ctx.ui.input(
 					"Connect to DevSpec",
-					`Paste an access token from ${connectionsUrl()}`,
+					`Paste an access token from ${codingAgentsUrl()}`,
 				);
 				token = (entered ?? "").trim();
 				if (!token) {
@@ -129,7 +129,7 @@ export default function (pi: ExtensionAPI) {
 			const resolved = await resolveToken();
 			if (!resolved) {
 				ctx.ui.notify(
-					`DevSpec: not connected. Run /devspec.login or set ${TOKEN_ENV_VAR}. Tokens: ${connectionsUrl()}`,
+					`DevSpec: not connected. Run /devspec.login or set ${TOKEN_ENV_VAR}. Tokens: ${codingAgentsUrl()}`,
 					"warning",
 				);
 				return;
@@ -148,7 +148,7 @@ export default function (pi: ExtensionAPI) {
 		if (!resolved) {
 			setStatus(ctx, undefined);
 			if (ctx.hasUI && ctx.mode === "tui") {
-				ctx.ui.notify(`DevSpec: not connected — /devspec.login (tokens: ${connectionsUrl()})`, "warning");
+				ctx.ui.notify(`DevSpec: not connected — /devspec.login (tokens: ${codingAgentsUrl()})`, "warning");
 			}
 			return;
 		}

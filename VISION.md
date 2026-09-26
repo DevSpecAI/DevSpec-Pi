@@ -317,19 +317,19 @@ honored, not ported around:
 
 ### Auth
 
-Today: `/devspec.login` accepts an account-wide token pasted from the DevSpec
-Connections page (`/settings/connections`), verified via
+Today: `/devspec.login` accepts an account-wide token pasted from DevSpec's
+You → Coding agents page (`/settings/coding-agents`), verified via
 `verify_agent_connection` and stored at `~/.pi/agent/devspec/auth.json`
 (0600, best-effort on Windows). `DEVSPEC_MCP_TOKEN` env wins for CI/cloud.
 No env-var wrangling as the primary path.
 
 Environments are first-class: development targets the staging API host
 **api.devspecstaging.com** (dev Clerk + Supabase), production is
-**api.devspec.ai**; the human-facing pages the plugin links to (Connections,
+**api.devspec.ai**; the human-facing pages the plugin links to (Coding agents,
 handoff) live on the matching `app.` host (`app.devspec.ai` /
 `app.devspecstaging.com`), and the marketing site stays on the bare apex.
 `DEVSPEC_ENV=staging` or a full `DEVSPEC_MCP_URL` override selects the
-endpoint; login guidance points at the matching Connections page automatically.
+endpoint; login guidance points at the matching Coding agents page automatically.
 
 Later (DevSpec-side work): OAuth device-code flow so login is a browser
 confirmation, not a token paste — designed per-environment from the start.
@@ -372,7 +372,7 @@ Release gates (all must hold before publishing):
    real service, so a public install must be checked against a working prod
    endpoint: verify TLS + `/api/mcp` on `api.devspec.ai` before release.
 2. **Login guidance matches the domain.** `/devspec.login` already points at
-   the Connections page for the *effective* endpoint; OAuth device flow (when
+   the Coding agents page for the *effective* endpoint; OAuth device flow (when
    it lands) must be per-environment too (dev Clerk on staging, prod Clerk on
    prod).
 3. **Server knows pi.** `claim_work_item.provider` needs a `'pi'` enum value

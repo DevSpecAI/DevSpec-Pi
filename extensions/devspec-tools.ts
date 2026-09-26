@@ -15,7 +15,7 @@ import { resolveToken } from "./core/auth-store.ts";
 import { getBond } from "./core/bond-state.ts";
 import { registerRoomReader } from "./core/room-tools.ts";
 import { ROOM_READ_TOOL } from "./core/room-reader.ts";
-import { connectionsUrl, TOKEN_ENV_VAR } from "./core/config.ts";
+import { codingAgentsUrl, TOKEN_ENV_VAR } from "./core/config.ts";
 import { callDevspec, MODEL_TIMEOUT_MS } from "./core/client.ts";
 import { repoResolver, validateCommitSha } from "./core/commit-ledger.ts";
 import { observeReviewResult, listFlags, type ConflictFlag } from "./core/conflict-watch.ts";
@@ -165,7 +165,7 @@ export function consumeResultMechanics(
 
 const NOT_CONNECTED =
 	`Not connected to DevSpec. Run /devspec.login, or set ${TOKEN_ENV_VAR}. ` +
-	`Tokens are minted at ${connectionsUrl()}.`;
+	`Tokens are minted at ${codingAgentsUrl()}.`;
 
 type CallCtx = { sessionManager: { getSessionId(): string }; cwd: string };
 

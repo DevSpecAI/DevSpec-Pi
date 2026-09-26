@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.26
+
+- Pi now sends you to You → Coding agents (`/settings/coding-agents`) for your DevSpec token, in `/devspec.login`, `/devspec.status` and `/devspec.help`. That page used to be called Connections; the old address still redirects.
+- Refreshed the DevSpec tool catalogue: personal agent rules and response style are now named where they live, You → Coding agents → Personal agent rules and You → Replies & voice → Response style, and automated reviews are under You → Coding agents. Reload or restart existing Pi sessions to pick this up.
+
 ## 0.3.25
 
 - An answer typed in your own words to Pi's multiple-choice question now reaches Pi when it is longer than 200 characters. DevSpec accepts up to 1000, but Pi kept its own, older copy of that limit, so a longer answer was refused. Pi now leaves answer limits to DevSpec, so a future change to them needs no Pi update. Reload or restart existing Pi sessions to activate this fix.

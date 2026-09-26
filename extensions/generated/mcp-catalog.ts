@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: a1792e97e44b0f234c335657c69a5ff703e0f0f7ca0a4661813d605cc9463094
+ * Schema fingerprint: 8f69326a44b3073aea79e4a6129ab81c6c99802d13c8ce814d697f76182b3268
  * Description fingerprint: d607bef4e832f1e5064ab15551bcf941c05fd0cb2c62c06e839ff60fa89de029
- * Regenerated: 2026-09-26T10:08:12.008Z
+ * Regenerated: 2026-09-26T22:27:29.167Z
  */
-export const MCP_CATALOG_FINGERPRINT = "a1792e97e44b0f234c335657c69a5ff703e0f0f7ca0a4661813d605cc9463094";
+export const MCP_CATALOG_FINGERPRINT = "8f69326a44b3073aea79e4a6129ab81c6c99802d13c8ce814d697f76182b3268";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "d607bef4e832f1e5064ab15551bcf941c05fd0cb2c62c06e839ff60fa89de029";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-26T10:08:12.008Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-26T22:27:29.167Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -1531,7 +1531,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"query": {
 					"type": "string",
-					"description": "Natural-language question or keywords, e.g. \"how do I set up autopilot\" or \"connect a database\"."
+					"description": "Natural-language question or keywords, e.g. \"how do I connect a coding agent\" or \"connect a database\"."
 				},
 				"limit": {
 					"type": "number",
@@ -1861,7 +1861,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"deferred",
 						"blocked"
 					],
-					"description": "New lifecycle state. Most callers should not set this directly — the DB derives lifecycle from implementation_events / verification_events. Use it for explicit user-driven transitions: \"dismissed\" (won't do — REJECTED for implemented/done items: completed work can't become \"won't do\"; reopen it first, or — if newer work replaces it — record that with resolve_action_item_conflict (verdict \"supersedes\"), which closes it as done-superseded rather than falsifying it as dismissed), \"deferred\" (PARK — consciously not now, reversible; counts as resolved so it stops holding a brief open, and setting it back to \"open\" resumes it and reopens the brief), \"open\" (resume/un-dismiss), \"blocked\"→\"open\" (unblock). `done` is deliberately not accepted: only recorded criterion evidence or explicitly authorized human verification can produce it."
+					"description": "New lifecycle state. Most callers should not set this directly — the DB derives lifecycle from implementation_events / verification_events. Use it for explicit user-driven transitions: \"dismissed\" (won't do — REJECTED for implemented/done items: completed work can't become \"won't do\"; reopen it first, or — if newer work replaces it — record that with resolve_action_item_conflict (verdict \"supersedes\"), which closes it as done-superseded rather than falsifying it as dismissed), \"deferred\" (PARK — consciously not now, reversible; counts as resolved so it stops holding a brief open, and setting it back to \"open\" resumes it and reopens the brief), \"blocked\" (waiting on something outside DevSpec), \"open\" (resume/un-dismiss), \"blocked\"→\"open\" (unblock). \"deferred\" and \"blocked\" are REJECTED for implemented/done items too — parking finished work would erase the record that it was done; reopen it first, or park the follow-up as its own item. `done` is deliberately not accepted: only recorded criterion evidence or explicitly authorized human verification can produce it."
 				},
 				"intent": {
 					"type": "string",

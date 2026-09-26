@@ -4,7 +4,7 @@ The native DevSpec experience for the [Pi](https://pi.dev) coding agent.
 
 ```bash
 npm install -g @earendil-works/pi-coding-agent
-pi install npm:@devspec/pi-plugin
+pi install git:github.com/DevSpecAI/DevSpec-Pi
 pi   # /devspec.login and you're in
 ```
 
@@ -18,7 +18,7 @@ because another tool shares it, leave that file — we turn the extra copy off
 for Pi. Other MCP servers you use (Supabase, browsers) stay.
 
 Open source: [github.com/DevSpecAI/DevSpec-Pi](https://github.com/DevSpecAI/DevSpec-Pi).
-On npm as `@devspec/pi-plugin` (keyword `pi-package`).
+Install it from GitHub as above. It will also be published to npm as `@devspec/pi-plugin` (keyword `pi-package`), but it is not on the npm registry yet, so `pi install npm:@devspec/pi-plugin` does not work today.
 
 **Read [VISION.md](./VISION.md) first** — it is the founding design document
 and binds all implementation decisions in this repo.

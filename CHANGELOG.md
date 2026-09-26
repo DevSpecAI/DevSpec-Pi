@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.27
+
+- The README's install command now works: `pi install git:github.com/DevSpecAI/DevSpec-Pi`. It said `pi install npm:@devspec/pi-plugin`, but the package is not on the npm registry yet, so that command failed for everyone. DevSpec's own connect instructions already use the GitHub install.
+- Refreshed the DevSpec tool catalogue: the help-search example no longer mentions Autopilot, and changing an item's lifecycle now says that finished work can't be parked as deferred or blocked (reopen it first). Reload or restart existing Pi sessions to pick this up.
+
 ## 0.3.26
 
 - Pi now sends you to You → Coding agents (`/settings/coding-agents`) for your DevSpec token, in `/devspec.login`, `/devspec.status` and `/devspec.help`. That page used to be called Connections; the old address still redirects.

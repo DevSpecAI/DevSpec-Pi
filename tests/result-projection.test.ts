@@ -299,9 +299,17 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// session_events_version / session_events_revision. Projection family is still
 	// "full". Same deterministic benchmark before/after: initial surface 7,732 ->
 	// 7,732 estimated tokens, because the verb is not in the hot set.
+	// Rebaselined 2026-09-26 for DevSpec item d8cac873 against server staging
+	// cf0f2bcd3. Compared old/new generated objects by name/inputSchema: 87 model
+	// verbs before and after, none added or removed, no required or type change.
+	// Two descriptions only: devspec_help_search.query's example no longer names
+	// autopilot, and update_action_item.lifecycle now names "blocked" and says
+	// "deferred"/"blocked" are refused on implemented/done items (DevSpec
+	// 5c422453). No projection family or hot-set membership changed. Same
+	// deterministic benchmark before/after: initial surface 7,732 -> 7,732.
 	assert.equal(
 		fingerprint,
-		"03fad1bf1c32ae1deb3c71ece7739f01eae5064923551b82d9f3b8c3660dc840",
+		"9681f80395e02a649a6f3067c3f5e2ac545ec58aae664f26f48a5a8a786994ac",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

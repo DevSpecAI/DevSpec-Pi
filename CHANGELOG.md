@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.28
+
+- Refreshed the DevSpec tool catalogue: the three create tools (action item, artifact, memory) now accept an optional retry key, and DevSpec dedupes a retried create — an agent that loses its response to a timeout and tries again gets the original record back instead of filing a duplicate. Reload or restart existing Pi sessions to pick this up.
+
 ## 0.3.27
 
 - The README's install command now works: `pi install git:github.com/DevSpecAI/DevSpec-Pi`. It said `pi install npm:@devspec/pi-plugin`, but the package is not on the npm registry yet, so that command failed for everyone. DevSpec's own connect instructions already use the GitHub install.

@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 8f69326a44b3073aea79e4a6129ab81c6c99802d13c8ce814d697f76182b3268
- * Description fingerprint: d607bef4e832f1e5064ab15551bcf941c05fd0cb2c62c06e839ff60fa89de029
- * Regenerated: 2026-09-26T22:27:29.167Z
+ * Schema fingerprint: d301dfe157295dc8b71908af587bb919abc736aa10f86e4209b56f2c21947cef
+ * Description fingerprint: e0570ba4be4893d94dac084e9b51c6f3fee7629916d8f1c87780cf0a3cbed7ec
+ * Regenerated: 2026-09-27T12:22:14.866Z
  */
-export const MCP_CATALOG_FINGERPRINT = "8f69326a44b3073aea79e4a6129ab81c6c99802d13c8ce814d697f76182b3268";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "d607bef4e832f1e5064ab15551bcf941c05fd0cb2c62c06e839ff60fa89de029";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-26T22:27:29.167Z";
+export const MCP_CATALOG_FINGERPRINT = "d301dfe157295dc8b71908af587bb919abc736aa10f86e4209b56f2c21947cef";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "e0570ba4be4893d94dac084e9b51c6f3fee7629916d8f1c87780cf0a3cbed7ec";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-27T12:22:14.866Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -1685,22 +1685,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_claimable_reviews",
 		"label": "DevSpec: Get Claimable Reviews",
-		"description": "Code reviews waiting for YOU to pick up on this project. Nothing is pushed — you take it if you want it — but a review arrives here two ways. Most are OFFERED to whoever opted in: work becomes reviewable, a review waits, and any of that person's opted-in agents may take it (You → Coding agents → Automated reviews). One can also be ADDRESSED to a single agent, because a person chose it by hand; that one is visible and claimable only by that connection, and needs no opt-in, since choosing the agent is the consent for that run. Either way you still claim it yourself and can still lose the race. Only what THIS agent may take is listed, so two of your agents polling the same project see different lists. Empty is the normal answer — nothing ready, nothing addressed to you, nobody opted in — and not a fault to investigate. The loop is get_claimable_reviews, then claim_review, then do the work, then record_review.",
+		"description": "Code reviews waiting for YOU to pick up on this project. Every one was ADDRESSED to you: a person picked this agent by hand from an item's Review control, and only the connection they named can see or claim it — nothing arrives unattended. You still claim it yourself and can still lose the race to nobody (only you were asked) — claiming is what records that the work began. Empty is the normal answer — nothing has been addressed to you — and not a fault to investigate. The loop is get_claimable_reviews, then claim_review, then do the work, then record_review.",
 		"promptSnippet": "Code reviews waiting for YOU to pick up on this project.",
 		"inputSchema": {
 			"type": "object",
 			"properties": {
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id. Defaults to your most recently seen live connection on this project."
-				},
-				"agent_tool": {
-					"type": "string",
-					"description": "Which coding tool you are (claude_code, codex_cli, cursor_cli, grok_build, antigravity, opencode), checked against the tools ticked in your opt-in. Defaults to the tool DevSpec resolves from your connection."
-				},
-				"model": {
-					"type": "string",
-					"description": "Your model, checked only when your opt-in names a required model for this tool."
+					"description": "Your connection id — a review is addressed to a connection, so this is how the ones meant for you are found. Defaults to your most recently seen live connection on this project."
 				},
 				"project_id": {
 					"type": "string",
@@ -2202,6 +2194,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Optional: goal UUIDs this work serves. Links the new item to these goals (recorded as agent-authored) so it counts toward their progress. Read goal UUIDs with get_goals."
 				},
+				"idempotency_key": {
+					"type": "string",
+					"description": "Optional. One caller-generated key per INTENDED create (a UUID is fine). If a timeout or interruption loses the response, retry with the SAME key and you receive the original record's id as a no-op success instead of a duplicate row. A new key always creates. Without a key, an identical create in the same session is still deduped by content."
+				},
 				"runner_session_id": {
 					"type": "string",
 					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
@@ -2505,15 +2501,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id, recorded against the claim. Defaults to your most recently seen live connection on this project."
-				},
-				"agent_tool": {
-					"type": "string",
-					"description": "Which coding tool you are (claude_code, codex_cli, cursor_cli, grok_build, antigravity, opencode), re-checked against your opt-in at claim time. Defaults to the tool DevSpec resolves from your connection."
-				},
-				"model": {
-					"type": "string",
-					"description": "Your model, checked only when your opt-in names a required model for this tool."
+					"description": "Your connection id, recorded against the claim. Must be the connection the review was addressed to. Defaults to your most recently seen live connection on this project."
 				},
 				"runner_session_id": {
 					"type": "string",
@@ -2924,6 +2912,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"type": "string"
 					},
 					"description": "Optional: tags for categorisation"
+				},
+				"idempotency_key": {
+					"type": "string",
+					"description": "Optional. One caller-generated key per INTENDED create (a UUID is fine). If a timeout or interruption loses the response, retry with the SAME key and you receive the original record's id as a no-op success instead of a duplicate row. A new key always creates. Without a key, an identical create in the same session is still deduped by content."
 				},
 				"runner_session_id": {
 					"type": "string",
@@ -4351,6 +4343,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"confirm_new": {
 					"type": "boolean",
 					"description": "Set true only after reading the record named in closest_match and deciding this is genuinely distinct from it. It is a RULING, not a retry: it is recorded against the pair, with who made it, which is what stops the background comparison re-asking a question you already answered. If the record was written by someone else and settles something, overruling it is not yours to do quietly: say what you found and ask, unless they have already told you to go ahead. The pair keeps a flag either way, so whoever opens either record sees the other."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"description": "Optional. One caller-generated key per INTENDED create (a UUID is fine). If a timeout or interruption loses the response, retry with the SAME key and you receive the original record's id as a no-op success instead of a duplicate row. A new key always creates. Without a key, an identical create in the same session is still deduped by content."
 				},
 				"runner_session_id": {
 					"type": "string",

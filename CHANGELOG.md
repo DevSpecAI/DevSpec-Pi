@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.30
+
+- The DevSpec guidance Pi reads now draws one more line on knowledge capture: what shipped, which commit and what passed belong on the action item, not in project memory — and a memory should hold what a future decision needs that the existing record doesn't already preserve. Shared project knowledge stays free of per-task status reports. The DevSpec tool catalogue is refreshed to match. Reload or restart existing Pi sessions to pick this up.
+
 ## 0.3.29
 
 - Refreshed the DevSpec tool catalogue: the old review claim loop (get_claimable_reviews, claim_review, record_review) is gone — nothing could ever offer a review into it any more. Asking for a review is unchanged: someone picks your agent on the item and you get the ask as a message, and checking work still means record_criterion_verdicts. Reload or restart existing Pi sessions to pick this up.

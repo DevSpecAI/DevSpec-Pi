@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.29
+
+- Refreshed the DevSpec tool catalogue: the old review claim loop (get_claimable_reviews, claim_review, record_review) is gone — nothing could ever offer a review into it any more. Asking for a review is unchanged: someone picks your agent on the item and you get the ask as a message, and checking work still means record_criterion_verdicts. Reload or restart existing Pi sessions to pick this up.
+
+
 ## 0.3.28
 
 - Refreshed the DevSpec tool catalogue: the three create tools (action item, artifact, memory) now accept an optional retry key, and DevSpec dedupes a retried create — an agent that loses its response to a timeout and tries again gets the original record back instead of filing a duplicate. Reload or restart existing Pi sessions to pick this up.

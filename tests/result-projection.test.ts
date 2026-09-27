@@ -307,9 +307,16 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// "deferred"/"blocked" are refused on implemented/done items (DevSpec
 	// 5c422453). No projection family or hot-set membership changed. Same
 	// deterministic benchmark before/after: initial surface 7,732 -> 7,732.
+	// Rebaselined 2026-09-27 for DevSpec item 2b2b025e: the orphaned review
+	// claim loop is deleted server-side, so get_claimable_reviews, claim_review
+	// and record_review leave the catalog (87 -> 84 model verbs) and their
+	// model-surface intent entry and projection-family memberships go with them.
+	// Nothing an agent could reach changes: evidence recording is
+	// record_criterion_verdicts (untouched) and asking for a review is the
+	// picker's attach + owner message (ask-review), which never used these.
 	assert.equal(
 		fingerprint,
-		"9681f80395e02a649a6f3067c3f5e2ac545ec58aae664f26f48a5a8a786994ac",
+		"28cc3fd5e14c2673a359898deaf00441774e3d23d48b57cac0e172130cfda97d",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -323,7 +330,7 @@ test("verb projections use explicit, loss-aware families", () => {
 	for (const verb of [
 		"get_action_item", "claim_work_item", "get_session_transcript", "preview_conflict_resolution",
 		"get_project_instruction_rules", "get_personal_instructions", "get_workflow_rules", "get_database_schema",
-		"get_goals", "get_project_goals", "create_session", "claim_automation_run", "claim_review",
+		"get_goals", "get_project_goals", "create_session", "claim_automation_run",
 		"import_instruction_rules", "update_personal_instructions", "manage_plan", "manage_poll", "manage_directed_question",
 	]) assert.equal(projectionFamily(verb), "full", verb);
 	assert.equal(projectionFamily("some_future_verb"), "fallback");
@@ -891,7 +898,7 @@ test("create_session and read-like writes preserve their complete load-bearing r
 	assert.match(sessionText, /PROJECT-PRINCIPLES/);
 	assert.match(sessionText, /OWNER-AGENT-RULES/);
 
-	for (const verb of ["claim_automation_run", "claim_review", "import_instruction_rules", "update_personal_instructions"]) {
+	for (const verb of ["claim_automation_run", "import_instruction_rules", "update_personal_instructions"]) {
 		const payload = { id: `${verb}-1`, permission: "look_only", preview: huge(`${verb}-LOAD-BEARING`, 8_000) };
 		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
 		assert.deepEqual(JSON.parse(text), payload, verb);

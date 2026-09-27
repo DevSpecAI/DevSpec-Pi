@@ -84,7 +84,6 @@ test("rare verbs are searchable but not in the initial hot set", () => {
 	const rareMustStayOff = [
 		"create_automation",
 		"claim_automation_run",
-		"get_claimable_reviews",
 		"import_instruction_rules",
 		"update_personal_instructions",
 		"write_project_instruction_rule",

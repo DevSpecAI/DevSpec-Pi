@@ -53,7 +53,6 @@ const COLLECTION_VERBS = new Set([
 	"search_discussion_points",
 	"get_automation_runs",
 	"get_automations",
-	"get_claimable_reviews",
 ]);
 
 const FULL_READ_VERBS = new Set([
@@ -86,7 +85,6 @@ const FULL_READ_VERBS = new Set([
 	// briefing, permission, previews, resulting text, or mandatory instructions.
 	"create_session",
 	"claim_automation_run",
-	"claim_review",
 	// Every review-queue entry is a decision waiting on a person; a dropped row
 	// reads as "nothing outstanding", so the whole queue survives projection.
 	"get_review_queue",
@@ -112,7 +110,6 @@ const ACK_VERBS = new Set([
 	"add_commit_reference",
 	"add_implementation_note",
 	"record_automation_run",
-	"record_review",
 	"create_automation",
 	"update_automation",
 	"delete_automation",

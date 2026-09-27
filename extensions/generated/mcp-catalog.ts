@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: d301dfe157295dc8b71908af587bb919abc736aa10f86e4209b56f2c21947cef
- * Description fingerprint: e0570ba4be4893d94dac084e9b51c6f3fee7629916d8f1c87780cf0a3cbed7ec
- * Regenerated: 2026-09-27T12:22:14.866Z
+ * Schema fingerprint: a158c9421d50147e43e33b9f310fa0cbd6a19f0f70fa7b29f96c9f13f0860802
+ * Description fingerprint: d838e666b9524335313e5a939b9ca99caf4efc3d9caffdf354022ac1cf637b3b
+ * Regenerated: 2026-09-27T14:20:59.895Z
  */
-export const MCP_CATALOG_FINGERPRINT = "d301dfe157295dc8b71908af587bb919abc736aa10f86e4209b56f2c21947cef";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "e0570ba4be4893d94dac084e9b51c6f3fee7629916d8f1c87780cf0a3cbed7ec";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-27T12:22:14.866Z";
+export const MCP_CATALOG_FINGERPRINT = "a158c9421d50147e43e33b9f310fa0cbd6a19f0f70fa7b29f96c9f13f0860802";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "d838e666b9524335313e5a939b9ca99caf4efc3d9caffdf354022ac1cf637b3b";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-27T14:20:59.895Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -73,7 +73,6 @@ export const MODEL_VERB_NAMES = [
 	"get_automation_runs",
 	"get_automations",
 	"get_automation",
-	"get_claimable_reviews",
 	"get_project_instruction_rules",
 	"get_personal_instructions",
 	"preview_conflict_resolution",
@@ -83,8 +82,6 @@ export const MODEL_VERB_NAMES = [
 	"add_implementation_note",
 	"claim_automation_run",
 	"record_automation_run",
-	"claim_review",
-	"record_review",
 	"create_automation",
 	"update_automation",
 	"delete_automation",
@@ -1683,34 +1680,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"kind": "model"
 	},
 	{
-		"name": "get_claimable_reviews",
-		"label": "DevSpec: Get Claimable Reviews",
-		"description": "Code reviews waiting for YOU to pick up on this project. Every one was ADDRESSED to you: a person picked this agent by hand from an item's Review control, and only the connection they named can see or claim it — nothing arrives unattended. You still claim it yourself and can still lose the race to nobody (only you were asked) — claiming is what records that the work began. Empty is the normal answer — nothing has been addressed to you — and not a fault to investigate. The loop is get_claimable_reviews, then claim_review, then do the work, then record_review.",
-		"promptSnippet": "Code reviews waiting for YOU to pick up on this project.",
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"connection_id": {
-					"type": "string",
-					"description": "Your connection id — a review is addressed to a connection, so this is how the ones meant for you are found. Defaults to your most recently seen live connection on this project."
-				},
-				"project_id": {
-					"type": "string",
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins."
-				},
-				"git_remote": {
-					"type": "string",
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote."
-				},
-				"pinned_project_id": {
-					"type": "string",
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves."
-				}
-			}
-		},
-		"kind": "model"
-	},
-	{
 		"name": "get_project_instruction_rules",
 		"label": "DevSpec: Get Project Instruction Rules",
 		"description": "Read this project's TEAM instruction rules as individual rules rather than one blob: `rules` (live — what every agent on the project actually receives, composed into project_agent_rules / project_custom_instructions) and `pending_proposals` (queued for a maintainer, reaching NOBODY until accepted). Each rule carries its text, class (safety | mechanics | style), rationale, author and status. Use this before proposing a change so you can see what is already there and avoid duplicating a rule. For the caller's OWN machine/tooling rules use get_personal_instructions instead — these are the team's.",
@@ -2483,142 +2452,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"required": [
 				"run_id",
 				"status"
-			]
-		},
-		"kind": "model"
-	},
-	{
-		"name": "claim_review",
-		"label": "DevSpec: Claim Review",
-		"description": "Take a waiting code review so you can do it. Returns a briefing plus the item's commit and affected files as investigation leads. Losing the race is NORMAL, not an error: if another of your agents claimed it first you get claimed:false with reason already_claimed — move on, do not retry.\n\nTHIS REVIEW IS YOURS BECAUSE YOU HAVE A SHELL. Automated review runs on your machine, not on DevSpec's cloud AI, precisely so the reviewer can run the tests, apply the query and hit the endpoint instead of only reading the diff. Use that: what you OBSERVE settles acceptance criteria via record_criterion_verdicts, and what you merely CONCLUDE from reading is advisory prose for record_review. Do not dress the second up as the first.",
-		"promptSnippet": "Take a waiting code review so you can do it.",
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"review_id": {
-					"type": "string",
-					"description": "REQUIRED. The waiting review to take (from get_claimable_reviews)."
-				},
-				"connection_id": {
-					"type": "string",
-					"description": "Your connection id, recorded against the claim. Must be the connection the review was addressed to. Defaults to your most recently seen live connection on this project."
-				},
-				"runner_session_id": {
-					"type": "string",
-					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
-				}
-			},
-			"required": [
-				"review_id"
-			]
-		},
-		"kind": "model"
-	},
-	{
-		"name": "record_review",
-		"label": "DevSpec: Record Review",
-		"description": "Report the outcome of a review you claimed, and close it. Requires a verdict and a verdict_summary — a verdict nobody can interpret is not a review.\n\nRECORD YOUR CRITERION VERDICTS FIRST. Anything you actually ran or queried belongs in record_criterion_verdicts with a real observation layer and evidence, and that is the only part of a review that can settle an acceptance criterion. The findings you pass here are ADVISORY: they cannot settle a criterion, and a failing review does not block promotion. They are still worth writing — a synthesis like \"these three changes together mean the abstraction is wrong\" is not any single criterion — but do not mistake them for the part with effect.\n\nThe `intent` block is the half with teeth: a concern BLOCKS the item from completing and must explain itself. Omit the block entirely rather than guessing — silence is recorded as \"nobody judged the intent\", never as \"no concern\".",
-		"promptSnippet": "Report the outcome of a review you claimed, and close it.",
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"review_id": {
-					"type": "string",
-					"description": "REQUIRED. The review you claimed."
-				},
-				"verdict": {
-					"type": "string",
-					"enum": [
-						"pass",
-						"fail",
-						"inconclusive"
-					],
-					"description": "REQUIRED. Binary, not \"mostly works\". Use inconclusive only when you genuinely could not determine the answer, and say in the summary what you needed and could not get."
-				},
-				"verdict_summary": {
-					"type": "string",
-					"description": "REQUIRED. One or two sentences: was the stated intent achieved, and why."
-				},
-				"findings": {
-					"type": "array",
-					"description": "What you CONCLUDED from reading, as { severity: high|medium|low|info, file, line, message }. Advisory — the things you OBSERVED belong in record_criterion_verdicts instead.",
-					"items": {
-						"type": "object",
-						"properties": {
-							"severity": {
-								"type": "string",
-								"enum": [
-									"high",
-									"medium",
-									"low",
-									"info"
-								]
-							},
-							"file": {
-								"type": "string",
-								"description": "Optional file path."
-							},
-							"line": {
-								"type": "number",
-								"description": "Optional line number."
-							},
-							"message": {
-								"type": "string",
-								"description": "What is wrong and why it matters for whether the intent was met."
-							}
-						},
-						"required": [
-							"message"
-						]
-					}
-				},
-				"intent": {
-					"type": "object",
-					"description": "The synthesis — did the work do what was MEANT, and is the checklist missing anything. A concern BLOCKS the item. Omit entirely if you did not form a view.",
-					"properties": {
-						"verdict": {
-							"type": "string",
-							"enum": [
-								"concern",
-								"no_concern"
-							]
-						},
-						"summary": {
-							"type": "string",
-							"description": "REQUIRED for a concern — a block that does not say why cannot be acted on or argued with."
-						},
-						"proposed_criteria": {
-							"type": "array",
-							"description": "Lines you think belong on the checklist, as { text, rationale }. Recorded as proposals for a human to accept.",
-							"items": {
-								"type": "object",
-								"properties": {
-									"text": {
-										"type": "string"
-									},
-									"rationale": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"text"
-								]
-							}
-						}
-					},
-					"required": [
-						"verdict"
-					]
-				},
-				"runner_session_id": {
-					"type": "string",
-					"description": "Provenance (autonomy detection): the autopilot runner heartbeat session_id — the same UUID passed to send_heartbeat. Stamp it on EVERY write made during an autonomous autopilot run, so the write is attributed to that runner and lands for human confirmation. OMIT it entirely for interactive, human-in-the-loop use — its absence is the interactive signal. Never invent a value."
-				}
-			},
-			"required": [
-				"review_id",
-				"verdict",
-				"verdict_summary"
 			]
 		},
 		"kind": "model"
@@ -7402,8 +7235,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 101,
-	model: 87,
+	total: 98,
+	model: 84,
 	pump: 13,
 	never_model: 1,
 } as const;

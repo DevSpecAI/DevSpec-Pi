@@ -27,12 +27,11 @@ const RESET = "\x1b[0m";
 const GAP = "  ";
 
 /**
- * Trimmed from the canonical site title, "Your home for AI-native software
- * development" — the marketing voice, shortened to keep the lockup reachable on
- * a narrower terminal. Keep it short: its length sets the width at which the
- * wordmark can sit beside the mark at all.
+ * Approved terminal adaptation of the public brand family (de447cb7).
+ * Keep it short: its length sets the width at which the tagline can sit
+ * beside the mark. Narrower terminals retain the existing name-only fallback.
  */
-export const TAGLINE = "Your home for AI-native development.";
+export const TAGLINE = "Your team’s knowledge, where you build.";
 
 /**
  * Pick the first rendering whose plain text fits `available` columns, or "" if

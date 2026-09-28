@@ -1,5 +1,9 @@
 # DevSpec Pi
 
+**Build on your team’s best thinking.**
+
+DevSpec helps your team and AI agents turn ideas and experience into better software.
+
 The native DevSpec experience for the [Pi](https://pi.dev) coding agent.
 
 ```bash

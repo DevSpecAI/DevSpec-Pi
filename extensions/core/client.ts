@@ -21,6 +21,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { resolveEndpoint } from "./auth-store.ts";
 import { argsHaveProjectScope, folderScopeArgs, needsProjectScope } from "./project-scope.ts";
+import { withClientVersions } from "./client-versions.ts";
 
 const CLIENT_NAME = "devspec-pi";
 const CLIENT_VERSION = "0.2.0";
@@ -505,7 +506,7 @@ export async function callDevspec(
 ): Promise<unknown> {
 	const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 	const lane: ClientLane = options.lane ?? "work";
-	let callArgs = args;
+	let callArgs = withClientVersions(name, args);
 	if (options.cwd && !argsHaveProjectScope(callArgs)) {
 		const scope = await folderScopeArgs(options.cwd);
 		if (scope.git_remote || scope.pinned_project_id) {
@@ -598,7 +599,7 @@ export async function callDevspecAdvisoryOnce(
 	try {
 		const raw = await withHardTimeout((async () => {
 			await client.connect(transport);
-			return client.callTool({ name, arguments: args }, undefined, { timeout: timeoutMs });
+			return client.callTool({ name, arguments: withClientVersions(name, args) }, undefined, { timeout: timeoutMs });
 		})(), timeoutMs, `${name} advisory`);
 		const result = raw as { isError?: boolean; content?: Array<{ type?: string; text?: string }> };
 		if (result?.isError) {

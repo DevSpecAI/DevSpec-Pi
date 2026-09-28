@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.31
+
+- Registration and attachment now report the DevSpec plugin version loaded by the process, separately from the Pi host version. This lets staff find affected users when investigating a plugin release. Version reporting does not change connection identity, permissions, presence or message delivery; older servers may ignore it. Existing Pi sessions need a reload or restart to load the reporter.
+
 ## 0.3.30
 
 - The DevSpec guidance Pi reads now draws one more line on knowledge capture: what shipped, which commit and what passed belong on the action item, not in project memory — and a memory should hold what a future decision needs that the existing record doesn't already preserve. Shared project knowledge stays free of per-task status reports. The DevSpec tool catalogue is refreshed to match. Reload or restart existing Pi sessions to pick this up.

@@ -1,6 +1,6 @@
 {
   "name": "@devspec/pi-plugin",
-  "version": "0.3.30",
+  "version": "0.3.31",
   "description": "DevSpec for Pi \u2014 native tools, auth, remote control, and memory for the Pi coding agent. One install, everything included.",
   "type": "module",
   "license": "MIT",
@@ -39,6 +39,9 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
   },
   "devDependencies": {
     "@earendil-works/pi-ai": "^0.84.1",

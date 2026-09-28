@@ -215,7 +215,9 @@ export default function (pi: ExtensionAPI) {
 			const lines = [
 				"DevSpec commands:",
 				"  /devspec.work [item]  — select one action item to work (id/title, or picker)",
-				"  /devspec.remote       — bond as remote capacity (auto on launch; stop | auto on|off)",
+				"  /devspec.remote       — connect (optional --project <name-or-id>; stop | auto on|off)",
+				"  /devspec.project      — show project; choose | remember | forget",
+				"  pi --devspec-project <name-or-id> — choose for a new local conversation",
 				"  /devspec.reload       — reload this extension (same as /reload)",
 				"  /devspec.login        — connect (token from You → Coding agents in DevSpec)",
 				"  /devspec.pin <id>     — explicitly associate this folder with a DevSpec project",

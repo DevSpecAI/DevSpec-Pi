@@ -8,6 +8,8 @@ import {
 	sanitizeGitRemoteForTransport,
 	clearGitRemoteCache,
 	resolveProjectPin,
+	resolveProjectPinFile,
+	forgetProjectPin,
 	clearProjectPinCache,
 	writeProjectPin,
 } from "../extensions/core/project-scope.ts";
@@ -188,6 +190,10 @@ test("a linked worktree inherits an untracked pin from the main checkout", async
 		"11111111-1111-4111-8111-111111111111",
 	);
 
+	assert.deepEqual(await resolveProjectPinFile(linked, join(root, "not-home")), {
+		path: join(main, ".devspec", "project.json"), projectId: "11111111-1111-4111-8111-111111111111",
+	});
+
 	// The repository fallback remains last: an explicit linked-worktree pin wins.
 	await mkdir(join(linked, ".devspec"), { recursive: true });
 	await writeFile(
@@ -200,6 +206,15 @@ test("a linked worktree inherits an untracked pin from the main checkout", async
 		await resolveProjectPin(linked, join(root, "not-home")),
 		"22222222-2222-4222-8222-222222222222",
 	);
+	const localPin = await resolveProjectPinFile(linked, join(root, "not-home"));
+	assert.ok(localPin);
+	await forgetProjectPin(localPin);
+	const inheritedPin = await resolveProjectPinFile(linked, join(root, "not-home"));
+	assert.equal(inheritedPin?.path, join(main, ".devspec", "project.json"));
+	assert.ok(inheritedPin);
+	await writeFile(inheritedPin.path, '{"project_id":"changed-while-confirming"}');
+	await assert.rejects(forgetProjectPin(inheritedPin), /default changed/);
+	assert.equal(await resolveProjectPin(linked, join(root, "not-home")), "changed-while-confirming");
 });
 
 test("a linked worktree never inherits a main checkout pin at or above $HOME", async (t) => {

@@ -11,7 +11,8 @@ import { createHash } from "node:crypto";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
 import { callDevspecAdvisoryOnce } from "./core/client.ts";
-import { resolveGitRemote, resolveProjectPin, writeProjectPin } from "./core/project-scope.ts";
+import { resolveGitRemote, resolveProjectPin, resolveProjectPinFile, writeProjectPin } from "./core/project-scope.ts";
+import { getProjectChoice } from "./core/project-choice.ts";
 import { unwrapMcpResult } from "./core/result.ts";
 import { hasObservedClaim, markProjectNudged, unmarkProjectNudged } from "./core/work-state.ts";
 
@@ -155,12 +156,12 @@ export async function unclaimedEditNudge(
 
 	// Positive jurisdiction is either an explicit pin or a server-verified remote.
 	// Every auth/network/ambiguous/malformed state is a plain non-blocking null.
-	const projectId = await projectResolver(runtime.cwd);
+	const projectId = getProjectChoice(sessionId)?.project.id ?? await projectResolver(runtime.cwd);
 	if (!projectId || !FULL_PROJECT_ID.test(projectId) || hasObservedClaim(sessionId, projectId) || !markProjectNudged(sessionId, projectId)) return null;
 	return {
 		customType: "devspec-provenance-nudge",
 		content:
-			`DevSpec provenance note: this folder is positively associated with project ${projectId}, ` +
+			`DevSpec provenance note: this conversation is working with project ${projectId}, ` +
 			"but this Pi session has not observed an active claim. Continue this edit—editing is never blocked. " +
 			"Before committing, use search_action_items to find and claim the covering item; if none exists, " +
 			"create and claim a thin last-mile item. Pi cannot add the [devspec:<full-uuid>] commit reference for you, " +
@@ -208,6 +209,13 @@ export default function (pi: ExtensionAPI): void {
 				return;
 			}
 			try {
+				const existing = await resolveProjectPinFile(ctx.cwd);
+				if (existing && existing.projectId !== projectId) {
+					if (ctx.mode !== "tui" || !await ctx.ui.confirm("Replace folder default?", `${existing.projectId} at ${existing.path}\nNew project: ${projectId}\nThis may affect other users of the folder, but not existing conversations.`)) return;
+					if (JSON.stringify(await resolveProjectPinFile(ctx.cwd)) !== JSON.stringify(existing)) {
+						ctx.ui.notify("The folder default changed. Review it again before replacing it.", "warning"); return;
+					}
+				}
 				const result = await writeProjectPin(ctx.cwd, projectId);
 				const replacement = result.replaced ? ` (replaced ${result.replaced})` : "";
 				ctx.ui.notify(`DevSpec project association written to ${result.path}${replacement}.`, "info");

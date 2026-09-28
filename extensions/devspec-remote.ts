@@ -43,6 +43,8 @@ import {
 	shouldEndBondOnPollFailure,
 } from "./core/client.ts";
 import { connectionCapabilityFromResult, getBond, setBond, type BondState } from "./core/bond-state.ts";
+import { installProjectSelection } from "./core/project-selection-ui.ts";
+import { getProjectChoice, projectFromRegistration, projectRemoteArgs, type ProjectCandidate, type ProjectChoice, type ProjectChoiceRequired } from "./core/project-choice.ts";
 import { openRoomStore, roomPrincipalFingerprint, type RoomStoreScope } from "./core/room-store.ts";
 import { readRoomForContext } from "./core/room-tools.ts";
 import { observeRoomAccess } from "./core/room-access.ts";
@@ -2978,13 +2980,14 @@ interface BondOutcome {
 	errorKind?: "auth" | "api";
 	codename?: string;
 	attached?: boolean;
+	projectChoice?: ProjectChoiceRequired;
 }
 
 /**
  * Register/revive the bond and start the pump. Shared by /devspec.remote and
  * the auto-bond on session_start. Never throws.
  */
-async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<BondOutcome> {
+async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: ProjectCandidate): Promise<BondOutcome> {
 	const resolved = await resolveToken();
 	if (!resolved) return { ok: false, error: "Not connected to DevSpec — /devspec.login first.", errorKind: "auth" };
 
@@ -3001,6 +3004,8 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 			machine_hostname: hostname(),
 			cwd: ctx.cwd,
 			connection_capability_version: 1,
+			project_selection_version: 1,
+			...(project ? { project_id: project.id } : {}),
 		}, { cwd: ctx.cwd, lane: "pump" });
 		const reg = unwrapMcpResult(regRaw);
 		if (reg.isError) return { ok: false, error: `register failed: ${reg.text}`, errorKind: "api" };
@@ -3010,10 +3015,16 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 		if (!negotiatedCapability) throw new Error("register_connection did not return negotiated connection capability v1 metadata");
 		connectionCapability = negotiatedCapability;
 	} catch (err) {
-		return { ok: false, error: err instanceof Error ? err.message : String(err), errorKind: "api" };
+		return { ok: false, error: err instanceof Error ? err.message : String(err), errorKind: "api",
+			...(err instanceof DevspecToolError && err.projectChoice ? { projectChoice: err.projectChoice } : {}) };
 	}
 	const connectionId = (d.connection_id ?? d.connectionId) as string | undefined;
 	if (!connectionId) return { ok: false, error: `register returned no connection id: ${regText.slice(0, 200)}`, errorKind: "api" };
+
+	if (ctx.sessionManager.getSessionId() !== localId) return { ok: false, error: "The local conversation changed during connection. Retry in the current conversation.", errorKind: "api" };
+	const choice = projectFromRegistration(d, await resolveEndpoint(), project ?? getProjectChoice()?.project);
+	if (!choice || (project && choice.project.id !== project.id)) return { ok: false, error: "DevSpec did not confirm the selected project. No local connection was adopted.", errorKind: "api" };
+	pi_persistProjectChoice(ctx, choice);
 
 	const bond: BondState = {
 		connectionId,
@@ -3133,6 +3144,7 @@ let pi_send: (
 	commandMessageId?: string,
 	canonicalQueueItem?: CanonicalQueueItem,
 ) => void = () => {};
+let pi_persistProjectChoice: (ctx: ExtensionContext, choice: ProjectChoice) => void = () => {};
 let pi_abort: () => void = () => {};
 let pi_compact: () => void = () => {};
 let pi_reload: () => Promise<void> = async () => {};
@@ -3194,6 +3206,11 @@ async function enrichBondWithSession(sessionId: string): Promise<void> {
 
 export default function (pi: ExtensionAPI) {
 	rememberExtensionRunner();
+	const projectSelection = installProjectSelection(pi, {
+		attempt: bondNow,
+		stop: async ctx => { if (pump) await stopPump(ctx, "local_stop"); },
+	});
+	pi_persistProjectChoice = projectSelection.persist;
 	const subagentFleet = new SubagentFleetClient(pi.events);
 	let observationScope: BackgroundWorkScope | null = null;
 	let restoringBackground = false;
@@ -4178,6 +4195,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
+		if (!await projectSelection.prepare(ctx)) return;
 		replaceInteractionJournal(InteractionEventJournal.reconstruct(
 			readPersistedActiveBranchEntries(ctx.sessionManager) ?? [],
 			ctx.sessionManager.getSessionId(),
@@ -4187,15 +4205,16 @@ export default function (pi: ExtensionAPI) {
 		// and cloud workers bond explicitly (RPC command / future flag).
 		if (ctx.mode !== "tui" || pump) return;
 		const settings = await loadSettings();
-		if (!settings.autoBond) return;
+		const explicitlyRequested = projectSelection.consumeExplicitConnect();
+		if (!settings.autoBond && !explicitlyRequested) return;
 		const resolved = await resolveToken();
 		if (!resolved) return;
-		const outcome = await bondNow(ctx);
+		const outcome = await projectSelection.connect(ctx);
 		if (outcome.ok) {
 			lastCtx = ctx;
 			notify(ctx, `DevSpec remote: auto-bonded as ${outcome.codename ?? "agent"} — you're reachable from the Agents page. /devspec.remote stop to end.`);
 		} else {
-			notify(ctx, `DevSpec remote: auto-bond failed: ${outcome.error}`, outcome.errorKind === "auth" ? "warning" : "error");
+			notify(ctx, outcome.cancelled ? `DevSpec remote: ${outcome.error}` : `DevSpec remote: auto-bond failed: ${outcome.error}`, outcome.cancelled ? "info" : outcome.errorKind === "auth" ? "warning" : "error");
 		}
 	});
 
@@ -4219,9 +4238,15 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("devspec.remote", {
-		description: "Bond this pi session as DevSpec capacity. Usage: /devspec.remote [--session <id>] | stop | reconnect | auto [on|off] | preempt [on|off]",
+		description: "Connect this Pi conversation. Usage: /devspec.remote [--project <name-or-id>] [--session <id>] | stop | reconnect | auto [on|off] | preempt [on|off]",
 		handler: async (args, ctx) => {
-			const arg = args.trim();
+			const parsed = projectRemoteArgs(args);
+			if (parsed.error) { notify(ctx, parsed.error, "error"); return; }
+			const arg = parsed.remaining;
+			if (arg && !namedSessionFromRemoteArg(arg) && !/^(?:stop|off|end|reconnect|retry|auto(?: (?:on|off))?|preempt(?: (?:on|off))?)$/.test(arg)) {
+				notify(ctx, "Unknown Remote arguments. Use --project <name-or-id>, --session <id>, or /devspec.help.", "error"); return;
+			}
+			if (parsed.selector && arg && !namedSessionFromRemoteArg(arg)) { notify(ctx, "Combine --project only with a room selector, not a control command.", "error"); return; }
 
 			if (arg === "stop" || arg === "off" || arg === "end") {
 				if (!pump) {
@@ -4264,9 +4289,9 @@ export default function (pi: ExtensionAPI) {
 			// rebuilds state, reloads extensions, or disturbs a healthy bond.
 			if (arg === "reconnect" || arg === "retry") {
 				if (!pump) {
-					const outcome = await bondNow(ctx);
+					const outcome = await projectSelection.connect(ctx);
 					if (!outcome.ok) {
-						notify(ctx, `DevSpec remote: ${outcome.error}`, outcome.errorKind === "auth" ? "warning" : "error");
+						notify(ctx, `DevSpec remote: ${outcome.error}`, outcome.cancelled ? "info" : outcome.errorKind === "auth" ? "warning" : "error");
 						return;
 					}
 					notify(
@@ -4286,6 +4311,15 @@ export default function (pi: ExtensionAPI) {
 			const sessionId = namedSessionFromRemoteArg(arg);
 
 			if (pump) {
+				if (parsed.selector) {
+					try {
+						const selected = await projectSelection.resolve(ctx, parsed.selector);
+						if (!selected) return;
+						if (selected.id !== pump.bond.projectId) {
+							notify(ctx, "Already connected to another project. Use /devspec.project choose to start a fresh conversation.", "warning"); return;
+						}
+					} catch (err) { notify(ctx, err instanceof Error ? err.message : String(err), "error"); return; }
+				}
 				const action = bondedRemoteAction(arg);
 				// Already bonded, and no room named — nothing to do.
 				if (action.type === "report_already_bonded") {
@@ -4331,9 +4365,9 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
-			const outcome = await bondNow(ctx, sessionId);
+			const outcome = await projectSelection.connect(ctx, sessionId, parsed.selector);
 			if (!outcome.ok) {
-				notify(ctx, `DevSpec remote: ${outcome.error}`, outcome.errorKind === "auth" ? "warning" : "error");
+				notify(ctx, `DevSpec remote: ${outcome.error}`, outcome.cancelled ? "info" : outcome.errorKind === "auth" ? "warning" : "error");
 				return;
 			}
 			notify(

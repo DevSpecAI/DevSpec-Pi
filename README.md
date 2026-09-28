@@ -38,6 +38,30 @@ remote-ingress 1.4 adds capacity-gated exact-connection system notices through
 an activity-neutral, generation-scoped harness turn, with preserved 1.3 command
 intake under notice backpressure. See VISION.md.
 
+### Choosing a project
+
+Normal startup is unchanged: a unique repository match or usable folder pin connects without a question. If DevSpec returns several matching projects, Pi offers a keyboard picker labelled with both project and organisation. Escape leaves the conversation unconnected.
+
+For a choice you already know:
+
+```text
+pi --devspec-project "Client Website"
+/devspec.remote --project "Client Website"
+/devspec.remote --project <full-project-id> --session <room-id>
+```
+
+Names must match an accessible project exactly; duplicate names open the picker. These project options do not change Pi's native `--session`/resume behaviour or the existing Remote room selector. A project choice belongs to this local conversation, including its resume—not every Pi window in the folder. It is applied to normal DevSpec tools as well as the remote connection.
+
+`/devspec.project` shows the selected project, organisation, connection state and effective folder default. Use:
+
+- `/devspec.project choose` to choose explicitly. Changing an established project offers a **fresh local conversation**, without copying the previous model context.
+- `/devspec.project remember` to save the choice to `.devspec/project.json`, after showing the file and asking for consent. This is folder configuration, potentially shared or committed—not a private preference. A unique repository match still beats a stale pin.
+- `/devspec.project forget` to remove the confirmed effective folder pin. Existing conversations keep their project; future connections resolve again. An inherited default is named before removal.
+
+Choosing defaults to **Use for this conversation**. Remembering is a separate opt-in. Headless/RPC ambiguity returns actionable choices without waiting for a picker; an explicit launch project can scope headless tools without enabling auto-bond. Older servers without structured choices still support explicit selection, but cannot trigger the automatic ambiguity picker.
+
+Reload or restart existing Pi sessions after updating the package. See `node scripts/e2e-project-choice.mjs` for the disposable installed-Pi keyboard/RPC verification (loopback fixture, no model requests or live DevSpec records).
+
 ### Recoverable room history
 
 When the server advertises room-context1.6, Pi keeps a private, recoverable room

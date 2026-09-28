@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.32
+
+- Choose the DevSpec project for one Pi conversation with `pi --devspec-project <name-or-id>` or `/devspec.remote --project <name-or-id>`. Ambiguous connections on supporting servers offer a native project-and-organisation picker; ordinary unambiguous launches stay automatic.
+- `/devspec.project` shows the current choice and offers choose, remember and forget. Remembering a folder default is explicit; changing or removing it does not redirect existing conversations. Choosing another project starts fresh local context after confirmation.
+- Conversation scope survives resume and applies to ordinary DevSpec calls as well as the remote bond. Headless ambiguity does not hang awaiting a picker. Reload or restart to load this version.
+
 ## 0.3.31
 
 - Registration and attachment now report the DevSpec plugin version loaded by the process, separately from the Pi host version. This lets staff find affected users when investigating a plugin release. Version reporting does not change connection identity, permissions, presence or message delivery; older servers may ignore it. Existing Pi sessions need a reload or restart to load the reporter.

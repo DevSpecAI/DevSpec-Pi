@@ -33,7 +33,7 @@ test("a bare or unrelated remote arg while bonded is not an attach", () => {
 test("bonded --session path calls attach_connection and does not write bond/tool state", () => {
 	const source = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 	const start = source.indexOf("const sessionId = namedSessionFromRemoteArg(arg);");
-	const end = source.indexOf("const outcome = await bondNow(ctx, sessionId);");
+	const end = source.indexOf("const outcome = await projectSelection.connect(ctx, sessionId, parsed.selector);");
 	assert.ok(start >= 0 && end > start, "bonded-session handler block missing");
 	const bonded = source.slice(start, end);
 	assert.match(bonded, /bondedRemoteAction\(arg\)/);

@@ -7,6 +7,8 @@ import { callDevspec, DevspecToolError, resetClientCache, setLaneClientFactoryFo
 import { parsePostSessionReceipt, TrailDeliveryState } from "../extensions/core/post-session-receipt.ts";
 import { safeHasUI } from "../extensions/core/ctx-guard.ts";
 import { TrailPostFence } from "../extensions/core/question-receipt-lifecycle.ts";
+import { setProjectChoice } from "../extensions/core/project-choice.ts";
+import { resolveEndpoint } from "../extensions/core/auth-store.ts";
 
 const source = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 const postSource = source.slice(source.indexOf("function capturePostAuthority()"), source.indexOf("function trackTerminalPost("));
@@ -24,8 +26,9 @@ function deferred<T>() {
 // runtime/transport boundaries. This catches inner transport replay, not just parser behavior.
 function harness(call: (args: Record<string, unknown>) => Promise<unknown>) {
 	const requests: Record<string, unknown>[] = [];
+	const sent = deferred<void>();
 	setLaneClientFactoryForTests(async () => ({
-		callTool: async ({ arguments: args }) => { requests.push(args!); return call(args!); },
+		callTool: async ({ arguments: args }) => { requests.push(args!); sent.resolve(); return call(args!); },
 		readResource: async () => ({}), close: async () => {},
 	}));
 	const warnings: string[] = [];
@@ -48,12 +51,13 @@ function harness(call: (args: Record<string, unknown>) => Promise<unknown>) {
 		interactionIdentity: () => undefined, console: { error: (message: string) => warnings.push(message) },
 	};
 	const api = runInNewContext(stripTypeScriptTypes(`${postSource}\n${tickSource}\n${segmentSource}\n({postSegmentAnswer, postToSession, capturePostAuthority, trailTick, setTurn: value => { turn = value; }, setPump: value => { pump = value; }})`), context);
-	return { ...api, active, requests, warnings, logs, context };
+	return { ...api, active, requests, sent: sent.promise, warnings, logs, context };
 }
 
 afterEach(() => {
 	setLaneClientFactoryForTests(null);
 	resetClientCache();
+	setProjectChoice("test", null);
 	(globalThis as Record<string, unknown>).__devspecPiRateLimit = { until: 0 };
 });
 
@@ -118,10 +122,11 @@ test("authority is checked after client acquisition, and a captured segment cann
 });
 
 test("a stored receipt logs success; late callback cannot clear replacement authority", async () => {
+	setProjectChoice("test", { version: 1, endpoint: await resolveEndpoint(), source: "explicit", project: { id: "11111111-1111-4111-8111-111111111111", name: "Chosen project" } });
 	const response = deferred<unknown>();
 	const h = harness(async () => response.promise);
 	const pending = h.postToSession("speech", bound);
-	await new Promise(resolve => setImmediate(resolve));
+	await h.sent; // Observe the request boundary, not a scheduler tick before optional scope I/O.
 	const replacement = { turnId: "new-command", commandMessageId: "new-source" };
 	h.context.activeCommandTurnIdentity = replacement;
 	h.setPump({ ...h.active, generation: 2 });
@@ -140,7 +145,7 @@ test("failed dirty trail stays pending without timer replay or resurrecting a re
 		commandTurnId: "command", commandMessageId: "source", posts: 0, lastPostAt: 0 });
 	const previous = makeTurn(); previous.trailDelivery.markDirty();
 	h.setTurn(previous); h.trailTick(); h.trailTick();
-	await new Promise(resolve => setImmediate(resolve));
+	await h.sent;
 	assert.equal(h.requests.length, 1);
 	assert.equal(previous.trailDelivery.dirty, true, "in-flight is not clean");
 	const replacement = makeTurn(); h.setTurn(replacement);
@@ -182,7 +187,7 @@ test("a refusal after session replacement still exposes failure without reading 
 	const response = deferred<unknown>();
 	const h = harness(async () => response.promise);
 	const pending = h.postToSession("speech", bound);
-	await new Promise(resolve => setImmediate(resolve));
+	await h.sent;
 	Object.defineProperty(h.context.lastCtx, "hasUI", { get() { throw new Error("stale after session replacement or reload"); } });
 	response.resolve(envelope({ skipped: true, noop: true }));
 	assert.equal(await pending, false);

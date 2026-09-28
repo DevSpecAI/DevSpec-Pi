@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 183c1e973b98c17d13865cf2b9e07907c61b51366bc4b4b854163aef43d779c7
- * Description fingerprint: 29a20a6fd62006115009e77ab70d46c91550590eb046e9eed948fedc99425eac
- * Regenerated: 2026-09-28T11:14:34.138Z
+ * Schema fingerprint: 8abb8630f1ac8ea702a655808d2dbcd9ece0a1020ab724fbd9ca7ade2d6ff900
+ * Description fingerprint: 6f8c81de045c3d3b09a299ca4c819ec828b0bae40b9c538e4d643ca4601b47ac
+ * Regenerated: 2026-09-28T20:45:16.409Z
  */
-export const MCP_CATALOG_FINGERPRINT = "183c1e973b98c17d13865cf2b9e07907c61b51366bc4b4b854163aef43d779c7";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "29a20a6fd62006115009e77ab70d46c91550590eb046e9eed948fedc99425eac";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-28T11:14:34.138Z";
+export const MCP_CATALOG_FINGERPRINT = "8abb8630f1ac8ea702a655808d2dbcd9ece0a1020ab724fbd9ca7ade2d6ff900";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "6f8c81de045c3d3b09a299ca4c819ec828b0bae40b9c538e4d643ca4601b47ac";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-28T20:45:16.409Z";
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -130,7 +130,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "list_projects",
 		"label": "DevSpec: List Projects",
-		"description": "List the projects you can access. Returns { projects: [{ id, name, description, repos: [{ full_name, provider }] }] }. Pass git_remote (your local `git remote get-url origin`) and the response also includes remote_match { resolved_project_id, candidate_project_ids }. Prefer passing git_remote directly on create/list/search tools when you only need to scope one call; use list_projects when you need the full project list or to disambiguate multi-match candidates.",
+		"description": "List the projects you can access. Returns { projects: [{ id, name, description, organization: { id, name }, repos: [{ full_name, provider }] }] }. Project and organisation names are display data; choose an accessible ID, never guess between duplicate names. Pass git_remote (your local `git remote get-url origin`) and the response also includes remote_match { resolved_project_id, candidate_project_ids }. Prefer passing git_remote directly on create/list/search tools when you only need to scope one call; use list_projects when you need the full project list or to disambiguate multi-match candidates.",
 		"promptSnippet": "List the projects you can access.",
 		"inputSchema": {
 			"type": "object",
@@ -5321,6 +5321,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"dormant"
 					],
 					"description": "Optional initial poll cadence tier (drives away/latency copy in the UI)."
+				},
+				"project_selection_version": {
+					"type": "number",
+					"enum": [
+						1
+					],
+					"description": "Host negotiation: return project_selection with the resolved project, organisation and resolution source. Ambiguity returns structured accessible choices. Existing local conversations retain their project."
 				},
 				"connection_capability_version": {
 					"type": "number",

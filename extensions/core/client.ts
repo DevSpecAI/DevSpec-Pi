@@ -22,6 +22,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { resolveEndpoint } from "./auth-store.ts";
 import { argsHaveProjectScope, folderScopeArgs, needsProjectScope } from "./project-scope.ts";
 import { withClientVersions } from "./client-versions.ts";
+import { conversationScope, hasConversationProjectScope, readProjectChoiceRequired, type ProjectChoiceRequired } from "./project-choice.ts";
 
 const CLIENT_NAME = "devspec-pi";
 const CLIENT_VERSION = "0.2.0";
@@ -52,7 +53,13 @@ export class DevspecAuthUnavailableError extends DevspecApiError {
 }
 
 /** MCP tool result with `isError: true` — a verb refusal, not a dead socket. */
-export class DevspecToolError extends DevspecApiError {}
+export class DevspecToolError extends DevspecApiError {
+	readonly projectChoice: ProjectChoiceRequired | null;
+	constructor(message: string, raw?: unknown) {
+		super(message);
+		this.projectChoice = readProjectChoiceRequired(raw);
+	}
+}
 
 /** The per-token request budget is exhausted; carries the server's retry hint. */
 export class DevspecRateLimitError extends DevspecApiError {
@@ -507,6 +514,10 @@ export async function callDevspec(
 	const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 	const lane: ClientLane = options.lane ?? "work";
 	let callArgs = withClientVersions(name, args);
+	// Scope is conversation-owned. Folder facts are only the unbound fallback.
+	if (hasConversationProjectScope() && !options.connectionCapability && name !== "list_projects" && name !== "verify_agent_connection" && name !== "get_personal_instructions" && name !== "update_personal_instructions" && name !== "devspec_help_search") {
+		callArgs = conversationScope(callArgs, await resolveEndpoint());
+	}
 	if (options.cwd && !argsHaveProjectScope(callArgs)) {
 		const scope = await folderScopeArgs(options.cwd);
 		if (scope.git_remote || scope.pinned_project_id) {
@@ -530,7 +541,7 @@ export async function callDevspec(
 				},
 			);
 			const toolError = mcpToolErrorText(raw, name);
-			if (toolError) throw new DevspecToolError(toolError);
+			if (toolError) throw new DevspecToolError(toolError, raw);
 			return raw;
 		} catch (err) {
 			const mapped = mapClientError(err);

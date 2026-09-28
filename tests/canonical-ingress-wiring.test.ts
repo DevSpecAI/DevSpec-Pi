@@ -258,7 +258,7 @@ test("validated plan projection appends at the canonical delivery tail without r
 
 test("auto-bond surfaces a failed register instead of staying silent", () => {
 	const start = bodyBetween('pi.on("session_start"', 'pi.on("session_tree"');
-	assert.match(start, /const outcome = await bondNow\(ctx\)/);
+	assert.match(start, /const outcome = await projectSelection\.connect\(ctx\)/);
 	assert.match(start, /auto-bonded as \$\{outcome\.codename/);
 	assert.match(start, /auto-bond failed: \$\{outcome\.error\}/);
 	assert.match(start, /outcome\.errorKind === "auth" \? "warning" : "error"/);

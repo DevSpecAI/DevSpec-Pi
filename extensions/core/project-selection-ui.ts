@@ -6,7 +6,7 @@ import { getBond } from "./bond-state.ts";
 import { resolveProjectPinFile, forgetProjectPin, pinTargetDir, writeProjectPin } from "./project-scope.ts";
 import {
 	PROJECT_CHOICE_ENTRY, getProjectChoice, setProjectChoice, restoreProjectChoice, consumeProjectLaunchFlag, blockProjectChoice,
-	projectLabel, matchingProjects, readProjectCandidate, projectResultData,
+	projectLabel, projectChoiceLabels, projectDetails, matchingProjects, readProjectCandidate, projectResultData,
 	type ProjectCandidate, type ProjectChoice, type ProjectChoiceRequired,
 } from "./project-choice.ts";
 
@@ -30,15 +30,16 @@ export function installProjectSelection(pi: ExtensionAPI, deps: ProjectSelection
 		const previous = getProjectChoice();
 		setProjectChoice(ctx.sessionManager.getSessionId(), choice);
 		if (JSON.stringify(previous) !== JSON.stringify(choice)) pi.appendEntry(PROJECT_CHOICE_ENTRY, choice);
-		ctx.ui.setStatus("devspec-project", `DevSpec: ${projectLabel(choice.project)} (${choice.source})`);
+		// Clear the old diagnostic slot on upgrades; the compact work footer owns status.
+		ctx.ui.setStatus("devspec-project", undefined);
 	}
 
 	async function pick(ctx: ExtensionContext, candidates: ProjectCandidate[], selector?: string): Promise<ProjectCandidate | null> {
 		const matches = selector ? matchingProjects(candidates, selector) : candidates;
 		if (selector && matches.length === 1) return matches[0]!;
 		if (matches.length === 0) throw new Error(selector ? `No accessible project matches “${selector}”. Use an exact name or full project ID.` : "No accessible DevSpec projects are available.");
-		if (ctx.mode !== "tui") throw new Error(`Choose a project explicitly with --devspec-project <id>: ${matches.map(projectLabel).join("; ")}`);
-		const labels = matches.map(projectLabel);
+		if (ctx.mode !== "tui") throw new Error(`Choose a project explicitly with --devspec-project <id>: ${matches.map(project => `${projectLabel(project)} (${project.id})`).join("; ")}`);
+		const labels = projectChoiceLabels(matches);
 		const choice = await ctx.ui.select("Which DevSpec project should this conversation use?", [...labels, "Continue without connecting"]);
 		const index = labels.indexOf(choice ?? "");
 		return index < 0 ? null : matches[index]!;
@@ -116,7 +117,7 @@ export function installProjectSelection(pi: ExtensionAPI, deps: ProjectSelection
 			if (!choice && entries.some(entry => entry.type === "custom" && entry.customType === PROJECT_CHOICE_ENTRY)) {
 				throw new Error("This conversation's saved project cannot be restored for this DevSpec endpoint. Start a fresh local conversation.");
 			}
-			ctx.ui.setStatus("devspec-project", choice ? `DevSpec: ${projectLabel(choice.project)} (${choice.source})` : undefined);
+			ctx.ui.setStatus("devspec-project", undefined);
 			const selector = consumeProjectLaunchFlag() ? pi.getFlag("devspec-project") : undefined;
 			if (selector !== undefined) {
 				if (typeof selector !== "string" || !selector.trim()) throw new Error("--devspec-project requires an exact project name or ID.");
@@ -137,11 +138,21 @@ export function installProjectSelection(pi: ExtensionAPI, deps: ProjectSelection
 		description: "Show or choose this conversation's project; remember or forget a folder default. Usage: /devspec.project [status|choose|remember|forget|<name-or-id>]",
 		handler: async (args, ctx) => {
 			try {
-				const command = args.trim();
+				let command = args.trim();
 				const current = getProjectChoice();
+				if (!command && ctx.mode === "tui") {
+					const actions = [
+						["Project details", "status"], ["Choose project", "choose"],
+						["Remember for this folder", "remember"], ["Forget folder default", "forget"],
+					] as const;
+					const picked = await ctx.ui.select(current ? projectLabel(current.project) : "DevSpec project", actions.map(([label]) => label));
+					const action = actions.find(([label]) => label === picked);
+					if (!action) return;
+					command = action[1];
+				}
 				if (!command || command === "status") {
 					const pin = await resolveProjectPinFile(ctx.cwd);
-					ctx.ui.notify(`${current ? projectLabel(current.project) + `\nSource: ${current.source}` : "No conversation project selected."}\n${getBond() ? "Connected" : "Not connected"}\nFolder default: ${pin ? `${pin.projectId} at ${pin.path}` : "none"}\n/devspec.project choose | remember | forget`, "info");
+					ctx.ui.notify(`${current ? projectDetails(current) : "No conversation project selected."}\n${getBond() ? "Connected" : "Not connected"}\nFolder default: ${pin ? `${pin.projectId} at ${pin.path}` : "none"}\n/devspec.project choose | remember | forget`, "info");
 					return;
 				}
 				if (command === "remember") {

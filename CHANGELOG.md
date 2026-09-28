@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.33
+
+- The footer is back to agent, session and current work. Project IDs, connection-source diagnostics and routine successful-login identity no longer occupy permanent status space.
+- `/devspec.project` opens a native menu with project details, choosing, remembering and forgetting. The full ID and selection source remain available under Project details; normal project choices show readable project and organisation names, with IDs only to disambiguate identical labels. Reload or restart existing Pi sessions to pick this up.
+
 ## 0.3.32
 
 - Choose the DevSpec project for one Pi conversation with `pi --devspec-project <name-or-id>` or `/devspec.remote --project <name-or-id>`. Ambiguous connections on supporting servers offer a native project-and-organisation picker; ordinary unambiguous launches stay automatic.

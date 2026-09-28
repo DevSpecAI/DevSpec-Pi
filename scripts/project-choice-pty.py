@@ -7,7 +7,7 @@ repo=temp/'repo'; repo.mkdir()
 subprocess.run(['git','init','-q',str(repo)],check=True)
 subprocess.run(['git','-C',str(repo),'remote','add','origin','https://github.com/example/shared.git'],check=True)
 env=dict(os.environ, PI_CODING_AGENT_DIR=str(temp/'agent'), DEVSPEC_MCP_TOKEN='fixture-only-not-a-real-token', DEVSPEC_MCP_URL=os.environ['PROJECT_PROBE_ENDPOINT'], ROOM_PROBE_MODEL_MARKER=str(temp/'unexpected-model'), DEVSPEC_DEBUG_REMOTE='', TERM='xterm-256color', NODE_OPTIONS='')
-base=['pi','--no-extensions','--no-skills','--no-prompt-templates','--no-themes','-e',str(root/'extensions/devspec-remote.ts'),'-e',str(root/'scripts/project-choice-runtime-fixture.ts'),'-e',str(root/'scripts/room-store-no-model-fixture.ts'),'--provider','room-probe','--model','no-model']
+base=['pi','--no-extensions','--no-skills','--no-prompt-templates','--no-themes','-e',str(root/'extensions/devspec-remote.ts'),'-e',str(root/'extensions/devspec-auth.ts'),'-e',str(root/'scripts/project-choice-runtime-fixture.ts'),'-e',str(root/'scripts/room-store-no-model-fixture.ts'),'--provider','room-probe','--model','no-model']
 def session(name,cwd):
     path=temp/(name+'.jsonl')
     path.write_text(json.dumps({'type':'session','version':3,'id':str(uuid.uuid4()),'cwd':str(cwd),'timestamp':'2026-09-28T00:00:00.000Z'})+'\n')
@@ -48,7 +48,15 @@ try:
     p.wait('Which DevSpec project should this conversation use?')
     p.wait('Client Org'); assert 'Agency Org' in p.text
     p.send('\x1b[B\r'); p.wait('How should DevSpec remember this choice?'); p.send('\r')
-    p.wait('auto-bonded as'); p.probe(B)
+    p.wait('auto-bonded as')
+    assert A not in p.text and B not in p.text, 'ordinary picker/footer must not expose full project IDs'
+    assert '(git_remote)' not in p.text and '(explicit)' not in p.text
+    assert 'DevSpec: DevSpec' not in p.text, 'successful authentication must not add repeated branding'
+    p.command('/footer-probe','Proud Eagle'); p.wait('Planning checkout'); p.wait('Improve checkout')
+    p.command('/devspec.project','Project details')
+    assert 'Choose project' in p.text
+    p.send('\r'); p.wait('Project ID: '+B); p.wait('Selected by:')
+    p.probe(B)
     pin=repo/'.devspec'/'project.json'; assert not pin.exists()
     p.command('/devspec.project remember','Remember for this folder?'); p.send('\r'); p.wait('Folder default saved to')
     assert json.loads(pin.read_text())['project_id']==B
@@ -96,7 +104,7 @@ try:
         raise AssertionError('RPC ambiguity hung')
     assert not any(e.get('type')=='agent_start' or (e.get('type')=='extension_ui_request' and e.get('method')=='select') for e in lines)
     os.killpg(rpc.pid,signal.SIGTERM); rpc.wait(timeout=5)
-    evidence={'arrowKeyChoice':True,'conversationOnlyDefault':True,'rememberConsent':True,'forgetPreservesConversation':True,'pinEditIsolation':True,'freshCrossOrgConversation':True,'resume':True,'concurrentSameFolder':True,'cancel':True,'greenfieldFastPath':True,'rpcNoDialog':True}
+    evidence={'arrowKeyChoice':True,'conversationOnlyDefault':True,'rememberConsent':True,'forgetPreservesConversation':True,'pinEditIsolation':True,'freshCrossOrgConversation':True,'resume':True,'concurrentSameFolder':True,'cancel':True,'greenfieldFastPath':True,'rpcNoDialog':True,'compactFooter':True,'projectDetailsMenu':True,'namesWithoutIds':True}
     (temp/'evidence.json').write_text(json.dumps(evidence)); print('Actual Pi keyboard and RPC scenarios passed',flush=True)
 finally:
     for process in processes: process.close()

@@ -24,7 +24,8 @@ const server=createServer(async(req,res)=>{
   else if(rpc.method==='resources/read')out={contents:[]};
   else if(rpc.method==='tools/call'){
    const {name,arguments:args={}}=rpc.params;calls.push({name,args});
-   if(name==='list_projects')out=result({projects});
+   if(name==='verify_agent_connection')out=result({principal:'DevSpec'});
+   else if(name==='list_projects')out=result({projects});
    else if(name==='register_connection'){
     const old=connections.get(args.local_id);
     const project=projects.find(p=>p.id===(old?.project.id ?? args.project_id ?? args.pinned_project_id));

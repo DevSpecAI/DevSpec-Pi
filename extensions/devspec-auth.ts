@@ -61,7 +61,7 @@ async function doLogin(token: string, ctx: ExtensionContext): Promise<boolean> {
 		verifiedPrincipal = principal;
 		verifyAttempted = true;
 		await saveAuth({ token, url: mcpUrl(), principal: principal ?? undefined, verifiedAt: new Date().toISOString() });
-		setStatus(ctx, `DevSpec: ${principal ?? "connected"}`);
+		setStatus(ctx, undefined); // Successful identity is available in /devspec.status, not the footer.
 		const extra = getAdapterGuardState().suppressed.length > 0 ? ` ${SUPPRESSION_NOTICE}` : "";
 		ctx.ui.notify(`Connected to DevSpec${principal ? ` as ${principal}` : ""}.${extra}`, "info");
 		return true;
@@ -164,13 +164,13 @@ export default function (pi: ExtensionAPI) {
 					const { isError } = unwrapMcpResult(result);
 					if (isError) throw new DevspecAuthError("verify returned error");
 					verifiedPrincipal = principalFrom(result);
-					setStatus(ctx, `DevSpec: ${verifiedPrincipal ?? "connected"}`);
+					setStatus(ctx, undefined);
 				})
 				.catch(() => {
 					setStatus(ctx, "DevSpec: offline?");
 				});
 		} else {
-			setStatus(ctx, `DevSpec: ${verifiedPrincipal ?? "connected"}`);
+			setStatus(ctx, undefined);
 		}
 	});
 }

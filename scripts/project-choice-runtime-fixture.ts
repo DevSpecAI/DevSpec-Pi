@@ -2,7 +2,15 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { callDevspec } from "../extensions/core/client.ts";
 import { getProjectChoice } from "../extensions/core/project-choice.ts";
+import { patchStatus, paintStatus } from "../extensions/core/status-line.ts";
 export default function (pi: ExtensionAPI) {
+	pi.registerCommand("footer-probe", {
+		description: "Render a known work footer in the disposable runtime probe",
+		handler: async (_args, ctx) => {
+			patchStatus({ codename: "Proud Eagle", sessionId: "fixture-room", sessionTitle: "Planning checkout", workId: "fixture-item", workTitle: "Improve checkout" });
+			paintStatus(ctx);
+		},
+	});
 	pi.registerCommand("project-probe", {
 		description: "Project-selection runtime probe only",
 		handler: async (args, ctx) => {

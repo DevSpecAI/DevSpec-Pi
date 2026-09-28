@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { installProjectSelection } from "../extensions/core/project-selection-ui.ts";
-import { PROJECT_CHOICE_ENTRY, restoreProjectChoice, getProjectChoice, setProjectChoice, conversationScope, projectRemoteArgs, projectLabel, matchingProjects, readProjectChoiceRequired, projectFromRegistration, type ProjectCandidate, type ProjectChoice } from "../extensions/core/project-choice.ts";
+import { PROJECT_CHOICE_ENTRY, restoreProjectChoice, getProjectChoice, setProjectChoice, conversationScope, projectRemoteArgs, projectLabel, projectChoiceLabels, projectDetails, matchingProjects, readProjectChoiceRequired, projectFromRegistration, type ProjectCandidate, type ProjectChoice } from "../extensions/core/project-choice.ts";
 import { callDevspec, DevspecToolError, setLaneClientFactoryForTests, resetClientCache } from "../extensions/core/client.ts";
 import { setBond } from "../extensions/core/bond-state.ts";
 
@@ -32,6 +32,7 @@ afterEach(async () => {
 function harness(mode = "tui") {
 	const commands = new Map<string, (args: string, ctx: ExtensionCommandContext) => Promise<void>>();
 	const entries: unknown[] = [], notices: string[] = [], selects: string[][] = [], confirms: string[] = [];
+	const statuses: Array<{ key: string; text: string | undefined }> = [];
 	const answers: number[] = []; let consent = false; let flag: unknown;
 	const pi = {
 		registerFlag: () => {}, getFlag: () => flag,
@@ -41,11 +42,11 @@ function harness(mode = "tui") {
 	const ctx = {
 		cwd: dir, mode, hasUI: mode === "tui", isIdle: () => true,
 		sessionManager: { getSessionId: () => "local-A", getEntries: () => entries },
-		ui: { setStatus: () => {}, notify: (text: string) => notices.push(text),
+		ui: { setStatus: (key: string, text: string | undefined) => statuses.push({ key, text }), notify: (text: string) => notices.push(text),
 			select: async (_title: string, options: string[]) => { selects.push(options); const index = answers.shift(); return index === undefined ? undefined : options[index]; },
 			confirm: async (_title: string, message: string) => { confirms.push(message); return consent; } },
 	} as unknown as ExtensionCommandContext;
-	return { pi, ctx, entries, notices, selects, confirms, answers, commands,
+	return { pi, ctx, entries, notices, selects, confirms, answers, commands, statuses,
 		consent: (value: boolean) => { consent = value; }, flag: (value: unknown) => { flag = value; } };
 }
 function listClient(projects = [A, B]) {
@@ -67,6 +68,27 @@ test("duplicate names never choose a project while exact IDs do", () => {
 	assert.deepEqual(matchingProjects([A, B], B.id), [B]);
 	assert.equal(matchingProjects([A, B], "Web").length, 0);
 	assert.match(projectLabel(B), /Client/);
+});
+test("readable choices omit IDs unless the full human labels collide", () => {
+	assert.deepEqual(projectChoiceLabels([A, B]), ["Website — Agency", "Website — Client"]);
+	const collision = { ...B, organization: A.organization };
+	const labels = projectChoiceLabels([A, collision]);
+	assert.notEqual(labels[0], labels[1]);
+	assert.ok(labels[0]!.includes(A.id) && labels[1]!.includes(B.id));
+	const details = projectDetails({ ...choice(B), source: "git_remote" });
+	assert.match(details, /Project ID: /); assert.ok(details.includes(B.id));
+	assert.match(details, /Selected by: Repository match/); assert.ok(!details.includes("git_remote"));
+});
+test("project state clears the diagnostic footer and bare command offers a menu", async () => {
+	const h = harness(); h.answers.push(0);
+	const controller = installProjectSelection(h.pi, { attempt: async () => ({ ok: true }), stop: async () => {} });
+	controller.persist(h.ctx, choice(B));
+	await controller.prepare(h.ctx);
+	assert.ok(h.statuses.length > 0);
+	assert.ok(h.statuses.every(status => status.key === "devspec-project" && status.text === undefined));
+	await h.commands.get("devspec.project")!("", h.ctx);
+	assert.deepEqual(h.selects[0], ["Project details", "Choose project", "Remember for this folder", "Forget folder default"]);
+	assert.ok(h.notices.at(-1)!.includes(`Project ID: ${B.id}`));
 });
 test("project flag parser preserves room selector and rejects incomplete/duplicate flags", () => {
 	assert.deepEqual(projectRemoteArgs('--project "My Website" --session room'), { selector: "My Website", remaining: "--session room" });

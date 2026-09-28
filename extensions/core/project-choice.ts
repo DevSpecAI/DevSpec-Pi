@@ -100,7 +100,20 @@ export function conversationScope(args: Record<string, unknown>, endpoint: strin
 }
 const terminalText = (text: string) => text.replace(/[\u0000-\u001f\u007f-\u009f]/g, " ");
 export function projectLabel(project: ProjectCandidate): string {
-	return `${terminalText(project.name)} — ${terminalText(project.organization?.name ?? "organisation unavailable")} · ${project.id}`;
+	return `${terminalText(project.name)} — ${terminalText(project.organization?.name ?? "organisation unavailable")}`;
+}
+/** IDs are exceptional disambiguators, not decoration on every choice. */
+export function projectChoiceLabels(projects: readonly ProjectCandidate[]): string[] {
+	const labels = projects.map(projectLabel);
+	return labels.map((label, index) => labels.filter(value => value === label).length > 1
+		? `${label} · ${projects[index]!.id}` : label);
+}
+export function projectDetails(choice: ProjectChoice): string {
+	const sources: Record<string, string> = {
+		git_remote: "Repository match", folder_pin: "Folder default", conversation: "Saved conversation choice",
+		explicit: "Chosen for this conversation", connection: "Existing connection", single_project: "Only accessible project", entity: "Selected record",
+	};
+	return `Project: ${terminalText(choice.project.name)}\nOrganisation: ${terminalText(choice.project.organization?.name ?? "Not reported")}\nProject ID: ${choice.project.id}\nSelected by: ${sources[choice.source] ?? "Not reported"}`;
 }
 export function matchingProjects(projects: readonly ProjectCandidate[], selector: string): ProjectCandidate[] {
 	const value = selector.trim().toLowerCase();

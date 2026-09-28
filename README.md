@@ -52,7 +52,7 @@ pi --devspec-project "Client Website"
 
 Names must match an accessible project exactly; duplicate names open the picker. These project options do not change Pi's native `--session`/resume behaviour or the existing Remote room selector. A project choice belongs to this local conversation, including its resume—not every Pi window in the folder. It is applied to normal DevSpec tools as well as the remote connection.
 
-`/devspec.project` shows the selected project, organisation, connection state and effective folder default. Use:
+The footer stays focused on agent, session and current work—not project IDs or connection diagnostics. `/devspec.project` opens a native menu. **Project details** (or `/devspec.project status`) shows the selected project, organisation, full ID, how it was selected and the effective folder default. Pick by the readable project and organisation names; IDs appear in the picker only when those labels would otherwise be identical. Use:
 
 - `/devspec.project choose` to choose explicitly. Changing an established project offers a **fresh local conversation**, without copying the previous model context.
 - `/devspec.project remember` to save the choice to `.devspec/project.json`, after showing the file and asking for consent. This is folder configuration, potentially shared or committed—not a private preference. A unique repository match still beats a stale pin.

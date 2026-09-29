@@ -17,7 +17,7 @@ class Terminal:
     def __init__(self,path,cwd=repo,extra=[]):
         self.master,slave=pty.openpty(); fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',50,180,0,0))
         self.p=subprocess.Popen(base+['--session',str(path)]+extra,cwd=cwd,env=env,stdin=slave,stdout=slave,stderr=slave,start_new_session=True)
-        os.close(slave); self.text=''; self.counter=0
+        os.close(slave); self.text=''; self.raw=''; self.counter=0
     def send(self,text): os.write(self.master,text.encode())
     def resize(self,columns):
         fcntl.ioctl(self.master,termios.TIOCSWINSZ,struct.pack('HHHH',50,columns,0,0))
@@ -31,6 +31,7 @@ class Terminal:
                 try: raw=os.read(self.master,65536).decode(errors='replace')
                 except OSError: raw=''
                 if '\x1b[6n' in raw: self.send('\x1b[1;1R')
+                self.raw+=raw
                 self.text+=ansi.sub('',raw)
             if (temp/'unexpected-model').exists(): raise AssertionError('Unexpected model request')
         raise AssertionError('Timeout waiting for '+needle+'\n'+self.text[-9000:])
@@ -71,6 +72,21 @@ try:
         if os.environ.get('PROJECT_PROBE_CAPTURE_DIR'):
             capture=Path(os.environ['PROJECT_PROBE_CAPTURE_DIR']); capture.mkdir(parents=True,exist_ok=True)
             (capture/('terminal-'+str(columns)+'.txt')).write_text(rendered)
+    # Compare actual ANSI output against Pi's own active semantic palette.
+    # --hot changes theme without repainting/replacing the widget: existing
+    # render callbacks must pick up the new palette themselves.
+    for theme,hot in [('dark',False),('light',True),('dark',True)]:
+        raw_start=len(p.raw); text_start=len(p.text)
+        p.command('/footer-theme-probe '+theme+(' --hot' if hot else ''),'FOOTER-THEME '+theme)
+        # Pi's differential renderer need not redraw unchanged BG/MCP lines.
+        p.wait('Improve checkout navigation on mobile',text_start)
+        expected=json.loads((temp/'theme-expectations.json').read_text())
+        rendered=p.raw[raw_start:]
+        for value in expected['foreground']+expected['muted']:
+            assert value in rendered, 'native theme role missing from actual terminal output: '+repr(value)
+        if os.environ.get('PROJECT_PROBE_CAPTURE_DIR'):
+            capture=Path(os.environ['PROJECT_PROBE_CAPTURE_DIR']); capture.mkdir(parents=True,exist_ok=True)
+            (capture/('theme-'+theme+'.ansi')).write_text(rendered)
     p.command('/devspec.project','Project details')
     assert 'Choose project' in p.text
     p.send('\r'); p.wait('Project ID: '+B); p.wait('Selected by:')
@@ -124,7 +140,7 @@ try:
         raise AssertionError('RPC ambiguity hung')
     assert not any(e.get('type')=='agent_start' or (e.get('type')=='extension_ui_request' and e.get('method')=='select') for e in lines)
     os.killpg(rpc.pid,signal.SIGTERM); rpc.wait(timeout=5)
-    evidence={'arrowKeyChoice':True,'conversationOnlyDefault':True,'rememberConsent':True,'forgetPreservesConversation':True,'pinEditIsolation':True,'freshCrossOrgConversation':True,'resume':True,'concurrentSameFolder':True,'cancel':True,'greenfieldFastPath':True,'rpcNoDialog':True,'compactFooter':True,'dedicatedStatusRow':True,'fullWidthTitles':True,'resizePriority':True,'projectDetailsMenu':True,'namesWithoutIds':True}
+    evidence={'arrowKeyChoice':True,'conversationOnlyDefault':True,'rememberConsent':True,'forgetPreservesConversation':True,'pinEditIsolation':True,'freshCrossOrgConversation':True,'resume':True,'concurrentSameFolder':True,'cancel':True,'greenfieldFastPath':True,'rpcNoDialog':True,'compactFooter':True,'dedicatedStatusRow':True,'fullWidthTitles':True,'resizePriority':True,'semanticForeground':True,'darkLightHotSwitch':True,'projectDetailsMenu':True,'namesWithoutIds':True}
     (temp/'evidence.json').write_text(json.dumps(evidence)); print('Actual Pi keyboard and RPC scenarios passed',flush=True)
 finally:
     for process in processes: process.close()

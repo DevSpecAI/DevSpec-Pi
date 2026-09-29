@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.35
+
+- The DevSpec row now uses normal foreground for DevSpec, the agent, session, automation and action-item names. The project name, separators and supporting status text stay muted. Colours follow the current Pi theme, including theme changes, without altering layout or truncation priority. Reload or restart after updating.
+
 ## 0.3.34
 
 - DevSpec has its own row below the editor, separate from BG/MCP statuses, without replacing Pi's native footer. It shows **DevSpec: agent · project · session · current work** and omits missing fields.

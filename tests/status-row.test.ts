@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
+import { stripVTControlCharacters } from "node:util";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { STATUS_KEY, formatStatusLine, getStatusSnapshot, paintStatus, patchStatus, resetStatus, syncBondIntoStatus, truncateLabel, type StatusUi } from "../extensions/core/status-line.ts";
 
@@ -34,6 +35,27 @@ test("display labels are terminal-safe, grapheme-aware and column-bounded", () =
   assert.ok(visibleWidth(row) <= width);
   assert.ok(row.startsWith("DevSpec: Rapid Kestrel"));
   assert.ok(!row.includes("\ufffd"));
+ }
+});
+
+test("only identity and named work use normal foreground, including after truncation", () => {
+ const calls: Array<{ role: string; text: string }> = [];
+ const named = { ...snap, automationName: "Daily review", verb: "get_action_item" };
+ formatStatusLine(named, 220, (role, text) => { calls.push({ role, text }); return text; });
+ for (const text of ["DevSpec: ", snap.codename, snap.sessionTitle, snap.workTitle, "Daily review"]) {
+  assert.ok(calls.some(call => call.role === "text" && call.text === text), `foreground: ${text}`);
+ }
+ for (const text of [snap.projectName, " · ", "automation “", "“", "”", "reading item"]) {
+  assert.ok(calls.some(call => call.role === "dim" && call.text === text), `muted: ${text}`);
+ }
+ for (const foreground of ["38;2;212;212;212", "38;2;31;35;40"]) {
+  const style = (role: "text" | "dim", text: string) => `\u001b[${role === "text" ? foreground : "38;2;128;128;128"}m${text}\u001b[0m`;
+  for (const width of [40, 60, 80, 180]) {
+   const styled = formatStatusLine(snap, width, style)!;
+   assert.equal(stripVTControlCharacters(styled), formatStatusLine(snap, width));
+   assert.ok(visibleWidth(styled) <= width);
+   assert.ok(styled.includes(style("text", snap.codename)));
+  }
  }
 });
 

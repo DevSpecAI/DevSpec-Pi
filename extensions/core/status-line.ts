@@ -243,27 +243,36 @@ export function extractAutomationRef(value: unknown): {
 	return { id, runId, name };
 }
 
-export function formatStatusLine(snap: StatusSnapshot, width = Infinity): string | undefined {
+export type StatusTextStyle = (role: "text" | "dim", text: string) => string;
+
+export function formatStatusLine(snap: StatusSnapshot, width = Infinity, style: StatusTextStyle = (_role, text) => text): string | undefined {
 	if (!snap.codename && !snap.sessionId && !snap.workTitle && !snap.automationName && !snap.verb) return undefined;
 
 	// No fixed title caps: take the full row when it fits. Under pressure,
 	// shorten project, work, then session; never abbreviate the agent identity.
-	const fields: Array<{ text: string; columns: number; prefix: string; suffix: string; priority: number }> = [];
-	function add(text: string, priority: number, prefix = "", suffix = "") {
+	const fields: Array<{ text: string; columns: number; prefix: string; suffix: string; priority: number; role: "text" | "dim" }> = [];
+	function add(text: string, priority: number, prefix = "", suffix = "", role: "text" | "dim" = "text") {
 		const clean = truncateLabel(text, Infinity);
-		if (clean) fields.push({ text: clean, columns: visibleWidth(clean), prefix, suffix, priority });
+		if (clean) fields.push({ text: clean, columns: visibleWidth(clean), prefix, suffix, priority, role });
 	}
 	add(snap.codename?.trim() || "connected", Infinity);
-	if (snap.projectName) add(snap.projectName, 0);
+	if (snap.projectName) add(snap.projectName, 0, "", "", "dim");
 	if (snap.sessionId) {
 		if (isRealSessionTitle(snap.sessionTitle)) add(snap.sessionTitle, 3, "“", "”");
-		else if (snap.sessionPreview) add(snap.sessionPreview, 3, "untitled “", "”");
-		else add("untitled", 3);
+		else if (snap.sessionPreview) add(snap.sessionPreview, 3, "untitled “", "”", "dim");
+		else add("untitled", 3, "", "", "dim");
 	}
 	if (snap.automationName) add(snap.automationName, 1, "automation “", "”");
 	if (snap.workTitle) add(snap.workTitle, 1, "“", "”");
-	if (snap.verb) add(verbLabel(snap.verb), 2);
-	const render = () => `DevSpec: ${fields.filter(f => f.columns > 0).map(f => `${f.prefix}${truncateLabel(f.text, f.columns)}${f.suffix}`).join(" · ")}`;
+	if (snap.verb) add(verbLabel(snap.verb), 2, "", "", "dim");
+	// Allocate width on plain text, then style individual roles. Never wrap the
+	// entire row in dim: identity/current work must use the reader's foreground.
+	const render = (styled = false) => {
+		const paint: StatusTextStyle = (role, text) => styled && text ? style(role, text) : text;
+		return paint("text", "DevSpec: ") + fields.filter(f => f.columns > 0)
+			.map(f => paint("dim", f.prefix) + paint(f.role, truncateLabel(f.text, f.columns)) + paint("dim", f.suffix))
+			.join(paint("dim", " · "));
+	};
 	let line = render();
 	const shrinkable = fields.filter(f => Number.isFinite(f.priority)).sort((a, b) => a.priority - b.priority);
 	for (const field of shrinkable) {
@@ -279,7 +288,7 @@ export function formatStatusLine(snap: StatusSnapshot, width = Infinity): string
 		field.columns = 0;
 		line = render();
 	}
-	return line;
+	return render(true);
 }
 
 /** OS tab title. Session → automation → untitled stand-in → current item → codename. */
@@ -410,7 +419,7 @@ export function paintStatus(ctx?: StatusUi | null): void {
 					invalidate() {},
 					render(width) {
 						if (width < 1) return [];
-						return wrapTextWithAnsi(formatStatusLine(snapshot, width) ?? "", width).map(line => theme.fg("dim", line));
+						return wrapTextWithAnsi(formatStatusLine(snapshot, width, (role, text) => theme.fg(role, text)) ?? "", width);
 					},
 				}), { placement: "belowEditor" });
 			} else target.ui.setWidget(STATUS_KEY, undefined);

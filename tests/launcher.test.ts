@@ -51,7 +51,7 @@ describe("vendored DevSpec launcher", () => {
 
 	it("ships the entry points the first-run install needs", () => {
 		const { files } = manifest();
-		for (const required of ["ensure.mjs", "open-handler.mjs", "open-handler-core.mjs"]) {
+		for (const required of ["launcher.mjs", "payload.mjs", "integration.mjs", "launcher-server.mjs", "open-handler.mjs", "open-handler-core.mjs"]) {
 			assert.ok(required in files, `missing ${required}`);
 		}
 	});

@@ -8,9 +8,17 @@ import path from 'node:path'
 import os from 'node:os'
 import { spawn, execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { verifyHandoffToken } from './handoff-verify.mjs'
-import { quoteWinCmdArg, composeWindowsConsoleTitle, sanitizeWindowsConsoleTitle, windowsConsoleStartArgs } from './spawn.mjs'
+import { readHostAdapter } from './host-adapters.mjs'
+import { isLaunchOwner } from './account-bindings.mjs'
+import {
+  expandFleetRecipe,
+  recipeFromHandoffPayload,
+  resolveFleetSpawnPrompt,
+  sessionIdFromHandoffPayload,
+} from './fleet-recipe.mjs'
+import { quoteWinCmdArg, composeWindowsConsoleTitle as composeWindowsCursorCliTitle, sanitizeWindowsConsoleTitle, windowsConsoleStartArgs as windowsCursorCliStartArgs } from './spawn.mjs'
 
 const execFileAsync = promisify(execFile)
 
@@ -22,9 +30,13 @@ const execFileAsync = promisify(execFile)
  * @returns {string}
  */
 export function buildWindowsCliLaunchBat(nodeBin, launchArgs, folderPath) {
-  const cdLine = `cd /d ${quoteWinCmdArg(folderPath)}`
-  const runLine = [nodeBin, ...launchArgs].map(quoteWinCmdArg).join(' ')
-  return `@echo off\r\n${cdLine}\r\n${runLine}\r\n`
+  const batchArg = value => {
+    if (/[\r\n\0]/.test(String(value))) throw new Error('Invalid terminal argument')
+    return quoteWinCmdArg(value).replace(/%/g, '%%')
+  }
+  const cdLine = `cd /d ${batchArg(folderPath)}`
+  const runLine = [nodeBin, ...launchArgs].map(batchArg).join(' ')
+  return `@echo off\r\nsetlocal DisableDelayedExpansion\r\n${cdLine}\r\n${runLine}\r\n`
 }
 
 /**
@@ -35,20 +47,17 @@ export function buildWindowsCliLaunchBat(nodeBin, launchArgs, folderPath) {
  * @param {string} [title]
  * @returns {string}
  */
-export function buildWindowsCliStartCommand(nodeBin, launchArgs, title = composeWindowsConsoleTitle()) {
-  const safeTitle = sanitizeWindowsConsoleTitle(title) || composeWindowsConsoleTitle()
+export function buildWindowsCliStartCommand(nodeBin, launchArgs, title = composeWindowsCursorCliTitle()) {
+  const safeTitle = sanitizeWindowsConsoleTitle(title) || composeWindowsCursorCliTitle()
   const cmdline = [nodeBin, ...launchArgs].map(quoteWinCmdArg).join(' ')
   return `start "${safeTitle}" cmd.exe /k ${cmdline}`
 }
 
 export const DEVSPEC_PROTOCOL_SCHEME = 'devspec'
 export const DEVSPEC_OPEN_PATH = '/open'
-/** macOS fallback only — keep in sync with DevSpecV2 CURSOR_LOCAL_OPEN_BASE. */
+/** Shared loopback listener — keep in sync with the web handoff port. */
 export const DEVSPEC_LOCAL_OPEN_PORT = 42731
-// One machine-level home, owned by no single agent (ADR 8ced3e43, D1). The repo
-// -> folder map rebuilds itself from recorded connection cwds, so moving here
-// costs nothing and needs no migration.
-export const DEVSPEC_DIR = path.join(os.homedir(), '.devspec', 'launcher')
+export const DEVSPEC_DIR = process.env.DEVSPEC_LAUNCHER_HOME || path.join(os.homedir(), '.devspec', 'launcher')
 export const MAP_PATH = path.join(DEVSPEC_DIR, 'repo-folder-map.json')
 export const HANDLER_LOG_PATH = path.join(DEVSPEC_DIR, 'handler.log')
 /** Written by open-handler --install / extension activate so CLI launches use the live extension. */
@@ -60,7 +69,7 @@ export async function ensureDevspecDir() {
 
 /**
  * Record which Cursor extension package root last ran --install / activate.
- * Protocol launches prefer scripts under this root over a stale installed copy.
+ * Protocol launches prefer scripts under this root over a stale ~/.cursor/devspec copy.
  * @param {string} extensionRoot absolute path to the extension package root
  */
 export async function writeExtensionRootMarker(extensionRoot) {
@@ -93,7 +102,7 @@ export async function readExtensionRootMarker() {
 }
 
 /**
- * Prefer the active extension's scripts/ launcher over a stale installed copy.
+ * Prefer the active extension's scripts/ launcher over a stale ~/.cursor/devspec copy.
  * Order: extension-root marker → installed DEVSPEC_DIR copy → sibling of this module.
  *
  * @param {string} scriptName e.g. 'launch-cli-session.mjs'
@@ -106,6 +115,11 @@ export async function readExtensionRootMarker() {
  */
 export function resolveCliLauncher(scriptName, opts) {
   const name = String(scriptName ?? '').trim()
+  // Pi's launcher comes from this immutable release, never an unrelated
+  // Cursor install. Credential-bearing adapters remain in their host plugins.
+  if (name === 'launch-pi-session.mjs') {
+    return { path: path.join(opts.moduleDir, name), source: 'sibling' }
+  }
   if (!name) {
     throw new Error('resolveCliLauncher: scriptName required')
   }
@@ -461,7 +475,14 @@ export async function resolvePiExecutable() {
  * Open an OS terminal that runs launch-cli-session.mjs (interactive agent).
  * @param {{ folderPath: string, promptText: string | null, agentBin: string, model?: string | null }} opts
  */
-export async function openInAgentCli({ folderPath, promptText, agentBin, model }) {
+export async function openInAgentCli({
+  folderPath,
+  promptText,
+  agentBin,
+  model,
+  resumeChatId,
+  settle = false,
+}) {
   await ensureDevspecDir()
   const launchesDir = path.join(DEVSPEC_DIR, 'launches')
   await fs.mkdir(launchesDir, { recursive: true })
@@ -471,15 +492,18 @@ export async function openInAgentCli({ folderPath, promptText, agentBin, model }
   await fs.writeFile(promptFile, promptText?.trim() ? `${promptText.trim()}\n` : '', 'utf8')
 
   // Prefer the extension recorded at --install/activate; never let a stale
-  // installed copy shadow mechanical fast-connect after a VSIX update.
+  // ~/.cursor/devspec copy shadow mechanical fast-connect after a plugin update.
   const moduleDir = path.dirname(fileURLToPath(import.meta.url))
   const extensionRoot = await readExtensionRootMarker()
-  const resolved = resolveCliLauncher('launch-cli-session.mjs', {
+  const host = readHostAdapter(DEVSPEC_DIR, 'cursor')
+  const resolved = host ? { path: host.launchScript, source: 'host-adapter' } : resolveCliLauncher('launch-cli-session.mjs', {
     moduleDir,
     extensionRoot,
   })
   const launcher = resolved.path
-  await appendHandlerLog(`cli launcher source=${resolved.source} path=${launcher}`)
+  await appendHandlerLog(
+    `cli launcher source=${resolved.source} path=${launcher} settle=${settle}`,
+  )
 
   const nodeBin = process.execPath
   const launchArgs = [
@@ -495,6 +519,23 @@ export async function openInAgentCli({ folderPath, promptText, agentBin, model }
   if (modelId) {
     launchArgs.push('--model', modelId)
   }
+  const existingChatId = typeof resumeChatId === 'string' ? resumeChatId.trim() : ''
+  if (existingChatId) {
+    launchArgs.push('--resume-chat-id', existingChatId)
+  }
+
+  if (settle) {
+    const settled = await runNodeLaunchSettled({
+      nodeBin,
+      launchArgs,
+      cwd: folderPath,
+      label: `cursor-cli settle ${stamp}`,
+    })
+    if (!settled.ok) {
+      throw new Error(`Cursor CLI settle failed: ${settled.error}`)
+    }
+    return
+  }
 
   if (process.platform === 'win32') {
     // Always open a titled cmd.exe /k window. Do NOT use
@@ -508,8 +549,8 @@ export async function openInAgentCli({ folderPath, promptText, agentBin, model }
     // `\"…\"`, and cmd fails with `'\"C:\…\node.exe\"' is not recognized`.
     const batPath = path.join(launchesDir, `${stamp}.launch.cmd`)
     await fs.writeFile(batPath, buildWindowsCliLaunchBat(nodeBin, launchArgs, folderPath), 'utf8')
-    const startTitle = composeWindowsConsoleTitle({ stamp })
-    spawn('cmd.exe', windowsConsoleStartArgs(batPath, startTitle), {
+    const startTitle = composeWindowsCursorCliTitle({ stamp })
+    spawn('cmd.exe', windowsCursorCliStartArgs(batPath, startTitle), {
       detached: true,
       stdio: 'ignore',
       windowsHide: true,
@@ -522,7 +563,7 @@ export async function openInAgentCli({ folderPath, promptText, agentBin, model }
     const cmd = `cd ${shellSingleQuote(folderPath)} && ${shellSingleQuote(nodeBin)} ${launchArgs
       .map(shellSingleQuote)
       .join(' ')}`
-    spawn('osascript', ['-e', `tell application "Terminal" to do script ${shellSingleQuote(cmd)}`], {
+    spawn('osascript', ['-e', `tell application "Terminal" to do script ${JSON.stringify(cmd)}`], {
       detached: true,
       stdio: 'ignore',
     }).unref()
@@ -554,29 +595,117 @@ export async function openInAgentCli({ folderPath, promptText, agentBin, model }
 }
 
 /**
- * OpenCode session launches — production intent is headless (item 63662a98).
+ * OpenCode session launches — production default is headed (item a08a1885).
  *
- * `false` → production headless: hidden spawn, no console flash. DevSpec's live
- * work trail (and needs-your-input) is the visibility surface for remote turns.
- * `true`  → TEMP DEBUG: open a real console and pass `--headed` so serve/client
- *           windows are visible. Flip back to `false` when finished debugging.
+ * `true`  → visible serve/client consoles (same class of UX as Pi / Cursor CLI).
+ * `false` → hidden spawn; DevSpec's live work trail is then the only surface.
  *
- * Escape hatch: pass `--headed` to launch-opencode-session.mjs directly.
+ * Headless was the prior remote default (item 63662a98) when the trail was the
+ * intended visibility surface. Launch agents made that inconsistent with every
+ * other tool's visible terminal, so headed is the product default again.
  *
- * TEMP (item 3dd5467c, owner request 2026-08-10): headed again while live-testing
- * the Working trail / remote-control path. Production default remains headless —
- * set this back to `false` when that testing is done.
+ * Fleet fan-out still awaits the settle ready-gate (item 8a288219) — headed
+ * does not mean fire-and-forget; `--headed` is passed into the settled script.
  */
 export const OPENCODE_LAUNCH_HEADED = true
 
 /**
+ * Default wait for a settled CLI launch script to exit.
+ * OpenCode's fleet settle exits once the local server is healthy (see
+ * DEVSPEC_FLEET_SETTLE in launch-opencode-session.mjs); Cursor CLI / Pi exit
+ * after their launch script finishes spawning. Keep this generous for slow
+ * cold starts, not for a whole agent turn.
+ */
+export const FLEET_SETTLE_TIMEOUT_MS = 180_000
+
+/**
+ * Run `node <launchArgs…>` in-process and wait until it exits.
+ * Used by fleet fan-out so spawn N+1 never starts while spawn N is still
+ * cold-starting (OpenCode DB lock, shared CLI binary races).
+ *
+ * @param {{ nodeBin: string, launchArgs: string[], cwd: string, label: string, timeoutMs?: number }} opts
+ * @returns {Promise<{ ok: true, code: number } | { ok: false, error: string, code?: number | null }>}
+ */
+export function runNodeLaunchSettled({
+  nodeBin,
+  launchArgs,
+  cwd,
+  label,
+  timeoutMs = FLEET_SETTLE_TIMEOUT_MS,
+}) {
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (result) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(result)
+    }
+
+    const child = spawn(nodeBin, launchArgs, {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+      env: {
+        ...process.env,
+        DEVSPEC_FLEET_SETTLE: '1',
+      },
+      // Not detached: we need the exit event for the ready-gate.
+    })
+
+    let tail = ''
+    const appendTail = (chunk) => {
+      tail = `${tail}${chunk}`.slice(-4000)
+    }
+    child.stdout?.on('data', (buf) => appendTail(String(buf)))
+    child.stderr?.on('data', (buf) => appendTail(String(buf)))
+
+    const timer = setTimeout(() => {
+      try {
+        child.kill()
+      } catch {
+        // ignore
+      }
+      void appendHandlerLog(
+        `${label} settle timeout after ${timeoutMs}ms` +
+          (tail ? ` tail=${JSON.stringify(tail.slice(-500))}` : ''),
+      )
+      finish({ ok: false, error: 'settle_timeout', code: null })
+    }, timeoutMs)
+
+    child.on('error', (err) => {
+      void appendHandlerLog(`${label} settle spawn error: ${err?.message || err}`)
+      finish({ ok: false, error: 'settle_spawn_failed', code: null })
+    })
+
+    // Prefer 'exit' over 'close': headed grandchildren can inherit the settle
+    // child's piped stdio and keep 'close' from firing after process.exit
+    // (item 914889b5). Drain pipes above so we still capture a failure tail.
+    child.on('exit', (code) => {
+      if (code === 0) {
+        finish({ ok: true, code: 0 })
+        return
+      }
+      void appendHandlerLog(
+        `${label} settle exited code=${code}` +
+          (tail ? ` tail=${JSON.stringify(tail.slice(-500))}` : ''),
+      )
+      finish({ ok: false, error: 'settle_failed', code })
+    })
+  })
+}
+
+/**
  * Launch OpenCode via launch-opencode-session.mjs.
  *
- * When `OPENCODE_LAUNCH_HEADED` is true, opens a visible terminal (TEMP DEBUG).
- * Flip the flag back to false for normal remote use.
- * @param {{ folderPath: string, promptText: string | null, opencodeBin: string, model?: string | null }} opts
+ * When `settle` is true (fleet fan-out), await the launch script exit — that is
+ * the SQLite ready-gate. The script exits once the local OpenCode server is
+ * healthy (DEVSPEC_FLEET_SETTLE), not when the connect client finishes its
+ * remote turn. `OPENCODE_LAUNCH_HEADED` still applies: settle + headed passes
+ * `--headed` into the awaited script so consoles are visible.
+ * @param {{ folderPath: string, promptText: string | null, opencodeBin: string, model?: string | null, settle?: boolean }} opts
  */
-export async function openInOpenCode({ folderPath, promptText, opencodeBin, model }) {
+export async function openInOpenCode({ folderPath, promptText, opencodeBin, model, settle = false }) {
   await ensureDevspecDir()
   const launchesDir = path.join(DEVSPEC_DIR, 'launches')
   await fs.mkdir(launchesDir, { recursive: true })
@@ -585,14 +714,10 @@ export async function openInOpenCode({ folderPath, promptText, opencodeBin, mode
   const promptFile = path.join(launchesDir, `${stamp}.prompt.txt`)
   await fs.writeFile(promptFile, promptText?.trim() ? `${promptText.trim()}\n` : '', 'utf8')
 
-  const moduleDir = path.dirname(fileURLToPath(import.meta.url))
-  const extensionRoot = await readExtensionRootMarker()
-  const resolved = resolveCliLauncher('launch-opencode-session.mjs', {
-    moduleDir,
-    extensionRoot,
-  })
-  const launcher = resolved.path
-  await appendHandlerLog(`opencode launcher source=${resolved.source} path=${launcher}`)
+  const adapter = readHostAdapter(DEVSPEC_DIR, 'opencode')
+  if (!adapter) throw new Error('Start OpenCode with the DevSpec plugin once to set up local launching.')
+  const launcher = adapter.launchScript
+  await appendHandlerLog(`opencode launcher source=host-adapter settle=${settle}`)
 
   const nodeBin = process.execPath
   const launchArgs = [launcher, '--folder', folderPath, '--prompt-file', promptFile, '--opencode', opencodeBin]
@@ -602,6 +727,20 @@ export async function openInOpenCode({ folderPath, promptText, opencodeBin, mode
   }
   if (OPENCODE_LAUNCH_HEADED) {
     launchArgs.push('--headed')
+  }
+
+  // Fleet ready-gate: await connect/server-up (or failure). Never fire-and-forget.
+  if (settle) {
+    const settled = await runNodeLaunchSettled({
+      nodeBin,
+      launchArgs,
+      cwd: folderPath,
+      label: `opencode settle ${stamp}`,
+    })
+    if (!settled.ok) {
+      throw new Error(`OpenCode settle failed: ${settled.error}`)
+    }
+    return
   }
 
   // Headed: reuse Cursor CLI's visible-terminal path so the user can watch the
@@ -623,7 +762,7 @@ export async function openInOpenCode({ folderPath, promptText, opencodeBin, mode
       const cmd = `cd ${shellSingleQuote(folderPath)} && ${shellSingleQuote(nodeBin)} ${launchArgs
         .map(shellSingleQuote)
         .join(' ')}`
-      spawn('osascript', ['-e', `tell application "Terminal" to do script ${shellSingleQuote(cmd)}`], {
+      spawn('osascript', ['-e', `tell application "Terminal" to do script ${JSON.stringify(cmd)}`], {
         detached: true,
         stdio: 'ignore',
       }).unref()
@@ -665,9 +804,19 @@ export async function openInOpenCode({ folderPath, promptText, opencodeBin, mode
  * Launch an interactive Pi TUI in a visible terminal. Model and thinking are
  * optional signed overrides; omitting both preserves Pi's own current/default
  * runtime configuration.
- * @param {{ folderPath: string, promptText: string | null, piBin: string, model?: string | null, thinking?: string | null }} opts
+ *
+ * When `settle` is true (fleet), await the launch script instead of opening a
+ * fire-and-forget terminal window.
+ * @param {{ folderPath: string, promptText: string | null, piBin: string, model?: string | null, thinking?: string | null, settle?: boolean }} opts
  */
-export async function openInPi({ folderPath, promptText, piBin, model, thinking }) {
+export async function openInPi({
+  folderPath,
+  promptText,
+  piBin,
+  model,
+  thinking,
+  settle = false,
+}) {
   await ensureDevspecDir()
   const launchesDir = path.join(DEVSPEC_DIR, 'launches')
   await fs.mkdir(launchesDir, { recursive: true })
@@ -683,7 +832,7 @@ export async function openInPi({ folderPath, promptText, piBin, model, thinking 
     extensionRoot,
   })
   const launcher = resolved.path
-  await appendHandlerLog(`pi launcher source=${resolved.source} path=${launcher}`)
+  await appendHandlerLog(`pi launcher source=${resolved.source} path=${launcher} settle=${settle}`)
 
   const nodeBin = process.execPath
   const launchArgs = [launcher, '--folder', folderPath, '--prompt-file', promptFile, '--pi', piBin]
@@ -692,6 +841,19 @@ export async function openInPi({ folderPath, promptText, piBin, model, thinking 
   const thinkingLevel = typeof thinking === 'string' ? thinking.trim() : ''
   if (['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(thinkingLevel)) {
     launchArgs.push('--thinking', thinkingLevel)
+  }
+
+  if (settle) {
+    const settled = await runNodeLaunchSettled({
+      nodeBin,
+      launchArgs,
+      cwd: folderPath,
+      label: `pi settle ${stamp}`,
+    })
+    if (!settled.ok) {
+      throw new Error(`Pi settle failed: ${settled.error}`)
+    }
+    return
   }
 
   if (process.platform === 'win32') {
@@ -710,7 +872,7 @@ export async function openInPi({ folderPath, promptText, piBin, model, thinking 
     const cmd = `cd ${shellSingleQuote(folderPath)} && ${shellSingleQuote(nodeBin)} ${launchArgs
       .map(shellSingleQuote)
       .join(' ')}`
-    spawn('osascript', ['-e', `tell application "Terminal" to do script ${shellSingleQuote(cmd)}`], {
+    spawn('osascript', ['-e', `tell application "Terminal" to do script ${JSON.stringify(cmd)}`], {
       detached: true,
       stdio: 'ignore',
     }).unref()
@@ -771,17 +933,50 @@ function openExternalUrl(url) {
 }
 
 /**
+ * App origin for human pages (error interstitial, etc.).
+ *
+ * Order: explicit DEVSPEC_APP_URL → known MCP host pairs from the live
+ * remote-control state → production app.devspec.ai.
+ *
+ * Staging dogfood machines often have MCP on api.devspecstaging.com without
+ * setting DEVSPEC_APP_URL; falling through to app.devspec.ai then opens a
+ * DNS-dead host ("site can't be reached"). Only the two settled host pairs
+ * are rewritten — never invent a hostname from an arbitrary API URL.
+ *
+ * @param {{ env?: NodeJS.ProcessEnv, remoteControlPath?: string, readFileSync?: (path: string, encoding: string) => string }} [opts]
+ * @returns {string}
+ */
+export function resolveAppBaseUrl(opts = {}) {
+  const env = opts.env ?? process.env
+  const fromEnv = typeof env.DEVSPEC_APP_URL === 'string' ? env.DEVSPEC_APP_URL.replace(/\/+$/, '') : ''
+  if (fromEnv) return fromEnv
+
+  const rcPath =
+    opts.remoteControlPath ?? path.join(os.homedir(), '.devspec', 'remote-control.json')
+  const readFile = opts.readFileSync ?? fsSync.readFileSync
+  try {
+    const raw = readFile(rcPath, 'utf8')
+    const mcpUrl = JSON.parse(raw)?.mcp_url
+    if (typeof mcpUrl === 'string') {
+      if (mcpUrl.includes('api.devspecstaging.com')) return 'https://app.devspecstaging.com'
+      if (mcpUrl.includes('api.devspec.ai')) return 'https://app.devspec.ai'
+    }
+  } catch {
+    // missing/unreadable config — fall through to production default
+  }
+  return 'https://app.devspec.ai'
+}
+
+/**
  * `tool` is passed so the page can name the agent the person actually launched. Without it the
  * page defaults to Cursor and tells a Pi user to go and fix something in an editor they may not
  * have installed — the same wrong-default class already fixed on the interstitial.
- *
- * The base is the app host, not the API host: a person reads this page, and `api.devspec.ai`
- * serves no pages. DEVSPEC_APP_URL sets it explicitly (staging is `app.devspecstaging.com`);
- * it is deliberately not derived from the MCP URL by rewriting the hostname, because nothing
- * guarantees the two hosts stay siblings.
  */
 function openErrorPage(slug, reason, tool = 'cursor') {
-  const base = process.env.DEVSPEC_APP_URL?.replace(/\/+$/, '') || 'https://app.devspec.ai'
+  // Human pages live on the app host (app.*), not the API host (api.*). Prefer
+  // DEVSPEC_APP_URL; otherwise resolveAppBaseUrl mirrors the machine's MCP
+  // staging/prod pair (item 2ed52078 / af6a1d20).
+  const base = resolveAppBaseUrl()
   const params = new URLSearchParams({ repo: slug, reason, tool })
   openExternalUrl(`${base}/cursor-handoff/error?${params}`)
 }
@@ -872,6 +1067,7 @@ export function parseHandoffUrl(raw) {
     if (!verified.ok) return { error: verified.error ?? 'invalid_token' }
     return {
       slug: verified.data.repo,
+      requesterId: verified.data.requesterId,
       promptText: verified.data.prompt ?? null,
       itemTitle: verified.data.title ?? null,
       surface: verified.data.surface === 'cli' ? 'cli' : 'ide',
@@ -881,6 +1077,12 @@ export function parseHandoffUrl(raw) {
           : 'cursor',
       model: verified.data.model ?? null,
       thinking: verified.data.thinking ?? null,
+      resumeChatId:
+        typeof verified.data.resumeChatId === 'string' && verified.data.resumeChatId.trim()
+          ? verified.data.resumeChatId.trim()
+          : null,
+      recipe: recipeFromHandoffPayload(verified.data),
+      sessionId: sessionIdFromHandoffPayload(verified.data),
     }
   }
 
@@ -890,6 +1092,7 @@ export function parseHandoffUrl(raw) {
   const toolRaw = url.searchParams.get('tool')
   const modelRaw = url.searchParams.get('model')
   const thinkingRaw = url.searchParams.get('thinking')
+  const resumeChatRaw = url.searchParams.get('resumeChatId')
   return {
     slug: decodeURIComponent(repo),
     promptText: url.searchParams.get('prompt')
@@ -904,16 +1107,21 @@ export function parseHandoffUrl(raw) {
     thinking: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(thinkingRaw)
       ? thinkingRaw
       : null,
+    resumeChatId:
+      typeof resumeChatRaw === 'string' && resumeChatRaw.trim()
+        ? decodeURIComponent(resumeChatRaw).trim()
+        : null,
     /** Unsigned localhost bridge requests (macOS fallback only). */
     unsigned: true,
   }
 }
 
 /**
- * Execute the handoff: open Cursor IDE (default) or spawn interactive Cursor CLI.
- * @returns {{ ok: true } | { ok: false, error: string, slug?: string }}
+ * Execute a single-agent handoff (one IDE open or one CLI spawn).
+ * @param {{ settle?: boolean }} [opts] — when true (fleet), await each CLI launch script exit before returning.
+ * @returns {Promise<{ ok: true } | { ok: false, error: string, slug?: string }>}
  */
-export async function executeHandoff({
+export async function executeSingleHandoff({
   slug,
   promptText,
   itemTitle,
@@ -921,8 +1129,10 @@ export async function executeHandoff({
   tool = 'cursor',
   model = null,
   thinking = null,
+  resumeChatId = null,
   requireSignedToken = true,
   unsigned = false,
+  settle = false,
 }) {
   if (requireSignedToken && unsigned) {
     await appendHandlerLog('rejected unsigned handoff')
@@ -944,7 +1154,7 @@ export async function executeHandoff({
       return { ok: false, error: 'pi_missing', slug }
     }
     try {
-      await openInPi({ folderPath, promptText, piBin, model, thinking })
+      await openInPi({ folderPath, promptText, piBin, model, thinking, settle })
       await appendHandlerLog(`opened Pi ${slug} → ${folderPath} via ${piBin}`)
       return { ok: true }
     } catch (err) {
@@ -966,7 +1176,7 @@ export async function executeHandoff({
       return { ok: false, error: 'opencode_missing', slug }
     }
     try {
-      await openInOpenCode({ folderPath, promptText, opencodeBin, model })
+      await openInOpenCode({ folderPath, promptText, opencodeBin, model, settle })
       await appendHandlerLog(`opened OpenCode ${slug} → ${folderPath} via ${opencodeBin}`)
       return { ok: true }
     } catch (err) {
@@ -977,10 +1187,17 @@ export async function executeHandoff({
     }
   }
 
-  // The launcher passes the signed prompt through untouched. Rewriting it to pin
-  // a host's plugin path is host-specific work and stays with the plugin that
-  // knows its own install layout (ADR 8ced3e43, D1).
-  const pinnedPrompt = promptText
+  // Session/web remote-control prompts cannot include a machine-local PLUGIN=
+  // path or the Cursor skill body. Expand here so Cursor agents never hunt
+  // Claude marketplace caches (item 57d8b288) or mislabel as Claude Code.
+  let pinnedPrompt = promptText
+  const cursorHost = readHostAdapter(DEVSPEC_DIR, 'cursor')
+  const cursorRoot = await readExtensionRootMarker()
+  const promptModule = cursorHost?.promptModule ?? (cursorRoot ? path.join(cursorRoot, 'scripts', 'pin-remote-plugin.mjs') : null)
+  if (promptModule && fsSync.existsSync(promptModule)) {
+    const { expandRemoteControlLaunchPrompt } = await import(pathToFileURL(promptModule).href)
+    pinnedPrompt = expandRemoteControlLaunchPrompt(promptText)
+  }
 
   if (surface === 'cli') {
     const agentBin = await resolveAgentExecutable()
@@ -990,7 +1207,14 @@ export async function executeHandoff({
       return { ok: false, error: 'agent_missing', slug }
     }
     try {
-      await openInAgentCli({ folderPath, promptText: pinnedPrompt, agentBin, model })
+      await openInAgentCli({
+        folderPath,
+        promptText: pinnedPrompt,
+        agentBin,
+        model,
+        resumeChatId,
+        settle,
+      })
       await appendHandlerLog(`opened CLI ${slug} → ${folderPath} via ${agentBin}`)
       return { ok: true }
     } catch (err) {
@@ -1014,17 +1238,157 @@ export async function executeHandoff({
   }
 }
 
+/**
+ * Small pause after a settled spawn. The ready-gate is the awaited launch
+ * script; this gap only softens residual CLI binary contention.
+ */
+const FLEET_SPAWN_GAP_MS = 250
+
+/**
+ * Execute the handoff: open Cursor IDE (default) or spawn interactive Cursor CLI.
+ * When `recipe` is set, fans out to N independent CLI sessions (brief ba6bd58e).
+ * @returns {{ ok: true, spawned?: number, failures?: Array<{ index: number, tool: string, error: string }> } | { ok: false, error: string, slug?: string, failures?: Array<{ index: number, tool: string, error: string }> }}
+ */
+export async function executeHandoff({
+  requesterId,
+  slug,
+  promptText,
+  itemTitle,
+  surface = 'ide',
+  tool = 'cursor',
+  model = null,
+  thinking = null,
+  resumeChatId = null,
+  recipe = null,
+  sessionId = null,
+  requireSignedToken = true,
+  unsigned = false,
+}) {
+  if (!isLaunchOwner(DEVSPEC_DIR, requesterId)) return { ok: false, error: 'account_not_paired' }
+  if (recipe && typeof recipe === 'object') {
+    const tools = expandFleetRecipe(recipe)
+    if (tools.length === 0) {
+      await appendHandlerLog(
+        `fleet recipe empty for ${slug} recipe=${JSON.stringify(recipe)}`,
+      )
+      return { ok: false, error: 'empty_recipe', slug }
+    }
+
+    await appendHandlerLog(
+      `fleet fan-out ${slug}: ${tools.length} spawn(s) [${tools.join(', ')}] ` +
+        `recipe=${JSON.stringify(recipe)} title=${JSON.stringify(itemTitle ?? null)}` +
+        (sessionId ? ` session=${sessionId}` : ''),
+    )
+
+    /** @type {Array<{ index: number, tool: string, error: string }>} */
+    const failures = []
+    let spawned = 0
+
+    for (let i = 0; i < tools.length; i++) {
+      const spawnTool = tools[i]
+      await appendHandlerLog(
+        `fleet spawn ${i + 1}/${tools.length} starting tool=${spawnTool}`,
+      )
+      // Never pass null/empty — OpenCode rejects empty messages and Cursor
+      // skips mechanical Connect when the prompt is not remote-connect
+      // (item f053c2ed). Prefer a handoff prompt when present; else the same
+      // per-tool remote shape as a single coding-agent launch (item f2fe858e).
+      const spawnPrompt = resolveFleetSpawnPrompt(promptText, {
+        tool: spawnTool,
+        sessionId,
+      })
+      // Only OpenCode needs the settled ready-gate (SQLite DB race — item
+      // 8a288219). Pi / Cursor CLI use the fire-and-forget visible terminal
+      // path so Launch agents matches session-launch UX (item 6649667f).
+      const result = await executeSingleHandoff({
+        slug,
+        promptText: spawnPrompt,
+        itemTitle: null,
+        surface: 'cli',
+        tool: spawnTool,
+        model: null,
+        thinking: null,
+        resumeChatId: null,
+        requireSignedToken,
+        unsigned,
+        settle: spawnTool === 'opencode',
+      })
+      if (result.ok) {
+        spawned += 1
+        await appendHandlerLog(
+          `fleet spawn ${i + 1}/${tools.length} (${spawnTool}) ok` +
+            ` prompt_chars=${spawnPrompt.length}`,
+        )
+      } else {
+        failures.push({
+          index: i,
+          tool: spawnTool,
+          error: result.error ?? 'unknown',
+        })
+        await appendHandlerLog(
+          `fleet spawn ${i + 1}/${tools.length} (${spawnTool}) failed: ${result.error}`,
+        )
+      }
+      if (i < tools.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, FLEET_SPAWN_GAP_MS))
+      }
+    }
+
+    if (spawned === 0) {
+      await appendHandlerLog(
+        `fleet fan-out done ${slug}: 0/${tools.length} ok (all failed)`,
+      )
+      return { ok: false, error: 'fleet_all_failed', slug, failures }
+    }
+    await appendHandlerLog(
+      `fleet fan-out done ${slug}: ${spawned}/${tools.length} ok` +
+        (failures.length ? `, ${failures.length} failed` : ''),
+    )
+    return { ok: true, spawned, failures: failures.length ? failures : undefined }
+  }
+
+  await appendHandlerLog(
+    `single handoff ${slug} tool=${tool} surface=${surface} ` +
+      `prompt_chars=${typeof promptText === 'string' ? promptText.length : 0} ` +
+      `title=${JSON.stringify(itemTitle ?? null)} (no fleet recipe)`,
+  )
+
+  return executeSingleHandoff({
+    slug,
+    promptText,
+    itemTitle,
+    surface,
+    tool,
+    model,
+    thinking,
+    resumeChatId,
+    requireSignedToken,
+    unsigned,
+  })
+}
+
 export async function handleProtocolUrl(raw, opts = {}) {
   const parsed = parseHandoffUrl(raw)
   if (!parsed) {
-    const preview = String(raw ?? '').slice(0, 200)
-    await appendHandlerLog(`handoff failed: bad_url raw=${JSON.stringify(preview)}`)
+    await appendHandlerLog('handoff failed: bad_url')
     return { ok: false, error: 'bad_url' }
   }
   if ('error' in parsed && !parsed.slug) return { ok: false, error: parsed.error }
   if (parsed.error && !parsed.slug) return { ok: false, error: parsed.error }
 
+  const recipe = parsed.recipe ?? null
+  const sessionId = parsed.sessionId ?? null
+  await appendHandlerLog(
+    `handoff parsed slug=${parsed.slug} tool=${parsed.tool ?? 'cursor'} ` +
+      `surface=${parsed.surface ?? 'ide'} ` +
+      `recipe=${recipe ? JSON.stringify(recipe) : 'none'} ` +
+      `prompt_chars=${typeof parsed.promptText === 'string' ? parsed.promptText.length : 0} ` +
+      `title=${JSON.stringify(parsed.itemTitle ?? null)}` +
+      (sessionId ? ` session=${sessionId}` : ''),
+  )
+
   return executeHandoff({
+    requesterId: parsed.requesterId,
     slug: parsed.slug,
     promptText: parsed.promptText,
     itemTitle: parsed.itemTitle,
@@ -1032,7 +1396,10 @@ export async function handleProtocolUrl(raw, opts = {}) {
     tool: parsed.tool === 'opencode' || parsed.tool === 'pi' ? parsed.tool : 'cursor',
     model: parsed.model ?? null,
     thinking: parsed.thinking ?? null,
+    resumeChatId: parsed.resumeChatId ?? null,
+    recipe,
+    sessionId,
     unsigned: parsed.unsigned,
-    requireSignedToken: opts.requireSignedToken ?? process.platform !== 'darwin',
+    requireSignedToken: true,
   })
 }

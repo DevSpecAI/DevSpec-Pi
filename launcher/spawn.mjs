@@ -12,7 +12,8 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { spawn, spawnSync } from 'node:child_process'
+import { spawn, spawnSync, execFileSync } from 'node:child_process'
+import { npmNodeShimEntry, resolveNodeRuntime } from './node-runtime.mjs'
 
 /**
  * Quote a single Windows command-line argument for `cmd.exe /s /c`.
@@ -34,7 +35,7 @@ export function quoteWinCmdArg(value) {
 export function sanitizeWindowsConsoleTitle(raw) {
   return String(raw ?? '')
     .replace(/["\r\n]/g, '')
-    .replace(/[&|<>^]/g, '')
+    .replace(/[&|<>^%!]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -134,6 +135,9 @@ export function resolveWindowsAgentInvocation(agentBin, io = { existsSync: fs.ex
     return { command: bin, prefixArgs: [], mode: 'direct' }
   }
 
+  const npmEntry = npmNodeShimEntry(bin, { exists: io.existsSync })
+  if (npmEntry) return { command: resolveNodeRuntime(), prefixArgs: [npmEntry], mode: 'direct' }
+
   const lower = bin.toLowerCase()
   /** @type {string[]} */
   const ps1Candidates = []
@@ -156,7 +160,7 @@ export function resolveWindowsAgentInvocation(agentBin, io = { existsSync: fs.ex
         command: process.env.SystemRoot
           ? path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
           : 'powershell.exe',
-        prefixArgs: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', candidate],
+        prefixArgs: ['-NoProfile', '-File', candidate],
         mode: 'powershell-ps1',
       }
     }

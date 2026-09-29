@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.39
+
+- First session startup now runs the shared launcher's installation, OS-registration and readiness flow instead of only copying files. Setup failures do not stop Pi, and deliberately disabled setup stays disabled.
+- Added `/devspec.launcher status`, `repair`, `enable`, `disable` and `uninstall`. Copy commands remain usable without the launcher. Update/reload the installed plugin to load the new lifecycle integration.
+
 ## 0.3.38
 
 - All safe tools available to the connection are now directly callable from startup, with authored guidance for choosing and maintaining work, memories and documents. Internal delivery tools remain private; session-only tools still require their connection context.

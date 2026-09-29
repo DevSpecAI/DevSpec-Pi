@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.34
+
+- DevSpec has its own row below the editor, separate from BG/MCP statuses, without replacing Pi's native footer. It shows **DevSpec: agent · project · session · current work** and omits missing fields.
+- Full titles use the available width. On narrower terminals, the project name shortens first, then the action item, then the session; the agent name stays intact. Project IDs, organisation and connection diagnostics remain in `/devspec.project` details. Reload or restart Pi after updating.
+
 ## 0.3.33
 
 - The footer is back to agent, session and current work. Project IDs, connection-source diagnostics and routine successful-login identity no longer occupy permanent status space.

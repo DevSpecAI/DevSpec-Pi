@@ -40,7 +40,7 @@ intake under notice backpressure. See VISION.md.
 
 ### Choosing a project
 
-This section describes package 0.3.33 or later, including the compact footer and native project menu. A change on `staging` is not a customer release to `main`, and a repository update does not reload an installed, running Pi session.
+The native project menu requires package 0.3.33 or later. From 0.3.34, a dedicated DevSpec row below the editor identifies the agent and selected project, separately from BG/MCP statuses. A change on `staging` is not a customer release to `main`, and a repository update does not reload an installed, running Pi session.
 
 Normal startup is unchanged: a unique repository match or usable folder pin connects without a question. If DevSpec returns several matching projects, Pi offers a keyboard picker labelled with both project and organisation. Escape leaves the conversation unconnected.
 
@@ -54,7 +54,7 @@ pi --devspec-project "Client Website"
 
 Names must match an accessible project exactly; duplicate names open the picker. These project options do not change Pi's native `--session`/resume behaviour or the existing Remote room selector. A project choice belongs to this local conversation, including its resume—not every Pi window in the folder. It is applied to normal DevSpec tools as well as the remote connection.
 
-The footer stays focused on agent, session and current work—not project IDs or connection diagnostics. `/devspec.project` opens a native menu. **Project details** (or `/devspec.project status`) shows the selected project, organisation, full ID, how it was selected and the effective folder default. Pick by the readable project and organisation names; IDs appear in the picker only when those labels would otherwise be identical. Use:
+The dedicated row shows **DevSpec: agent · project · session · current work**, leaving Pi's native footer intact. Missing fields are omitted and full titles use the available width. When space is tight, the project name shortens first, then the action item, then the session; the agent name is preserved. Project IDs, organisation and connection diagnostics stay out of the footer. `/devspec.project` opens a native menu. **Project details** (or `/devspec.project status`) shows the selected project, organisation, full ID, how it was selected and the effective folder default. Pick by the readable project and organisation names; IDs appear in the picker only when those labels would otherwise be identical. Use:
 
 - `/devspec.project choose` to choose explicitly. Changing an established project offers a **fresh local conversation**, without copying the previous model context.
 - `/devspec.project remember` to save the choice to `.devspec/project.json`, after showing the file and asking for consent. This is folder configuration, potentially shared or committed—not a private preference. A unique repository match still beats a stale pin.

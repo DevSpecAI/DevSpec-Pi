@@ -36,8 +36,8 @@ test("real titles exclude empty and the literal New session placeholder", () => 
 	assert.equal(isRealSessionTitle("  "), false);
 });
 
-test("sessionless bond is just the codename", () => {
-	assert.equal(formatStatusLine({ codename: "Golden Possum" }), "⛁ Golden Possum");
+test("sessionless bond identifies the platform and agent", () => {
+	assert.equal(formatStatusLine({ codename: "Golden Possum" }), "DevSpec: Golden Possum");
 	assert.equal(formatStatusLine({}), undefined);
 });
 
@@ -48,7 +48,7 @@ test("titled session sits next to the codename", () => {
 			sessionId: "d8883a49-5e1f-416f-8384-7fd65e2e016b",
 			sessionTitle: "Pi TUI footer",
 		}),
-		"⛁ Golden Possum · “Pi TUI footer”",
+		"DevSpec: Golden Possum · “Pi TUI footer”",
 	);
 });
 
@@ -58,7 +58,7 @@ test("untitled session uses an honest stand-in, never a leftover or blank", () =
 			codename: "Golden Possum",
 			sessionId: "sess-1",
 		}),
-		"⛁ Golden Possum · untitled",
+		"DevSpec: Golden Possum · untitled",
 	);
 	assert.equal(
 		formatStatusLine({
@@ -67,7 +67,7 @@ test("untitled session uses an honest stand-in, never a leftover or blank", () =
 			sessionTitle: "New session",
 			sessionPreview: "first owner message",
 		}),
-		"⛁ Golden Possum · untitled “first owner message”",
+		"DevSpec: Golden Possum · untitled “first owner message”",
 	);
 	assert.equal(
 		formatStatusLine({
@@ -75,7 +75,7 @@ test("untitled session uses an honest stand-in, never a leftover or blank", () =
 			sessionId: "sess-1",
 			sessionTitle: "New session",
 		}),
-		"⛁ Golden Possum · untitled",
+		"DevSpec: Golden Possum · untitled",
 	);
 });
 
@@ -87,7 +87,7 @@ test("real title wins over a leftover first-text preview", () => {
 			sessionTitle: "Generated title",
 			sessionPreview: "first message that should disappear",
 		}),
-		"⛁ Golden Possum · “Generated title”",
+		"DevSpec: Golden Possum · “Generated title”",
 	);
 });
 
@@ -100,7 +100,7 @@ test("claimed work and a live DevSpec verb append; bash does not", () => {
 			workTitle: "Show the session title",
 			verb: "claim_work_item",
 		}),
-		"⛁ Golden Possum · “Room” · “Show the session title” · claiming",
+		"DevSpec: Golden Possum · “Room” · “Show the session title” · claiming",
 	);
 	assert.equal(isDevspecVerb("claim_work_item"), true);
 	assert.equal(isDevspecVerb("search_devspec_tools"), true);
@@ -166,7 +166,7 @@ test("status store: session change drops the old preview; a real title replaces 
 	assert.equal(getStatusSnapshot().sessionPreview, "first owner message");
 	assert.equal(
 		formatStatusLine(getStatusSnapshot()),
-		"⛁ Golden Possum · untitled “first owner message”",
+		"DevSpec: Golden Possum · untitled “first owner message”",
 	);
 
 	syncBondIntoStatus({
@@ -175,7 +175,7 @@ test("status store: session change drops the old preview; a real title replaces 
 		sessionTitle: "Generated later",
 	});
 	assert.equal(getStatusSnapshot().sessionPreview, undefined);
-	assert.equal(formatStatusLine(getStatusSnapshot()), "⛁ Golden Possum · “Generated later”");
+	assert.equal(formatStatusLine(getStatusSnapshot()), "DevSpec: Golden Possum · “Generated later”");
 	resetStatus();
 });
 
@@ -199,7 +199,7 @@ test("claimed work is shown and cleared for that item only", () => {
 	resetStatus();
 	patchStatus({ codename: "Golden Possum" });
 	noteWork({ id: "item-1", title: "Do the thing" });
-	assert.equal(formatStatusLine(getStatusSnapshot()), "⛁ Golden Possum · “Do the thing”");
+	assert.equal(formatStatusLine(getStatusSnapshot()), "DevSpec: Golden Possum · “Do the thing”");
 	clearWork("item-other");
 	assert.equal(getStatusSnapshot().workTitle, "Do the thing");
 	clearWork("item-1");
@@ -236,7 +236,7 @@ test("claimed automation sits in the footer and is distinct from an action item"
 			automationName: "Pull plugin repos",
 			workTitle: "Fix the build",
 		}),
-		"⛁ Golden Possum · “Room” · automation “Pull plugin repos” · “Fix the build”",
+		"DevSpec: Golden Possum · “Room” · automation “Pull plugin repos” · “Fix the build”",
 	);
 });
 
@@ -244,7 +244,7 @@ test("claimed automation is shown and cleared for that run only", () => {
 	resetStatus();
 	patchStatus({ codename: "Golden Possum" });
 	noteAutomation({ id: "pb-1", runId: "run-1", name: "Pull plugin repos" });
-	assert.equal(formatStatusLine(getStatusSnapshot()), "⛁ Golden Possum · automation “Pull plugin repos”");
+	assert.equal(formatStatusLine(getStatusSnapshot()), "DevSpec: Golden Possum · automation “Pull plugin repos”");
 	clearAutomation("run-other");
 	assert.equal(getStatusSnapshot().automationName, "Pull plugin repos");
 	clearAutomation("run-1");

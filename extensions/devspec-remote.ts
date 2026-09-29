@@ -3029,6 +3029,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 	const bond: BondState = {
 		connectionId,
 		projectId: typeof d.project_id === "string" ? d.project_id : undefined,
+		projectName: choice.project.name !== choice.project.id ? choice.project.name : undefined,
 		connectionCapability,
 		codename: typeof d.codename === "string" ? d.codename : undefined,
 		sessionId: (d.session_id as string | undefined) ?? undefined,
@@ -4101,6 +4102,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", async () => {
+		resetStatus(); // clear the dedicated row before this UI becomes stale
 		pi_backgroundInputPending();
 		backgroundObserver.dispose();
 		launchScopes.clear();

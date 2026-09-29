@@ -7,7 +7,9 @@ export default function (pi: ExtensionAPI) {
 	pi.registerCommand("footer-probe", {
 		description: "Render a known work footer in the disposable runtime probe",
 		handler: async (_args, ctx) => {
-			patchStatus({ codename: "Proud Eagle", sessionId: "fixture-room", sessionTitle: "Planning checkout", workId: "fixture-item", workTitle: "Improve checkout" });
+			patchStatus({ codename: "Proud Eagle", sessionId: "fixture-room", sessionTitle: "Planning checkout with the customer team", workId: "fixture-item", workTitle: "Improve checkout navigation on mobile" });
+			ctx.ui.setStatus("bg-probe", "BG 1 done");
+			ctx.ui.setStatus("mcp-probe", "MCP 4 servers");
 			paintStatus(ctx);
 		},
 	});

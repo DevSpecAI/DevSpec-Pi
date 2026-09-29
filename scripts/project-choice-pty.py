@@ -19,6 +19,9 @@ class Terminal:
         self.p=subprocess.Popen(base+['--session',str(path)]+extra,cwd=cwd,env=env,stdin=slave,stdout=slave,stderr=slave,start_new_session=True)
         os.close(slave); self.text=''; self.counter=0
     def send(self,text): os.write(self.master,text.encode())
+    def resize(self,columns):
+        fcntl.ioctl(self.master,termios.TIOCSWINSZ,struct.pack('HHHH',50,columns,0,0))
+        os.killpg(self.p.pid,signal.SIGWINCH)
     def wait(self,needle,start=0,timeout=45):
         end=time.monotonic()+timeout
         while time.monotonic()<end:
@@ -52,7 +55,22 @@ try:
     assert A not in p.text and B not in p.text, 'ordinary picker/footer must not expose full project IDs'
     assert '(git_remote)' not in p.text and '(explicit)' not in p.text
     assert 'DevSpec: DevSpec' not in p.text, 'successful authentication must not add repeated branding'
-    p.command('/footer-probe','Proud Eagle'); p.wait('Planning checkout'); p.wait('Improve checkout')
+    p.command('/footer-probe','DevSpec: Proud Eagle · Client Website')
+    p.wait('Planning checkout with the customer team'); p.wait('Improve checkout navigation on mobile'); p.wait('MCP 4 servers')
+    full='DevSpec: Proud Eagle · Client Website · “Planning checkout with the customer team” · “Improve checkout navigation on mobile”'
+    assert full in p.text, 'wide terminal must retain complete session and work titles'
+    for columns in [100,80,180]:
+        start=len(p.text); p.resize(columns); p.wait('DevSpec: Proud Eagle',start); p.wait('MCP 4 servers',start)
+        rendered=p.text[start:]
+        devspec_lines=[line for line in rendered.splitlines() if 'DevSpec: Proud Eagle' in line]
+        assert devspec_lines and all('BG 1 done' not in line and 'MCP 4 servers' not in line for line in devspec_lines), 'DevSpec must have a separate native row'
+        if columns==180: assert full in rendered, 'resize must restore full names without another tool call'
+        else:
+            assert 'Planning checkout with the customer team' in rendered, 'session is retained ahead of work and project'
+            assert 'DevSpec: Proud Eagle · …' in rendered, 'project is shortened first'
+        if os.environ.get('PROJECT_PROBE_CAPTURE_DIR'):
+            capture=Path(os.environ['PROJECT_PROBE_CAPTURE_DIR']); capture.mkdir(parents=True,exist_ok=True)
+            (capture/('terminal-'+str(columns)+'.txt')).write_text(rendered)
     p.command('/devspec.project','Project details')
     assert 'Choose project' in p.text
     p.send('\r'); p.wait('Project ID: '+B); p.wait('Selected by:')
@@ -68,10 +86,12 @@ try:
     # Cross-org choice starts a native fresh conversation; no context is copied.
     start=len(p.text); p.send('/devspec.project choose\r'); p.wait('Which DevSpec project',start); p.send('\r')
     p.wait('Start a fresh conversation?',start); p.send('\r'); p.wait('auto-bonded as',start); p.probe(A)
+    p.wait('DevSpec: Project Probe · Agency Website',start)
     p.close(); processes.remove(p)
     # Resume the ORIGINAL local conversation with a conflicting pin.
     pin.write_text(json.dumps({'project_id':A}))
     resumed=Terminal(original); processes.append(resumed); resumed.wait('auto-bonded as'); resumed.probe(B)
+    resumed.wait('DevSpec: Project Probe · Client Website')
     # A concurrent conversation in the exact same cwd deliberately chooses A.
     other=Terminal(session('other',repo),extra=['--devspec-project',A]); processes.append(other)
     other.wait('auto-bonded as'); other.probe(A); resumed.probe(B)
@@ -104,7 +124,7 @@ try:
         raise AssertionError('RPC ambiguity hung')
     assert not any(e.get('type')=='agent_start' or (e.get('type')=='extension_ui_request' and e.get('method')=='select') for e in lines)
     os.killpg(rpc.pid,signal.SIGTERM); rpc.wait(timeout=5)
-    evidence={'arrowKeyChoice':True,'conversationOnlyDefault':True,'rememberConsent':True,'forgetPreservesConversation':True,'pinEditIsolation':True,'freshCrossOrgConversation':True,'resume':True,'concurrentSameFolder':True,'cancel':True,'greenfieldFastPath':True,'rpcNoDialog':True,'compactFooter':True,'projectDetailsMenu':True,'namesWithoutIds':True}
+    evidence={'arrowKeyChoice':True,'conversationOnlyDefault':True,'rememberConsent':True,'forgetPreservesConversation':True,'pinEditIsolation':True,'freshCrossOrgConversation':True,'resume':True,'concurrentSameFolder':True,'cancel':True,'greenfieldFastPath':True,'rpcNoDialog':True,'compactFooter':True,'dedicatedStatusRow':True,'fullWidthTitles':True,'resizePriority':True,'projectDetailsMenu':True,'namesWithoutIds':True}
     (temp/'evidence.json').write_text(json.dumps(evidence)); print('Actual Pi keyboard and RPC scenarios passed',flush=True)
 finally:
     for process in processes: process.close()

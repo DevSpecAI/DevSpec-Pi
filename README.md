@@ -40,6 +40,8 @@ intake under notice backpressure. See VISION.md.
 
 ### Choosing a project
 
+This section describes package 0.3.33 or later, including the compact footer and native project menu. A change on `staging` is not a customer release to `main`, and a repository update does not reload an installed, running Pi session.
+
 Normal startup is unchanged: a unique repository match or usable folder pin connects without a question. If DevSpec returns several matching projects, Pi offers a keyboard picker labelled with both project and organisation. Escape leaves the conversation unconnected.
 
 For a choice you already know:
@@ -56,7 +58,7 @@ The footer stays focused on agent, session and current work—not project IDs or
 
 - `/devspec.project choose` to choose explicitly. Changing an established project offers a **fresh local conversation**, without copying the previous model context.
 - `/devspec.project remember` to save the choice to `.devspec/project.json`, after showing the file and asking for consent. This is folder configuration, potentially shared or committed—not a private preference. A unique repository match still beats a stale pin.
-- `/devspec.project forget` to remove the confirmed effective folder pin. Existing conversations keep their project; future connections resolve again. An inherited default is named before removal.
+- `/devspec.project forget` to remove the confirmed effective folder pin. Existing conversations keep their project; future connections resolve again. An inherited default is named before removal. Removing a local pin can reveal another inherited pin, so check Project details afterward.
 
 Choosing defaults to **Use for this conversation**. Remembering is a separate opt-in. Headless/RPC ambiguity returns actionable choices without waiting for a picker; an explicit launch project can scope headless tools without enabling auto-bond. Older servers without structured choices still support explicit selection, but cannot trigger the automatic ambiguity picker.
 

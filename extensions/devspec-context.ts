@@ -12,6 +12,7 @@ import { getBond } from "./core/bond-state.ts";
 import { buildDevspecInstructions } from "./core/instructions.ts";
 import { noteInjectedContext, noteStaticContextBudget } from "./core/context-budget.ts";
 import { REPOSITORY_CONTEXT_MESSAGE, repositorySnapshotNeeded } from "./core/repository-context.ts";
+import { INSTRUCTION_CONTEXT_MESSAGE, instructionContextMessage } from "./core/connection-context.ts";
 
 /** Extra block while this session is bonded as remote capacity. Exported for unit tests (byte-stability pins). */
 export function buildBondedInstructions(): string | null {
@@ -35,13 +36,9 @@ export function buildBondedInstructions(): string | null {
 		"Your conversational text is delivered to the DevSpec session mechanically — never call tools to post it yourself. For non-trivial work, begin with one concise user-facing sentence confirming what you understood and what you will do next before using tools; add another progress message only at a meaningful boundary (for example, delegating, starting a long check, or becoming blocked). Do not narrate individual tools. Finish with the canonical answer.",
 		"If you need the requester before you can finish, ask with manage_directed_question and stop. The server ends Working unless you pass keep_turn because you still have work.",
 	];
-	const tiers = bond.instructions ?? {};
-	if (tiers.project_custom_instructions) lines.push(`Project principles: ${tiers.project_custom_instructions}`);
-	if (tiers.project_agent_rules) lines.push(`Project agent rules (mandatory): ${tiers.project_agent_rules}`);
-	// Response style is NOT a system-prompt tier (item 6a511dab): it rides
-	// each delivered command on the per-message rail, so a preference edit
-	// never alters this block and the prefix cache stays stable.
-	if (tiers.owner_agent_rules) lines.push(`Owner machine rules: ${tiers.owner_agent_rules}`);
+	// Mutable rule text is a persisted tail snapshot, not a rewritten system prefix.
+	// Sender response style remains on its own per-command lane.
+	lines.push("Project and owner rules arrive in DevSpec instruction-context snapshots; use the latest snapshot under the served implementation contract's precedence.");
 	return lines.join("\n");
 }
 
@@ -65,6 +62,13 @@ export default function (pi: ExtensionAPI) {
 		const content = getBond()?.repositoryContext;
 		if (!content || !repositorySnapshotNeeded(ctx.sessionManager.getBranch(), content)) return;
 		return { message: { customType: REPOSITORY_CONTEXT_MESSAGE, content, display: false } };
+	});
+	pi.on("before_agent_start", async (_event, ctx) => {
+		const bond = getBond();
+		if (!bond) return;
+		const content = instructionContextMessage(bond);
+		if (!repositorySnapshotNeeded(ctx.sessionManager.getBranch(), content, INSTRUCTION_CONTEXT_MESSAGE)) return;
+		return { message: { customType: INSTRUCTION_CONTEXT_MESSAGE, content, display: false } };
 	});
 	// The room digest is a one-shot orientation message: injected once per
 	// session instance, the first turn after the pump's cold-start sync.

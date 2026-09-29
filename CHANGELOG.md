@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.37
+
+- Session attachment and connection recovery preserve refreshed project/machine rules and explicit cleared values. Valid canonical command responses also refresh the rule snapshot, including after a web-initiated room move.
+- Rule changes append immutable model-context snapshots rather than rewriting the system prompt prefix. Repository facts remain associated with the selected project and refresh on recovered registration. Reload or restart to load the update.
+
 ## 0.3.36
 
 - Agents receive the selected project's repository names, remote URLs and tracked/default branches on connection and project switching, without depending on the launch folder. Empty and unavailable repository information are distinct. Snapshots are factual model context, not cloning instructions, and do not rewrite earlier messages.

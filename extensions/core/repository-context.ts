@@ -24,12 +24,12 @@ export function repositoryContextMessage(value: unknown, projectId: string, proj
 export const REPOSITORY_CONTEXT_MESSAGE = "devspec-repository-context";
 
 /** A prior snapshot is immutable; append an updated snapshot rather than rewrite history. */
-export function repositorySnapshotNeeded(entries: readonly unknown[], content: string): boolean {
+export function repositorySnapshotNeeded(entries: readonly unknown[], content: string, messageType = REPOSITORY_CONTEXT_MESSAGE): boolean {
 	for (let i = entries.length - 1; i >= 0; i--) {
 		const e = entries[i] as { type?: string; customType?: string; content?: unknown };
 		// Compaction may have removed the old snapshot from model-visible history.
 		if (e.type === "compaction") return true;
-		if (e.type === "custom_message" && e.customType === REPOSITORY_CONTEXT_MESSAGE) return e.content !== content;
+		if (e.type === "custom_message" && e.customType === messageType) return e.content !== content;
 	}
 	return true;
 }

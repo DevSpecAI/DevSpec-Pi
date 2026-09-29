@@ -44,6 +44,7 @@ import {
 } from "./core/client.ts";
 import { connectionCapabilityFromResult, getBond, setBond, type BondState } from "./core/bond-state.ts";
 import { repositoryContextMessage } from "./core/repository-context.ts";
+import { applyConnectionContext } from "./core/connection-context.ts";
 import { installProjectSelection } from "./core/project-selection-ui.ts";
 import { getProjectChoice, projectFromRegistration, projectRemoteArgs, type ProjectCandidate, type ProjectChoice, type ProjectChoiceRequired } from "./core/project-choice.ts";
 import { openRoomStore, roomPrincipalFingerprint, type RoomStoreScope } from "./core/room-store.ts";
@@ -2135,6 +2136,7 @@ async function reviveRecoverableBond(
 		const connectionCapability = connectionCapabilityFromResult(regRaw);
 		if (!connectionId || !connectionCapability || active.stop || pump !== active) return false;
 
+		let contextPayload = details;
 		let sessionId = typeof details.session_id === "string" ? details.session_id : undefined;
 		let attachedAt = typeof details.attached_at === "string" ? details.attached_at : undefined;
 		let speechAttachmentId = typeof details.speech_attachment_id === "string" ? details.speech_attachment_id : undefined;
@@ -2146,6 +2148,7 @@ async function reviveRecoverableBond(
 			const attach = unwrapMcpResult(attachRaw);
 			if (attach.isError || active.stop || pump !== active) return false;
 			const attached = (attach.details ?? {}) as Record<string, unknown>;
+			contextPayload = { ...details, ...attached };
 			sessionId = typeof attached.session_id === "string" ? attached.session_id : prior.sessionId;
 			attachedAt = typeof attached.attached_at === "string" ? attached.attached_at : undefined;
 			speechAttachmentId = typeof attached.speech_attachment_id === "string" ? attached.speech_attachment_id : undefined;
@@ -2165,7 +2168,7 @@ async function reviveRecoverableBond(
 		});
 		const changedConnection = recoveredScope.changedConnection;
 		const bond: BondState = {
-			...prior,
+			...applyConnectionContext(prior, contextPayload),
 			connectionId,
 			projectId: typeof details.project_id === "string" ? details.project_id : prior.projectId,
 			connectionCapability,
@@ -2173,12 +2176,6 @@ async function reviveRecoverableBond(
 			sessionId,
 			attachedAt,
 			speechAttachmentId,
-			instructions: {
-				owner_custom_instructions: (details.owner_custom_instructions as string | undefined) ?? prior.instructions?.owner_custom_instructions,
-				owner_agent_rules: (details.owner_agent_rules as string | undefined) ?? prior.instructions?.owner_agent_rules,
-				project_custom_instructions: (details.project_custom_instructions as string | undefined) ?? prior.instructions?.project_custom_instructions,
-				project_agent_rules: (details.project_agent_rules as string | undefined) ?? prior.instructions?.project_agent_rules,
-			},
 		};
 
 		active.pushGenerationFence.invalidate();
@@ -2712,6 +2709,11 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			continue;
 		}
 
+		if (pkg.canonicalState === "valid" && pkg.ownerBundle) {
+			active.bond = applyConnectionContext(active.bond, payload);
+			setBond(active.bond);
+		}
+
 		// Additive read model: no storage result is used for command admission,
 		// notice/question ACKs, Working, attachment hydration or speech.
 		active.roomSync?.observe(pkg);
@@ -3027,7 +3029,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 	if (!choice || (project && choice.project.id !== project.id)) return { ok: false, error: "DevSpec did not confirm the selected project. No local connection was adopted.", errorKind: "api" };
 	pi_persistProjectChoice(ctx, choice);
 
-	const bond: BondState = {
+	let bond: BondState = {
 		connectionId,
 		projectId: typeof d.project_id === "string" ? d.project_id : undefined,
 		projectName: choice.project.name !== choice.project.id ? choice.project.name : undefined,
@@ -3057,6 +3059,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 				notify(ctx, `DevSpec remote: bonded but attach failed: ${att.text}`, "warning");
 			} else {
 				const ad = (att.details ?? {}) as Record<string, unknown>;
+				bond = applyConnectionContext(bond, ad);
 				bond.sessionId = (ad.session_id as string | undefined) ?? bond.sessionId;
 				bond.attachedAt = typeof ad.attached_at === "string" ? ad.attached_at : undefined;
 				bond.speechAttachmentId = typeof ad.speech_attachment_id === "string" ? ad.speech_attachment_id : undefined;
@@ -4345,8 +4348,9 @@ export default function (pi: ExtensionAPI) {
 					return;
 				}
 				try {
+					const attaching = pump;
 					const attRaw = await callDevspec(resolved.token, "attach_connection", {
-						connection_id: pump.bond.connectionId,
+						connection_id: attaching.bond.connectionId,
 						session_id: action.sessionId,
 					}, { cwd: ctx.cwd, lane: "pump" });
 					const att = unwrapMcpResult(attRaw);
@@ -4354,6 +4358,9 @@ export default function (pi: ExtensionAPI) {
 						notify(ctx, `DevSpec remote: attach failed: ${att.text}`, "error");
 						return;
 					}
+					if (pump !== attaching || attaching.stop) return;
+					attaching.bond = applyConnectionContext(attaching.bond, att.details);
+					setBond(attaching.bond);
 				} catch (err) {
 					notify(ctx, `DevSpec remote: attach failed: ${err instanceof Error ? err.message : err}`, "error");
 					return;

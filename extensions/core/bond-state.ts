@@ -12,6 +12,8 @@ export interface BondState {
 	projectId?: string;
 	/** Display-only project name confirmed at registration. */
 	projectName?: string;
+	/** Immutable factual snapshot captured at registration, injected as a tail message. */
+	repositoryContext?: string;
 	/** Hidden server-minted capability; transport header only, never model context. */
 	connectionCapability?: string;
 	codename?: string;

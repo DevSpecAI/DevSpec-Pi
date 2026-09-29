@@ -43,6 +43,7 @@ import {
 	shouldEndBondOnPollFailure,
 } from "./core/client.ts";
 import { connectionCapabilityFromResult, getBond, setBond, type BondState } from "./core/bond-state.ts";
+import { repositoryContextMessage } from "./core/repository-context.ts";
 import { installProjectSelection } from "./core/project-selection-ui.ts";
 import { getProjectChoice, projectFromRegistration, projectRemoteArgs, type ProjectCandidate, type ProjectChoice, type ProjectChoiceRequired } from "./core/project-choice.ts";
 import { openRoomStore, roomPrincipalFingerprint, type RoomStoreScope } from "./core/room-store.ts";
@@ -3030,6 +3031,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 		connectionId,
 		projectId: typeof d.project_id === "string" ? d.project_id : undefined,
 		projectName: choice.project.name !== choice.project.id ? choice.project.name : undefined,
+		repositoryContext: repositoryContextMessage(d.repository_context, choice.project.id, choice.project.name),
 		connectionCapability,
 		codename: typeof d.codename === "string" ? d.codename : undefined,
 		sessionId: (d.session_id as string | undefined) ?? undefined,

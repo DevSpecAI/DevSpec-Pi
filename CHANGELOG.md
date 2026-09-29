@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.36
+
+- Agents receive the selected project's repository names, remote URLs and tracked/default branches on connection and project switching, without depending on the launch folder. Empty and unavailable repository information are distinct. Snapshots are factual model context, not cloning instructions, and do not rewrite earlier messages.
+- Explicit project-summary reads preserve descriptions, all repositories, rules and other returned facts without fixed list or text caps. Security redactions and retired compatibility fields are named explicitly.
+- Requires the server's additive repository-context response for automatic inventory. Older servers are reported as unavailable, not empty. Reload or restart Pi after updating; existing processes do not hot-load a repository merge.
+
 ## 0.3.35
 
 - The DevSpec row now uses normal foreground for DevSpec, the agent, session, automation and action-item names. The project name, separators and supporting status text stay muted. Colours follow the current Pi theme, including theme changes, without altering layout or truncation priority. Reload or restart after updating.

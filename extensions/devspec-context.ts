@@ -11,6 +11,7 @@ import { resolveToken } from "./core/auth-store.ts";
 import { getBond } from "./core/bond-state.ts";
 import { buildDevspecInstructions } from "./core/instructions.ts";
 import { noteInjectedContext, noteStaticContextBudget } from "./core/context-budget.ts";
+import { REPOSITORY_CONTEXT_MESSAGE, repositorySnapshotNeeded } from "./core/repository-context.ts";
 
 /** Extra block while this session is bonded as remote capacity. Exported for unit tests (byte-stability pins). */
 export function buildBondedInstructions(): string | null {
@@ -58,6 +59,13 @@ function contentChars(values: unknown): number {
 }
 
 export default function (pi: ExtensionAPI) {
+	// Independent of room attachment: sessionless agents need the same project facts.
+	// Pi persists returned custom messages, so resume/reload reuses an identical snapshot.
+	pi.on("before_agent_start", async (_event, ctx) => {
+		const content = getBond()?.repositoryContext;
+		if (!content || !repositorySnapshotNeeded(ctx.sessionManager.getBranch(), content)) return;
+		return { message: { customType: REPOSITORY_CONTEXT_MESSAGE, content, display: false } };
+	});
 	// The room digest is a one-shot orientation message: injected once per
 	// session instance, the first turn after the pump's cold-start sync.
 	let digestInjected = false;

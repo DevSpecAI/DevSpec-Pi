@@ -64,6 +64,12 @@ Choosing defaults to **Use for this conversation**. Remembering is a separate op
 
 Reload or restart existing Pi sessions after updating the package. See `node scripts/e2e-project-choice.mjs` for the disposable installed-Pi keyboard/RPC verification (loopback fixture, no model requests or live DevSpec records).
 
+### Repository context
+
+From 0.3.36, connecting to a project also supplies its repository inventory to the agent: repository names, safe remote URLs, provider and tracked/default branches. Project switching supplies the new project's inventory in the fresh conversation. This is independent of which folder Pi started in and whether a DevSpec room is attached. It does not claim the repositories are cloned locally or that pushing is permitted.
+
+The snapshot is appended as data, not instructions. Identical snapshots already in the active conversation history are reused on resume; changed snapshots never rewrite older messages. If the server cannot supply the inventory (including older servers), the agent sees “unavailable”, not an empty project. Description and vision remain available on demand. Explicit project-summary reads preserve complete returned facts rather than imposing list-size caps; security redactions and retired compatibility fields are identified.
+
 ### Recoverable room history
 
 When the server advertises room-context1.6, Pi keeps a private, recoverable room

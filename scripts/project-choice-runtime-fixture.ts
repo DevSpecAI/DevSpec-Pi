@@ -4,6 +4,8 @@ import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { callDevspec } from "../extensions/core/client.ts";
 import { getProjectChoice } from "../extensions/core/project-choice.ts";
+import { getBond } from "../extensions/core/bond-state.ts";
+import assert from "node:assert/strict";
 import { patchStatus, paintStatus } from "../extensions/core/status-line.ts";
 export default function (pi: ExtensionAPI) {
 	pi.registerCommand("footer-theme-probe", {
@@ -36,6 +38,13 @@ export default function (pi: ExtensionAPI) {
 		description: "Project-selection runtime probe only",
 		handler: async (args, ctx) => {
 			await callDevspec("fixture-only-not-a-real-token", "get_project_summary", {}, { cwd: ctx.cwd });
+			const facts = getBond()?.repositoryContext;
+			assert.ok(facts, "registration delivered a repository snapshot");
+			const data = JSON.parse(facts.split("<devspec-repository-data>\n")[1]!.split("\n</devspec-repository-data>")[0]!);
+			assert.equal(data.project_id, getProjectChoice()?.project.id);
+			assert.equal(data.status, "available");
+			assert.equal(data.repositories[0].git_url, `https://example.test/${data.project_id}.git`);
+			assert.equal(data.repositories[0].target_branch, "staging");
 			ctx.ui.notify(`PROJECT-PROBE-PASS ${args.trim()} ${getProjectChoice()?.project.id}`, "info");
 		},
 	});

@@ -36,7 +36,6 @@ const PENDING_PROPOSAL_LIMIT = 2;
 const LINE_LIMIT = 240;
 // High on purpose: these are binding inputs, not repeated metadata. The cap is
 // only a pathological-payload guard and carries an exact recovery instruction.
-const INSTRUCTION_TIER_LIMIT = 6_000;
 
 const COLLECTION_VERBS = new Set([
 	"list_projects",
@@ -220,7 +219,7 @@ function safeDashboardUrl(value: unknown): string | undefined {
 		parsed.password = "";
 		parsed.search = "";
 		parsed.hash = "";
-		return oneLine(parsed.toString(), 220);
+		return parsed.toString();
 	} catch {
 		return undefined;
 	}
@@ -619,142 +618,33 @@ function selectedScalars(source: Row | null, keys: readonly string[]): string[] 
 	return lines;
 }
 
-function instructionTier(label: string, value: unknown, recovery: string): string | null {
-	const source = scalar(value);
-	if (!source) return null;
-	if (source.length <= INSTRUCTION_TIER_LIMIT) return `${label} (mandatory):\n${source}`;
-	let boundary = source.lastIndexOf("\n", INSTRUCTION_TIER_LIMIT);
-	if (boundary < INSTRUCTION_TIER_LIMIT / 2) boundary = source.lastIndexOf(" ", INSTRUCTION_TIER_LIMIT);
-	if (boundary < INSTRUCTION_TIER_LIMIT / 2) boundary = INSTRUCTION_TIER_LIMIT;
-	return `${label} (mandatory; shortened at a field boundary):\n${source.slice(0, boundary).trimEnd()}…\n[${source.length - boundary} instruction character(s) omitted; ${recovery}.]`;
-}
-
-function projectRecognized(root: Row, project: Row): boolean {
-	return ["id", "project_id", "name", "project_name", "title", "stats", "repos", "database_targets", "members", "execution", "goals"]
-		.some((key) => hasOwn(root, key) || hasOwn(project, key));
-}
-
-function projectSummary(details: unknown): string | null {
+function completeProjectSummary(details: unknown): string | null {
 	const root = record(details);
 	if (!root) return null;
-	const project = record(root.project) ?? root;
-	if (!projectRecognized(root, project)) return null;
-	const name = oneLine(first(project, ["name", "project_name", "title"]), 180);
-	const id = oneLine(first(project, ["id", "project_id"]), 90);
-	const identityBlock = `Project: ${name ?? "(name not returned)"}${id ? ` [${id}]` : ""}`;
-	const blocks: string[] = [];
-
-	const repos = Array.isArray(root.repos) ? root.repos : Array.isArray(project.repos) ? project.repos : [];
-	if (repos.length) {
-		const lines = ["Repository targets:"];
-		if (repos.length > 12) lines.push(`- ${repos.length - 12} additional repo(s) omitted. Repeating this fixed summary will not reveal them model-visibly; ask the user for the exact repository or use repository tooling to enumerate the project.`);
-		for (const raw of repos.slice(0, 12)) {
-			const repo = record(raw) ?? {};
-			const repoName = oneLine(first(repo, ["full_name", "name", "repo", "url"]), 180) ?? "unknown";
-			const target = oneLine(first(repo, ["target_branch"]), 100);
-			const fallback = oneLine(first(repo, ["default_branch"]), 100);
-			const provider = oneLine(first(repo, ["provider"]), 60);
-			lines.push(`- ${repoName} → ${target ?? fallback ?? "(branch not returned)"}${!target && fallback ? " (default)" : ""}${provider ? ` (${provider})` : ""}`);
-		}
-		blocks.push(withinBudget(lines, 1_200, "repository target"));
-	}
-
-	const databases = [root.database_targets, project.database_targets, root.databases, project.databases].find(Array.isArray) as unknown[] | undefined;
-	if (databases?.length) {
-		const lines = ["Database targets (safe identity only):"];
-		if (databases.length > 12) lines.push(`- ${databases.length - 12} additional database target(s) omitted. Repeating this fixed summary will not reveal them model-visibly; use database-provider tooling with the visible safe identity or ask a maintainer for the exact target.`);
-		for (const raw of databases.slice(0, 12)) {
-			const database = record(raw) ?? {};
-			const identity = record(database.identity);
-			const name = oneLine(first(database, ["name", "target_name", "database_name"]), 120) ?? "unnamed";
-			const detail = identity ? record(identity.detail) : null;
-			const kind = oneLine((identity && first(identity, ["kind", "type", "provider"])) ?? first(database, ["kind", "type", "provider"]), 60);
-			const external = oneLine((identity && first(identity, ["external_id", "externalId", "project_ref", "id"])) ?? first(database, ["external_id", "externalId", "project_ref"]), 120);
-			const dashboard = safeDashboardUrl(
-				(identity && first(identity, ["dashboard_url", "dashboardUrl", "url"]))
-					?? (detail && first(detail, ["dashboard_url", "dashboardUrl", "url"]))
-					?? first(database, ["dashboard_url", "dashboardUrl"]),
-			);
-			const environment = oneLine(first(database, ["environment", "env", "stage"]), 60);
-			const branch = oneLine(first(database, ["branch_name", "target_branch"]), 100);
-			const facts = [kind && `kind=${kind}`, external && `external_id=${external}`, dashboard && `dashboard=${dashboard}`, environment && `env=${environment}`, branch && `branch=${branch}`].filter(Boolean);
-			lines.push(`- ${name}${facts.length ? ` — ${facts.join(" · ")}` : ""}`);
-		}
-		blocks.push(withinBudget(lines, 1_600, "database target"));
-	}
-
-	const members = Array.isArray(root.members) ? root.members : Array.isArray(project.members) ? project.members : [];
-	if (members.length) {
-		const lines = ["Members (use IDs for assignment):"];
-		if (members.length > 20) lines.push(`- ${members.length - 20} additional member(s) omitted. Repeating this fixed summary will not reveal them model-visibly; ask the user to name/disambiguate the assignee in DevSpec.`);
-		for (const raw of members.slice(0, 20)) {
-			const member = record(raw) ?? {};
-			const memberId = oneLine(first(member, ["id", "user_id", "member_id"]), 90) ?? "id not returned";
-			const memberName = oneLine(first(member, ["name", "display_name", "displayName", "user_name"]), 140) ?? "name not returned";
-			lines.push(`- [${memberId}] ${memberName}`);
-		}
-		blocks.push(withinBudget(lines, 1_000, "member"));
-	}
-
-	const stats = record(root.stats) ?? record(project.stats);
-	const statLines = selectedScalars(stats, [
-		"sessions", "action_items", "repo_count", "repository_count", "indexed_file_count", "indexed_files", "member_count",
-		"recent_session_count", "recent_sessions", "integration_count", "action_item_count", "open_action_item_count",
-		"active_action_item_count", "completed_action_item_count",
-	]);
-	if (!statLines.some((line) => line.startsWith("repo ")) && repos.length) statLines.unshift(`repo count: ${repos.length}`);
-	if (databases?.length) statLines.push(`database target count: ${databases.length}`);
-	if (statLines.length) blocks.push(withinBudget(["Stats:", ...statLines.map((line) => `- ${line}`)], 900, "stat"));
-
-	const goals = root.goals ?? project.goals;
-	if (Array.isArray(goals)) {
-		const lines = [`Goals: ${goals.length}`];
-		for (const [index, raw] of goals.slice(0, 7).entries()) lines.push(card(raw, index).replace(/^\d+\./, "-"));
-		if (goals.length > 7) lines.push(`- ${goals.length - 7} additional goal(s) omitted; use get_goals/get_project_goals.`);
-		blocks.push(withinBudget(lines, 1_200, "goal"));
-	} else {
-		const goalCounts = record(root.goal_counts) ?? record(root.goal_progress) ?? record(goals) ?? record(project.goal_counts);
-		if (goalCounts) {
-			const lines: string[] = [];
-			for (const [key, value] of Object.entries(goalCounts)) {
-				if (typeof value === "number") lines.push(`${oneLine(key.replace(/_/g, " "), 70)}: ${value}`);
-				const nested = record(value);
-				if (nested) for (const [nestedKey, nestedValue] of Object.entries(nested)) {
-					if (typeof nestedValue === "number") lines.push(`${oneLine(`${key} ${nestedKey}`.replace(/_/g, " "), 100)}: ${nestedValue}`);
-				}
+	const omitted: string[] = [];
+	function safe(value: unknown, path = ""): unknown {
+		if (Array.isArray(value)) return value.map((v, i) => safe(v, `${path}[${i}]`));
+		const row = record(value);
+		if (!row) return value;
+		return Object.fromEntries(Object.entries(row).flatMap(([key, v]) => {
+			const field = path ? `${path}.${key}` : key;
+			// Redaction is explicit and semantic, never a content-size quota.
+			if (/^(password|token|access_token|refresh_token|api_key|authorization|connection_string|email)$/i.test(key)
+				|| (!path && ["autopilot", "local_plugin_settings"].includes(key))
+				|| (path === "execution" && key === "test_commands")) {
+				omitted.push(field); return [];
 			}
-			if (lines.length) blocks.push(withinBudget(["Goal progress:", ...lines.slice(0, 12).map((line) => `- ${line}`)], 1_200, "goal-progress"));
-		}
-	}
-
-	const execution = record(root.execution) ?? record(project.execution);
-	if (execution) {
-		const lines = ["Unified execution settings:"];
-		const hiddenExecutionValues = ["protected_paths"]
-			.reduce((sum, key) => sum + Math.max(0, (Array.isArray(execution[key]) ? execution[key] as unknown[] : []).length - 16), 0);
-		if (hiddenExecutionValues > 0) lines.push(`- ${hiddenExecutionValues} additional execution value(s) omitted. Repeating this fixed summary will not reveal them model-visibly; inspect the repository's agent rules or ask a maintainer for the exact setting.`);
-		for (const line of selectedScalars(execution, ["branch_prefix", "commit_message_prefix", "auto_push", "auto_merge"])) lines.push(`- ${line}`);
-		for (const [key, label] of [["protected_paths", "protected paths"]] as const) {
-			const values = Array.isArray(execution[key]) ? execution[key] as unknown[] : [];
-			if (values.length) {
-				lines.push(`- ${label}:`);
-				for (const value of values.slice(0, 16)) lines.push(`  - ${oneLine(value, 220) ?? "(empty)"}`);
+			if (/url$/i.test(key) && typeof v === "string" && /^https?:/.test(v)) {
+				const cleaned = safeDashboardUrl(v);
+				if (cleaned !== v) omitted.push(`${field} (URL credentials/query/fragment)`);
+				return [[key, cleaned ?? null]];
 			}
-		}
-		blocks.push(withinBudget(lines, 1_600, "execution setting"));
+			return [[key, safe(v, field)]];
+		}));
 	}
-
-	// Prefer unified execution fields and deliberately ignore deprecated duplicate
-	// execution copies under autopilot/local_plugin_settings.
-	const customInstructions = execution?.custom_instructions ?? root.project_custom_instructions ?? project.project_custom_instructions;
-	const agentRules = execution?.agent_rules ?? root.project_agent_rules ?? project.project_agent_rules;
-	const ownerAgentRules = root.owner_agent_rules ?? project.owner_agent_rules ?? execution?.owner_agent_rules;
-	const principlesBlock = instructionTier("Team principles / custom_instructions", customInstructions, "use get_project_instruction_rules for the complete team principles");
-	const mechanicsBlock = instructionTier("Team execution mechanics / agent_rules", agentRules, "use get_project_instruction_rules for the complete team agent rules");
-	const ownerBlock = instructionTier("Calling user's owner_agent_rules", ownerAgentRules, "use get_personal_instructions for the complete personal agent rules");
-	const mandatory = [identityBlock, principlesBlock, mechanicsBlock, ownerBlock]
-		.filter((block): block is string => Boolean(block));
-	return withinBudgetRequired(mandatory, blocks, PROJECTION_BUDGETS.project, "project-summary");
+	const data = safe(root);
+	const json = JSON.stringify(data, null, 2).replaceAll("<", "\\u003c").replaceAll(">", "\\u003e");
+	return `Project summary data (complete, except explicitly listed security/retired compatibility fields).\n<devspec-project-data>\n${json}\n</devspec-project-data>${omitted.length ? `\nOmitted security/retired compatibility fields:\n<devspec-omitted-fields>\n${JSON.stringify(omitted).replaceAll("<", "\\u003c").replaceAll(">", "\\u003e")}\n</devspec-omitted-fields>` : ""}`;
 }
 
 function conflictBlocks(root: Row): string[] {
@@ -1059,7 +949,7 @@ export function projectModelText(input: ProjectionInput): string {
 			? input.text || "(empty response)"
 			: (json(input.details) ?? input.text) || "(empty response)";
 	}
-	if (family === "project") return projectSummary(input.details) ?? boundedFallback(input.toolName, input.text, input.details);
+	if (family === "project") return completeProjectSummary(input.details) ?? input.text;
 	if (family === "collection") return collectionProjection(input.toolName, input.details) ?? boundedFallback(input.toolName, input.text, input.details);
 	if (family === "help") return helpProjection(input.details) ?? boundedFallback(input.toolName, input.text, input.details);
 	if (family === "ack") return ackProjection(input.toolName, input.details) ?? boundedFallback(input.toolName, input.text, input.details);

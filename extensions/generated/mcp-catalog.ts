@@ -4,11 +4,11 @@
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
  * Schema fingerprint: eb620d685a3e2e8119c9a3cecc0cc9b7dead665c76ae99eb11204fa4dad15e87
  * Description fingerprint: 8b4d0a5cad752731e9f288d3b5116764d4026447b72e7afa150e71272e84cec3
- * Regenerated: 2026-09-30T10:03:54.128Z
+ * Regenerated: 2026-09-30T11:06:52.153Z
  */
 export const MCP_CATALOG_FINGERPRINT = "eb620d685a3e2e8119c9a3cecc0cc9b7dead665c76ae99eb11204fa4dad15e87";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "8b4d0a5cad752731e9f288d3b5116764d4026447b72e7afa150e71272e84cec3";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-30T10:03:54.128Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-30T11:06:52.154Z";
 export const TOOL_CATALOG_VERSION = "5cc0ba61c9993498a35630e24db6181002329652b769468de3e30bb101668d47";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -9497,7 +9497,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "post_session_message",
 		"label": "DevSpec: Post Session Message",
 		"description": "Post a message into an active DevSpec session's live chat, attributed to your local agent. Prefer connection_id (connection-native): the server resolves the connection's CURRENT attached session — correct after reattach, and rejects if the connection is sessionless. session_id remains supported for back-compat. Writes a session_messages row; live clients receive it via Broadcast. Shown as \"<agent> (<token owner's name>)\". For two-sided remote transcripts, pass turn_kind='local_prompt' when mirroring a prompt the owner typed in the local terminal. On the FINAL agent answer pass complete_turn=true so Working/dots clear in the same request as the bubble (omit on mid-turn progress posts). While a turn is still working, pass phase='trail' with your cumulative terminal output to grow ONE live bubble instead of posting a message per step. When OpenCode (or a peer) is blocked on a human question, pass phase='needs_input' with needs_input.request_id so the room shows Needs your input — the owner answers via Send-to-agent; do not treat advisory room chatter as the answer. Requires message (markdown) and either connection_id or session_id. On every post of a terminal-started turn (prompt mirror, trail, answer), also pass local_turn=true alongside command_turn_unbound so the server admits the trail without a room dispatch.",
-		"promptSnippet": "Deliver agent-authored conversation through the host’s supported connection-scoped channel. Pi owns delivery mechanically and must not expose a second model posting tool.",
+		"promptSnippet": "Post an agent-authored message to the connection’s current room when the host’s delivery workflow requires it. Do not duplicate a message already delivered automatically; follow the served contract for execution completion.",
 		"searchIntent": "",
 		"modelInputSchema": {
 			"type": "object",

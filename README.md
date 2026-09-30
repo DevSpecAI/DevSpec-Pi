@@ -1,5 +1,7 @@
 # DevSpec Pi
 
+**No launcher required.** Once this package is configured, start Pi normally and it becomes available in DevSpec. Choose the right project in the agent when needed, then select it to join a room. The separate DevSpec Launcher is optional browser-launch convenience; this package does not install it, register its URL handler or start its service. See Coding agents settings in DevSpec for standalone availability and setup.
+
 **Build on your team’s best thinking.**
 
 DevSpec helps your team and AI agents turn ideas and experience into better software.

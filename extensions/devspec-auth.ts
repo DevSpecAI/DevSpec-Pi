@@ -61,11 +61,6 @@ async function doLogin(token: string, ctx: ExtensionContext): Promise<boolean> {
 		verifiedPrincipal = principal;
 		verifyAttempted = true;
 		await saveAuth({ token, url: mcpUrl(), principal: principal ?? undefined, verifiedAt: new Date().toISOString() });
-		// First startup may have preceded login. Pair optional local launching now
-		// without delaying or turning a successful login into an installer failure.
-		if (process.env.DEVSPEC_LAUNCHER_DISABLED !== "1") {
-			void import("./devspec-launcher.ts").then(module => module.installBundledLauncher()).catch(() => {});
-		}
 		setStatus(ctx, undefined); // Successful identity is available in /devspec.status, not the footer.
 		const extra = getAdapterGuardState().suppressed.length > 0 ? ` ${SUPPRESSION_NOTICE}` : "";
 		ctx.ui.notify(`Connected to DevSpec${principal ? ` as ${principal}` : ""}.${extra}`, "info");

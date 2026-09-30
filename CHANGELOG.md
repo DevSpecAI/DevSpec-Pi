@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.43
+
+- Remove the bundled DevSpec Launcher, its startup extension and login-time installation/pairing callback. Normal Pi authentication and automatic remote connection do not require the launcher.
+- Remove launcher-specific commands, diagnostics and test setup. Document the independent optional app; no installed developer-machine helper or data is automatically removed.
+
 ## 0.3.42
 
 - Tool and parameter guidance is preserved in full, without sentence extraction or per-description character ceilings. Catalogue footprint is reported diagnostically; actual result and protocol limits remain enforced.

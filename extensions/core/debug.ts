@@ -53,8 +53,6 @@ const DEBUG_FIELDS = {
 	"interaction apply deferred": ["busy", "occupancyBusy", "ctxIdle"],
 	"interaction authority revoked before agent start": [],
 	"stale tool receipt abort": [],
-	"launcher install": ["installed", "keptNewer", "current"],
-	"launcher install failed": ["errorPresent"],
 	"message_end: no turn": [],
 	"optional room state rejected": ["sessionPolls", "stillToDiscuss", "sessionActivity"],
 	"room storage unavailable": ["errorPresent"],

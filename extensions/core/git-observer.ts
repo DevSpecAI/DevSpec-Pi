@@ -27,6 +27,9 @@ export interface FrozenGitObservationEnvelope {
 	toolCallId: string;
 	connectionId: string;
 	projectId: string;
+	/** Host-only binding, never included in the shim environment or journal. */
+	connectionCapability?: string;
+	transport?: { tokenHash: string; endpoint: string };
 	createdAt: number;
 }
 
@@ -156,6 +159,8 @@ export function prepareGitObservation(params: {
 	piSessionId: string;
 	connectionId: string;
 	projectId: string;
+	connectionCapability?: string;
+	transport?: { tokenHash: string; endpoint: string };
 }): { observationId: string; prefix: string } | null {
 	const generation = store().current;
 	if (!generation?.active || generation.piSessionId !== params.piSessionId) return null;
@@ -169,6 +174,8 @@ export function prepareGitObservation(params: {
 		toolCallId: params.toolCallId,
 		connectionId: params.connectionId,
 		projectId: params.projectId,
+		...(params.connectionCapability ? { connectionCapability: params.connectionCapability } : {}),
+		...(params.transport ? { transport: Object.freeze({ ...params.transport }) } : {}),
 		createdAt: Date.now(),
 	}));
 	while (generation.envelopes.size > MAX_ENVELOPES) {

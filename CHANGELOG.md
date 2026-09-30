@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.47
+
+- Queued commit observations no longer adopt a later login, server, or repository. Reports retain their original connection capability and endpoint; changed account or repository bindings are dropped rather than reassigned.
+- Keep observation credentials host-side and expose only privacy-safe delivery counters in optional debug logs. Unsupported, offline and legacy unfrozen observations never block Git; ordinary server reconciliation remains available.
+- Add actual-Pi scripted-provider conformance for root/amend/worktree commits and a connection change after Git runs. Reload/restart after updating; publishing source does not refresh a running process.
+
 ## 0.3.46
 
 - Let memory reads request older change-history pages on supporting servers, keeping the complete memory text and continuation details available to the agent.

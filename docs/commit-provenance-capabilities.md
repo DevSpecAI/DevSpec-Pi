@@ -19,6 +19,14 @@ Pi provenance support is cooperative assistance, not a filesystem, shell, or Git
 
 Pi observes ordinary direct commits made through model Bash without model compliance, including quiet and alternate-repository forms. The shim's child-written journal is never trusted alone: the host independently requires current HEAD, reflog action/time, commit time, and root/normal/amend parent topology to match the pre-execution envelope; concurrent or hook-moved HEAD fails open. This is same-user operational measurement, not hostile-process attestation, and grants no authority.
 
+## Frozen report binding (P4, protocol v1)
+
+Before the model's Bash execution, the host captures a token fingerprint, endpoint and the exact connection capability alongside connection/project identity. They remain in host memory, never in the shim's environment or journal. The proved observation's actual worktree supplies a credential-free remote/pin snapshot once, before enqueueing. Retries compare current account/endpoint/repository facts with those snapshots and drop a changed binding rather than adopting it; the transport itself is pinned to the original endpoint/capability through client acquisition and cooldown. Callers cannot mutate nested queued snapshots.
+
+Old reload-surviving entries without the complete frozen context are explicitly unsupported and dropped, not upgraded using today's connection. Missing auth remains retryable within the bounded queue; expired/capacity-limited/rejected records remain coverage gaps. Optional debug records contain numeric/boolean sent/drop/expiry/capacity/retry counters only. A refusal or unknown reply is not a successful delivery. None of this grants requester identity or permission.
+
+`node scripts/e2e-commit-observation.mjs` exercises the actual installed Pi CLI with only this ledger and a deterministic fixture provider, disposable Git repositories and localhost MCP. Add `--change-binding` to change account/endpoint/connection after Git runs and verify no reassigned report. This is separate from customer installation/loaded-version proof and does not use a paid model or real DevSpec records.
+
 Pi still does **not** claim universal process coverage: human `!` Bash, external IDE/terminal Git, absolute Git paths bypassing PATH, libgit2/JGit/Dulwich, unbonded inherited children, and ambiguous history rewrites remain unknown rather than guessed. Universal ingestion/analyser recovery remains required.
 
 Independent DevSpec authentication/authorization, destructive database safeguards, cost confirmation, provider permissions, and Pi's own host controls are unchanged.

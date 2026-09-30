@@ -41,8 +41,12 @@ function prepare(toolCallId: string, session = SESSION) {
 		piSessionId: session,
 		connectionId: CONNECTION,
 		projectId: PROJECT,
+		connectionCapability: "fixture-host-only-capability",
+		transport: { tokenHash: "fixture-host-only-token-hash", endpoint: "https://original.invalid/api/mcp" },
 	});
 	assert.ok(result);
+	assert.equal(result.prefix.includes("fixture-host-only"), false, "credentials and their hashes stay outside the child environment");
+	assert.equal(result.prefix.includes("original.invalid"), false, "the transport endpoint stays host-side");
 	return result;
 }
 
@@ -80,6 +84,8 @@ test("quiet cd and git -C commits in two repositories are both captured", (t) =>
 		assert.equal(row.envelope.toolCallId, "tool-multi");
 		assert.equal(row.envelope.connectionId, CONNECTION);
 		assert.equal(row.envelope.projectId, PROJECT);
+		assert.equal(row.envelope.connectionCapability, "fixture-host-only-capability");
+		assert.deepEqual(row.envelope.transport, { tokenHash: "fixture-host-only-token-hash", endpoint: "https://original.invalid/api/mcp" });
 	}
 });
 

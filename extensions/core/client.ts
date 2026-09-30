@@ -282,8 +282,8 @@ async function openClient(
 	return client as unknown as LaneClient;
 }
 
-async function acquireClient(token: string, lane: ClientLane, connectionCapability?: string): Promise<CacheEntry> {
-	const url = laneClientFactory() ? "https://devspec.test/api/mcp" : await resolveEndpoint();
+async function acquireClient(token: string, lane: ClientLane, connectionCapability?: string, endpoint?: string): Promise<CacheEntry> {
+	const url = endpoint ?? (laneClientFactory() ? "https://devspec.test/api/mcp" : await resolveEndpoint());
 	const slot = cacheStore()[lane];
 	for (;;) {
 		if (reusable(slot.entry, token, url, connectionCapability)) {
@@ -437,6 +437,8 @@ export function isPermanentServerEnd(status?: string | null, endReason?: string 
 }
 
 export interface CallOptions {
+	/** Host-frozen endpoint for an existing observation; never adopt a new login's URL on retry. */
+	endpoint?: string;
 	/** Non-idempotent mechanical delivery: no transport, scope, or rate-limit replay. */
 	retry?: "never";
 	/** Recheck captured authority after cooldown/client acquisition, immediately before send. */
@@ -481,9 +483,10 @@ async function invokeOnLane<T>(
 	timeoutMs: number,
 	label: string,
 	run: (client: LaneClient) => Promise<T>,
+	endpoint?: string,
 ): Promise<T> {
 	await waitOutCooldown();
-	const entry = await acquireClient(token, lane, connectionCapability);
+	const entry = await acquireClient(token, lane, connectionCapability, endpoint);
 	try {
 		return await withHardTimeout(run(entry.client), timeoutMs, label);
 	} catch (err) {
@@ -516,7 +519,7 @@ export async function callDevspec(
 	let callArgs = withClientVersions(name, args);
 	// Scope is conversation-owned. Folder facts are only the unbound fallback.
 	if (hasConversationProjectScope() && !options.connectionCapability && name !== "list_projects" && name !== "verify_agent_connection" && name !== "get_personal_instructions" && name !== "update_personal_instructions" && name !== "devspec_help_search") {
-		callArgs = conversationScope(callArgs, await resolveEndpoint());
+		callArgs = conversationScope(callArgs, options.endpoint ?? await resolveEndpoint());
 	}
 	if (options.cwd && !argsHaveProjectScope(callArgs)) {
 		const scope = await folderScopeArgs(options.cwd);
@@ -539,6 +542,7 @@ export async function callDevspec(
 					options.beforeSend?.();
 					return client.callTool({ name, arguments: callArgs }, undefined, { timeout: timeoutMs });
 				},
+				options.endpoint,
 			);
 			const toolError = mcpToolErrorText(raw, name);
 			if (toolError) throw new DevspecToolError(toolError, raw);

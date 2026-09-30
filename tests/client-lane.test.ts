@@ -280,3 +280,25 @@ test("isError project-scope retry does not re-init the client", async () => {
 	assert.deepEqual(seen, ["bare", "scoped"]);
 	assert.equal(connects, 1);
 });
+
+test("a host-frozen endpoint isolates the lane and survives reconnect without adopting current config", async (t) => {
+	const old = process.env.DEVSPEC_MCP_URL;
+	t.after(() => { if (old === undefined) delete process.env.DEVSPEC_MCP_URL; else process.env.DEVSPEC_MCP_URL = old; });
+	process.env.DEVSPEC_MCP_URL = "https://new-login.invalid/api/mcp";
+	const opened: Array<{ token: string; url: string; connectionCapability?: string }> = [];
+	setLaneClientFactoryForTests(async ({ token, url, connectionCapability }) => {
+		opened.push({ token, url, connectionCapability });
+		const index = opened.length;
+		return fakeClient({ callTool: async () => {
+			if (index === 1) throw new Error("fetch failed");
+			return okResult("ok");
+		} });
+	});
+	await callDevspec("original-token", "report_commit_provenance", { connection_id: "original-connection" }, {
+		endpoint: "https://original.invalid/api/mcp", connectionCapability: "original-capability",
+	});
+	assert.equal(opened.length, 2);
+	for (const binding of opened) assert.deepEqual(binding, {
+		token: "original-token", url: "https://original.invalid/api/mcp", connectionCapability: "original-capability",
+	});
+});

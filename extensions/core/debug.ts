@@ -31,6 +31,7 @@ const DEBUG_FIELDS = {
 	"canonical ingress rejected": ["errors", "errorPresent"],
 	"canonical ingress synced": ["cursorPresent"],
 	"commit ledger captured": [],
+	"commit provenance delivery": ["sent", "dropped", "expired", "capacity", "retry"],
 	"command offer preempt": ["settled"],
 	"command offer prepared": ["foregroundIdle", "pendingBg"],
 	"command handoff ready": ["pendingBg"],

@@ -10,6 +10,17 @@ import {
 	PUMP_VERBS,
 } from "../extensions/generated/mcp-catalog.ts";
 
+test("memory reads expose optional history continuation on the native and wire surfaces", () => {
+	const entry = MCP_CATALOG.find(e => e.name === "get_memory")!;
+	for (const schema of [entry.inputSchema, entry.modelInputSchema]) {
+		const properties = schema.properties as Record<string, Record<string, unknown>>;
+		assert.equal(properties.history_before?.type, "string");
+		assert.equal(properties.history_limit?.maximum, 100);
+		assert.deepEqual(schema.required, ["id"]);
+	}
+	assert.match(entry.promptSnippet, /history_next_before/);
+});
+
 test("catalog classifies every host-only pump verb as non-model", () => {
 	for (const name of PUMP_VERBS) {
 		const entry = MCP_CATALOG.find((e) => e.name === name);

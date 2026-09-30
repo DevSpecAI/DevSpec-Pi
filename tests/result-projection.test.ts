@@ -314,11 +314,24 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// Nothing an agent could reach changes: evidence recording is
 	// record_criterion_verdicts (untouched) and asking for a review is the
 	// picker's attach + owner message (ask-review), which never used these.
+	// Rebaselined 2026-09-30 for 50eb6a61: get_memory adds only optional
+	// history_before/history_limit. It stays a full exact read, and the test
+	// below pins lossless body plus actionable continuation. No verbs/families changed.
 	assert.equal(
 		fingerprint,
-		"a5a638652257c6e27ef2b41576a0aa97728f7be93f6097484e40e4506231c851",
+		"a2ae16f1d89978f491aad900ce7202c3cc02861bfdc9f9284cc54590cf9d7c10",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
+});
+
+test("memory history continuation survives exact-read projection with all wording intact", () => {
+	const payload = { id: "memory", body: huge("complete words"), history: [{ id: "event", sourceSessionId: null }],
+		history_has_more: true, history_next_before: "event",
+		history_next_call: { tool: "get_memory", args: { id: "memory", history_before: "event", history_limit: 1 } } };
+	const text = projectModelText({ toolName: "get_memory", text: JSON.stringify(payload), details: payload });
+	assert.equal(JSON.parse(text).body, payload.body);
+	assert.deepEqual(JSON.parse(text).history_next_call, payload.history_next_call);
+	assert.equal(JSON.parse(text).history_has_more, true);
 });
 
 test("verb projections use explicit, loss-aware families", () => {

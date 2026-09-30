@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.46
+
+- Let memory reads request older change-history pages on supporting servers, keeping the complete memory text and continuation details available to the agent.
+- Update the bundled tool catalogue with optional history page parameters. Update and reload/restart Pi to load the new schema; existing reads remain compatible.
+
 ## 0.3.45
 
 - Keep established duplicate-MCP suppression quiet at startup. A visible notice appears only when the plugin newly writes the Pi-only override, not on later launches.

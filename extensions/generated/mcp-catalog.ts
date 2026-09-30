@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: eb620d685a3e2e8119c9a3cecc0cc9b7dead665c76ae99eb11204fa4dad15e87
+ * Schema fingerprint: fc4753d041de21b349b81f56d2d2fc7e79994509d8c317d753d074f93656ce9b
  * Description fingerprint: 8b4d0a5cad752731e9f288d3b5116764d4026447b72e7afa150e71272e84cec3
- * Regenerated: 2026-09-30T11:06:52.153Z
+ * Regenerated: 2026-09-30T22:00:37.449Z
  */
-export const MCP_CATALOG_FINGERPRINT = "eb620d685a3e2e8119c9a3cecc0cc9b7dead665c76ae99eb11204fa4dad15e87";
+export const MCP_CATALOG_FINGERPRINT = "fc4753d041de21b349b81f56d2d2fc7e79994509d8c317d753d074f93656ce9b";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "8b4d0a5cad752731e9f288d3b5116764d4026447b72e7afa150e71272e84cec3";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-30T11:06:52.154Z";
-export const TOOL_CATALOG_VERSION = "5cc0ba61c9993498a35630e24db6181002329652b769468de3e30bb101668d47";
+export const MCP_CATALOG_GENERATED_AT = "2026-09-30T22:00:37.449Z";
+export const TOOL_CATALOG_VERSION = "a9e7f4ef4c7b7922d3a6f98c731b70f99e9cdcd98d3b0b3c4ef8d42a87219b37";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -176,7 +176,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_memory",
 		"name": "get memory",
-		"description": "Read one memory’s full decision, convention or rationale. Read the body before relying on or amending it; follow a superseded_by link to the current version.",
+		"description": "Read one memory’s full decision, convention or rationale. Read the body before relying on or amending it; follow a superseded_by link to the current version. Change history is paged: pass history_next_before as history_before to retrieve older events.",
 		"intent": "read full memory decision convention requirement rationale"
 	},
 	{
@@ -2323,7 +2323,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "get_memory",
 		"label": "DevSpec: Get Memory",
 		"description": "Fetch a SINGLE memory by id, including its FULL body. `search_memories`, `get_decisions`, `get_conventions` and `get_unresolved_questions` return only a CARD — title, one-line summary, type, state, tags and id — so call this to read what a decision actually says once you have found it there. Accepts the 8-char short code shown in the UI/transcripts (e.g. \"fce203a7\") or a full UUID. The payload also carries lineage: `superseded_by` when this version has been replaced (read that one instead), and `supersedes` when it replaced an earlier version. Reading the body before superseding or contradicting a memory is the point of this tool — the card is enough to CHOOSE a memory, not enough to overwrite one.",
-		"promptSnippet": "Read one memory’s full decision, convention or rationale. Read the body before relying on or amending it; follow a superseded_by link to the current version.",
+		"promptSnippet": "Read one memory’s full decision, convention or rationale. Read the body before relying on or amending it; follow a superseded_by link to the current version. Change history is paged: pass history_next_before as history_before to retrieve older events.",
 		"searchIntent": "read full memory decision convention requirement rationale",
 		"modelInputSchema": {
 			"type": "object",
@@ -2331,6 +2331,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"id": {
 					"type": "string",
 					"description": "The memory id, or the 8-char short code shown in the UI/transcripts (e.g. \"fce203a7\")."
+				},
+				"history_before": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Continue older changes using history_next_before from the previous response for this same memory. Omit for the newest page. The full memory body is still returned."
+				},
+				"history_limit": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100,
+					"description": "Change-history page size, 1–100 (default 10). Follow history_next_before while history_has_more is true; one page is not the whole history."
 				}
 			},
 			"required": [
@@ -2343,6 +2354,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"id": {
 					"type": "string",
 					"description": "The memory id, or the 8-char short code shown in the UI/transcripts (e.g. \"fce203a7\")."
+				},
+				"history_before": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Continue older changes using history_next_before from the previous response for this same memory. Omit for the newest page. The full memory body is still returned."
+				},
+				"history_limit": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100,
+					"description": "Change-history page size, 1–100 (default 10). Follow history_next_before while history_has_more is true; one page is not the whole history."
 				}
 			},
 			"required": [

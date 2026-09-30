@@ -8,9 +8,9 @@ import { jsonSchemaToTypebox } from '../extensions/core/json-schema.ts';
 import { ROOM_READ_TOOL } from '../extensions/core/room-reader.ts';
 import {
   ACTIVATION_ONLY_VERBS, DIRECTED_QUESTION_TOOL_NAME, HOT_SET_VERBS, PLAN_TOOL_NAME, POLL_TOOL_NAME,
-  PREFIX_TOKEN_MAX, PREFIX_TOKEN_MIN, SCOPE_KEY_SET, scopeKeysForTool, TOOL_LOADER_NAME,
+  SCOPE_KEY_SET, scopeKeysForTool, TOOL_LOADER_NAME,
   allModelFacingTools, estimatePrefixTokens, estimatePlanToolChars, isCallableModelVerb,
-  modelFacingSurface, searchRareModelTools, slimSchema, withDirectedQuestionToolActive, withPlanToolActive, withPollToolActive,
+  modelFacingSurface, searchRareModelTools, slimCatalogEntry, slimSchema, withDirectedQuestionToolActive, withPlanToolActive, withPollToolActive,
 } from '../extensions/core/model-surface.ts';
 import registerDevspecTools, { initialActiveTools, modelFacingCatalog, stampKnownScope } from '../extensions/devspec-tools.ts';
 import { MODEL_VERB_NAMES, NEVER_MODEL_VERBS, PUMP_VERBS } from '../extensions/generated/mcp-catalog.ts';
@@ -60,8 +60,8 @@ test('model schemas omit host identity without clipping authored guidance', () =
     const props = (entry.inputSchema.properties ?? {}) as Record<string, unknown>;
     for (const key of scopeKeysForTool(entry.name)) assert.ok(!(key in props), `${entry.name}.${key}`);
     for (const key of SCOPE_KEY_SET) assert.ok(!(entry.inputSchema.required as string[] | undefined)?.includes(key));
-    assert.ok(entry.description.length < 600, entry.name);
-    assert.ok(!entry.description.endsWith('…'));
+    assert.equal(entry.description, entry.promptSnippet, 'authored guidance must survive exactly');
+    assert.ok(entry.description.trim(), entry.name);
   }
   const artifact = allModelFacingTools().find(entry => entry.name === 'update_resource')!;
   assert.match(artifact.description, /Prefer body_edits/);
@@ -134,8 +134,17 @@ test('host scope stamping preserves only model-owned read targets', () => {
   setBond(null);
 });
 
-test('prefix alarm measures the full concise surface, not a fifteen-tool quota', () => {
+test('long authored guidance survives the native projection without a prose ration', () => {
+  const guidance = 'Useful first sentence. Necessary second sentence, with examples.\n'.repeat(100);
+  const base = allModelFacingTools()[0]!;
+  const entry = slimCatalogEntry({ ...base, promptSnippet: guidance, modelInputSchema: { type: 'object', properties: { detail: { type: 'string', description: guidance, maxLength: 42 } } } });
+  assert.equal(entry.description, guidance);
+  assert.equal((entry.inputSchema.properties as any).detail.description, guidance);
+  assert.equal((entry.inputSchema.properties as any).detail.maxLength, 42);
+});
+
+test('reports the complete surface footprint without an arbitrary prefix quota', () => {
   assert.deepEqual(modelFacingSurface().map(entry => entry.name), [...HOT_SET_VERBS]);
   const estimate = estimatePrefixTokens(buildDevspecInstructions());
-  assert.ok(estimate >= PREFIX_TOKEN_MIN && estimate <= PREFIX_TOKEN_MAX, `unexpected prefix estimate ${estimate}`);
+  assert.ok(Number.isFinite(estimate) && estimate > 0);
 });

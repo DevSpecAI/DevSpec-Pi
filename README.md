@@ -35,6 +35,10 @@ immediately as native tools with purpose-written guidance. `search_devspec_tools
 is an optional selection aid, not an unlocking step: known tools work directly.
 Search combines keywords and embeddings when the server supports the matching
 catalogue, and falls back explicitly to local keyword search when unavailable.
+The server refreshes catalogue embeddings automatically on worker startup, with
+read-repair requests and periodic reconciliation as backstops. It publishes only
+complete version/model-matched indexes and reuses unchanged vectors. A bundled
+snapshot is only a warm cache; forgetting a generator does not disable repair.
 It never executes a recommendation. The generated catalogue carries the wire
 contract and shared guidance; pump/delivery operations remain private. Shared session
 plans and session polls are native: qualifying bonded work activates `manage_plan` and `manage_poll`, and strict
@@ -112,17 +116,19 @@ Production (`https://api.devspec.ai/api/mcp`) is the default when no override is
 ### Regression and context-budget workflow
 
 GitHub Actions runs `npm run check` on every pull request and push to `main`.
-The suite measures the initial DevSpec surface and plan activation delta. A generous
-anti-bloat alarm catches accidental catalogue/contract dumps; useful instructions
-and tool access are not sacrificed to meet a token target. It also checks per-family
+The suite reports the initial DevSpec surface and plan activation delta as
+measurements, not prose quotas. Lossless-projection and catalogue-completeness
+checks preserve authored guidance, including long multi-sentence descriptions;
+no first-sentence extractor or per-description character ceiling is used.
+It also checks per-family
 model-visible result budgets, lossless exact reads,
 privacy boundaries, optional tool recommendations and availability filtering,
 and provider serialization. A checked-in fingerprint makes every model-facing
 schema or projection-family change an explicit review event. `npm run
 benchmark:context` exercises every bounded projection family with deterministic
 lower/upper ranges and required-field markers, so both payload bloat and silent
-information loss fail before a schema, projection, hot tool, or instruction block
-can merge.
+information loss in bounded result payloads fail before a projection change can
+merge. Tool-description growth is reported for review, not silently clipped.
 
 When the sibling `devspecv2` checkout is present at `../devspecv2`, the full test
 suite also fingerprint-checks every generated MCP tool name/schema against the

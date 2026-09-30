@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.42
+
+- Tool and parameter guidance is preserved in full, without sentence extraction or per-description character ceilings. Catalogue footprint is reported diagnostically; actual result and protocol limits remain enforced.
+- Matching servers keep tool-search indexes current automatically through worker startup, request-driven repair and periodic reconciliation. Keyword fallback stays available until a complete matching index is ready; the bundled index is a warm cache, not a required manual generation step.
+- Strengthened long-text, complete-catalogue and paired server/native projection checks. Reload or restart Pi after updating to load the new guidance.
+
 ## 0.3.40
 
 - Bundle launcher 0.3.1: fix Pi discovery under the desktop service's restricted PATH and avoid a second error tab for loopback failures. Reload the plugin to run the shared update check.

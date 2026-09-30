@@ -91,21 +91,6 @@ function titleCase(name) {
 		.join(" ");
 }
 
-/** Kept in step with SNIPPET_MAX in extensions/core/model-surface.ts. */
-const SNIPPET_MAX = 320;
-
-function firstSentence(text) {
-	const trimmed = String(text ?? "").trim().replace(/\s+/g, " ");
-	const cut = trimmed.search(/[.!?](?:\s|$)/);
-	const sentence = cut >= 0 ? trimmed.slice(0, cut + 1) : trimmed;
-	// Backstop for one runaway sentence, NOT a ration — kept in step with
-	// SNIPPET_MAX in extensions/core/model-surface.ts. At 160 this was silently
-	// lossy: 9 catalog snippets shipped cut off mid-sentence, so a model read half
-	// an instruction and guessed the rest. If a sentence does not fit, shorten it
-	// in DevSpecV2's apps/web/lib/mcp/tool-definitions.ts, which is the source.
-	return sentence.length > SNIPPET_MAX ? `${sentence.slice(0, SNIPPET_MAX - 3)}…` : sentence;
-}
-
 function classify(name) {
 	if (PUMP_VERBS.includes(name)) return "pump";
 	if (NEVER_MODEL_VERBS.includes(name)) return "never_model";
@@ -146,14 +131,14 @@ function emitTs(tools) {
 		name: t.name,
 		label: `DevSpec: ${titleCase(t.name)}`,
 		description: t.description ?? "",
-		promptSnippet: t.modelDescription ?? firstSentence(t.description),
+		promptSnippet: t.modelDescription ?? t.description ?? '',
 		searchIntent: t.searchIntent ?? '',
 		modelInputSchema: t.modelInputSchema ?? t.inputSchema ?? { type: "object", properties: {} },
 		inputSchema: t.inputSchema ?? { type: "object", properties: {} },
 		kind: classify(t.name),
 	}));
 	const model = entries.filter((e) => e.kind === "model").map((e) => e.name);
-	const searchDocuments = entries.filter(e => e.kind === "model").map(e => ({ id: e.name, name: e.name.replaceAll('_', ' '), description: e.promptSnippet, intent: e.searchIntent })).sort((a, b) => a.id.localeCompare(b.id));
+	const searchDocuments = entries.filter(e => e.kind === "model").map(e => ({ id: e.name, name: e.name.replaceAll('_', ' '), description: e.promptSnippet, intent: e.searchIntent })).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 	const searchVersion = createHash('sha256').update(JSON.stringify(searchDocuments)).digest('hex');
 	const pump = entries.filter((e) => e.kind === "pump").map((e) => e.name);
 	const never = entries.filter((e) => e.kind === "never_model").map((e) => e.name);

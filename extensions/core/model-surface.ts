@@ -24,16 +24,9 @@ export function scopeKeysForTool(name?: string): Set<string> {
   return keys;
 }
 export function isConnectionBoundTool(name: string): boolean { return ACTIVATION_ONLY_VERBS.has(name); }
-export const TOOL_LOADER_DESCRIPTION = 'Find the appropriate DevSpec operation by intent when unsure which tool fits. Includes active tools; known tools can be called directly. Search never executes a recommendation.';
+export const TOOL_LOADER_DESCRIPTION = MCP_CATALOG.find(entry => entry.name === TOOL_LOADER_NAME)!.promptSnippet;
 export interface ToolPromptMetadata { promptSnippet?: string; promptGuidelines?: string[]; }
 export const TOOL_LOADER_PROMPT_METADATA: ToolPromptMetadata = {};
-/** Legacy helper for non-model callers. Model guidance is authored, never cut here. */
-export function firstSentence(text: string, max = 320): string {
-  const normalized = String(text ?? '').trim().replace(/\s+/g, ' ');
-  const cut = normalized.search(/[.!?](?:\s|$)/);
-  const sentence = cut >= 0 ? normalized.slice(0, cut + 1) : normalized;
-  return sentence.length > max ? `${sentence.slice(0, max - 1)}…` : sentence;
-}
 
 /** Drop host identity without discarding operational sentences or schema constraints. */
 export function slimSchema(schema: Record<string, unknown> | undefined, omitKeys: Set<string> = SCOPE_KEY_SET): Record<string, unknown> {
@@ -120,7 +113,4 @@ export function withPollToolActive(active: readonly string[], enabled: boolean):
   const rest = active.filter(name => name !== POLL_TOOL_NAME); return enabled ? [...rest, POLL_TOOL_NAME] : rest;
 }
 export function estimatePrefixTokens(instructions: string): number { return Math.ceil(estimatePrefixChars(instructions) / 4); }
-// Diagnostic alarm against an accidental full-contract dump, not a quota that
-// removes useful tools or instructions. Confirm real provider usage separately.
-export const PREFIX_TOKEN_MAX = 45000;
-export const PREFIX_TOKEN_MIN = 15000;
+// Footprint is diagnostic, never a quota that hides operations or clips prose.

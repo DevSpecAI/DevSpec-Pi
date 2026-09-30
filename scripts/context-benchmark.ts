@@ -8,7 +8,7 @@
  */
 
 import { buildDevspecInstructions } from "../extensions/core/instructions.ts";
-import { estimatePrefixTokens, PREFIX_TOKEN_MAX } from "../extensions/core/model-surface.ts";
+import { estimatePrefixTokens } from "../extensions/core/model-surface.ts";
 import { PROJECTION_BUDGETS, projectModelText } from "../extensions/core/result-projection.ts";
 
 function repeat(label: string, chars: number): string {
@@ -127,15 +127,8 @@ function projectionRow(
 	return { name, value: text.length, unit: "chars", min, limit, missing: required.filter((marker) => !text.includes(marker)) };
 }
 
+const initialSurfaceTokens = estimatePrefixTokens(buildDevspecInstructions());
 const rows: BenchmarkRow[] = [
-	{
-		name: "initial DevSpec surface",
-		value: estimatePrefixTokens(buildDevspecInstructions()),
-		unit: "tokens",
-		min: 4_500,
-		limit: PREFIX_TOKEN_MAX,
-		missing: [],
-	},
 	projectionRow("action-item search", "search_action_items", { count: actionResults.length, results: actionResults }, 2_000, PROJECTION_BUDGETS.collection, ["Representative action-item result 1", "Intent 1", "get_action_item"]),
 	projectionRow("resource search", "search_resources", { documents: resourceResults.slice(0, 5), artifacts: resourceResults.slice(5) }, 1_500, PROJECTION_BUDGETS.collection, ["Representative resource 1", "Matching passage 1", "get_resource"]),
 	projectionRow("project summary", "get_project_summary", projectSummary, 9_000, PROJECTION_BUDGETS.project, ["Team principles", "Team agent rules", "Owner agent rules"]),
@@ -151,9 +144,10 @@ function rowFailed(row: BenchmarkRow): boolean {
 
 const failed = rows.filter(rowFailed);
 if (process.argv.includes("--json")) {
-	process.stdout.write(`${JSON.stringify({ version: 2, rows, passed: failed.length === 0 }, null, 2)}\n`);
+	process.stdout.write(`${JSON.stringify({ version: 3, initialSurfaceTokens, rows, passed: failed.length === 0 }, null, 2)}\n`);
 } else {
 	console.log("DevSpec-Pi context benchmark (deterministic synthetic fixtures)");
+	console.log(`INFO  initial DevSpec surface: ${initialSurfaceTokens} estimated tokens (diagnostic, not a prose quota)`);
 	for (const row of rows) {
 		const percent = Math.round((row.value / row.limit) * 1_000) / 10;
 		const details = row.missing.length > 0 ? `; missing ${row.missing.join(", ")}` : "";

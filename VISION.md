@@ -128,10 +128,13 @@ never silently half-works.
 A smaller payload is not an improvement if it hides the fields needed to choose
 the right exact read. A richer payload is not an improvement if it needlessly
 repeats whole entities into every later model request. Therefore every new or
-changed model-facing tool must deliberately choose a projection family, retain
-its selection/action inputs, declare omissions and a recovery path, and remain
-inside an explicit model-visible budget. Exact reads stay complete where no
-lossless continuation exists.
+changed model-facing tool result must deliberately choose a projection family,
+retain its selection/action inputs, and declare omissions and a recovery path.
+Bounded result payloads retain explicit resource budgets; exact reads stay
+complete where no lossless continuation exists. Tool and parameter guidance is
+not a character or sentence ration: preserve authored text completely, report
+its footprint diagnostically, and detect accidental contract/catalogue duplication
+structurally rather than clipping instructions.
 
 `npm run check` is the development and CI gate: typecheck, the full contract /
 privacy / projection suite, and the deterministic `benchmark:context` fixtures.

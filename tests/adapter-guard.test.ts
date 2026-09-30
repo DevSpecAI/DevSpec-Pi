@@ -45,7 +45,7 @@ async function harness(shared?: string, mode = "tui", hasUI = true) {
   };
 }
 
-test("first and subsequent interactive starts explain the saved Pi-only override", async () => {
+test("only a new override is announced; subsequent starts stay quiet with hidden agent context", async () => {
   const host = await harness(config);
   await host.start();
   assert.deepEqual(host.notices, [{ text: SUPPRESSION_NOTICE, type: "info" }]);
@@ -65,9 +65,9 @@ test("first and subsequent interactive starts explain the saved Pi-only override
   assert.equal(host.notices.length, 1, "turns must not repeat terminal notifications");
 
   await host.start(); // saved override, no new write
-  assert.deepEqual(host.notices, [
-    { text: SUPPRESSION_NOTICE, type: "info" }, { text: SUPPRESSION_NOTICE, type: "info" },
-  ]);
+  assert.deepEqual(host.notices, [{ text: SUPPRESSION_NOTICE, type: "info" }]);
+  for (let launch = 3; launch <= 50; launch++) await host.start();
+  assert.equal(host.notices.length, 1, "the fiftieth launch must not repeat established information");
   assert.equal(await readFile(join(host.cwd, ".pi", "mcp.json"), "utf8"), overlay);
   assert.equal(await readFile(join(host.cwd, ".mcp.json"), "utf8"), config);
   assert.equal((await host.turn() as ContextMessage).message.content, SUPPRESSION_AGENT_GUIDANCE);
@@ -121,6 +121,8 @@ test("agent guidance explains the symptom without promising healthy native tools
   assert.match(SUPPRESSION_AGENT_GUIDANCE, /expected, not a sign-in or connection failure/);
   assert.match(SUPPRESSION_AGENT_GUIDANCE, /do not re-enable the duplicate or delete shared MCP configuration/);
   assert.match(SUPPRESSION_AGENT_GUIDANCE, /Pi-only/);
+  assert.match(SUPPRESSION_AGENT_GUIDANCE, /Explain this only if asked/);
+  assert.match(SUPPRESSION_AGENT_GUIDANCE, /Do not announce this proactively/);
   assert.match(SUPPRESSION_AGENT_GUIDANCE, /Claude Code settings or foreign MCP servers/);
   assert.match(SUPPRESSION_AGENT_GUIDANCE, /does not prove.*signed in or healthy/);
   assert.match(SUPPRESSION_AGENT_GUIDANCE, /\/devspec.status and \/devspec.login/);

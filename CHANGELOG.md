@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.45
+
+- Keep established duplicate-MCP suppression quiet at startup. A visible notice appears only when the plugin newly writes the Pi-only override, not on later launches.
+- Retain hidden agent context and on-demand help; explicitly tell the agent not to announce the explanation proactively. Suppression and shared-configuration boundaries are unchanged.
+- Reload/restart after updating to load this correction.
+
 ## 0.3.44
 
 - Explain a detected duplicate DevSpec MCP entry on each interactive startup, including when its Pi-only override was saved previously. Other agents' settings and foreign MCP servers remain untouched.

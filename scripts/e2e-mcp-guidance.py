@@ -90,9 +90,9 @@ with tempfile.TemporaryDirectory(prefix='devspec-mcp-guidance-') as directory:
     saved = overlay.read_text()
     assert json.loads(saved) == {'mcpServers': {'devspec': {'disabled': True}}}
     assert (project / '.mcp.json').read_text() == shared
-    run(True)
+    run(False)  # established override: no repeated user-facing announcement
     assert overlay.read_text() == saved
     assert (project / '.mcp.json').read_text() == shared
     (project / '.mcp.json').write_text(json.dumps({'mcpServers': {'supabase': {'url': 'https://mcp.supabase.com/mcp'}}}))
     run(False)
-    print('PASS: actual Pi first/saved-override startup notices, no-duplicate silence, shared config preserved, no model calls.')
+    print('PASS: actual Pi first-change notice, quiet saved-override and no-duplicate starts, shared config preserved, no model calls.')

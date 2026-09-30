@@ -130,9 +130,9 @@ function apply(pi: ExtensionAPI, ctx: ExtensionContext): void {
 	const deactivated = deactivate(pi, hits.map((h) => h.name));
 	recordAdapterGuard({ suppressed: hits, persisted: wrote || hits.some((h) => h.alreadyDisabled), overlayPath });
 	debugRemote("adapter guard applied", { serverCount: hits.length, deactivatedTools: deactivated.length });
-	// Explain the disabled entry on each interactive launch, including a saved
-	// override. Do not claim suppression succeeded if persistence failed.
-	if ((wrote || hits.some((h) => h.alreadyDisabled)) && ctx.hasUI && ctx.mode === "tui") {
+	// Announce a configuration change, not routine startup state. Saved overrides
+	// stay quiet; the agent's hidden context and on-demand help explain them.
+	if (wrote && ctx.hasUI && ctx.mode === "tui") {
 		ctx.ui.notify(SUPPRESSION_NOTICE, "info");
 	}
 }

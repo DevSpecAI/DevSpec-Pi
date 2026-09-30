@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.40
+
+- Bundle launcher 0.3.1: fix Pi discovery under the desktop service's restricted PATH and avoid a second error tab for loopback failures. Reload the plugin to run the shared update check.
+
 ## 0.3.39
 
 - First session startup now runs the shared launcher's installation, OS-registration and readiness flow instead of only copying files. Setup failures do not stop Pi, and deliberately disabled setup stays disabled.

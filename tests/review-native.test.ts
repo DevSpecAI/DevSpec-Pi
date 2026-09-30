@@ -135,13 +135,13 @@ test("pending, stale, queued and unknown outcomes cannot use a committed activit
 	assert.equal(domainAction(spec, writeOutcomeFromResult({ committed: true, verdict: "discuss" })), "discussion recorded");
 });
 
-test("registered loader reports unsupported exact names without loading adjacent tools", async () => {
-	const tools = new Map<string, any>(); let active = ["read", "get_memory"];
+test("registered search reports unsupported exact names without changing activation", async () => {
+	const tools = new Map<string, any>(); let active = ["read", "get_memory", "update_memory"];
 	registerTools({ registerTool: (def: any) => tools.set(def.name, def), on() {},
 		getActiveTools: () => active, setActiveTools: (next: string[]) => { active = next; } } as unknown as ExtensionAPI);
 	const result = await tools.get("search_devspec_tools").execute("c1", { query: "get_memory_history update_memory" });
-	assert.deepEqual(result.details.matches, ["update_memory"]);
-	assert.deepEqual(result.details.unreturned, ["get_memory_history"]);
+	assert.deepEqual(result.details.matches.map((hit: { name: string }) => hit.name), ["update_memory"]);
+	assert.deepEqual(result.details.unavailable, ["get_memory_history"]);
 	assert.match(result.content[0].text, /No substitute/);
 	assert.deepEqual(active, ["read", "get_memory", "update_memory"]);
 });

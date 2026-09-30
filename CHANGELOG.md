@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.38
+
+- All safe tools available to the connection are now directly callable from startup, with authored guidance for choosing and maintaining work, memories and documents. Internal delivery tools remain private; session-only tools still require their connection context.
+- Tool search is optional advice, not an unlocking step. Exact names stay local; intent queries use matching server-side hybrid search when available and explicitly fall back to local keyword search otherwise. Search never executes recommendations or changes the active tool set.
+- Shared artifacts have positive capture and maintenance guidance. Related-document suggestions are labelled advisory rather than blocking gates. Existing write checks and authority outcomes remain intact.
+- Update and reload/restart Pi to load the new surface. Older servers remain usable through the local fallback; semantic query usage follows the project's existing attributed search billing.
+
 ## 0.3.37
 
 - Session attachment and connection recovery preserve refreshed project/machine rules and explicit cleared values. Valid canonical command responses also refresh the rule snapshot, including after a web-initiated room move.

@@ -30,9 +30,13 @@ and binds all implementation decisions in this repo.
 ## Status
 
 **Phase 2 complete**: embedded MCP transport, `/devspec.login` / `/devspec.logout`
-/ `/devspec.status`. Everyday DevSpec work is a small active native hot set;
-less-common native tools are loaded on demand with `search_devspec_tools`. The
-generated MCP catalog is the wire map, not the initial model surface. Shared session
+/ `/devspec.status`. All safe, context-eligible DevSpec operations are available
+immediately as native tools with purpose-written guidance. `search_devspec_tools`
+is an optional selection aid, not an unlocking step: known tools work directly.
+Search combines keywords and embeddings when the server supports the matching
+catalogue, and falls back explicitly to local keyword search when unavailable.
+It never executes a recommendation. The generated catalogue carries the wire
+contract and shared guidance; pump/delivery operations remain private. Shared session
 plans and session polls are native: qualifying bonded work activates `manage_plan` and `manage_poll`, and strict
 remote-ingress 1.4 adds capacity-gated exact-connection system notices through
 an activity-neutral, generation-scoped harness turn, with preserved 1.3 command
@@ -112,7 +116,7 @@ The suite measures the initial DevSpec surface and plan activation delta. A gene
 anti-bloat alarm catches accidental catalogue/contract dumps; useful instructions
 and tool access are not sacrificed to meet a token target. It also checks per-family
 model-visible result budgets, lossless exact reads,
-privacy boundaries, deferred-tool routing,
+privacy boundaries, optional tool recommendations and availability filtering,
 and provider serialization. A checked-in fingerprint makes every model-facing
 schema or projection-family change an explicit review event. `npm run
 benchmark:context` exercises every bounded projection family with deterministic

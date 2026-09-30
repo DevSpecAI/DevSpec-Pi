@@ -2,8 +2,8 @@
  * DevSpec Pi — native tools.
  *
  * The generated catalog is the WIRE map. Every safe model-facing verb is a
- * real Pi tool, but only a small everyday hot set starts active. One tiny
- * search tool additively loads less-common tools on demand. Pump/lifecycle
+ * real Pi tool, immediately active when its context permits. Optional hybrid
+ * search recommends among those tools without changing activation. Pump/lifecycle
  * verbs and post_session_message are never registered.
  *
  * Headless: tools work in every mode — errors come back as text the model can
@@ -12,6 +12,7 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { resolveToken } from "./core/auth-store.ts";
+import { selectTools } from "./core/tool-selection.ts";
 import { getBond } from "./core/bond-state.ts";
 import { registerRoomReader } from "./core/room-tools.ts";
 import { ROOM_READ_TOOL } from "./core/room-reader.ts";
@@ -35,9 +36,6 @@ import {
 	TOOL_LOADER_PROMPT_METADATA,
 	allModelFacingTools,
 	hotToolPromptMetadata,
-	rareModelVerbs,
-	searchRareModelTools,
-	exactModelToolNames,
 	toolLoaderInputSchema,
 	withDirectedQuestionToolActive,
 	withPlanToolActive,
@@ -359,8 +357,8 @@ function registerCatalogTool(pi: ExtensionAPI, def: CatalogEntry): void {
 	});
 }
 
-/** Rare verbs are the loader's domain; transcript-announced restores are scoped to them. */
-const RARE_VERB_SET: ReadonlySet<string> = new Set(rareModelVerbs());
+/** Recover legacy deferred announcements without re-announcing denied tools. */
+const RARE_VERB_SET: ReadonlySet<string> = new Set(MODEL_VERB_NAMES);
 const MODEL_VERB_SET: ReadonlySet<string> = new Set([...MODEL_VERB_NAMES, ROOM_READ_TOOL]);
 
 /**
@@ -377,44 +375,30 @@ function registerToolLoader(pi: ExtensionAPI): void {
 		description: TOOL_LOADER_DESCRIPTION,
 		...TOOL_LOADER_PROMPT_METADATA,
 		parameters: jsonSchemaToTypebox(toolLoaderInputSchema()),
-		async execute(_toolCallId, params) {
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			const input = params as { query?: unknown; limit?: unknown };
 			const query = String(input.query ?? "").trim();
-			const limit = typeof input.limit === "number" ? input.limit : undefined;
-			const matches = searchRareModelTools(query, limit).map((entry) => entry.name);
-			const unreturned = (exactModelToolNames(query) ?? []).filter((name) => !matches.includes(name));
-			if (matches.length === 0) {
-				return measuredToolResult(TOOL_LOADER_NAME, toolTextResult(`No callable DevSpec tool found for: ${query}. Exact names are not substituted with related tools; try a capability description for suggestions.`, {
-					matches: [],
-					added: [],
-				}));
-			}
-
-			// Tools deactivated by duplicate-tool recovery must stay inactive:
-			// re-activating re-announces them, and a transcript carrying two
-			// announcements for one tool is exactly what bricked dc8f52d4.
-			const loadable = matches.filter((name) => !sessionDeniedTools.has(name));
-			const unavailable = matches.filter((name) => sessionDeniedTools.has(name));
-			if (loadable.length === 0) {
-				return measuredToolResult(TOOL_LOADER_NAME, toolTextResult(
-					`Matching DevSpec tools are unavailable this session (deactivated after a provider duplicate-tool error): ${unavailable.join(", ")}`,
-					{ matches, added: [], unavailable },
-				));
-			}
-
-			const active = pi.getActiveTools();
-			const activeSet = new Set(active);
-			const added = loadable.filter((name) => !activeSet.has(name));
-			if (added.length > 0) pi.setActiveTools([...active, ...added]);
-			const unavailableNote = (unavailable.length > 0
-				? `; unavailable this session (deactivated after a provider duplicate-tool error): ${unavailable.join(", ")}`
-				: "") + (unreturned.length > 0 ? `; exact names not loaded (unavailable or beyond the 10-name batch): ${unreturned.join(", ")}. No substitute was selected.` : "");
-			return measuredToolResult(TOOL_LOADER_NAME, toolTextResult(
-				(added.length > 0
-					? `Loaded DevSpec tools: ${added.join(", ")}`
-					: `Matching DevSpec tools already active: ${loadable.join(", ")}`) + unavailableNote,
-				{ matches, added, unavailable, unreturned },
-			));
+			if (!query || query.length > 1000) return toolErrorResult("query must contain 1–1000 characters");
+			const limit = typeof input.limit === "number" && Number.isFinite(input.limit) ? Math.max(1, Math.min(10, Math.trunc(input.limit))) : 3;
+			const result = await selectTools(query, limit, pi.getActiveTools().filter(name => !sessionDeniedTools.has(name)), async args => {
+				const token = await resolveToken();
+				if (!token) throw new Error("not connected");
+				const bond = getBond();
+				const raw = await callDevspec(token.token, TOOL_LOADER_NAME, stampKnownScope(args, TOOL_LOADER_NAME), {
+					cwd: ctx.cwd, lane: "work", timeoutMs: 5000,
+					...(bond?.connectionCapability ? { connectionCapability: bond.connectionCapability } : {}),
+				});
+				const unwrapped = unwrapMcpResult(raw);
+				if (unwrapped.isError) throw new Error("search unavailable");
+				return unwrapped.details;
+			});
+			const lines = [
+				result.degraded ? result.reason : "These tools are already available; call the appropriate one directly.",
+				...result.matches.map(hit => `${hit.name}: ${hit.description}`),
+				!result.matches.length ? "No matching callable tool found. No operation was executed." : "",
+				result.unavailable.length ? `Unavailable here: ${result.unavailable.join(", ")}. No substitute was selected.` : "",
+			].filter(Boolean);
+			return measuredToolResult(TOOL_LOADER_NAME, toolTextResult(lines.join("\n"), result));
 		},
 	});
 }
@@ -424,7 +408,7 @@ export function modelFacingCatalog(): CatalogEntry[] {
 	return allModelFacingTools();
 }
 
-/** Preserve non-DevSpec tools while resetting this extension to hot set + loader. */
+/** Preserve foreign tools and expose every safe non-contextual operation. */
 export function initialActiveTools(active: readonly string[]): string[] {
 	const devspecVerbs = new Set(modelFacingCatalog().map((entry) => entry.name));
 	return [
@@ -439,7 +423,7 @@ export function initialActiveTools(active: readonly string[]): string[] {
 
 export default function (pi: ExtensionAPI) {
 	registerContextBudgetToolNames([...MODEL_VERB_NAMES, TOOL_LOADER_NAME, ROOM_READ_TOOL]);
-	for (const entry of allModelFacingTools()) registerCatalogTool(pi, entry);
+	for (const entry of allModelFacingTools()) if (entry.name !== TOOL_LOADER_NAME) registerCatalogTool(pi, entry);
 	registerToolLoader(pi);
 	registerRoomReader(pi, () => {
 		if (sessionDeniedTools.has("get_session_transcript")) return false;
@@ -461,12 +445,12 @@ export default function (pi: ExtensionAPI) {
 		);
 		sessionDeniedTools.clear();
 		for (const name of denied) sessionDeniedTools.add(name);
-		const withRestored = withRestoredTools(initial, restore);
+		const withRestored = withRestoredTools(initial, restore).filter(name => !sessionDeniedTools.has(name));
 		const attached = Boolean(bond?.sessionId && bond.connectionCapability);
 		const withPlan = withPlanToolActive(withRestored, Boolean(bond?.sessionId));
 		const withPoll = withPollToolActive(withPlan, attached);
 		const withQuestion = withDirectedQuestionToolActive(withPoll, attached);
-		pi.setActiveTools(sessionDeniedTools.has(ROOM_READ_TOOL) ? withQuestion.filter(name => name !== ROOM_READ_TOOL) : withQuestion);
+		pi.setActiveTools(withQuestion.filter(name => !sessionDeniedTools.has(name)));
 	});
 
 	// Safety net (item dc8f52d4): if a duplicate-tools provider error still

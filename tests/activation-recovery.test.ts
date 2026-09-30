@@ -142,7 +142,7 @@ test("resume restores announced rare tools, the loader never re-announces, and a
 		parameters: unknown;
 		execute: (...args: any[]) => Promise<{
 			content?: { type: string; text: string }[];
-			details?: { matches?: string[]; added?: string[]; unavailable?: string[] };
+			details?: { matches?: Array<{ name: string }>; added?: string[]; unavailable?: string[] };
 		}>;
 	};
 	const definitions: ToolDef[] = [];
@@ -191,8 +191,8 @@ test("resume restores announced rare tools, the loader never re-announces, and a
 	// second announcement, so no second Kimi injection, so no duplicate.
 	const loader = definitions.find((def) => def.name === "search_devspec_tools");
 	assert.ok(loader);
-	const reload = await loader.execute("call-1", { query: "list action items", limit: 5 });
-	assert.ok(reload.details?.matches?.includes("get_action_items"), "fixture query must find the tool");
+	const reload = await loader.execute("call-1", { query: "get_action_items", limit: 5 });
+	assert.ok(reload.details?.matches?.some(hit => hit.name === "get_action_items"), "fixture query must find the tool");
 	assert.ok(
 		!reload.details?.added?.includes("get_action_items"),
 		"restored tool is never re-announced by the loader",
@@ -214,10 +214,10 @@ test("resume restores announced rare tools, the loader never re-announces, and a
 	assert.equal(userMessages.length, 1, "no repeated nudge for an already-handled error");
 
 	// And the loader explains the denial instead of re-loading the tool.
-	const after = await loader.execute("call-2", { query: "list action items", limit: 5 });
+	const after = await loader.execute("call-2", { query: "get_action_items", limit: 5 });
 	assert.ok(!after.details?.added?.includes("get_action_items"));
 	assert.deepEqual(after.details?.unavailable, ["get_action_items"]);
-	assert.match(after.content?.[0]?.text ?? "", /unavailable this session/);
+	assert.match(after.content?.[0]?.text ?? "", /Unavailable here/);
 });
 
 test("fresh sessions announce nothing, so session_start restores nothing", () => {
@@ -238,7 +238,7 @@ test("fresh sessions announce nothing, so session_start restores nothing", () =>
 	registerDevspecTools(pi);
 	const ctx = { sessionManager: { getBranch: () => [] }, hasUI: false };
 	handlers.get("session_start")?.({}, ctx);
-	assert.ok(!active.includes("get_action_items"));
-	assert.ok(!active.includes("create_automation"));
+	assert.ok(active.includes("get_action_items"));
+	assert.ok(active.includes("create_automation"));
 	assert.ok(active.includes("search_action_items"), "hot set untouched");
 });

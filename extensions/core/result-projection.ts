@@ -76,6 +76,7 @@ const FULL_READ_VERBS = new Set([
 	"get_project_instruction_rules",
 	"get_personal_instructions",
 	"get_workflow_rules",
+	"search_devspec_tools",
 	"validate_commit_reference",
 	// Projection does not receive call parameters, so conservatively keep both
 	// focused query/table reads and whole-schema reads lossless.
@@ -686,7 +687,7 @@ function relatedBlock(label: string, values: unknown[], fetch: string): string {
 	return lines.join("\n");
 }
 
-function mandatoryCategoryBlock(label: string, values: unknown[]): string {
+function mandatoryCategoryBlock(label: string, values: unknown[], category = "Gate category"): string {
 	const firstValue = record(values[0]);
 	const entity = firstValue ? nestedEntity(firstValue) : null;
 	const id = entity && firstValue ? boundedId(entity, firstValue) : undefined;
@@ -697,7 +698,7 @@ function mandatoryCategoryBlock(label: string, values: unknown[]): string {
 			: values[0],
 		160,
 	) ?? "reason not returned";
-	return `Gate category — ${label}: ${values.length}; first=${id ? `[${id}] ` : ""}${reason}${values.length > 1 ? `; ${values.length - 1} more omitted from this mandatory summary` : ""}.`;
+	return `${category} — ${label}: ${values.length}; first=${id ? `[${id}] ` : ""}${reason}${values.length > 1 ? `; ${values.length - 1} more omitted from this mandatory summary` : ""}.`;
 }
 
 function candidateRows(value: unknown, keys: readonly string[] = ["candidates", "items", "results"]): unknown[] {
@@ -882,7 +883,7 @@ function ackProjection(toolName: string, details: unknown): string | null {
 	];
 	for (const [label, values, fetch] of groupedCandidates) {
 		if (!values.length) continue;
-		required.push(mandatoryCategoryBlock(label, values));
+		required.push(mandatoryCategoryBlock(label, values, "Related context (advisory)"));
 		optional.push(relatedBlock(label, values, fetch));
 	}
 	const closestMatch = root.closest_match ?? memoryReconciliation?.closest_match;

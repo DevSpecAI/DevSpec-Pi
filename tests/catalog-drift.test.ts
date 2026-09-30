@@ -54,10 +54,16 @@ test("checked-in catalog matches the sibling DevSpecV2 verb surface when present
 	}
 	const script = `
 import { getMcpAllTools } from ${JSON.stringify(DEFINITIONS)};
+import { toDiscoveryTool } from ${JSON.stringify(resolve(V2_ROOT, 'apps/web/lib/mcp/tool-discovery.ts'))};
+import { toolSchemaFingerprint } from ${JSON.stringify(resolve(V2_ROOT, 'packages/core/src/mcp/tool-search-index.ts'))};
 const tools = getMcpAllTools();
+const wireFingerprint = toolSchemaFingerprint(tools);
 process.stdout.write(JSON.stringify(tools.map((t) => ({
   name: t.name,
   description: t.description ?? "",
+  modelDescription: toDiscoveryTool(t).description,
+  wireFingerprint,
+  modelInputSchema: toDiscoveryTool(t).inputSchema,
   inputSchema: t.inputSchema ?? { type: "object", properties: {} },
 }))));
 `;
@@ -67,7 +73,13 @@ process.stdout.write(JSON.stringify(tools.map((t) => ({
 		encoding: "utf8",
 		maxBuffer: 20 * 1024 * 1024,
 	});
-	const live = JSON.parse(raw) as Array<{ name: string; description: string; inputSchema: unknown }>;
+	const live = JSON.parse(raw) as Array<{ name: string; description: string; inputSchema: unknown; modelDescription: string; modelInputSchema: unknown; wireFingerprint: string }>;
+	assert.equal(live[0]?.wireFingerprint, MCP_CATALOG_FINGERPRINT, 'server/client compatibility fingerprints must agree');
+	for (const tool of live) {
+		const generated = MCP_CATALOG.find(entry => entry.name === tool.name);
+		assert.equal(generated?.promptSnippet, tool.modelDescription, `${tool.name} guidance drifted`);
+		assert.deepEqual(generated?.modelInputSchema, tool.modelInputSchema, `${tool.name} model parameter guidance drifted`);
+	}
 	const liveNames = live.map((t) => t.name).sort();
 	const catalogNames = MCP_CATALOG.map((t) => t.name).sort();
 	assert.deepEqual(

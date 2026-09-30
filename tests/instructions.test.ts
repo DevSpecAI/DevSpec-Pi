@@ -47,8 +47,11 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /relay both/);
 	assert.match(text, /never report the change as done/i);
 	assert.match(text, /not a rule to remember here/);
-	assert.match(text, /memory or document/);
-	assert.match(text, /the reply names the record/);
+	assert.match(text, /knowledge write can stop on a close match/);
+	assert.match(text, /read the named record/);
+	assert.match(text, /create_resource/);
+	assert.match(text, /Search is optional/);
+	assert.match(text, /include_implementation_contract:true/);
 	assert.doesNotMatch(text, /interactive authority|maintainer-only|always queues/i);
 	assert.match(text, /server reconciliation/);
 	assert.doesNotMatch(text, /trusted subprocess|trusted child/i);

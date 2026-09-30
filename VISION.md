@@ -151,8 +151,8 @@ devspec-pi/                        ← this repo, published as one npm package
 │   │                                bond lifecycle, turn pump, memory engine
 │   ├── devspec-auth.ts            ← /devspec.login, token lifecycle, status
 │   ├── generated/mcp-catalog.ts   ← WIRE map (item 523f1512), not the initial surface
-│   ├── core/model-surface.ts      ← hot set + deterministic deferred-tool search
-│   ├── devspec-tools.ts           ← safe verbs registered; rare tools start inactive
+│   ├── core/model-surface.ts      ← complete concise surface + offline keyword search
+│   ├── devspec-tools.ts           ← eligible safe verbs active; optional hybrid recommendations
 │   ├── devspec-remote.ts          ← remote control (see below)
 │   ├── devspec-memory.ts          ← proactive recall + capture
 │   ├── devspec-onboard.ts         ← first-run experience, /devspec.help
@@ -177,17 +177,21 @@ Streamable HTTP, POST-only, bearer-token** bridge (verified in
 a minimal MCP client and speaks those verb names. What the *model* sees is
 a **Pi-shaped surface**, not a 1:1 dump of `tool-definitions.ts`:
 
-- always-on hot set (~15 everyday verbs) with short snippets and slimmed schemas
-- safe rare verbs registered as real, initially inactive Pi tools with slimmed schemas
-- one tiny `search_devspec_tools` loader additively activates relevant rare tools
-- one schema-complete `manage_plan` tool activates only for an attached bond (and
-  automatically on active-plan resume); unrelated rare schemas remain cold
+- every safe context-eligible tool is immediately callable, with deliberately
+  authored concise use/avoid guidance shared with MCP consumers
+- `search_devspec_tools` optionally recommends among available tools using the
+  server's hybrid retrieval; exact names and degraded keyword search stay local
+- search never activates tools, executes recommendations, or grants authority
+- connection-bound plan/poll/question schemas still follow their real availability
 - extension stamps `git_remote` / project / session / bond ids and the hidden
   per-connection capability transport header — the model is never asked
-- keep the DevSpec prefix deliberate, not a ~60k catalogue dump; **quality and complete useful access come first**. The former2–8k estimate is not a quota (Ali,2026-09-24).
+- keep the prefix stable and deliberate, not an unshortened contract dump;
+  useful guidance and reliable selection matter more than a fixed token quota
 
-The generated catalog (`523f1512`) stays the wire map + drift test, not the
-initial active model surface.
+Ali's 2026-09-29 direction (item `5b689aaf`) replaces the small-hot-set placement,
+not mechanical-first delivery, provider freedom or the no-duplicate-MCP boundary.
+The generated catalogue remains the wire map plus shared authored guidance and
+its versioned search metadata; host identity and capability activation stay native.
 
 This is the crucial middle path:
 
@@ -440,8 +444,8 @@ current contract, adopted here first, migrated to other hosts only if proven.
    login, action items, search, memory tools with real renderers. ✅
    (embedded MCP client, `/devspec.login|logout|status`, staging/prod.
    Completeness of verbs shipped as a catalog dump in `523f1512`; the
-   **product** starts with a Pi-shaped hot set — ~15 always-on tools plus
-   deferred rare-tool search and a measured, non-rationed prefix. Custom TUI renderers still TODO)
+   **product** now exposes all concise eligible tools with optional hybrid
+   selection and a measured, non-rationed prefix. Custom TUI renderers still TODO)
 3. **System-prompt injection + slash commands** — workflows native. ✅
    (`before_agent_start` workflow block is tight: no "Check DevSpec first",
    no 76-verb when-X-call-Y dump. `/devspec.work` with live item completion;
@@ -497,8 +501,9 @@ current contract, adopted here first, migrated to other hosts only if proven.
 
 Shipped 2026-08-13 (Fierce Kestrel / Restless Squirrel):
 - `d2f4f25c` — mechanically suppress an adapter-mounted DevSpec MCP server.
-- `7de79db6` — original Pi-shaped model surface. Superseded by native
-  deferred loading for rare tools; the generated catalog remains the wire map.
+- `7de79db6` — original Pi-shaped model surface, followed by deferred loading.
+  Item `5b689aaf` replaces that placement with complete concise availability;
+  the generated catalogue remains the wire contract and shared guidance.
 
 ## Next-up queue (as of 2026-08-13)
 

@@ -316,7 +316,7 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// picker's attach + owner message (ask-review), which never used these.
 	assert.equal(
 		fingerprint,
-		"28cc3fd5e14c2673a359898deaf00441774e3d23d48b57cac0e172130cfda97d",
+		"a5a638652257c6e27ef2b41576a0aa97728f7be93f6097484e40e4506231c851",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -822,7 +822,8 @@ test("acknowledgements reserve every simultaneous reconciliation category", () =
 		["Related candidates", "related-1"],
 		["Closest existing memory", "closest-1"],
 	] as const) {
-		assert.match(text, new RegExp(`Gate category — ${label}:[^\\n]*\\[${id}\\]`), label);
+		const prefix = ["Related decisions", "Potential conflicts", "Near duplicates", "Related candidates"].includes(label) ? "Related context \\(advisory\\)" : "Gate category";
+		assert.match(text, new RegExp(`${prefix} — ${label}:[^\\n]*\\[${id}\\]`), label);
 	}
 	assert.match(text, /7 more omitted from this mandatory summary/);
 	assert.match(text, /Gate — review_before_proceeding/);

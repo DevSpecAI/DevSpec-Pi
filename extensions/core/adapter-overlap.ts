@@ -299,4 +299,8 @@ export function isAdapterSource(sourceInfo: { source?: string; path?: string } |
 }
 
 export const SUPPRESSION_NOTICE =
-	"DevSpec is already connected through this package. We turned off the extra DevSpec MCP server in this project so it isn't loaded twice. Your other MCP servers are unchanged.";
+	"DevSpec MCP is disabled in Pi to avoid duplicate tools. This plugin provides DevSpec instead. Other agents’ settings and your other MCP servers are unchanged.";
+
+/** Authored guidance, never interpolated config names, paths or credentials. */
+export const SUPPRESSION_AGENT_GUIDANCE =
+	"The DevSpec Pi plugin replaces a separately configured DevSpec MCP server. Its duplicate protection can mark that server disabled in Pi; this is expected, not a sign-in or connection failure. Explain this if asked, and do not re-enable the duplicate or delete shared MCP configuration to fix it. The plugin's override is Pi-only: it does not change shared configuration, Claude Code settings or foreign MCP servers. Use the native DevSpec tools. Suppression does not prove that those tools are signed in or healthy: if they fail, diagnose the plugin connection with /devspec.status and /devspec.login separately.";

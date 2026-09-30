@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.44
+
+- Explain a detected duplicate DevSpec MCP entry on each interactive startup, including when its Pi-only override was saved previously. Other agents' settings and foreign MCP servers remain untouched.
+- Give the agent a one-time session explanation even before sign-in, so it does not try to re-enable the duplicate or mistake suppression for proof of a healthy connection. No repeated per-turn notice or system-prefix rewrite.
+- Clarify installation and troubleshooting in the README. Update and reload/restart Pi to load this version.
+
 ## 0.3.43
 
 - Remove the bundled DevSpec Launcher, its startup extension and login-time installation/pairing callback. Normal Pi authentication and automatic remote connection do not require the launcher.

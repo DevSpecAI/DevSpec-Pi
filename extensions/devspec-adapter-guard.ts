@@ -25,6 +25,7 @@ import {
 	serversFromConfig,
 	toolsToDeactivate,
 	SUPPRESSION_NOTICE,
+	SUPPRESSION_AGENT_GUIDANCE,
 	type DevspecServerHit,
 } from "./core/adapter-overlap.ts";
 import { mcpUrl } from "./core/config.ts";
@@ -129,14 +130,17 @@ function apply(pi: ExtensionAPI, ctx: ExtensionContext): void {
 	const deactivated = deactivate(pi, hits.map((h) => h.name));
 	recordAdapterGuard({ suppressed: hits, persisted: wrote || hits.some((h) => h.alreadyDisabled), overlayPath });
 	debugRemote("adapter guard applied", { serverCount: hits.length, deactivatedTools: deactivated.length });
-	// Once per write — not every subsequent session.
-	if (wrote && ctx.hasUI && ctx.mode === "tui") {
+	// Explain the disabled entry on each interactive launch, including a saved
+	// override. Do not claim suppression succeeded if persistence failed.
+	if ((wrote || hits.some((h) => h.alreadyDisabled)) && ctx.hasUI && ctx.mode === "tui") {
 		ctx.ui.notify(SUPPRESSION_NOTICE, "info");
 	}
 }
 
 export default function (pi: ExtensionAPI) {
+	let explainedToAgent = false;
 	pi.on("session_start", async (_event, ctx) => {
+		explainedToAgent = false;
 		try {
 			apply(pi, ctx);
 		} catch (err) {
@@ -153,6 +157,19 @@ export default function (pi: ExtensionAPI) {
 			deactivate(pi, state.suppressed.map((h) => h.name));
 		} catch (err) {
 			debugRemote("adapter guard turn failed", { errorPresent: Boolean(err) });
+		}
+		// Tail context reaches the agent even before DevSpec sign-in. It never
+		// rewrites a system prefix, claims native connection health, or includes
+		// user-controlled server names. One note per session, not every turn.
+		if (!explainedToAgent) {
+			explainedToAgent = true;
+			return {
+				message: {
+					customType: "devspec-mcp-guard",
+					content: SUPPRESSION_AGENT_GUIDANCE,
+					display: false,
+				},
+			};
 		}
 		return undefined;
 	});

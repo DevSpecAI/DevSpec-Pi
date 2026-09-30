@@ -17,11 +17,16 @@ pi   # /devspec.login and you're in
 One package: native tools, native auth, native remote control, native memory.
 No MCP adapter, no hook scripts, no other packages required.
 
-This package **is** your DevSpec connection. After `/devspec.login`, do not add a
-DevSpec MCP server in Pi (`/mcp`, `.mcp.json`, or a Bearer header). That path is
-for Claude, Cursor, and OpenCode. If this folder already has a DevSpec entry
-because another tool shares it, leave that file — we turn the extra copy off
-for Pi. Other MCP servers you use (Supabase, browsers) stay.
+This package **is** your DevSpec connection. Install it and run `/devspec.login`—there is no separate DevSpec MCP server to configure in Pi.
+
+<details>
+<summary>Why is DevSpec MCP disabled in Pi?</summary>
+
+That is expected with this plugin: it disables a duplicate DevSpec MCP entry in Pi so the tools are not loaded twice. Leave it disabled. The override lives in the project's `.pi/mcp.json`; your shared MCP configuration, Claude Code settings and other MCP servers are unchanged.
+
+A disabled duplicate is not a sign-in check. If DevSpec itself is unavailable, use `/devspec.status` or `/devspec.login`. For MCP-only setup in another client, use that client's user-level settings. Claude Code's plugin already supplies its MCP connection; do not add a second one alongside it.
+
+</details>
 
 Open source: [github.com/DevSpecAI/DevSpec-Pi](https://github.com/DevSpecAI/DevSpec-Pi).
 Install it from GitHub as above. It will also be published to npm as `@devspec/pi-plugin` (keyword `pi-package`), but it is not on the npm registry yet, so `pi install npm:@devspec/pi-plugin` does not work today.
@@ -106,6 +111,7 @@ npm run check                 # typecheck + full tests + deterministic context b
 npm run benchmark:context     # print the current prefix/result budget baseline
 npm run test:room-runtime     # disposable real Pi host, loopback MCP, no model calls
 npm run test:room-readers-runtime # scripted-provider host/tool/cutover qualification
+python3 scripts/e2e-mcp-guidance.py # real Pi startup notices; POSIX PTY, no model/network/user config
 
 # Dogfood against staging (dev Clerk/Supabase) without installing:
 export DEVSPEC_ENV=staging                 # or DEVSPEC_MCP_URL=https://api.devspecstaging.com/api/mcp

@@ -173,5 +173,6 @@ test("guard state lives on globalThis so other extension files can read it", () 
 	const s = getAdapterGuardState();
 	assert.equal(s.suppressed[0].name, "devspec");
 	assert.equal(s.persisted, true);
-	assert.match(SUPPRESSION_NOTICE, /turned off the extra DevSpec MCP server/);
+	assert.match(SUPPRESSION_NOTICE, /disabled in Pi to avoid duplicate tools/);
+	assert.match(SUPPRESSION_NOTICE, /Other agents’ settings and your other MCP servers are unchanged/);
 });

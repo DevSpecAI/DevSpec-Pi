@@ -18,6 +18,7 @@ import { createHash } from "node:crypto";
 import { getAdapterGuardState, SUPPRESSION_NOTICE } from "./core/adapter-overlap.ts";
 import { resolveToken } from "./core/auth-store.ts";
 import { callDevspec, MODEL_TIMEOUT_MS } from "./core/client.ts";
+import { agentsSettingsUrl } from "./core/config.ts";
 import {
 	buildImplementationKickoff,
 	createImplementationContractLoader,
@@ -219,7 +220,7 @@ export default function (pi: ExtensionAPI) {
 				"  /devspec.project      — show project; choose | remember | forget",
 				"  pi --devspec-project <name-or-id> — choose for a new local conversation",
 				"  /devspec.reload       — reload this extension (same as /reload)",
-				"  /devspec.login        — connect (token from You → Coding agents in DevSpec)",
+				`  /devspec.login        — connect (token from ${agentsSettingsUrl()})`,
 				"  /devspec.pin <id>     — explicitly associate this folder with a DevSpec project",
 				"  /devspec.status       — connection state",
 				"  /devspec.logout       — remove the stored token",

@@ -23,11 +23,12 @@ export const DEFAULT_MCP_URL = "https://api.devspec.ai/api/mcp";
 export const STAGING_MCP_URL = "https://api.devspecstaging.com/api/mcp";
 
 /**
- * You → Coding agents: where users create, reveal and revoke their account-wide
- * access token in the DevSpec web app (app host, not the API).
+ * The Agents settings page (`/settings/agents`): where users create, reveal and
+ * revoke their account-wide access token in the DevSpec web app (app host, not
+ * the API). Customer copy links to it by URL rather than naming a menu path.
  */
-export const CODING_AGENTS_URL = "https://app.devspec.ai/settings/coding-agents";
-export const STAGING_CODING_AGENTS_URL = "https://app.devspecstaging.com/settings/coding-agents";
+export const AGENTS_SETTINGS_URL = "https://app.devspec.ai/settings/agents";
+export const STAGING_AGENTS_SETTINGS_URL = "https://app.devspecstaging.com/settings/agents";
 
 /** Env var that always wins over the on-disk token store (CI / cloud workers). */
 export const TOKEN_ENV_VAR = "DEVSPEC_MCP_TOKEN";
@@ -56,7 +57,7 @@ export function mcpUrl(): string {
 	return DEFAULT_MCP_URL;
 }
 
-/** The Coding agents page matching the effective endpoint (for login guidance). */
-export function codingAgentsUrl(): string {
-	return mcpUrl() === STAGING_MCP_URL ? STAGING_CODING_AGENTS_URL : CODING_AGENTS_URL;
+/** The Agents settings page matching the effective endpoint (for login guidance). */
+export function agentsSettingsUrl(): string {
+	return mcpUrl() === STAGING_MCP_URL ? STAGING_AGENTS_SETTINGS_URL : AGENTS_SETTINGS_URL;
 }

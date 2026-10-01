@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.49
+
+- `/devspec.login`, `/devspec.status`, `/devspec.help` and the not-connected notices now link straight to DevSpec's Agents settings page for your token: https://app.devspec.ai/settings/agents (or the staging page when Pi points at staging). That page used to be Coding agents at `/settings/coding-agents`; the old address still redirects.
+- Pi is now described as an agent rather than a coding agent in this package's README and npm description. Update and reload/restart Pi to pick up the new wording.
+
 ## 0.3.48
 
 - Leaving a commit unspecified no longer attaches the process's sole recent commit to unrelated work. The server's claim-scoped observations remain responsible for automatic selection.

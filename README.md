@@ -1,12 +1,12 @@
 # DevSpec Pi
 
-**No launcher required.** Once this package is configured, start Pi normally and it becomes available in DevSpec. Choose the right project in the agent when needed, then select it to join a room. The separate DevSpec Launcher is optional browser-launch convenience; this package does not install it, register its URL handler or start its service. See Coding agents settings in DevSpec for standalone availability and setup.
+**No launcher required.** Once this package is configured, start Pi normally and it becomes available in DevSpec. Choose the right project in the agent when needed, then select it to join a room. The separate DevSpec Launcher is optional browser-launch convenience; this package does not install it, register its URL handler or start its service. See your [Agents settings in DevSpec](https://app.devspec.ai/settings/agents) for standalone availability and setup.
 
 **Build on your team’s best thinking.**
 
 DevSpec helps your team and AI agents turn ideas and experience into better software.
 
-The native DevSpec experience for the [Pi](https://pi.dev) coding agent.
+The native DevSpec experience for the [Pi](https://pi.dev) agent.
 
 ```bash
 npm install -g @earendil-works/pi-coding-agent
@@ -115,7 +115,7 @@ python3 scripts/e2e-mcp-guidance.py # real Pi startup notices; POSIX PTY, no mod
 
 # Dogfood against staging (dev Clerk/Supabase) without installing:
 export DEVSPEC_ENV=staging                 # or DEVSPEC_MCP_URL=https://api.devspecstaging.com/api/mcp
-export DEVSPEC_MCP_TOKEN=<from https://app.devspecstaging.com/settings/coding-agents>
+export DEVSPEC_MCP_TOKEN=<from https://app.devspecstaging.com/settings/agents>
 pi -e ./extensions/devspec-auth.ts -e ./extensions/devspec-tools.ts
 ```
 

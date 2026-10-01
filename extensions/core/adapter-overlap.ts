@@ -9,11 +9,9 @@
  * other hosts in the same checkout still need it.
  *
  * Pure helpers, unit-tested. Persistence writes only `{ disabled: true }`
- * into the Pi-local overlay (`.pi/mcp.json`).
+ * into the Pi-local adapter overlay (`.pi/mcp-adapter.json`).
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
 import {
 	DEFAULT_MCP_URL,
 	STAGING_MCP_URL,
@@ -59,7 +57,7 @@ export interface DevspecServerHit {
 export interface AdapterGuardState {
 	/** Servers we decided to hide this process. */
 	suppressed: DevspecServerHit[];
-	/** Whether `.pi/mcp.json` was written (or already had disabled: true). */
+	/** Whether the Pi-owned duplicate settings were prepared successfully. */
 	persisted: boolean;
 	/** Overlay path we wrote / would write. */
 	overlayPath: string | null;
@@ -174,67 +172,6 @@ export function findDevspecServers(
 	return hits;
 }
 
-export function projectOverlayPath(cwd: string): string {
-	return join(cwd, ".pi", "mcp.json");
-}
-
-/**
- * Merge `{ [name]: { disabled: true } }` into an existing overlay object
- * without copying credentials or other fields from the shared file.
- * Returns the next object and whether it changed.
- */
-export function mergeDisabledOverlay(
-	existing: unknown,
-	names: string[],
-): { next: Record<string, unknown>; changed: boolean } {
-	const raw: Record<string, unknown> =
-		existing && typeof existing === "object" && !Array.isArray(existing)
-			? { ...(existing as Record<string, unknown>) }
-			: {};
-	const key = raw.mcpServers !== undefined ? "mcpServers" : raw["mcp-servers"] !== undefined ? "mcp-servers" : "mcpServers";
-	const prevBlock = raw[key];
-	const servers: Record<string, unknown> =
-		prevBlock && typeof prevBlock === "object" && !Array.isArray(prevBlock)
-			? { ...(prevBlock as Record<string, unknown>) }
-			: {};
-
-	let changed = false;
-	for (const name of names) {
-		const prev = servers[name];
-		if (prev !== undefined && (typeof prev !== "object" || prev === null || Array.isArray(prev))) {
-			continue;
-		}
-		const entry = { ...((prev as Record<string, unknown> | undefined) ?? {}) };
-		if (entry.disabled === true) continue;
-		entry.disabled = true;
-		servers[name] = entry;
-		changed = true;
-	}
-
-	raw[key] = servers;
-	return { next: raw, changed };
-}
-
-/**
- * Persist disabled:true for the named servers in `<cwd>/.pi/mcp.json`.
- * Never writes the shared `.mcp.json`. Creates the overlay if missing.
- */
-export function persistDisabledOverlay(cwd: string, names: string[]): { path: string; changed: boolean } {
-	const path = projectOverlayPath(cwd);
-	let existing: unknown = {};
-	try {
-		existing = parseConfigJson(readFileSync(path, "utf8"));
-	} catch {
-		existing = {};
-	}
-	const { next, changed } = mergeDisabledOverlay(existing, names);
-	if (changed) {
-		mkdirSync(dirname(path), { recursive: true });
-		writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`, "utf8");
-	}
-	return { path, changed };
-}
-
 export function adapterPrefix(serverName: string, mode: AdapterPrefixMode): string {
 	if (mode === "none") return "";
 	if (mode === "short") {
@@ -281,7 +218,11 @@ export function toolsToDeactivate(
 	}
 	const out: string[] = [];
 	for (const tool of registered) {
-		if (prefixed.has(tool.name) && !isDevspecVerb(tool.name)) {
+		const namespaceMatch = serverNames.some((server) => {
+			const namespace = `mcp__${server.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+			return tool.name === namespace || tool.name.startsWith(`${namespace}__`);
+		});
+		if ((namespaceMatch || prefixed.has(tool.name)) && !isDevspecVerb(tool.name)) {
 			out.push(tool.name);
 			continue;
 		}

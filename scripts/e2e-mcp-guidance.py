@@ -31,6 +31,9 @@ with tempfile.TemporaryDirectory(prefix='devspec-mcp-guidance-') as directory:
         'supabase': {'url': 'https://mcp.supabase.com/mcp'},
     }})
     (project / '.mcp.json').write_text(shared)
+    (project / '.pi').mkdir()
+    native = {'mcpServers': {'devspec': json.loads(shared)['mcpServers']['devspec']}}
+    (project / '.pi' / 'mcp.json').write_text(json.dumps(native))
     ready = temp / 'ready.ts'
     ready.write_text('export default function(pi) { pi.registerCommand("mcp-probe-ready", { description: "Test readiness", handler: async (_,ctx) => { ctx.ui.notify("MCP_PROBE_READY", "info"); } }); }')
     env = dict(os.environ, HOME=str(home), USERPROFILE=str(home), PI_CODING_AGENT_DIR=str(home / 'agent'),
@@ -38,8 +41,8 @@ with tempfile.TemporaryDirectory(prefix='devspec-mcp-guidance-') as directory:
     for key in ('DEVSPEC_MCP_TOKEN', 'DEVSPEC_MCP_URL', 'DEVSPEC_ENV'):
         env.pop(key, None)
     base = [shutil.which('pi'), '--offline', '--no-session', '--no-extensions', '--no-skills',
-            '--no-prompt-templates', '--no-context-files', '--no-themes', '--no-approve',
-            '-e', str(ROOT / 'extensions/devspec-adapter-guard.ts'),
+            '--no-prompt-templates', '--no-context-files', '--no-themes', '--approve',
+            '-e', str(ROOT / 'extensions/devspec-adapter-guard.ts'), '-e', 'builtin:mcp',
             '-e', str(ROOT / 'scripts/room-store-no-model-fixture.ts'), '-e', str(ready),
             '--provider', 'room-probe', '--model', 'no-model']
 
@@ -88,11 +91,13 @@ with tempfile.TemporaryDirectory(prefix='devspec-mcp-guidance-') as directory:
     run(True)
     overlay = project / '.pi' / 'mcp.json'
     saved = overlay.read_text()
-    assert json.loads(saved) == {'mcpServers': {'devspec': {'disabled': True}}}
+    expected = native
+    expected['mcpServers']['devspec']['enabled'] = False
+    assert json.loads(saved) == expected
     assert (project / '.mcp.json').read_text() == shared
     run(False)  # established override: no repeated user-facing announcement
     assert overlay.read_text() == saved
     assert (project / '.mcp.json').read_text() == shared
-    (project / '.mcp.json').write_text(json.dumps({'mcpServers': {'supabase': {'url': 'https://mcp.supabase.com/mcp'}}}))
+    (project / '.pi' / 'mcp.json').write_text(json.dumps({'mcpServers': {}}))
     run(False)
     print('PASS: actual Pi first-change notice, quiet saved-override and no-duplicate starts, shared config preserved, no model calls.')

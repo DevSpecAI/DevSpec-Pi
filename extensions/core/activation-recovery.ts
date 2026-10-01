@@ -72,7 +72,11 @@ export function scanTranscriptToolState(
 		if (entry.type === "message") {
 			const message = entry.message;
 			if (message.role !== "toolResult") continue;
-			for (const name of message.addedToolNames ?? []) {
+			// Pre-1.0 transcripts may retain this historical field. Pi 1.x owns
+			// current tool-state messages; do not assume every tool result has it.
+			const legacyNames = (message as typeof message & { addedToolNames?: unknown }).addedToolNames;
+			if (!Array.isArray(legacyNames)) continue;
+			for (const name of legacyNames) {
 				if (typeof name !== "string" || !isRare(name) || announcedSeen.has(name)) continue;
 				announcedSeen.add(name);
 				announced.push(name);

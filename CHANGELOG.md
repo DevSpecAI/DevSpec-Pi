@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.50
+
+- Target Pi 1.0 and Node.js 22.19 or later. Pi’s built-in MCP is the default for other services; DevSpec still needs only this package and sign-in.
+- Keep Claude/shared MCP configuration untouched on fresh Pi. Detect native Pi duplicates separately from the optional MCP adapter, using the adapter’s public configuration API for its imports and overrides.
+- Migrate recognized legacy adapter-only overrides out of Pi’s native `mcp.json`, with a private backup and refusal on conflicting, malformed or symlinked files. Native definitions retain their credentials and foreign servers remain available.
+- Preserve old transcript recovery data under Pi 1.0’s current types. Update/reload Pi after installation; npm publication is a separate release step.
+
 ## 0.3.49
 
 - `/devspec.login`, `/devspec.status`, `/devspec.help` and the not-connected notices now link straight to DevSpec's Agents settings page for your token: https://app.devspec.ai/settings/agents (or the staging page when Pi points at staging). That page used to be Coding agents at `/settings/coding-agents`; the old address still redirects.

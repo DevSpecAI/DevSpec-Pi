@@ -9,7 +9,7 @@ DevSpec helps your team and AI agents turn ideas and experience into better soft
 The native DevSpec experience for the [Pi](https://pi.dev) agent.
 
 ```bash
-npm install -g @earendil-works/pi-coding-agent
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 pi install git:github.com/DevSpecAI/DevSpec-Pi
 pi   # /devspec.login and you're in
 ```
@@ -22,7 +22,11 @@ This package **is** your DevSpec connection. Install it and run `/devspec.login`
 <details>
 <summary>Why is DevSpec MCP disabled in Pi?</summary>
 
-That is expected with this plugin: it disables a duplicate DevSpec MCP entry in Pi so the tools are not loaded twice. Leave it disabled. The override lives in the project's `.pi/mcp.json`; your shared MCP configuration, Claude Code settings and other MCP servers are unchanged.
+Use Pi 1.0 or later. MCP for other services is built in: use `/mcp`, without installing an adapter. Fresh Pi does not read Claude Code’s MCP settings, so installing Claude first requires no changes to those settings.
+
+If you also configured DevSpec in Pi, this plugin disables that duplicate only in Pi. Native Pi entries keep their full definition and receive `enabled: false` in Pi’s own `mcp.json`. The optional `pi-mcp-adapter` instead uses `disabled: true` in `mcp-adapter.json` and is managed with `/mcp-adapter`. Shared MCP files, Claude settings and foreign services are left alone. Avoid configuring the same service in both loaders.
+
+Recognized legacy adapter-only overrides in Pi’s `mcp.json` are moved to the adjacent `mcp-adapter.json`, with a private backup. Complete native server entries are never moved. Malformed, symlinked or conflicting settings are not overwritten; review the reported settings and reload. Reload after updating the plugin so cached adapter tools are refreshed.
 
 A disabled duplicate is not a sign-in check. If DevSpec itself is unavailable, use `/devspec.status` or `/devspec.login`. For MCP-only setup in another client, use that client's user-level settings. Claude Code's plugin already supplies its MCP connection; do not add a second one alongside it.
 

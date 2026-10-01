@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -14,9 +14,6 @@ const {
 	isAdapterSource,
 	isDevspecMcpHost,
 	isDevspecMcpUrl,
-	mergeDisabledOverlay,
-	persistDisabledOverlay,
-	projectOverlayPath,
 	resetAdapterGuardState,
 	recordAdapterGuard,
 	getAdapterGuardState,
@@ -83,43 +80,6 @@ test("serversFromConfig reads mcpServers and mcp-servers", () => {
 	assert.deepEqual(serversFromConfig(null), {});
 });
 
-test("mergeDisabledOverlay writes only disabled:true and does not copy credentials", () => {
-	const { next, changed } = mergeDisabledOverlay({}, ["devspec"]);
-	assert.equal(changed, true);
-	const servers = (next.mcpServers as Record<string, { disabled?: boolean; url?: string }>).devspec;
-	assert.equal(servers.disabled, true);
-	assert.equal(servers.url, undefined);
-});
-
-test("mergeDisabledOverlay is a no-op when already disabled", () => {
-	const existing = { mcpServers: { devspec: { disabled: true } } };
-	const { changed } = mergeDisabledOverlay(existing, ["devspec"]);
-	assert.equal(changed, false);
-});
-
-test("persistDisabledOverlay writes .pi/mcp.json and never needs a shared file", async () => {
-	const cwd = await mkdtemp(join(tmpdir(), "devspec-pi-overlay-"));
-	await writeFile(join(cwd, ".mcp.json"), JSON.stringify({
-		mcpServers: {
-			devspec: { url: STAGING, headers: { Authorization: "Bearer secret" }, directTools: true },
-			supabase: { url: "https://mcp.supabase.com/mcp", directTools: true },
-		},
-	}));
-	const result = persistDisabledOverlay(cwd, ["devspec"]);
-	assert.equal(result.changed, true);
-	assert.equal(result.path, projectOverlayPath(cwd));
-	const overlay = JSON.parse(await readFile(result.path, "utf8")) as {
-		mcpServers: Record<string, { disabled?: boolean; url?: string; headers?: unknown }>;
-	};
-	assert.equal(overlay.mcpServers.devspec.disabled, true);
-	assert.equal(overlay.mcpServers.devspec.url, undefined);
-	assert.equal(overlay.mcpServers.devspec.headers, undefined);
-	assert.equal(overlay.mcpServers.supabase, undefined);
-	const shared = await readFile(join(cwd, ".mcp.json"), "utf8");
-	assert.match(shared, /Bearer secret/);
-	assert.match(shared, /supabase/);
-});
-
 test("adapterToolName default prefix is server_verb", () => {
 	assert.equal(adapterToolName("get_action_item", "devspec", "server"), "devspec_get_action_item");
 	assert.equal(adapterToolName("get_action_item", "devspec", "none"), "get_action_item");
@@ -168,7 +128,7 @@ test("guard state lives on globalThis so other extension files can read it", () 
 	recordAdapterGuard({
 		suppressed: [{ name: "devspec", source: "/tmp/.mcp.json", url: STAGING, alreadyDisabled: false }],
 		persisted: true,
-		overlayPath: "/tmp/.pi/mcp.json",
+		overlayPath: "/tmp/.pi/mcp-adapter.json",
 	});
 	const s = getAdapterGuardState();
 	assert.equal(s.suppressed[0].name, "devspec");

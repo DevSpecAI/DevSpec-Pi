@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { after, test } from "node:test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-// Do not inspect the developer's MCP configuration or credentials.
 const home = await mkdtemp(join(tmpdir(), "devspec-guard-home-"));
 process.env.HOME = home;
 process.env.USERPROFILE = home;
@@ -13,117 +12,76 @@ process.env.PI_CODING_AGENT_DIR = home;
 after(() => rm(home, { recursive: true, force: true }));
 const { default: installGuard } = await import("../extensions/devspec-adapter-guard.ts");
 const { SUPPRESSION_NOTICE, SUPPRESSION_AGENT_GUIDANCE, resetAdapterGuardState } = await import("../extensions/core/adapter-overlap.ts");
-
 type Handler = (event: unknown, ctx: ExtensionContext) => Promise<unknown>;
 type ContextMessage = { message: { customType: string; content: string; display: boolean } };
 const config = JSON.stringify({ mcpServers: {
   devspec: { url: "https://api.devspec.ai/api/mcp", headers: { Authorization: "Bearer fixture-only" } },
   supabase: { url: "https://mcp.supabase.com/mcp" },
 } });
-
-async function harness(shared?: string, mode = "tui", hasUI = true) {
+async function harness(native?: string, mode = "tui", trusted = true) {
   resetAdapterGuardState();
   const cwd = await mkdtemp(join(home, "project-"));
-  if (shared) await writeFile(join(cwd, ".mcp.json"), shared);
+  await mkdir(join(cwd, ".pi"));
+  await writeFile(join(cwd, ".mcp.json"), config);
+  if (native) await writeFile(join(cwd, ".pi/mcp.json"), native);
   const handlers = new Map<string, Handler>();
   const notices: Array<{ text: string; type: string }> = [];
-  let active = ["get_action_item", "devspec_get_action_item", "supabase_list_projects", "read"];
+  let active = ["get_action_item", "mcp__devspec__get_action_item", "supabase_list_projects", "read"];
   const pi = {
     on: (name: string, handler: Handler) => handlers.set(name, handler),
-    getAllTools: () => active.map((name) => ({ name })),
+    getCommands: () => [{name:'mcp',sourceInfo:{path:'builtin:mcp'}}], getFlag: () => undefined, events: { on: () => () => {} },
+    getAllTools: () => active.map((name) => ({ name, sourceInfo: { path: name.startsWith('mcp__') ? 'builtin:mcp' : 'devspec-tools.ts' } })),
     getActiveTools: () => active,
     setActiveTools: (next: string[]) => { active = next; },
   } as unknown as ExtensionAPI;
-  const ctx = { cwd, mode, hasUI, ui: { notify: (text: string, type: string) => notices.push({ text, type }) } } as unknown as ExtensionContext;
+  const ctx = { cwd, mode, hasUI: mode === "tui", isProjectTrusted: () => trusted,
+    ui: { notify: (text: string, type: string) => notices.push({ text, type }) } } as unknown as ExtensionContext;
   installGuard(pi);
-  return {
-    cwd, notices,
-    active: () => active,
-    refreshAdapter: () => { active.push("devspec_get_action_item"); },
-    start: () => handlers.get("session_start")!({}, ctx),
-    turn: () => handlers.get("before_agent_start")!({}, ctx),
-  };
+  return { cwd, notices, active: () => active,
+    start: async () => { await handlers.get("session_start")!({}, ctx); },
+    turn: () => handlers.get("before_agent_start")!({}, ctx) };
 }
-
-test("only a new override is announced; subsequent starts stay quiet with hidden agent context", async () => {
+test("native first change is announced once; fifty starts stay quiet; shared config is unchanged", async () => {
   const host = await harness(config);
   await host.start();
   assert.deepEqual(host.notices, [{ text: SUPPRESSION_NOTICE, type: "info" }]);
   assert.deepEqual(host.active(), ["get_action_item", "supabase_list_projects", "read"]);
-  const overlay = await readFile(join(host.cwd, ".pi", "mcp.json"), "utf8");
-  assert.deepEqual(JSON.parse(overlay), { mcpServers: { devspec: { disabled: true } } });
+  const saved = await readFile(join(host.cwd, ".pi/mcp.json"), "utf8");
+  assert.equal(JSON.parse(saved).mcpServers.devspec.enabled, false);
+  assert.equal(JSON.parse(saved).mcpServers.devspec.headers.Authorization, "Bearer fixture-only");
   assert.equal(await readFile(join(host.cwd, ".mcp.json"), "utf8"), config);
-
   const first = await host.turn() as ContextMessage;
-  assert.equal(first.message.customType, "devspec-mcp-guard");
   assert.equal(first.message.content, SUPPRESSION_AGENT_GUIDANCE);
   assert.equal(first.message.display, false);
   assert.doesNotMatch(first.message.content, /fixture-only|Bearer/);
-  host.refreshAdapter();
   assert.equal(await host.turn(), undefined);
-  assert.deepEqual(host.active(), ["get_action_item", "supabase_list_projects", "read"]);
-  assert.equal(host.notices.length, 1, "turns must not repeat terminal notifications");
-
-  await host.start(); // saved override, no new write
-  assert.deepEqual(host.notices, [{ text: SUPPRESSION_NOTICE, type: "info" }]);
-  for (let launch = 3; launch <= 50; launch++) await host.start();
-  assert.equal(host.notices.length, 1, "the fiftieth launch must not repeat established information");
-  assert.equal(await readFile(join(host.cwd, ".pi", "mcp.json"), "utf8"), overlay);
-  assert.equal(await readFile(join(host.cwd, ".mcp.json"), "utf8"), config);
-  assert.equal((await host.turn() as ContextMessage).message.content, SUPPRESSION_AGENT_GUIDANCE);
+  for(let i=0;i<49;i++) await host.start();
+  assert.equal(host.notices.length,1);
+  assert.equal(await readFile(join(host.cwd, ".pi/mcp.json"), "utf8"),saved);
 });
-
-test("no duplicate means no notice, no model note and no changes to foreign tools", async () => {
-  const host = await harness(JSON.stringify({ mcpServers: { supabase: { url: "https://mcp.supabase.com/mcp" } } }));
-  const active = [...host.active()];
-  await host.start();
-  assert.deepEqual(host.notices, []);
-  assert.equal(await host.turn(), undefined);
-  assert.deepEqual(host.active(), active);
-  await assert.rejects(readFile(join(host.cwd, ".pi", "mcp.json")), { code: "ENOENT" });
+test("stock Pi ignores shared Claude config: no notices, overrides or model note", async () => {
+  const host=await harness(); await host.start();
+  assert.deepEqual(host.notices,[]); assert.equal(await host.turn(),undefined);
+  await assert.rejects(readFile(join(host.cwd,".pi/mcp.json")),{code:"ENOENT"});
+  await assert.rejects(readFile(join(host.cwd,".pi/mcp-adapter.json")),{code:"ENOENT"});
 });
-
-for (const [mode, hasUI] of [["rpc", true], ["json", false], ["print", false]] as const) {
-  test(`${mode}: agent receives the explanation without a terminal notification`, async () => {
-    const host = await harness(config, mode, hasUI);
-    await host.start();
-    assert.deepEqual(host.notices, []);
-    assert.equal((await host.turn() as ContextMessage).message.content, SUPPRESSION_AGENT_GUIDANCE);
-    assert.equal(await host.turn(), undefined);
-  });
-}
-
-test("failed persistence does not announce a successfully disabled server", async () => {
-  const host = await harness(config);
-  await writeFile(join(host.cwd, ".pi"), "not a directory");
-  await host.start();
-  assert.deepEqual(host.notices, []);
-  assert.equal(await readFile(join(host.cwd, ".mcp.json"), "utf8"), config);
+test("untrusted project config is neither read nor changed",async()=>{
+  const host=await harness(config,"tui",false); await host.start();
+  assert.equal(await readFile(join(host.cwd,".pi/mcp.json"),"utf8"),config);
+  assert.deepEqual(host.notices,[]);
 });
-
-test("user-level shared MCP configuration is untouched", async () => {
-  const dir = join(home, ".config", "mcp");
-  await mkdir(dir, { recursive: true });
-  const path = join(dir, "mcp.json");
-  await writeFile(path, config);
-  try {
-    const host = await harness();
-    await host.start();
-    assert.deepEqual(host.notices, [{ text: SUPPRESSION_NOTICE, type: "info" }]);
-    assert.equal(await readFile(path, "utf8"), config);
-    assert.deepEqual(JSON.parse(await readFile(join(host.cwd, ".pi", "mcp.json"), "utf8")), { mcpServers: { devspec: { disabled: true } } });
-  } finally {
-    await rm(path);
-  }
+for(const mode of ["rpc","json","print"]) test(`${mode}: hidden guidance without routine notification`,async()=>{
+  const host=await harness(config,mode); await host.start();
+  assert.deepEqual(host.notices,[]);
+  assert.equal((await host.turn() as ContextMessage).message.content,SUPPRESSION_AGENT_GUIDANCE);
 });
-
-test("agent guidance explains the symptom without promising healthy native tools", () => {
-  assert.match(SUPPRESSION_AGENT_GUIDANCE, /expected, not a sign-in or connection failure/);
-  assert.match(SUPPRESSION_AGENT_GUIDANCE, /do not re-enable the duplicate or delete shared MCP configuration/);
-  assert.match(SUPPRESSION_AGENT_GUIDANCE, /Pi-only/);
-  assert.match(SUPPRESSION_AGENT_GUIDANCE, /Explain this only if asked/);
-  assert.match(SUPPRESSION_AGENT_GUIDANCE, /Do not announce this proactively/);
-  assert.match(SUPPRESSION_AGENT_GUIDANCE, /Claude Code settings or foreign MCP servers/);
-  assert.match(SUPPRESSION_AGENT_GUIDANCE, /does not prove.*signed in or healthy/);
-  assert.match(SUPPRESSION_AGENT_GUIDANCE, /\/devspec.status and \/devspec.login/);
+test("malformed config remains intact and produces a redacted actionable warning",async()=>{
+  const host=await harness('{"secret":"fixture-secret"'); await host.start();
+  assert.equal(await readFile(join(host.cwd,".pi/mcp.json"),"utf8"),'{"secret":"fixture-secret"');
+  assert.equal(host.notices[0].type,"warning");
+  assert.doesNotMatch(host.notices[0].text,/fixture-secret/);
+});
+test("guidance distinguishes suppression from connection health",()=>{
+  assert.match(SUPPRESSION_AGENT_GUIDANCE,/does not prove.*signed in or healthy/);
+  assert.match(SUPPRESSION_AGENT_GUIDANCE,/Do not announce this proactively/);
 });

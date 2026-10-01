@@ -106,8 +106,8 @@ tricks that silently break on other models).
 
 ### 6. Own the first ten minutes
 
-Stock Pi has real discoverability gaps (e.g. thinking level is Shift+Tab or
-`/settings`, not a slash command; no MCP or sub-agents built in). This package
+Stock Pi has real discoverability gaps (e.g. discovering thinking-level controls and optional subagents).
+Pi 1.0 includes MCP; use the host's implementation for external services. This package
 owns onboarding: first-run login flow, `/devspec.help`, sensible defaults —
 so "install Pi, install package" feels like downloading a purpose-built app.
 
@@ -201,14 +201,14 @@ This is the crucial middle path:
 - We are **not** dependent on a third-party MCP adapter or a second process.
 - We are **not** inventing a parallel REST surface that devspecv2 must
   maintain. The MCP tool surface stays the single binding contract.
-- The same embedded client can optionally mount the **user's own MCP servers**
-  (e.g. Supabase) from a standard config — one install, their servers work,
-  headless workers included. (Prototype early; de-risks the one-package promise.)
-- A `devspec` entry in project `.mcp.json` (the file other hosts use) is **not**
-  a second connection. The extension detects DevSpec's own origin and writes
-  `{ disabled: true }` to the Pi-local overlay (`.pi/mcp.json`) so the adapter
-  never registers those verbs. The shared file is left untouched. Foreign
-  servers stay.
+- Pi 1.0 owns external MCP servers. Do not rebuild its MCP client or require
+  pi-mcp-adapter for a fresh install. The adapter remains an optional user choice.
+- Stock Pi does not import shared/Claude MCP configuration. Only an actual Pi
+  configuration or a loaded adapter's effective configuration needs duplicate
+  protection. Native entries use `enabled: false` in Pi-owned `mcp.json`;
+  adapter entries use `disabled: true` in `mcp-adapter.json`. Shared files and
+  other hosts stay untouched. Trust gates project reads/writes. Conservative
+  legacy-overlay migration preserves full native definitions and credentials.
 
 ### Instructions without skill-sprawl
 

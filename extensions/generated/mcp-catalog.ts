@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: fc4753d041de21b349b81f56d2d2fc7e79994509d8c317d753d074f93656ce9b
- * Description fingerprint: 8b4d0a5cad752731e9f288d3b5116764d4026447b72e7afa150e71272e84cec3
- * Regenerated: 2026-09-30T22:00:37.449Z
+ * Schema fingerprint: 397c415e0db70c940af212c0641d41bd087e82969604104bceb0045b23d805c4
+ * Description fingerprint: 4b3d7710d861fae8300018d22976f2146b28792f726d20fa7da8d3a7ae89b79f
+ * Regenerated: 2026-10-01T16:46:55.141Z
  */
-export const MCP_CATALOG_FINGERPRINT = "fc4753d041de21b349b81f56d2d2fc7e79994509d8c317d753d074f93656ce9b";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "8b4d0a5cad752731e9f288d3b5116764d4026447b72e7afa150e71272e84cec3";
-export const MCP_CATALOG_GENERATED_AT = "2026-09-30T22:00:37.449Z";
+export const MCP_CATALOG_FINGERPRINT = "397c415e0db70c940af212c0641d41bd087e82969604104bceb0045b23d805c4";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "4b3d7710d861fae8300018d22976f2146b28792f726d20fa7da8d3a7ae89b79f";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-01T16:46:55.141Z";
 export const TOOL_CATALOG_VERSION = "a9e7f4ef4c7b7922d3a6f98c731b70f99e9cdcd98d3b0b3c4ef8d42a87219b37";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -1031,11 +1031,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"human_requested",
 						"agent_initiative",
 						"automatic",
+						"unattributed",
 						"nobody_asked",
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = those last two together; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
 					"type": "string",
@@ -1203,11 +1204,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"human_requested",
 						"agent_initiative",
 						"automatic",
+						"unattributed",
 						"nobody_asked",
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = those last two together; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
 					"type": "string",
@@ -1271,11 +1273,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"human_requested",
 						"agent_initiative",
 						"automatic",
+						"unattributed",
 						"nobody_asked",
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = those last two together; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
 					"type": "string",
@@ -1334,11 +1337,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"human_requested",
 						"agent_initiative",
 						"automatic",
+						"unattributed",
 						"nobody_asked",
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = those last two together; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
 					"type": "string",
@@ -1505,11 +1509,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"human_requested",
 						"agent_initiative",
 						"automatic",
+						"unattributed",
 						"nobody_asked",
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = those last two together; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
 					"type": "string",
@@ -1583,11 +1588,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"human_requested",
 						"agent_initiative",
 						"automatic",
+						"unattributed",
 						"nobody_asked",
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = those last two together; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
 					"type": "string",
@@ -1654,11 +1660,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"human_requested",
 						"agent_initiative",
 						"automatic",
+						"unattributed",
 						"nobody_asked",
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = those last two together; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
 					"type": "string",
@@ -1717,11 +1724,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"human_requested",
 						"agent_initiative",
 						"automatic",
+						"unattributed",
 						"nobody_asked",
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = those last two together; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
 					"type": "string",
@@ -2439,11 +2447,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"human_requested",
 						"agent_initiative",
 						"automatic",
+						"unattributed",
 						"nobody_asked",
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = those last two together; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
 					"type": "string",
@@ -2522,11 +2531,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"human_requested",
 						"agent_initiative",
 						"automatic",
+						"unattributed",
 						"nobody_asked",
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = those last two together; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
 					"type": "string",
@@ -2586,11 +2596,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"human_requested",
 						"agent_initiative",
 						"automatic",
+						"unattributed",
 						"nobody_asked",
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = those last two together; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
 					"type": "string",
@@ -2639,11 +2650,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"human_requested",
 						"agent_initiative",
 						"automatic",
+						"unattributed",
 						"nobody_asked",
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = those last two together; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
 					"type": "string",
@@ -2850,11 +2862,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"human_requested",
 						"agent_initiative",
 						"automatic",
+						"unattributed",
 						"nobody_asked",
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = those last two together; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
 					"type": "string",
@@ -2899,11 +2912,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"human_requested",
 						"agent_initiative",
 						"automatic",
+						"unattributed",
 						"nobody_asked",
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = those last two together; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
 					"type": "string",
@@ -2956,11 +2970,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"human_requested",
 						"agent_initiative",
 						"automatic",
+						"unattributed",
 						"nobody_asked",
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = those last two together; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
 					"type": "string",
@@ -3005,11 +3020,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"human_requested",
 						"agent_initiative",
 						"automatic",
+						"unattributed",
 						"nobody_asked",
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = those last two together; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
 					"type": "string",
@@ -3550,7 +3566,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_automations",
 		"label": "DevSpec: Get Automations",
-		"description": "List the caller's own AUTOMATIONS — named, reusable agent jobs, run again and again. An automation is NOT an action item: an action item is done once and then finished, an automation is meant to be run again forever and never completes. Automations are PRIVATE to their owner; this only ever returns yours. Pass `name` to resolve one the user named (case-insensitive; exact matches win) — that is what makes \"run my fix-build automation\" work from a conversation. Pass `query` instead to SEARCH when you don't know the wording: full-text over name, instruction and tags, best match first — the same retrieval the Automations page runs.",
+		"description": "List the AUTOMATIONS the caller can see — named, reusable agent jobs, run again and again: their own, plus the ones teammates shared with the project. An automation is NOT an action item: an action item is done once and then finished, an automation is meant to be run again forever and never completes. Each row says whose it is (`created_by`, `yours`) and who can see it (`visibility`: private = only its author, project = everyone on the project). Anyone who can see one can run it on their own agents; only its author can change, archive or un-share it. Pass `name` to resolve one the user named (case-insensitive; exact matches win) — that is what makes \"run my fix-build automation\" work from a conversation. Pass `query` instead to SEARCH when you don't know the wording: full-text over name, instruction and tags, best match first — the same retrieval the Automations page runs.",
 		"promptSnippet": "Browse your saved repeatable jobs. Use get_automation for a definition and get_automation_runs for executions; these are not one-off action items.",
 		"searchIntent": "list saved recurring reusable jobs automations",
 		"modelInputSchema": {
@@ -3608,7 +3624,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_automation",
 		"label": "DevSpec: Get Automation",
-		"description": "Fetch one of the caller's own automations in full, by `automation_id` or by `name`. When a name matches several, the response comes back with `ambiguous: true` and the candidates rather than guessing — ask which one, or call again with the id.",
+		"description": "Fetch one automation the caller can see (their own or one shared with the project) in full, by `automation_id` or by `name`. When a name matches several, the response comes back with `ambiguous: true` and the candidates rather than guessing — ask which one, or call again with the id.",
 		"promptSnippet": "Read one saved automation’s full instructions and criteria by ID or name. Use this before editing its definition.",
 		"searchIntent": "read one saved automation job definition instructions",
 		"modelInputSchema": {
@@ -3724,7 +3740,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_personal_instructions",
 		"label": "DevSpec: Get Personal Instructions",
-		"description": "Read YOUR OWN personal instruction tiers — the two settings on the calling token's account. They are `personal_agent_rules` (You → Coding agents → Personal agent rules: this machine and how this person works locally — installed tools, local ports, personal workflow; agents only, never shown to the in-session AI) and `chat_response_style` (You → Replies & voice → Response style: personal conversational tone). Null means the user has not set that one. Scope comes from the token, so there is no way to read another user's personal tiers here, and no project is involved. Use this before amending them with update_personal_instructions, or when the user asks what their current rules say. Note the team tiers are separate and are NOT here: project principles and project agent rules arrive with the project context (get_project_summary, claim_work_item).",
+		"description": "Read YOUR OWN personal instruction tiers — the two settings on the calling token's account. They are `personal_agent_rules` (Agent rules on the Agents settings page, /settings/agents#agent-rules: this machine and how this person works locally — installed tools, local ports, personal workflow; agents only, never shown to the in-session AI) and `chat_response_style` (Response style on the Replies & voice settings page, /settings/replies: personal conversational tone). Null means the user has not set that one. Scope comes from the token, so there is no way to read another user's personal tiers here, and no project is involved. Use this before amending them with update_personal_instructions, or when the user asks what their current rules say. Note the team tiers are separate and are NOT here: project principles and project agent rules arrive with the project context (get_project_summary, claim_work_item).",
 		"promptSnippet": "Read your own agent rules and response style. These are personal settings, not project-wide conventions or another person’s preferences.",
 		"searchIntent": "read own personal agent instructions response style preferences",
 		"modelInputSchema": {
@@ -5166,7 +5182,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "create_automation",
 		"label": "DevSpec: Create Automation",
-		"description": "Save a reusable job as a AUTOMATION. This — not the editor page — is the primary way automations get made: you can see the user's machine and they should not have to hand-author fields.\n\nTHE MOMENT TO USE IT: the user has just done something they are likely to repeat, or has described such a job. Offer it (\"want me to save that as an automation so you can run it again?\") and create it once they agree.\n\nOnly `instruction` is required. Write it as INTENT, never as machine-specific paths — \"find my coding-agent plugin repos and pull them\" works on any machine of theirs; \"cd C:/Users/x/repos\" works on one. Fill the optional fields from what you can actually SEE (which repos exist, which build commands they use, which tools are connected) and tell the user what you added.\n\n`acceptance_criteria` is a LIST of short checkable lines, not a paragraph — each run returns a verdict per line, so \"every repo builds\" is useful and \"make sure it all works\" is not. Propose a few even when the user does not ask.\n\nAutomations are private to their owner; you cannot create one for anybody else.",
+		"description": "Save a reusable job as a AUTOMATION. This — not the editor page — is the primary way automations get made: you can see the user's machine and they should not have to hand-author fields.\n\nTHE MOMENT TO USE IT: the user has just done something they are likely to repeat, or has described such a job. Offer it (\"want me to save that as an automation so you can run it again?\") and create it once they agree.\n\nOnly `instruction` is required. Write it as INTENT, never as machine-specific paths — \"find my coding-agent plugin repos and pull them\" works on any machine of theirs; \"cd C:/Users/x/repos\" works on one. Fill the optional fields from what you can actually SEE (which repos exist, which build commands they use, which tools are connected) and tell the user what you added.\n\n`acceptance_criteria` is a LIST of short checkable lines, not a paragraph — each run returns a verdict per line, so \"every repo builds\" is useful and \"make sure it all works\" is not. Propose a few even when the user does not ask.\n\nIt is saved as the caller's own and private to them unless you pass `visibility: \"project\"` — do that only when they ask to share it with the team. You cannot create one for anybody else.",
 		"promptSnippet": "Save a reusable job with instructions and criteria for repeated execution. Use an action item for one-off work and an artifact for a reference document, not an automation.",
 		"searchIntent": "save create schedule recurring repeatable reusable job run repeatedly automation",
 		"modelInputSchema": {
@@ -5233,6 +5249,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"enabled": {
 					"type": "boolean",
 					"description": "Defaults to true."
+				},
+				"visibility": {
+					"type": "string",
+					"enum": [
+						"private",
+						"project"
+					],
+					"description": "Who can see it. private (default) = only the caller. project = everyone on the project can see it and run it on their own agents; only the caller can change it. Share only when the user asks."
 				},
 				"tags": {
 					"type": "array",
@@ -5331,6 +5355,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "boolean",
 					"description": "Defaults to true."
 				},
+				"visibility": {
+					"type": "string",
+					"enum": [
+						"private",
+						"project"
+					],
+					"description": "Who can see it. private (default) = only the caller. project = everyone on the project can see it and run it on their own agents; only the caller can change it. Share only when the user asks."
+				},
 				"tags": {
 					"type": "array",
 					"items": {
@@ -5368,7 +5400,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_automation",
 		"label": "DevSpec: Update Automation",
-		"description": "Patch one of the caller's own automations. Only the fields you pass change.\n\nWhen editing `acceptance_criteria`, pass existing entries back as `{ id, text }` to KEEP their ids — a run's per-criterion verdicts reference those ids, so reusing them means past results still line up against the right line. Bare strings are treated as new criteria.",
+		"description": "Patch one of the caller's own automations. Only the fields you pass change. A shared automation someone else wrote cannot be changed — the call is refused, and the user can still run it.\n\nWhen editing `acceptance_criteria`, pass existing entries back as `{ id, text }` to KEEP their ids — a run's per-criterion verdicts reference those ids, so reusing them means past results still line up against the right line. Bare strings are treated as new criteria.",
 		"promptSnippet": "Amend an existing reusable job. Preserve criterion IDs for unchanged criteria so past run evidence remains attached; this edits the definition, not an execution.",
 		"searchIntent": "edit update existing reusable automation job definition",
 		"modelInputSchema": {
@@ -5436,6 +5468,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"enabled": {
 					"type": "boolean",
 					"description": "Enable or disable it."
+				},
+				"visibility": {
+					"type": "string",
+					"enum": [
+						"private",
+						"project"
+					],
+					"description": "Share it with the project (project) or make it private again (private). An automation that runs for the whole project stays shared."
 				},
 				"tags": {
 					"type": "array",
@@ -5530,6 +5570,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"enabled": {
 					"type": "boolean",
 					"description": "Enable or disable it."
+				},
+				"visibility": {
+					"type": "string",
+					"enum": [
+						"private",
+						"project"
+					],
+					"description": "Share it with the project (project) or make it private again (private). An automation that runs for the whole project stays shared."
 				},
 				"tags": {
 					"type": "array",
@@ -14023,7 +14071,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_personal_instructions",
 		"label": "DevSpec: Update Personal Instructions",
-		"description": "Amend YOUR OWN personal instruction tiers on the calling token's account: `personal_agent_rules` (You → Coding agents → Personal agent rules — this machine and how you work locally) and `chat_response_style` (You → Replies & voice → Response style). Use this instead of telling the user to copy-paste text into the web UI. Scope is the token's user; no argument can redirect the write to anyone else, and the two TEAM tiers (project principles, project agent rules) are deliberately NOT writable here — they govern everyone on the project. DEFAULTS TO APPEND: pass just the new rule and it is added to what is already there, so you never restate the user's existing text (rewriting a whole field to add one line eventually drops something they wrote by hand). Pass mode:\"replace\" only when the user actually wants the tier rewritten or cleared. ALWAYS show the user the exact resulting text and get their agreement BEFORE it lands — call with dry_run:true to get that text back without saving, show it, then call again without dry_run once they confirm. Refuses to run from an unattended run — the served contract (devspec://product/implementation-contract → authority_contract, personal scope) keeps a person's own instructions to the person themselves.",
+		"description": "Amend YOUR OWN personal instruction tiers on the calling token's account: `personal_agent_rules` (Agent rules on the Agents settings page, /settings/agents#agent-rules — this machine and how you work locally) and `chat_response_style` (Response style on the Replies & voice settings page, /settings/replies). Use this instead of telling the user to copy-paste text into the web UI. Scope is the token's user; no argument can redirect the write to anyone else, and the two TEAM tiers (project principles, project agent rules) are deliberately NOT writable here — they govern everyone on the project. DEFAULTS TO APPEND: pass just the new rule and it is added to what is already there, so you never restate the user's existing text (rewriting a whole field to add one line eventually drops something they wrote by hand). Pass mode:\"replace\" only when the user actually wants the tier rewritten or cleared. ALWAYS show the user the exact resulting text and get their agreement BEFORE it lands — call with dry_run:true to get that text back without saving, show it, then call again without dry_run once they confirm. Refuses to run from an unattended run — the served contract (devspec://product/implementation-contract → authority_contract, personal scope) keeps a person's own instructions to the person themselves.",
 		"promptSnippet": "Amend your own agent rules or response style when requested. Use team instruction tools for project-wide policy; do not write another person’s preferences.",
 		"searchIntent": "change update own personal agent instructions response style preferences",
 		"modelInputSchema": {

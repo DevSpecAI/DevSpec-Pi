@@ -317,9 +317,23 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// Rebaselined 2026-09-30 for 50eb6a61: get_memory adds only optional
 	// history_before/history_limit. It stays a full exact read, and the test
 	// below pins lossless body plus actionable continuation. No verbs/families changed.
+	// Rebaselined 2026-10-01 for DevSpec item 1b7592bd (sharing an automation with
+	// the project), regenerated against server staging plus that change. Compared
+	// old/new generated objects by name/inputSchema: 85 model verbs before and
+	// after, none added or removed, no required or type change. Two inputs are new
+	// — create_automation.visibility and update_automation.visibility (optional
+	// private|project) — and the automation verbs' descriptions now say a list
+	// includes teammates' shared automations and that only the author can change
+	// one. The regeneration also carries server changes Pi had not yet picked up:
+	// request_origin gained "unattributed" on get_action_items,
+	// search_action_items, get_resources, search_resources, search_memories,
+	// get_decisions, get_conventions and get_unresolved_questions, and the
+	// personal-instructions descriptions now point at the Agents settings page. No
+	// projection family or hot-set membership changed. Benchmark before/after:
+	// initial surface 30,722 -> 31,061 estimated tokens; every budget still passes.
 	assert.equal(
 		fingerprint,
-		"a2ae16f1d89978f491aad900ce7202c3cc02861bfdc9f9284cc54590cf9d7c10",
+		"222f970bb2d1f3cbbc6bf6dd95ce5651ff99dbec2cb0c38243516472c53d3ef0",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

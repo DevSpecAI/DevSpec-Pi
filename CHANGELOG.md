@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.48
+
+- Leaving a commit unspecified no longer attaches the process's sole recent commit to unrelated work. The server's claim-scoped observations remain responsible for automatic selection.
+- Short commit hints now reach the project-wide resolver unchanged instead of being expanded from one checkout or an arbitrary ledger match. Supported normalized hex hints retain their original bytes; malformed revision/shell syntax is still rejected.
+- Explicit full objects can still carry corroborated message bytes. Added actual-Pi native-tool conformance for omitted, short and full hints after a real commit. Update and reload/restart to load the correction; existing erroneous records are not silently rewritten.
+
 ## 0.3.47
 
 - Queued commit observations no longer adopt a later login, server, or repository. Reports retain their original connection capability and endpoint; changed account or repository bindings are dropped rather than reassigned.

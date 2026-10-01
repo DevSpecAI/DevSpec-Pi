@@ -5,8 +5,9 @@
  * SHA — it should HAVE it. Ali watched a hand-typed SHA land wrong past the
  * short prefix (2026-08-12): "it should be mechanical, impossible to get
  * wrong." So: the extension recognizes ordinary Git commit/merge result output,
- * keeps the resulting SHAs, and record_implementation is validated against that ledger
- * (plus the repo's own object store) before anything reaches the server.
+ * keeps the resulting SHAs, and can corroborate an explicitly supplied full object.
+ * Missing/short hints stay missing/short: only the server's scoped evidence can
+ * select an implementation commit or establish project-wide prefix uniqueness.
  *
  * Same principle class as mechanical-only delivery (cc9e8c43): when the system
  * knows the SHA, it says it — never the model's job to remember or transcribe.
@@ -29,7 +30,7 @@ export interface LedgerCommit {
 
 const GLOBAL_KEY = "__devspecPiCommitLedger";
 const MAX_ENTRIES = 20;
-/** A commit is a candidate for auto-fill for 30 minutes. */
+/** Retain recent explicit-object metadata for 30 minutes; never infer work identity. */
 const RECENT_MS = 30 * 60 * 1000;
 
 interface LedgerStore {
@@ -141,61 +142,54 @@ export type CommitShaVerdict = {
 	ok: true;
 	/** The sha to send, or null to send none (the server's own fill runs). */
 	sha: string | null;
+	/** Retained result shape; caller hints are never locally auto-filled. */
 	autoFilled: boolean;
 	/**
-	 * True when the value is a HINT the local process could not verify: not in
-	 * this session's ledger, not resolvable in the session cwd's object store.
-	 * Hints pass through to the server, which resolves across ALL tracked repos
-	 * and stores what it cannot resolve as provisional (ADR 60efaed0). A local
-	 * miss is never a verdict in a multi-repo project.
+	 * True for every short hint or an uncorroborated full object. Local prefix
+	 * matches cannot establish uniqueness across the project. Hints pass to the
+	 * server unchanged for scoped resolution/provisional storage (ADR 60efaed0).
+	 * A local miss is never an identity verdict in a multi-repo project.
 	 */
 	unverified?: boolean;
 	commitMessage?: string;
 } | { ok: false; error: string };
 
-function ledgerVerdict(commit: LedgerCommit, autoFilled: boolean): CommitShaVerdict {
+function ledgerVerdict(commit: LedgerCommit, input: string): CommitShaVerdict {
 	return {
 		ok: true,
-		sha: commit.sha,
-		autoFilled,
+		sha: input,
+		autoFilled: false,
 		...(commit.commitMessage ? { commitMessage: commit.commitMessage } : {}),
 	};
 }
 
 /**
- * Validate (or fill) the commit_sha for record_implementation — BEFORE the
- * server call. The ledger and the local object store are ACCURACY ASSISTANCE:
- * a hit attaches the mechanically-captured message and the canonical 40-char
- * value. A miss is a hint, never an error — the server resolves project-wide
- * (item b07a518f; the 4221d08e incident: a real, pushed, tagged commit on a
- * sibling repo was refused six times by the old hard gate). The only refusal
- * left is shape: values that are not hex at all (`HEAD`, `manual`, 41/42-char
- * mistypes) — garbage, not identity.
+ * Validate commit_sha shape before record_implementation. A full object can
+ * carry locally corroborated message bytes, never authorship or round proof.
+ * A sole recent commit is NOT an item/claim binding (P7 / e47fcd4e: report-only
+ * P6 inherited the preceding P4 commit). A cwd or ledger prefix match is NOT
+ * project-wide uniqueness. Preserve omissions and every supplied hint's bytes
+ * for the server's scoped resolver. Only malformed normalized shapes refuse;
+ * local misses, ambiguous prefixes and absent hints always remain fail-open.
  */
 export function validateCommitSha(input: string | undefined, resolve: GitResolver, now: number = Date.now()): CommitShaVerdict {
-	const recent = recentCommits().filter((c) => now - c.at <= RECENT_MS);
-
-	if (!input || !input.trim()) {
-		if (recent.length === 1) return ledgerVerdict(recent[0], true);
-		// No sha sent at all: the server's mechanical fill (claim-scoped
-		// observation) and the tag on the landed commit carry the identity.
+	if (input == null || (typeof input === "string" && !input.trim())) {
 		return { ok: true, sha: null, autoFilled: false, unverified: true };
 	}
-
-	const sha = input;
-	if (sha !== sha.trim() || !COMMIT_SHA_INPUT.test(sha)) {
+	const normalized = typeof input === "string" ? input.trim().toLowerCase() : "";
+	if (!COMMIT_SHA_INPUT.test(normalized)) {
 		return {
 			ok: false,
-			error: "commit_sha must be 7–40 lowercase hexadecimal characters; revision syntax and shell text are not accepted.",
+			error: "commit_sha must contain 7–40 hexadecimal characters; revision syntax and shell text are not accepted.",
 		};
 	}
-	const hit = recent.find((c) => c.sha === sha || c.sha.startsWith(sha));
-	if (hit) return ledgerVerdict(hit, false);
+	if (normalized.length < 40) return { ok: true, sha: input, autoFilled: false, unverified: true };
 
-	const resolved = resolve(`${sha}^{commit}`);
-	if (resolved) return { ok: true, sha: resolved, autoFilled: false };
+	const recent = recentCommits().filter((c) => now - c.at <= RECENT_MS);
+	const hit = recent.find((c) => c.sha === normalized);
+	if (hit) return ledgerVerdict(hit, input);
 
-	// Local miss → the value passes through as a hint. The server resolves it
-	// against every tracked repo of the project or stores it provisional.
-	return { ok: true, sha, autoFilled: false, unverified: true };
+	const resolved = resolve(`${normalized}^{commit}`);
+	if (resolved === normalized) return { ok: true, sha: input, autoFilled: false };
+	return { ok: true, sha: input, autoFilled: false, unverified: true };
 }

@@ -54,7 +54,7 @@ test("every generated local_session_id input is host stamped", () => {
 	}
 });
 
-test("the ledger owns SHA/message while Pi conservatively omits source attribution", () => {
+test("an explicit full-object verdict carries its message without inventing source attribution", () => {
 	const stamped = applyCommitLedgerVerdict({
 		commit_sha: "model-sha",
 		commit_message: "model message",
@@ -62,7 +62,7 @@ test("the ledger owns SHA/message while Pi conservatively omits source attributi
 	}, {
 		ok: true,
 		sha: "a".repeat(40),
-		autoFilled: true,
+		autoFilled: false,
 		commitMessage: "actual commit\n\n[devspec:aaaaaaaa]",
 	});
 	assert.equal(stamped.commit_sha, "a".repeat(40));

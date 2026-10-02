@@ -337,7 +337,9 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// pinned losslessly below; generated guidance preserves cautions and failures.
 	assert.equal(
 		fingerprint,
-		"70eed8566f1f1505500010019aa25951cc76856f73121f951bd1f4e5c331cf1e",
+		// b0507ae2: only the two optional evidence parameter descriptions changed;
+		// no inputs, required fields, verb inventory or result projections changed.
+		"7deacc7a6d1705e3e418d217099451f753c7657a484c2ab0f8c81b7d85fc172d",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

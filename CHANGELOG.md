@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.52
+
+- Memory tool guidance no longer advertises unfinished workflows. Optional evidence pagination remains compatible, and enabled server responses retain their complete reading guidance.
+- Refresh the generated server catalogue; reload/restart after updating to load the new descriptions.
+
 ## 0.3.51
 
 - Full requirement reads expose the server's independent evidence pagination, preserving exact versions, observation dates, coverage and cautions. Failed evidence reads remain unavailable rather than empty or passed.

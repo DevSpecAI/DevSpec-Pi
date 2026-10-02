@@ -11,6 +11,17 @@ import {
 	MCP_CATALOG_FINGERPRINT,
 } from "../extensions/generated/mcp-catalog.ts";
 
+test('memory tools retain compatible evidence inputs without advertising Requirements', () => {
+	for (const name of ['get_memory', 'search_memories', 'record_memory']) {
+		const tool = MCP_CATALOG.find(tool => tool.name === name)!;
+		assert.doesNotMatch(tool.promptSnippet, /\brequirements?\b/i);
+		assert.doesNotMatch(JSON.stringify(tool.modelInputSchema), /Requirements only/);
+	}
+	const read = MCP_CATALOG.find(tool => tool.name === 'get_memory')!;
+	assert.ok((read.modelInputSchema.properties as Record<string, unknown>).evidence_before);
+	assert.ok((read.modelInputSchema.properties as Record<string, unknown>).evidence_limit);
+});
+
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const EXPLICIT_V2_ROOT = process.env.DEVSPEC_V2_ROOT?.trim() || null;
 const DEFAULT_V2_ROOTS = [

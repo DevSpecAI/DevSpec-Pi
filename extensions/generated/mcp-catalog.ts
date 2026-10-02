@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 67b1546b4386c856193f9c8e99310fcb20b2a04b817fa829702a375ee3e0bb78
+ * Schema fingerprint: 96f5a9978de505d996530f6dda4d4b0a5c04fe82bcf3326b500274ec912cb0dc
  * Description fingerprint: 4b3d7710d861fae8300018d22976f2146b28792f726d20fa7da8d3a7ae89b79f
- * Regenerated: 2026-10-02T13:09:06.194Z
+ * Regenerated: 2026-10-02T17:04:53.855Z
  */
-export const MCP_CATALOG_FINGERPRINT = "67b1546b4386c856193f9c8e99310fcb20b2a04b817fa829702a375ee3e0bb78";
+export const MCP_CATALOG_FINGERPRINT = "96f5a9978de505d996530f6dda4d4b0a5c04fe82bcf3326b500274ec912cb0dc";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "4b3d7710d861fae8300018d22976f2146b28792f726d20fa7da8d3a7ae89b79f";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-02T13:09:06.194Z";
-export const TOOL_CATALOG_VERSION = "5f989a1258eb7f89141fc9b535391a3fd61686aceaa1df19ee877232310c66a7";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-02T17:04:53.855Z";
+export const TOOL_CATALOG_VERSION = "2fda171b5007790a219a7e7b0eb8d0fa56140a96050301ecf65ec7e25b5fe6c7";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -176,8 +176,8 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_memory",
 		"name": "get memory",
-		"description": "Read one memory’s full decision, convention or rationale. Read the body before relying on or amending it; follow a superseded_by link to the current version. Change history is paged: pass history_next_before as history_before to retrieve older events. Requirements include exact-version dated evidence: retain coverage and cautions, and follow evidence_next_call independently of history. Unavailable evidence is not empty or proof of compliance.",
-		"intent": "read full memory decision convention requirement rationale"
+		"description": "Read one memory’s full decision, convention or rationale. Read the body before relying on or amending it; follow a superseded_by link to the current version. Change history is paged: pass history_next_before as history_before to retrieve older events. When a response includes dated evidence, retain its exact version, coverage and cautions, and follow evidence_next_call independently of history. Unavailable evidence is not empty or proof of compliance.",
+		"intent": "read full memory decision convention rationale"
 	},
 	{
 		"id": "get_personal_instructions",
@@ -338,8 +338,8 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_memory",
 		"name": "record memory",
-		"description": "Capture a durable decision, convention, requirement or rationale after checking existing knowledge. Propose capture in interactive sessions. Use an artifact for a substantial document and action items for work-in-flight or delivery evidence.",
-		"intent": "record save capture new durable memory decision convention requirement rationale"
+		"description": "Capture a durable decision, convention or rationale after checking existing knowledge. Propose capture in interactive sessions. Use an artifact for a substantial document and action items for work-in-flight or delivery evidence.",
+		"intent": "record save capture new durable memory decision convention rationale"
 	},
 	{
 		"id": "release_work_item",
@@ -416,8 +416,8 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "search_memories",
 		"name": "search memories",
-		"description": "Find project decisions, conventions, requirements and rationale by meaning or keywords. Search cards help choose a record; get_memory supplies the full authoritative body.",
-		"intent": "find search existing memory decision convention requirement rationale topic"
+		"description": "Find project decisions, conventions and rationale by meaning or keywords. Search cards help choose a record; get_memory supplies the full authoritative body.",
+		"intent": "find search existing memory decision convention rationale topic"
 	},
 	{
 		"id": "search_resources",
@@ -2331,8 +2331,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "get_memory",
 		"label": "DevSpec: Get Memory",
 		"description": "Fetch a SINGLE memory by id, including its FULL body. `search_memories`, `get_decisions`, `get_conventions` and `get_unresolved_questions` return only a CARD — title, one-line summary, type, state, tags and id — so call this to read what a decision actually says once you have found it there. Accepts the 8-char short code shown in the UI/transcripts (e.g. \"fce203a7\") or a full UUID. The payload also carries lineage: `superseded_by` when this version has been replaced (read that one instead), and `supersedes` when it replaced an earlier version. Reading the body before superseding or contradicting a memory is the point of this tool — the card is enough to CHOOSE a memory, not enough to overwrite one.",
-		"promptSnippet": "Read one memory’s full decision, convention or rationale. Read the body before relying on or amending it; follow a superseded_by link to the current version. Change history is paged: pass history_next_before as history_before to retrieve older events. Requirements include exact-version dated evidence: retain coverage and cautions, and follow evidence_next_call independently of history. Unavailable evidence is not empty or proof of compliance.",
-		"searchIntent": "read full memory decision convention requirement rationale",
+		"promptSnippet": "Read one memory’s full decision, convention or rationale. Read the body before relying on or amending it; follow a superseded_by link to the current version. Change history is paged: pass history_next_before as history_before to retrieve older events. When a response includes dated evidence, retain its exact version, coverage and cautions, and follow evidence_next_call independently of history. Unavailable evidence is not empty or proof of compliance.",
+		"searchIntent": "read full memory decision convention rationale",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -2354,13 +2354,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"evidence_before": {
 					"type": "string",
 					"format": "uuid",
-					"description": "Requirements only: continue evidence using requirement_evidence.nextBefore or evidence_next_call from this exact memory version. Omit for the first page. Evidence and change history have independent cursors; the full body is still returned."
+					"description": "When the response includes evidence: continue using its nextBefore or evidence_next_call from this exact memory version. Omit for the first page. Evidence and change history have independent cursors; the full body is still returned."
 				},
 				"evidence_limit": {
 					"type": "integer",
 					"minimum": 1,
 					"maximum": 100,
-					"description": "Requirements only: evidence page size, 1–100 (default 10). Follow evidence_next_call while requirement_evidence.hasMore is true. Preserve original observation dates, coverage and cautions; unavailable evidence is not an empty or passing result."
+					"description": "Evidence page size, 1–100 (default 10), when the response includes evidence. Follow evidence_next_call while its hasMore is true. Preserve original observation dates, coverage and cautions; unavailable evidence is not an empty or passing result."
 				}
 			},
 			"required": [
@@ -2388,13 +2388,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"evidence_before": {
 					"type": "string",
 					"format": "uuid",
-					"description": "Requirements only: continue evidence using requirement_evidence.nextBefore or evidence_next_call from this exact memory version. Omit for the first page. Evidence and change history have independent cursors; the full body is still returned."
+					"description": "When the response includes evidence: continue using its nextBefore or evidence_next_call from this exact memory version. Omit for the first page. Evidence and change history have independent cursors; the full body is still returned."
 				},
 				"evidence_limit": {
 					"type": "integer",
 					"minimum": 1,
 					"maximum": 100,
-					"description": "Requirements only: evidence page size, 1–100 (default 10). Follow evidence_next_call while requirement_evidence.hasMore is true. Preserve original observation dates, coverage and cautions; unavailable evidence is not an empty or passing result."
+					"description": "Evidence page size, 1–100 (default 10), when the response includes evidence. Follow evidence_next_call while its hasMore is true. Preserve original observation dates, coverage and cautions; unavailable evidence is not an empty or passing result."
 				}
 			},
 			"required": [
@@ -2407,8 +2407,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "search_memories",
 		"label": "DevSpec: Search Memories",
 		"description": "Hybrid search — full-text keyword matching + semantic (embedding) similarity, fused and ranked. Natural-language or keyword queries both work. Searches the project memory base for architecture decisions, coding conventions, identified risks, and recurring patterns. Returns a CARD per memory — id, title, one-line summary, type, state, tags — and NOT the body. That keeps a search affordable to run: bodies average ~1.8KB and a 15-result search used to return over 600,000 characters. Call `get_memory` with the id to read the full text of one you care about, and always do that before superseding or contradicting it: the card is enough to CHOOSE a memory, not enough to overwrite one. Matching still uses the whole body, so a query phrased in your own words finds a memory even when none of its title words appear.",
-		"promptSnippet": "Find project decisions, conventions, requirements and rationale by meaning or keywords. Search cards help choose a record; get_memory supplies the full authoritative body.",
-		"searchIntent": "find search existing memory decision convention requirement rationale topic",
+		"promptSnippet": "Find project decisions, conventions and rationale by meaning or keywords. Search cards help choose a record; get_memory supplies the full authoritative body.",
+		"searchIntent": "find search existing memory decision convention rationale topic",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -8397,8 +8397,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "record_memory",
 		"label": "DevSpec: Record Memory",
 		"description": "Record a project memory (decision, convention, architecture note, risk, insight, etc.). The create checks your draft against existing records FIRST (you do not have to call search_memories yourself). The check is instant — it finds the closest record, it does not read them — so one finding stops the write: an existing record closely resembles this one. The response carries reconcile_required + closest_match + guidance naming it. READ THAT RECORD AND DECIDE — that judgement is yours, it is why the check is fast, and it is recorded against the pair. Supersede it if this replaces it; link/relate if both stand; re-call with confirm_new: true if it is genuinely distinct; or say what you found and ask the person, which is a real answer and often the right one. Do not reach for confirm_new to get past the check. A fuller comparison runs afterwards in the background and may raise a flag on both records — but never on a pair you settled, unless one of them changes. If the check cannot run at all, the memory IS recorded and marked as not yet compared: an outage never costs you the write. The response also includes potential_conflicts (advisory). AUTHORITY: judged per call by the served contract (devspec://product/implementation-contract → authority_contract), never by this description. Read the `outcome`: `committed` applied now; `queued_for_review` carries a `proposal_id` and touches NOTHING until a maintainer accepts it — say which happened, and never report a queued change as done. An attended write may set state \"decided\". In interactive mode, propose the memory to the user before recording. Record what a future agent needs to know: settled decisions, conventions, architecture facts, risks, deviations from the planned approach, discovered constraints, and non-obvious findings. Do NOT record transient details, things obvious from code, or the state of work in flight (\"approved, not yet built\", \"awaiting a pick\", \"blocked on someone\") — that belongs on an action item, where it can be completed; in memory it decays into a phantom standing rule. Delivery evidence — what shipped, which commit, what passed — belongs on the action item too, not in memory. Record what a future decision needs that the existing record does not already preserve.",
-		"promptSnippet": "Capture a durable decision, convention, requirement or rationale after checking existing knowledge. Propose capture in interactive sessions. Use an artifact for a substantial document and action items for work-in-flight or delivery evidence.",
-		"searchIntent": "record save capture new durable memory decision convention requirement rationale",
+		"promptSnippet": "Capture a durable decision, convention or rationale after checking existing knowledge. Propose capture in interactive sessions. Use an artifact for a substantial document and action items for work-in-flight or delivery evidence.",
+		"searchIntent": "record save capture new durable memory decision convention rationale",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {

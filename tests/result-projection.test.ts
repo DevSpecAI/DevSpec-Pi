@@ -331,9 +331,13 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// personal-instructions descriptions now point at the Agents settings page. No
 	// projection family or hot-set membership changed. Benchmark before/after:
 	// initial surface 30,722 -> 31,061 estimated tokens; every budget still passes.
+	// Rebaselined 2026-10-02 for d4495280: only get_memory gains optional
+	// evidence_before/evidence_limit. No verb, required field or projection family
+	// changes. Full-memory evidence/wording and independent continuation are
+	// pinned losslessly below; generated guidance preserves cautions and failures.
 	assert.equal(
 		fingerprint,
-		"222f970bb2d1f3cbbc6bf6dd95ce5651ff99dbec2cb0c38243516472c53d3ef0",
+		"70eed8566f1f1505500010019aa25951cc76856f73121f951bd1f4e5c331cf1e",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -346,6 +350,19 @@ test("memory history continuation survives exact-read projection with all wordin
 	assert.equal(JSON.parse(text).body, payload.body);
 	assert.deepEqual(JSON.parse(text).history_next_call, payload.history_next_call);
 	assert.equal(JSON.parse(text).history_has_more, true);
+});
+
+test("requirement evidence stays lossless through full-memory native projection", () => {
+	const payload = { id: "old-version", body: huge("complete requirement"),
+		requirement_evidence: { status: "available", requirementVersionId: "old-version", version: 2,
+			entries: [{ coverage: huge("full coverage"), source: { observationId: "observation", observedAt: "2026-09-01T00:00:00Z" },
+				cautions: ["historical_requirement", "stale_observation"], reassessesId: "prior-link", withdrawnAt: "2026-10-01T00:00:00Z" }],
+			hasMore: true, nextBefore: "association" },
+		evidence_next_call: { tool: "get_memory", args: { id: "old-version", evidence_before: "association", evidence_limit: 1 } },
+		history_has_more: false };
+	assert.deepEqual(JSON.parse(projectModelText({ toolName: "get_memory", text: JSON.stringify(payload), details: payload })), payload);
+	const unavailable = { ...payload, requirement_evidence: { status: "unavailable", reason: "access_denied" } };
+	assert.deepEqual(JSON.parse(projectModelText({ toolName: "get_memory", text: JSON.stringify(unavailable), details: unavailable })), unavailable);
 });
 
 test("verb projections use explicit, loss-aware families", () => {

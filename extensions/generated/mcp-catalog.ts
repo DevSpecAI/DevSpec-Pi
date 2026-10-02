@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 397c415e0db70c940af212c0641d41bd087e82969604104bceb0045b23d805c4
+ * Schema fingerprint: 67b1546b4386c856193f9c8e99310fcb20b2a04b817fa829702a375ee3e0bb78
  * Description fingerprint: 4b3d7710d861fae8300018d22976f2146b28792f726d20fa7da8d3a7ae89b79f
- * Regenerated: 2026-10-01T16:46:55.141Z
+ * Regenerated: 2026-10-02T13:09:06.194Z
  */
-export const MCP_CATALOG_FINGERPRINT = "397c415e0db70c940af212c0641d41bd087e82969604104bceb0045b23d805c4";
+export const MCP_CATALOG_FINGERPRINT = "67b1546b4386c856193f9c8e99310fcb20b2a04b817fa829702a375ee3e0bb78";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "4b3d7710d861fae8300018d22976f2146b28792f726d20fa7da8d3a7ae89b79f";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-01T16:46:55.141Z";
-export const TOOL_CATALOG_VERSION = "a9e7f4ef4c7b7922d3a6f98c731b70f99e9cdcd98d3b0b3c4ef8d42a87219b37";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-02T13:09:06.194Z";
+export const TOOL_CATALOG_VERSION = "5f989a1258eb7f89141fc9b535391a3fd61686aceaa1df19ee877232310c66a7";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -176,7 +176,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_memory",
 		"name": "get memory",
-		"description": "Read one memory’s full decision, convention or rationale. Read the body before relying on or amending it; follow a superseded_by link to the current version. Change history is paged: pass history_next_before as history_before to retrieve older events.",
+		"description": "Read one memory’s full decision, convention or rationale. Read the body before relying on or amending it; follow a superseded_by link to the current version. Change history is paged: pass history_next_before as history_before to retrieve older events. Requirements include exact-version dated evidence: retain coverage and cautions, and follow evidence_next_call independently of history. Unavailable evidence is not empty or proof of compliance.",
 		"intent": "read full memory decision convention requirement rationale"
 	},
 	{
@@ -2331,7 +2331,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "get_memory",
 		"label": "DevSpec: Get Memory",
 		"description": "Fetch a SINGLE memory by id, including its FULL body. `search_memories`, `get_decisions`, `get_conventions` and `get_unresolved_questions` return only a CARD — title, one-line summary, type, state, tags and id — so call this to read what a decision actually says once you have found it there. Accepts the 8-char short code shown in the UI/transcripts (e.g. \"fce203a7\") or a full UUID. The payload also carries lineage: `superseded_by` when this version has been replaced (read that one instead), and `supersedes` when it replaced an earlier version. Reading the body before superseding or contradicting a memory is the point of this tool — the card is enough to CHOOSE a memory, not enough to overwrite one.",
-		"promptSnippet": "Read one memory’s full decision, convention or rationale. Read the body before relying on or amending it; follow a superseded_by link to the current version. Change history is paged: pass history_next_before as history_before to retrieve older events.",
+		"promptSnippet": "Read one memory’s full decision, convention or rationale. Read the body before relying on or amending it; follow a superseded_by link to the current version. Change history is paged: pass history_next_before as history_before to retrieve older events. Requirements include exact-version dated evidence: retain coverage and cautions, and follow evidence_next_call independently of history. Unavailable evidence is not empty or proof of compliance.",
 		"searchIntent": "read full memory decision convention requirement rationale",
 		"modelInputSchema": {
 			"type": "object",
@@ -2350,6 +2350,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"minimum": 1,
 					"maximum": 100,
 					"description": "Change-history page size, 1–100 (default 10). Follow history_next_before while history_has_more is true; one page is not the whole history."
+				},
+				"evidence_before": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Requirements only: continue evidence using requirement_evidence.nextBefore or evidence_next_call from this exact memory version. Omit for the first page. Evidence and change history have independent cursors; the full body is still returned."
+				},
+				"evidence_limit": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100,
+					"description": "Requirements only: evidence page size, 1–100 (default 10). Follow evidence_next_call while requirement_evidence.hasMore is true. Preserve original observation dates, coverage and cautions; unavailable evidence is not an empty or passing result."
 				}
 			},
 			"required": [
@@ -2373,6 +2384,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"minimum": 1,
 					"maximum": 100,
 					"description": "Change-history page size, 1–100 (default 10). Follow history_next_before while history_has_more is true; one page is not the whole history."
+				},
+				"evidence_before": {
+					"type": "string",
+					"format": "uuid",
+					"description": "Requirements only: continue evidence using requirement_evidence.nextBefore or evidence_next_call from this exact memory version. Omit for the first page. Evidence and change history have independent cursors; the full body is still returned."
+				},
+				"evidence_limit": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100,
+					"description": "Requirements only: evidence page size, 1–100 (default 10). Follow evidence_next_call while requirement_evidence.hasMore is true. Preserve original observation dates, coverage and cautions; unavailable evidence is not an empty or passing result."
 				}
 			},
 			"required": [

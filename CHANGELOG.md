@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.51
+
+- Full requirement reads expose the server's independent evidence pagination, preserving exact versions, observation dates, coverage and cautions. Failed evidence reads remain unavailable rather than empty or passed.
+- Keep the full memory body and evidence through native result projection. Reload or restart after updating to load the additive `get_memory` inputs; requirement authoring remains disabled.
+
 ## 0.3.50
 
 - Target Pi 1.0 and Node.js 22.19 or later. Pi’s built-in MCP is the default for other services; DevSpec still needs only this package and sign-in.

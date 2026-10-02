@@ -21,6 +21,23 @@ test("memory reads expose optional history continuation on the native and wire s
 	assert.match(entry.promptSnippet, /history_next_before/);
 });
 
+test("memory reads expose independent optional evidence continuation without enabling requirement writes", () => {
+	const entry = MCP_CATALOG.find(e => e.name === "get_memory")!;
+	for (const schema of [entry.inputSchema, entry.modelInputSchema]) {
+		const properties = schema.properties as Record<string, Record<string, unknown>>;
+		assert.equal(properties.evidence_before?.type, "string");
+		assert.equal(properties.evidence_before?.format, "uuid");
+		assert.equal(properties.evidence_limit?.minimum, 1);
+		assert.equal(properties.evidence_limit?.maximum, 100);
+		assert.deepEqual(schema.required, ["id"]);
+	}
+	assert.match(entry.promptSnippet, /evidence_next_call/);
+	assert.match(entry.promptSnippet, /Unavailable evidence is not empty/);
+	const writer = MCP_CATALOG.find(e => e.name === "record_memory")!;
+	const types = (writer.inputSchema.properties as Record<string, { enum?: string[] }>).type.enum!;
+	assert.ok(!types.includes("requirement"));
+});
+
 test("catalog classifies every host-only pump verb as non-model", () => {
 	for (const name of PUMP_VERBS) {
 		const entry = MCP_CATALOG.find((e) => e.name === name);

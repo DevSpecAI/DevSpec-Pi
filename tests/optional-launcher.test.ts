@@ -14,5 +14,7 @@ test("Pi package discovery and login do not install an independent launcher", ()
   const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
   assert.ok(pkg.pi.extensions.includes("./extensions"));
   assert.doesNotMatch(pkg.scripts.test, /launcher-test-env/);
-  assert.match(fs.readFileSync(new URL("../README.md", import.meta.url), "utf8"), /No launcher required/);
+  // The DevSpec Launcher is not offered to customers until it has a published
+  // install path, so the package README does not send readers to it.
+  assert.doesNotMatch(fs.readFileSync(new URL("../README.md", import.meta.url), "utf8"), /launcher/i);
 });

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.53
+
+- Action-item lists and search say when an item is only a suggestion awaiting review, or one a Maintainer declined, using the line the server sends. Agreed work is shown as before. Reload/restart after updating.
+
 ## 0.3.52
 
 - Memory tool guidance no longer advertises unfinished workflows. Optional evidence pagination remains compatible, and enabled server responses retain their complete reading guidance.

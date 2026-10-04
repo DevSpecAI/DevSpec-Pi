@@ -381,6 +381,21 @@ function pendingProposalLines(row: Row, outer: Row): string[] {
 	return lines;
 }
 
+/**
+ * Suggested work that is not agreed yet, or that a Maintainer declined (DevSpec
+ * decision 2ec0e288). The server attaches `agreement` only to such rows and writes
+ * its `line`, so Pi renders what it was sent, the same way as a pending proposal.
+ * A required block: dropping it under budget would show a suggestion as agreed work.
+ */
+function agreementLine(row: Row, outer: Row): string | null {
+	const entry = record(row.agreement) ?? record(outer.agreement);
+	if (!entry) return null;
+	const served = oneLine(entry.line, LINE_LIMIT);
+	if (served) return `\u26a0 ${served}`;
+	const state = oneLine(entry.state, 40);
+	return state ? `\u26a0 Not agreed work (${state}).` : null;
+}
+
 function card(raw: unknown, index: number): string {
 	const outer = record(raw) ?? { value: raw };
 	const row = nestedEntity(outer);
@@ -429,6 +444,8 @@ function card(raw: unknown, index: number): string {
 	if (parent) required.push(`   parent/brief: ${parent}`);
 	if (timeline.length) required.push(`   ${timeline.join(" · ")}`);
 	if (why) required.push(`   ${why}`);
+	const agreement = agreementLine(row, outer);
+	if (agreement) required.push(`   ${agreement}`);
 	for (const line of pendingProposalLines(row, outer)) required.push(`   ${line}`);
 	const disagreements = disagreementBlock(row, 1_600);
 	if (disagreements) required.push(disagreements);

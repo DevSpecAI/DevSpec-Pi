@@ -585,6 +585,25 @@ test("pending proposals are bounded, and a row without a served line still names
 	assert.match(text, /proposed retraction by a contributor \(Contributor\), awaiting a maintainer \(proposal p7\)/);
 });
 
+test("suggested work says it is not agreed on its card, and agreed work gains no line (2ec0e288)", () => {
+	const payload = {
+		query: "restore",
+		count: 3,
+		results: [
+			{ id: "item-agreed", title: "Restore procedure", lifecycle: "open", type: "task", created_at: "2026-10-01T10:00:00Z" },
+			{
+				id: "item-suggested", title: "Suggested restore drill", lifecycle: "open", type: "task", created_at: "2026-10-04T09:00:00Z",
+				agreement: { state: "awaiting_review", line: "Suggested work, awaiting a Maintainer\u2019s review. It is not agreed: do not claim it, plan around it or report it as project work." },
+			},
+			{ id: "item-declined", title: "Declined drill", lifecycle: "open", type: "task", created_at: "2026-10-04T09:30:00Z", agreement: { state: "declined" } },
+		],
+	};
+	const text = visible(projectedToolResult("search_action_items", unwrapMcpResult(mcpJson(payload))));
+	assert.match(text, /\[item-suggested\] Suggested restore drill[\s\S]*Suggested work, awaiting a Maintainer\u2019s review\. It is not agreed/);
+	assert.match(text, /\[item-declined\] Declined drill[\s\S]*Not agreed work \(declined\)\./);
+	assert.equal((text.match(/agreed work|not agreed/gi) ?? []).length, 2);
+});
+
 test("action-item search renders bounded compact cards with an exact fetch path", () => {
 	const items = Array.from({ length: 20 }, (_, index) => ({
 		id: `item-${String(index + 1).padStart(2, "0")}`,

@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 24b85c76a2e8b9cdff8db1276e5185853b832e90fbfb9b06a43136adf196c7c9
+ * Schema fingerprint: a8d7b85546a63362cf59730e9ce3458602cec46a84e71d5c2dac711f78d3306a
  * Description fingerprint: f7ac9f2b5a8851cd825d2bf4f09c2d76fef7cef91fc8888e6d03a6953e2f341c
- * Regenerated: 2026-10-04T11:03:47.399Z
+ * Regenerated: 2026-10-04T11:30:05.747Z
  */
-export const MCP_CATALOG_FINGERPRINT = "24b85c76a2e8b9cdff8db1276e5185853b832e90fbfb9b06a43136adf196c7c9";
+export const MCP_CATALOG_FINGERPRINT = "a8d7b85546a63362cf59730e9ce3458602cec46a84e71d5c2dac711f78d3306a";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "f7ac9f2b5a8851cd825d2bf4f09c2d76fef7cef91fc8888e6d03a6953e2f341c";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-04T11:03:47.399Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-04T11:30:05.747Z";
 export const TOOL_CATALOG_VERSION = "eab4717a2fefc224826b6b059a30954b6ba3b0a15beb819d06052d2688a663cc";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -7696,7 +7696,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"note": {
 					"type": "string",
-					"description": "Free-text note explaining why the item is being reopened (minimum 20 characters). This becomes the context carried into the next round and into the next review prompt."
+					"description": "Free-text note explaining why the item is being reopened. This becomes the context carried into the next round and into the next review prompt."
 				},
 				"runner_session_id": {
 					"type": "string",
@@ -7726,7 +7726,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"note": {
 					"type": "string",
-					"description": "Free-text note explaining why the item is being reopened (minimum 20 characters). This becomes the context carried into the next round and into the next review prompt."
+					"description": "Free-text note explaining why the item is being reopened. This becomes the context carried into the next round and into the next review prompt."
 				},
 				"runner_session_id": {
 					"type": "string",
@@ -9740,6 +9740,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"message": {
 					"type": "string",
+					"maxLength": 100000,
 					"description": "The message content (markdown). Displayed in the live chat as a distinct local-agent message. For turn_kind=local_prompt, pass the raw owner prompt (no need for a \"Local prompt:\" wrapper)."
 				},
 				"reply_to_message_id": {
@@ -10125,6 +10126,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"message": {
 					"type": "string",
+					"maxLength": 100000,
 					"description": "The message content (markdown). Displayed in the live chat as a distinct local-agent message. For turn_kind=local_prompt, pass the raw owner prompt (no need for a \"Local prompt:\" wrapper)."
 				},
 				"reply_to_message_id": {
@@ -10518,6 +10520,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
+					"maxLength": 500,
 					"description": "Optional title for the new session. Prefer a human-scannable label for remote control (e.g. \"Colorful Possum · Grok Build · tauri\"). If omitted: derived from initial_message; on an agent-first create, a hybrid default \"codename · agent · hostname · cwd\"; otherwise \"New session\"."
 				},
 				"initial_message": {
@@ -10597,6 +10600,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
+					"maxLength": 500,
 					"description": "Optional title for the new session. Prefer a human-scannable label for remote control (e.g. \"Colorful Possum · Grok Build · tauri\"). If omitted: derived from initial_message; on an agent-first create, a hybrid default \"codename · agent · hostname · cwd\"; otherwise \"New session\"."
 				},
 				"initial_message": {
@@ -13947,7 +13951,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"note": {
 					"type": "string",
-					"maxLength": 4000,
+					"maxLength": 1000,
 					"description": "Why these belong together, in a sentence or two. Required for link and set_note; up to 1,000 characters."
 				},
 				"expected_revision": {
@@ -13999,7 +14003,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"note": {
 					"type": "string",
-					"maxLength": 4000,
+					"maxLength": 1000,
 					"description": "Why these belong together, in a sentence or two. Required for link and set_note; up to 1,000 characters."
 				},
 				"expected_revision": {

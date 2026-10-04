@@ -377,7 +377,13 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// refused, not cut (the server stopped slicing them silently). No verb,
 		// required field, type or projection family changed. Benchmark before/after:
 		// initial surface 32,871 -> 32,908 estimated tokens; every budget passes.
-		"1fcab747122647c929caa075f482b52934092e050de1a2b57ee5296a63cc9ba1",
+		// Rebaselined 2026-10-04 for DevSpec item a43f8510 (the server now enforces every
+		// declared limit). Declared limits only: post_session_message.message maxLength
+		// 100,000 and create_session.title 500 (both new), manage_knowledge_links.note
+		// 4,000 -> 1,000 (what the database always enforced), and the reopen note no
+		// longer claims a 20-character minimum. No verb, required field, type or
+		// projection family changed.
+		"af57998559aae2e780051c628a7bdff1b018630288879e4fb1d7ce1bce1e1cf6",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

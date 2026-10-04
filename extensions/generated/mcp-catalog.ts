@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: b3be516c9c14058fafae3fcc9475573741fb6863014b50a804f8d2bdf08ba38a
+ * Schema fingerprint: 24b85c76a2e8b9cdff8db1276e5185853b832e90fbfb9b06a43136adf196c7c9
  * Description fingerprint: f7ac9f2b5a8851cd825d2bf4f09c2d76fef7cef91fc8888e6d03a6953e2f341c
- * Regenerated: 2026-10-04T10:27:54.868Z
+ * Regenerated: 2026-10-04T11:03:47.399Z
  */
-export const MCP_CATALOG_FINGERPRINT = "b3be516c9c14058fafae3fcc9475573741fb6863014b50a804f8d2bdf08ba38a";
+export const MCP_CATALOG_FINGERPRINT = "24b85c76a2e8b9cdff8db1276e5185853b832e90fbfb9b06a43136adf196c7c9";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "f7ac9f2b5a8851cd825d2bf4f09c2d76fef7cef91fc8888e6d03a6953e2f341c";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-04T10:27:54.869Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-04T11:03:47.399Z";
 export const TOOL_CATALOG_VERSION = "eab4717a2fefc224826b6b059a30954b6ba3b0a15beb819d06052d2688a663cc";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -13829,11 +13829,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "Required for add; optional for update."
+					"maxLength": 200,
+					"description": "Required for add; optional for update. Up to 200 characters; a longer one is refused, not cut."
 				},
 				"body": {
 					"type": "string",
-					"description": "Optional body for add/update."
+					"maxLength": 8000,
+					"description": "Optional body for add/update. Up to 8,000 characters; a longer one is refused, not cut."
 				},
 				"session_id": {
 					"type": "string",
@@ -13881,11 +13883,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "Required for add; optional for update."
+					"maxLength": 200,
+					"description": "Required for add; optional for update. Up to 200 characters; a longer one is refused, not cut."
 				},
 				"body": {
 					"type": "string",
-					"description": "Optional body for add/update."
+					"maxLength": 8000,
+					"description": "Optional body for add/update. Up to 8,000 characters; a longer one is refused, not cut."
 				},
 				"session_id": {
 					"type": "string",

@@ -372,7 +372,12 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// collection projection names the exact next page from `page.next_offset`
 		// (tested above). Benchmark: initial surface 31,936 -> 32,871 estimated
 		// tokens; every budget still passes.
-		"c1eaaa4fcfe6f3d497e210be5637228b97803113693220ba07d847e5afe5f543",
+		// Rebaselined 2026-10-04 for DevSpec item 85a0a1a5: manage_discussion_point's
+		// title and body now declare maxLength 200 / 8000 and say a longer one is
+		// refused, not cut (the server stopped slicing them silently). No verb,
+		// required field, type or projection family changed. Benchmark before/after:
+		// initial surface 32,871 -> 32,908 estimated tokens; every budget passes.
+		"1fcab747122647c929caa075f482b52934092e050de1a2b57ee5296a63cc9ba1",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

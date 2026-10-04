@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 834978658fa1356e96fa8e9061cd1ef8a9a48886a9536d468a86f42bca4f7206
+ * Schema fingerprint: eab2fa6942cc6ac0743c36517078471b95c93f18a39b956e8aa95a9679f0dbac
  * Description fingerprint: f7ac9f2b5a8851cd825d2bf4f09c2d76fef7cef91fc8888e6d03a6953e2f341c
- * Regenerated: 2026-10-04T08:08:47.681Z
+ * Regenerated: 2026-10-04T08:36:42.759Z
  */
-export const MCP_CATALOG_FINGERPRINT = "834978658fa1356e96fa8e9061cd1ef8a9a48886a9536d468a86f42bca4f7206";
+export const MCP_CATALOG_FINGERPRINT = "eab2fa6942cc6ac0743c36517078471b95c93f18a39b956e8aa95a9679f0dbac";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "f7ac9f2b5a8851cd825d2bf4f09c2d76fef7cef91fc8888e6d03a6953e2f341c";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-04T08:08:47.681Z";
-export const TOOL_CATALOG_VERSION = "7de027562584dd537923eb49d707a9f8d94b3d7a3f6f0204d296fd5efd1840d1";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-04T08:36:42.759Z";
+export const TOOL_CATALOG_VERSION = "e2da60217044feccb576b45fc55ce160e864966fbe273c99a62934b91a338110";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -182,7 +182,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_personal_instructions",
 		"name": "get personal instructions",
-		"description": "Read your own agent rules and response style. These are personal settings, not project-wide conventions or another person’s preferences.",
+		"description": "Read your own agent rules and response style. Agent rules reach only your coding agents; response style also shapes Dev, the in-app assistant. These are personal settings, not project-wide conventions or another person’s preferences.",
 		"intent": "read own personal agent instructions response style preferences"
 	},
 	{
@@ -194,7 +194,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_project_instruction_rules",
 		"name": "get project instruction rules",
-		"description": "Read live team agent rules and proposed changes separately. Pending proposals are not active instructions. Use get_personal_instructions for your own preferences.",
+		"description": "Read the team’s live rules and proposed changes separately. Principles reach every coding agent and Dev, the in-app assistant; agent_rules reach coding agents only. Pending proposals are not active instructions. Use get_personal_instructions for your own preferences.",
 		"intent": "read list team-wide project agent instruction rules policies"
 	},
 	{
@@ -494,7 +494,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "update_personal_instructions",
 		"name": "update personal instructions",
-		"description": "Amend your own agent rules or response style when requested. Use team instruction tools for project-wide policy; do not write another person’s preferences. Every agent the person runs reads all of it: append only what is new, and revise overlapping text instead of adding a duplicate or a contradiction.",
+		"description": "Amend your own agent rules or response style when requested. Agent rules reach only your coding agents; response style also shapes Dev, the in-app assistant. Use team instruction tools for project-wide policy; do not write another person’s preferences. Every agent the person runs reads all of it: append only what is new, and revise overlapping text instead of adding a duplicate or a contradiction.",
 		"intent": "change update own personal agent instructions response style preferences"
 	},
 	{
@@ -518,7 +518,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "write_project_instruction_rule",
 		"name": "write project instruction rule",
-		"description": "Add, amend or retract a team-wide agent instruction when requested. This changes how agents work; use an artifact for an ADR and a memory for project rationale instead. Every agent reads the whole list on every run: read the current rules first, amend the rule that already covers a subject instead of adding another, and keep the body to the instruction plus a short reason, with longer evidence in rationale, which agents are not given.",
+		"description": "Add, amend or retract a team-wide rule when requested. Principles reach every coding agent and Dev, the in-app assistant; agent_rules reach coding agents only. Use an artifact for an ADR and a memory for project rationale instead. Everyone who receives a list reads all of it on every run: read the current rules first, amend the rule that already covers a subject instead of adding another, take out anything the change makes redundant, and keep the body to the instruction plus a short reason, with longer evidence in rationale, which agents are not given.",
 		"intent": "change amend add retract team-wide project coding agent instruction rules policy"
 	}
 ];
@@ -3705,7 +3705,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "get_project_instruction_rules",
 		"label": "DevSpec: Get Project Instruction Rules",
 		"description": "Read this project's TEAM instruction rules as individual rules rather than one blob: `rules` (live — what every agent on the project actually receives, composed into project_agent_rules / project_custom_instructions) and `pending_proposals` (queued for a maintainer, reaching NOBODY until accepted). Each rule carries its text, class (safety | mechanics | style), rationale, author and status. Use this before proposing a change so you can see what is already there and avoid duplicating a rule. For the caller's OWN machine/tooling rules use get_personal_instructions instead — these are the team's.",
-		"promptSnippet": "Read live team agent rules and proposed changes separately. Pending proposals are not active instructions. Use get_personal_instructions for your own preferences.",
+		"promptSnippet": "Read the team’s live rules and proposed changes separately. Principles reach every coding agent and Dev, the in-app assistant; agent_rules reach coding agents only. Pending proposals are not active instructions. Use get_personal_instructions for your own preferences.",
 		"searchIntent": "read list team-wide project agent instruction rules policies",
 		"modelInputSchema": {
 			"type": "object",
@@ -3763,7 +3763,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "get_personal_instructions",
 		"label": "DevSpec: Get Personal Instructions",
 		"description": "Read YOUR OWN personal instruction tiers — the two settings on the calling token's account. They are `personal_agent_rules` (Agent rules on the Agents settings page, /settings/agents#agent-rules: this machine and how this person works locally — installed tools, local ports, personal workflow; agents only, never shown to the in-session AI) and `chat_response_style` (Response style on the Replies & voice settings page, /settings/replies: personal conversational tone). Null means the user has not set that one. Scope comes from the token, so there is no way to read another user's personal tiers here, and no project is involved. Use this before amending them with update_personal_instructions, or when the user asks what their current rules say. Note the team tiers are separate and are NOT here: project principles and project agent rules arrive with the project context (get_project_summary, claim_work_item).",
-		"promptSnippet": "Read your own agent rules and response style. These are personal settings, not project-wide conventions or another person’s preferences.",
+		"promptSnippet": "Read your own agent rules and response style. Agent rules reach only your coding agents; response style also shapes Dev, the in-app assistant. These are personal settings, not project-wide conventions or another person’s preferences.",
 		"searchIntent": "read own personal agent instructions response style preferences",
 		"modelInputSchema": {
 			"type": "object",
@@ -4010,6 +4010,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"expected_version": {
 					"type": "number",
 					"description": "Version last read. A stale version refuses the update: re-read and reconcile instead of overwriting another contributor’s changes."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"description": "Required only when the change is saved for review instead of applied (the response says queued_for_review). Choose one UUID per intended change and pass expected_version with it; retry an uncertain submission with the SAME key and original fields to recover the saved proposal rather than create another. A reviewed change covers only title, description/description_edits, intent and acceptance_criteria; other fields in the same call are refused, not dropped. Never report queued, refused or unknown as applied."
 				},
 				"agent_error": {
 					"type": "string",
@@ -4273,6 +4277,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"expected_version": {
 					"type": "number",
 					"description": "Optimistic-concurrency guard. Pass the `version` you read with the item and the update is REJECTED if its content changed since — instead of silently overwriting whoever got there first. `version` counts SPEC revisions only (title/description/acceptance_criteria/intent), so ordinary lifecycle, claim or deploy activity never invalidates it — nor does recording which files a round of work touched, which is a statement about the spec rather than a change to it. Optional: omit it and the last write wins, as before. Targeted description_edits are already safe without it — this is mainly for full-field rewrites."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"description": "Required only when the change is saved for review instead of applied (the response says queued_for_review). Choose one UUID per intended change and pass expected_version with it; retry an uncertain submission with the SAME key and original fields to recover the saved proposal rather than create another. A reviewed change covers only title, description/description_edits, intent and acceptance_criteria; other fields in the same call are refused, not dropped. Never report queued, refused or unknown as applied."
 				},
 				"agent_error": {
 					"type": "string",
@@ -12968,7 +12976,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "write_project_instruction_rule",
 		"label": "DevSpec: Write Project Instruction Rule",
 		"description": "Add, amend or retract ONE of this project's TEAM instruction rules. These govern EVERY agent on the project, including agents belonging to people not in this conversation, so authority is judged server-side per the served contract (devspec://product/implementation-contract → authority_contract, verb `instruction_rule.write`), never by this description. READ THE `outcome` FIELD AND REPORT IT HONESTLY — `committed` means live now, `queued_for_review` means NOT IN EFFECT and awaiting a human, and telling the user their team's rules changed when they were only queued is the failure this tool exists to avoid. Rule-level by design: there is no way to replace a whole tier's text, because that is what let two people silently overwrite each other. Keep the set lean, because every agent on the project reads all of it at the start of every run: call get_project_instruction_rules first, and if a rule already covers the subject, amend that rule rather than adding another, taking out anything the change makes redundant. Keep the body to what an agent must do plus a short reason; longer evidence, history and examples go in `rationale`. Before committing, show the user the exact rule text and get their agreement. The safety class (rules every agent is told it may not work around) is maintainer-only and needs confirm_safety_change. For the caller's OWN machine rules use update_personal_instructions instead.",
-		"promptSnippet": "Add, amend or retract a team-wide agent instruction when requested. This changes how agents work; use an artifact for an ADR and a memory for project rationale instead. Every agent reads the whole list on every run: read the current rules first, amend the rule that already covers a subject instead of adding another, and keep the body to the instruction plus a short reason, with longer evidence in rationale, which agents are not given.",
+		"promptSnippet": "Add, amend or retract a team-wide rule when requested. Principles reach every coding agent and Dev, the in-app assistant; agent_rules reach coding agents only. Use an artifact for an ADR and a memory for project rationale instead. Everyone who receives a list reads all of it on every run: read the current rules first, amend the rule that already covers a subject instead of adding another, take out anything the change makes redundant, and keep the body to the instruction plus a short reason, with longer evidence in rationale, which agents are not given.",
 		"searchIntent": "change amend add retract team-wide project coding agent instruction rules policy",
 		"modelInputSchema": {
 			"type": "object",
@@ -12988,7 +12996,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"agent_rules",
 						"principles"
 					],
-					"description": "Required for add. agent_rules = team execution mechanics (agents only). principles = team philosophy, also seen by the in-session AI — if anything more sensitive to casual editing."
+					"description": "Required for add. agent_rules = team execution mechanics, received by coding agents only. principles = team philosophy, received by every coding agent AND by Dev, the in-app assistant, which can also read and change them."
 				},
 				"body": {
 					"type": "string",
@@ -13054,7 +13062,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"agent_rules",
 						"principles"
 					],
-					"description": "Required for add. agent_rules = team execution mechanics (agents only). principles = team philosophy, also seen by the in-session AI — if anything more sensitive to casual editing."
+					"description": "Required for add. agent_rules = team execution mechanics, received by coding agents only. principles = team philosophy, received by every coding agent AND by Dev, the in-app assistant, which can also read and change them."
 				},
 				"body": {
 					"type": "string",
@@ -14094,18 +14102,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "update_personal_instructions",
 		"label": "DevSpec: Update Personal Instructions",
 		"description": "Amend YOUR OWN personal instruction tiers on the calling token's account: `personal_agent_rules` (Agent rules on the Agents settings page, /settings/agents#agent-rules — this machine and how you work locally) and `chat_response_style` (Response style on the Replies & voice settings page, /settings/replies). Use this instead of telling the user to copy-paste text into the web UI. Scope is the token's user; no argument can redirect the write to anyone else, and the two TEAM tiers (project principles, project agent rules) are deliberately NOT writable here — they govern everyone on the project. DEFAULTS TO APPEND: pass just the new rule and it is added to what is already there, so you never restate the user's existing text (rewriting a whole field to add one line eventually drops something they wrote by hand). Append only what is genuinely new: every agent this person runs reads all of it on every start. If the new rule changes, repeats or contradicts something already there, revise that part instead — build the full revised text from the current one, use mode:\"replace\", and show it with dry_run first. Otherwise pass mode:\"replace\" only when the user actually wants the tier rewritten or cleared. ALWAYS show the user the exact resulting text and get their agreement BEFORE it lands — call with dry_run:true to get that text back without saving, show it, then call again without dry_run once they confirm. Refuses to run from an unattended run — the served contract (devspec://product/implementation-contract → authority_contract, personal scope) keeps a person's own instructions to the person themselves.",
-		"promptSnippet": "Amend your own agent rules or response style when requested. Use team instruction tools for project-wide policy; do not write another person’s preferences. Every agent the person runs reads all of it: append only what is new, and revise overlapping text instead of adding a duplicate or a contradiction.",
+		"promptSnippet": "Amend your own agent rules or response style when requested. Agent rules reach only your coding agents; response style also shapes Dev, the in-app assistant. Use team instruction tools for project-wide policy; do not write another person’s preferences. Every agent the person runs reads all of it: append only what is new, and revise overlapping text instead of adding a duplicate or a contradiction.",
 		"searchIntent": "change update own personal agent instructions response style preferences",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
 				"personal_agent_rules": {
 					"type": "string",
-					"description": "Text for Personal Agent Rules. Appended to the existing rules unless mode is \"replace\". Machine/tooling context: installed tools, local ports, personal workflow."
+					"description": "Text for Personal Agent Rules. Appended to the existing rules unless mode is \"replace\". Machine/tooling context: installed tools, local ports, personal workflow. Received by this person’s coding agents only, never by Dev."
 				},
 				"chat_response_style": {
 					"type": "string",
-					"description": "Text for Chat Response Style. Appended to the existing style unless mode is \"replace\". Personal conversational tone."
+					"description": "Text for Chat Response Style. Appended to the existing style unless mode is \"replace\". Personal conversational tone, applied by Dev, the in-app assistant, and by this person’s agents."
 				},
 				"mode": {
 					"type": "string",
@@ -14130,11 +14138,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"personal_agent_rules": {
 					"type": "string",
-					"description": "Text for Personal Agent Rules. Appended to the existing rules unless mode is \"replace\". Machine/tooling context: installed tools, local ports, personal workflow."
+					"description": "Text for Personal Agent Rules. Appended to the existing rules unless mode is \"replace\". Machine/tooling context: installed tools, local ports, personal workflow. Received by this person’s coding agents only, never by Dev."
 				},
 				"chat_response_style": {
 					"type": "string",
-					"description": "Text for Chat Response Style. Appended to the existing style unless mode is \"replace\". Personal conversational tone."
+					"description": "Text for Chat Response Style. Appended to the existing style unless mode is \"replace\". Personal conversational tone, applied by Dev, the in-app assistant, and by this person’s agents."
 				},
 				"mode": {
 					"type": "string",

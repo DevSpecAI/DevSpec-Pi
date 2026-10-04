@@ -349,7 +349,19 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// create_resource/record_memory. 99 verbs before and after; no input, required
 		// field, type or projection family changed. Benchmark before/after: initial
 		// surface 31,262 -> 31,521 estimated tokens; every budget still passes.
-		"ba1ce1455545d80cd9a2ffccdb14e7117d093723cef8ca725b246c807412c956",
+		// Rebaselined 2026-10-04 for DevSpec item d40101aa, regenerated against server
+		// work/dev-principles-tools-d40101aa (on staging d13a08ef8). Descriptions:
+		// the guidance and parameter text for get_project_instruction_rules,
+		// get_personal_instructions, write_project_instruction_rule and
+		// update_personal_instructions now say who receives each tier (principles
+		// reach agents and Dev; agent rules reach coding agents only), and
+		// write_project_instruction_rule adds removing what a change makes redundant.
+		// The regeneration also carries a server change Pi had not picked up:
+		// update_action_item gains an OPTIONAL idempotency_key (for a change saved for
+		// review instead of applied). 99 verbs before and after; no required field,
+		// type or projection family changed. Benchmark before/after: initial surface
+		// 31,648 -> 31,936 estimated tokens; every budget still passes.
+		"68a454e71351a855e4c3c98b0322c26c4885ece2555d25b2248aa3644863ef2e",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

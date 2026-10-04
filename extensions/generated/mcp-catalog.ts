@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: eab2fa6942cc6ac0743c36517078471b95c93f18a39b956e8aa95a9679f0dbac
+ * Schema fingerprint: b3be516c9c14058fafae3fcc9475573741fb6863014b50a804f8d2bdf08ba38a
  * Description fingerprint: f7ac9f2b5a8851cd825d2bf4f09c2d76fef7cef91fc8888e6d03a6953e2f341c
- * Regenerated: 2026-10-04T08:36:42.759Z
+ * Regenerated: 2026-10-04T10:27:54.868Z
  */
-export const MCP_CATALOG_FINGERPRINT = "eab2fa6942cc6ac0743c36517078471b95c93f18a39b956e8aa95a9679f0dbac";
+export const MCP_CATALOG_FINGERPRINT = "b3be516c9c14058fafae3fcc9475573741fb6863014b50a804f8d2bdf08ba38a";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "f7ac9f2b5a8851cd825d2bf4f09c2d76fef7cef91fc8888e6d03a6953e2f341c";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-04T08:36:42.759Z";
-export const TOOL_CATALOG_VERSION = "e2da60217044feccb576b45fc55ce160e864966fbe273c99a62934b91a338110";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-04T10:27:54.869Z";
+export const TOOL_CATALOG_VERSION = "eab4717a2fefc224826b6b059a30954b6ba3b0a15beb819d06052d2688a663cc";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -110,7 +110,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_action_item_history",
 		"name": "get action item history",
-		"description": "Read one action item’s history, relationships, commits and linked conversations. Use get_action_item for its current specification, not an activity timeline.",
+		"description": "Read one action item’s history, relationships, commits and linked conversations. Use get_action_item for its current specification, not an activity timeline. Activity is the newest events first page: pass activity_page.next_offset as activity_offset for earlier ones.",
 		"intent": "show full action item work history timeline changes commits provenance"
 	},
 	{
@@ -134,7 +134,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_automation_runs",
 		"name": "get automation runs",
-		"description": "List executions of repeatable jobs and their outcomes. Use get_automations for job definitions, not run history.",
+		"description": "List executions of repeatable jobs and their outcomes. Use get_automations for job definitions, not run history. An automation’s history comes a page at a time: page.total_matching is how many runs exist; pass page.next_offset as offset for older ones.",
 		"intent": "list automation job executions results run history"
 	},
 	{
@@ -146,7 +146,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_conventions",
 		"name": "get conventions",
-		"description": "Browse project coding conventions and standards. Read relevant records with get_memory before non-trivial changes; use search_memories for a specific topic.",
+		"description": "Browse project coding conventions and standards. Read relevant records with get_memory before non-trivial changes; use search_memories for a specific topic. Results come a page at a time: page.total_matching is how many exist; pass page.next_offset as offset for the next page.",
 		"intent": "list coding conventions standards team practices"
 	},
 	{
@@ -158,7 +158,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_decisions",
 		"name": "get decisions",
-		"description": "Browse recorded architecture and design decisions. Read relevant results with get_memory; use search_memories when the topic is known.",
+		"description": "Browse recorded architecture and design decisions. Read relevant results with get_memory; use search_memories when the topic is known. Results come a page at a time: page.total_matching is how many exist; pass page.next_offset as offset for the next page.",
 		"intent": "list browse recorded project architecture design decisions"
 	},
 	{
@@ -194,7 +194,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_project_instruction_rules",
 		"name": "get project instruction rules",
-		"description": "Read the team’s live rules and proposed changes separately. Principles reach every coding agent and Dev, the in-app assistant; agent_rules reach coding agents only. Pending proposals are not active instructions. Use get_personal_instructions for your own preferences.",
+		"description": "Read the team’s live rules and proposed changes separately. Principles reach every coding agent and Dev, the in-app assistant; agent_rules reach coding agents only. Pending proposals are not active instructions. Use get_personal_instructions for your own preferences. Pending proposals come a page at a time: pass pending_proposals_page.next_offset as proposals_offset for more.",
 		"intent": "read list team-wide project agent instruction rules policies"
 	},
 	{
@@ -212,7 +212,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_recent_sessions",
 		"name": "get recent sessions",
-		"description": "Browse recent conversations. For a remembered topic or phrase, use search_sessions; for the full text of a known room, use get_session_transcript.",
+		"description": "Browse recent conversations. For a remembered topic or phrase, use search_sessions; for the full text of a known room, use get_session_transcript. Results come a page at a time: page.total_matching is how many exist; pass page.next_offset as offset for the next page.",
 		"intent": "list recent conversations rooms activity sessions"
 	},
 	{
@@ -224,7 +224,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_resources",
 		"name": "get resources",
-		"description": "Browse uploaded documents and generated artifacts, with lifecycle filters. Use search_resources for a topic and get_resource for a full document.",
+		"description": "Browse uploaded documents and generated artifacts, with lifecycle filters. Use search_resources for a topic and get_resource for a full document. Results come a page at a time: page.total_matching is how many exist; pass page.next_offset as offset for the next page.",
 		"intent": "list browse documents artifacts uploads inventory lifecycle"
 	},
 	{
@@ -242,13 +242,13 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_testing_brief",
 		"name": "get testing brief",
-		"description": "Gather one item’s implementation, criteria, checks, relevant decisions/artifacts and database targets before testing it. Use recorded observations, not source inspection alone, as verification evidence.",
+		"description": "Gather one item’s implementation, criteria, checks, relevant decisions/artifacts and database targets before testing it. Use recorded observations, not source inspection alone, as verification evidence. Comments are complete; activity shows the newest events with activity_page saying how to read earlier ones in get_action_item_history.",
 		"intent": "review how to test verify feature testing brief acceptance criteria database targets implementation evidence"
 	},
 	{
 		"id": "get_unresolved_questions",
 		"name": "get unresolved questions",
-		"description": "Browse recorded unanswered project questions. To ask the person in this conversation a new question, use manage_directed_question instead.",
+		"description": "Browse recorded unanswered project questions. To ask the person in this conversation a new question, use manage_directed_question instead. Results come a page at a time: page.total_matching is how many exist; pass page.next_offset as offset for the next page.",
 		"intent": "list unanswered project questions unknowns"
 	},
 	{
@@ -398,7 +398,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "search_action_items",
 		"name": "search action items",
-		"description": "Find existing work by topic or intent before creating another item. Use get_action_item for full criteria; get_action_items for counts or chronological browsing.",
+		"description": "Find existing work by topic or intent before creating another item. Use get_action_item for full criteria; get_action_items for counts or chronological browsing. Results page through the best-ranked matches: page.total_matching counts them (a floor when total_is_lower_bound), and page.next_offset passed as offset gives the next page.",
 		"intent": "find search work task action item bug feature intent topic"
 	},
 	{
@@ -410,7 +410,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "search_discussion_points",
 		"name": "search discussion points",
-		"description": "Find open Still to Discuss topics and unresolved conversational loops. These are discussion records, not implementation work; use get_discussion_point for full text.",
+		"description": "Find open Still to Discuss topics and unresolved conversational loops. These are discussion records, not implementation work; use get_discussion_point for full text. Results come a page at a time: page.total_matching is how many match; pass page.next_offset as offset for more.",
 		"intent": "find open unresolved still to discuss discussion topics loops"
 	},
 	{
@@ -428,7 +428,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "search_sessions",
 		"name": "search sessions",
-		"description": "Find a past conversation by topic, phrase or title, then read hits with get_session_transcript. Prefer captured items, memories and artifacts for settled knowledge; do not search every room routinely.",
+		"description": "Find a past conversation by topic, phrase or title, then read hits with get_session_transcript. Prefer captured items, memories and artifacts for settled knowledge; do not search every room routinely. Hits come a page at a time: pass page.next_offset as offset for more; a total marked total_is_lower_bound means narrow the query to reach the rest.",
 		"intent": "find earlier past conversation discussion session talked about transcript phrase"
 	},
 	{
@@ -1231,11 +1231,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "search_action_items",
 		"label": "DevSpec: Search Action Items",
 		"description": "Hybrid search — full-text keyword matching + semantic (embedding) similarity, fused and ranked. Natural-language or keyword queries both work. Searches across titles and descriptions and returns lightweight, relevance-ranked results (title + short snippet, not full descriptions) — call get_action_item for the full text of a specific result. Unlike get_action_items, this INCLUDES briefs (parent items), so a parent brief can be found by topic. Prefer this over listing-then-scanning when looking for items about a subject.",
-		"promptSnippet": "Find existing work by topic or intent before creating another item. Use get_action_item for full criteria; get_action_items for counts or chronological browsing.",
+		"promptSnippet": "Find existing work by topic or intent before creating another item. Use get_action_item for full criteria; get_action_items for counts or chronological browsing. Results page through the best-ranked matches: page.total_matching counts them (a floor when total_is_lower_bound), and page.next_offset passed as offset gives the next page.",
 		"searchIntent": "find search work task action item bug feature intent topic",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
+				},
 				"connection_id": {
 					"type": "string",
 					"description": "Optional. Your agent_connections id, so this search is attributed to your connection and its attached session in the organisation's usage view. Omit when you are not running as a connection."
@@ -1261,7 +1265,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum number of results. Defaults to 20, max 50."
+					"description": "Page size. Defaults to 20, max 50. page.total_matching says how many matched."
 				},
 				"requested_by": {
 					"type": "string",
@@ -1300,6 +1304,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"inputSchema": {
 			"type": "object",
 			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
+				},
 				"connection_id": {
 					"type": "string",
 					"description": "Optional. Your agent_connections id, so this search is attributed to your connection and its attached session in the organisation's usage view. Omit when you are not running as a connection."
@@ -1325,7 +1333,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum number of results. Defaults to 20, max 50."
+					"description": "Page size. Defaults to 20, max 50. page.total_matching says how many matched."
 				},
 				"requested_by": {
 					"type": "string",
@@ -1449,11 +1457,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "get_resources",
 		"label": "DevSpec: Get Resources",
 		"description": "List resources (documents and artifacts) attached to the project. Filter by source or resource type. Each AI-generated artifact carries a `signals` array of lifecycle review-signals (superseded_but_live, possibly_stale, possibly_contradictory) and a `last_reviewed_at` watermark; pass flagged:true to return only artifacts with ≥1 signal. Session-scoped uploads appear only when this call is made from an attached connection (pass connection_id, or the server derives the unique attached room). Sessionless callers see project documents only.",
-		"promptSnippet": "Browse uploaded documents and generated artifacts, with lifecycle filters. Use search_resources for a topic and get_resource for a full document.",
+		"promptSnippet": "Browse uploaded documents and generated artifacts, with lifecycle filters. Use search_resources for a topic and get_resource for a full document. Results come a page at a time: page.total_matching is how many exist; pass page.next_offset as offset for the next page.",
 		"searchIntent": "list browse documents artifacts uploads inventory lifecycle",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
+				},
 				"connection_id": {
 					"type": "string",
 					"description": "Optional. This poller's agent_connections id. Session-scoped documents are listed only for that connection's currently attached session. Omit when sessionless — the list stays project-only."
@@ -1497,7 +1509,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum number of resources to return. Defaults to 50."
+					"description": "Page size. Defaults to 50; max 100. page.total_matching says how many exist."
 				},
 				"requested_by": {
 					"type": "string",
@@ -1533,6 +1545,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"inputSchema": {
 			"type": "object",
 			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
+				},
 				"connection_id": {
 					"type": "string",
 					"description": "Optional. This poller's agent_connections id. Session-scoped documents are listed only for that connection's currently attached session. Omit when sessionless — the list stays project-only."
@@ -1576,7 +1592,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum number of resources to return. Defaults to 50."
+					"description": "Page size. Defaults to 50; max 100. page.total_matching says how many exist."
 				},
 				"requested_by": {
 					"type": "string",
@@ -2051,14 +2067,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "get_recent_sessions",
 		"label": "DevSpec: Get Recent Sessions",
 		"description": "List recent DevSpec sessions for the project. Returns session IDs, titles, timestamps, and status.",
-		"promptSnippet": "Browse recent conversations. For a remembered topic or phrase, use search_sessions; for the full text of a known room, use get_session_transcript.",
+		"promptSnippet": "Browse recent conversations. For a remembered topic or phrase, use search_sessions; for the full text of a known room, use get_session_transcript. Results come a page at a time: page.total_matching is how many exist; pass page.next_offset as offset for the next page.",
 		"searchIntent": "list recent conversations rooms activity sessions",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
+				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum number of sessions to return. Defaults to 10."
+					"description": "Page size. Defaults to 10; max 50. page.total_matching says how many exist."
 				},
 				"status": {
 					"type": "string",
@@ -2086,9 +2106,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"inputSchema": {
 			"type": "object",
 			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
+				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum number of sessions to return. Defaults to 10."
+					"description": "Page size. Defaults to 10; max 50. page.total_matching says how many exist."
 				},
 				"status": {
 					"type": "string",
@@ -2119,11 +2143,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "search_sessions",
 		"label": "DevSpec: Search Sessions",
 		"description": "Search project sessions by title and transcript — keywords or short phrases; ranked hits with excerpts, not full transcripts. Search items, memories, and docs first; use this when it was only said. Call get_session_transcript to read one hit.",
-		"promptSnippet": "Find a past conversation by topic, phrase or title, then read hits with get_session_transcript. Prefer captured items, memories and artifacts for settled knowledge; do not search every room routinely.",
+		"promptSnippet": "Find a past conversation by topic, phrase or title, then read hits with get_session_transcript. Prefer captured items, memories and artifacts for settled knowledge; do not search every room routinely. Hits come a page at a time: pass page.next_offset as offset for more; a total marked total_is_lower_bound means narrow the query to reach the rest.",
 		"searchIntent": "find earlier past conversation discussion session talked about transcript phrase",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
+				},
 				"connection_id": {
 					"type": "string",
 					"description": "Optional. Your agent_connections id, so this search is attributed to your connection and its attached session in the organisation's usage view. Omit when you are not running as a connection."
@@ -2134,7 +2162,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum hits. Defaults to 5, max 10."
+					"description": "Hits per page. Defaults to 5, max 10."
 				},
 				"project_id": {
 					"type": "string",
@@ -2156,6 +2184,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"inputSchema": {
 			"type": "object",
 			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
+				},
 				"connection_id": {
 					"type": "string",
 					"description": "Optional. Your agent_connections id, so this search is attributed to your connection and its attached session in the organisation's usage view. Omit when you are not running as a connection."
@@ -2166,7 +2198,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum hits. Defaults to 5, max 10."
+					"description": "Hits per page. Defaults to 5, max 10."
 				},
 				"project_id": {
 					"type": "string",
@@ -2191,11 +2223,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "search_discussion_points",
 		"label": "DevSpec: Search Discussion Points",
 		"description": "Hybrid search over this project's Still to Discuss. Compact cards (title + preview); call get_discussion_point for the full body. Analogous to search_action_items, not search_sessions. Do not add, strike, or reopen rows unless the human asked.",
-		"promptSnippet": "Find open Still to Discuss topics and unresolved conversational loops. These are discussion records, not implementation work; use get_discussion_point for full text.",
+		"promptSnippet": "Find open Still to Discuss topics and unresolved conversational loops. These are discussion records, not implementation work; use get_discussion_point for full text. Results come a page at a time: page.total_matching is how many match; pass page.next_offset as offset for more.",
 		"searchIntent": "find open unresolved still to discuss discussion topics loops",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
+				},
 				"connection_id": {
 					"type": "string",
 					"description": "Optional. Your agent_connections id, so this search is attributed to your connection and its attached session in the organisation's usage view. Omit when you are not running as a connection."
@@ -2227,7 +2263,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum cards. Defaults to 20, max 50."
+					"description": "Cards per page. Defaults to 20, max 50. page.total_matching says how many matched."
 				},
 				"project_id": {
 					"type": "string",
@@ -2246,6 +2282,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"inputSchema": {
 			"type": "object",
 			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
+				},
 				"connection_id": {
 					"type": "string",
 					"description": "Optional. Your agent_connections id, so this search is attributed to your connection and its attached session in the organisation's usage view. Omit when you are not running as a connection."
@@ -2277,7 +2317,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum cards. Defaults to 20, max 50."
+					"description": "Cards per page. Defaults to 20, max 50. page.total_matching says how many matched."
 				},
 				"project_id": {
 					"type": "string",
@@ -2583,18 +2623,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "get_decisions",
 		"label": "DevSpec: Get Decisions",
 		"description": "List architecture and design decisions recorded for the project, ordered by most recent first. Returns a card per memory (id, title, one-line summary, type, state, tags) — call `get_memory` with an id to read the full body.",
-		"promptSnippet": "Browse recorded architecture and design decisions. Read relevant results with get_memory; use search_memories when the topic is known.",
+		"promptSnippet": "Browse recorded architecture and design decisions. Read relevant results with get_memory; use search_memories when the topic is known. Results come a page at a time: page.total_matching is how many exist; pass page.next_offset as offset for the next page.",
 		"searchIntent": "list browse recorded project architecture design decisions",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
+				},
 				"connection_id": {
 					"type": "string",
 					"description": "Optional. Your agent_connections id, so this search is attributed to your connection and its attached session in the organisation's usage view. Omit when you are not running as a connection."
 				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum number of decisions to return. Defaults to 20."
+					"description": "Page size. Defaults to 20; max 100. page.total_matching says how many exist."
 				},
 				"flagged": {
 					"type": "boolean",
@@ -2642,13 +2686,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"inputSchema": {
 			"type": "object",
 			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
+				},
 				"connection_id": {
 					"type": "string",
 					"description": "Optional. Your agent_connections id, so this search is attributed to your connection and its attached session in the organisation's usage view. Omit when you are not running as a connection."
 				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum number of decisions to return. Defaults to 20."
+					"description": "Page size. Defaults to 20; max 100. page.total_matching says how many exist."
 				},
 				"flagged": {
 					"type": "boolean",
@@ -2853,14 +2901,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "get_conventions",
 		"label": "DevSpec: Get Conventions",
 		"description": "List coding conventions and standards recorded for the project. Returns a card per memory (id, title, one-line summary, type, state, tags) — call `get_memory` with an id to read the full body.",
-		"promptSnippet": "Browse project coding conventions and standards. Read relevant records with get_memory before non-trivial changes; use search_memories for a specific topic.",
+		"promptSnippet": "Browse project coding conventions and standards. Read relevant records with get_memory before non-trivial changes; use search_memories for a specific topic. Results come a page at a time: page.total_matching is how many exist; pass page.next_offset as offset for the next page.",
 		"searchIntent": "list coding conventions standards team practices",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
+				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum number of conventions to return. Defaults to 20."
+					"description": "Page size. Defaults to 20; max 100. page.total_matching says how many exist."
 				},
 				"flagged": {
 					"type": "boolean",
@@ -2908,9 +2960,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"inputSchema": {
 			"type": "object",
 			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
+				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum number of conventions to return. Defaults to 20."
+					"description": "Page size. Defaults to 20; max 100. page.total_matching says how many exist."
 				},
 				"flagged": {
 					"type": "boolean",
@@ -2961,14 +3017,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "get_unresolved_questions",
 		"label": "DevSpec: Get Unresolved Questions",
 		"description": "List open questions and unknowns flagged during sessions that have not yet been resolved. Returns a card per memory (id, title, one-line summary, type, state, tags) — call `get_memory` with an id to read the full body.",
-		"promptSnippet": "Browse recorded unanswered project questions. To ask the person in this conversation a new question, use manage_directed_question instead.",
+		"promptSnippet": "Browse recorded unanswered project questions. To ask the person in this conversation a new question, use manage_directed_question instead. Results come a page at a time: page.total_matching is how many exist; pass page.next_offset as offset for the next page.",
 		"searchIntent": "list unanswered project questions unknowns",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
+				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum number of questions to return. Defaults to 20."
+					"description": "Page size. Defaults to 20; max 100. page.total_matching says how many exist."
 				},
 				"flagged": {
 					"type": "boolean",
@@ -3016,9 +3076,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"inputSchema": {
 			"type": "object",
 			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
+				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum number of questions to return. Defaults to 20."
+					"description": "Page size. Defaults to 20; max 100. page.total_matching says how many exist."
 				},
 				"flagged": {
 					"type": "boolean",
@@ -3203,7 +3267,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "get_testing_brief",
 		"label": "DevSpec: Get Testing Brief",
 		"description": "Get a comprehensive testing-oriented view of a single action item. Returns everything needed to evaluate deployed work: action item details, completion context (summary, confidence, disposition), testing notes, deployment info, AI test results, discussion comments, activity timeline, commit references, implementation notes, and affected files. ALSO returns relevant_memories + relevant_artifacts — the project decisions, conventions, and plans that define what \"correct\" means for this work (conventions are binding); consult them before judging the work. Also returns a `database_targets` array (connected DBs with their non-secret identity, environment, and branch mapping) so a verifier knows which database a migration in this item should have hit. Designed for use in external tools (e.g. Claude Code) to load full context for reviewing or testing deployed work.",
-		"promptSnippet": "Gather one item’s implementation, criteria, checks, relevant decisions/artifacts and database targets before testing it. Use recorded observations, not source inspection alone, as verification evidence.",
+		"promptSnippet": "Gather one item’s implementation, criteria, checks, relevant decisions/artifacts and database targets before testing it. Use recorded observations, not source inspection alone, as verification evidence. Comments are complete; activity shows the newest events with activity_page saying how to read earlier ones in get_action_item_history.",
 		"searchIntent": "review how to test verify feature testing brief acceptance criteria database targets implementation evidence",
 		"modelInputSchema": {
 			"type": "object",
@@ -3355,11 +3419,19 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "get_action_item_history",
 		"label": "DevSpec: Get Action Item History",
 		"description": "Get the full traceability view of an action item: details, activity timeline, relationships, linked PRs, commit references, and linked session messages with quotes. Use to understand \"where did this come from?\" and \"what happened?\".",
-		"promptSnippet": "Read one action item’s history, relationships, commits and linked conversations. Use get_action_item for its current specification, not an activity timeline.",
+		"promptSnippet": "Read one action item’s history, relationships, commits and linked conversations. Use get_action_item for its current specification, not an activity timeline. Activity is the newest events first page: pass activity_page.next_offset as activity_offset for earlier ones.",
 		"searchIntent": "show full action item work history timeline changes commits provenance",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
+				"activity_offset": {
+					"type": "number",
+					"description": "Skip this many of the newest activity events. Defaults to 0 (the newest page). Use activity_page.next_offset from a prior response to read earlier events."
+				},
+				"activity_limit": {
+					"type": "number",
+					"description": "Activity events per page. Defaults to 50; max 200."
+				},
 				"action_item_id": {
 					"type": "string",
 					"description": "Action item ID"
@@ -3372,6 +3444,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"inputSchema": {
 			"type": "object",
 			"properties": {
+				"activity_offset": {
+					"type": "number",
+					"description": "Skip this many of the newest activity events. Defaults to 0 (the newest page). Use activity_page.next_offset from a prior response to read earlier events."
+				},
+				"activity_limit": {
+					"type": "number",
+					"description": "Activity events per page. Defaults to 50; max 200."
+				},
 				"action_item_id": {
 					"type": "string",
 					"description": "Action item ID"
@@ -3515,11 +3595,19 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "get_automation_runs",
 		"label": "DevSpec: Get Automation Runs",
 		"description": "Automation runs. With no arguments: the runs WAITING for you to pick up, filtered to the ones this agent may take — an automation naming a different agent is listed under not_for_you and is not yours to run. Waiting entries are inbox metadata (name, trigger kind, owner, permission, queued time), not the instruction — claim_automation_run returns that. With automation_id: that automation's run history instead, and `query` alongside it searches those runs' captured text (summary, failure reason, output) so you can find the run where something happened rather than reading them all. The loop is get_automation_runs, then claim_automation_run, then do the work, then record_automation_run.",
-		"promptSnippet": "List executions of repeatable jobs and their outcomes. Use get_automations for job definitions, not run history.",
+		"promptSnippet": "List executions of repeatable jobs and their outcomes. Use get_automations for job definitions, not run history. An automation’s history comes a page at a time: page.total_matching is how many runs exist; pass page.next_offset as offset for older ones.",
 		"searchIntent": "list automation job executions results run history",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
+				},
+				"limit": {
+					"type": "number",
+					"description": "With automation_id: page size for its run history. Defaults to 25; max 100."
+				},
 				"automation_id": {
 					"type": "string",
 					"description": "Optional: return this automation run history instead of the waiting queue."
@@ -3553,6 +3641,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"inputSchema": {
 			"type": "object",
 			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
+				},
+				"limit": {
+					"type": "number",
+					"description": "With automation_id: page size for its run history. Defaults to 25; max 100."
+				},
 				"automation_id": {
 					"type": "string",
 					"description": "Optional: return this automation run history instead of the waiting queue."
@@ -3705,11 +3801,19 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "get_project_instruction_rules",
 		"label": "DevSpec: Get Project Instruction Rules",
 		"description": "Read this project's TEAM instruction rules as individual rules rather than one blob: `rules` (live — what every agent on the project actually receives, composed into project_agent_rules / project_custom_instructions) and `pending_proposals` (queued for a maintainer, reaching NOBODY until accepted). Each rule carries its text, class (safety | mechanics | style), rationale, author and status. Use this before proposing a change so you can see what is already there and avoid duplicating a rule. For the caller's OWN machine/tooling rules use get_personal_instructions instead — these are the team's.",
-		"promptSnippet": "Read the team’s live rules and proposed changes separately. Principles reach every coding agent and Dev, the in-app assistant; agent_rules reach coding agents only. Pending proposals are not active instructions. Use get_personal_instructions for your own preferences.",
+		"promptSnippet": "Read the team’s live rules and proposed changes separately. Principles reach every coding agent and Dev, the in-app assistant; agent_rules reach coding agents only. Pending proposals are not active instructions. Use get_personal_instructions for your own preferences. Pending proposals come a page at a time: pass pending_proposals_page.next_offset as proposals_offset for more.",
 		"searchIntent": "read list team-wide project agent instruction rules policies",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
+				"proposals_offset": {
+					"type": "number",
+					"description": "Pagination offset into the pending proposals. Defaults to 0. Use pending_proposals_page.next_offset from a prior response for the next page."
+				},
+				"proposals_limit": {
+					"type": "number",
+					"description": "Pending proposals per page. Defaults to 100; max 200."
+				},
 				"tier": {
 					"type": "string",
 					"enum": [
@@ -3735,6 +3839,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"inputSchema": {
 			"type": "object",
 			"properties": {
+				"proposals_offset": {
+					"type": "number",
+					"description": "Pagination offset into the pending proposals. Defaults to 0. Use pending_proposals_page.next_offset from a prior response for the next page."
+				},
+				"proposals_limit": {
+					"type": "number",
+					"description": "Pending proposals per page. Defaults to 100; max 200."
+				},
 				"tier": {
 					"type": "string",
 					"enum": [

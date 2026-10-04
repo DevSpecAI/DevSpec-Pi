@@ -361,7 +361,18 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// review instead of applied). 99 verbs before and after; no required field,
 		// type or projection family changed. Benchmark before/after: initial surface
 		// 31,648 -> 31,936 estimated tokens; every budget still passes.
-		"68a454e71351a855e4c3c98b0322c26c4885ece2555d25b2248aa3644863ef2e",
+		// Rebaselined 2026-10-04 for DevSpec item cc630fb8 (every list reports its
+		// total and pages). Optional inputs only, no required field or type change,
+		// 99 verbs before and after, no projection family moved: `offset` on
+		// get_decisions, get_conventions, get_unresolved_questions, search_action_items,
+		// search_discussion_points, get_resources, search_sessions, get_recent_sessions
+		// and get_automation_runs (+ its `limit`); `activity_offset`/`activity_limit` on
+		// get_action_item_history; `proposals_offset`/`proposals_limit` on
+		// get_project_instruction_rules. Limit descriptions now speak of pages. The
+		// collection projection names the exact next page from `page.next_offset`
+		// (tested above). Benchmark: initial surface 31,936 -> 32,871 estimated
+		// tokens; every budget still passes.
+		"c1eaaa4fcfe6f3d497e210be5637228b97803113693220ba07d847e5afe5f543",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -1224,4 +1235,16 @@ test("Pi Anthropic adapter payload hook observes content, never details", async 
 	assert.match(wire, /compact visible content/);
 	assert.doesNotMatch(wire, new RegExp(secret));
 	assert.doesNotMatch(wire, /hidden/);
+});
+
+test("a paged DevSpec list names the exact next page, and a ranked floor says so (item cc630fb8)", () => {
+	const page = { total_matching: 327, offset: 0, limit: 20, returned: 2, has_more: true, next_offset: 20 };
+	const payload = { memories: [{ id: "m1", title: "One" }, { id: "m2", title: "Two" }], page };
+	const text = projectModelText({ toolName: "get_decisions", text: JSON.stringify(payload), details: payload });
+	assert.match(text, /get_decisions: 327 results; showing 2\./);
+	assert.match(text, /Next page: call get_decisions again with offset 20\./);
+	const last = { ...payload, page: { ...page, has_more: false, next_offset: null } };
+	assert.doesNotMatch(projectModelText({ toolName: "get_decisions", text: JSON.stringify(last), details: last }), /Next page/);
+	const floor = { results: [{ id: "a1", title: "A" }], page: { total_matching: 200, total_is_lower_bound: true, offset: 0, limit: 1, returned: 1, has_more: true, next_offset: 1 } };
+	assert.match(projectModelText({ toolName: "search_action_items", text: JSON.stringify(floor), details: floor }), /the count is a floor/);
 });

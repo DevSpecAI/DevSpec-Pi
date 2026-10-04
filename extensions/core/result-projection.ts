@@ -586,6 +586,14 @@ function collectionProjection(toolName: string, details: unknown): string | null
 		const omitted = Math.max(total - shown.length, found.rows.length - shown.length);
 		if (omitted > 0) blocks.push(`Omitted ${omitted} result(s) from model-visible content.`);
 	}
+	// DevSpec lists page with an exact continuation (item cc630fb8). Name it, so the
+	// model can fetch the rest rather than read one page as the whole list.
+	const page = record(root.page);
+	if (page && typeof page.next_offset === "number") {
+		blocks.push(`Next page: call ${toolName} again with offset ${page.next_offset}${page.total_is_lower_bound === true ? " (the count is a floor: the ranking stopped at its bound; narrow the query to reach beyond it)" : ""}.`);
+	} else if (page && page.total_is_lower_bound === true) {
+		blocks.push("The count is a floor: the ranking stopped at its bound. Narrow the query to reach beyond it.");
+	}
 	blocks.push(fetchHint(toolName));
 	return withinBudget(blocks, PROJECTION_BUDGETS.collection, "collection");
 }

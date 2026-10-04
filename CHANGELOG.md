@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.54
+
+- When DevSpec cannot reserve an item, Pi now sees which items were skipped and why, including the proposal to review when the item is still a suggestion. Before, it saw only "see skipped for why".
+- A suggestion or edit saved for review keeps its result, revision and Review link, so Pi can tell the person where a Maintainer will accept it. Reload/restart after updating.
+
 ## 0.3.53
 
 - Action-item lists and search say when an item is only a suggestion awaiting review, or one a Maintainer declined, using the line the server sends. Agreed work is shown as before. Reload/restart after updating.

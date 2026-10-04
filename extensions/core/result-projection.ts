@@ -854,6 +854,12 @@ function ackProjection(toolName: string, details: unknown): string | null {
 		"receipt", "receipt_id", "operation_id", "draft_id", "read_status", "status_url", "preview",
 		"expires_at", "current_head", "expected_version", "version", "previous_id", "lineage",
 		"assessment", "assessment_receipt", "comparison_pending", "needs_clarification",
+		// A queued suggestion or edit: what happened and where a Maintainer reviews it.
+		"effect", "code", "fields", "proposal_revision", "review_url",
+		// reserve_work_items: what was reserved, and each item skipped with its reason
+		// (approval_required names the proposal). Dropping these left the model with
+		// "see skipped for why" and nothing to see (2026-10-04).
+		"assignment_id", "reserved", "reserved_count", "skipped",
 	]) if (hasOwn(root, key)) receipt[key] = root[key];
 	if (Object.keys(receipt).length) required.push(`Operation details (server data):\n${reviewData(receipt)}`);
 	required.push(...conflictBlocks(root));

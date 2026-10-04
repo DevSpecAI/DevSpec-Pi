@@ -1025,6 +1025,35 @@ test("update_memory preserves version identity, proposals and exact refusal/prev
 	}
 });
 
+test("reserve_work_items keeps what was reserved and why each item was skipped", () => {
+	// Live on 2026-10-04: a Reviewed Contributor asked Pi to start suggested work. The
+	// server skipped it as approval_required, but the card said only "see skipped for
+	// why", so Pi could not tell the person what stopped it or which proposal to review.
+	assert.equal(projectionFamily("reserve_work_items"), "ack");
+	const details = {
+		outcome: "committed", assignment_id: null, reserved: [], reserved_count: 0,
+		skipped: [{ reason: "approval_required", proposal_id: "proposal-9", action_item_id: "item-9" }],
+		note: "Nothing could be reserved; see skipped for why. No batch was created.",
+	};
+	const text = projectModelText({ toolName: "reserve_work_items", text: JSON.stringify(details), details });
+	assert.match(text, /approval_required/);
+	assert.match(text, /proposal-9/);
+	assert.match(text, /"reserved_count": 0/);
+});
+
+test("a queued suggestion keeps its effect, revision and review route", () => {
+	assert.equal(projectionFamily("create_action_item"), "ack");
+	const details = {
+		recorded: false, outcome: "queued_for_review", effect: "queued", id: "item-7", operation_id: "op-7",
+		proposal_id: "proposal-7", proposal_revision: 1, review_url: "/projects/p/review?tab=proposals&key=proposal%7Cproposal-7",
+		note: "Saved as suggested work for a Maintainer to review. No work was authorized and no agent was started.",
+	};
+	const text = projectModelText({ toolName: "create_action_item", text: JSON.stringify(details), details });
+	for (const expected of [/outcome=queued_for_review/, /"effect": "queued"/, /"proposal_revision": 1/, /review\?tab=proposals/, /proposal-7/]) {
+		assert.match(text, expected);
+	}
+});
+
 test("write_project_instruction_rule acknowledgement preserves committed versus queued outcome", () => {
 	for (const outcome of ["committed", "queued_for_review"]) {
 		const payload = { id: `rule-${outcome}`, title: "Run typecheck before push", outcome };

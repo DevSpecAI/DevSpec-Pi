@@ -4,12 +4,12 @@
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
  * Schema fingerprint: a8d7b85546a63362cf59730e9ce3458602cec46a84e71d5c2dac711f78d3306a
  * Description fingerprint: f7ac9f2b5a8851cd825d2bf4f09c2d76fef7cef91fc8888e6d03a6953e2f341c
- * Regenerated: 2026-10-04T11:30:05.747Z
+ * Regenerated: 2026-10-04T12:27:56.000Z
  */
 export const MCP_CATALOG_FINGERPRINT = "a8d7b85546a63362cf59730e9ce3458602cec46a84e71d5c2dac711f78d3306a";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "f7ac9f2b5a8851cd825d2bf4f09c2d76fef7cef91fc8888e6d03a6953e2f341c";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-04T11:30:05.747Z";
-export const TOOL_CATALOG_VERSION = "eab4717a2fefc224826b6b059a30954b6ba3b0a15beb819d06052d2688a663cc";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-04T12:27:56.000Z";
+export const TOOL_CATALOG_VERSION = "fd6908fe498caf011998a0eb836cf65f4ebcfed04901b33d2b0d23103a299bc2";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -284,7 +284,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "manage_discussion_point",
 		"name": "manage discussion point",
-		"description": "Add, amend, strike or reopen a Still to Discuss topic when the human asked. This records an unsettled conversational loop, not implementation work or a durable settled decision.",
+		"description": "Add, amend, strike or reopen a Still to Discuss topic when the human asked. This records an unsettled conversational loop, not implementation work or a durable settled decision. A project-board reply lists the first page of open points; rows_page gives the total and the search_discussion_points call for the rest.",
 		"intent": "add update strike reopen still to discuss discussion topic"
 	},
 	{
@@ -398,7 +398,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "search_action_items",
 		"name": "search action items",
-		"description": "Find existing work by topic or intent before creating another item. Use get_action_item for full criteria; get_action_items for counts or chronological browsing. Results page through the best-ranked matches: page.total_matching counts them (a floor when total_is_lower_bound), and page.next_offset passed as offset gives the next page.",
+		"description": "Find existing work by topic or intent before creating another item. Use get_action_item for full criteria; get_action_items for counts or chronological browsing. Results are every item your filters allow, most relevant first: page.total_matching counts them all, word_matches counts those containing your words, and page.next_offset passed as offset gives the next page. Stop reading when results stop being relevant.",
 		"intent": "find search work task action item bug feature intent topic"
 	},
 	{
@@ -410,7 +410,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "search_discussion_points",
 		"name": "search discussion points",
-		"description": "Find open Still to Discuss topics and unresolved conversational loops. These are discussion records, not implementation work; use get_discussion_point for full text. Results come a page at a time: page.total_matching is how many match; pass page.next_offset as offset for more.",
+		"description": "Find open Still to Discuss topics and unresolved conversational loops. These are discussion records, not implementation work; use get_discussion_point for full text. Results come a page at a time: page.total_matching counts every point your filters allow (with a query, most relevant first; word_matches counts those containing your words); pass page.next_offset as offset for more.",
 		"intent": "find open unresolved still to discuss discussion topics loops"
 	},
 	{
@@ -1231,7 +1231,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "search_action_items",
 		"label": "DevSpec: Search Action Items",
 		"description": "Hybrid search — full-text keyword matching + semantic (embedding) similarity, fused and ranked. Natural-language or keyword queries both work. Searches across titles and descriptions and returns lightweight, relevance-ranked results (title + short snippet, not full descriptions) — call get_action_item for the full text of a specific result. Unlike get_action_items, this INCLUDES briefs (parent items), so a parent brief can be found by topic. Prefer this over listing-then-scanning when looking for items about a subject.",
-		"promptSnippet": "Find existing work by topic or intent before creating another item. Use get_action_item for full criteria; get_action_items for counts or chronological browsing. Results page through the best-ranked matches: page.total_matching counts them (a floor when total_is_lower_bound), and page.next_offset passed as offset gives the next page.",
+		"promptSnippet": "Find existing work by topic or intent before creating another item. Use get_action_item for full criteria; get_action_items for counts or chronological browsing. Results are every item your filters allow, most relevant first: page.total_matching counts them all, word_matches counts those containing your words, and page.next_offset passed as offset gives the next page. Stop reading when results stop being relevant.",
 		"searchIntent": "find search work task action item bug feature intent topic",
 		"modelInputSchema": {
 			"type": "object",
@@ -2223,7 +2223,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "search_discussion_points",
 		"label": "DevSpec: Search Discussion Points",
 		"description": "Hybrid search over this project's Still to Discuss. Compact cards (title + preview); call get_discussion_point for the full body. Analogous to search_action_items, not search_sessions. Do not add, strike, or reopen rows unless the human asked.",
-		"promptSnippet": "Find open Still to Discuss topics and unresolved conversational loops. These are discussion records, not implementation work; use get_discussion_point for full text. Results come a page at a time: page.total_matching is how many match; pass page.next_offset as offset for more.",
+		"promptSnippet": "Find open Still to Discuss topics and unresolved conversational loops. These are discussion records, not implementation work; use get_discussion_point for full text. Results come a page at a time: page.total_matching counts every point your filters allow (with a query, most relevant first; word_matches counts those containing your words); pass page.next_offset as offset for more.",
 		"searchIntent": "find open unresolved still to discuss discussion topics loops",
 		"modelInputSchema": {
 			"type": "object",
@@ -13810,7 +13810,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "manage_discussion_point",
 		"label": "DevSpec: Manage Discussion Point",
 		"description": "Add, update, strike, reopen, watch, or unwatch a Still to Discuss row when the human asked. Do not maintain the list on your own. Every call returns the affected row plus the current ordered list.",
-		"promptSnippet": "Add, amend, strike or reopen a Still to Discuss topic when the human asked. This records an unsettled conversational loop, not implementation work or a durable settled decision.",
+		"promptSnippet": "Add, amend, strike or reopen a Still to Discuss topic when the human asked. This records an unsettled conversational loop, not implementation work or a durable settled decision. A project-board reply lists the first page of open points; rows_page gives the total and the search_discussion_points call for the rest.",
 		"searchIntent": "add update strike reopen still to discuss discussion topic",
 		"modelInputSchema": {
 			"type": "object",

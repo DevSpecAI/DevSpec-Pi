@@ -339,7 +339,17 @@ test("model tool schemas and projection families require an explicit contract-ba
 		fingerprint,
 		// b0507ae2: only the two optional evidence parameter descriptions changed;
 		// no inputs, required fields, verb inventory or result projections changed.
-		"7deacc7a6d1705e3e418d217099451f753c7657a484c2ab0f8c81b7d85fc172d",
+		// Rebaselined 2026-10-04 for DevSpec item 54d442b0, regenerated against server
+		// staging 13a0c86e1. Descriptions only: write_project_instruction_rule (and its
+		// operation/body/rationale), import_instruction_rules (and items.rationale) and
+		// update_personal_instructions now tell agents to amend the rule that already
+		// covers a subject and keep bodies lean, and no longer claim agents receive the
+		// rationale. Also carries server description changes Pi had not picked up:
+		// update_action_item.agent_error and the idempotency_key guidance on
+		// create_resource/record_memory. 99 verbs before and after; no input, required
+		// field, type or projection family changed. Benchmark before/after: initial
+		// surface 31,262 -> 31,521 estimated tokens; every budget still passes.
+		"ba1ce1455545d80cd9a2ffccdb14e7117d093723cef8ca725b246c807412c956",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

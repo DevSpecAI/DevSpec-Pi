@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 96f5a9978de505d996530f6dda4d4b0a5c04fe82bcf3326b500274ec912cb0dc
- * Description fingerprint: 4b3d7710d861fae8300018d22976f2146b28792f726d20fa7da8d3a7ae89b79f
- * Regenerated: 2026-10-02T17:04:53.855Z
+ * Schema fingerprint: 834978658fa1356e96fa8e9061cd1ef8a9a48886a9536d468a86f42bca4f7206
+ * Description fingerprint: f7ac9f2b5a8851cd825d2bf4f09c2d76fef7cef91fc8888e6d03a6953e2f341c
+ * Regenerated: 2026-10-04T07:51:43.282Z
  */
-export const MCP_CATALOG_FINGERPRINT = "96f5a9978de505d996530f6dda4d4b0a5c04fe82bcf3326b500274ec912cb0dc";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "4b3d7710d861fae8300018d22976f2146b28792f726d20fa7da8d3a7ae89b79f";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-02T17:04:53.855Z";
+export const MCP_CATALOG_FINGERPRINT = "834978658fa1356e96fa8e9061cd1ef8a9a48886a9536d468a86f42bca4f7206";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "f7ac9f2b5a8851cd825d2bf4f09c2d76fef7cef91fc8888e6d03a6953e2f341c";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-04T07:51:43.282Z";
 export const TOOL_CATALOG_VERSION = "2fda171b5007790a219a7e7b0eb8d0fa56140a96050301ecf65ec7e25b5fe6c7";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -4013,7 +4013,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"agent_error": {
 					"type": "string",
-					"description": "Error message when setting agent_activity to failed"
+					"description": "Why the attempt failed. Accepted ONLY together with agent_activity \"failed\" (prefer fail_work_item); any other call carrying it is refused. It clears itself when the item is next claimed, delivered or returned to idle, and the reason stays in the item's history, so there is never a stale note to clear by hand."
 				},
 				"agent_branch": {
 					"type": "string",
@@ -4276,7 +4276,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"agent_error": {
 					"type": "string",
-					"description": "Error message when setting agent_activity to failed"
+					"description": "Why the attempt failed. Accepted ONLY together with agent_activity \"failed\" (prefer fail_work_item); any other call carrying it is refused. It clears itself when the item is next claimed, delivered or returned to idle, and the reason stays in the item's history, so there is never a stale note to clear by hand."
 				},
 				"agent_branch": {
 					"type": "string",
@@ -5748,7 +5748,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"idempotency_key": {
 					"type": "string",
-					"description": "Optional. One caller-generated key per INTENDED create (a UUID is fine). If a timeout or interruption loses the response, retry with the SAME key and you receive the original record's id as a no-op success instead of a duplicate row. A new key always creates. Without a key, an identical create in the same session is still deduped by content."
+					"description": "Choose one UUID before a proposed creation; it is required when this call saves a proposal. Retry uncertain submissions with the SAME key and original fields to recover the original saved operation, not create another proposal. A saved receipt is historical submission evidence, not current approval. Direct-authority creation retains its existing optional-key/content deduplication. Never report queued, refused or unknown as created; follow the returned Review route and current served authority contract."
 				},
 				"runner_session_id": {
 					"type": "string",
@@ -5827,7 +5827,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"idempotency_key": {
 					"type": "string",
-					"description": "Optional. One caller-generated key per INTENDED create (a UUID is fine). If a timeout or interruption loses the response, retry with the SAME key and you receive the original record's id as a no-op success instead of a duplicate row. A new key always creates. Without a key, an identical create in the same session is still deduped by content."
+					"description": "Choose one UUID before a proposed creation; it is required when this call saves a proposal. Retry uncertain submissions with the SAME key and original fields to recover the original saved operation, not create another proposal. A saved receipt is historical submission evidence, not current approval. Direct-authority creation retains its existing optional-key/content deduplication. Never report queued, refused or unknown as created; follow the returned Review route and current served authority contract."
 				},
 				"runner_session_id": {
 					"type": "string",
@@ -8468,7 +8468,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"idempotency_key": {
 					"type": "string",
-					"description": "Optional. One caller-generated key per INTENDED create (a UUID is fine). If a timeout or interruption loses the response, retry with the SAME key and you receive the original record's id as a no-op success instead of a duplicate row. A new key always creates. Without a key, an identical create in the same session is still deduped by content."
+					"description": "Choose one UUID before a proposed creation; it is required when this call saves a proposal. Retry uncertain submissions with the SAME key and original fields to recover the original saved operation, not create another proposal. A saved receipt is historical submission evidence, not current approval. Direct-authority creation retains its existing optional-key/content deduplication. Never report queued, refused or unknown as recorded; follow the returned Review route and current served authority contract."
 				},
 				"runner_session_id": {
 					"type": "string",
@@ -8570,7 +8570,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"idempotency_key": {
 					"type": "string",
-					"description": "Optional. One caller-generated key per INTENDED create (a UUID is fine). If a timeout or interruption loses the response, retry with the SAME key and you receive the original record's id as a no-op success instead of a duplicate row. A new key always creates. Without a key, an identical create in the same session is still deduped by content."
+					"description": "Choose one UUID before a proposed creation; it is required when this call saves a proposal. Retry uncertain submissions with the SAME key and original fields to recover the original saved operation, not create another proposal. A saved receipt is historical submission evidence, not current approval. Direct-authority creation retains its existing optional-key/content deduplication. Never report queued, refused or unknown as recorded; follow the returned Review route and current served authority contract."
 				},
 				"runner_session_id": {
 					"type": "string",
@@ -12967,7 +12967,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "write_project_instruction_rule",
 		"label": "DevSpec: Write Project Instruction Rule",
-		"description": "Add, amend or retract ONE of this project's TEAM instruction rules. These govern EVERY agent on the project, including agents belonging to people not in this conversation, so authority is judged server-side per the served contract (devspec://product/implementation-contract → authority_contract, verb `instruction_rule.write`), never by this description. READ THE `outcome` FIELD AND REPORT IT HONESTLY — `committed` means live now, `queued_for_review` means NOT IN EFFECT and awaiting a human, and telling the user their team's rules changed when they were only queued is the failure this tool exists to avoid. Rule-level by design: there is no way to replace a whole tier's text, because that is what let two people silently overwrite each other. Before committing, show the user the exact rule text and get their agreement. The safety class (rules every agent is told it may not work around) is maintainer-only and needs confirm_safety_change. For the caller's OWN machine rules use update_personal_instructions instead.",
+		"description": "Add, amend or retract ONE of this project's TEAM instruction rules. These govern EVERY agent on the project, including agents belonging to people not in this conversation, so authority is judged server-side per the served contract (devspec://product/implementation-contract → authority_contract, verb `instruction_rule.write`), never by this description. READ THE `outcome` FIELD AND REPORT IT HONESTLY — `committed` means live now, `queued_for_review` means NOT IN EFFECT and awaiting a human, and telling the user their team's rules changed when they were only queued is the failure this tool exists to avoid. Rule-level by design: there is no way to replace a whole tier's text, because that is what let two people silently overwrite each other. Keep the set lean, because every agent on the project reads all of it at the start of every run: call get_project_instruction_rules first, and if a rule already covers the subject, amend that rule rather than adding another, taking out anything the change makes redundant. Keep the body to what an agent must do plus a short reason; longer evidence, history and examples go in `rationale`. Before committing, show the user the exact rule text and get their agreement. The safety class (rules every agent is told it may not work around) is maintainer-only and needs confirm_safety_change. For the caller's OWN machine rules use update_personal_instructions instead.",
 		"promptSnippet": "Add, amend or retract a team-wide agent instruction when requested. This changes how agents work; use an artifact for an ADR and a memory for project rationale instead.",
 		"searchIntent": "change amend add retract team-wide project coding agent instruction rules policy",
 		"modelInputSchema": {
@@ -12980,7 +12980,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"amend",
 						"retract"
 					],
-					"description": "add = append a new rule. amend = edit one existing rule in place. retract = remove one rule from the live set (kept as history). Each is judged by the served contract's `instruction_rule.write` verb; read the `outcome`."
+					"description": "add = a new rule, for a subject no existing rule covers (otherwise amend that rule). amend = edit one existing rule in place. retract = remove one rule from the live set (kept as history). Each is judged by the served contract's `instruction_rule.write` verb; read the `outcome`."
 				},
 				"tier": {
 					"type": "string",
@@ -12992,7 +12992,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"body": {
 					"type": "string",
-					"description": "The rule text. Required for add. One rule, not several combined."
+					"description": "The rule text every agent on the project is handed: what to do, plus a short reason. Required for add. One rule, not several combined."
 				},
 				"rule_class": {
 					"type": "string",
@@ -13005,7 +13005,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"rationale": {
 					"type": "string",
-					"description": "Why this rule exists. Travels with the rule, so an agent applying it knows the reason."
+					"description": "Why this rule exists: the evidence, history or examples behind it. Shown to people with the rule and returned by get_project_instruction_rules, but not part of the instructions agents are handed, so anything an agent must act on belongs in the body."
 				},
 				"rule_id": {
 					"type": "string",
@@ -13046,7 +13046,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"amend",
 						"retract"
 					],
-					"description": "add = append a new rule. amend = edit one existing rule in place. retract = remove one rule from the live set (kept as history). Each is judged by the served contract's `instruction_rule.write` verb; read the `outcome`."
+					"description": "add = a new rule, for a subject no existing rule covers (otherwise amend that rule). amend = edit one existing rule in place. retract = remove one rule from the live set (kept as history). Each is judged by the served contract's `instruction_rule.write` verb; read the `outcome`."
 				},
 				"tier": {
 					"type": "string",
@@ -13058,7 +13058,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"body": {
 					"type": "string",
-					"description": "The rule text. Required for add. One rule, not several combined."
+					"description": "The rule text every agent on the project is handed: what to do, plus a short reason. Required for add. One rule, not several combined."
 				},
 				"rule_class": {
 					"type": "string",
@@ -13071,7 +13071,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"rationale": {
 					"type": "string",
-					"description": "Why this rule exists. Travels with the rule, so an agent applying it knows the reason."
+					"description": "Why this rule exists: the evidence, history or examples behind it. Shown to people with the rule and returned by get_project_instruction_rules, but not part of the instructions agents are handed, so anything an agent must act on belongs in the body."
 				},
 				"rule_id": {
 					"type": "string",
@@ -13107,7 +13107,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "import_instruction_rules",
 		"label": "DevSpec: Import Instruction Rules",
-		"description": "Turn an existing agent-rules file (CLAUDE.md, AGENTS.md, .cursorrules, .github/copilot-instructions.md) into structured DevSpec rules. YOU read and categorise the file — that judgement is the whole value; this tool validates the plan, shows it to the user, and routes each piece. Call WITHOUT confirm first: you get the categorised plan back and NOTHING is written, which is the review step. Show it to the user, let them drop or move entries, then call again with confirm: true. Each item needs a `source_line` so a human can check it against their own file. FIVE destinations, because a real rules file contains all five: project_agent_rules (team execution mechanics), project_principles (team philosophy), personal_agent_rules (the author's own machine/tooling — NOT team policy, and burying it in a team field makes every agent obey one person's setup), memory (architecture DECISIONS — 'we use Broadcast rather than postgres_changes' is a decision and belongs in record_memory with its rationale; 'never add postgres_changes without documenting it' is a rule — getting this split wrong in either direction is the main risk), and leave_in_repo (directory layout, commands — DevSpec already indexes the code). Do NOT dump the whole file into project_agent_rules. Landing is judged per rule by the served contract (devspec://product/implementation-contract → authority_contract, `instruction_rule.write`): read the `outcome` — `applied: true` with `outcome: committed` means the rules are live; `applied: false` with `outcome: queued_for_review` means NOTHING is in effect and the queued rules are named by `proposal_ids` (plural — an import usually queues several), awaiting a maintainer.",
+		"description": "Turn an existing agent-rules file (CLAUDE.md, AGENTS.md, .cursorrules, .github/copilot-instructions.md) into structured DevSpec rules. YOU read and categorise the file — that judgement is the whole value; this tool validates the plan, shows it to the user, and routes each piece. Call WITHOUT confirm first: you get the categorised plan back and NOTHING is written, which is the review step. Show it to the user, let them drop or move entries, then call again with confirm: true. Each item needs a `source_line` so a human can check it against their own file. FIVE destinations, because a real rules file contains all five: project_agent_rules (team execution mechanics), project_principles (team philosophy), personal_agent_rules (the author's own machine/tooling — NOT team policy, and burying it in a team field makes every agent obey one person's setup), memory (architecture DECISIONS — 'we use Broadcast rather than postgres_changes' is a decision and belongs in record_memory with its rationale; 'never add postgres_changes without documenting it' is a rule — getting this split wrong in either direction is the main risk), and leave_in_repo (directory layout, commands — DevSpec already indexes the code). Do NOT dump the whole file into project_agent_rules. Every agent on the project reads all of its rules on every run, so read the existing ones with get_project_instruction_rules first: where one already covers a subject, leave that item out and amend the existing rule with write_project_instruction_rule instead of importing a second, and keep each body to the instruction plus a short reason. Landing is judged per rule by the served contract (devspec://product/implementation-contract → authority_contract, `instruction_rule.write`): read the `outcome` — `applied: true` with `outcome: committed` means the rules are live; `applied: false` with `outcome: queued_for_review` means NOTHING is in effect and the queued rules are named by `proposal_ids` (plural — an import usually queues several), awaiting a maintainer.",
 		"promptSnippet": "Import an existing agent-rule file into structured team instructions. Review the proposed rules; do not treat arbitrary repository prose as approved instructions.",
 		"searchIntent": "import agent rules file into team instructions",
 		"modelInputSchema": {
@@ -13149,7 +13149,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							},
 							"rationale": {
 								"type": "string",
-								"description": "Why the rule exists, if the source says."
+								"description": "Why the rule exists, if the source says: evidence, history or examples. Agents are not handed it with their instructions, so keep what they must do in body and put the longer explanation here."
 							},
 							"source_line": {
 								"type": "string",
@@ -13232,7 +13232,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							},
 							"rationale": {
 								"type": "string",
-								"description": "Why the rule exists, if the source says."
+								"description": "Why the rule exists, if the source says: evidence, history or examples. Agents are not handed it with their instructions, so keep what they must do in body and put the longer explanation here."
 							},
 							"source_line": {
 								"type": "string",
@@ -14093,7 +14093,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_personal_instructions",
 		"label": "DevSpec: Update Personal Instructions",
-		"description": "Amend YOUR OWN personal instruction tiers on the calling token's account: `personal_agent_rules` (Agent rules on the Agents settings page, /settings/agents#agent-rules — this machine and how you work locally) and `chat_response_style` (Response style on the Replies & voice settings page, /settings/replies). Use this instead of telling the user to copy-paste text into the web UI. Scope is the token's user; no argument can redirect the write to anyone else, and the two TEAM tiers (project principles, project agent rules) are deliberately NOT writable here — they govern everyone on the project. DEFAULTS TO APPEND: pass just the new rule and it is added to what is already there, so you never restate the user's existing text (rewriting a whole field to add one line eventually drops something they wrote by hand). Pass mode:\"replace\" only when the user actually wants the tier rewritten or cleared. ALWAYS show the user the exact resulting text and get their agreement BEFORE it lands — call with dry_run:true to get that text back without saving, show it, then call again without dry_run once they confirm. Refuses to run from an unattended run — the served contract (devspec://product/implementation-contract → authority_contract, personal scope) keeps a person's own instructions to the person themselves.",
+		"description": "Amend YOUR OWN personal instruction tiers on the calling token's account: `personal_agent_rules` (Agent rules on the Agents settings page, /settings/agents#agent-rules — this machine and how you work locally) and `chat_response_style` (Response style on the Replies & voice settings page, /settings/replies). Use this instead of telling the user to copy-paste text into the web UI. Scope is the token's user; no argument can redirect the write to anyone else, and the two TEAM tiers (project principles, project agent rules) are deliberately NOT writable here — they govern everyone on the project. DEFAULTS TO APPEND: pass just the new rule and it is added to what is already there, so you never restate the user's existing text (rewriting a whole field to add one line eventually drops something they wrote by hand). Append only what is genuinely new: every agent this person runs reads all of it on every start. If the new rule changes, repeats or contradicts something already there, revise that part instead — build the full revised text from the current one, use mode:\"replace\", and show it with dry_run first. Otherwise pass mode:\"replace\" only when the user actually wants the tier rewritten or cleared. ALWAYS show the user the exact resulting text and get their agreement BEFORE it lands — call with dry_run:true to get that text back without saving, show it, then call again without dry_run once they confirm. Refuses to run from an unattended run — the served contract (devspec://product/implementation-contract → authority_contract, personal scope) keeps a person's own instructions to the person themselves.",
 		"promptSnippet": "Amend your own agent rules or response style when requested. Use team instruction tools for project-wide policy; do not write another person’s preferences.",
 		"searchIntent": "change update own personal agent instructions response style preferences",
 		"modelInputSchema": {

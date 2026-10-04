@@ -383,7 +383,12 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// 4,000 -> 1,000 (what the database always enforced), and the reopen note no
 		// longer claims a 20-character minimum. No verb, required field, type or
 		// projection family changed.
-		"af57998559aae2e780051c628a7bdff1b018630288879e4fb1d7ce1bce1e1cf6",
+		// Rebaselined 2026-10-04 for DevSpec item 02526f46 (every list tool lets the
+		// caller reach the rest): search_memories, search_resources, devspec_help_search
+		// and search_devspec_tools gained \`offset\` and say so in their limit and
+		// guidance text. No verb, required field or projection family changed; the help
+		// and resource projections now name the next offset.
+		"24504d24c6a2022122ec43f15a99410b780c28ee88a96def8a900284f9a7e1b3",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -1121,7 +1126,29 @@ test("DevSpec help projection keeps citeable URLs and bounded section content", 
 	assert.match(text, /Authoritative answer: reserve the work and record implementation/);
 	assert.match(text, /section character\(s\) omitted/);
 	assert.match(text, /narrower query/);
-	assert.match(text, /Omitted 4 lower-ranked section/);
+	assert.match(text, /More sections: call devspec_help_search again with offset 8\./);
+});
+
+test("a later help page says where it starts, that its count is a floor, and the next offset (02526f46)", () => {
+	const results = [{ doc: "Guide 9", section: "Ninth", url: "https://docs.devspec.ai/guides/nine", category: "workflows", content: "Nine." }];
+	const payload = { query: "workflows", count: 1, page: { total_matching: 10, total_is_lower_bound: true, offset: 8, limit: 1, returned: 1, has_more: true, next_offset: 9 }, results };
+	const text = projectModelText({ toolName: "devspec_help_search", text: JSON.stringify(payload), details: payload });
+	assert.match(text, /at least 10 sections; showing 1 from 9\./);
+	assert.match(text, /call devspec_help_search again with offset 9\./);
+});
+
+test("search_resources names one offset that continues both corpora (02526f46)", () => {
+	const payload = {
+		documents: [{ id: "doc-1", title: "Runbook" }],
+		artifacts: [{ id: "art-1", title: "ADR" }],
+		pages: {
+			documents: { total_matching: 1, offset: 0, limit: 1, returned: 1, has_more: false, next_offset: null },
+			artifacts: { total_matching: 101, total_is_lower_bound: true, offset: 0, limit: 1, returned: 1, has_more: true, next_offset: 1 },
+		},
+	};
+	const text = projectModelText({ toolName: "search_resources", text: JSON.stringify(payload), details: payload });
+	assert.match(text, /Next page: call search_resources again with offset 1 \(matches: documents 1, artifacts 101\+\)\./);
+	assert.match(text, /count marked \+ is a floor/);
 });
 
 test("known-family unknown shapes fall back transparently instead of inventing empty/ack responses", () => {

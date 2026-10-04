@@ -594,6 +594,19 @@ function collectionProjection(toolName: string, details: unknown): string | null
 	} else if (page && page.total_is_lower_bound === true) {
 		blocks.push("The count is a floor: the ranking stopped at its bound. Narrow the query to reach beyond it.");
 	}
+	// search_resources pages its two corpora with one offset, each with its own page
+	// (DevSpec item 02526f46). The next offset is the further of the two.
+	const corpusPages = page ? null : record(root.pages);
+	if (corpusPages) {
+		const parts = Object.entries(corpusPages)
+			.map(([corpus, raw]) => [corpus, record(raw)] as const)
+			.filter((entry): entry is readonly [string, Row] => entry[1] !== null);
+		const next = parts.map(([, corpusPage]) => corpusPage.next_offset).filter((value): value is number => typeof value === "number");
+		const floor = parts.some(([, corpusPage]) => corpusPage.total_is_lower_bound === true);
+		const counts = parts.map(([corpus, corpusPage]) => `${corpus} ${corpusPage.total_matching}${corpusPage.total_is_lower_bound === true ? "+" : ""}`).join(", ");
+		if (next.length) blocks.push(`Next page: call ${toolName} again with offset ${Math.max(...next)} (matches: ${counts}).`);
+		if (floor) blocks.push("A count marked + is a floor: the ranking stopped at its bound. Narrow the query, or browse with get_resources, to reach beyond it.");
+	}
 	blocks.push(fetchHint(toolName));
 	return withinBudget(blocks, PROJECTION_BUDGETS.collection, "collection");
 }
@@ -613,9 +626,13 @@ function helpProjection(details: unknown): string | null {
 	const root = record(details);
 	if (!root || !Array.isArray(root.results)) return null;
 	const query = oneLine(root.query, 240);
-	const total = typeof root.count === "number" ? Math.max(root.count, root.results.length) : root.results.length;
+	const page = record(root.page);
+	const offset = page && typeof page.offset === "number" ? page.offset : 0;
+	const pageTotal = page && typeof page.total_matching === "number" ? page.total_matching : undefined;
+	const total = pageTotal ?? (typeof root.count === "number" ? Math.max(root.count, root.results.length) : root.results.length);
+	const floor = page?.total_is_lower_bound === true;
 	const shown = (root.results as unknown[]).slice(0, 8);
-	const blocks = [`DevSpec help${query ? ` for “${query}”` : ""}: ${total} section${total === 1 ? "" : "s"}; showing ${shown.length}.`];
+	const blocks = [`DevSpec help${query ? ` for “${query}”` : ""}: ${floor ? "at least " : ""}${total} section${total === 1 ? "" : "s"}; showing ${shown.length}${offset > 0 ? ` from ${offset + 1}` : ""}.`];
 	for (const [index, raw] of shown.entries()) {
 		const hit = record(raw);
 		if (!hit) continue;
@@ -629,8 +646,12 @@ function helpProjection(details: unknown): string | null {
 		if (content) lines.push(content);
 		blocks.push(lines.join("\n"));
 	}
-	if (total > shown.length) blocks.push(`Omitted ${total - shown.length} lower-ranked section(s).`);
-	blocks.push("For more or fuller text, rerun devspec_help_search with a narrower query; cite the returned URL in the answer.");
+	// Pages continue from the last section shown (DevSpec item 02526f46).
+	const nextOffset = offset + shown.length;
+	if (shown.length < root.results.length || (page && typeof page.next_offset === "number")) {
+		blocks.push(`More sections: call devspec_help_search again with offset ${nextOffset}.`);
+	}
+	blocks.push("For fuller text, rerun devspec_help_search with a narrower query; cite the returned URL in the answer.");
 	return withinBudget(blocks, PROJECTION_BUDGETS.help, "help section");
 }
 

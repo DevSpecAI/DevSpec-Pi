@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: a8d7b85546a63362cf59730e9ce3458602cec46a84e71d5c2dac711f78d3306a
+ * Schema fingerprint: e471d451868d8a09907873dc1605bfe386ec126d02f23cdf915b281deac7de91
  * Description fingerprint: f7ac9f2b5a8851cd825d2bf4f09c2d76fef7cef91fc8888e6d03a6953e2f341c
- * Regenerated: 2026-10-04T12:27:56.000Z
+ * Regenerated: 2026-10-04T13:43:36.371Z
  */
-export const MCP_CATALOG_FINGERPRINT = "a8d7b85546a63362cf59730e9ce3458602cec46a84e71d5c2dac711f78d3306a";
+export const MCP_CATALOG_FINGERPRINT = "e471d451868d8a09907873dc1605bfe386ec126d02f23cdf915b281deac7de91";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "f7ac9f2b5a8851cd825d2bf4f09c2d76fef7cef91fc8888e6d03a6953e2f341c";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-04T12:27:56.000Z";
-export const TOOL_CATALOG_VERSION = "fd6908fe498caf011998a0eb836cf65f4ebcfed04901b33d2b0d23103a299bc2";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-04T13:43:36.371Z";
+export const TOOL_CATALOG_VERSION = "d639e68b353d4bae3f06ac05d527b963dfcc8e7024ee5eec6eb77b56b048be90";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -86,7 +86,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "devspec_help_search",
 		"name": "devspec help search",
-		"description": "Look up official DevSpec product usage and setup documentation. For execution or authority policy, use get_workflow_rules with include_implementation_contract:true.",
+		"description": "Look up official DevSpec product usage and setup documentation. For execution or authority policy, use get_workflow_rules with include_implementation_contract:true. Sections come a page at a time: pass page.next_offset as offset for more.",
 		"intent": "how to use connect setup GitHub DevSpec product help documentation integrations billing"
 	},
 	{
@@ -404,7 +404,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "search_devspec_tools",
 		"name": "search devspec tools",
-		"description": "Find the appropriate DevSpec operation by intent when unsure which tool fits. Search includes already-available tools and never executes them; known tools can be called directly without searching. Keyword suggestions remain available while a changed semantic index refreshes.",
+		"description": "Find the appropriate DevSpec operation by intent when unsure which tool fits. Search includes already-available tools and never executes them; known tools can be called directly without searching. Keyword suggestions remain available while a changed semantic index refreshes. Pass page.next_offset as offset to see further matches.",
 		"intent": "find appropriate available tools capabilities by intent"
 	},
 	{
@@ -416,13 +416,13 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "search_memories",
 		"name": "search memories",
-		"description": "Find project decisions, conventions and rationale by meaning or keywords. Search cards help choose a record; get_memory supplies the full authoritative body.",
+		"description": "Find project decisions, conventions and rationale by meaning or keywords. Search cards help choose a record; get_memory supplies the full authoritative body. Results come a page at a time: pass page.next_offset as offset for more; a total marked total_is_lower_bound means narrow the query to reach the rest.",
 		"intent": "find search existing memory decision convention rationale topic"
 	},
 	{
 		"id": "search_resources",
 		"name": "search resources",
-		"description": "Find documents and artifacts by topic, including passages in uploads. Omit query to browse recent resources. Use get_resource to read a chosen document completely.",
+		"description": "Find documents and artifacts by topic, including passages in uploads. Omit query to browse recent resources. Use get_resource to read a chosen document completely. Each corpus comes a page at a time: pages.documents and pages.artifacts say how many match; pass their next_offset as offset for more, and a total marked total_is_lower_bound means narrow the query, or browse with get_resources, to reach the rest.",
 		"intent": "find search document artifact uploaded passage architecture reference topic"
 	},
 	{
@@ -647,7 +647,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "search_devspec_tools",
 		"label": "DevSpec: Search Devspec Tools",
 		"description": "Find the appropriate DevSpec tool by intent, including already-available tools. Search is optional, never executes a recommendation, and reports lexical degradation when semantic retrieval is unavailable.",
-		"promptSnippet": "Find the appropriate DevSpec operation by intent when unsure which tool fits. Search includes already-available tools and never executes them; known tools can be called directly without searching. Keyword suggestions remain available while a changed semantic index refreshes.",
+		"promptSnippet": "Find the appropriate DevSpec operation by intent when unsure which tool fits. Search includes already-available tools and never executes them; known tools can be called directly without searching. Keyword suggestions remain available while a changed semantic index refreshes. Pass page.next_offset as offset to see further matches.",
 		"searchIntent": "find appropriate available tools capabilities by intent",
 		"modelInputSchema": {
 			"type": "object",
@@ -663,7 +663,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"minimum": 1,
 					"maximum": 10,
 					"default": 3,
-					"description": "Maximum recommendations, not operations to execute."
+					"description": "Recommendations per page, not operations to execute. The response's page says how many match and the next_offset."
+				},
+				"offset": {
+					"type": "integer",
+					"minimum": 0,
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response for more recommendations."
 				},
 				"connection_id": {
 					"type": "string",
@@ -700,7 +705,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"minimum": 1,
 					"maximum": 10,
 					"default": 3,
-					"description": "Maximum recommendations, not operations to execute."
+					"description": "Recommendations per page, not operations to execute. The response's page says how many match and the next_offset."
+				},
+				"offset": {
+					"type": "integer",
+					"minimum": 0,
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response for more recommendations."
 				},
 				"available_tools": {
 					"type": "array",
@@ -1631,7 +1641,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "search_resources",
 		"label": "DevSpec: Search Resources",
 		"description": "Hybrid search over DOCUMENTS and ARTIFACTS — full-text keyword matching fused with semantic (embedding) similarity, so a conceptual question finds the right passage even when no keyword overlaps (ask \"how much tax was on that invoice\" and it finds a document that says VAT). Uploaded documents are chunked, so a hit returns the MATCHING PASSAGE inline rather than just a title — you usually do not need a follow-up read. Use this to find reference material by topic; use get_resources when you want to browse everything, and get_resource to read one in full. OMIT `query` to LIST what exists (most recent first) instead of searching — the right call for \"what documents do we have?\".",
-		"promptSnippet": "Find documents and artifacts by topic, including passages in uploads. Omit query to browse recent resources. Use get_resource to read a chosen document completely.",
+		"promptSnippet": "Find documents and artifacts by topic, including passages in uploads. Omit query to browse recent resources. Use get_resource to read a chosen document completely. Each corpus comes a page at a time: pages.documents and pages.artifacts say how many match; pass their next_offset as offset for more, and a total marked total_is_lower_bound means narrow the query, or browse with get_resources, to reach the rest.",
 		"searchIntent": "find search document artifact uploaded passage architecture reference topic",
 		"modelInputSchema": {
 			"type": "object",
@@ -1664,7 +1674,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum results per corpus. Defaults to 20, max 50."
+					"description": "Results per corpus per page. Defaults to 20, max 50. Each corpus's page in `pages` says how many match and the next_offset for more."
+				},
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset, applied to each corpus. Defaults to 0. Use pages.<corpus>.next_offset from a prior response to fetch the next page."
 				},
 				"requested_by": {
 					"type": "string",
@@ -1728,7 +1742,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum results per corpus. Defaults to 20, max 50."
+					"description": "Results per corpus per page. Defaults to 20, max 50. Each corpus's page in `pages` says how many match and the next_offset for more."
+				},
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset, applied to each corpus. Defaults to 0. Use pages.<corpus>.next_offset from a prior response to fetch the next page."
 				},
 				"requested_by": {
 					"type": "string",
@@ -2447,7 +2465,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "search_memories",
 		"label": "DevSpec: Search Memories",
 		"description": "Hybrid search — full-text keyword matching + semantic (embedding) similarity, fused and ranked. Natural-language or keyword queries both work. Searches the project memory base for architecture decisions, coding conventions, identified risks, and recurring patterns. Returns a CARD per memory — id, title, one-line summary, type, state, tags — and NOT the body. That keeps a search affordable to run: bodies average ~1.8KB and a 15-result search used to return over 600,000 characters. Call `get_memory` with the id to read the full text of one you care about, and always do that before superseding or contradicting it: the card is enough to CHOOSE a memory, not enough to overwrite one. Matching still uses the whole body, so a query phrased in your own words finds a memory even when none of its title words appear.",
-		"promptSnippet": "Find project decisions, conventions and rationale by meaning or keywords. Search cards help choose a record; get_memory supplies the full authoritative body.",
+		"promptSnippet": "Find project decisions, conventions and rationale by meaning or keywords. Search cards help choose a record; get_memory supplies the full authoritative body. Results come a page at a time: pass page.next_offset as offset for more; a total marked total_is_lower_bound means narrow the query to reach the rest.",
 		"searchIntent": "find search existing memory decision convention rationale topic",
 		"modelInputSchema": {
 			"type": "object",
@@ -2485,7 +2503,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum number of results to return. Defaults to 20."
+					"description": "Results per page. Defaults to 20, max 100. The response's page says how many match and the next_offset for more."
+				},
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
 				},
 				"flagged": {
 					"type": "boolean",
@@ -2569,7 +2591,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"limit": {
 					"type": "number",
-					"description": "Maximum number of results to return. Defaults to 20."
+					"description": "Results per page. Defaults to 20, max 100. The response's page says how many match and the next_offset for more."
+				},
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
 				},
 				"flagged": {
 					"type": "boolean",
@@ -3499,7 +3525,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "devspec_help_search",
 		"label": "DevSpec: Devspec Help Search",
 		"description": "Search DevSpec's own product help documentation — how to USE the DevSpec platform (projects, sessions, integrations, billing, MCP setup, etc.). Returns the most relevant doc sections with their text and a deep link (url) you can cite. This is GLOBAL product help, not the user's project docs, and is available to any DevSpec token. Use it to answer \\\"how do I … in DevSpec?\\\" questions, then synthesise an answer from the returned sections.\n\nAnswer from the returned content only, and cite the `url` of each section you used. If the results cover the question only partly, say so and answer the part they cover — the failure mode here is filling the gap with a plausible invented setting, which is indistinguishable from a real one to the person asking.",
-		"promptSnippet": "Look up official DevSpec product usage and setup documentation. For execution or authority policy, use get_workflow_rules with include_implementation_contract:true.",
+		"promptSnippet": "Look up official DevSpec product usage and setup documentation. For execution or authority policy, use get_workflow_rules with include_implementation_contract:true. Sections come a page at a time: pass page.next_offset as offset for more.",
 		"searchIntent": "how to use connect setup GitHub DevSpec product help documentation integrations billing",
 		"modelInputSchema": {
 			"type": "object",
@@ -3510,7 +3536,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"limit": {
 					"type": "number",
-					"description": "Max sections to return (1-20, default 8)."
+					"description": "Sections per page (1-20, default 8). The response's page says whether more follow and the next_offset."
+				},
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
 				}
 			},
 			"required": [
@@ -3526,7 +3556,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"limit": {
 					"type": "number",
-					"description": "Max sections to return (1-20, default 8)."
+					"description": "Sections per page (1-20, default 8). The response's page says whether more follow and the next_offset."
+				},
+				"offset": {
+					"type": "number",
+					"description": "Pagination offset. Defaults to 0. Use page.next_offset from a prior response to fetch the next page."
 				}
 			},
 			"required": [

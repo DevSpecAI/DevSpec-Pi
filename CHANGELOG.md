@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.55
+
+- Memory, document and help searches, and tool search, now return results a page at a time with a way to read on: Pi names the offset for the next page, says when a count is a floor, and for document search gives one offset that continues both documents and artifacts. Before, these searches stopped at their page size with no way past it.
+- Refresh the generated server catalogue; reload/restart after updating to load the new `offset` inputs and descriptions.
+
 ## 0.3.54
 
 - When DevSpec cannot reserve an item, Pi now sees which items were skipped and why, including the proposal to review when the item is still a suggestion. Before, it saw only "see skipped for why".

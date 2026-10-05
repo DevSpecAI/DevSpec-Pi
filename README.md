@@ -4,7 +4,7 @@ Once this package is configured, start Pi normally and it becomes available in D
 
 **Build on your team’s best thinking.**
 
-DevSpec helps your team and AI agents turn ideas and experience into better software.
+DevSpec is where your team, your knowledge and your agents build software together, made for AI-native development from the ground up.
 
 The native DevSpec experience for the [Pi](https://pi.dev) agent.
 

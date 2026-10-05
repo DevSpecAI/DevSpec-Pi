@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: e471d451868d8a09907873dc1605bfe386ec126d02f23cdf915b281deac7de91
+ * Schema fingerprint: 95bd1a8426069673fe4f3553e216000bea49a3ef4502a8b970e0f43f6f54f83c
  * Description fingerprint: f7ac9f2b5a8851cd825d2bf4f09c2d76fef7cef91fc8888e6d03a6953e2f341c
- * Regenerated: 2026-10-04T13:43:36.371Z
+ * Regenerated: 2026-10-05T02:11:21.664Z
  */
-export const MCP_CATALOG_FINGERPRINT = "e471d451868d8a09907873dc1605bfe386ec126d02f23cdf915b281deac7de91";
+export const MCP_CATALOG_FINGERPRINT = "95bd1a8426069673fe4f3553e216000bea49a3ef4502a8b970e0f43f6f54f83c";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "f7ac9f2b5a8851cd825d2bf4f09c2d76fef7cef91fc8888e6d03a6953e2f341c";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-04T13:43:36.371Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-05T02:11:21.664Z";
 export const TOOL_CATALOG_VERSION = "d639e68b353d4bae3f06ac05d527b963dfcc8e7024ee5eec6eb77b56b048be90";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -11620,6 +11620,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"description": "Optional active-session-plan projection negotiation. Requires ingress_version: 1 and delegated_scope_version: 1. Version 1 selects its preserved strict contract pair and adds optional active_session_plans only when authoritative active plans exist. The inventory is advisory read-awareness only and grants no manage_plan mutation authority. Unknown versions fail closed before delivery or cursor consumption."
 				},
+				"session_polls_projection_version": {
+					"type": "integer",
+					"enum": [
+						1,
+						2
+					],
+					"description": "Optional session_polls shape. 1 (the default) is complete or omitted. 2 is never omitted while the session has polls: it carries the newest polls that fit, active_total and ended_total, truncated_active and truncated_ended, and a continuation saying to call manage_poll list when any were left out. Unknown versions fail closed before delivery or cursor consumption."
+				},
 				"system_notice_version": {
 					"type": "integer",
 					"enum": [
@@ -12143,6 +12151,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						1
 					],
 					"description": "Optional active-session-plan projection negotiation. Requires ingress_version: 1 and delegated_scope_version: 1. Version 1 selects its preserved strict contract pair and adds optional active_session_plans only when authoritative active plans exist. The inventory is advisory read-awareness only and grants no manage_plan mutation authority. Unknown versions fail closed before delivery or cursor consumption."
+				},
+				"session_polls_projection_version": {
+					"type": "integer",
+					"enum": [
+						1,
+						2
+					],
+					"description": "Optional session_polls shape. 1 (the default) is complete or omitted. 2 is never omitted while the session has polls: it carries the newest polls that fit, active_total and ended_total, truncated_active and truncated_ended, and a continuation saying to call manage_poll list when any were left out. Unknown versions fail closed before delivery or cursor consumption."
 				},
 				"system_notice_version": {
 					"type": "integer",

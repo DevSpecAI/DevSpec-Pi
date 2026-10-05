@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.56
+
+- In a DevSpec room with more than 16 open polls, or polls with a lot of text, Pi was shown no polls at all. Pi now asks for the newer poll list, which always shows polls when the room has any. It shows the newest ones that fit, says how many there are in total, and, when some were left out, tells Pi to read them all with `manage_poll list`. Rooms with fewer polls look the same as before.
+- Refresh the generated server catalogue for the new `poll_connection` input. Reload/restart after updating.
+
 ## 0.3.55
 
 - Memory, document and help searches, and tool search, now return results a page at a time with a way to read on: Pi names the offset for the next page, says when a count is a floor, and for document search gives one offset that continues both documents and artifacts. Before, these searches stopped at their page size with no way past it.

@@ -2285,7 +2285,7 @@ async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: s
 					raw = await callDevspec(token, "poll_connection", {
 						connection_id: scope.connectionId, ingress_version: 1, delegated_scope_version: 1,
 						active_plan_projection_version: 1, system_notice_version: 1, sender_style_version: 1,
-						room_context_version: 1, wait_ms: 0, ...args,
+						room_context_version: 1, session_polls_projection_version: 2, wait_ms: 0, ...args,
 					}, { timeoutMs: POLL_TIMEOUT_MS, cwd: ctx.cwd, lane: "pump", beforeSend: () => { if (!current()) throw new DevspecToolError("Room history attachment changed before send."); }, ...(capability ? { connectionCapability: capability } : {}) });
 				} catch (error) {
 					// The embedded client raises MCP refusals before unwrapMcpResult.
@@ -2432,6 +2432,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					ingress_version: 1,
 					delegated_scope_version: 1,
 					active_plan_projection_version: 1,
+					// Item bba35976: the poll inventory that is never dropped when the room
+					// has more polls than fit; it carries the totals and where the rest are.
+					session_polls_projection_version: 2,
 					...(commandOfferNegotiated ? { command_offer_version: 1,
 						...(commandHandoffReady ? { command_handoff_ready: commandHandoffReady } : {}) } : {}),
 					...(systemNoticeNegotiated ? {

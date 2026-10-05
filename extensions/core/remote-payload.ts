@@ -19,7 +19,7 @@ import {
 } from "./active-session-plans.ts";
 import {
 	parseSessionPollsProjection,
-	type SessionPollsProjectionV1,
+	type SessionPollsProjection,
 } from "./session-polls.ts";
 import {
 	parseStillToDiscussProjection,
@@ -242,7 +242,7 @@ export interface PollPackage {
 	/** Style entries that named no delivered command; the pump debug-logs them (item 6a511dab). */
 	unboundSenderStyleIds?: string[];
 	/** Top-level advisory session_polls on changed packages. */
-	sessionPolls?: SessionPollsProjectionV1;
+	sessionPolls?: SessionPollsProjection;
 	/** Changed packages: null means unavailable, rows:[] means empty. Idle: undefined. */
 	stillToDiscuss?: StillToDiscussProjectionV1 | null;
 	/** Server history only; null marks missing/unavailable advisory data. */

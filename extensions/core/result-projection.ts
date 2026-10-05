@@ -119,8 +119,6 @@ const ACK_VERBS = new Set([
 	"fail_work_item",
 	"report_progress",
 	"record_completed_work",
-	"send_agent_message",
-	"submit_plan_review",
 	"reopen_action_item",
 	"spin_off_action_item",
 	"resolve_action_item_conflict",
@@ -140,7 +138,6 @@ const ACK_VERBS = new Set([
 	"resolve_resource_flag",
 	"resolve_memory_flag",
 	"surface_session_action_items",
-	"control_connection",
 	"reserve_work_items",
 	"write_project_instruction_rule",
 ]);

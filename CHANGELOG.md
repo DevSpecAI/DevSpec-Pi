@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1
+
+- Remove the three V1-removed tools from the result-projection lists as well. No behaviour change.
+
 ## 0.4.0
 
 - Each DevSpec tool now has one description, the same text every DevSpec host reads, and the rewrite brings back what a model needs before calling it: what the tool is for, where its neighbours take over, and what it changes. The tools removed for V1 are gone from Pi: `send_agent_message`, `control_connection` and `submit_plan_review`. So are inputs that did nothing, and inputs the server reads but never listed are now shown.

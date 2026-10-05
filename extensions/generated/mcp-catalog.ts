@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 95bd1a8426069673fe4f3553e216000bea49a3ef4502a8b970e0f43f6f54f83c
- * Description fingerprint: f7ac9f2b5a8851cd825d2bf4f09c2d76fef7cef91fc8888e6d03a6953e2f341c
- * Regenerated: 2026-10-05T02:11:21.664Z
+ * Schema fingerprint: 86e4f7ef6fc1ee384801adfea50451b7ca36bacab11118fbc4f48b5446644dd6
+ * Description fingerprint: 43ae2b84287e23709b11caf9400369c7bceeb5d7f51646d967c749e0498cdc26
+ * Regenerated: 2026-10-05T11:57:10.862Z
  */
-export const MCP_CATALOG_FINGERPRINT = "95bd1a8426069673fe4f3553e216000bea49a3ef4502a8b970e0f43f6f54f83c";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "f7ac9f2b5a8851cd825d2bf4f09c2d76fef7cef91fc8888e6d03a6953e2f341c";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-05T02:11:21.664Z";
-export const TOOL_CATALOG_VERSION = "d639e68b353d4bae3f06ac05d527b963dfcc8e7024ee5eec6eb77b56b048be90";
+export const MCP_CATALOG_FINGERPRINT = "86e4f7ef6fc1ee384801adfea50451b7ca36bacab11118fbc4f48b5446644dd6";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "43ae2b84287e23709b11caf9400369c7bceeb5d7f51646d967c749e0498cdc26";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-05T11:57:10.862Z";
+export const TOOL_CATALOG_VERSION = "109c2ccfb19ee0e68c09729e322401b8b89164693c92ac088cff43707a13555d";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -170,7 +170,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_goals",
 		"name": "get goals",
-		"description": "Read project goals and their details. Goals describe outcomes; action items describe work and automations describe repeatable jobs.",
+		"description": "Read project goals and their details. Goals describe outcomes; action items describe work and automations describe repeatable jobs. With goal_id, items come in pages of up to 500 and items_page.next_offset reads on; a goal's progress is null when it could not be read, which means unknown, not zero.",
 		"intent": "read individual project goal details"
 	},
 	{
@@ -242,7 +242,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_testing_brief",
 		"name": "get testing brief",
-		"description": "Gather one item’s implementation, criteria, checks, relevant decisions/artifacts and database targets before testing it. Use recorded observations, not source inspection alone, as verification evidence. Comments are complete; activity shows the newest events with activity_page saying how to read earlier ones in get_action_item_history.",
+		"description": "Gather one item’s implementation, criteria, checks, relevant decisions/artifacts and database targets before testing it. Use recorded observations, not source inspection alone, as verification evidence. Comments, deployments and test runs are complete; activity shows the newest events with activity_page saying how to read earlier ones in get_action_item_history.",
 		"intent": "review how to test verify feature testing brief acceptance criteria database targets implementation evidence"
 	},
 	{
@@ -3293,7 +3293,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"name": "get_testing_brief",
 		"label": "DevSpec: Get Testing Brief",
 		"description": "Get a comprehensive testing-oriented view of a single action item. Returns everything needed to evaluate deployed work: action item details, completion context (summary, confidence, disposition), testing notes, deployment info, AI test results, discussion comments, activity timeline, commit references, implementation notes, and affected files. ALSO returns relevant_memories + relevant_artifacts — the project decisions, conventions, and plans that define what \"correct\" means for this work (conventions are binding); consult them before judging the work. Also returns a `database_targets` array (connected DBs with their non-secret identity, environment, and branch mapping) so a verifier knows which database a migration in this item should have hit. Designed for use in external tools (e.g. Claude Code) to load full context for reviewing or testing deployed work.",
-		"promptSnippet": "Gather one item’s implementation, criteria, checks, relevant decisions/artifacts and database targets before testing it. Use recorded observations, not source inspection alone, as verification evidence. Comments are complete; activity shows the newest events with activity_page saying how to read earlier ones in get_action_item_history.",
+		"promptSnippet": "Gather one item’s implementation, criteria, checks, relevant decisions/artifacts and database targets before testing it. Use recorded observations, not source inspection alone, as verification evidence. Comments, deployments and test runs are complete; activity shows the newest events with activity_page saying how to read earlier ones in get_action_item_history.",
 		"searchIntent": "review how to test verify feature testing brief acceptance criteria database targets implementation evidence",
 		"modelInputSchema": {
 			"type": "object",
@@ -3332,8 +3332,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_goals",
 		"label": "DevSpec: Get Goals",
-		"description": "Read project goals. TWO modes:\n- WITHOUT goal_id (browse): lists goals, each with id, title, description, success_criteria, target_date, status, dismissal context, and `progress` ({ total, done, in_progress, open }) — the deterministic count of linked work. COUNTS ONLY, no per-item list (inlining every goal's items is expensive). Defaults to current goals; pass status: \"all\" to include achieved/dismissed.\n- WITH goal_id (single goal): returns that one goal + its progress AND an inline `items` array — a lightweight, one-line-per-item list of EVERY action item counting toward it (direct links + items inherited via a linked brief), plus `items_total` (true count). Each item carries id, title, lifecycle, type, priority, is_brief, source (direct|inherited), parent brief id/title, and agent_activity (only when active). This is the current, authoritative item state — read it BEFORE reasoning about what a goal still needs, rather than relying on memory or prior context. Heavy fields (description, acceptance criteria, etc.) are drill-in-only via get_action_item.\nRead-only for the GOAL itself — autopilot agents cannot create, update, or dismiss goals via MCP — but they CAN link their work to a goal via goal_ids on create_action_item / update_action_item / record_implementation.",
-		"promptSnippet": "Read project goals and their details. Goals describe outcomes; action items describe work and automations describe repeatable jobs.",
+		"description": "Read project goals. TWO modes:\n- WITHOUT goal_id (browse): lists goals, each with id, title, description, success_criteria, target_date, status, dismissal context, and `progress` ({ total, done, in_progress, open }) — the deterministic count of linked work. COUNTS ONLY, no per-item list (inlining every goal's items is expensive). Defaults to current goals; pass status: \"all\" to include achieved/dismissed.\n- WITH goal_id (single goal): returns that one goal + its progress AND an inline `items` array — a lightweight, one-line-per-item list of EVERY action item counting toward it (direct links + items inherited via a linked brief), plus `items_page` (`total_matching` is the true count). A goal over 500 items comes in pages of up to 500: pass `items_page.next_offset` as items_offset for the next one. Each item carries id, title, lifecycle, type, priority, is_brief, source (direct|inherited), parent brief id/title, and agent_activity (only when active). This is the current, authoritative item state — read it BEFORE reasoning about what a goal still needs, rather than relying on memory or prior context. Heavy fields (description, acceptance criteria, etc.) are drill-in-only via get_action_item.\nRead-only for the GOAL itself — autopilot agents cannot create, update, or dismiss goals via MCP — but they CAN link their work to a goal via goal_ids on create_action_item / update_action_item / record_implementation.",
+		"promptSnippet": "Read project goals and their details. Goals describe outcomes; action items describe work and automations describe repeatable jobs. With goal_id, items come in pages of up to 500 and items_page.next_offset reads on; a goal's progress is null when it could not be read, which means unknown, not zero.",
 		"searchIntent": "read individual project goal details",
 		"modelInputSchema": {
 			"type": "object",
@@ -3351,6 +3351,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"all"
 					],
 					"description": "Status filter for the browse (no goal_id) mode. Defaults to \"current\". Ignored when goal_id is set."
+				},
+				"items_offset": {
+					"type": "number",
+					"description": "With goal_id: skip this many of the goal's items to read the next page (items_page.next_offset)."
+				},
+				"items_limit": {
+					"type": "number",
+					"description": "With goal_id: items per page (1-500, default 500)."
 				},
 				"project_id": {
 					"type": "string",
@@ -3382,6 +3390,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"all"
 					],
 					"description": "Status filter for the browse (no goal_id) mode. Defaults to \"current\". Ignored when goal_id is set."
+				},
+				"items_offset": {
+					"type": "number",
+					"description": "With goal_id: skip this many of the goal's items to read the next page (items_page.next_offset)."
+				},
+				"items_limit": {
+					"type": "number",
+					"description": "With goal_id: items per page (1-500, default 500)."
 				},
 				"project_id": {
 					"type": "string",

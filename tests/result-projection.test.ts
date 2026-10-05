@@ -388,7 +388,15 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// and search_devspec_tools gained \`offset\` and say so in their limit and
 		// guidance text. No verb, required field or projection family changed; the help
 		// and resource projections now name the next offset.
-		"24504d24c6a2022122ec43f15a99410b780c28ee88a96def8a900284f9a7e1b3",
+		// Rebaselined 2026-10-05 for DevSpec item 52012b05, regenerated against server
+		// work/goal-pages-52012b05 (on staging f7ab17266). get_goals gains OPTIONAL
+		// items_offset/items_limit (a goal's item list now pages past 500 instead of
+		// stopping there), and its description and guidance say so and that unreadable
+		// progress is null, not zero; get_testing_brief's guidance says deployments and
+		// test runs are complete. 99 verbs before and after; no required field, type or
+		// projection family changed (both stay full exact reads). Benchmark before/after:
+		// initial surface 33,286 -> 33,396 estimated tokens; every budget still passes.
+		"c2e77928b61faa8b2d9a91739429859f8cf8465713dda07b637d44e4353f90af",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -1073,7 +1081,7 @@ test("goal reads preserve authoritative exact items, project vision, and every c
 		project_id: "project-1",
 		goal: { id: "goal-1", title: "Reliable workflows", description: huge("GOAL-DESCRIPTION", 4_000), progress: { total: 20, done: 5 } },
 		items: Array.from({ length: 20 }, (_, index) => ({ id: `goal-item-${index + 1}`, title: `Counting item ${index + 1}`, lifecycle: "open", source: index ? "inherited" : "direct" })),
-		items_total: 20,
+		items_page: { total_matching: 20, offset: 0, limit: 500, returned: 20, has_more: false, next_offset: null },
 	};
 	const exactText = projectModelText({ toolName: "get_goals", text: JSON.stringify(exactGoal), details: exactGoal });
 	assert.deepEqual(JSON.parse(exactText), exactGoal);

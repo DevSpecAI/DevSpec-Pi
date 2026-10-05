@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.57
+
+- A goal with more than 500 items is now readable to the end: `get_goals` with a goal id returns the items a page at a time, says how many there are, and gives the `items_offset` for the next page. Before, the list stopped at 500. A goal's progress that could not be read now shows as unknown rather than as 0 of 0.
+- Refresh the generated server catalogue; reload/restart after updating to load the new `items_offset`/`items_limit` inputs and descriptions.
+
 ## 0.3.56
 
 - In a DevSpec room with more than 16 open polls, or polls with a lot of text, Pi was shown no polls at all. Pi now asks for the newer poll list, which always shows polls when the room has any. It shows the newest ones that fit, says how many there are in total, and, when some were left out, tells Pi to read them all with `manage_poll list`. Rooms with fewer polls look the same as before.

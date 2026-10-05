@@ -2,25 +2,25 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: a049f109af87691fa988f52aeedc385cea71b8b63a731c730eff0eb37617d18d
- * Description fingerprint: e8a0fea3c7f271e72d3c52dd77d5215a060f56e864444123f5df29cc7ed5b6d9
- * Regenerated: 2026-10-05T16:07:21.925Z
+ * Schema fingerprint: 42c305acbe98370d6297abf93ce1e36e2da8944887b4951295670efbb2217645
+ * Description fingerprint: ad3d1af96586e2d64d1ccb258928cdce395271191d172834d9a43d0871352e98
+ * Regenerated: 2026-10-05T23:07:17.474Z
  */
-export const MCP_CATALOG_FINGERPRINT = "a049f109af87691fa988f52aeedc385cea71b8b63a731c730eff0eb37617d18d";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "e8a0fea3c7f271e72d3c52dd77d5215a060f56e864444123f5df29cc7ed5b6d9";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-05T16:07:21.925Z";
-export const TOOL_CATALOG_VERSION = "a70b9c0a0a5c86c432684e05f8bf519805c57b7e4c7acc665bfea5b4a0fa2c10";
+export const MCP_CATALOG_FINGERPRINT = "42c305acbe98370d6297abf93ce1e36e2da8944887b4951295670efbb2217645";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "ad3d1af96586e2d64d1ccb258928cdce395271191d172834d9a43d0871352e98";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-05T23:07:17.474Z";
+export const TOOL_CATALOG_VERSION = "d6ac4ccd120efee1a22ef3e1894f5a991a133bf02607075c82bb41d47cfc2ef8";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
 		"name": "add commit reference",
-		"description": "Link a commit you are not reporting through record_implementation to an action item, session or memory in this project. A short or full SHA is accepted. Linking it to an action item marks that item's current item-level verification stale, a person's sign-off included (schema checks and criterion verdicts are kept), and links any deployment that already shipped the commit. Each call adds another link, so link a commit once. The project comes from project_id, git_remote or pinned_project_id, not from the ids you link. A link is not completion evidence: report delivered work with record_implementation.",
+		"description": "Link a commit you are not reporting through record_implementation to an action item, session or memory in this project. A short or full SHA is accepted. Linking it to an action item marks that item's current item-level verification stale, a person's sign-off included (schema checks and criterion verdicts are kept), and links any deployment that already shipped the commit. Linking a commit to an item it is already linked to returns the existing link (deduplicated: true) and marks nothing stale; on an item, verification_effect in the response says what was marked stale. The project comes from project_id, git_remote or pinned_project_id, not from the ids you link. A link is not completion evidence: report delivered work with record_implementation.",
 		"intent": "link attach existing git commit to action item session memory"
 	},
 	{
 		"id": "add_implementation_note",
 		"name": "add implementation note",
-		"description": "Add a Markdown note (context, caveats, links) to an action item's history, where people read it on the item. Pass action_item_id: a note without one is stored but shown nowhere. It is a note for people and changes no state: report delivered work with record_implementation, criterion evidence with record_criterion_verdicts, and commits with add_commit_reference.",
+		"description": "Add a Markdown note (context, caveats, links) to an action item's history, where people read it on the item. action_item_id is required: a note belongs to an item. It is a note for people and changes no state: report delivered work with record_implementation, criterion evidence with record_criterion_verdicts, and commits with add_commit_reference.",
 		"intent": "add note context caveat to action item history"
 	},
 	{
@@ -62,7 +62,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "create_resource",
 		"name": "create resource",
-		"description": "Create a shared project document: an ADR, plan, guide, runbook, checklist, summary, convention, reference or other (investigations and handoffs fit summary or other). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for. As it is written, a quick closeness check (it does not read the documents) compares the draft with existing artifacts. If one closely resembles it, nothing is created and the response names it (reconcile_required, closest_match): read it, then update or supersede it, re-call with confirm_new if yours is genuinely separate, or ask the person, which is often the right answer. Updating or superseding someone else's settled document overrules them, so ask first unless you were already told to go ahead. outcome queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it; otherwise the returned document is live.",
+		"description": "Create a shared project document: an ADR, plan, guide, runbook, checklist, summary, convention, reference or other (investigations and handoffs fit summary or other). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for. As it is written, a quick closeness check (it does not read the documents) compares the draft with existing artifacts. If one closely resembles it, nothing is created and the response names it (reconcile_required, closest_match): read it, then update or supersede it, re-call with confirm_new if yours is genuinely separate, or ask the person, which is often the right answer. Updating or superseding someone else's settled document overrules them, so ask first unless you were already told to go ahead. Only the whole document decides a duplicate: a different document with the same title is created, and resending the same one returns the first. outcome committed is live; queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it.",
 		"intent": "write save create shared document artifact ADR plan guide runbook checklist reference handoff investigation for teammates next agent"
 	},
 	{
@@ -86,7 +86,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "fail_work_item",
 		"name": "fail work item",
-		"description": "Hand back an item you are implementing that cannot safely be finished, with the error and any partial progress. The item is left failed and flagged to the project as a failed agent run: it cannot be reserved while it stays failed, and claiming it again needs force. Only the claim's holder can fail it; there is no force here. For untouched or simply retryable work, use release_work_item, which raises no flag.",
+		"description": "Hand back an item you are implementing that cannot safely be finished, with the error and any partial progress. The item is left failed and flagged to the project as a failed agent run: it cannot be reserved while it stays failed, and claiming it again needs force; release_work_item returns it to the pool. Only the claim's holder can fail it; there is no force here. For untouched or simply retryable work, use release_work_item, which raises no flag.",
 		"intent": "work cannot be finished failed attempt report error partial progress"
 	},
 	{
@@ -116,7 +116,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_action_items",
 		"name": "get action items",
-		"description": "List and count action items by lifecycle, priority, type, tag, assignee, requester or review signal. Report how many from summary, not from the page length, and follow page.next_offset for more; for items about a topic, use search_action_items. lifecycle defaults to open (not started), also when you filter by a review signal. Briefs are left off the page unless include_briefs is true, and the response's briefs are the parents of this page's items, not a project inventory; to list one brief's children, pass its id as parent_id. Read an item in full with get_action_item.",
+		"description": "List and count action items by lifecycle, priority, type, tag, assignee, requester or review signal. Report how many from summary, not from the page length, and follow page.next_offset for more; for items about a topic, use search_action_items. lifecycle defaults to open (not started), and to all when you filter by a review signal. Briefs are left off the page unless include_briefs is true, and the response's briefs are the parents of this page's items, not a project inventory; to list one brief's children, pass its id as parent_id. Read an item in full with get_action_item.",
 		"intent": "browse list count backlog tasks work lifecycle blocked priority chronological oldest assignee"
 	},
 	{
@@ -152,7 +152,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_decisions",
 		"name": "get decisions",
-		"description": "List memories of type decision, most recently updated first, as cards. Current versions only, whether in discussion or decided. Architecture notes, risks, insights and other types are not included: find those with search_memories and its type filter. Use search_memories when you know the topic, and read a chosen record with get_memory. page.total_matching counts the decisions matching your filters; pass page.next_offset as offset for the next page.",
+		"description": "List the project's decisions, most recently updated first, as cards: memories of type decision and of type architecture, under which architecture decisions are recorded. Current versions only, whether in discussion or decided. Risks, insights and other types are not included: find those with search_memories and its type filter. Use search_memories when you know the topic, and read a chosen record with get_memory. page.total_matching counts the decisions matching your filters; pass page.next_offset as offset for the next page.",
 		"intent": "list browse recorded project decisions what have we decided"
 	},
 	{
@@ -170,7 +170,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_memory",
 		"name": "get memory",
-		"description": "Read one memory in full: its body, state, lineage and change history. Search and list tools return cards; read the body here before relying on a memory, superseding it or contradicting it. If superseded_by is set, a newer version is current: read that one. Accepts the 8-character short code. For older history, pass history_next_before as history_before. If the response carries evidence, follow its evidence_guidance.",
+		"description": "Read one memory in full: its body, state, lineage and change history. Search and list tools return cards; read the body here before relying on a memory, superseding it or contradicting it. If superseded_by is set, a newer version is current: read that one. Accepts the 8-character short code. For older history, pass history_next_before as history_before. If the response carries evidence, follow its evidence_guidance. A read that fails says unavailable, never not found: try again rather than concluding the memory does not exist.",
 		"intent": "read full memory decision convention rationale history lineage"
 	},
 	{
@@ -212,7 +212,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_resource",
 		"name": "get resource",
-		"description": "Read one uploaded document or AI-written artifact in full, by id or 8-character short code, with its review flags and total_lines. For a long document, pass start_line/end_line for a range, or search to get only the matching lines with context. An uploaded file also comes with a short-lived download_url: fetch it now and never store it. A file attached to a session is readable only from that session. is_archived: true means it was retired or replaced; if replaced, find the current version with search_resources.",
+		"description": "Read one uploaded document or AI-written artifact in full, by id or 8-character short code, with its review flags and total_lines. For a long document, pass start_line/end_line for a range, or search to get only the matching lines with context. An uploaded file also comes with a short-lived download_url: fetch it now and never store it. A file attached to a session is readable only from that session. is_archived: true means it was retired or replaced; if replaced, superseded_by names the current version.",
 		"intent": "read full document artifact uploaded file download attachment"
 	},
 	{
@@ -236,7 +236,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_testing_brief",
 		"name": "get testing brief",
-		"description": "Gather what testing one action item needs: its description, completion summary, testing and usage notes, deployments and deployment evidence, connected database targets, AI test runs, commits, pull requests, implementation notes, every comment, recent activity, and the decisions and documents relevant to it. It does not include the item's intent or acceptance criteria; read those with get_action_item. Comments, deployments and test runs are complete; activity is the newest 50 events, and activity_page.older says how to read earlier ones.",
+		"description": "Gather what testing one action item needs: its description, completion summary, testing and usage notes, deployments and deployment evidence, connected database targets, AI test runs, commits, pull requests, implementation notes, every comment, recent activity, and the decisions and documents relevant to it. It includes the item's intent, its acceptance criteria with their ids and each line's promotion state, and when the round under test was delivered. Comments, deployments and test runs are complete; activity is the newest 50 events, and activity_page.older says how to read earlier ones.",
 		"intent": "how to test verify feature testing brief deployments database targets implementation evidence"
 	},
 	{
@@ -284,7 +284,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "manage_knowledge_links",
 		"name": "manage knowledge links",
-		"description": "Link two memories or AI-written documents, in any combination, as companions a reader should see together, with a note saying why (link). You can also change that note (set_note), remove the link (unlink), or list one record's companions (list). A link is an association only: it does not say the two agree, clear a review flag, resolve a contradiction, supersede either record, make either more trusted or change who may edit them. Uploaded documents cannot be linked, and action items have their own links (link_action_items). Both records must be current versions, given by full id; short codes are not accepted.",
+		"description": "Link two memories or AI-written documents, in any combination, as companions a reader should see together, with a note saying why (link). You can also change that note (set_note), remove the link (unlink), or list one record's companions (list). A link is an association only: it does not say the two agree, clear a review flag, resolve a contradiction, supersede either record, make either more trusted or change who may edit them. Uploaded documents cannot be linked, and action items have their own links (link_action_items). Both records must be current versions, given by full id or 8-character short code; a code that matches both a memory and a document is refused as ambiguous.",
 		"intent": "link plan document artifact to its supporting decision memory companions read together unlink"
 	},
 	{
@@ -338,7 +338,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "release_work_item",
 		"name": "release work item",
-		"description": "Hand back an item you claimed or reserved without delivering anything. The item returns to idle with no failure flag, and its reservation slot is freed. Use it for untouched or safely retryable work; use fail_work_item for a failed attempt and record_implementation for delivered work. Only the holder can release without force. To free a stale hold whose agent is gone, pass force with a reason; it is recorded as a forced release naming you. An item that is neither claimed nor reserved is left as it is.",
+		"description": "Hand back an item you claimed or reserved without delivering anything. The item returns to idle with no failure flag, and its reservation slot is freed. Use it for untouched or safely retryable work; use fail_work_item for a failed attempt and record_implementation for delivered work. Only the holder can release without force. To free a stale hold whose agent is gone, pass force with a reason; it is recorded as a forced release naming you. A failed item is returned to the pool with its failure flag cleared (cleared_failure: true): the agent whose attempt failed can do this, anyone else needs force and a reason. Any other item that is neither claimed nor reserved is left as it is.",
 		"intent": "release unclaim hand back untouched claimed or reserved work free stale hold"
 	},
 	{
@@ -356,7 +356,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "reserve_work_items",
 		"name": "reserve work items",
-		"description": "Reserve several action items, in the order you will work them, so no other agent can claim them without force; then claim each in turn with claim_work_item. For a single item, claim it directly. Check reserved and skipped, not outcome. Items that can't be reserved come back in skipped with a reason: briefs (which list the children to reserve instead), human-only, awaiting approval, already claimed, reserved or otherwise not idle, or not found in this project. A call that reserved nothing still reports committed. A connection holds one batch at a time: settle its items with record_implementation, release_work_item or fail_work_item before reserving again. The batch closes itself when its last item is settled. Which work to take on is set by work_entry_contract in devspec://product/implementation-contract.",
+		"description": "Reserve several action items, in the order you will work them, so no other agent can claim them without force; then claim each in turn with claim_work_item. For a single item, claim it directly. Check reserved and skipped, not outcome. Items that can't be reserved come back in skipped with a reason: briefs (which list the children to reserve instead), human-only, awaiting approval, a failed agent run (release_work_item returns it to the pool), implementation already recorded, claimed or reserved by another agent (named), or not found in this project. A call that reserves nothing is refused with code nothing_reserved, and skipped says why. A connection holds one batch at a time: settle its items with record_implementation, release_work_item or fail_work_item before reserving again. The batch closes itself when its last item is settled. Which work to take on is set by work_entry_contract in devspec://product/implementation-contract.",
 		"intent": "reserve several selected action items in order before working batch"
 	},
 	{
@@ -416,7 +416,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "search_resources",
 		"name": "search resources",
-		"description": "Find uploaded documents and AI-written artifacts by topic, by words and by meaning. A hit inside an uploaded document carries the matching passage, so a follow-up read is often unnecessary. Omit query to list the most recent instead. Use get_resources to page through every document and get_resource to read one in full. Without an attached session, only project documents are searched. Documents and artifacts are paged separately: pages.documents and pages.artifacts each give total_matching and next_offset (pass it as offset). Ranking stops at the best 100 of each, so a total marked total_is_lower_bound means more exist: narrow the query, or page get_resources for a full listing.",
+		"description": "Find uploaded documents and AI-written artifacts by topic, by words and by meaning. A hit inside an uploaded document carries the matching passage, so a follow-up read is often unnecessary. Omit query to list the most recent instead. Use get_resources to page through every document and get_resource to read one in full. Without an attached session, only project documents are searched. Documents and artifacts are paged separately: pages.documents and pages.artifacts each give total_matching and next_offset (pass it as offset). Ranking stops at the best 100 of each, so a total marked total_is_lower_bound means more exist: narrow the query, or page get_resources for a full listing. If one of the two could not be searched, the response says incomplete, names it in unavailable and gives its count as null: report the search as incomplete, never as finding nothing.",
 		"intent": "find search document artifact uploaded file passage topic"
 	},
 	{
@@ -428,7 +428,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "spin_off_action_item",
 		"name": "spin off action item",
-		"description": "Detach a child from its brief so it stands alone, linked back to the brief with derived_from; the same item moves and no copy is made. The brief can then roll up to done without it, and resuming the item later does not reopen the brief. By default it is also parked as deferred whatever its state, so an implemented or done child loses that state along with its agent branch and commit; defer: false keeps its current state. Parking a child an agent is working on fails with a database error.",
+		"description": "Detach a child from its brief so it stands alone, linked back to the brief with derived_from; the same item moves and no copy is made. The brief can then roll up to done without it, and resuming the item later does not reopen the brief. By default it is also parked as deferred. An implemented or done child, or one an agent has claimed, cannot be parked: that call is refused, and defer: false detaches it with its state unchanged. If the derived_from link cannot be recorded, nothing changes and the call says so.",
 		"intent": "extract spin off child work from parent brief standalone follow-up"
 	},
 	{
@@ -446,13 +446,13 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "surface_session_action_items",
 		"name": "surface session action items",
-		"description": "Post interactive cards for existing action items into a DevSpec room's transcript, one card per item, without creating any. Use it when asked to show already-recorded work in a room; create_action_item with session_id already posts a card for a new item. Keep any reply that goes with the cards short rather than listing the items again. It reports outcome committed for every item it found, even when a card could not be written.",
+		"description": "Post interactive cards for existing action items into a DevSpec room's transcript, one card per item, without creating any. Use it when asked to show already-recorded work in a room; create_action_item with session_id already posts a card for a new item. Keep any reply that goes with the cards short rather than listing the items again. outcome is committed when every card was written, partial when some were (not_surfaced lists the rest), and failed when none were.",
 		"intent": "show surface post existing work item cards in conversation"
 	},
 	{
 		"id": "unlink_action_items",
 		"name": "unlink action items",
-		"description": "Remove one directed relationship between two action items, matched in the direction it was linked. Removing blocks lets the target be claimed; removing a pending supersedes cancels the supersession, so nothing closes when the replacing item ships, though both items still read as pending supersession. Neither item's lifecycle changes, and removing a supersedes edge does not reopen the item it closed.",
+		"description": "Remove one directed relationship between two action items, matched in the direction it was linked. Removing blocks lets the target be claimed; removing a pending supersedes cancels the supersession: nothing closes when the replacing item ships, and neither item reads as pending supersession any more. The response says which of these happened. Neither item's lifecycle changes, and removing a supersedes edge does not reopen the item it closed.",
 		"intent": "remove relationship between work tasks action items"
 	},
 	{
@@ -470,7 +470,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "update_memory",
 		"name": "update memory",
-		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence or affected files, or correct its title, summary or body. State, tags, confidence and affected files change in place. A wording change saves a new version with a new id, returned in the response: cite that id from then on. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. A body change is compared with existing memories; if another closely resembles it, nothing changes and the response names it (reconcile_required, closest_match). outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it.",
+		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence or affected files, or correct its title, summary or body. State, tags, confidence and affected files change in place. A wording change saves a new version with a new id, returned in the response: cite that id from then on. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. A body change is compared with existing memories; if another closely resembles it, nothing changes and the response names it (reconcile_required, closest_match). outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
 		"intent": "mark memory decided agreed promote correct edit wording tags existing memory"
 	},
 	{
@@ -494,7 +494,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "verify_action_item",
 		"name": "verify action item",
-		"description": "Record a present person's explicit decision on one implemented action item: passed: true signs it off, passed: false requests changes and flags it for attention. Before calling, tell the person which item and which decision. Who may decide is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, callers who are not allowed verifiers, and passed: true while a required follow-up step is open. passed: true also signs off every item this one has a caused_by link to that is awaiting sign-off, including the item a follow-up was found on. The response does not list them, and it does not return the resulting lifecycle.",
+		"description": "Record a present person's explicit decision on one implemented action item: passed: true signs it off, passed: false requests changes and flags it for attention. Before calling, tell the person which item and which decision. Who may decide is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, callers who are not allowed verifiers, and passed: true while a required follow-up step is open. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. The response does not return the resulting lifecycle.",
 		"intent": "person signs off verifies implemented item request changes"
 	},
 	{
@@ -521,7 +521,6 @@ export const PUMP_VERBS = [
 	"register_connection",
 	"poll_connection",
 	"heartbeat_connection",
-	"send_heartbeat",
 	"report_keepalive",
 	"report_pickup",
 	"report_complete",
@@ -635,11 +634,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"limit": {
 					"type": "number",
-					"description": "Sections per page."
+					"description": "Sections per page. Default 8, at most 20."
 				},
 				"offset": {
 					"type": "number",
-					"description": "How many ranked sections to skip. Pass page.next_offset from the previous page."
+					"description": "How many ranked sections to skip. Pass page.next_offset from the previous page. Default 0."
 				}
 			},
 			"required": [
@@ -655,11 +654,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"limit": {
 					"type": "number",
-					"description": "Sections per page."
+					"description": "Sections per page. Default 8, at most 20."
 				},
 				"offset": {
 					"type": "number",
-					"description": "How many ranked sections to skip. Pass page.next_offset from the previous page."
+					"description": "How many ranked sections to skip. Pass page.next_offset from the previous page. Default 0."
 				}
 			},
 			"required": [
@@ -687,12 +686,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"minimum": 1,
 					"maximum": 10,
 					"default": 3,
-					"description": "Recommendations per page."
+					"description": "Recommendations per page. Default 3, at most 10."
 				},
 				"offset": {
 					"type": "integer",
 					"minimum": 0,
-					"description": "How many matches to skip. Pass page.next_offset from the previous page."
+					"description": "How many matches to skip. Pass page.next_offset from the previous page. Default 0."
 				},
 				"connection_id": {
 					"type": "string",
@@ -729,12 +728,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"minimum": 1,
 					"maximum": 10,
 					"default": 3,
-					"description": "Recommendations per page."
+					"description": "Recommendations per page. Default 3, at most 10."
 				},
 				"offset": {
 					"type": "integer",
 					"minimum": 0,
-					"description": "How many matches to skip. Pass page.next_offset from the previous page."
+					"description": "How many matches to skip. Pass page.next_offset from the previous page. Default 0."
 				},
 				"available_tools": {
 					"maxItems": 200,
@@ -791,7 +790,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"git_remote": {
 					"type": "string",
-					"description": "Your checkout's `git remote get-url origin`. Adds remote_match: resolved_project_id when exactly one of your projects tracks it, otherwise null with candidate_project_ids."
+					"description": "Your checkout's `git remote get-url origin`. Adds remote_match: resolved_project_id when exactly one of your projects tracks it, otherwise null with candidate_project_ids. Omitted: no remote_match."
 				}
 			}
 		},
@@ -800,7 +799,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"git_remote": {
 					"type": "string",
-					"description": "Your checkout's `git remote get-url origin`. Adds remote_match: resolved_project_id when exactly one of your projects tracks it, otherwise null with candidate_project_ids."
+					"description": "Your checkout's `git remote get-url origin`. Adds remote_match: resolved_project_id when exactly one of your projects tracks it, otherwise null with candidate_project_ids. Omitted: no remote_match."
 				}
 			}
 		},
@@ -857,11 +856,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"proposals_offset": {
 					"type": "number",
-					"description": "How many pending proposals to skip. Pass pending_proposals_page.next_offset from the previous page."
+					"description": "How many pending proposals to skip. Pass pending_proposals_page.next_offset from the previous page. Default 0."
 				},
 				"proposals_limit": {
 					"type": "number",
-					"description": "Pending proposals per page."
+					"description": "Pending proposals per page. Default 100, at most 200."
 				},
 				"tier": {
 					"type": "string",
@@ -869,7 +868,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"agent_rules",
 						"principles"
 					],
-					"description": "Only this tier. agent_rules: team execution mechanics, for coding agents only. principles: team philosophy, also given to Dev."
+					"description": "Only this tier. agent_rules: team execution mechanics, for coding agents only. principles: team philosophy, also given to Dev. Omitted: both tiers."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -890,11 +889,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"proposals_offset": {
 					"type": "number",
-					"description": "How many pending proposals to skip. Pass pending_proposals_page.next_offset from the previous page."
+					"description": "How many pending proposals to skip. Pass pending_proposals_page.next_offset from the previous page. Default 0."
 				},
 				"proposals_limit": {
 					"type": "number",
-					"description": "Pending proposals per page."
+					"description": "Pending proposals per page. Default 100, at most 200."
 				},
 				"tier": {
 					"type": "string",
@@ -902,7 +901,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"agent_rules",
 						"principles"
 					],
-					"description": "Only this tier. agent_rules: team execution mechanics, for coding agents only. principles: team philosophy, also given to Dev."
+					"description": "Only this tier. agent_rules: team execution mechanics, for coding agents only. principles: team philosophy, also given to Dev. Omitted: both tiers."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -938,7 +937,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_action_items",
 		"label": "DevSpec: Get Action Items",
-		"description": "List and count action items by lifecycle, priority, type, tag, assignee, requester or review signal. Report how many from summary, not from the page length, and follow page.next_offset for more; for items about a topic, use search_action_items. lifecycle defaults to open (not started), also when you filter by a review signal. Briefs are left off the page unless include_briefs is true, and the response's briefs are the parents of this page's items, not a project inventory; to list one brief's children, pass its id as parent_id. Read an item in full with get_action_item.",
+		"description": "List and count action items by lifecycle, priority, type, tag, assignee, requester or review signal. Report how many from summary, not from the page length, and follow page.next_offset for more; for items about a topic, use search_action_items. lifecycle defaults to open (not started), and to all when you filter by a review signal. Briefs are left off the page unless include_briefs is true, and the response's briefs are the parents of this page's items, not a project inventory; to list one brief's children, pass its id as parent_id. Read an item in full with get_action_item.",
 		"searchIntent": "browse list count backlog tasks work lifecycle blocked priority chronological oldest assignee",
 		"modelInputSchema": {
 			"type": "object",
@@ -960,7 +959,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"active",
 						"all"
 					],
-					"description": "Stored state to list: open = not started, implemented = delivered and awaiting verification, active = open, in_progress, implemented and blocked, all = everything. Defaults to open, also when signal_type, signal_bucket or flagged is set. summary.ui_buckets counts every bucket whatever this is."
+					"description": "Stored state to list: open = not started, implemented = delivered and awaiting verification, active = open, in_progress, implemented and blocked, all = everything. Defaults to open, or to all when signal_type, signal_bucket or flagged is set. summary.ui_buckets counts every bucket whatever this is."
 				},
 				"fields": {
 					"type": "string",
@@ -1045,7 +1044,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"items": {
 						"type": "string"
 					},
-					"description": "Only items carrying ALL of these tags; for items with any one of several tags, call once per tag. Omitted: no tag filter."
+					"description": "Only items carrying at least one of these tags. Omitted: no tag filter."
 				},
 				"include_briefs": {
 					"type": "boolean",
@@ -1067,7 +1066,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"superseded_pending",
 						"will_supersede"
 					],
-					"description": "Only items carrying this live review signal, within lifecycle. Takes precedence over signal_bucket and flagged. summary.attention gives the count for every signal across all lifecycles."
+					"description": "Only items carrying this live review signal, within lifecycle. Takes precedence over signal_bucket and flagged. summary.attention gives the count for every signal across all lifecycles. Omitted: no signal filter unless signal_bucket or flagged is set."
 				},
 				"signal_bucket": {
 					"type": "string",
@@ -1076,11 +1075,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"risk",
 						"state"
 					],
-					"description": "Only items carrying any signal in this family. action: follow-up required, agent run failed, deployment failed, verification failed. risk: possible conflict, possibly stale, contradicts a decision, contested. state: blocked, implemented but unverified, will be superseded, supersedes when it ships. Takes precedence over flagged."
+					"description": "Only items carrying any signal in this family. action: follow-up required, agent run failed, deployment failed, verification failed. risk: possible conflict, possibly stale, contradicts a decision, contested. state: blocked, implemented but unverified, will be superseded, supersedes when it ships. Takes precedence over flagged. Omitted: no family filter unless flagged is set."
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "true: only items with at least one live review signal of any kind. Done and dismissed items never carry a live signal."
+					"description": "true: only items with at least one live review signal of any kind. Done and dismissed items never carry a live signal. Default false: no review-signal filter."
 				},
 				"requested_by": {
 					"type": "string",
@@ -1133,7 +1132,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"active",
 						"all"
 					],
-					"description": "Stored state to list: open = not started, implemented = delivered and awaiting verification, active = open, in_progress, implemented and blocked, all = everything. Defaults to open, also when signal_type, signal_bucket or flagged is set. summary.ui_buckets counts every bucket whatever this is."
+					"description": "Stored state to list: open = not started, implemented = delivered and awaiting verification, active = open, in_progress, implemented and blocked, all = everything. Defaults to open, or to all when signal_type, signal_bucket or flagged is set. summary.ui_buckets counts every bucket whatever this is."
 				},
 				"fields": {
 					"type": "string",
@@ -1218,7 +1217,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"items": {
 						"type": "string"
 					},
-					"description": "Only items carrying ALL of these tags; for items with any one of several tags, call once per tag. Omitted: no tag filter."
+					"description": "Only items carrying at least one of these tags. Omitted: no tag filter."
 				},
 				"include_briefs": {
 					"type": "boolean",
@@ -1240,7 +1239,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"superseded_pending",
 						"will_supersede"
 					],
-					"description": "Only items carrying this live review signal, within lifecycle. Takes precedence over signal_bucket and flagged. summary.attention gives the count for every signal across all lifecycles."
+					"description": "Only items carrying this live review signal, within lifecycle. Takes precedence over signal_bucket and flagged. summary.attention gives the count for every signal across all lifecycles. Omitted: no signal filter unless signal_bucket or flagged is set."
 				},
 				"signal_bucket": {
 					"type": "string",
@@ -1249,11 +1248,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"risk",
 						"state"
 					],
-					"description": "Only items carrying any signal in this family. action: follow-up required, agent run failed, deployment failed, verification failed. risk: possible conflict, possibly stale, contradicts a decision, contested. state: blocked, implemented but unverified, will be superseded, supersedes when it ships. Takes precedence over flagged."
+					"description": "Only items carrying any signal in this family. action: follow-up required, agent run failed, deployment failed, verification failed. risk: possible conflict, possibly stale, contradicts a decision, contested. state: blocked, implemented but unverified, will be superseded, supersedes when it ships. Takes precedence over flagged. Omitted: no family filter unless flagged is set."
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "true: only items with at least one live review signal of any kind. Done and dismissed items never carry a live signal."
+					"description": "true: only items with at least one live review signal of any kind. Done and dismissed items never carry a live signal. Default false: no review-signal filter."
 				},
 				"requested_by": {
 					"type": "string",
@@ -1543,7 +1542,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_testing_brief",
 		"label": "DevSpec: Get Testing Brief",
-		"description": "Gather what testing one action item needs: its description, completion summary, testing and usage notes, deployments and deployment evidence, connected database targets, AI test runs, commits, pull requests, implementation notes, every comment, recent activity, and the decisions and documents relevant to it. It does not include the item's intent or acceptance criteria; read those with get_action_item. Comments, deployments and test runs are complete; activity is the newest 50 events, and activity_page.older says how to read earlier ones.",
+		"description": "Gather what testing one action item needs: its description, completion summary, testing and usage notes, deployments and deployment evidence, connected database targets, AI test runs, commits, pull requests, implementation notes, every comment, recent activity, and the decisions and documents relevant to it. It includes the item's intent, its acceptance criteria with their ids and each line's promotion state, and when the round under test was delivered. Comments, deployments and test runs are complete; activity is the newest 50 events, and activity_page.older says how to read earlier ones.",
 		"searchIntent": "how to test verify feature testing brief deployments database targets implementation evidence",
 		"modelInputSchema": {
 			"type": "object",
@@ -1698,7 +1697,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"search": {
 					"type": "string",
-					"description": "Ranks the whole filtered queue by this text, matched by words and by meaning, best match first instead of newest first."
+					"description": "Returns only the entries in the filtered queue that match this text, by words and by meaning, best match first instead of newest first. Omitted: the whole filtered queue, newest first."
 				},
 				"limit": {
 					"type": "number",
@@ -1771,7 +1770,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"search": {
 					"type": "string",
-					"description": "Ranks the whole filtered queue by this text, matched by words and by meaning, best match first instead of newest first."
+					"description": "Returns only the entries in the filtered queue that match this text, by words and by meaning, best match first instead of newest first. Omitted: the whole filtered queue, newest first."
 				},
 				"limit": {
 					"type": "number",
@@ -2000,7 +1999,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"pattern": "^#?\\d+$"
 						}
 					],
-					"description": "The pull request number on the provider. Either this or pull_request_id is required. If the number exists in more than one tracked repository, the call is refused and names them: add repo."
+					"description": "The pull request number on the provider. Either this or pull_request_id is required. If the number exists in more than one tracked repository, the call is refused and names them: add repo. Omitted: pull_request_id is used."
 				},
 				"repo": {
 					"type": "string",
@@ -2008,7 +2007,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pull_request_id": {
 					"type": "string",
-					"description": "DevSpec's pull request UUID, as a Discuss seed or timeline event carries it. Takes precedence over number."
+					"description": "DevSpec's pull request UUID, as a Discuss seed or timeline event carries it. Takes precedence over number. Omitted: number is used."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -2037,7 +2036,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"pattern": "^#?\\d+$"
 						}
 					],
-					"description": "The pull request number on the provider. Either this or pull_request_id is required. If the number exists in more than one tracked repository, the call is refused and names them: add repo."
+					"description": "The pull request number on the provider. Either this or pull_request_id is required. If the number exists in more than one tracked repository, the call is refused and names them: add repo. Omitted: pull_request_id is used."
 				},
 				"repo": {
 					"type": "string",
@@ -2045,7 +2044,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pull_request_id": {
 					"type": "string",
-					"description": "DevSpec's pull request UUID, as a Discuss seed or timeline event carries it. Takes precedence over number."
+					"description": "DevSpec's pull request UUID, as a Discuss seed or timeline event carries it. Takes precedence over number. Omitted: number is used."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -2199,11 +2198,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"query": {
 					"type": "string",
-					"description": "A concept or keyword to search the schema for. Returns the best-matching tables, columns, functions and enums, grouped by table, at most ten tables. Takes precedence over table_name. If the schema has not been indexed yet, the result says so."
+					"description": "A concept or keyword to search the schema for. Returns the best-matching tables, columns, functions and enums, with columns grouped under their table, at most ten results. Takes precedence over table_name. If the schema has not been indexed yet, the result says so. Omitted: table_name is used if given, otherwise the overview."
 				},
 				"table_name": {
 					"type": "string",
-					"description": "Exact table name, without its schema. Returns that table from every database that has it, with columns, keys, indexes, triggers and policies."
+					"description": "Exact table name, without its schema. Returns that table from every database that has it, with columns, keys, indexes, triggers and policies. Omitted: the paged overview is returned."
 				},
 				"database": {
 					"type": "string",
@@ -2238,11 +2237,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"query": {
 					"type": "string",
-					"description": "A concept or keyword to search the schema for. Returns the best-matching tables, columns, functions and enums, grouped by table, at most ten tables. Takes precedence over table_name. If the schema has not been indexed yet, the result says so."
+					"description": "A concept or keyword to search the schema for. Returns the best-matching tables, columns, functions and enums, with columns grouped under their table, at most ten results. Takes precedence over table_name. If the schema has not been indexed yet, the result says so. Omitted: table_name is used if given, otherwise the overview."
 				},
 				"table_name": {
 					"type": "string",
-					"description": "Exact table name, without its schema. Returns that table from every database that has it, with columns, keys, indexes, triggers and policies."
+					"description": "Exact table name, without its schema. Returns that table from every database that has it, with columns, keys, indexes, triggers and policies. Omitted: the paged overview is returned."
 				},
 				"database": {
 					"type": "string",
@@ -2307,7 +2306,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"org_context",
 						"all"
 					],
-					"description": "Only memories of this one type. Omitted: every type."
+					"description": "Only memories of this one type. Omitted or all: every type."
 				},
 				"include_superseded": {
 					"type": "boolean",
@@ -2323,7 +2322,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match."
+					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match. Default false: no flag filter."
 				},
 				"signal_type": {
 					"type": "string",
@@ -2331,7 +2330,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"possibly_contradictory",
 						"possibly_stale"
 					],
-					"description": "Only memories carrying this review flag. Implies flagged."
+					"description": "Only memories carrying this review flag. Implies flagged. Omitted: either flag when flagged is true, otherwise no flag filter."
 				},
 				"requested_by": {
 					"type": "string",
@@ -2395,7 +2394,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"org_context",
 						"all"
 					],
-					"description": "Only memories of this one type. Omitted: every type."
+					"description": "Only memories of this one type. Omitted or all: every type."
 				},
 				"include_superseded": {
 					"type": "boolean",
@@ -2411,7 +2410,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match."
+					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match. Default false: no flag filter."
 				},
 				"signal_type": {
 					"type": "string",
@@ -2419,7 +2418,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"possibly_contradictory",
 						"possibly_stale"
 					],
-					"description": "Only memories carrying this review flag. Implies flagged."
+					"description": "Only memories carrying this review flag. Implies flagged. Omitted: either flag when flagged is true, otherwise no flag filter."
 				},
 				"requested_by": {
 					"type": "string",
@@ -2460,7 +2459,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_memory",
 		"label": "DevSpec: Get Memory",
-		"description": "Read one memory in full: its body, state, lineage and change history. Search and list tools return cards; read the body here before relying on a memory, superseding it or contradicting it. If superseded_by is set, a newer version is current: read that one. Accepts the 8-character short code. For older history, pass history_next_before as history_before. If the response carries evidence, follow its evidence_guidance.",
+		"description": "Read one memory in full: its body, state, lineage and change history. Search and list tools return cards; read the body here before relying on a memory, superseding it or contradicting it. If superseded_by is set, a newer version is current: read that one. Accepts the 8-character short code. For older history, pass history_next_before as history_before. If the response carries evidence, follow its evidence_guidance. A read that fails says unavailable, never not found: try again rather than concluding the memory does not exist.",
 		"searchIntent": "read full memory decision convention rationale history lineage",
 		"modelInputSchema": {
 			"type": "object",
@@ -2535,7 +2534,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_decisions",
 		"label": "DevSpec: Get Decisions",
-		"description": "List memories of type decision, most recently updated first, as cards. Current versions only, whether in discussion or decided. Architecture notes, risks, insights and other types are not included: find those with search_memories and its type filter. Use search_memories when you know the topic, and read a chosen record with get_memory. page.total_matching counts the decisions matching your filters; pass page.next_offset as offset for the next page.",
+		"description": "List the project's decisions, most recently updated first, as cards: memories of type decision and of type architecture, under which architecture decisions are recorded. Current versions only, whether in discussion or decided. Risks, insights and other types are not included: find those with search_memories and its type filter. Use search_memories when you know the topic, and read a chosen record with get_memory. page.total_matching counts the decisions matching your filters; pass page.next_offset as offset for the next page.",
 		"searchIntent": "list browse recorded project decisions what have we decided",
 		"modelInputSchema": {
 			"type": "object",
@@ -2554,7 +2553,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match."
+					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match. Default false: no flag filter."
 				},
 				"signal_type": {
 					"type": "string",
@@ -2562,7 +2561,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"possibly_contradictory",
 						"possibly_stale"
 					],
-					"description": "Only memories carrying this review flag. Implies flagged."
+					"description": "Only memories carrying this review flag. Implies flagged. Omitted: either flag when flagged is true, otherwise no flag filter."
 				},
 				"requested_by": {
 					"type": "string",
@@ -2612,7 +2611,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match."
+					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match. Default false: no flag filter."
 				},
 				"signal_type": {
 					"type": "string",
@@ -2620,7 +2619,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"possibly_contradictory",
 						"possibly_stale"
 					],
-					"description": "Only memories carrying this review flag. Implies flagged."
+					"description": "Only memories carrying this review flag. Implies flagged. Omitted: either flag when flagged is true, otherwise no flag filter."
 				},
 				"requested_by": {
 					"type": "string",
@@ -2673,7 +2672,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match."
+					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match. Default false: no flag filter."
 				},
 				"signal_type": {
 					"type": "string",
@@ -2681,7 +2680,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"possibly_contradictory",
 						"possibly_stale"
 					],
-					"description": "Only memories carrying this review flag. Implies flagged."
+					"description": "Only memories carrying this review flag. Implies flagged. Omitted: either flag when flagged is true, otherwise no flag filter."
 				},
 				"requested_by": {
 					"type": "string",
@@ -2727,7 +2726,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match."
+					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match. Default false: no flag filter."
 				},
 				"signal_type": {
 					"type": "string",
@@ -2735,7 +2734,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"possibly_contradictory",
 						"possibly_stale"
 					],
-					"description": "Only memories carrying this review flag. Implies flagged."
+					"description": "Only memories carrying this review flag. Implies flagged. Omitted: either flag when flagged is true, otherwise no flag filter."
 				},
 				"requested_by": {
 					"type": "string",
@@ -2788,7 +2787,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match."
+					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match. Default false: no flag filter."
 				},
 				"signal_type": {
 					"type": "string",
@@ -2796,7 +2795,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"possibly_contradictory",
 						"possibly_stale"
 					],
-					"description": "Only memories carrying this review flag. Implies flagged."
+					"description": "Only memories carrying this review flag. Implies flagged. Omitted: either flag when flagged is true, otherwise no flag filter."
 				},
 				"requested_by": {
 					"type": "string",
@@ -2842,7 +2841,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match."
+					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match. Default false: no flag filter."
 				},
 				"signal_type": {
 					"type": "string",
@@ -2850,7 +2849,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"possibly_contradictory",
 						"possibly_stale"
 					],
-					"description": "Only memories carrying this review flag. Implies flagged."
+					"description": "Only memories carrying this review flag. Implies flagged. Omitted: either flag when flagged is true, otherwise no flag filter."
 				},
 				"requested_by": {
 					"type": "string",
@@ -2927,7 +2926,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "Only AI-written artifacts carrying a review flag (superseded_but_live, possibly_stale or possibly_contradictory)."
+					"description": "Only AI-written artifacts carrying a review flag (superseded_but_live, possibly_stale or possibly_contradictory). Default false: no flag filter."
 				},
 				"signal_type": {
 					"type": "string",
@@ -2936,7 +2935,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"possibly_stale",
 						"possibly_contradictory"
 					],
-					"description": "Only artifacts carrying this review flag. Implies flagged."
+					"description": "Only artifacts carrying this review flag. Implies flagged. Omitted: any flag when flagged is true, otherwise no flag filter."
 				},
 				"limit": {
 					"type": "number",
@@ -3010,7 +3009,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "Only AI-written artifacts carrying a review flag (superseded_but_live, possibly_stale or possibly_contradictory)."
+					"description": "Only AI-written artifacts carrying a review flag (superseded_but_live, possibly_stale or possibly_contradictory). Default false: no flag filter."
 				},
 				"signal_type": {
 					"type": "string",
@@ -3019,7 +3018,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"possibly_stale",
 						"possibly_contradictory"
 					],
-					"description": "Only artifacts carrying this review flag. Implies flagged."
+					"description": "Only artifacts carrying this review flag. Implies flagged. Omitted: any flag when flagged is true, otherwise no flag filter."
 				},
 				"limit": {
 					"type": "number",
@@ -3061,7 +3060,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "search_resources",
 		"label": "DevSpec: Search Resources",
-		"description": "Find uploaded documents and AI-written artifacts by topic, by words and by meaning. A hit inside an uploaded document carries the matching passage, so a follow-up read is often unnecessary. Omit query to list the most recent instead. Use get_resources to page through every document and get_resource to read one in full. Without an attached session, only project documents are searched. Documents and artifacts are paged separately: pages.documents and pages.artifacts each give total_matching and next_offset (pass it as offset). Ranking stops at the best 100 of each, so a total marked total_is_lower_bound means more exist: narrow the query, or page get_resources for a full listing.",
+		"description": "Find uploaded documents and AI-written artifacts by topic, by words and by meaning. A hit inside an uploaded document carries the matching passage, so a follow-up read is often unnecessary. Omit query to list the most recent instead. Use get_resources to page through every document and get_resource to read one in full. Without an attached session, only project documents are searched. Documents and artifacts are paged separately: pages.documents and pages.artifacts each give total_matching and next_offset (pass it as offset). Ranking stops at the best 100 of each, so a total marked total_is_lower_bound means more exist: narrow the query, or page get_resources for a full listing. If one of the two could not be searched, the response says incomplete, names it in unavailable and gives its count as null: report the search as incomplete, never as finding nothing.",
 		"searchIntent": "find search document artifact uploaded file passage topic",
 		"modelInputSchema": {
 			"type": "object",
@@ -3204,7 +3203,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_resource",
 		"label": "DevSpec: Get Resource",
-		"description": "Read one uploaded document or AI-written artifact in full, by id or 8-character short code, with its review flags and total_lines. For a long document, pass start_line/end_line for a range, or search to get only the matching lines with context. An uploaded file also comes with a short-lived download_url: fetch it now and never store it. A file attached to a session is readable only from that session. is_archived: true means it was retired or replaced; if replaced, find the current version with search_resources.",
+		"description": "Read one uploaded document or AI-written artifact in full, by id or 8-character short code, with its review flags and total_lines. For a long document, pass start_line/end_line for a range, or search to get only the matching lines with context. An uploaded file also comes with a short-lived download_url: fetch it now and never store it. A file attached to a session is readable only from that session. is_archived: true means it was retired or replaced; if replaced, superseded_by names the current version.",
 		"searchIntent": "read full document artifact uploaded file download attachment",
 		"modelInputSchema": {
 			"type": "object",
@@ -3219,15 +3218,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"start_line": {
 					"type": "number",
-					"description": "First body line to return (1-based). With search, where to continue: next_start_line from the previous page."
+					"description": "First body line to return (1-based). With search, where to continue: next_start_line from the previous page. Omitted: line 1."
 				},
 				"end_line": {
 					"type": "number",
-					"description": "Last body line to return (1-based, inclusive). With search, the last line searched."
+					"description": "Last body line to return (1-based, inclusive). With search, the last line searched. Omitted: the last line."
 				},
 				"search": {
 					"type": "string",
-					"description": "Return only the lines containing this text (case-insensitive), each with 5 lines of context either side, 30 matches per page."
+					"description": "Return only the lines containing this text (case-insensitive), each with 5 lines of context either side, 30 matches per page. Omitted: the whole body, or the start_line to end_line range."
 				}
 			},
 			"required": [
@@ -3247,15 +3246,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"start_line": {
 					"type": "number",
-					"description": "First body line to return (1-based). With search, where to continue: next_start_line from the previous page."
+					"description": "First body line to return (1-based). With search, where to continue: next_start_line from the previous page. Omitted: line 1."
 				},
 				"end_line": {
 					"type": "number",
-					"description": "Last body line to return (1-based, inclusive). With search, the last line searched."
+					"description": "Last body line to return (1-based, inclusive). With search, the last line searched. Omitted: the last line."
 				},
 				"search": {
 					"type": "string",
-					"description": "Return only the lines containing this text (case-insensitive), each with 5 lines of context either side, 30 matches per page."
+					"description": "Return only the lines containing this text (case-insensitive), each with 5 lines of context either side, 30 matches per page. Omitted: the whole body, or the start_line to end_line range."
 				}
 			},
 			"required": [
@@ -3287,15 +3286,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses."
+					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
 				},
 				"since_created_at": {
 					"type": "string",
-					"description": "ISO timestamp forward cursor: only messages created strictly after it. Without limit, returns the first 50 after it. Not combinable with before_message_id."
+					"description": "ISO timestamp forward cursor: only messages created strictly after it. Without limit or tail, returns the first 50 after it. Not combinable with before_message_id. Omitted: no time bound."
 				},
 				"after_message_id": {
 					"type": "string",
-					"description": "Message id forward cursor: only messages after it; prefer it to since_created_at, and with both the later wins. Without limit, returns the first 50 after it. An id not found in this room is ignored, so the read starts from the room's first message. Not combinable with before_message_id."
+					"description": "Message id forward cursor: only messages after it; prefer it to since_created_at; with both, a message id found in this room decides and since_created_at is ignored. Without limit, returns the first 50 after it. An id not found in this room is ignored, so the read starts from the room's first message. Not combinable with before_message_id."
 				},
 				"before_message_id": {
 					"type": "string",
@@ -3309,13 +3308,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "integer",
 					"minimum": 1,
 					"maximum": 500,
-					"description": "Forward page size: the earliest matching messages after any cursor. Not combinable with tail."
+					"description": "Forward page size: the earliest matching messages after any cursor. Not combinable with tail. At most 500. Omitted with no tail: the first 50 after a forward cursor, otherwise the newest 50."
 				},
 				"tail": {
 					"type": "integer",
 					"minimum": 1,
 					"maximum": 500,
-					"description": "The most recent matching messages after any cursor. Not combinable with limit."
+					"description": "The most recent matching messages after any cursor. Not combinable with limit. At most 500. Omitted with no limit: the newest 50, or the first 50 after a forward cursor."
 				},
 				"roles": {
 					"minItems": 1,
@@ -3343,7 +3342,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent. When an agent is attached to the room, each message's remote_control then says whether it is a command addressed to you; without it every message is advisory. A read without a forward cursor from your own connection attached to this room also returns the project and owner instruction tiers."
+					"description": "Your own connection id, if you are a connected agent. When an agent is attached to the room, each message's remote_control then says whether it is a command addressed to you; without it every message is advisory. A read without a forward cursor from your own connection attached to this room also returns the project and owner instruction tiers. Omitted: no instruction tiers are returned."
 				}
 			},
 			"required": [
@@ -3368,15 +3367,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses."
+					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
 				},
 				"since_created_at": {
 					"type": "string",
-					"description": "ISO timestamp forward cursor: only messages created strictly after it. Without limit, returns the first 50 after it. Not combinable with before_message_id."
+					"description": "ISO timestamp forward cursor: only messages created strictly after it. Without limit or tail, returns the first 50 after it. Not combinable with before_message_id. Omitted: no time bound."
 				},
 				"after_message_id": {
 					"type": "string",
-					"description": "Message id forward cursor: only messages after it; prefer it to since_created_at, and with both the later wins. Without limit, returns the first 50 after it. An id not found in this room is ignored, so the read starts from the room's first message. Not combinable with before_message_id."
+					"description": "Message id forward cursor: only messages after it; prefer it to since_created_at; with both, a message id found in this room decides and since_created_at is ignored. Without limit, returns the first 50 after it. An id not found in this room is ignored, so the read starts from the room's first message. Not combinable with before_message_id."
 				},
 				"before_message_id": {
 					"type": "string",
@@ -3390,13 +3389,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "integer",
 					"minimum": 1,
 					"maximum": 500,
-					"description": "Forward page size: the earliest matching messages after any cursor. Not combinable with tail."
+					"description": "Forward page size: the earliest matching messages after any cursor. Not combinable with tail. At most 500. Omitted with no tail: the first 50 after a forward cursor, otherwise the newest 50."
 				},
 				"tail": {
 					"type": "integer",
 					"minimum": 1,
 					"maximum": 500,
-					"description": "The most recent matching messages after any cursor. Not combinable with limit."
+					"description": "The most recent matching messages after any cursor. Not combinable with limit. At most 500. Omitted with no limit: the newest 50, or the first 50 after a forward cursor."
 				},
 				"roles": {
 					"minItems": 1,
@@ -3424,7 +3423,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent. When an agent is attached to the room, each message's remote_control then says whether it is a command addressed to you; without it every message is advisory. A read without a forward cursor from your own connection attached to this room also returns the project and owner instruction tiers."
+					"description": "Your own connection id, if you are a connected agent. When an agent is attached to the room, each message's remote_control then says whether it is a command addressed to you; without it every message is advisory. A read without a forward cursor from your own connection attached to this room also returns the project and owner instruction tiers. Omitted: no instruction tiers are returned."
 				}
 			},
 			"required": [
@@ -3500,7 +3499,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"offset": {
 					"type": "number",
-					"description": "How many ranked rooms to skip. Pass page.next_offset from the previous page."
+					"description": "How many ranked rooms to skip. Pass page.next_offset from the previous page. Default 0."
 				},
 				"connection_id": {
 					"type": "string",
@@ -3536,7 +3535,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"offset": {
 					"type": "number",
-					"description": "How many ranked rooms to skip. Pass page.next_offset from the previous page."
+					"description": "How many ranked rooms to skip. Pass page.next_offset from the previous page. Default 0."
 				},
 				"connection_id": {
 					"type": "string",
@@ -3579,7 +3578,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"offset": {
 					"type": "number",
-					"description": "How many points to skip. Pass page.next_offset from the previous page."
+					"description": "How many points to skip. Pass page.next_offset from the previous page. Default 0."
 				},
 				"connection_id": {
 					"type": "string",
@@ -3596,7 +3595,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"discussed",
 						"all"
 					],
-					"description": "open: not yet settled. discussed: struck. all: both."
+					"description": "open: not yet settled. discussed: struck. all: both. Omitted: open when browsing, all with a query."
 				},
 				"scope": {
 					"type": "string",
@@ -3612,11 +3611,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"tag": {
 					"type": "string",
-					"description": "Only points carrying exactly this tag."
+					"description": "Only points carrying exactly this tag. Omitted: no tag filter."
 				},
 				"mine": {
 					"type": "boolean",
-					"description": "true: only points you watch (see manage_discussion_point watch)."
+					"description": "true: only points you watch (see manage_discussion_point watch). Omitted: no watch filter."
 				},
 				"limit": {
 					"type": "number",
@@ -3641,7 +3640,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"offset": {
 					"type": "number",
-					"description": "How many points to skip. Pass page.next_offset from the previous page."
+					"description": "How many points to skip. Pass page.next_offset from the previous page. Default 0."
 				},
 				"connection_id": {
 					"type": "string",
@@ -3658,7 +3657,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"discussed",
 						"all"
 					],
-					"description": "open: not yet settled. discussed: struck. all: both."
+					"description": "open: not yet settled. discussed: struck. all: both. Omitted: open when browsing, all with a query."
 				},
 				"scope": {
 					"type": "string",
@@ -3674,11 +3673,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"tag": {
 					"type": "string",
-					"description": "Only points carrying exactly this tag."
+					"description": "Only points carrying exactly this tag. Omitted: no tag filter."
 				},
 				"mine": {
 					"type": "boolean",
-					"description": "true: only points you watch (see manage_discussion_point watch)."
+					"description": "true: only points you watch (see manage_discussion_point watch). Omitted: no watch filter."
 				},
 				"limit": {
 					"type": "number",
@@ -3741,15 +3740,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"offset": {
 					"type": "number",
-					"description": "With automation_id: pass page.next_offset to read older runs. The waiting queue is not paged."
+					"description": "With automation_id: pass page.next_offset to read older runs. The waiting queue is not paged. Default 0."
 				},
 				"limit": {
 					"type": "number",
-					"description": "With automation_id: runs per page."
+					"description": "With automation_id: runs per page. Default 25, at most 100."
 				},
 				"automation_id": {
 					"type": "string",
-					"description": "Return this automation's run history instead of the waiting queue. An archived automation is not found."
+					"description": "Return this automation's run history instead of the waiting queue. An archived automation is not found. Omitted: the waiting queue."
 				},
 				"query": {
 					"type": "string",
@@ -3778,15 +3777,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"offset": {
 					"type": "number",
-					"description": "With automation_id: pass page.next_offset to read older runs. The waiting queue is not paged."
+					"description": "With automation_id: pass page.next_offset to read older runs. The waiting queue is not paged. Default 0."
 				},
 				"limit": {
 					"type": "number",
-					"description": "With automation_id: runs per page."
+					"description": "With automation_id: runs per page. Default 25, at most 100."
 				},
 				"automation_id": {
 					"type": "string",
-					"description": "Return this automation's run history instead of the waiting queue. An archived automation is not found."
+					"description": "Return this automation's run history instead of the waiting queue. An archived automation is not found. Omitted: the waiting queue."
 				},
 				"query": {
 					"type": "string",
@@ -3822,7 +3821,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"name": {
 					"type": "string",
-					"description": "Resolve an automation the person named: case-insensitive match on any part of the name, exact matches win; at most 20. Takes precedence over query."
+					"description": "Resolve an automation the person named: case-insensitive match on any part of the name, exact matches win; at most 20. Takes precedence over query. Omitted: query is used if given; otherwise every unarchived automation you can see is listed."
 				},
 				"query": {
 					"type": "string",
@@ -3847,7 +3846,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"name": {
 					"type": "string",
-					"description": "Resolve an automation the person named: case-insensitive match on any part of the name, exact matches win; at most 20. Takes precedence over query."
+					"description": "Resolve an automation the person named: case-insensitive match on any part of the name, exact matches win; at most 20. Takes precedence over query. Omitted: query is used if given; otherwise every unarchived automation you can see is listed."
 				},
 				"query": {
 					"type": "string",
@@ -3879,11 +3878,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"automation_id": {
 					"type": "string",
-					"description": "The automation's UUID. One of automation_id or name is required; automation_id wins if both are sent. An archived automation is not found."
+					"description": "The automation's UUID. One of automation_id or name is required; automation_id wins if both are sent. An archived automation is not found. Omitted: resolved by name."
 				},
 				"name": {
 					"type": "string",
-					"description": "Resolve by name instead: case-insensitive match on any part of the name, exact matches win."
+					"description": "Resolve by name instead: case-insensitive match on any part of the name, exact matches win. Omitted: automation_id is required."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -3904,11 +3903,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"automation_id": {
 					"type": "string",
-					"description": "The automation's UUID. One of automation_id or name is required; automation_id wins if both are sent. An archived automation is not found."
+					"description": "The automation's UUID. One of automation_id or name is required; automation_id wins if both are sent. An archived automation is not found. Omitted: resolved by name."
 				},
 				"name": {
 					"type": "string",
-					"description": "Resolve by name instead: case-insensitive match on any part of the name, exact matches win."
+					"description": "Resolve by name instead: case-insensitive match on any part of the name, exact matches win. Omitted: automation_id is required."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -4016,11 +4015,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"mechanics",
 						"style"
 					],
-					"description": "mechanics: how to build and ship here. style: preference. safety: shared-repo safety such as branch protection, force-push and secrets, which agents may not work around. Adding, changing or retracting a safety rule needs a maintainer and confirm_safety_change."
+					"description": "mechanics: how to build and ship here. style: preference. safety: shared-repo safety such as branch protection, force-push and secrets, which agents may not work around. Adding, changing or retracting a safety rule needs a maintainer and confirm_safety_change. Omitted: mechanics on add; unchanged on amend."
 				},
 				"rationale": {
 					"type": "string",
-					"description": "Why the rule exists: evidence, history or examples. Shown to people and returned by get_project_instruction_rules, never given to agents. On amend, an empty string clears it."
+					"description": "Why the rule exists: evidence, history or examples. Shown to people and returned by get_project_instruction_rules, never given to agents. On amend, an empty string clears it. Omitted: none on add; unchanged on amend."
 				},
 				"rule_id": {
 					"type": "string",
@@ -4032,7 +4031,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent, so the write is judged as the person whose command you are serving."
+					"description": "Your own connection id, if you are a connected agent, so the write is judged as the person whose command you are serving. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -4044,10 +4043,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -4086,11 +4081,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"mechanics",
 						"style"
 					],
-					"description": "mechanics: how to build and ship here. style: preference. safety: shared-repo safety such as branch protection, force-push and secrets, which agents may not work around. Adding, changing or retracting a safety rule needs a maintainer and confirm_safety_change."
+					"description": "mechanics: how to build and ship here. style: preference. safety: shared-repo safety such as branch protection, force-push and secrets, which agents may not work around. Adding, changing or retracting a safety rule needs a maintainer and confirm_safety_change. Omitted: mechanics on add; unchanged on amend."
 				},
 				"rationale": {
 					"type": "string",
-					"description": "Why the rule exists: evidence, history or examples. Shown to people and returned by get_project_instruction_rules, never given to agents. On amend, an empty string clears it."
+					"description": "Why the rule exists: evidence, history or examples. Shown to people and returned by get_project_instruction_rules, never given to agents. On amend, an empty string clears it. Omitted: none on add; unchanged on amend."
 				},
 				"rule_id": {
 					"type": "string",
@@ -4102,7 +4097,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent, so the write is judged as the person whose command you are serving."
+					"description": "Your own connection id, if you are a connected agent, so the write is judged as the person whose command you are serving. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -4114,10 +4109,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -4191,11 +4182,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"confirm_safety_change": {
 					"type": "boolean",
-					"description": "Required, with confirm:true, when the plan contains safety-class rules."
+					"description": "Required, with confirm:true, when the plan contains safety-class rules. Omitted: a confirmed import containing safety-class rules is refused."
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent, so the write is judged as the person whose command you are serving."
+					"description": "Your own connection id, if you are a connected agent, so the write is judged as the person whose command you are serving. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -4207,10 +4198,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -4278,11 +4265,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"confirm_safety_change": {
 					"type": "boolean",
-					"description": "Required, with confirm:true, when the plan contains safety-class rules."
+					"description": "Required, with confirm:true, when the plan contains safety-class rules. Omitted: a confirmed import containing safety-class rules is refused."
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent, so the write is judged as the person whose command you are serving."
+					"description": "Your own connection id, if you are a connected agent, so the write is judged as the person whose command you are serving. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -4294,10 +4281,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -4330,15 +4313,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"append",
 						"replace"
 					],
-					"description": "append adds your text after the existing text, separated by a blank line; empty text is refused. replace makes the tier exactly your text, and an empty string clears it; build a revision from the current text so nothing is lost."
+					"description": "append adds your text after the existing text, separated by a blank line; empty text is refused. replace makes the tier exactly your text, and an empty string clears it; build a revision from the current text so nothing is lost. Default append."
 				},
 				"dry_run": {
 					"type": "boolean",
-					"description": "true returns the exact text that would be saved, and saves nothing."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "true returns the exact text that would be saved, and saves nothing. Default false: the text is saved."
 				}
 			}
 		},
@@ -4359,15 +4338,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"append",
 						"replace"
 					],
-					"description": "append adds your text after the existing text, separated by a blank line; empty text is refused. replace makes the tier exactly your text, and an empty string clears it; build a revision from the current text so nothing is lost."
+					"description": "append adds your text after the existing text, separated by a blank line; empty text is refused. replace makes the tier exactly your text, and an empty string clears it; build a revision from the current text so nothing is lost. Default append."
 				},
 				"dry_run": {
 					"type": "boolean",
-					"description": "true returns the exact text that would be saved, and saves nothing."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "true returns the exact text that would be saved, and saves nothing. Default false: the text is saved."
 				}
 			}
 		},
@@ -4395,7 +4370,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"description": {
 					"type": "string",
-					"description": "Replaces the whole description (what to do and how). For smaller changes use description_edits; the two cannot be combined. An empty string clears it."
+					"description": "Replaces the whole description (what to do and how). For smaller changes use description_edits; the two cannot be combined. An empty string clears it. Omitted: unchanged."
 				},
 				"description_edits": {
 					"type": "array",
@@ -4424,7 +4399,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"content"
 						]
 					},
-					"description": "Targeted edits to the current description, applied together: {op: replace, find, content} needs find to match exactly once; {op: append, content} adds text. If any edit fails, none is applied. Cannot be combined with description."
+					"description": "Targeted edits to the current description, applied together: {op: replace, find, content} needs find to match exactly once; {op: append, content} adds text. If any edit fails, none is applied. Cannot be combined with description. Omitted: unchanged."
 				},
 				"lifecycle": {
 					"type": "string",
@@ -4434,11 +4409,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"dismissed",
 						"blocked"
 					],
-					"description": "deferred parks the item (reversible), blocked marks it waiting on something outside DevSpec, dismissed means it will not be done, and open resumes a deferred, dismissed or blocked item. Deferring or dismissing clears the item's agent branch and commit. Implemented and done items refuse deferred, blocked and dismissed; open moves one of them straight back to open, without the new round reopen_action_item records. On an item an agent has claimed, deferred and dismissed fail at the database, after any assignee or goal change in the same call has already been applied. Omitted: unchanged."
+					"description": "deferred parks the item (reversible), blocked marks it waiting on something outside DevSpec, dismissed means it will not be done, and open resumes a deferred, dismissed or blocked item. Deferring or dismissing clears the item's agent branch and commit. Implemented and done items refuse deferred, blocked and dismissed, and refuse open: reopen finished work with reopen_action_item, which records a new round. On an item an agent has claimed, deferred and dismissed are refused until the claim is handed back with release_work_item. A refused call changes nothing. Omitted: unchanged."
 				},
 				"intent": {
 					"type": "string",
-					"description": "Why: the problem and the outcome wanted. An empty string clears it."
+					"description": "Why: the problem and the outcome wanted. An empty string clears it. Omitted: unchanged."
 				},
 				"acceptance_criteria": {
 					"anyOf": [
@@ -4475,11 +4450,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"description": "List of checkable criteria. Preserve existing {id,text} entries for unchanged criteria to retain evidence; strings create new identities. Maximum 30 entries, 1000 characters each."
 						}
 					],
-					"description": "The complete criteria list; it replaces the stored one. Send an unchanged line as {id, text}, or with the same text, to keep its id and verdicts; lines you leave out are deleted, and null or an empty list clears them. Also accepts one block of text with a criterion per line. At most 30 entries of 1,000 characters each."
+					"description": "The complete criteria list; it replaces the stored one. Send an unchanged line as {id, text}, or with the same text, to keep its id and verdicts; lines you leave out are deleted, and an empty list clears them. Also accepts one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: unchanged."
 				},
 				"ai_instructions": {
 					"type": "string",
-					"description": "Approach guidance and constraints for whoever implements the item. An empty string clears it."
+					"description": "Approach guidance and constraints for whoever implements the item. An empty string clears it. Omitted: unchanged."
 				},
 				"type": {
 					"type": "string",
@@ -4515,11 +4490,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"testing_notes": {
 					"type": "string",
-					"description": "Step-by-step manual verification instructions, in Markdown; an empty string clears them."
+					"description": "Step-by-step manual verification instructions, in Markdown; an empty string clears them. Omitted: unchanged."
 				},
 				"usage_notes": {
 					"type": "string",
-					"description": "Where people find the feature and how to use it; an empty string clears them."
+					"description": "Where people find the feature and how to use it; an empty string clears them. Omitted: unchanged."
 				},
 				"is_brief": {
 					"type": "boolean",
@@ -4555,11 +4530,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"assigned_to": {
 					"type": "string",
-					"description": "Adds this user (UUID) as an assignee; existing assignees stay. null removes every assignee, so to hand the item to someone else, clear with null and then add them. Once assigned, only an assignee can claim the item without forcing. An assignment that cannot be stored is not reported. Omitted: unchanged."
+					"description": "Adds this user (UUID) as an assignee; existing assignees stay. null removes every assignee, so to hand the item to someone else, clear with null and then add them. Once assigned, only an assignee can claim the item without forcing. An assignment that cannot be stored is listed under not_stored. Omitted: unchanged."
 				},
 				"commit_sha": {
 					"type": "string",
-					"description": "Links a commit to the item, short or full; never pad a short SHA. A commit not yet indexed is stored as provisional and resolves itself when it lands. Linking marks the item's current item-level verification stale. add_commit_reference links a commit without editing anything."
+					"description": "Links a commit to the item, short or full; never pad a short SHA. A commit not yet indexed is stored as provisional and resolves itself when it lands. Linking marks the item's current item-level verification stale. add_commit_reference links a commit without editing anything. Omitted: no commit is linked."
 				},
 				"note": {
 					"type": "string",
@@ -4574,7 +4549,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"items": {
 						"type": "string"
 					},
-					"description": "The complete set of goals this item serves directly (UUIDs): it replaces the current direct links, and an empty list removes them all. Goals inherited from the parent brief are separate. The response echoes the requested set even if a link could not be stored. Sending the same set again changes nothing, so a retry is safe, and a call with only goal_ids is a real update. Omitted: unchanged."
+					"description": "The complete set of goals this item serves directly (UUIDs): it replaces the current direct links, and an empty list removes them all. Goals inherited from the parent brief are separate. Links that cannot be stored are listed under not_stored, and goal_ids is echoed only when every link was stored. Sending the same set again changes nothing, so a retry is safe, and a call with only goal_ids is a real update. Omitted: unchanged."
 				},
 				"execution_results": {
 					"type": "object",
@@ -4617,11 +4592,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"mcp_tools_used",
 						"execution_time_ms"
 					],
-					"description": "For query-type items, the result of running the query: status (success, error or timeout), output, executed_at, mcp_tools_used, execution_time_ms, and error_message on failure. Stored as given."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "For query-type items, the result of running the query: status (success, error or timeout), output, executed_at, mcp_tools_used, execution_time_ms, and error_message on failure. Stored as given. Omitted: unchanged."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
@@ -4649,7 +4620,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"description": {
 					"type": "string",
-					"description": "Replaces the whole description (what to do and how). For smaller changes use description_edits; the two cannot be combined. An empty string clears it."
+					"description": "Replaces the whole description (what to do and how). For smaller changes use description_edits; the two cannot be combined. An empty string clears it. Omitted: unchanged."
 				},
 				"description_edits": {
 					"type": "array",
@@ -4678,7 +4649,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"content"
 						]
 					},
-					"description": "Targeted edits to the current description, applied together: {op: replace, find, content} needs find to match exactly once; {op: append, content} adds text. If any edit fails, none is applied. Cannot be combined with description."
+					"description": "Targeted edits to the current description, applied together: {op: replace, find, content} needs find to match exactly once; {op: append, content} adds text. If any edit fails, none is applied. Cannot be combined with description. Omitted: unchanged."
 				},
 				"lifecycle": {
 					"type": "string",
@@ -4688,11 +4659,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"dismissed",
 						"blocked"
 					],
-					"description": "deferred parks the item (reversible), blocked marks it waiting on something outside DevSpec, dismissed means it will not be done, and open resumes a deferred, dismissed or blocked item. Deferring or dismissing clears the item's agent branch and commit. Implemented and done items refuse deferred, blocked and dismissed; open moves one of them straight back to open, without the new round reopen_action_item records. On an item an agent has claimed, deferred and dismissed fail at the database, after any assignee or goal change in the same call has already been applied. Omitted: unchanged."
+					"description": "deferred parks the item (reversible), blocked marks it waiting on something outside DevSpec, dismissed means it will not be done, and open resumes a deferred, dismissed or blocked item. Deferring or dismissing clears the item's agent branch and commit. Implemented and done items refuse deferred, blocked and dismissed, and refuse open: reopen finished work with reopen_action_item, which records a new round. On an item an agent has claimed, deferred and dismissed are refused until the claim is handed back with release_work_item. A refused call changes nothing. Omitted: unchanged."
 				},
 				"intent": {
 					"type": "string",
-					"description": "Why: the problem and the outcome wanted. An empty string clears it."
+					"description": "Why: the problem and the outcome wanted. An empty string clears it. Omitted: unchanged."
 				},
 				"acceptance_criteria": {
 					"anyOf": [
@@ -4729,11 +4700,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"description": "List of checkable criteria. Preserve existing {id,text} entries for unchanged criteria to retain evidence; strings create new identities. Maximum 30 entries, 1000 characters each."
 						}
 					],
-					"description": "The complete criteria list; it replaces the stored one. Send an unchanged line as {id, text}, or with the same text, to keep its id and verdicts; lines you leave out are deleted, and null or an empty list clears them. Also accepts one block of text with a criterion per line. At most 30 entries of 1,000 characters each."
+					"description": "The complete criteria list; it replaces the stored one. Send an unchanged line as {id, text}, or with the same text, to keep its id and verdicts; lines you leave out are deleted, and an empty list clears them. Also accepts one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: unchanged."
 				},
 				"ai_instructions": {
 					"type": "string",
-					"description": "Approach guidance and constraints for whoever implements the item. An empty string clears it."
+					"description": "Approach guidance and constraints for whoever implements the item. An empty string clears it. Omitted: unchanged."
 				},
 				"type": {
 					"type": "string",
@@ -4769,11 +4740,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"testing_notes": {
 					"type": "string",
-					"description": "Step-by-step manual verification instructions, in Markdown; an empty string clears them."
+					"description": "Step-by-step manual verification instructions, in Markdown; an empty string clears them. Omitted: unchanged."
 				},
 				"usage_notes": {
 					"type": "string",
-					"description": "Where people find the feature and how to use it; an empty string clears them."
+					"description": "Where people find the feature and how to use it; an empty string clears them. Omitted: unchanged."
 				},
 				"is_brief": {
 					"type": "boolean",
@@ -4809,11 +4780,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"assigned_to": {
 					"type": "string",
-					"description": "Adds this user (UUID) as an assignee; existing assignees stay. null removes every assignee, so to hand the item to someone else, clear with null and then add them. Once assigned, only an assignee can claim the item without forcing. An assignment that cannot be stored is not reported. Omitted: unchanged."
+					"description": "Adds this user (UUID) as an assignee; existing assignees stay. null removes every assignee, so to hand the item to someone else, clear with null and then add them. Once assigned, only an assignee can claim the item without forcing. An assignment that cannot be stored is listed under not_stored. Omitted: unchanged."
 				},
 				"commit_sha": {
 					"type": "string",
-					"description": "Links a commit to the item, short or full; never pad a short SHA. A commit not yet indexed is stored as provisional and resolves itself when it lands. Linking marks the item's current item-level verification stale. add_commit_reference links a commit without editing anything."
+					"description": "Links a commit to the item, short or full; never pad a short SHA. A commit not yet indexed is stored as provisional and resolves itself when it lands. Linking marks the item's current item-level verification stale. add_commit_reference links a commit without editing anything. Omitted: no commit is linked."
 				},
 				"note": {
 					"type": "string",
@@ -4828,7 +4799,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"items": {
 						"type": "string"
 					},
-					"description": "The complete set of goals this item serves directly (UUIDs): it replaces the current direct links, and an empty list removes them all. Goals inherited from the parent brief are separate. The response echoes the requested set even if a link could not be stored. Sending the same set again changes nothing, so a retry is safe, and a call with only goal_ids is a real update. Omitted: unchanged."
+					"description": "The complete set of goals this item serves directly (UUIDs): it replaces the current direct links, and an empty list removes them all. Goals inherited from the parent brief are separate. Links that cannot be stored are listed under not_stored, and goal_ids is echoed only when every link was stored. Sending the same set again changes nothing, so a retry is safe, and a call with only goal_ids is a real update. Omitted: unchanged."
 				},
 				"execution_results": {
 					"type": "object",
@@ -4871,11 +4842,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"mcp_tools_used",
 						"execution_time_ms"
 					],
-					"description": "For query-type items, the result of running the query: status (success, error or timeout), output, executed_at, mcp_tools_used, execution_time_ms, and error_message on failure. Stored as given."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "For query-type items, the result of running the query: status (success, error or timeout), output, executed_at, mcp_tools_used, execution_time_ms, and error_message on failure. Stored as given. Omitted: unchanged."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
@@ -4902,11 +4869,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"description": {
 					"type": "string",
-					"description": "What to do and how: the concrete change. Keep the reason in intent and the definition of done in acceptance_criteria."
+					"description": "What to do and how: the concrete change. Keep the reason in intent and the definition of done in acceptance_criteria. Omitted: none."
 				},
 				"intent": {
 					"type": "string",
-					"description": "Why: the problem being solved and the outcome wanted, so whoever picks the item up later understands the goal."
+					"description": "Why: the problem being solved and the outcome wanted, so whoever picks the item up later understands the goal. Omitted: none."
 				},
 				"acceptance_criteria": {
 					"anyOf": [
@@ -4943,11 +4910,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"description": "List of checkable criteria, distinct from intent and implementation approach. Prefer 3–6 concrete conditions; maximum 30 entries, 1000 characters each."
 						}
 					],
-					"description": "Checkable conditions that define done, distinct from intent and approach; three to six is typical. A list of strings, or one block of text with a criterion per line. At most 30 entries of 1,000 characters each."
+					"description": "Checkable conditions that define done, distinct from intent and approach; three to six is typical. A list of strings, or one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: none."
 				},
 				"ai_instructions": {
 					"type": "string",
-					"description": "Approach guidance and constraints for whoever implements it: decisions, trade-offs or boundaries not obvious from the code."
+					"description": "Approach guidance and constraints for whoever implements it: decisions, trade-offs or boundaries not obvious from the code. Omitted: none."
 				},
 				"type": {
 					"type": "string",
@@ -4983,11 +4950,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"testing_notes": {
 					"type": "string",
-					"description": "Step-by-step manual verification instructions, in Markdown."
+					"description": "Step-by-step manual verification instructions, in Markdown. Omitted: none."
 				},
 				"usage_notes": {
 					"type": "string",
-					"description": "Where people will find the feature and how to use it."
+					"description": "Where people will find the feature and how to use it. Omitted: none."
 				},
 				"suggest_human_only": {
 					"type": "boolean",
@@ -4999,7 +4966,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"assigned_to": {
 					"type": "string",
-					"description": "User UUID to assign. Once assigned, only an assignee can claim the item without forcing. If the assignment cannot be stored, the item is still created and the response does not say so. Omitted: unassigned."
+					"description": "User UUID to assign. Once assigned, only an assignee can claim the item without forcing. If the assignment cannot be stored, the item is still created and the assignment is listed under not_stored. Omitted: unassigned."
 				},
 				"session_id": {
 					"type": "string",
@@ -5015,22 +4982,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"follow_up_from_action_item_id": {
 					"type": "string",
-					"description": "The full UUID of the item whose work surfaced this distinct new scope. Records a caused_by link from the new item to it, so no separate link is needed; it is not the parent brief. If the link cannot be stored, the item is still created and warning says so."
+					"description": "The full UUID of the item whose work surfaced this distinct new scope. Records a caused_by link from the new item to it, so no separate link is needed; it is not the parent brief. If the link cannot be stored, the item is still created and warning says so. Omitted: no follow-up link."
 				},
 				"goal_ids": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "Goal UUIDs this item serves (read them with get_goals), linked as agent-authored so the item counts toward their progress. A link that cannot be stored is not reported. Omitted: none beyond any inherited from the parent brief."
+					"description": "Goal UUIDs this item serves (read them with get_goals), linked as agent-authored so the item counts toward their progress. Links that cannot be stored are listed under not_stored. Omitted: none beyond any inherited from the parent brief."
 				},
 				"idempotency_key": {
 					"type": "string",
-					"description": "One UUID you choose per intended create. With session_id set, a retry with the same key returns the original item (deduplicated: true) instead of a duplicate; without a room there is no retry protection, so search before retrying. Required when your role saves the create as suggested work (the response says queued_for_review). Without a key, a create in the same room with the same title, type and parent returns the earlier item, even if its other fields differ."
+					"description": "One UUID you choose per intended create. A retry with the same key returns the original item (deduplicated: true) instead of a duplicate, with or without a room. Required when your role saves the create as suggested work (the response says queued_for_review). Without a key, a create in the same room identical in every field returns the earlier item."
 				},
 				"agent_name": {
 					"type": "string",
-					"description": "The tool name to show on the room card when your connection has none recorded, for example Claude Code. Only used with session_id."
+					"description": "The tool name to show on the room card when your connection has none recorded, for example Claude Code. Only used with session_id. Omitted: the name your client reports, else Local agent."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -5044,16 +5011,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
 					"type": "string"
 				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
-				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -5070,11 +5033,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"description": {
 					"type": "string",
-					"description": "What to do and how: the concrete change. Keep the reason in intent and the definition of done in acceptance_criteria."
+					"description": "What to do and how: the concrete change. Keep the reason in intent and the definition of done in acceptance_criteria. Omitted: none."
 				},
 				"intent": {
 					"type": "string",
-					"description": "Why: the problem being solved and the outcome wanted, so whoever picks the item up later understands the goal."
+					"description": "Why: the problem being solved and the outcome wanted, so whoever picks the item up later understands the goal. Omitted: none."
 				},
 				"acceptance_criteria": {
 					"anyOf": [
@@ -5111,11 +5074,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"description": "List of checkable criteria, distinct from intent and implementation approach. Prefer 3–6 concrete conditions; maximum 30 entries, 1000 characters each."
 						}
 					],
-					"description": "Checkable conditions that define done, distinct from intent and approach; three to six is typical. A list of strings, or one block of text with a criterion per line. At most 30 entries of 1,000 characters each."
+					"description": "Checkable conditions that define done, distinct from intent and approach; three to six is typical. A list of strings, or one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: none."
 				},
 				"ai_instructions": {
 					"type": "string",
-					"description": "Approach guidance and constraints for whoever implements it: decisions, trade-offs or boundaries not obvious from the code."
+					"description": "Approach guidance and constraints for whoever implements it: decisions, trade-offs or boundaries not obvious from the code. Omitted: none."
 				},
 				"type": {
 					"type": "string",
@@ -5151,11 +5114,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"testing_notes": {
 					"type": "string",
-					"description": "Step-by-step manual verification instructions, in Markdown."
+					"description": "Step-by-step manual verification instructions, in Markdown. Omitted: none."
 				},
 				"usage_notes": {
 					"type": "string",
-					"description": "Where people will find the feature and how to use it."
+					"description": "Where people will find the feature and how to use it. Omitted: none."
 				},
 				"suggest_human_only": {
 					"type": "boolean",
@@ -5167,7 +5130,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"assigned_to": {
 					"type": "string",
-					"description": "User UUID to assign. Once assigned, only an assignee can claim the item without forcing. If the assignment cannot be stored, the item is still created and the response does not say so. Omitted: unassigned."
+					"description": "User UUID to assign. Once assigned, only an assignee can claim the item without forcing. If the assignment cannot be stored, the item is still created and the assignment is listed under not_stored. Omitted: unassigned."
 				},
 				"session_id": {
 					"type": "string",
@@ -5183,22 +5146,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"follow_up_from_action_item_id": {
 					"type": "string",
-					"description": "The full UUID of the item whose work surfaced this distinct new scope. Records a caused_by link from the new item to it, so no separate link is needed; it is not the parent brief. If the link cannot be stored, the item is still created and warning says so."
+					"description": "The full UUID of the item whose work surfaced this distinct new scope. Records a caused_by link from the new item to it, so no separate link is needed; it is not the parent brief. If the link cannot be stored, the item is still created and warning says so. Omitted: no follow-up link."
 				},
 				"goal_ids": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "Goal UUIDs this item serves (read them with get_goals), linked as agent-authored so the item counts toward their progress. A link that cannot be stored is not reported. Omitted: none beyond any inherited from the parent brief."
+					"description": "Goal UUIDs this item serves (read them with get_goals), linked as agent-authored so the item counts toward their progress. Links that cannot be stored are listed under not_stored. Omitted: none beyond any inherited from the parent brief."
 				},
 				"idempotency_key": {
 					"type": "string",
-					"description": "One UUID you choose per intended create. With session_id set, a retry with the same key returns the original item (deduplicated: true) instead of a duplicate; without a room there is no retry protection, so search before retrying. Required when your role saves the create as suggested work (the response says queued_for_review). Without a key, a create in the same room with the same title, type and parent returns the earlier item, even if its other fields differ."
+					"description": "One UUID you choose per intended create. A retry with the same key returns the original item (deduplicated: true) instead of a duplicate, with or without a room. Required when your role saves the create as suggested work (the response says queued_for_review). Without a key, a create in the same room identical in every field returns the earlier item."
 				},
 				"agent_name": {
 					"type": "string",
-					"description": "The tool name to show on the room card when your connection has none recorded, for example Claude Code. Only used with session_id."
+					"description": "The tool name to show on the room card when your connection has none recorded, for example Claude Code. Only used with session_id. Omitted: the name your client reports, else Local agent."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -5212,16 +5175,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
 					"type": "string"
 				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
-				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -5234,7 +5193,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "spin_off_action_item",
 		"label": "DevSpec: Spin Off Action Item",
-		"description": "Detach a child from its brief so it stands alone, linked back to the brief with derived_from; the same item moves and no copy is made. The brief can then roll up to done without it, and resuming the item later does not reopen the brief. By default it is also parked as deferred whatever its state, so an implemented or done child loses that state along with its agent branch and commit; defer: false keeps its current state. Parking a child an agent is working on fails with a database error.",
+		"description": "Detach a child from its brief so it stands alone, linked back to the brief with derived_from; the same item moves and no copy is made. The brief can then roll up to done without it, and resuming the item later does not reopen the brief. By default it is also parked as deferred. An implemented or done child, or one an agent has claimed, cannot be parked: that call is refused, and defer: false detaches it with its state unchanged. If the derived_from link cannot be recorded, nothing changes and the call says so.",
 		"searchIntent": "extract spin off child work from parent brief standalone follow-up",
 		"modelInputSchema": {
 			"type": "object",
@@ -5245,11 +5204,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"defer": {
 					"type": "boolean",
-					"description": "true, the default, also parks the item as deferred, whatever its lifecycle, and clears its agent branch and commit; false detaches it and leaves its lifecycle as it is."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "true, the default, also parks the item as deferred and clears its agent branch and commit; refused for an implemented, done or claimed item. false detaches it and leaves its lifecycle as it is."
 				}
 			},
 			"required": [
@@ -5265,11 +5220,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"defer": {
 					"type": "boolean",
-					"description": "true, the default, also parks the item as deferred, whatever its lifecycle, and clears its agent branch and commit; false detaches it and leaves its lifecycle as it is."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "true, the default, also parks the item as deferred and clears its agent branch and commit; refused for an implemented, done or claimed item. false detaches it and leaves its lifecycle as it is."
 				}
 			},
 			"required": [
@@ -5319,15 +5270,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"cited_authorisation",
 						"factual_grounds"
 					],
-					"description": "How the ruling is justified: human_confirmed only when a person answered this question in the current conversation; cited_authorisation when basis quotes their earlier authorisation; factual_grounds when basis states verifiable facts about the pair. Omitted: human_confirmed, so the ruling is recorded as confirmed by a person even if none was asked. Any other value is refused."
+					"description": "How the ruling is justified: human_confirmed only when a person answered this question in the current conversation; cited_authorisation when basis quotes their earlier authorisation; factual_grounds when basis states verifiable facts about the pair. Omitted: factual_grounds, recorded as your own judgement; human_confirmed is recorded only when you say a person answered. Any other value is refused."
 				},
 				"basis": {
 					"type": "string",
 					"description": "The evidence for basis_kind: the person's answer, their quoted words, or the facts that justify the ruling; a title resemblance alone is not evidence. Omitted: note is used. A thin basis is recorded with a warning, not refused."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -5371,15 +5318,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"cited_authorisation",
 						"factual_grounds"
 					],
-					"description": "How the ruling is justified: human_confirmed only when a person answered this question in the current conversation; cited_authorisation when basis quotes their earlier authorisation; factual_grounds when basis states verifiable facts about the pair. Omitted: human_confirmed, so the ruling is recorded as confirmed by a person even if none was asked. Any other value is refused."
+					"description": "How the ruling is justified: human_confirmed only when a person answered this question in the current conversation; cited_authorisation when basis quotes their earlier authorisation; factual_grounds when basis states verifiable facts about the pair. Omitted: factual_grounds, recorded as your own judgement; human_confirmed is recorded only when you say a person answered. Any other value is refused."
 				},
 				"basis": {
 					"type": "string",
 					"description": "The evidence for basis_kind: the person's answer, their quoted words, or the facts that justify the ruling; a title resemblance alone is not evidence. Omitted: note is used. A thin basis is recorded with a warning, not refused."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -5425,10 +5368,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"basis": {
 					"type": "string",
 					"description": "The facts showing there is no real contradiction, or the person's words authorising the ruling. Recorded with the ruling."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -5469,10 +5408,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"basis": {
 					"type": "string",
 					"description": "The facts showing there is no real contradiction, or the person's words authorising the ruling. Recorded with the ruling."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -5513,10 +5448,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"acknowledge_half_resolution": {
 					"type": "boolean",
 					"description": "For supersedes only: true confirms you want the bare edge without clearing flags or closing the replaced item, for example when back-filling history. Default false, which refuses a supersedes edge."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -5549,10 +5480,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"acknowledge_half_resolution": {
 					"type": "boolean",
 					"description": "For supersedes only: true confirms you want the bare edge without clearing flags or closing the replaced item, for example when back-filling history. Default false, which refuses a supersedes edge."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -5566,7 +5493,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "unlink_action_items",
 		"label": "DevSpec: Unlink Action Items",
-		"description": "Remove one directed relationship between two action items, matched in the direction it was linked. Removing blocks lets the target be claimed; removing a pending supersedes cancels the supersession, so nothing closes when the replacing item ships, though both items still read as pending supersession. Neither item's lifecycle changes, and removing a supersedes edge does not reopen the item it closed.",
+		"description": "Remove one directed relationship between two action items, matched in the direction it was linked. Removing blocks lets the target be claimed; removing a pending supersedes cancels the supersession: nothing closes when the replacing item ships, and neither item reads as pending supersession any more. The response says which of these happened. Neither item's lifecycle changes, and removing a supersedes edge does not reopen the item it closed.",
 		"searchIntent": "remove relationship between work tasks action items",
 		"modelInputSchema": {
 			"type": "object",
@@ -5588,10 +5515,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"related_to"
 					],
 					"description": "Which relationship to remove. Omitted: the only one in that direction; refused when there are several."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -5619,10 +5542,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"related_to"
 					],
 					"description": "Which relationship to remove. Omitted: the only one in that direction; refused when there are several."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -5647,18 +5566,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"reason_code": {
 					"type": "string",
 					"enum": [
-						"implementation_incomplete_or_broken",
-						"new_followup_scope"
+						"implementation_incomplete_or_broken"
 					],
-					"description": "implementation_incomplete_or_broken: the recorded work does not do what was agreed. new_followup_scope: the work did what was agreed and more scope was found. The code is only recorded with the reopen; the item is reopened the same way for both."
+					"description": "implementation_incomplete_or_broken: the recorded work does not do what was agreed. Recorded with the reopen."
 				},
 				"note": {
 					"type": "string",
 					"description": "What is incomplete or broken, recorded with the reopen on the item's history. It must not be blank."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -5677,18 +5591,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"reason_code": {
 					"type": "string",
 					"enum": [
-						"implementation_incomplete_or_broken",
-						"new_followup_scope"
+						"implementation_incomplete_or_broken"
 					],
-					"description": "implementation_incomplete_or_broken: the recorded work does not do what was agreed. new_followup_scope: the work did what was agreed and more scope was found. The code is only recorded with the reopen; the item is reopened the same way for both."
+					"description": "implementation_incomplete_or_broken: the recorded work does not do what was agreed. Recorded with the reopen."
 				},
 				"note": {
 					"type": "string",
 					"description": "What is incomplete or broken, recorded with the reopen on the item's history. It must not be blank."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -5702,7 +5611,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "surface_session_action_items",
 		"label": "DevSpec: Surface Session Action Items",
-		"description": "Post interactive cards for existing action items into a DevSpec room's transcript, one card per item, without creating any. Use it when asked to show already-recorded work in a room; create_action_item with session_id already posts a card for a new item. Keep any reply that goes with the cards short rather than listing the items again. It reports outcome committed for every item it found, even when a card could not be written.",
+		"description": "Post interactive cards for existing action items into a DevSpec room's transcript, one card per item, without creating any. Use it when asked to show already-recorded work in a room; create_action_item with session_id already posts a card for a new item. Keep any reply that goes with the cards short rather than listing the items again. outcome is committed when every card was written, partial when some were (not_surfaced lists the rest), and failed when none were.",
 		"searchIntent": "show surface post existing work item cards in conversation",
 		"modelInputSchema": {
 			"type": "object",
@@ -5740,10 +5649,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"agent_name": {
 					"type": "string",
 					"description": "The tool name to show on the cards when your connection has none recorded, for example Claude Code. Omitted: your client's name, or Local agent."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -5787,10 +5692,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"agent_name": {
 					"type": "string",
 					"description": "The tool name to show on the cards when your connection has none recorded, for example Claude Code. Omitted: your client's name, or Local agent."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -5803,7 +5704,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "add_implementation_note",
 		"label": "DevSpec: Add Implementation Note",
-		"description": "Add a Markdown note (context, caveats, links) to an action item's history, where people read it on the item. Pass action_item_id: a note without one is stored but shown nowhere. It is a note for people and changes no state: report delivered work with record_implementation, criterion evidence with record_criterion_verdicts, and commits with add_commit_reference.",
+		"description": "Add a Markdown note (context, caveats, links) to an action item's history, where people read it on the item. action_item_id is required: a note belongs to an item. It is a note for people and changes no state: report delivered work with record_implementation, criterion evidence with record_criterion_verdicts, and commits with add_commit_reference.",
 		"searchIntent": "add note context caveat to action item history",
 		"modelInputSchema": {
 			"type": "object",
@@ -5818,7 +5719,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"action_item_id": {
 					"type": "string",
-					"description": "The item the note belongs to (UUID or short code). A short code resolves only within this project; a full UUID is stored as given, without that check. Omitted: the note is stored against the project and appears on no item."
+					"description": "The item the note belongs to (UUID or short code), in this project."
 				},
 				"references": {
 					"type": "array",
@@ -5844,7 +5745,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"value"
 						]
 					},
-					"description": "Structured links stored with the note: a list of {type: url, file or commit, value}. Stored as given."
+					"description": "Structured links stored with the note: a list of {type: url, file or commit, value}. Stored as given. Omitted: none."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -5857,14 +5758,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
 					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
-				"content"
+				"content",
+				"action_item_id"
 			]
 		},
 		"inputSchema": {
@@ -5880,7 +5778,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"action_item_id": {
 					"type": "string",
-					"description": "The item the note belongs to (UUID or short code). A short code resolves only within this project; a full UUID is stored as given, without that check. Omitted: the note is stored against the project and appears on no item."
+					"description": "The item the note belongs to (UUID or short code), in this project."
 				},
 				"references": {
 					"type": "array",
@@ -5906,7 +5804,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"value"
 						]
 					},
-					"description": "Structured links stored with the note: a list of {type: url, file or commit, value}. Stored as given."
+					"description": "Structured links stored with the note: a list of {type: url, file or commit, value}. Stored as given. Omitted: none."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -5919,14 +5817,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
 					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
-				"content"
+				"content",
+				"action_item_id"
 			]
 		},
 		"kind": "model"
@@ -5934,7 +5829,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "reserve_work_items",
 		"label": "DevSpec: Reserve Work Items",
-		"description": "Reserve several action items, in the order you will work them, so no other agent can claim them without force; then claim each in turn with claim_work_item. For a single item, claim it directly. Check reserved and skipped, not outcome. Items that can't be reserved come back in skipped with a reason: briefs (which list the children to reserve instead), human-only, awaiting approval, already claimed, reserved or otherwise not idle, or not found in this project. A call that reserved nothing still reports committed. A connection holds one batch at a time: settle its items with record_implementation, release_work_item or fail_work_item before reserving again. The batch closes itself when its last item is settled. Which work to take on is set by work_entry_contract in devspec://product/implementation-contract.",
+		"description": "Reserve several action items, in the order you will work them, so no other agent can claim them without force; then claim each in turn with claim_work_item. For a single item, claim it directly. Check reserved and skipped, not outcome. Items that can't be reserved come back in skipped with a reason: briefs (which list the children to reserve instead), human-only, awaiting approval, a failed agent run (release_work_item returns it to the pool), implementation already recorded, claimed or reserved by another agent (named), or not found in this project. A call that reserves nothing is refused with code nothing_reserved, and skipped says why. A connection holds one batch at a time: settle its items with record_implementation, release_work_item or fail_work_item before reserving again. The batch closes itself when its last item is settled. Which work to take on is set by work_entry_contract in devspec://product/implementation-contract.",
 		"searchIntent": "reserve several selected action items in order before working batch",
 		"modelInputSchema": {
 			"type": "object",
@@ -5967,10 +5862,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				},
 				"provenance_ref": {
@@ -6013,10 +5904,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				},
 				"provenance_ref": {
@@ -6057,7 +5944,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses."
+					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
 				},
 				"provider": {
 					"type": "string",
@@ -6077,7 +5964,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"local_session_id": {
 					"type": "string",
-					"description": "Your local coding-agent session id, so the item can offer you a resume command. For Cursor, the prompt stamp from `agent create-chat` or CURSOR_CONVERSATION_ID; for Claude Code, CLAUDE_SESSION_ID. Only you see the command. Send it again on record_implementation."
+					"description": "Your local coding-agent session id, so the item can offer you a resume command. For Cursor, the prompt stamp from `agent create-chat` or CURSOR_CONVERSATION_ID; for Claude Code, CLAUDE_SESSION_ID. Only you see the command. Send it again on record_implementation. Omitted: any session id already on the item is kept."
 				},
 				"connection_id": {
 					"type": "string",
@@ -6085,15 +5972,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"force": {
 					"type": "boolean",
-					"description": "Override the reservation, assignee, blocker, overlapping-file, possible-conflict and existing-claim guards. It requires reason and is recorded in the item's history, and it frees the other holder's reservation slot. It cannot override human-only items or work awaiting approval."
+					"description": "Override the reservation, assignee, blocker, overlapping-file, possible-conflict and existing-claim guards. It requires reason and is recorded in the item's history, and it frees the other holder's reservation slot. It cannot override human-only items or work awaiting approval. Default false."
 				},
 				"reason": {
 					"type": "string",
 					"description": "Required when force is true: why the override is justified. Recorded with the claim. Ignored without force."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
@@ -6127,7 +6010,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses."
+					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
 				},
 				"provider": {
 					"type": "string",
@@ -6147,7 +6030,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"local_session_id": {
 					"type": "string",
-					"description": "Your local coding-agent session id, so the item can offer you a resume command. For Cursor, the prompt stamp from `agent create-chat` or CURSOR_CONVERSATION_ID; for Claude Code, CLAUDE_SESSION_ID. Only you see the command. Send it again on record_implementation."
+					"description": "Your local coding-agent session id, so the item can offer you a resume command. For Cursor, the prompt stamp from `agent create-chat` or CURSOR_CONVERSATION_ID; for Claude Code, CLAUDE_SESSION_ID. Only you see the command. Send it again on record_implementation. Omitted: any session id already on the item is kept."
 				},
 				"connection_id": {
 					"type": "string",
@@ -6155,15 +6038,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"force": {
 					"type": "boolean",
-					"description": "Override the reservation, assignee, blocker, overlapping-file, possible-conflict and existing-claim guards. It requires reason and is recorded in the item's history, and it frees the other holder's reservation slot. It cannot override human-only items or work awaiting approval."
+					"description": "Override the reservation, assignee, blocker, overlapping-file, possible-conflict and existing-claim guards. It requires reason and is recorded in the item's history, and it frees the other holder's reservation slot. It cannot override human-only items or work awaiting approval. Default false."
 				},
 				"reason": {
 					"type": "string",
 					"description": "Required when force is true: why the override is justified. Recorded with the claim. Ignored without force."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
@@ -6180,7 +6059,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "release_work_item",
 		"label": "DevSpec: Release Work Item",
-		"description": "Hand back an item you claimed or reserved without delivering anything. The item returns to idle with no failure flag, and its reservation slot is freed. Use it for untouched or safely retryable work; use fail_work_item for a failed attempt and record_implementation for delivered work. Only the holder can release without force. To free a stale hold whose agent is gone, pass force with a reason; it is recorded as a forced release naming you. An item that is neither claimed nor reserved is left as it is.",
+		"description": "Hand back an item you claimed or reserved without delivering anything. The item returns to idle with no failure flag, and its reservation slot is freed. Use it for untouched or safely retryable work; use fail_work_item for a failed attempt and record_implementation for delivered work. Only the holder can release without force. To free a stale hold whose agent is gone, pass force with a reason; it is recorded as a forced release naming you. A failed item is returned to the pool with its failure flag cleared (cleared_failure: true): the agent whose attempt failed can do this, anyone else needs force and a reason. Any other item that is neither claimed nor reserved is left as it is.",
 		"searchIntent": "release unclaim hand back untouched claimed or reserved work free stale hold",
 		"modelInputSchema": {
 			"type": "object",
@@ -6199,18 +6078,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"force": {
 					"type": "boolean",
-					"description": "Release a claim or reservation you do not hold, for a stale hold whose agent is gone. It requires reason, and is recorded as a forced release naming you."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "Release a claim or reservation you do not hold, for a stale hold whose agent is gone. It requires reason, and is recorded as a forced release naming you. Default false: only the holder can release."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -6235,18 +6110,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"force": {
 					"type": "boolean",
-					"description": "Release a claim or reservation you do not hold, for a stale hold whose agent is gone. It requires reason, and is recorded as a forced release naming you."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "Release a claim or reservation you do not hold, for a stale hold whose agent is gone. It requires reason, and is recorded as a forced release naming you. Default false: only the holder can release."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -6259,7 +6130,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "fail_work_item",
 		"label": "DevSpec: Fail Work Item",
-		"description": "Hand back an item you are implementing that cannot safely be finished, with the error and any partial progress. The item is left failed and flagged to the project as a failed agent run: it cannot be reserved while it stays failed, and claiming it again needs force. Only the claim's holder can fail it; there is no force here. For untouched or simply retryable work, use release_work_item, which raises no flag.",
+		"description": "Hand back an item you are implementing that cannot safely be finished, with the error and any partial progress. The item is left failed and flagged to the project as a failed agent run: it cannot be reserved while it stays failed, and claiming it again needs force; release_work_item returns it to the pool. Only the claim's holder can fail it; there is no force here. For untouched or simply retryable work, use release_work_item, which raises no flag.",
 		"searchIntent": "work cannot be finished failed attempt report error partial progress",
 		"modelInputSchema": {
 			"type": "object",
@@ -6303,22 +6174,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"description": "What conflicted and why, in plain words."
 						}
 					},
-					"description": "When a git merge or rebase conflict caused the failure: its details, stored on the item as given."
+					"description": "When a git merge or rebase conflict caused the failure: its details, stored on the item as given. Omitted: none is stored, and any earlier one is cleared."
 				},
 				"connection_id": {
 					"type": "string",
 					"description": "Your connection id, if you run as one; omitted, the connection your client proved is used. It must be the identity that claimed the item. A connection that is not live, or not yours, is refused."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -6369,22 +6236,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"description": "What conflicted and why, in plain words."
 						}
 					},
-					"description": "When a git merge or rebase conflict caused the failure: its details, stored on the item as given."
+					"description": "When a git merge or rebase conflict caused the failure: its details, stored on the item as given. Omitted: none is stored, and any earlier one is cleared."
 				},
 				"connection_id": {
 					"type": "string",
 					"description": "Your connection id, if you run as one; omitted, the connection your client proved is used. It must be the identity that claimed the item. A connection that is not live, or not yours, is refused."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -6413,11 +6276,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"commit_sha": {
 					"type": "string",
-					"description": "The commit this landed in, short or full; never pad a short SHA. If the host observed a commit for this claim, that commit is used instead of a different value you send (see commit_sha_source in the response). Omitted, the observed commit is used if there is one; otherwise no commit is linked. A commit not yet indexed is stored provisional and resolves when it lands."
+					"description": "The commit this landed in, short or full; never pad a short SHA. If the host observed a commit for this claim, that commit is used instead of a different value you send (see commit_sha_source in the response). Omitted, the observed commit is used if there is one; otherwise no commit is linked. A commit not yet indexed is stored provisional and resolves when it lands. A commit already linked to the item is reused, not linked twice (commit_reference.deduplicated)."
 				},
 				"commit_message": {
 					"type": "string",
-					"description": "The commit's message, stored on the commit link. It is dropped when the host's observed commit replaces your commit_sha."
+					"description": "The commit's message, stored on the commit link. It is dropped when the host's observed commit replaces your commit_sha. Omitted: the commit link has no message."
 				},
 				"commit_provenance_source": {
 					"type": "string",
@@ -6437,21 +6300,23 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"items": {
 						"type": "string"
 					},
-					"description": "The changed files, from `git diff --name-only`. They are recorded on this implementation round, which the item's file list comes from."
+					"description": "The changed files, from `git diff --name-only`. They are recorded on this implementation round, which the item's file list comes from. Omitted: this round records none, and the item keeps its current file list."
 				},
 				"goal_ids": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "The complete set of goal UUIDs this item should link to directly. It replaces the existing direct links, including ones people added: include every goal to keep, pass [] to remove all, or omit it to leave them unchanged. Find the UUIDs with get_goals. It is applied even if the rest of the call is refused."
+					"description": "The complete set of goal UUIDs this item should link to directly. It replaces the existing direct links, including ones people added: include every goal to keep, pass [] to remove all, or omit it to leave them unchanged. Find the UUIDs with get_goals. An unknown goal id refuses the call before anything is written; the links are applied after the work is recorded, and goal_links in the response reports them."
 				},
 				"completion_note": {
 					"type": "string",
-					"description": "What you did, for the implementation record. It is stored as this round's summary and added as an implementation note. Omitting it clears the item's earlier completion note."
+					"description": "What you did, for the implementation record. It is stored as this round's summary and added as an implementation note. Omitted, the earlier completion note is kept."
 				},
 				"completion_confidence": {
 					"type": "integer",
+					"minimum": 0,
+					"maximum": 100,
 					"description": "How confident you are that the change is correct, from 0 to 100. Lower values signal uncertainty to reviewers. Omitted, none is recorded."
 				},
 				"completion_disposition": {
@@ -6498,7 +6363,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"usage_notes": {
 					"type": "string",
-					"description": "Where people find the feature in the product and how to use it. Leave it out for invisible work such as refactors. Omitting it clears any earlier value."
+					"description": "Where people find the feature in the product and how to use it. Leave it out for invisible work such as refactors. Omitted, the earlier value is kept."
 				},
 				"verification_report": {
 					"type": "object",
@@ -6531,7 +6396,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"description": "Confidence that the change is correct, from 0 to 1; unlike completion_confidence, which runs from 0 to 100."
 						}
 					},
-					"description": "An optional summary of the checks you ran, shown in the item's activity. It is display-only: it is not criterion evidence (use record_criterion_verdicts), and it asks no one to do anything (use manual_followup_steps)."
+					"description": "An optional summary of the checks you ran, shown in the item's activity. It is display-only: it is not criterion evidence (use record_criterion_verdicts), and it asks no one to do anything (use manual_followup_steps). Omitted: nothing is added."
 				},
 				"runner_type": {
 					"type": "string",
@@ -6569,16 +6434,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "The DevSpec user id of the person whose machine ran the session; only they see the resume command. When local_session_id is sent without it, it defaults to you, which is right for an interactive run."
 				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
-				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -6599,11 +6460,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"commit_sha": {
 					"type": "string",
-					"description": "The commit this landed in, short or full; never pad a short SHA. If the host observed a commit for this claim, that commit is used instead of a different value you send (see commit_sha_source in the response). Omitted, the observed commit is used if there is one; otherwise no commit is linked. A commit not yet indexed is stored provisional and resolves when it lands."
+					"description": "The commit this landed in, short or full; never pad a short SHA. If the host observed a commit for this claim, that commit is used instead of a different value you send (see commit_sha_source in the response). Omitted, the observed commit is used if there is one; otherwise no commit is linked. A commit not yet indexed is stored provisional and resolves when it lands. A commit already linked to the item is reused, not linked twice (commit_reference.deduplicated)."
 				},
 				"commit_message": {
 					"type": "string",
-					"description": "The commit's message, stored on the commit link. It is dropped when the host's observed commit replaces your commit_sha."
+					"description": "The commit's message, stored on the commit link. It is dropped when the host's observed commit replaces your commit_sha. Omitted: the commit link has no message."
 				},
 				"commit_provenance_source": {
 					"type": "string",
@@ -6623,21 +6484,23 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"items": {
 						"type": "string"
 					},
-					"description": "The changed files, from `git diff --name-only`. They are recorded on this implementation round, which the item's file list comes from."
+					"description": "The changed files, from `git diff --name-only`. They are recorded on this implementation round, which the item's file list comes from. Omitted: this round records none, and the item keeps its current file list."
 				},
 				"goal_ids": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "The complete set of goal UUIDs this item should link to directly. It replaces the existing direct links, including ones people added: include every goal to keep, pass [] to remove all, or omit it to leave them unchanged. Find the UUIDs with get_goals. It is applied even if the rest of the call is refused."
+					"description": "The complete set of goal UUIDs this item should link to directly. It replaces the existing direct links, including ones people added: include every goal to keep, pass [] to remove all, or omit it to leave them unchanged. Find the UUIDs with get_goals. An unknown goal id refuses the call before anything is written; the links are applied after the work is recorded, and goal_links in the response reports them."
 				},
 				"completion_note": {
 					"type": "string",
-					"description": "What you did, for the implementation record. It is stored as this round's summary and added as an implementation note. Omitting it clears the item's earlier completion note."
+					"description": "What you did, for the implementation record. It is stored as this round's summary and added as an implementation note. Omitted, the earlier completion note is kept."
 				},
 				"completion_confidence": {
 					"type": "integer",
+					"minimum": 0,
+					"maximum": 100,
 					"description": "How confident you are that the change is correct, from 0 to 100. Lower values signal uncertainty to reviewers. Omitted, none is recorded."
 				},
 				"completion_disposition": {
@@ -6684,7 +6547,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"usage_notes": {
 					"type": "string",
-					"description": "Where people find the feature in the product and how to use it. Leave it out for invisible work such as refactors. Omitting it clears any earlier value."
+					"description": "Where people find the feature in the product and how to use it. Leave it out for invisible work such as refactors. Omitted, the earlier value is kept."
 				},
 				"verification_report": {
 					"type": "object",
@@ -6717,7 +6580,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"description": "Confidence that the change is correct, from 0 to 1; unlike completion_confidence, which runs from 0 to 100."
 						}
 					},
-					"description": "An optional summary of the checks you ran, shown in the item's activity. It is display-only: it is not criterion evidence (use record_criterion_verdicts), and it asks no one to do anything (use manual_followup_steps)."
+					"description": "An optional summary of the checks you ran, shown in the item's activity. It is display-only: it is not criterion evidence (use record_criterion_verdicts), and it asks no one to do anything (use manual_followup_steps). Omitted: nothing is added."
 				},
 				"runner_type": {
 					"type": "string",
@@ -6755,16 +6618,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "The DevSpec user id of the person whose machine ran the session; only they see the resume command. When local_session_id is sent without it, it defaults to you, which is right for an interactive run."
 				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
-				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -6815,7 +6674,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"items": {
 						"type": "string"
 					},
-					"description": "Labels for the item, inferred from the change; at most 10. Don't add type, priority or status tags, because those have their own fields. If the tags can't be applied, the item is still created without them."
+					"description": "Labels for the item, inferred from the change; at most 10. Don't add type, priority or status tags, because those have their own fields. If the tags can't be applied, the item is still created without them; in an unattended run, words the project doesn't use yet are left off. Omitted: none."
 				},
 				"implementation_summary": {
 					"type": "string",
@@ -6828,7 +6687,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"properties": {
 							"sha": {
 								"type": "string",
-								"description": "The full commit SHA."
+								"description": "The commit SHA, short or full; never pad a short one."
 							},
 							"message": {
 								"type": "string",
@@ -6839,18 +6698,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"sha"
 						]
 					},
-					"description": "The commits for this work. Each is linked to the item; the first also becomes the item's commit. Any deployment already carrying one is linked. SHAs are stored exactly as given, so pass full 40-character SHAs."
+					"description": "The commits for this work. Each is linked to the item; the first also becomes the item's commit. Any deployment already carrying one is linked. Each SHA is resolved across the project's tracked repositories and stored in full when found, or provisional until it lands; a malformed SHA refuses the call before the item is created. Omitted: no commit is linked."
 				},
 				"affected_files": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "The files changed, recorded on the implementation, which the item's file list comes from."
+					"description": "The files changed, recorded on the implementation, which the item's file list comes from. Omitted: none are recorded."
 				},
 				"branch": {
 					"type": "string",
-					"description": "The branch the work was done on; stored on the item."
+					"description": "The branch the work was done on; stored on the item. Omitted: none."
 				},
 				"provider": {
 					"type": "string",
@@ -6866,7 +6725,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"codex",
 						"pi"
 					],
-					"description": "Which coding tool did the work; stored on the item."
+					"description": "Which coding tool did the work; stored on the item. Omitted: none."
 				},
 				"connection_id": {
 					"type": "string",
@@ -6874,11 +6733,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"completion_summary": {
 					"type": "string",
-					"description": "A 2-4 sentence, changelog-style summary for non-developers: what changed and why it matters. Rendered as Markdown."
+					"description": "A 2-4 sentence, changelog-style summary for non-developers: what changed and why it matters. Rendered as Markdown. Omitted: none."
 				},
 				"testing_notes": {
 					"type": "string",
-					"description": "How a person can verify the change, in Markdown: prerequisites or setup first, then numbered steps, then the expected result. For work a person still has to do, use manual_followup_steps."
+					"description": "How a person can verify the change, in Markdown: prerequisites or setup first, then numbered steps, then the expected result. For work a person still has to do, use manual_followup_steps. Omitted: none."
 				},
 				"manual_followup_steps": {
 					"type": "array",
@@ -6936,16 +6795,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
 					"type": "string"
 				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
-				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -6990,7 +6845,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"items": {
 						"type": "string"
 					},
-					"description": "Labels for the item, inferred from the change; at most 10. Don't add type, priority or status tags, because those have their own fields. If the tags can't be applied, the item is still created without them."
+					"description": "Labels for the item, inferred from the change; at most 10. Don't add type, priority or status tags, because those have their own fields. If the tags can't be applied, the item is still created without them; in an unattended run, words the project doesn't use yet are left off. Omitted: none."
 				},
 				"implementation_summary": {
 					"type": "string",
@@ -7003,7 +6858,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"properties": {
 							"sha": {
 								"type": "string",
-								"description": "The full commit SHA."
+								"description": "The commit SHA, short or full; never pad a short one."
 							},
 							"message": {
 								"type": "string",
@@ -7014,18 +6869,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"sha"
 						]
 					},
-					"description": "The commits for this work. Each is linked to the item; the first also becomes the item's commit. Any deployment already carrying one is linked. SHAs are stored exactly as given, so pass full 40-character SHAs."
+					"description": "The commits for this work. Each is linked to the item; the first also becomes the item's commit. Any deployment already carrying one is linked. Each SHA is resolved across the project's tracked repositories and stored in full when found, or provisional until it lands; a malformed SHA refuses the call before the item is created. Omitted: no commit is linked."
 				},
 				"affected_files": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "The files changed, recorded on the implementation, which the item's file list comes from."
+					"description": "The files changed, recorded on the implementation, which the item's file list comes from. Omitted: none are recorded."
 				},
 				"branch": {
 					"type": "string",
-					"description": "The branch the work was done on; stored on the item."
+					"description": "The branch the work was done on; stored on the item. Omitted: none."
 				},
 				"provider": {
 					"type": "string",
@@ -7041,7 +6896,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"codex",
 						"pi"
 					],
-					"description": "Which coding tool did the work; stored on the item."
+					"description": "Which coding tool did the work; stored on the item. Omitted: none."
 				},
 				"connection_id": {
 					"type": "string",
@@ -7049,11 +6904,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"completion_summary": {
 					"type": "string",
-					"description": "A 2-4 sentence, changelog-style summary for non-developers: what changed and why it matters. Rendered as Markdown."
+					"description": "A 2-4 sentence, changelog-style summary for non-developers: what changed and why it matters. Rendered as Markdown. Omitted: none."
 				},
 				"testing_notes": {
 					"type": "string",
-					"description": "How a person can verify the change, in Markdown: prerequisites or setup first, then numbered steps, then the expected result. For work a person still has to do, use manual_followup_steps."
+					"description": "How a person can verify the change, in Markdown: prerequisites or setup first, then numbered steps, then the expected result. For work a person still has to do, use manual_followup_steps. Omitted: none."
 				},
 				"manual_followup_steps": {
 					"type": "array",
@@ -7111,16 +6966,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
 					"type": "string"
 				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
-				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -7149,7 +7000,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, recorded in the item's history as the agent that reported this. Omitted, the connection your client proved is used, otherwise none. A connection that is not live, or not yours, is refused."
+					"description": "Your own connection id, recorded in the item's history as the agent that reported this. Omitted, the connection your client proved is used, otherwise none. A connection that is not live, or not yours, is refused before anything is stored."
 				},
 				"references": {
 					"type": "array",
@@ -7175,11 +7026,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"value"
 						]
 					},
-					"description": "Optional links stored with the note."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "Optional links stored with the note. Omitted: none."
 				}
 			},
 			"required": [
@@ -7200,7 +7047,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, recorded in the item's history as the agent that reported this. Omitted, the connection your client proved is used, otherwise none. A connection that is not live, or not yours, is refused."
+					"description": "Your own connection id, recorded in the item's history as the agent that reported this. Omitted, the connection your client proved is used, otherwise none. A connection that is not live, or not yours, is refused before anything is stored."
 				},
 				"references": {
 					"type": "array",
@@ -7226,11 +7073,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"value"
 						]
 					},
-					"description": "Optional links stored with the note."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "Optional links stored with the note. Omitted: none."
 				}
 			},
 			"required": [
@@ -7243,7 +7086,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "verify_action_item",
 		"label": "DevSpec: Verify Action Item",
-		"description": "Record a present person's explicit decision on one implemented action item: passed: true signs it off, passed: false requests changes and flags it for attention. Before calling, tell the person which item and which decision. Who may decide is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, callers who are not allowed verifiers, and passed: true while a required follow-up step is open. passed: true also signs off every item this one has a caused_by link to that is awaiting sign-off, including the item a follow-up was found on. The response does not list them, and it does not return the resulting lifecycle.",
+		"description": "Record a present person's explicit decision on one implemented action item: passed: true signs it off, passed: false requests changes and flags it for attention. Before calling, tell the person which item and which decision. Who may decide is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, callers who are not allowed verifiers, and passed: true while a required follow-up step is open. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. The response does not return the resulting lifecycle.",
 		"searchIntent": "person signs off verifies implemented item request changes",
 		"modelInputSchema": {
 			"type": "object",
@@ -7263,10 +7106,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your own connection id, recorded as the agent that relayed the decision; it grants nothing. Omitted, the connection your client proved is used, otherwise none. A connection that is not live, or not yours, is refused."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -7292,10 +7131,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your own connection id, recorded as the agent that relayed the decision; it grants nothing. Omitted, the connection your client proved is used, otherwise none. A connection that is not live, or not yours, is refused."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -7400,10 +7235,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						]
 					},
 					"description": "One entry for each criterion you actually checked, at most one per criterion. Criteria you leave out stay as they are. An empty list records nothing."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -7501,10 +7332,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						]
 					},
 					"description": "One entry for each criterion you actually checked, at most one per criterion. Criteria you leave out stay as they are. An empty list records nothing."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -7541,10 +7368,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your own connection id, recorded as the agent that made the change. Omitted, the connection your client proved is used, otherwise none. A connection that is not live, or not yours, is refused."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -7575,10 +7398,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your own connection id, recorded as the agent that made the change. Omitted, the connection your client proved is used, otherwise none. A connection that is not live, or not yours, is refused."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -7592,7 +7411,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "add_commit_reference",
 		"label": "DevSpec: Add Commit Reference",
-		"description": "Link a commit you are not reporting through record_implementation to an action item, session or memory in this project. A short or full SHA is accepted. Linking it to an action item marks that item's current item-level verification stale, a person's sign-off included (schema checks and criterion verdicts are kept), and links any deployment that already shipped the commit. Each call adds another link, so link a commit once. The project comes from project_id, git_remote or pinned_project_id, not from the ids you link. A link is not completion evidence: report delivered work with record_implementation.",
+		"description": "Link a commit you are not reporting through record_implementation to an action item, session or memory in this project. A short or full SHA is accepted. Linking it to an action item marks that item's current item-level verification stale, a person's sign-off included (schema checks and criterion verdicts are kept), and links any deployment that already shipped the commit. Linking a commit to an item it is already linked to returns the existing link (deduplicated: true) and marks nothing stale; on an item, verification_effect in the response says what was marked stale. The project comes from project_id, git_remote or pinned_project_id, not from the ids you link. A link is not completion evidence: report delivered work with record_implementation.",
 		"searchIntent": "link attach existing git commit to action item session memory",
 		"modelInputSchema": {
 			"type": "object",
@@ -7603,19 +7422,19 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"commit_message": {
 					"type": "string",
-					"description": "The commit's subject. The server does not look it up: if you don't have it, read it from Git (`git log --format=%s -1 <sha>`) and pass it, rather than leaving the reference unlabelled."
+					"description": "The commit's subject. The server does not look it up: if you don't have it, read it from Git (`git log --format=%s -1 <sha>`) and pass it, rather than leaving the reference unlabelled. Omitted: the link has no message."
 				},
 				"session_id": {
 					"type": "string",
-					"description": "Session to link: a UUID or 8-character short code."
+					"description": "Session to link: a UUID or 8-character short code. Omitted: no session is linked."
 				},
 				"action_item_id": {
 					"type": "string",
-					"description": "Action item to link: a UUID or 8-character short code. Linking stales the item's current item-level verification and links any deployment already carrying this commit."
+					"description": "Action item to link: a UUID or 8-character short code. Linking stales the item's current item-level verification and links any deployment already carrying this commit. Omitted: no action item is linked."
 				},
 				"memory_id": {
 					"type": "string",
-					"description": "Memory to link: a UUID or 8-character short code."
+					"description": "Memory to link: a UUID or 8-character short code. Omitted: no memory is linked."
 				},
 				"provenance_source": {
 					"type": "string",
@@ -7636,10 +7455,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -7656,19 +7471,19 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"commit_message": {
 					"type": "string",
-					"description": "The commit's subject. The server does not look it up: if you don't have it, read it from Git (`git log --format=%s -1 <sha>`) and pass it, rather than leaving the reference unlabelled."
+					"description": "The commit's subject. The server does not look it up: if you don't have it, read it from Git (`git log --format=%s -1 <sha>`) and pass it, rather than leaving the reference unlabelled. Omitted: the link has no message."
 				},
 				"session_id": {
 					"type": "string",
-					"description": "Session to link: a UUID or 8-character short code."
+					"description": "Session to link: a UUID or 8-character short code. Omitted: no session is linked."
 				},
 				"action_item_id": {
 					"type": "string",
-					"description": "Action item to link: a UUID or 8-character short code. Linking stales the item's current item-level verification and links any deployment already carrying this commit."
+					"description": "Action item to link: a UUID or 8-character short code. Linking stales the item's current item-level verification and links any deployment already carrying this commit. Omitted: no action item is linked."
 				},
 				"memory_id": {
 					"type": "string",
-					"description": "Memory to link: a UUID or 8-character short code."
+					"description": "Memory to link: a UUID or 8-character short code. Omitted: no memory is linked."
 				},
 				"provenance_source": {
 					"type": "string",
@@ -7689,10 +7504,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -7772,11 +7583,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"confirm_new": {
 					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging yours genuinely distinct. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. It has no effect on a write that is queued for review: there a close match refuses it until you revise it or a Maintainer resolves the overlap."
+					"description": "Set true only after reading the closest_match a refused call named and judging yours genuinely distinct. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. It has no effect on a write that is queued for review: there a close match refuses it until you revise it or a Maintainer resolves the overlap. Default false: a close match refuses the write."
 				},
 				"idempotency_key": {
 					"type": "string",
-					"description": "A fresh UUID for this intended memory. Required when the write is queued for review, which you cannot always know in advance, so send one every time. Retrying with the same key and fields returns the original result instead of a second record (for a write that commits directly, only when your connection is attached to a session)."
+					"description": "A fresh UUID for this intended memory. Required when the write is queued for review, which you cannot always know in advance, so send one every time. Retrying with the same key and fields returns the original result instead of a second record"
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -7790,16 +7601,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
 					"type": "string"
 				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
-				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -7874,11 +7681,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"confirm_new": {
 					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging yours genuinely distinct. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. It has no effect on a write that is queued for review: there a close match refuses it until you revise it or a Maintainer resolves the overlap."
+					"description": "Set true only after reading the closest_match a refused call named and judging yours genuinely distinct. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. It has no effect on a write that is queued for review: there a close match refuses it until you revise it or a Maintainer resolves the overlap. Default false: a close match refuses the write."
 				},
 				"idempotency_key": {
 					"type": "string",
-					"description": "A fresh UUID for this intended memory. Required when the write is queued for review, which you cannot always know in advance, so send one every time. Retrying with the same key and fields returns the original result instead of a second record (for a write that commits directly, only when your connection is attached to a session)."
+					"description": "A fresh UUID for this intended memory. Required when the write is queued for review, which you cannot always know in advance, so send one every time. Retrying with the same key and fields returns the original result instead of a second record"
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -7892,16 +7699,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
 					"type": "string"
 				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
-				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -7969,18 +7772,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"confirm_new": {
 					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging the new text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "Set true only after reading the closest_match a refused call named and judging the new text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match refuses the supersede."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -8041,18 +7840,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"confirm_new": {
 					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging the new text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "Set true only after reading the closest_match a refused call named and judging the new text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match refuses the supersede."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -8067,7 +7862,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_memory",
 		"label": "DevSpec: Update Memory",
-		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence or affected files, or correct its title, summary or body. State, tags, confidence and affected files change in place. A wording change saves a new version with a new id, returned in the response: cite that id from then on. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. A body change is compared with existing memories; if another closely resembles it, nothing changes and the response names it (reconcile_required, closest_match). outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it.",
+		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence or affected files, or correct its title, summary or body. State, tags, confidence and affected files change in place. A wording change saves a new version with a new id, returned in the response: cite that id from then on. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. A body change is compared with existing memories; if another closely resembles it, nothing changes and the response names it (reconcile_required, closest_match). outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
 		"searchIntent": "mark memory decided agreed promote correct edit wording tags existing memory",
 		"modelInputSchema": {
 			"type": "object",
@@ -8086,29 +7881,29 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"in_discussion",
 						"decided"
 					],
-					"description": "decided once the person has agreed; in_discussion to reopen it. Changed in place."
+					"description": "decided once the person has agreed; in_discussion to reopen it. Changed in place; with a wording change it goes on the new version instead. Omitted: unchanged."
 				},
 				"confidence": {
 					"type": "number",
-					"description": "From 0 to 1. Changed in place."
+					"description": "From 0 to 1. Changed in place; with a wording change it goes on the new version instead. Omitted: unchanged."
 				},
 				"tags": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "Replaces the tag list (at most 10). Changed in place."
+					"description": "Replaces the tag list (at most 10). Changed in place; with a wording change it goes on the new version instead. Omitted: unchanged."
 				},
 				"affected_files": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "Replaces the affected-files list. Changed in place."
+					"description": "Replaces the affected-files list. Changed in place; with a wording change it goes on the new version instead. Omitted: unchanged."
 				},
 				"title": {
 					"type": "string",
-					"description": "A corrected single-line name (at most 200 characters). Saves a new version."
+					"description": "A corrected single-line name (at most 200 characters). Saves a new version. Omitted: unchanged."
 				},
 				"summary": {
 					"anyOf": [
@@ -8119,31 +7914,37 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"type": "null"
 						}
 					],
-					"description": "A corrected one-sentence restatement (at most 400 characters), or null to clear it. Saves a new version."
+					"description": "A corrected one-sentence restatement (at most 400 characters), or null to clear it. Saves a new version. Omitted: unchanged."
 				},
 				"body": {
 					"type": "string",
-					"description": "The corrected full text, in Markdown. Saves a new version and is compared with existing memories."
+					"description": "The corrected full text, in Markdown. Saves a new version and is compared with existing memories. Omitted: unchanged."
 				},
 				"confirm_new": {
 					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging your edited text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance."
+					"description": "Set true only after reading the closest_match a refused call named and judging your edited text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match refuses the edit."
 				},
 				"note": {
 					"type": "string",
 					"maxLength": 2000,
-					"description": "Why the change was made, when the person gave a reason (at most 2,000 characters). Stored with the change in the memory's history. It does not count as a change by itself."
+					"description": "Why the change was made, when the person gave a reason (at most 2,000 characters). Stored with the change in the memory's history. It does not count as a change by itself. Omitted: no reason is recorded."
 				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+				"expected_version": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "The version you read with get_memory. If the memory has changed since, nothing is written and the answer is stale_context: read it again and resend. Send it when a stale_context answer asks for it. Omitted: no version check."
+				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"description": "The receipt_id of a preview_required answer, confirming that exact previewed edit. Send the same edit again with it before expires_at; any change to the edit needs a new preview. Omitted: an edit that needs a preview answers preview_required and changes nothing."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -8168,29 +7969,29 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"in_discussion",
 						"decided"
 					],
-					"description": "decided once the person has agreed; in_discussion to reopen it. Changed in place."
+					"description": "decided once the person has agreed; in_discussion to reopen it. Changed in place; with a wording change it goes on the new version instead. Omitted: unchanged."
 				},
 				"confidence": {
 					"type": "number",
-					"description": "From 0 to 1. Changed in place."
+					"description": "From 0 to 1. Changed in place; with a wording change it goes on the new version instead. Omitted: unchanged."
 				},
 				"tags": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "Replaces the tag list (at most 10). Changed in place."
+					"description": "Replaces the tag list (at most 10). Changed in place; with a wording change it goes on the new version instead. Omitted: unchanged."
 				},
 				"affected_files": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "Replaces the affected-files list. Changed in place."
+					"description": "Replaces the affected-files list. Changed in place; with a wording change it goes on the new version instead. Omitted: unchanged."
 				},
 				"title": {
 					"type": "string",
-					"description": "A corrected single-line name (at most 200 characters). Saves a new version."
+					"description": "A corrected single-line name (at most 200 characters). Saves a new version. Omitted: unchanged."
 				},
 				"summary": {
 					"anyOf": [
@@ -8201,31 +8002,37 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"type": "null"
 						}
 					],
-					"description": "A corrected one-sentence restatement (at most 400 characters), or null to clear it. Saves a new version."
+					"description": "A corrected one-sentence restatement (at most 400 characters), or null to clear it. Saves a new version. Omitted: unchanged."
 				},
 				"body": {
 					"type": "string",
-					"description": "The corrected full text, in Markdown. Saves a new version and is compared with existing memories."
+					"description": "The corrected full text, in Markdown. Saves a new version and is compared with existing memories. Omitted: unchanged."
 				},
 				"confirm_new": {
 					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging your edited text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance."
+					"description": "Set true only after reading the closest_match a refused call named and judging your edited text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match refuses the edit."
 				},
 				"note": {
 					"type": "string",
 					"maxLength": 2000,
-					"description": "Why the change was made, when the person gave a reason (at most 2,000 characters). Stored with the change in the memory's history. It does not count as a change by itself."
+					"description": "Why the change was made, when the person gave a reason (at most 2,000 characters). Stored with the change in the memory's history. It does not count as a change by itself. Omitted: no reason is recorded."
 				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+				"expected_version": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "The version you read with get_memory. If the memory has changed since, nothing is written and the answer is stale_context: read it again and resend. Send it when a stale_context answer asks for it. Omitted: no version check."
+				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"description": "The receipt_id of a preview_required answer, confirming that exact previewed edit. Send the same edit again with it before expires_at; any change to the edit needs a new preview. Omitted: an edit that needs a preview answers preview_required and changes nothing."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -8253,18 +8060,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"reason": {
 					"type": "string",
-					"description": "Why it no longer stands. Stored with the retraction in the memory's history, and shown to the reviewer when the retraction is queued."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "Why it no longer stands. Stored with the retraction in the memory's history, and shown to the reviewer when the retraction is queued. Omitted: no reason."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -8285,18 +8088,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"reason": {
 					"type": "string",
-					"description": "Why it no longer stands. Stored with the retraction in the memory's history, and shown to the reviewer when the retraction is queued."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "Why it no longer stands. Stored with the retraction in the memory's history, and shown to the reviewer when the retraction is queued. Omitted: no reason."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -8347,16 +8146,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Your own connection id, if you are a connected agent. It lets a teammate's command be judged as the person who gave it, and names your connection on what is recorded. Omitted: the connection your client authenticated, if any. Refused if the connection is not live or not yours."
 				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
-				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -8403,16 +8198,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Your own connection id, if you are a connected agent. It lets a teammate's command be judged as the person who gave it, and names your connection on what is recorded. Omitted: the connection your client authenticated, if any. Refused if the connection is not live or not yours."
 				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
-				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -8428,7 +8219,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "manage_knowledge_links",
 		"label": "DevSpec: Manage Knowledge Links",
-		"description": "Link two memories or AI-written documents, in any combination, as companions a reader should see together, with a note saying why (link). You can also change that note (set_note), remove the link (unlink), or list one record's companions (list). A link is an association only: it does not say the two agree, clear a review flag, resolve a contradiction, supersede either record, make either more trusted or change who may edit them. Uploaded documents cannot be linked, and action items have their own links (link_action_items). Both records must be current versions, given by full id; short codes are not accepted.",
+		"description": "Link two memories or AI-written documents, in any combination, as companions a reader should see together, with a note saying why (link). You can also change that note (set_note), remove the link (unlink), or list one record's companions (list). A link is an association only: it does not say the two agree, clear a review flag, resolve a contradiction, supersede either record, make either more trusted or change who may edit them. Uploaded documents cannot be linked, and action items have their own links (link_action_items). Both records must be current versions, given by full id or 8-character short code; a code that matches both a memory and a document is refused as ambiguous.",
 		"searchIntent": "link plan document artifact to its supporting decision memory companions read together unlink",
 		"modelInputSchema": {
 			"type": "object",
@@ -8445,11 +8236,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"id": {
 					"type": "string",
-					"description": "Full id of the memory or AI-written document this is about; for list, the record whose companions you want. It must be the current version."
+					"description": "Full id or 8-character short code of the memory or AI-written document this is about; for list, the record whose companions you want. It must be the current version."
 				},
 				"counterpart_id": {
 					"type": "string",
-					"description": "Full id of the other memory or document. Required for link, set_note and unlink."
+					"description": "Full id or 8-character short code of the other memory or document. Required for link, set_note and unlink."
 				},
 				"note": {
 					"type": "string",
@@ -8476,16 +8267,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
 					"type": "string"
 				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
-				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -8509,11 +8296,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"id": {
 					"type": "string",
-					"description": "Full id of the memory or AI-written document this is about; for list, the record whose companions you want. It must be the current version."
+					"description": "Full id or 8-character short code of the memory or AI-written document this is about; for list, the record whose companions you want. It must be the current version."
 				},
 				"counterpart_id": {
 					"type": "string",
-					"description": "Full id of the other memory or document. Required for link, set_note and unlink."
+					"description": "Full id or 8-character short code of the other memory or document. Required for link, set_note and unlink."
 				},
 				"note": {
 					"type": "string",
@@ -8540,16 +8327,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
 					"type": "string"
 				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
-				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -8563,7 +8346,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "create_resource",
 		"label": "DevSpec: Create Resource",
-		"description": "Create a shared project document: an ADR, plan, guide, runbook, checklist, summary, convention, reference or other (investigations and handoffs fit summary or other). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for. As it is written, a quick closeness check (it does not read the documents) compares the draft with existing artifacts. If one closely resembles it, nothing is created and the response names it (reconcile_required, closest_match): read it, then update or supersede it, re-call with confirm_new if yours is genuinely separate, or ask the person, which is often the right answer. Updating or superseding someone else's settled document overrules them, so ask first unless you were already told to go ahead. outcome queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it; otherwise the returned document is live.",
+		"description": "Create a shared project document: an ADR, plan, guide, runbook, checklist, summary, convention, reference or other (investigations and handoffs fit summary or other). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for. As it is written, a quick closeness check (it does not read the documents) compares the draft with existing artifacts. If one closely resembles it, nothing is created and the response names it (reconcile_required, closest_match): read it, then update or supersede it, re-call with confirm_new if yours is genuinely separate, or ask the person, which is often the right answer. Updating or superseding someone else's settled document overrules them, so ask first unless you were already told to go ahead. Only the whole document decides a duplicate: a different document with the same title is created, and resending the same one returns the first. outcome committed is live; queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it.",
 		"searchIntent": "write save create shared document artifact ADR plan guide runbook checklist reference handoff investigation for teammates next agent",
 		"modelInputSchema": {
 			"type": "object",
@@ -8574,7 +8357,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"confirm_new": {
 					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging yours a genuinely separate document. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. It has no effect on a creation that is queued for review: there a close match refuses it until you revise it or a Maintainer resolves the overlap."
+					"description": "Set true only after reading the closest_match a refused call named and judging yours a genuinely separate document. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. It has no effect on a creation that is queued for review: there a close match refuses it until you revise it or a Maintainer resolves the overlap. Default false: a close match stops the creation."
 				},
 				"title": {
 					"type": "string",
@@ -8612,7 +8395,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"idempotency_key": {
 					"type": "string",
-					"description": "A fresh UUID for this intended document. Required when the creation is queued for review, which you cannot always know in advance, so send one every time. Retrying with the same key and fields returns the original result instead of a second document (for a creation that commits directly, only when your connection is attached to a session)."
+					"description": "A fresh UUID for this intended document. Required when the creation is queued for review, which you cannot always know in advance, so send one every time. Retrying with the same key and fields returns the original result instead of a second document"
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -8626,16 +8409,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
 					"type": "string"
 				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
-				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -8653,7 +8432,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"confirm_new": {
 					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging yours a genuinely separate document. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. It has no effect on a creation that is queued for review: there a close match refuses it until you revise it or a Maintainer resolves the overlap."
+					"description": "Set true only after reading the closest_match a refused call named and judging yours a genuinely separate document. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. It has no effect on a creation that is queued for review: there a close match refuses it until you revise it or a Maintainer resolves the overlap. Default false: a close match stops the creation."
 				},
 				"title": {
 					"type": "string",
@@ -8691,7 +8470,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"idempotency_key": {
 					"type": "string",
-					"description": "A fresh UUID for this intended document. Required when the creation is queued for review, which you cannot always know in advance, so send one every time. Retrying with the same key and fields returns the original result instead of a second document (for a creation that commits directly, only when your connection is attached to a session)."
+					"description": "A fresh UUID for this intended document. Required when the creation is queued for review, which you cannot always know in advance, so send one every time. Retrying with the same key and fields returns the original result instead of a second document"
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -8705,16 +8484,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
 					"type": "string"
 				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
-				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -8743,19 +8518,19 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"confirm_new": {
 					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging your edited text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance."
+					"description": "Set true only after reading the closest_match a refused call named and judging your edited text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match stops the edit."
 				},
 				"title": {
 					"type": "string",
-					"description": "A new title (at most 500 characters). Saves a new version."
+					"description": "A new title (at most 500 characters). Saves a new version. Omitted: the current title is kept."
 				},
 				"summary": {
 					"type": "string",
-					"description": "A new synopsis (at most 1,000 characters). Saves a new version."
+					"description": "A new synopsis (at most 1,000 characters). Saves a new version. Omitted: the current summary is kept."
 				},
 				"body": {
 					"type": "string",
-					"description": "A full replacement body, in Markdown; it replaces all of it. Not together with body_edits."
+					"description": "A full replacement body, in Markdown; it replaces all of it. Not together with body_edits. Omitted: the current body is kept, unless body_edits is sent."
 				},
 				"body_edits": {
 					"type": "array",
@@ -8784,25 +8559,21 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"content"
 						]
 					},
-					"description": "Edits applied in order to the current body: {op: replace, find, content} replaces text that must occur exactly once (content \"\" deletes it); {op: append, content} adds to the end. If any edit fails, nothing is saved. Not together with body."
+					"description": "Edits applied in order to the current body: {op: replace, find, content} replaces text that must occur exactly once (content \"\" deletes it); {op: append, content} adds to the end. If any edit fails, nothing is saved. Not together with body. Omitted: no edits."
 				},
 				"tags": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "Replaces the tag list (at most 10). Tags alone change in place."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "Replaces the tag list (at most 10). Tags alone change in place. Omitted: the current tags are kept."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -8823,19 +8594,19 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"confirm_new": {
 					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging your edited text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance."
+					"description": "Set true only after reading the closest_match a refused call named and judging your edited text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match stops the edit."
 				},
 				"title": {
 					"type": "string",
-					"description": "A new title (at most 500 characters). Saves a new version."
+					"description": "A new title (at most 500 characters). Saves a new version. Omitted: the current title is kept."
 				},
 				"summary": {
 					"type": "string",
-					"description": "A new synopsis (at most 1,000 characters). Saves a new version."
+					"description": "A new synopsis (at most 1,000 characters). Saves a new version. Omitted: the current summary is kept."
 				},
 				"body": {
 					"type": "string",
-					"description": "A full replacement body, in Markdown; it replaces all of it. Not together with body_edits."
+					"description": "A full replacement body, in Markdown; it replaces all of it. Not together with body_edits. Omitted: the current body is kept, unless body_edits is sent."
 				},
 				"body_edits": {
 					"type": "array",
@@ -8864,25 +8635,21 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"content"
 						]
 					},
-					"description": "Edits applied in order to the current body: {op: replace, find, content} replaces text that must occur exactly once (content \"\" deletes it); {op: append, content} adds to the end. If any edit fails, nothing is saved. Not together with body."
+					"description": "Edits applied in order to the current body: {op: replace, find, content} replaces text that must occur exactly once (content \"\" deletes it); {op: append, content} adds to the end. If any edit fails, nothing is saved. Not together with body. Omitted: no edits."
 				},
 				"tags": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "Replaces the tag list (at most 10). Tags alone change in place."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "Replaces the tag list (at most 10). Tags alone change in place. Omitted: the current tags are kept."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -8933,18 +8700,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"confirm_new": {
 					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging the replacement genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "Set true only after reading the closest_match a refused call named and judging the replacement genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match stops the replacement."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -8990,18 +8753,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"confirm_new": {
 					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging the replacement genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "Set true only after reading the closest_match a refused call named and judging the replacement genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match stops the replacement."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -9032,18 +8791,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"reason": {
 					"type": "string",
 					"maxLength": 2000,
-					"description": "Why it is being archived. Stored with the change in the document's history, and shown to the reviewer when the archive is queued."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "Why it is being archived. Stored with the change in the document's history, and shown to the reviewer when the archive is queued. Omitted: none."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -9065,18 +8820,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"reason": {
 					"type": "string",
 					"maxLength": 2000,
-					"description": "Why it is being archived. Stored with the change in the document's history, and shown to the reviewer when the archive is queued."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "Why it is being archived. Stored with the change in the document's history, and shown to the reviewer when the archive is queued. Omitted: none."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
@@ -9121,28 +8872,26 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"note": {
 					"type": "string",
-					"description": "One line saying why the verdict is right: the facts you checked, or the person's own words, quoted. Recorded with the ruling."
+					"description": "Required, as the verdict is: one line saying why it is right: the facts you checked, or the person's own words, quoted. Recorded with the ruling."
 				},
 				"connection_id": {
 					"type": "string",
 					"description": "Your own connection id, if you are a connected agent. It lets a teammate's command be judged as the person who gave it, and names your connection on what is recorded. Omitted: the connection your client authenticated, if any. Refused if the connection is not live or not yours."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
 			"required": [
 				"id",
-				"signal_type"
+				"signal_type",
+				"verdict",
+				"note"
 			]
 		},
 		"inputSchema": {
@@ -9175,28 +8924,26 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"note": {
 					"type": "string",
-					"description": "One line saying why the verdict is right: the facts you checked, or the person's own words, quoted. Recorded with the ruling."
+					"description": "Required, as the verdict is: one line saying why it is right: the facts you checked, or the person's own words, quoted. Recorded with the ruling."
 				},
 				"connection_id": {
 					"type": "string",
 					"description": "Your own connection id, if you are a connected agent. It lets a teammate's command be judged as the person who gave it, and names your connection on what is recorded. Omitted: the connection your client authenticated, if any. Refused if the connection is not live or not yours."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect.",
+					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
 					"type": "string"
 				}
 			},
 			"required": [
 				"id",
-				"signal_type"
+				"signal_type",
+				"verdict",
+				"note"
 			]
 		},
 		"kind": "model"
@@ -9223,7 +8970,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"id": {
 					"type": "string",
-					"description": "The point's full UUID, for every action except add. Short codes are not accepted."
+					"description": "The point's full UUID, for every action except add. Short codes are not accepted. Omitted: refused for every action except add."
 				},
 				"title": {
 					"type": "string",
@@ -9233,7 +8980,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"body": {
 					"type": "string",
 					"maxLength": 8000,
-					"description": "Optional detail for add or update; on update it replaces the whole body. Over 8,000 characters is refused, never cut."
+					"description": "Optional detail for add or update; on update it replaces the whole body. Over 8,000 characters is refused, never cut. Omitted: an empty body on add, unchanged on update."
 				},
 				"scope": {
 					"type": "string",
@@ -9257,10 +9004,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -9285,7 +9028,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"id": {
 					"type": "string",
-					"description": "The point's full UUID, for every action except add. Short codes are not accepted."
+					"description": "The point's full UUID, for every action except add. Short codes are not accepted. Omitted: refused for every action except add."
 				},
 				"title": {
 					"type": "string",
@@ -9295,7 +9038,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"body": {
 					"type": "string",
 					"maxLength": 8000,
-					"description": "Optional detail for add or update; on update it replaces the whole body. Over 8,000 characters is refused, never cut."
+					"description": "Optional detail for add or update; on update it replaces the whole body. Over 8,000 characters is refused, never cut. Omitted: an empty body on add, unchanged on update."
 				},
 				"scope": {
 					"type": "string",
@@ -9319,10 +9062,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -9401,11 +9140,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"current_step_id": {
 					"type": "string",
-					"description": "advance only: the step to complete."
+					"description": "advance only: the step to complete. Omitted: the first step in progress; refused if there is none."
 				},
 				"next_step_id": {
 					"type": "string",
-					"description": "advance only: the pending step to start next."
+					"description": "advance only: the pending step to start next. Omitted: the first pending step after the completed one, if there is one."
 				},
 				"reason": {
 					"type": "string",
@@ -9425,10 +9164,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -9500,11 +9235,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"current_step_id": {
 					"type": "string",
-					"description": "advance only: the step to complete."
+					"description": "advance only: the step to complete. Omitted: the first step in progress; refused if there is none."
 				},
 				"next_step_id": {
 					"type": "string",
-					"description": "advance only: the pending step to start next."
+					"description": "advance only: the pending step to start next. Omitted: the first pending step after the completed one, if there is one."
 				},
 				"reason": {
 					"type": "string",
@@ -9524,10 +9259,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -9587,15 +9318,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"multi_select": {
 					"type": "boolean",
-					"description": "Whether voters may pick more than one option."
+					"description": "Whether voters may pick more than one option. Omitted: false on create and supersede, unchanged on update."
 				},
 				"allow_write_in": {
 					"type": "boolean",
-					"description": "Whether voters may add their own option."
+					"description": "Whether voters may add their own option. Omitted: false on create and supersede, unchanged on update."
 				},
 				"series_id": {
 					"type": "string",
-					"description": "create only: a UUID grouping polls you open together. Needs series_label."
+					"description": "create only: a UUID grouping polls you open together. Needs series_label. Omitted: the poll is in no series."
 				},
 				"series_label": {
 					"type": "string",
@@ -9614,7 +9345,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"retracted",
 						"superseded"
 					],
-					"description": "list only: which polls to return."
+					"description": "list only: which polls to return. Default all."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -9626,10 +9357,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -9682,15 +9409,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"multi_select": {
 					"type": "boolean",
-					"description": "Whether voters may pick more than one option."
+					"description": "Whether voters may pick more than one option. Omitted: false on create and supersede, unchanged on update."
 				},
 				"allow_write_in": {
 					"type": "boolean",
-					"description": "Whether voters may add their own option."
+					"description": "Whether voters may add their own option. Omitted: false on create and supersede, unchanged on update."
 				},
 				"series_id": {
 					"type": "string",
-					"description": "create only: a UUID grouping polls you open together. Needs series_label."
+					"description": "create only: a UUID grouping polls you open together. Needs series_label. Omitted: the poll is in no series."
 				},
 				"series_label": {
 					"type": "string",
@@ -9709,7 +9436,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"retracted",
 						"superseded"
 					],
-					"description": "list only: which polls to return."
+					"description": "list only: which polls to return. Default all."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -9721,10 +9448,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -9799,7 +9522,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"keep_turn": {
 					"type": "boolean",
-					"description": "false: create ends your turn while you wait. true: keep the turn open because you still have work to do first."
+					"description": "false: create ends your turn while you wait. true: keep the turn open because you still have work to do first. Default false."
 				},
 				"expected_revision": {
 					"type": "integer",
@@ -9816,10 +9539,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -9887,7 +9606,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"keep_turn": {
 					"type": "boolean",
-					"description": "false: create ends your turn while you wait. true: keep the turn open because you still have work to do first."
+					"description": "false: create ends your turn while you wait. true: keep the turn open because you still have work to do first. Default false."
 				},
 				"expected_revision": {
 					"type": "integer",
@@ -9904,10 +9623,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -9936,20 +9651,20 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses."
+					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
 				},
 				"title": {
 					"type": "string",
 					"maxLength": 500,
-					"description": "The room title."
+					"description": "The room title. Omitted: the first line of initial_message, up to 80 characters; without one, \"New session\", or a codename title with session_type agent_remote_control."
 				},
 				"initial_message": {
 					"type": "string",
-					"description": "An opening message in Markdown, posted as \"<agent> (<your name>)\". An @Full Name in it notifies that person. A longer message is refused and no room is created."
+					"description": "An opening message in Markdown, posted as \"<agent> (<your name>)\". An @Full Name in it notifies that person. A longer message is refused and no room is created. Omitted: no opening message."
 				},
 				"agent_name": {
 					"type": "string",
-					"description": "Display name for your tool, for example \"Claude Code\", used to label the opening message."
+					"description": "Display name for your tool, for example \"Claude Code\", used to label the opening message. Omitted: your MCP client's name, else Local agent."
 				},
 				"machine_hostname": {
 					"type": "string",
@@ -9957,7 +9672,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"hostname": {
 					"type": "string",
-					"description": "Alias for machine_hostname; machine_hostname wins."
+					"description": "Alias for machine_hostname; machine_hostname wins. Omitted: only machine_hostname is read."
 				},
 				"cwd": {
 					"type": "string",
@@ -9969,7 +9684,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"codename": {
 					"type": "string",
-					"description": "Alias for session_codename; session_codename wins."
+					"description": "Alias for session_codename; session_codename wins. Omitted: only session_codename is read."
 				},
 				"session_type": {
 					"type": "string",
@@ -9994,10 +9709,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			}
@@ -10016,20 +9727,20 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses."
+					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
 				},
 				"title": {
 					"type": "string",
 					"maxLength": 500,
-					"description": "The room title."
+					"description": "The room title. Omitted: the first line of initial_message, up to 80 characters; without one, \"New session\", or a codename title with session_type agent_remote_control."
 				},
 				"initial_message": {
 					"type": "string",
-					"description": "An opening message in Markdown, posted as \"<agent> (<your name>)\". An @Full Name in it notifies that person. A longer message is refused and no room is created."
+					"description": "An opening message in Markdown, posted as \"<agent> (<your name>)\". An @Full Name in it notifies that person. A longer message is refused and no room is created. Omitted: no opening message."
 				},
 				"agent_name": {
 					"type": "string",
-					"description": "Display name for your tool, for example \"Claude Code\", used to label the opening message."
+					"description": "Display name for your tool, for example \"Claude Code\", used to label the opening message. Omitted: your MCP client's name, else Local agent."
 				},
 				"machine_hostname": {
 					"type": "string",
@@ -10037,7 +9748,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"hostname": {
 					"type": "string",
-					"description": "Alias for machine_hostname; machine_hostname wins."
+					"description": "Alias for machine_hostname; machine_hostname wins. Omitted: only machine_hostname is read."
 				},
 				"cwd": {
 					"type": "string",
@@ -10049,7 +9760,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"codename": {
 					"type": "string",
-					"description": "Alias for session_codename; session_codename wins."
+					"description": "Alias for session_codename; session_codename wins. Omitted: only session_codename is read."
 				},
 				"session_type": {
 					"type": "string",
@@ -10075,10 +9786,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
 					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			}
 		},
@@ -10094,7 +9801,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id (from register_connection). The server posts into that connection's current room and turn, and it wins over session_id. Refused if the connection is not yours, has ended or is not attached to a room."
+					"description": "Your own connection id (from register_connection). The server posts into that connection's current room and turn, and it wins over session_id. Refused if the connection is not yours, has ended or is not attached to a room. Omitted: the post goes to session_id and is tied to no turn."
 				},
 				"session_id": {
 					"type": "string",
@@ -10102,19 +9809,19 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"command_turn_id": {
 					"type": "string",
-					"description": "The command_turn.id of the delivered command you are answering. Keep it on your answer so a late reply closes only that turn. Not combinable with command_turn_unbound."
+					"description": "The command_turn.id of the delivered command you are answering. Keep it on your answer so a late reply closes only that turn. Not combinable with command_turn_unbound. Omitted: your connection's current turn."
 				},
 				"command_message_id": {
 					"type": "string",
-					"description": "The command message id from the same delivery as command_turn_id, so answering one follow-up does not close newer ones. Requires command_turn_id."
+					"description": "The command message id from the same delivery as command_turn_id, so answering one follow-up does not close newer ones. Requires command_turn_id. Omitted: the newest command in that turn."
 				},
 				"command_turn_unbound": {
 					"type": "boolean",
-					"description": "true when this output began without a delivered command, such as a turn started in your terminal. Not combinable with command_turn_id."
+					"description": "true when this output began without a delivered command, such as a turn started in your terminal. Not combinable with command_turn_id. Default false: the post joins your connection's current turn."
 				},
 				"local_turn": {
 					"type": "boolean",
-					"description": "true on every post of a turn the person started by typing in your terminal (prompt mirror, trail, answer), together with command_turn_unbound:true. The server then opens that turn if none is open yet."
+					"description": "true on every post of a turn the person started by typing in your terminal (prompt mirror, trail, answer), together with command_turn_unbound:true. The server then opens that turn if none is open yet. Default false: the server opens no turn for the post."
 				},
 				"message": {
 					"type": "string",
@@ -10123,11 +9830,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"reply_to_message_id": {
 					"type": "string",
-					"description": "A message in the same room to reply to; its author is notified."
+					"description": "A message in the same room to reply to; its author is notified. Omitted: a reply to the command you are answering, else to the room's latest handoff to a local agent, if any."
 				},
 				"agent_name": {
 					"type": "string",
-					"description": "Display name for your tool, for example \"Claude Code\"."
+					"description": "Display name for your tool, for example \"Claude Code\"; a name already recorded on your connection wins over it. Omitted: your MCP client's name if no connection of yours is in the room, otherwise Local agent."
 				},
 				"turn_kind": {
 					"type": "string",
@@ -10135,7 +9842,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"agent",
 						"local_prompt"
 					],
-					"description": "agent: your reply. local_prompt: mirrors a prompt the person typed in your terminal so the room shows both sides; it is never treated as a command and never completes a turn."
+					"description": "agent: your reply. local_prompt: mirrors a prompt the person typed in your terminal so the room shows both sides; it is never treated as a command and never completes a turn. Omitted: agent, unless message starts with \"Local prompt:\"."
 				},
 				"complete_turn": {
 					"type": "boolean",
@@ -10149,7 +9856,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"answer",
 						"error"
 					],
-					"description": "answer: a finished message; it closes your open trail bubble. trail: live mid-turn output that grows one bubble; send about once a second, not per line. needs_input: the turn is blocked on the person (pass needs_input); it stays open. error: the turn failed; the bubble closes in an error state and the turn ends. trail and needs_input need connection_id and an open turn."
+					"description": "answer: a finished message; it closes your open trail bubble. trail: live mid-turn output that grows one bubble; send about once a second, not per line. needs_input: the turn is blocked on the person (pass needs_input); it stays open. error: the turn failed; the bubble closes in an error state and the turn ends. trail and needs_input need connection_id and an open turn. Omitted: answer."
 				},
 				"needs_input": {
 					"type": "object",
@@ -10181,7 +9888,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"work_trail": {
 					"type": "string",
-					"description": "phase answer or error only: your final rendering of the turn's work, which replaces the accumulated trail shown under Show work."
+					"description": "phase answer or error only: your final rendering of the turn's work, which replaces the accumulated trail shown under Show work. Omitted: the accumulated trail is kept."
 				},
 				"trail_events": {
 					"type": "array",
@@ -10192,7 +9899,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						},
 						"additionalProperties": {}
 					},
-					"description": "Optional structured activity (thinking, tool, domain and subagent events, each with a seq), replaced by seq. Display only; never returned by get_session_transcript. Do not include your spoken answer."
+					"description": "Optional structured activity (thinking, tool, domain and subagent events, each with a seq), replaced by seq. Display only; never returned by get_session_transcript. Do not include your spoken answer. Omitted: events already stored are kept."
 				},
 				"agent_stats": {
 					"type": "object",
@@ -10384,7 +10091,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"session",
 						"at"
 					],
-					"description": "Optional runtime telemetry (model, thinking level, context use, token usage), kept on your connection. An invalid report is dropped without failing the post."
+					"description": "Optional runtime telemetry (model, thinking level, context use, token usage), kept on your connection from an answer or error post made with connection_id; trail and needs_input posts ignore it. An invalid report is dropped without failing the post. Omitted: the connection keeps its last report."
 				},
 				"model": {
 					"type": "object",
@@ -10396,11 +10103,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"type": "string"
 						}
 					},
-					"description": "Optional {providerID, modelID} of the model that wrote this reply, shown beside it. Malformed values are dropped."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
+					"description": "Optional {providerID, modelID} of the model that wrote this reply, shown beside it. Malformed values are dropped. Omitted: the post names no model."
 				}
 			},
 			"required": [
@@ -10412,7 +10115,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id (from register_connection). The server posts into that connection's current room and turn, and it wins over session_id. Refused if the connection is not yours, has ended or is not attached to a room."
+					"description": "Your own connection id (from register_connection). The server posts into that connection's current room and turn, and it wins over session_id. Refused if the connection is not yours, has ended or is not attached to a room. Omitted: the post goes to session_id and is tied to no turn."
 				},
 				"session_id": {
 					"type": "string",
@@ -10420,19 +10123,19 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"command_turn_id": {
 					"type": "string",
-					"description": "The command_turn.id of the delivered command you are answering. Keep it on your answer so a late reply closes only that turn. Not combinable with command_turn_unbound."
+					"description": "The command_turn.id of the delivered command you are answering. Keep it on your answer so a late reply closes only that turn. Not combinable with command_turn_unbound. Omitted: your connection's current turn."
 				},
 				"command_message_id": {
 					"type": "string",
-					"description": "The command message id from the same delivery as command_turn_id, so answering one follow-up does not close newer ones. Requires command_turn_id."
+					"description": "The command message id from the same delivery as command_turn_id, so answering one follow-up does not close newer ones. Requires command_turn_id. Omitted: the newest command in that turn."
 				},
 				"command_turn_unbound": {
 					"type": "boolean",
-					"description": "true when this output began without a delivered command, such as a turn started in your terminal. Not combinable with command_turn_id."
+					"description": "true when this output began without a delivered command, such as a turn started in your terminal. Not combinable with command_turn_id. Default false: the post joins your connection's current turn."
 				},
 				"local_turn": {
 					"type": "boolean",
-					"description": "true on every post of a turn the person started by typing in your terminal (prompt mirror, trail, answer), together with command_turn_unbound:true. The server then opens that turn if none is open yet."
+					"description": "true on every post of a turn the person started by typing in your terminal (prompt mirror, trail, answer), together with command_turn_unbound:true. The server then opens that turn if none is open yet. Default false: the server opens no turn for the post."
 				},
 				"assistant_source_id": {
 					"type": "string",
@@ -10522,11 +10225,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"reply_to_message_id": {
 					"type": "string",
-					"description": "A message in the same room to reply to; its author is notified."
+					"description": "A message in the same room to reply to; its author is notified. Omitted: a reply to the command you are answering, else to the room's latest handoff to a local agent, if any."
 				},
 				"agent_name": {
 					"type": "string",
-					"description": "Display name for your tool, for example \"Claude Code\"."
+					"description": "Display name for your tool, for example \"Claude Code\"; a name already recorded on your connection wins over it. Omitted: your MCP client's name if no connection of yours is in the room, otherwise Local agent."
 				},
 				"turn_kind": {
 					"type": "string",
@@ -10534,7 +10237,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"agent",
 						"local_prompt"
 					],
-					"description": "agent: your reply. local_prompt: mirrors a prompt the person typed in your terminal so the room shows both sides; it is never treated as a command and never completes a turn."
+					"description": "agent: your reply. local_prompt: mirrors a prompt the person typed in your terminal so the room shows both sides; it is never treated as a command and never completes a turn. Omitted: agent, unless message starts with \"Local prompt:\"."
 				},
 				"complete_turn": {
 					"type": "boolean",
@@ -10548,7 +10251,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"answer",
 						"error"
 					],
-					"description": "answer: a finished message; it closes your open trail bubble. trail: live mid-turn output that grows one bubble; send about once a second, not per line. needs_input: the turn is blocked on the person (pass needs_input); it stays open. error: the turn failed; the bubble closes in an error state and the turn ends. trail and needs_input need connection_id and an open turn."
+					"description": "answer: a finished message; it closes your open trail bubble. trail: live mid-turn output that grows one bubble; send about once a second, not per line. needs_input: the turn is blocked on the person (pass needs_input); it stays open. error: the turn failed; the bubble closes in an error state and the turn ends. trail and needs_input need connection_id and an open turn. Omitted: answer."
 				},
 				"needs_input": {
 					"type": "object",
@@ -10580,7 +10283,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"work_trail": {
 					"type": "string",
-					"description": "phase answer or error only: your final rendering of the turn's work, which replaces the accumulated trail shown under Show work."
+					"description": "phase answer or error only: your final rendering of the turn's work, which replaces the accumulated trail shown under Show work. Omitted: the accumulated trail is kept."
 				},
 				"trail_events": {
 					"type": "array",
@@ -10591,7 +10294,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						},
 						"additionalProperties": {}
 					},
-					"description": "Optional structured activity (thinking, tool, domain and subagent events, each with a seq), replaced by seq. Display only; never returned by get_session_transcript. Do not include your spoken answer."
+					"description": "Optional structured activity (thinking, tool, domain and subagent events, each with a seq), replaced by seq. Display only; never returned by get_session_transcript. Do not include your spoken answer. Omitted: events already stored are kept."
 				},
 				"agent_stats": {
 					"type": "object",
@@ -10783,7 +10486,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"session",
 						"at"
 					],
-					"description": "Optional runtime telemetry (model, thinking level, context use, token usage), kept on your connection. An invalid report is dropped without failing the post."
+					"description": "Optional runtime telemetry (model, thinking level, context use, token usage), kept on your connection from an answer or error post made with connection_id; trail and needs_input posts ignore it. An invalid report is dropped without failing the post. Omitted: the connection keeps its last report."
 				},
 				"model": {
 					"type": "object",
@@ -10795,7 +10498,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"type": "string"
 						}
 					},
-					"description": "Optional {providerID, modelID} of the model that wrote this reply, shown beside it. Malformed values are dropped."
+					"description": "Optional {providerID, modelID} of the model that wrote this reply, shown beside it. Malformed values are dropped. Omitted: the post names no model."
 				},
 				"interaction_event_version": {
 					"type": "integer",
@@ -10804,10 +10507,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"x-devspec-host-only": true,
 					"description": "Host-only. The interaction-event contract version this answer continues, when it answers an interaction event. Never combine it with the question-dismissal fields."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -10847,10 +10546,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
 					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -10882,10 +10577,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -10929,7 +10620,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"failure_reason": {
 					"type": "string",
-					"description": "Why it failed, when status is failed. A report with status succeeded clears any stored reason."
+					"description": "Why it failed, when status is failed. A report with status succeeded clears any stored reason. Omitted on a first report: none; on a correction that stays failed: the stored reason stands."
 				},
 				"criteria_verdicts": {
 					"type": "array",
@@ -11084,7 +10775,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"force": {
 					"type": "boolean",
-					"description": "true lets you correct a report another agent made; it needs reason. Has no effect on a first report."
+					"description": "true lets you report a run another agent claimed, or correct a report another agent made; it needs reason. Default false: only that agent may."
 				},
 				"reason": {
 					"type": "string",
@@ -11100,10 +10791,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -11141,7 +10828,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"failure_reason": {
 					"type": "string",
-					"description": "Why it failed, when status is failed. A report with status succeeded clears any stored reason."
+					"description": "Why it failed, when status is failed. A report with status succeeded clears any stored reason. Omitted on a first report: none; on a correction that stays failed: the stored reason stands."
 				},
 				"criteria_verdicts": {
 					"type": "array",
@@ -11296,7 +10983,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"force": {
 					"type": "boolean",
-					"description": "true lets you correct a report another agent made; it needs reason. Has no effect on a first report."
+					"description": "true lets you report a run another agent claimed, or correct a report another agent made; it needs reason. Default false: only that agent may."
 				},
 				"reason": {
 					"type": "string",
@@ -11312,10 +10999,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -11347,14 +11030,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"items": {
 						"type": "string"
 					},
-					"description": "Short, individually checkable lines (\"every repo builds\"), never one paragraph: a run gives a verdict on each."
+					"description": "Short, individually checkable lines (\"every repo builds\"), never one paragraph: a run gives a verdict on each. Omitted: none."
 				},
 				"target_repo_ids": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "Tracked-repository UUIDs this automation is about. Stored and shown with it; a claimed run is not given them, so name the repositories in the instruction too."
+					"description": "Tracked-repository UUIDs this automation is about. Stored and shown with it; a claimed run is not given them, so name the repositories in the instruction too. Omitted: none."
 				},
 				"preferred_provider": {
 					"type": "string",
@@ -11367,7 +11050,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"antigravity",
 						"grok_build",
 						"opencode",
-						"codex",
 						"pi"
 					],
 					"description": "The coding agent this automation is written for: runs are then offered only to that agent, never substituted. Omitted: any of your agents may run it. gemini, copilot and windsurf are stored but do not restrict which agent takes a run."
@@ -11390,11 +11072,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"items": {
 						"type": "string"
 					},
-					"description": "Tools or access the job needs (e.g. \"axiom\"); a claimed run is told to check them first and fail cleanly if one is missing."
+					"description": "Tools or access the job needs (e.g. \"axiom\"); a claimed run is told to check them first and fail cleanly if one is missing. Omitted: none."
 				},
 				"enabled": {
 					"type": "boolean",
-					"description": "false saves it switched off: its schedule does not fire."
+					"description": "false saves it switched off: its schedule does not fire. Omitted: switched on."
 				},
 				"visibility": {
 					"type": "string",
@@ -11409,11 +11091,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"items": {
 						"type": "string"
 					},
-					"description": "Topic tags, normalised to kebab-case. Reuse the project's existing tags where one fits; a new word is added to the project's vocabulary."
+					"description": "Topic tags, normalised to kebab-case. Reuse the project's existing tags where one fits; a new word is added to the project's vocabulary. Omitted: none."
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. The automation is always saved as yours."
+					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. The automation is always saved as yours. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -11425,10 +11107,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -11452,14 +11130,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"items": {
 						"type": "string"
 					},
-					"description": "Short, individually checkable lines (\"every repo builds\"), never one paragraph: a run gives a verdict on each."
+					"description": "Short, individually checkable lines (\"every repo builds\"), never one paragraph: a run gives a verdict on each. Omitted: none."
 				},
 				"target_repo_ids": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "Tracked-repository UUIDs this automation is about. Stored and shown with it; a claimed run is not given them, so name the repositories in the instruction too."
+					"description": "Tracked-repository UUIDs this automation is about. Stored and shown with it; a claimed run is not given them, so name the repositories in the instruction too. Omitted: none."
 				},
 				"preferred_provider": {
 					"type": "string",
@@ -11472,7 +11150,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"antigravity",
 						"grok_build",
 						"opencode",
-						"codex",
 						"pi"
 					],
 					"description": "The coding agent this automation is written for: runs are then offered only to that agent, never substituted. Omitted: any of your agents may run it. gemini, copilot and windsurf are stored but do not restrict which agent takes a run."
@@ -11495,11 +11172,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"items": {
 						"type": "string"
 					},
-					"description": "Tools or access the job needs (e.g. \"axiom\"); a claimed run is told to check them first and fail cleanly if one is missing."
+					"description": "Tools or access the job needs (e.g. \"axiom\"); a claimed run is told to check them first and fail cleanly if one is missing. Omitted: none."
 				},
 				"enabled": {
 					"type": "boolean",
-					"description": "false saves it switched off: its schedule does not fire."
+					"description": "false saves it switched off: its schedule does not fire. Omitted: switched on."
 				},
 				"visibility": {
 					"type": "string",
@@ -11514,11 +11191,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"items": {
 						"type": "string"
 					},
-					"description": "Topic tags, normalised to kebab-case. Reuse the project's existing tags where one fits; a new word is added to the project's vocabulary."
+					"description": "Topic tags, normalised to kebab-case. Reuse the project's existing tags where one fits; a new word is added to the project's vocabulary. Omitted: none."
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. The automation is always saved as yours."
+					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. The automation is always saved as yours. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -11530,10 +11207,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -11557,23 +11230,23 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"instruction": {
 					"type": "string",
-					"description": "Replaces the instruction; blank is refused."
+					"description": "Replaces the instruction; blank is refused. Omitted: unchanged."
 				},
 				"name": {
 					"type": "string",
-					"description": "Renames it; blank is refused, and a name you already use is refused."
+					"description": "Renames it; blank is refused, and a name you already use is refused. Omitted: unchanged."
 				},
 				"acceptance_criteria": {
 					"type": "array",
 					"items": {},
-					"description": "Replaces the criteria. Send {id, text} for a criterion that already exists, with its UUID id, to keep its run verdicts; bare strings become new criteria; [] removes them all."
+					"description": "Replaces the criteria. Send {id, text} for a criterion that already exists, with its UUID id, to keep its run verdicts; bare strings become new criteria; [] removes them all. Omitted: unchanged."
 				},
 				"target_repo_ids": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "Replaces the target repositories."
+					"description": "Replaces the target repositories. Omitted: unchanged."
 				},
 				"preferred_provider": {
 					"type": "string",
@@ -11586,14 +11259,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"antigravity",
 						"grok_build",
 						"opencode",
-						"codex",
 						"pi"
 					],
-					"description": "Changes the coding agent it is written for; null clears it. gemini, copilot and windsurf do not restrict which agent takes a run."
+					"description": "Changes the coding agent it is written for; it cannot be cleared from here. gemini, copilot and windsurf do not restrict which agent takes a run. Omitted: unchanged."
 				},
 				"preferred_model": {
 					"type": "string",
-					"description": "Changes the model; null clears it."
+					"description": "Changes the model; an empty string clears it. Omitted: unchanged."
 				},
 				"permission": {
 					"type": "string",
@@ -11602,18 +11274,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"can_commit",
 						"can_push"
 					],
-					"description": "Changes what a run may do on the machine."
+					"description": "Changes what a run may do on the machine. Omitted: unchanged."
 				},
 				"expected_tools": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "Replaces the expected tools."
+					"description": "Replaces the expected tools. Omitted: unchanged."
 				},
 				"enabled": {
 					"type": "boolean",
-					"description": "Switches it on or off; while off its schedule does not fire."
+					"description": "Switches it on or off; while off its schedule does not fire. Omitted: unchanged."
 				},
 				"visibility": {
 					"type": "string",
@@ -11621,18 +11293,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"private",
 						"project"
 					],
-					"description": "project shares it with the project; private makes it yours alone again and cancels others' waiting runs. An automation whose runs belong to the whole project stays shared."
+					"description": "project shares it with the project; private makes it yours alone again and cancels others' waiting runs. An automation whose runs belong to the whole project stays shared. Omitted: unchanged."
 				},
 				"tags": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "Replaces the tags, normalised to kebab-case; [] or null clears them. Reuse the project's existing tags where one fits."
+					"description": "Replaces the tags, normalised to kebab-case; [] clears them. Reuse the project's existing tags where one fits. Omitted: unchanged."
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. Only automations you wrote can be changed either way."
+					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. Only automations you wrote can be changed either way. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -11644,10 +11316,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -11664,23 +11332,23 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"instruction": {
 					"type": "string",
-					"description": "Replaces the instruction; blank is refused."
+					"description": "Replaces the instruction; blank is refused. Omitted: unchanged."
 				},
 				"name": {
 					"type": "string",
-					"description": "Renames it; blank is refused, and a name you already use is refused."
+					"description": "Renames it; blank is refused, and a name you already use is refused. Omitted: unchanged."
 				},
 				"acceptance_criteria": {
 					"type": "array",
 					"items": {},
-					"description": "Replaces the criteria. Send {id, text} for a criterion that already exists, with its UUID id, to keep its run verdicts; bare strings become new criteria; [] removes them all."
+					"description": "Replaces the criteria. Send {id, text} for a criterion that already exists, with its UUID id, to keep its run verdicts; bare strings become new criteria; [] removes them all. Omitted: unchanged."
 				},
 				"target_repo_ids": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "Replaces the target repositories."
+					"description": "Replaces the target repositories. Omitted: unchanged."
 				},
 				"preferred_provider": {
 					"type": "string",
@@ -11693,14 +11361,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"antigravity",
 						"grok_build",
 						"opencode",
-						"codex",
 						"pi"
 					],
-					"description": "Changes the coding agent it is written for; null clears it. gemini, copilot and windsurf do not restrict which agent takes a run."
+					"description": "Changes the coding agent it is written for; it cannot be cleared from here. gemini, copilot and windsurf do not restrict which agent takes a run. Omitted: unchanged."
 				},
 				"preferred_model": {
 					"type": "string",
-					"description": "Changes the model; null clears it."
+					"description": "Changes the model; an empty string clears it. Omitted: unchanged."
 				},
 				"permission": {
 					"type": "string",
@@ -11709,18 +11376,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"can_commit",
 						"can_push"
 					],
-					"description": "Changes what a run may do on the machine."
+					"description": "Changes what a run may do on the machine. Omitted: unchanged."
 				},
 				"expected_tools": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "Replaces the expected tools."
+					"description": "Replaces the expected tools. Omitted: unchanged."
 				},
 				"enabled": {
 					"type": "boolean",
-					"description": "Switches it on or off; while off its schedule does not fire."
+					"description": "Switches it on or off; while off its schedule does not fire. Omitted: unchanged."
 				},
 				"visibility": {
 					"type": "string",
@@ -11728,18 +11395,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"private",
 						"project"
 					],
-					"description": "project shares it with the project; private makes it yours alone again and cancels others' waiting runs. An automation whose runs belong to the whole project stays shared."
+					"description": "project shares it with the project; private makes it yours alone again and cancels others' waiting runs. An automation whose runs belong to the whole project stays shared. Omitted: unchanged."
 				},
 				"tags": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					},
-					"description": "Replaces the tags, normalised to kebab-case; [] or null clears them. Reuse the project's existing tags where one fits."
+					"description": "Replaces the tags, normalised to kebab-case; [] clears them. Reuse the project's existing tags where one fits. Omitted: unchanged."
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. Only automations you wrote can be changed either way."
+					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. Only automations you wrote can be changed either way. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -11751,10 +11418,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -11778,7 +11441,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role."
+					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -11790,10 +11453,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -11810,7 +11469,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role."
+					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -11822,10 +11481,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -11854,7 +11509,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses."
+					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
 				},
 				"local_id": {
 					"type": "string",
@@ -11929,10 +11584,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -11954,7 +11605,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses."
+					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
 				},
 				"local_id": {
 					"type": "string",
@@ -12029,10 +11680,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
 					"type": "string"
 				}
 			},
@@ -12061,7 +11708,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses."
+					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
 				},
 				"connection_id": {
 					"type": "string",
@@ -12080,10 +11727,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"session_id": {
 					"type": "string",
 					"description": "The room: a full UUID or its 8-character short code. It must be in the connection's project and one you can open; an ambiguous or unknown short code is refused."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -12105,7 +11748,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses."
+					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
 				},
 				"connection_id": {
 					"type": "string",
@@ -12124,10 +11767,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"session_id": {
 					"type": "string",
 					"description": "The room: a full UUID or its 8-character short code. It must be in the connection's project and one you can open; an ambiguous or unknown short code is refused."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -12148,10 +11787,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your connection id, from register_connection."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -12164,10 +11799,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your connection id, from register_connection."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -12433,10 +12064,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"at"
 					],
 					"description": "Runtime telemetry riding this call, stored as the connection's last known report: {v: 1, model {provider, id}, thinkingLevel, supportedThinkingLevels (at most 7 of off|minimal|low|medium|high|xhigh|max), context {tokens, window, percent}, contextBudget (numeric counts and generated tool-verb ids only, never prompt text, arguments, results or credentials), turn and session usage {input, output, cacheRead, cacheWrite, costUsd, messages|turns}, at (ISO time)}. Read leniently: a report that is not a v1 shape is dropped silently and the call still succeeds."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			}
 		},
@@ -12697,10 +12324,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"at"
 					],
 					"description": "Runtime telemetry riding this call, stored as the connection's last known report: {v: 1, model {provider, id}, thinkingLevel, supportedThinkingLevels (at most 7 of off|minimal|low|medium|high|xhigh|max), context {tokens, window, percent}, contextBudget (numeric counts and generated tool-verb ids only, never prompt text, arguments, results or credentials), turn and session usage {input, output, cacheRead, cacheWrite, costUsd, messages|turns}, at (ISO time)}. Read leniently: a report that is not a v1 shape is dropped silently and the call still succeeds."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			}
 		},
@@ -12725,7 +12348,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses."
+					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
 				},
 				"connection_id": {
 					"type": "string",
@@ -13186,10 +12809,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"model_catalog": {
 					"type": "object",
 					"description": "With control_ack after a list_models control: the host's model list {v: 1, current, models: [{provider, id, name?}], at}, stored as the connection's latest catalog and never posted to the room. Read leniently: a malformed snapshot is dropped silently."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -13210,7 +12829,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses."
+					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
 				},
 				"connection_id": {
 					"type": "string",
@@ -13754,10 +13373,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "boolean",
 					"x-devspec-host-only": true,
 					"description": "Host-only. true acknowledges the context wipe this response asked for (OpenCode), once the host has carried it out, unblocking the attach, archive or delete waiting on it. The string \"true\" is accepted."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -13782,10 +13397,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"format": "uuid",
 					"description": "Pick up this exact pending attempt instead of resolving the connection's current one; refused if it is not pending. With local_activity_version: the id for the new local attempt. Do not send it with an interaction or dismissal identity: the reply returns that attempt."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -13915,10 +13526,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"x-devspec-host-only": true,
 					"format": "uuid",
 					"description": "Host-only. The dismissal claim token."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -13958,10 +13565,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"pinned_project_id": {
 					"type": "string",
 					"description": "The project id from .devspec/project.json, used only when git_remote is absent. It must equal the connection's project, or the call is refused."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -13995,10 +13598,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"pinned_project_id": {
 					"type": "string",
 					"description": "The project id from .devspec/project.json, used only when git_remote is absent. It must equal the connection's project, or the call is refused."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -14024,10 +13623,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"format": "uuid",
 					"description": "Renew this exact working attempt instead of the connection's current one. Required with an interaction or dismissal identity."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -14094,10 +13689,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"x-devspec-host-only": true,
 					"format": "uuid",
 					"description": "Host-only. The dismissal claim bound to attempt_id."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -14138,10 +13729,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"reason": {
 					"type": "string",
 					"description": "A short label stored as the terminal reason; omitted, it is recorded as host_complete_unspecified. A normal end needs no particular value. Only turn_error, delivery_unavailable, process_exit, max_turn_ms, codex_turn_failed, codex_turn_interrupted or codex_turn_unconfirmed mark the turn stopped, so its open bubbles show it ended before finishing; boundary closes a segment and ends any other open bubble of the turn."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -14224,10 +13811,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "boolean",
 					"x-devspec-host-only": true,
 					"description": "Host-only. true releases an interaction continuation whose host persistence failed before it was applied; needs attempt_id and the exact identity, and refuses command_turn_id and command_turn_unbound."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -14280,10 +13863,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						]
 					},
 					"description": "One entry per repository you attempted or deliberately skipped; at least one."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -14330,10 +13909,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						]
 					},
 					"description": "One entry per repository you attempted or deliberately skipped; at least one."
-				},
-				"runner_session_id": {
-					"description": "The automation runner session this write belongs to, when it is made by an unattended run. Omit it in a conversation with a person.",
-					"type": "string"
 				}
 			},
 			"required": [
@@ -14342,271 +13917,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			]
 		},
 		"kind": "pump"
-	},
-	{
-		"name": "send_heartbeat",
-		"label": "DevSpec: Send Heartbeat",
-		"description": "Legacy autopilot-runner heartbeat: creates or updates the runner card for session_id on the Agents page and, with repositories, checks their remotes and branches against the project's tracked repositories. Agent connections keep presence with poll_connection or heartbeat_connection instead. A current_task_id ties that action item to the runner: if heartbeats then stop for 30 minutes the item's claim is released, and a runner with no task is removed after about 16 minutes of silence. status 'offline' takes the card down at once. This session_id is what other writes pass as runner_session_id to mark themselves unattended.",
-		"searchIntent": "",
-		"modelInputSchema": {
-			"type": "object",
-			"properties": {
-				"session_id": {
-					"type": "string",
-					"description": "A UUID the runner generates at startup; heartbeats with the same id update the same runner."
-				},
-				"machine_hostname": {
-					"type": "string",
-					"description": "Machine hostname, shown on the runner card."
-				},
-				"status": {
-					"type": "string",
-					"enum": [
-						"idle",
-						"working",
-						"offline"
-					],
-					"description": "idle = waiting for tasks, working = on a task, offline = shutting down. working is recorded as idle unless current_task_id names an action item that is being implemented."
-				},
-				"current_task_id": {
-					"type": "string",
-					"description": "The action item being implemented. Without it, or if that item is no longer being implemented, working is stored as idle and the task cleared. While set, the runner holds the item: 30 minutes without a heartbeat releases its claim."
-				},
-				"current_task_title": {
-					"type": "string",
-					"description": "Title shown on the card for current_task_id; cleared with it."
-				},
-				"cycle_count": {
-					"type": "number",
-					"description": "Polling cycles completed this session. Omitted or not a number: stored as 0."
-				},
-				"tasks_completed": {
-					"type": "number",
-					"description": "Tasks completed this session. Omitted or not a number: stored as 0."
-				},
-				"last_error": {
-					"type": "string",
-					"description": "The most recent error, shown on the card. Omitted: cleared."
-				},
-				"git_user_email": {
-					"type": "string",
-					"description": "git config user.email of the person running the loop, shown for attribution. Omitted: cleared."
-				},
-				"repositories": {
-					"type": "array",
-					"items": {
-						"type": "object",
-						"properties": {
-							"name": {
-								"type": "string",
-								"description": "Directory name relative to the workspace root."
-							},
-							"remote_url": {
-								"type": "string",
-								"description": "Raw origin URL as git reports it."
-							},
-							"normalized_url": {
-								"type": "string",
-								"description": "The URL normalised to host/owner/repo."
-							},
-							"branch": {
-								"anyOf": [
-									{
-										"type": "string"
-									},
-									{
-										"type": "null"
-									}
-								],
-								"description": "Current branch, or null when HEAD is detached."
-							},
-							"detached": {
-								"type": "boolean",
-								"description": "True when HEAD is detached."
-							},
-							"short_sha": {
-								"type": "string",
-								"description": "Short commit SHA."
-							}
-						},
-						"required": [
-							"name",
-							"remote_url",
-							"normalized_url",
-							"detached",
-							"short_sha"
-						]
-					},
-					"description": "Each workspace repository: name, remote_url, normalized_url, branch (null when detached), detached and short_sha. When sent and the project tracks repositories, they are checked against each tracked repository's primary branch and validation_state is returned. Omitted: stored as none."
-				},
-				"mcp_capabilities": {
-					"type": "object",
-					"propertyNames": {
-						"type": "string"
-					},
-					"additionalProperties": {},
-					"description": "Self-reported MCP servers on this runner, e.g. {\"supabase\": true}; shown on the card, never used to route work. Omitted: cleared."
-				},
-				"runner_type": {
-					"type": "string",
-					"enum": [
-						"persistent",
-						"ephemeral"
-					],
-					"description": "persistent = a long-running loop; ephemeral = a single invocation."
-				},
-				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
-					"type": "string"
-				},
-				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
-					"type": "string"
-				},
-				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				}
-			},
-			"required": [
-				"session_id",
-				"machine_hostname",
-				"status"
-			]
-		},
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"session_id": {
-					"type": "string",
-					"description": "A UUID the runner generates at startup; heartbeats with the same id update the same runner."
-				},
-				"machine_hostname": {
-					"type": "string",
-					"description": "Machine hostname, shown on the runner card."
-				},
-				"status": {
-					"type": "string",
-					"enum": [
-						"idle",
-						"working",
-						"offline"
-					],
-					"description": "idle = waiting for tasks, working = on a task, offline = shutting down. working is recorded as idle unless current_task_id names an action item that is being implemented."
-				},
-				"current_task_id": {
-					"type": "string",
-					"description": "The action item being implemented. Without it, or if that item is no longer being implemented, working is stored as idle and the task cleared. While set, the runner holds the item: 30 minutes without a heartbeat releases its claim."
-				},
-				"current_task_title": {
-					"type": "string",
-					"description": "Title shown on the card for current_task_id; cleared with it."
-				},
-				"cycle_count": {
-					"type": "number",
-					"description": "Polling cycles completed this session. Omitted or not a number: stored as 0."
-				},
-				"tasks_completed": {
-					"type": "number",
-					"description": "Tasks completed this session. Omitted or not a number: stored as 0."
-				},
-				"last_error": {
-					"type": "string",
-					"description": "The most recent error, shown on the card. Omitted: cleared."
-				},
-				"git_user_email": {
-					"type": "string",
-					"description": "git config user.email of the person running the loop, shown for attribution. Omitted: cleared."
-				},
-				"repositories": {
-					"type": "array",
-					"items": {
-						"type": "object",
-						"properties": {
-							"name": {
-								"type": "string",
-								"description": "Directory name relative to the workspace root."
-							},
-							"remote_url": {
-								"type": "string",
-								"description": "Raw origin URL as git reports it."
-							},
-							"normalized_url": {
-								"type": "string",
-								"description": "The URL normalised to host/owner/repo."
-							},
-							"branch": {
-								"anyOf": [
-									{
-										"type": "string"
-									},
-									{
-										"type": "null"
-									}
-								],
-								"description": "Current branch, or null when HEAD is detached."
-							},
-							"detached": {
-								"type": "boolean",
-								"description": "True when HEAD is detached."
-							},
-							"short_sha": {
-								"type": "string",
-								"description": "Short commit SHA."
-							}
-						},
-						"required": [
-							"name",
-							"remote_url",
-							"normalized_url",
-							"detached",
-							"short_sha"
-						]
-					},
-					"description": "Each workspace repository: name, remote_url, normalized_url, branch (null when detached), detached and short_sha. When sent and the project tracks repositories, they are checked against each tracked repository's primary branch and validation_state is returned. Omitted: stored as none."
-				},
-				"mcp_capabilities": {
-					"type": "object",
-					"propertyNames": {
-						"type": "string"
-					},
-					"additionalProperties": {},
-					"description": "Self-reported MCP servers on this runner, e.g. {\"supabase\": true}; shown on the card, never used to route work. Omitted: cleared."
-				},
-				"runner_type": {
-					"type": "string",
-					"enum": [
-						"persistent",
-						"ephemeral"
-					],
-					"description": "persistent = a long-running loop; ephemeral = a single invocation."
-				},
-				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
-					"type": "string"
-				},
-				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
-					"type": "string"
-				},
-				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
-					"type": "string"
-				}
-			},
-			"required": [
-				"session_id",
-				"machine_hostname",
-				"status"
-			]
-		},
-		"kind": "pump"
 	}
 ];
 
 export const CATALOG_COUNTS = {
-	total: 96,
+	total: 95,
 	model: 82,
-	pump: 13,
+	pump: 12,
 	never_model: 1,
 } as const;

@@ -31,7 +31,6 @@ export const PUMP_VERBS = [
 	"register_connection",
 	"poll_connection",
 	"heartbeat_connection",
-	"send_heartbeat",
 	"report_keepalive",
 	"report_pickup",
 	"report_complete",

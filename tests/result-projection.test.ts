@@ -413,7 +413,23 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// from tool descriptions (17.9k -> 48.6k characters across the model verbs:
 		// the rewrite restores the boundaries and caveats the 30 Sep cut removed);
 		// every budget still passes.
-		"da69db6530f3ff57fc7a3c82b1773943b51cc9ae13b565fbefc412e5982bacf3",
+		// Rebaselined 2026-10-06 for DevSpec item 2319586a, regenerated against server
+		// staging efe38fb88. The server now works out for itself whether a write was
+		// unattended (decision 8a157943), so runner_session_id leaves all 45 model write
+		// tools that carried it, and send_heartbeat leaves the catalogue (it was a pump
+		// verb, never model-facing). Compared old/new generated model objects: 82 -> 82
+		// model verbs, none added or removed; 49 changed only in description text. Seven
+		// shape changes came with this regeneration from server work since the last one:
+		// reopen_action_item.reason_code no longer offers new_followup_scope (8bf07999);
+		// add_implementation_note now requires action_item_id (8bf07999);
+		// record_implementation.completion_confidence is bounded 0-100;
+		// update_memory gains optional expected_version and preview_ack and
+		// resolve_resource_flag now requires verdict and note (0ab1054e, on 3573c378);
+		// create_automation/update_automation preferred_provider no longer offers codex
+		// (3573c378). No projection family changed. Benchmark before/after: initial
+		// surface 41,699 -> 43,836 estimated tokens, from the rewritten description
+		// text; every budget still passes.
+		"78f93bedf3663e46f65204d1a22133f18228ba7871a9ef53d18800210fba4696",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

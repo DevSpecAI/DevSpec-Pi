@@ -15,7 +15,7 @@ export const ACTIVATION_ONLY_VERBS = new Set<string>([PLAN_TOOL_NAME, POLL_TOOL_
 export const HOT_SET_VERBS = MODEL_VERB_NAMES.filter(name => !ACTIVATION_ONLY_VERBS.has(name) && name !== TOOL_LOADER_NAME);
 export type HotSetVerb = (typeof HOT_SET_VERBS)[number];
 export const HOT_SET = new Set<string>(HOT_SET_VERBS);
-export const SCOPE_KEYS = ['git_remote', 'project_id', 'pinned_project_id', 'session_id', 'runner_session_id', 'connection_id', 'local_session_id', 'commit_provenance_source', 'provenance_source'] as const;
+export const SCOPE_KEYS = ['git_remote', 'project_id', 'pinned_project_id', 'session_id', 'connection_id', 'local_session_id', 'commit_provenance_source', 'provenance_source'] as const;
 export const SCOPE_KEY_SET = new Set<string>(SCOPE_KEYS);
 export const MODEL_OWNED_SESSION_ID_VERBS = new Set<string>(['get_session_transcript']);
 export function scopeKeysForTool(name?: string): Set<string> {

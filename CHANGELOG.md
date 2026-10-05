@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.3
+
+- DevSpec now works out for itself whether an agent's work was unattended, so Pi's tools no longer carry a setting for it, and the retired runner heartbeat is gone from Pi's catalogue. The catalogue is regenerated against DevSpec's current tools, including their rewritten descriptions.
+
 ## 0.4.2
 
 - Pi reads DevSpec's current implementation contract again. Since mid-September the server's contract carried two things this Pi did not recognise (the rule for queued review-flag rulings, and the Reviewed Contributor role's outcomes), so Pi set the whole contract aside and worked from its short built-in fallback. Both are now read, and both reach the model.

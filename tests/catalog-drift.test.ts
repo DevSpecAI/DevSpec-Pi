@@ -14,7 +14,7 @@ import {
 test('memory tools retain compatible evidence inputs without advertising Requirements', () => {
 	for (const name of ['get_memory', 'search_memories', 'record_memory']) {
 		const tool = MCP_CATALOG.find(tool => tool.name === name)!;
-		assert.doesNotMatch(tool.promptSnippet, /\brequirements?\b/i);
+		assert.doesNotMatch(tool.description, /\brequirements?\b/i);
 		assert.doesNotMatch(JSON.stringify(tool.modelInputSchema), /Requirements only/);
 	}
 	const read = MCP_CATALOG.find(tool => tool.name === 'get_memory')!;
@@ -72,7 +72,6 @@ const wireFingerprint = toolSchemaFingerprint(tools);
 process.stdout.write(JSON.stringify(tools.map((t) => ({
   name: t.name,
   description: t.description ?? "",
-  modelDescription: toDiscoveryTool(t).description,
   wireFingerprint,
   modelInputSchema: toDiscoveryTool(t).inputSchema,
   inputSchema: t.inputSchema ?? { type: "object", properties: {} },
@@ -84,11 +83,11 @@ process.stdout.write(JSON.stringify(tools.map((t) => ({
 		encoding: "utf8",
 		maxBuffer: 20 * 1024 * 1024,
 	});
-	const live = JSON.parse(raw) as Array<{ name: string; description: string; inputSchema: unknown; modelDescription: string; modelInputSchema: unknown; wireFingerprint: string }>;
+	const live = JSON.parse(raw) as Array<{ name: string; description: string; inputSchema: unknown; modelInputSchema: unknown; wireFingerprint: string }>;
 	assert.equal(live[0]?.wireFingerprint, MCP_CATALOG_FINGERPRINT, 'server/client compatibility fingerprints must agree');
 	for (const tool of live) {
 		const generated = MCP_CATALOG.find(entry => entry.name === tool.name);
-		assert.equal(generated?.promptSnippet, tool.modelDescription, `${tool.name} guidance drifted`);
+		assert.equal(generated?.description, tool.description, `${tool.name} description drifted`);
 		assert.deepEqual(generated?.modelInputSchema, tool.modelInputSchema, `${tool.name} model parameter guidance drifted`);
 	}
 	const liveNames = live.map((t) => t.name).sort();

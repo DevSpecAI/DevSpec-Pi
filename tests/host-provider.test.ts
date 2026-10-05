@@ -9,7 +9,7 @@ import {
 import { MCP_CATALOG } from "../extensions/generated/mcp-catalog.ts";
 
 const ATTRIBUTION_VERBS = ["claim_work_item", "record_implementation", "record_completed_work"];
-const AUTOMATION_VERBS = ["get_automation_runs", "claim_automation_run", "record_automation_run"];
+const AUTOMATION_VERBS = ["claim_automation_run", "record_automation_run"];
 const LOCAL_SESSION_VERBS = ["update_action_item", "record_automation_run", "claim_work_item", "record_implementation"];
 
 test("every attribution verb is stamped with provider=pi", () => {
@@ -48,7 +48,7 @@ test("every generated local_session_id input is host stamped", () => {
 	const accepting = MCP_CATALOG
 		.filter((entry) => Object.hasOwn(entry.inputSchema.properties ?? {}, "local_session_id"))
 		.map((entry) => entry.name);
-	assert.deepEqual(accepting, LOCAL_SESSION_VERBS);
+	assert.deepEqual([...accepting].sort(), [...LOCAL_SESSION_VERBS].sort());
 	for (const name of accepting) {
 		assert.equal(stampHostLocalSession(name, {}, "pi-runtime-session").local_session_id, "pi-runtime-session");
 	}

@@ -24,7 +24,7 @@ export function scopeKeysForTool(name?: string): Set<string> {
   return keys;
 }
 export function isConnectionBoundTool(name: string): boolean { return ACTIVATION_ONLY_VERBS.has(name); }
-export const TOOL_LOADER_DESCRIPTION = MCP_CATALOG.find(entry => entry.name === TOOL_LOADER_NAME)!.promptSnippet;
+export const TOOL_LOADER_DESCRIPTION = MCP_CATALOG.find(entry => entry.name === TOOL_LOADER_NAME)!.description;
 export interface ToolPromptMetadata { promptSnippet?: string; promptGuidelines?: string[]; }
 export const TOOL_LOADER_PROMPT_METADATA: ToolPromptMetadata = {};
 
@@ -53,7 +53,7 @@ export function slimCatalogEntry(entry: CatalogEntry): CatalogEntry {
     const required = inputSchema.required.filter(name => name !== 'session_id');
     if (required.length) inputSchema.required = required; else delete inputSchema.required;
   }
-  return { ...entry, description: entry.promptSnippet, inputSchema };
+  return { ...entry, inputSchema };
 }
 export function catalogEntry(name: string): CatalogEntry | undefined { return MCP_CATALOG.find(entry => entry.name === name); }
 export function allModelFacingTools(): CatalogEntry[] { return MCP_CATALOG.filter(entry => entry.kind === 'model').map(slimCatalogEntry); }
@@ -73,23 +73,32 @@ export function exactModelToolNames(query: string): string[] | null {
 const index = new MiniSearch({ fields: ['name', 'intent'], storeFields: ['description'], searchOptions: { boost: { intent: 3, name: 1 }, prefix: false, fuzzy: false } });
 index.addAll(TOOL_SEARCH_DOCUMENTS);
 const genericTerms = new Set('a an the to of for in on by with this that it my our me we you all is are can could please what how do does show get find list read write create update save send add tool tools'.split(' '));
+/** A page of recommendations, the same shape and bounds as the server's. */
+export interface ToolSearchPage { total_matching: number; offset: number; limit: number; returned: number; has_more: boolean; next_offset: number | null }
+export function toolSearchPage(total: number, offset: number, limit: number, returned: number): ToolSearchPage {
+  const end = offset + returned;
+  return { total_matching: total, offset, limit, returned, has_more: end < total, next_offset: end < total ? end : null };
+}
+/** The server's page size: three by default, ten at most. */
+export function toolSearchLimit(limit: unknown): number { return Math.max(1, Math.min(10, Math.trunc(typeof limit === 'number' && Number.isFinite(limit) ? limit : 3) || 3)); }
 /** Offline BM25 fallback. The server's hybrid recommendation is optional. */
-export function searchRareModelTools(query: string, limit = 3, availableNames: readonly string[] = HOT_SET_VERBS): CatalogEntry[] {
+export function rankRareModelTools(query: string, availableNames: readonly string[] = HOT_SET_VERBS): CatalogEntry[] {
   const available = new Set(availableNames);
   const names = exactModelToolNames(query);
-  const cap = Math.max(1, Math.min(10, Math.trunc(limit) || 3));
   const specific = (query.toLowerCase().match(/[a-z0-9]+/g) ?? []).filter(term => !genericTerms.has(term));
   const hits = names ?? (specific.length ? index.search(query).filter(hit => specific.some(term => (hit.match[term]?.length ?? 0) > 0)).map(hit => String(hit.id)) : []);
-  return hits.filter(name => available.has(name) && name !== TOOL_LOADER_NAME).slice(0, cap).flatMap(name => {
+  return hits.filter(name => available.has(name) && name !== TOOL_LOADER_NAME).flatMap(name => {
     const entry = catalogEntry(name);
     return entry?.kind === 'model' ? [slimCatalogEntry(entry)] : [];
   });
 }
+export function searchRareModelTools(query: string, limit = 3, availableNames: readonly string[] = HOT_SET_VERBS, offset = 0): CatalogEntry[] {
+  const start = Math.max(0, Math.trunc(offset) || 0);
+  return rankRareModelTools(query, availableNames).slice(start, start + toolSearchLimit(limit));
+}
+/** The loader's parameters are the tool's own definition, less what the host fills in. */
 export function toolLoaderInputSchema(): Record<string, unknown> {
-  return { type: 'object', properties: {
-    query: { type: 'string', minLength: 1, maxLength: 1000, description: 'Describe the desired operation, or give exact tool names.' },
-    limit: { type: 'integer', minimum: 1, maximum: 10, default: 3, description: 'Maximum recommendations. Search does not execute them.' },
-  }, required: ['query'] };
+  return slimCatalogEntry(catalogEntry(TOOL_LOADER_NAME)!).inputSchema;
 }
 export function estimatePrefixChars(instructions: string): number {
   const tools = modelFacingSurface().map(entry => ({ name: entry.name, description: entry.description, inputSchema: entry.inputSchema }));

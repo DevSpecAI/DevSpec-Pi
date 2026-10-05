@@ -396,7 +396,24 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// test runs are complete. 99 verbs before and after; no required field, type or
 		// projection family changed (both stay full exact reads). Benchmark before/after:
 		// initial surface 33,286 -> 33,396 estimated tokens; every budget still passes.
-		"c2e77928b61faa8b2d9a91739429859f8cf8465713dda07b637d44e4353f90af",
+		// Rebaselined 2026-10-05 for DevSpec items 3573c378 / 275c625b / 516737fd
+		// (item eaa8083c), regenerated against server staging 6504bd589. Each tool now
+		// has ONE description, the server's single definition; the catalogue's separate
+		// promptSnippet is gone. Compared old/new generated model objects: 85 -> 82
+		// model verbs (send_agent_message, control_connection and submit_plan_review
+		// removed; none added); no required field changed. Inputs added are those the
+		// server's executors already read (e.g. get_database_schema database/offset/
+		// limit, archive_resource.reason, update_memory.note) plus the explicit
+		// this-room/whole-project scope on search_discussion_points and
+		// manage_discussion_point; inputs removed are ones nothing read
+		// (get_recent_sessions.status, get_automation_runs provider/model,
+		// claim_automation_run.model, update_action_item agent_activity/agent_error).
+		// search_devspec_tools takes its own definition's offset paging. Benchmark
+		// before/after: initial surface 33,396 -> 41,699 estimated tokens, almost all
+		// from tool descriptions (17.9k -> 48.6k characters across the model verbs:
+		// the rewrite restores the boundaries and caveats the 30 Sep cut removed);
+		// every budget still passes.
+		"da69db6530f3ff57fc7a3c82b1773943b51cc9ae13b565fbefc412e5982bacf3",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -1157,6 +1174,21 @@ test("search_resources names one offset that continues both corpora (02526f46)",
 	const text = projectModelText({ toolName: "search_resources", text: JSON.stringify(payload), details: payload });
 	assert.match(text, /Next page: call search_resources again with offset 1 \(matches: documents 1, artifacts 101\+\)\./);
 	assert.match(text, /count marked \+ is a floor/);
+});
+
+test("a search that could not reach part of its corpus says so, and is never read as empty (0ab1054e)", () => {
+	const payload = {
+		documents: [],
+		artifacts: [],
+		counts: { documents: null, artifacts: 0 },
+		incomplete: true,
+		unavailable: ["documents"],
+		unavailable_note: "The documents lookup failed. Do not report that no matching documents exist; search again, or say the search was incomplete.",
+		pages: { artifacts: { total_matching: 0, offset: 0, limit: 20, returned: 0, has_more: false, next_offset: null } },
+	};
+	const text = projectModelText({ toolName: "search_resources", text: JSON.stringify(payload), details: payload });
+	assert.match(text, /Incomplete: The documents lookup failed\. Do not report that no matching documents exist/);
+	assert.doesNotMatch(text, /recognized empty result set/);
 });
 
 test("known-family unknown shapes fall back transparently instead of inventing empty/ack responses", () => {

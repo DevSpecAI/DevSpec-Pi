@@ -267,7 +267,6 @@ const PROVIDER_STAMPED_VERBS: ReadonlySet<string> = new Set([
 	"record_completed_work",
 	// Automation runs: free-text "your coding agent", used to match a run's
 	// provider constraint and to build the resume affordance.
-	"get_automation_runs",
 	"claim_automation_run",
 	"record_automation_run",
 ]);
@@ -375,11 +374,10 @@ function registerToolLoader(pi: ExtensionAPI): void {
 		...TOOL_LOADER_PROMPT_METADATA,
 		parameters: jsonSchemaToTypebox(toolLoaderInputSchema()),
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			const input = params as { query?: unknown; limit?: unknown };
+			const input = params as { query?: unknown; limit?: unknown; offset?: unknown };
 			const query = String(input.query ?? "").trim();
 			if (!query || query.length > 1000) return toolErrorResult("query must contain 1–1000 characters");
-			const limit = typeof input.limit === "number" && Number.isFinite(input.limit) ? Math.max(1, Math.min(10, Math.trunc(input.limit))) : 3;
-			const result = await selectTools(query, limit, pi.getActiveTools().filter(name => !sessionDeniedTools.has(name)), async args => {
+			const result = await selectTools(query, input.limit, pi.getActiveTools().filter(name => !sessionDeniedTools.has(name)), async args => {
 				const token = await resolveToken();
 				if (!token) throw new Error("not connected");
 				const bond = getBond();
@@ -390,12 +388,13 @@ function registerToolLoader(pi: ExtensionAPI): void {
 				const unwrapped = unwrapMcpResult(raw);
 				if (unwrapped.isError) throw new Error("search unavailable");
 				return unwrapped.details;
-			});
+			}, input.offset);
 			const lines = [
 				result.degraded ? result.reason : "These tools are already available; call the appropriate one directly.",
 				...result.matches.map(hit => `${hit.name}: ${hit.description}`),
 				!result.matches.length ? "No matching callable tool found. No operation was executed." : "",
 				result.unavailable.length ? `Unavailable here: ${result.unavailable.join(", ")}. No substitute was selected.` : "",
+				result.page.has_more ? `${result.page.returned} of ${result.page.total_matching} matches; pass offset ${result.page.next_offset} for more.` : "",
 			].filter(Boolean);
 			return measuredToolResult(TOOL_LOADER_NAME, toolTextResult(lines.join("\n"), result));
 		},

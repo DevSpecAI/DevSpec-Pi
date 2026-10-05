@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+
+- Each DevSpec tool now has one description, the same text every DevSpec host reads, and the rewrite brings back what a model needs before calling it: what the tool is for, where its neighbours take over, and what it changes. The tools removed for V1 are gone from Pi: `send_agent_message`, `control_connection` and `submit_plan_review`. So are inputs that did nothing, and inputs the server reads but never listed are now shown.
+- Still to Discuss: searching and adding are now an explicit choice between this room and the whole project, with the whole project as the default. Pi still supplies the room when you choose it, but being in a room no longer narrows a project-wide search.
+- `search_devspec_tools` pages: it takes `offset`, returns the page, and says where the next page starts when there are more matches, online or offline.
+- A search that could only partly run, for example when one of its two document lookups failed, now says so instead of reading as an empty result.
+- Pi's instructions say that @ and a person's name in a room reply notifies that person.
+- Reload or restart Pi after updating to load the new catalogue.
+
 ## 0.3.57
 
 - A goal with more than 500 items is now readable to the end: `get_goals` with a goal id returns the items a page at a time, says how many there are, and gives the `items_offset` for the next page. Before, the list stopped at 500. A goal's progress that could not be read now shows as unknown rather than as 0 of 0.

@@ -10,7 +10,7 @@
  */
 
 /** Bump when the block changes materially; handy for debugging drift reports. */
-export const INSTRUCTIONS_VERSION = 14;
+export const INSTRUCTIONS_VERSION = 15;
 
 export function buildDevspecInstructions(): string {
 	return `## DevSpec
@@ -24,6 +24,7 @@ This project is connected to DevSpec. All safe tools for this connection are nat
 - Use artifacts for shared investigations, ADRs, plans, runbooks, references and handoffs: create_resource for a new document, update_resource for refinements, supersede_resource for a replacement. Keep artifacts current as code changes. Use repository Markdown when it must ship with or be consumed by the repository, or the user explicitly requested it; temporary scratch notes need not become artifacts.
 - Keep shared memory fresh: record durable decisions/conventions/risks with record_memory, refine existing records with update_memory and replace changed decisions with supersede_memory. A knowledge write can stop on a close match: if so nothing was written; read the named record and supersede/update it, or confirm_new if genuinely separate. Work-in-flight state (approved-but-unbuilt, awaiting a pick, blocked on someone) belongs on an action item, not in memory. Delivery evidence (what shipped, which commit, what passed) belongs there too. Record what a future decision needs that the existing record does not already preserve. In interactive sessions, propose a memory to the user before recording it.
 - Who may commit a memory, artifact, rule or conflict ruling — and what a queued write means — is the served contract's authority_contract; never predict it. Read every write's outcome: committed is live; queued_for_review carries a proposal_id and a reason — relay both, say a maintainer has to accept it, and never report the change as done.
+- In a room, writing @ and a person's name in your reply (@Brandon, or @Brandon Smith) notifies that person, if they are in the room or on the project. Mention someone only when they need to see it.
 - For non-trivial work, start with one concise user-facing sentence saying what you understood and what you will do next before tools. Add another only at a meaningful boundary; never narrate individual tools.
 - Do not pass git_remote, project_id, or connection_id — the extension already knows them.`;
 }

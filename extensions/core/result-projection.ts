@@ -573,8 +573,12 @@ function collectionProjection(toolName: string, details: unknown): string | null
 			.map(([key, value]) => `${oneLine(key.replace(/_/g, " "), 60)}=${value}`);
 		if (compactCounts.length) blocks.push(`Counts: ${compactCounts.join(", ")}`);
 	}
+	// A search that could not reach part of its corpus says so (DevSpec item 0ab1054e):
+	// relay it, so a partial answer is never read as a complete one.
+	const incomplete = root.incomplete === true;
+	if (incomplete) blocks.push(`Incomplete: ${typeof root.unavailable_note === "string" ? oneLine(root.unavailable_note, 300) : "part of this search could not be run; do not report that nothing matched."}`);
 	for (const [index, row] of shown.entries()) blocks.push(card(row, index));
-	if (total === 0 && found.briefCount === 0) blocks.push("No matching entities returned (recognized empty result set).");
+	if (total === 0 && found.briefCount === 0 && !incomplete) blocks.push("No matching entities returned (recognized empty result set).");
 	if (toolName === "get_action_items") {
 		const shownPrimary = Math.min(shown.length, primaryCount);
 		const shownBriefs = Math.max(0, shown.length - shownPrimary);

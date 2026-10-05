@@ -4,8 +4,9 @@
  * surface (item 523f1512). This is the WIRE map, not the model surface.
  * The model sees all eligible concise tools via extensions/core/model-surface.ts.
  *
- * Source of truth: apps/web/lib/mcp/tool-definitions.ts in a DevSpecV2
- * checkout. This script dumps that contract (or reads a pre-dumped JSON)
+ * Source of truth: each tool's one definition in a DevSpecV2 checkout
+ * (packages/core/src/mcp/tools, exposed as MCP tools by
+ * apps/web/lib/mcp/tool-definitions.ts). This script dumps that contract (or reads a pre-dumped JSON)
  * and writes a checked-in catalog the embedded client speaks. A drift
  * test fails when the sibling checkout's verb list no longer matches.
  *
@@ -62,13 +63,12 @@ function dumpFromV2(v2Root) {
 	const script = `
 import { getMcpAllTools } from ${JSON.stringify(`${v2Root.replace(/\\/g, "/")}/apps/web/lib/mcp/tool-definitions.ts`)};
 import { toDiscoveryTool } from ${JSON.stringify(`${v2Root.replace(/\\/g, "/")}/apps/web/lib/mcp/tool-discovery.ts`)};
-import { TOOL_SEARCH_INTENTS } from ${JSON.stringify(`${v2Root.replace(/\\/g, "/")}/packages/core/src/mcp/tool-guidance.ts`)};
+import { getMcpTool } from ${JSON.stringify(`${v2Root.replace(/\\/g, "/")}/packages/core/src/mcp/tools/index.ts`)};
 const tools = getMcpAllTools();
 process.stdout.write(JSON.stringify(tools.map((t) => ({
   name: t.name,
   description: t.description ?? "",
-  modelDescription: toDiscoveryTool(t).description,
-  searchIntent: TOOL_SEARCH_INTENTS[t.name] ?? '',
+  searchIntent: getMcpTool(t.name)?.searchIntent ?? '',
   modelInputSchema: toDiscoveryTool(t).inputSchema,
   inputSchema: t.inputSchema ?? { type: "object", properties: {} },
 }))));
@@ -121,7 +121,7 @@ function descriptionFingerprint(tools) {
 
 function emitTs(tools) {
 	for (const tool of tools) {
-		if (classify(tool.name) === 'model' && (!tool.modelDescription || !tool.modelInputSchema || !tool.searchIntent)) {
+		if (classify(tool.name) === 'model' && (!tool.description || !tool.modelInputSchema || !tool.searchIntent)) {
 			throw new Error(`Missing authored model guidance for ${tool.name}; regenerate from the current shared discovery contract`);
 		}
 	}
@@ -131,14 +131,13 @@ function emitTs(tools) {
 		name: t.name,
 		label: `DevSpec: ${titleCase(t.name)}`,
 		description: t.description ?? "",
-		promptSnippet: t.modelDescription ?? t.description ?? '',
 		searchIntent: t.searchIntent ?? '',
 		modelInputSchema: t.modelInputSchema ?? t.inputSchema ?? { type: "object", properties: {} },
 		inputSchema: t.inputSchema ?? { type: "object", properties: {} },
 		kind: classify(t.name),
 	}));
 	const model = entries.filter((e) => e.kind === "model").map((e) => e.name);
-	const searchDocuments = entries.filter(e => e.kind === "model").map(e => ({ id: e.name, name: e.name.replaceAll('_', ' '), description: e.promptSnippet, intent: e.searchIntent })).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+	const searchDocuments = entries.filter(e => e.kind === "model").map(e => ({ id: e.name, name: e.name.replaceAll('_', ' '), description: e.description, intent: e.searchIntent })).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 	const searchVersion = createHash('sha256').update(JSON.stringify(searchDocuments)).digest('hex');
 	const pump = entries.filter((e) => e.kind === "pump").map((e) => e.name);
 	const never = entries.filter((e) => e.kind === "never_model").map((e) => e.name);
@@ -146,7 +145,7 @@ function emitTs(tools) {
 	return `/* eslint-disable */
 /**
  * GENERATED — do not edit by hand.
- * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
+ * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
  * Schema fingerprint: ${fp}
  * Description fingerprint: ${descriptionFp}
  * Regenerated: ${new Date().toISOString()}
@@ -163,7 +162,6 @@ export interface CatalogEntry {
 	name: string;
 	label: string;
 	description: string;
-	promptSnippet: string;
 	searchIntent: string;
 	inputSchema: Record<string, unknown>;
 	modelInputSchema: Record<string, unknown>;

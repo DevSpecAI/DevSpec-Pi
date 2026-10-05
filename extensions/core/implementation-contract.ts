@@ -90,11 +90,11 @@ export interface CommitProvenanceContract {
 	commit_reference: {
 		canonical_format: "[devspec:<action-item-uuid>]";
 		accepted_local_shapes: ["full_uuid", "eight_character_hex_short_code"];
-		multiplicity: "exactly_one";
+		multiplicity: "one_or_more";
 		validates_link_not_live_claim: true;
 	};
 	validation: {
-		local_outcomes: ["absent", "malformed", "ambiguous", "well_formed"];
+		local_outcomes: ["absent", "malformed", "well_formed", "multi_reference"];
 		online_outcomes: ["valid", "not_found", "unavailable", "indeterminate"];
 		unavailable_result: "allow_and_reconcile";
 		indeterminate_result: "allow_and_reconcile";
@@ -125,7 +125,7 @@ export interface AuthorityContract {
 	classes: Array<{
 		class: AuthorityWriteClass;
 		meaning: string;
-		outcomes: Record<"viewer" | "contributor" | "maintainer" | "unattended", AuthorityWriteOutcome>;
+		outcomes: Record<"viewer" | "reviewed_contributor" | "contributor" | "maintainer" | "unattended", AuthorityWriteOutcome>;
 	}>;
 	ownership_rule: string;
 	requester_rule: string;
@@ -137,6 +137,8 @@ export interface AuthorityContract {
 		ledgers: Record<string, string>;
 	};
 	contested_rule: string;
+	/** How a queued review-flag ruling behaves (server contract since 2026-09-14, item 3dff471b). */
+	flag_ruling_rule: string;
 	preview_rule: string;
 	verbs: Array<{
 		id: string;
@@ -182,10 +184,12 @@ interface ContractCache {
 
 // v7 added the canonical work-entry v2 tracking/plan boundary; v8 added the
 // authority_contract section (contract 4.4.0); v9 records unknown top-level
-// sections instead of rejecting the document for carrying one. Older parser
+// sections instead of rejecting the document for carrying one; v11 reads the
+// commit-provenance section that allows one or more references (contract
+// 4.13.0, item 96f3dfb7). Older parser
 // caches cannot authorize: they either did not validate those sections, or
 // carry no record of a section this generation would have warned about.
-const CACHE_KEY = Symbol.for("devspec.pi.implementation-contract.v10");
+const CACHE_KEY = Symbol.for("devspec.pi.implementation-contract.v11");
 
 function cache(): ContractCache {
 	const root = globalThis as typeof globalThis & { [CACHE_KEY]?: ContractCache };
@@ -420,12 +424,12 @@ function parseCommitProvenanceContract(value: unknown): CommitProvenanceContract
 		]) ||
 		reference.canonical_format !== "[devspec:<action-item-uuid>]" ||
 		!exactStringTuple(reference.accepted_local_shapes, ["full_uuid", "eight_character_hex_short_code"]) ||
-		reference.multiplicity !== "exactly_one" || reference.validates_link_not_live_claim !== true ||
+		reference.multiplicity !== "one_or_more" || reference.validates_link_not_live_claim !== true ||
 		!validation || !hasExactKeys(validation, [
 			"local_outcomes", "online_outcomes", "unavailable_result", "indeterminate_result",
 			"definitive_not_found_result", "network_dependency",
 		]) ||
-		!exactStringTuple(validation.local_outcomes, ["absent", "malformed", "ambiguous", "well_formed"]) ||
+		!exactStringTuple(validation.local_outcomes, ["absent", "malformed", "well_formed", "multi_reference"]) ||
 		!exactStringTuple(validation.online_outcomes, ["valid", "not_found", "unavailable", "indeterminate"]) ||
 		validation.unavailable_result !== "allow_and_reconcile" ||
 		validation.indeterminate_result !== "allow_and_reconcile" ||
@@ -437,15 +441,17 @@ function parseCommitProvenanceContract(value: unknown): CommitProvenanceContract
 
 const AUTHORITY_CLASSES: readonly AuthorityWriteClass[] = ["talk", "add", "overrule"];
 const AUTHORITY_OUTCOMES = new Set<string>(["commit", "propose", "deny"]);
-const AUTHORITY_OUTCOME_KEYS = ["viewer", "contributor", "maintainer", "unattended"] as const;
+// reviewed_contributor arrived with the fixed-role work authority (server contract
+// 2026-10-04, item cbbb0b75); Pi rejected every contract from then until 96f3dfb7.
+const AUTHORITY_OUTCOME_KEYS = ["viewer", "reviewed_contributor", "contributor", "maintainer", "unattended"] as const;
 
 function parseAuthorityContract(value: unknown): AuthorityContract | null {
 	const section = asRecord(value);
 	if (!section || !hasExactKeys(section, [
 		"schema_version", "decision", "roles", "role_source_rule", "classes", "ownership_rule",
-		"requester_rule", "unattended_rule", "proposal_outcome", "contested_rule", "preview_rule", "verbs",
+		"requester_rule", "unattended_rule", "proposal_outcome", "contested_rule", "flag_ruling_rule", "preview_rule", "verbs",
 	]) || section.schema_version !== 1) return null;
-	for (const key of ["decision", "role_source_rule", "ownership_rule", "requester_rule", "unattended_rule", "contested_rule", "preview_rule"]) {
+	for (const key of ["decision", "role_source_rule", "ownership_rule", "requester_rule", "unattended_rule", "contested_rule", "flag_ruling_rule", "preview_rule"]) {
 		if (!exactContractString(section[key])) return null;
 	}
 	if (!Array.isArray(section.roles) || section.roles.length === 0) return null;
@@ -840,13 +846,14 @@ export function formatAuthorityContract(authority: AuthorityContract): string[] 
 	return [
 		"Write authority (authority_contract — who may change the project's record is decided per call by the server from the verb, the person's project role and whether the run is unattended; read every write's outcome, never predict it):",
 		...authority.classes.map((cls) =>
-			`- ${cls.class}: ${cls.meaning} Outcomes — viewer ${cls.outcomes.viewer}, contributor ${cls.outcomes.contributor}, maintainer ${cls.outcomes.maintainer}, unattended ${cls.outcomes.unattended}.`,
+			`- ${cls.class}: ${cls.meaning} Outcomes — viewer ${cls.outcomes.viewer}, reviewed contributor ${cls.outcomes.reviewed_contributor}, contributor ${cls.outcomes.contributor}, maintainer ${cls.outcomes.maintainer}, unattended ${cls.outcomes.unattended}.`,
 		),
 		`- Ownership rule: ${authority.ownership_rule}`,
 		`- Unattended rule: ${authority.unattended_rule}`,
 		`- Requester rule: ${authority.requester_rule}`,
 		`- ${authority.proposal_outcome.token}: ${authority.proposal_outcome.requirement}`,
 		`- Contested rulings: ${authority.contested_rule}`,
+		`- Queued review-flag rulings: ${authority.flag_ruling_rule}`,
 	];
 }
 

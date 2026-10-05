@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2
+
+- Pi reads DevSpec's current implementation contract again. Since mid-September the server's contract carried two things this Pi did not recognise (the rule for queued review-flag rulings, and the Reviewed Contributor role's outcomes), so Pi set the whole contract aside and worked from its short built-in fallback. Both are now read, and both reach the model.
+- A commit may name more than one DevSpec item: the contract now says one or more references, and Pi accepts exactly that shape (DevSpec contract 4.13.0).
+
 ## 0.4.1
 
 - Remove the three V1-removed tools from the result-projection lists as well. No behaviour change.

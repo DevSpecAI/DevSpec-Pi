@@ -63,11 +63,11 @@ function provenanceSection() {
 		commit_reference: {
 			canonical_format: "[devspec:<action-item-uuid>]",
 			accepted_local_shapes: ["full_uuid", "eight_character_hex_short_code"],
-			multiplicity: "exactly_one",
+			multiplicity: "one_or_more",
 			validates_link_not_live_claim: true,
 		},
 		validation: {
-			local_outcomes: ["absent", "malformed", "ambiguous", "well_formed"],
+			local_outcomes: ["absent", "malformed", "well_formed", "multi_reference"],
 			online_outcomes: ["valid", "not_found", "unavailable", "indeterminate"],
 			unavailable_result: "allow_and_reconcile",
 			indeterminate_result: "allow_and_reconcile",
@@ -83,21 +83,22 @@ function provenanceSection() {
 }
 
 function authoritySection() {
-	const outcomes = (viewer: string, contributor: string, maintainer: string, unattended: string) =>
-		({ viewer, contributor, maintainer, unattended });
+	const outcomes = (viewer: string, reviewed_contributor: string, contributor: string, maintainer: string, unattended: string) =>
+		({ viewer, reviewed_contributor, contributor, maintainer, unattended });
 	return {
 		schema_version: 1,
 		decision: "One function judges every write from the verb, the role and whether the run is unattended.",
 		roles: [
 			{ role: "viewer", label: "Viewer", meaning: "Sees everything and takes part in the conversation." },
+			{ role: "reviewed_contributor", label: "Reviewed Contributor", meaning: "Proposes new shared work and knowledge; a Maintainer reviews it." },
 			{ role: "contributor", label: "Contributor", meaning: "Adds to the record; changes to what is settled are proposed." },
 			{ role: "maintainer", label: "Maintainer", meaning: "Can overrule the record and accepts proposals." },
 		],
 		role_source_rule: "The effective project role is judged; an organization Owner or Admin is a Maintainer everywhere.",
 		classes: [
-			{ class: "talk", meaning: "Takes part in the conversation.", outcomes: outcomes("commit", "commit", "commit", "commit") },
-			{ class: "add", meaning: "Adds to the record.", outcomes: outcomes("deny", "commit", "commit", "commit") },
-			{ class: "overrule", meaning: "Changes what the project has settled.", outcomes: outcomes("deny", "propose", "commit", "propose") },
+			{ class: "talk", meaning: "Takes part in the conversation.", outcomes: outcomes("commit", "commit", "commit", "commit", "commit") },
+			{ class: "add", meaning: "Adds to the record.", outcomes: outcomes("deny", "propose", "commit", "commit", "commit") },
+			{ class: "overrule", meaning: "Changes what the project has settled.", outcomes: outcomes("deny", "propose", "propose", "commit", "propose") },
 		],
 		ownership_rule: "A verb may be an overrule only against someone else's row.",
 		requester_rule: "A delegated command is judged by the REQUESTER's effective role.",
@@ -109,6 +110,7 @@ function authoritySection() {
 			ledgers: { proposals: "A real queue.", pending: "No queue yet.", none: "Refused." },
 		},
 		contested_rule: "A queued pair ruling is a pair_judgement proposal and the pair is CONTESTED.",
+		flag_ruling_rule: "A queued review-flag ruling is a real proposal and the flag stays lit until a Maintainer accepts it.",
 		preview_rule: "A direct overrule shows the exact text first.",
 		verbs: [
 			{ id: "memory.record", class: "add", scope: "project", unattended: "propose", ledger: "proposals", description: "Record a memory" },
@@ -283,6 +285,43 @@ test("malformed, reordered, or extra provenance fields fail exact parsing", asyn
 	}
 });
 
+// Item 96f3dfb7: the server's commit-provenance section allows one or more
+// references (contract 4.13.0), and no longer lists the `ambiguous` outcome it
+// stopped producing. A document still carrying the retired shape is refused,
+// with its hash recomputed so the parser, not a hash mismatch, is what refuses.
+test("the retired exactly-one provenance shape is refused; the served one-or-more shape verifies", async (t) => {
+	const rehashed = (mutate: (section: Record<string, unknown>) => void) => {
+		const { contract_hash: _hash, ...input } = JSON.parse(JSON.stringify(bundle())) as Record<string, unknown>;
+		mutate(input.commit_provenance_contract as Record<string, unknown>);
+		return { ...input, contract_hash: hashContractValue(input) };
+	};
+	const cases: Array<[string, (section: Record<string, unknown>) => void]> = [
+		["multiplicity exactly_one", (section) => {
+			(section.commit_reference as Record<string, unknown>).multiplicity = "exactly_one";
+		}],
+		["the ambiguous local outcome", (section) => {
+			(section.validation as Record<string, unknown>).local_outcomes = ["absent", "malformed", "ambiguous", "well_formed"];
+		}],
+	];
+	for (const [name, mutate] of cases) {
+		await t.test(name, async () => {
+			resetImplementationContractCache();
+			const context = await loadImplementationContext({
+				reference: REFERENCE,
+				loader: loader({ resource: resource(rehashed(mutate)), compatibilityError: new Error("unavailable") }),
+			});
+			assert.equal(context.source, "local_safety_fallback");
+		});
+	}
+	await t.test("one_or_more with multi_reference", async () => {
+		resetImplementationContractCache();
+		const context = await loadImplementationContext({ reference: REFERENCE, loader: loader({ resource: resource() }) });
+		assert.equal(context.source, "resource");
+		assert.equal(context.commitProvenanceContract?.commit_reference.multiplicity, "one_or_more");
+		assert.deepEqual(context.commitProvenanceContract?.validation.local_outcomes, ["absent", "malformed", "well_formed", "multi_reference"]);
+	});
+});
+
 test("work-entry v2 tracking axes, plan threshold, and lifecycle fail exact parsing when altered", async (t) => {
 	const cases: Array<[string, (section: Record<string, unknown>) => void]> = [
 		["missing plan threshold", (section) => { delete section.plan_threshold; }],
@@ -445,7 +484,7 @@ test("the authority section is required, exactly shaped, and carried to the mode
 	assert.equal(context.authorityContract?.proposal_outcome.token, "queued_for_review");
 	const text = formatImplementationContext(context);
 	assert.match(text, /Write authority \(authority_contract/);
-	assert.match(text, /overrule: .* viewer deny, contributor propose, maintainer commit, unattended propose/);
+	assert.match(text, /overrule: .* viewer deny, reviewed contributor propose, contributor propose, maintainer commit, unattended propose/);
 	// The class table alone says an `add` commits unattended; the served unattended
 	// rule is what makes memory.record a proposal. Both must reach the model, or the
 	// summary misstates the write an agent makes most (item 689d44cb).

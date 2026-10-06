@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.4
+
+- DevSpec's tool descriptions now match a few behaviours that changed on the server: giving a tool a room you can't open is refused rather than ignored, verifying an item tells you where it ended up, releasing an item nobody held says nothing changed, the project summary counts only the rooms you can open, and searching an automation's runs also finds its scheduled runs. A retired connection-check tool that nothing used is gone. The catalogue is regenerated against DevSpec's current tools.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.3
 
 - DevSpec's tool descriptions now say what each tool actually does, after an independent review of every tool: wrong claims are corrected, each optional setting says what happens when it is left out, and rules about who may do what point to DevSpec's served contract instead of being repeated. Clearing an item's assignees or taking it out of its brief with `null` now works as the description always said. The catalogue is regenerated against DevSpec's current tools.

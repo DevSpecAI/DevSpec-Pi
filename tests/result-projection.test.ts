@@ -456,7 +456,20 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// corrected, missing defaults stated, and who-may rules pointed at the served
 		// contract. No projection family changed. Benchmark before/after: initial
 		// surface 45,446 -> 44,123 estimated tokens; every budget still passes.
-		"666a63ea3a3309dde4f515f16a572bfde09a3ef7f735d8dd522a6052ff61d248",
+		// Rebaselined 2026-10-06 for DevSpec items 90adea7e, c4da50cd, a11a6cd5 and
+		// 92cd98be, regenerated against server staging e81670d01. Compared old/new
+		// generated catalogues: 82 -> 82 model verbs; the pump verb
+		// report_connection_check is retired (nothing called it). No model shape
+		// change: validate_commit_reference takes the shared project-scope texts and
+		// order. Nine changed only in text: the session_id parameters of
+		// create_action_item, update_action_item, add_implementation_note,
+		// manage_discussion_point and post_session_message say an unreachable room is
+		// refused; verify_action_item returns the lifecycle the item ended up in;
+		// release_work_item says when nothing was released; get_project_summary counts
+		// the rooms you can open; get_automation_runs searches the runs its list shows.
+		// No projection family changed. Benchmark before/after: initial surface
+		// 45,446 -> 45,507 estimated tokens; every budget still passes.
+		"d61abb8b902629cfae78ba6bc13f2e94da568a7c037e4d20a918eed64aae89db",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

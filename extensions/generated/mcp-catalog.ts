@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: c312070998462b0cbafb108814e54e46c4e601186698fabf6821c4986148d6fa
- * Description fingerprint: 0d2fb8ae44ba88af702f60aee82e1191e67cfaa6051af333a96d6accbd285874
- * Regenerated: 2026-10-06T15:49:21.060Z
+ * Schema fingerprint: 0d0ddf6274af1ba71bc6cd19e533f6c4737a7f9370432223269cbb71e31e8bde
+ * Description fingerprint: fafaedf77e744b5bbbdda27c35655b4c111fe28355a68205c5ea2780e39069cf
+ * Regenerated: 2026-10-06T20:42:50.857Z
  */
-export const MCP_CATALOG_FINGERPRINT = "c312070998462b0cbafb108814e54e46c4e601186698fabf6821c4986148d6fa";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "0d2fb8ae44ba88af702f60aee82e1191e67cfaa6051af333a96d6accbd285874";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-06T15:49:21.060Z";
-export const TOOL_CATALOG_VERSION = "281dffa325a8eca0f74239d1ad1fa520961b04f92647effa4037a77803235d4c";
+export const MCP_CATALOG_FINGERPRINT = "0d0ddf6274af1ba71bc6cd19e533f6c4737a7f9370432223269cbb71e31e8bde";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "fafaedf77e744b5bbbdda27c35655b4c111fe28355a68205c5ea2780e39069cf";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-06T20:42:50.857Z";
+export const TOOL_CATALOG_VERSION = "829e9d3c41dc5f4d5148a21c6a47e457a6db8223650c7dd9e5662571d2c3b0c4";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -194,7 +194,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_project_summary",
 		"name": "get project summary",
-		"description": "Orient on one project before working in it. It returns the team rules every coding agent follows (execution.custom_instructions = principles, execution.agent_rules = agent mechanics), your own personal agent rules (owner_agent_rules), the push, merge, branch-prefix, commit-prefix and protected-path settings, each repo's target_branch, connected database targets for migrations, current goals with progress, members (ids and names), the total action-item count, and a room count (stats.sessions) that leaves out background rooms but includes deleted rooms and rooms you cannot open; to list the rooms you can open, use get_recent_sessions. It returns no integrations list or activity feed. To pick a project use list_projects; for topic context use the search tools.",
+		"description": "Orient on one project before working in it. It returns the team rules every coding agent follows (execution.custom_instructions = principles, execution.agent_rules = agent mechanics), your own personal agent rules (owner_agent_rules), the push, merge, branch-prefix, commit-prefix and protected-path settings, each repo's target_branch, connected database targets for migrations, current goals with progress, members (ids and names), the total action-item count, and the number of rooms you can open (stats.sessions, the same total get_recent_sessions reports; null when a count could not be read); to list them, use get_recent_sessions. It returns no integrations list or activity feed. To pick a project use list_projects; for topic context use the search tools.",
 		"intent": "project overview team rules agent rules personal rules target branch push merge settings database targets members goals orientation before working"
 	},
 	{
@@ -338,7 +338,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "release_work_item",
 		"name": "release work item",
-		"description": "Hand back an item you claimed or reserved without delivering anything. The item returns to idle with no failure flag, and its reservation slot is freed. Use it for untouched or safely retryable work; use fail_work_item for a failed attempt and record_implementation for delivered work. Only the holder can release without force. To free a stale hold whose agent is gone, pass force with a reason; it is recorded as a forced release naming you. A failed item is returned to the pool with its failure flag cleared (cleared_failure: true): the agent whose attempt failed can do this, anyone else needs force and a reason. Any other item that is neither claimed nor reserved is left as it is.",
+		"description": "Hand back an item you claimed or reserved without delivering anything. The item returns to idle with no failure flag, and its reservation slot is freed. Use it for untouched or safely retryable work; use fail_work_item for a failed attempt and record_implementation for delivered work. Only the holder can release without force. To free a stale hold whose agent is gone, pass force with a reason; it is recorded as a forced release naming you. A failed item is returned to the pool with its failure flag cleared (cleared_failure: true): the agent whose attempt failed can do this, anyone else needs force and a reason. Any other item that is neither claimed nor reserved is left as it is, and the response says nothing was released (released: false).",
 		"intent": "release unclaim hand back untouched claimed or reserved work free stale hold"
 	},
 	{
@@ -494,7 +494,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "verify_action_item",
 		"name": "verify action item",
-		"description": "Record a person's decision on one implemented action item: passed: true signs it off, passed: false requests changes and flags it for attention. Who may decide, and when you may relay a decision, is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, callers who are not allowed verifiers, and passed: true while a required follow-up step is open. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. The response does not return the resulting lifecycle.",
+		"description": "Record a person's decision on one implemented action item: passed: true signs it off, passed: false requests changes and flags it for attention. Who may decide, and when you may relay a decision, is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, callers who are not allowed verifiers, and passed: true while a required follow-up step is open. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. With passed: true the response gives the lifecycle the item ended up in, and says so if the sign-off landed on an older round of work and does not count.",
 		"intent": "person signs off verifies implemented item request changes"
 	},
 	{
@@ -528,7 +528,6 @@ export const PUMP_VERBS = [
 	"attach_connection",
 	"detach_connection",
 	"verify_agent_connection",
-	"report_connection_check",
 	"report_commit_provenance"
 ] as const;
 export const NEVER_MODEL_VERBS = [
@@ -808,7 +807,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_project_summary",
 		"label": "DevSpec: Get Project Summary",
-		"description": "Orient on one project before working in it. It returns the team rules every coding agent follows (execution.custom_instructions = principles, execution.agent_rules = agent mechanics), your own personal agent rules (owner_agent_rules), the push, merge, branch-prefix, commit-prefix and protected-path settings, each repo's target_branch, connected database targets for migrations, current goals with progress, members (ids and names), the total action-item count, and a room count (stats.sessions) that leaves out background rooms but includes deleted rooms and rooms you cannot open; to list the rooms you can open, use get_recent_sessions. It returns no integrations list or activity feed. To pick a project use list_projects; for topic context use the search tools.",
+		"description": "Orient on one project before working in it. It returns the team rules every coding agent follows (execution.custom_instructions = principles, execution.agent_rules = agent mechanics), your own personal agent rules (owner_agent_rules), the push, merge, branch-prefix, commit-prefix and protected-path settings, each repo's target_branch, connected database targets for migrations, current goals with progress, members (ids and names), the total action-item count, and the number of rooms you can open (stats.sessions, the same total get_recent_sessions reports; null when a count could not be read); to list them, use get_recent_sessions. It returns no integrations list or activity feed. To pick a project use list_projects; for topic context use the search tools.",
 		"searchIntent": "project overview team rules agent rules personal rules target branch push merge settings database targets members goals orientation before working",
 		"modelInputSchema": {
 			"type": "object",
@@ -1931,16 +1930,16 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "The commit message exactly as Git holds it, for example from `git log --format=%B -1`. Do not reconstruct it from a shell command. A message with no reference returns local status absent, and no online check runs."
 				},
 				"project_id": {
-					"type": "string",
-					"description": "Project UUID. Wins over pinned_project_id and git_remote. Omit it when you can reach only one project, or when the folder pin or git remote identifies it."
-				},
-				"pinned_project_id": {
-					"type": "string",
-					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored."
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
 				},
 				"git_remote": {
-					"type": "string",
-					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin."
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -1955,16 +1954,16 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "The commit message exactly as Git holds it, for example from `git log --format=%B -1`. Do not reconstruct it from a shell command. A message with no reference returns local status absent, and no online check runs."
 				},
 				"project_id": {
-					"type": "string",
-					"description": "Project UUID. Wins over pinned_project_id and git_remote. Omit it when you can reach only one project, or when the folder pin or git remote identifies it."
-				},
-				"pinned_project_id": {
-					"type": "string",
-					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored."
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
 				},
 				"git_remote": {
-					"type": "string",
-					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin."
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -3752,7 +3751,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"query": {
 					"type": "string",
-					"description": "With automation_id: full-text search over your own runs' summary, failure reason and captured output, best match first; runs that belong to the whole project are not searched. Ignored without automation_id."
+					"description": "With automation_id: full-text search over the runs the list shows (yours, and the project's runs nobody started, such as scheduled ones), matching their summary, failure reason and captured output, best match first. Ignored without automation_id. Omitted: the runs are listed newest first."
 				},
 				"connection_id": {
 					"type": "string",
@@ -3789,7 +3788,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"query": {
 					"type": "string",
-					"description": "With automation_id: full-text search over your own runs' summary, failure reason and captured output, best match first; runs that belong to the whole project are not searched. Ignored without automation_id."
+					"description": "With automation_id: full-text search over the runs the list shows (yours, and the project's runs nobody started, such as scheduled ones), matching their summary, failure reason and captured output, best match first. Ignored without automation_id. Omitted: the runs are listed newest first."
 				},
 				"connection_id": {
 					"type": "string",
@@ -4523,7 +4522,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"session_id": {
 					"type": "string",
-					"description": "The DevSpec room this edit is made for, when you are working on a room's behalf (UUID or short code): the change is recorded as made in that room and shows in its This session panel. An id that is not a room in this project is ignored. Omitted: no room."
+					"description": "The DevSpec room this edit is made for, when you are working on a room's behalf (UUID or short code): the change is recorded as made in that room and shows in its This session panel. It must be a room in this project that you can open; any other id refuses the call and nothing changes. Omitted: no room."
 				},
 				"assigned_to": {
 					"anyOf": [
@@ -4784,7 +4783,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"session_id": {
 					"type": "string",
-					"description": "The DevSpec room this edit is made for, when you are working on a room's behalf (UUID or short code): the change is recorded as made in that room and shows in its This session panel. An id that is not a room in this project is ignored. Omitted: no room."
+					"description": "The DevSpec room this edit is made for, when you are working on a room's behalf (UUID or short code): the change is recorded as made in that room and shows in its This session panel. It must be a room in this project that you can open; any other id refuses the call and nothing changes. Omitted: no room."
 				},
 				"assigned_to": {
 					"anyOf": [
@@ -4989,7 +4988,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"session_id": {
 					"type": "string",
-					"description": "The DevSpec room this item comes from, when you are working for one (UUID or short code). The item gets a card in that room's transcript and appears in its This session panel. An id that is not a room in this project is ignored, and the item is created without a room. Omitted: no room."
+					"description": "The DevSpec room this item comes from, when you are working for one (UUID or short code). The item gets a card in that room's transcript and appears in its This session panel. It must be a room in this project that you can open; any other id refuses the call and nothing is created. Omitted: no room."
 				},
 				"connection_id": {
 					"type": "string",
@@ -5150,7 +5149,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"session_id": {
 					"type": "string",
-					"description": "The DevSpec room this item comes from, when you are working for one (UUID or short code). The item gets a card in that room's transcript and appears in its This session panel. An id that is not a room in this project is ignored, and the item is created without a room. Omitted: no room."
+					"description": "The DevSpec room this item comes from, when you are working for one (UUID or short code). The item gets a card in that room's transcript and appears in its This session panel. It must be a room in this project that you can open; any other id refuses the call and nothing is created. Omitted: no room."
 				},
 				"connection_id": {
 					"type": "string",
@@ -5731,7 +5730,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"session_id": {
 					"type": "string",
-					"description": "A DevSpec room to associate the note with (UUID or short code; a full UUID is stored as given). Linking a room does not show the note in it. Omitted: none."
+					"description": "A DevSpec room to associate the note with (UUID or short code). It must be a room in this project that you can open; any other id refuses the call and no note is added. Linking a room does not show the note in it. Omitted: none."
 				},
 				"action_item_id": {
 					"type": "string",
@@ -5790,7 +5789,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"session_id": {
 					"type": "string",
-					"description": "A DevSpec room to associate the note with (UUID or short code; a full UUID is stored as given). Linking a room does not show the note in it. Omitted: none."
+					"description": "A DevSpec room to associate the note with (UUID or short code). It must be a room in this project that you can open; any other id refuses the call and no note is added. Linking a room does not show the note in it. Omitted: none."
 				},
 				"action_item_id": {
 					"type": "string",
@@ -6075,7 +6074,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "release_work_item",
 		"label": "DevSpec: Release Work Item",
-		"description": "Hand back an item you claimed or reserved without delivering anything. The item returns to idle with no failure flag, and its reservation slot is freed. Use it for untouched or safely retryable work; use fail_work_item for a failed attempt and record_implementation for delivered work. Only the holder can release without force. To free a stale hold whose agent is gone, pass force with a reason; it is recorded as a forced release naming you. A failed item is returned to the pool with its failure flag cleared (cleared_failure: true): the agent whose attempt failed can do this, anyone else needs force and a reason. Any other item that is neither claimed nor reserved is left as it is.",
+		"description": "Hand back an item you claimed or reserved without delivering anything. The item returns to idle with no failure flag, and its reservation slot is freed. Use it for untouched or safely retryable work; use fail_work_item for a failed attempt and record_implementation for delivered work. Only the holder can release without force. To free a stale hold whose agent is gone, pass force with a reason; it is recorded as a forced release naming you. A failed item is returned to the pool with its failure flag cleared (cleared_failure: true): the agent whose attempt failed can do this, anyone else needs force and a reason. Any other item that is neither claimed nor reserved is left as it is, and the response says nothing was released (released: false).",
 		"searchIntent": "release unclaim hand back untouched claimed or reserved work free stale hold",
 		"modelInputSchema": {
 			"type": "object",
@@ -7102,7 +7101,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "verify_action_item",
 		"label": "DevSpec: Verify Action Item",
-		"description": "Record a person's decision on one implemented action item: passed: true signs it off, passed: false requests changes and flags it for attention. Who may decide, and when you may relay a decision, is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, callers who are not allowed verifiers, and passed: true while a required follow-up step is open. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. The response does not return the resulting lifecycle.",
+		"description": "Record a person's decision on one implemented action item: passed: true signs it off, passed: false requests changes and flags it for attention. Who may decide, and when you may relay a decision, is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, callers who are not allowed verifiers, and passed: true while a required follow-up step is open. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. With passed: true the response gives the lifecycle the item ended up in, and says so if the sign-off landed on an older round of work and does not count.",
 		"searchIntent": "person signs off verifies implemented item request changes",
 		"modelInputSchema": {
 			"type": "object",
@@ -9032,7 +9031,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"session_id": {
 					"type": "string",
-					"description": "add only, with scope room: the room the point belongs to (UUID or 8-character short code). Ignored otherwise."
+					"description": "add only, with scope room: the room the point goes on (UUID or 8-character short code), which must be a room in this project that you can open. Other actions do not use it, but one that is sent must still be such a room, or the call is refused."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -9090,7 +9089,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"session_id": {
 					"type": "string",
-					"description": "add only, with scope room: the room the point belongs to (UUID or 8-character short code). Ignored otherwise."
+					"description": "add only, with scope room: the room the point goes on (UUID or 8-character short code), which must be a room in this project that you can open. Other actions do not use it, but one that is sent must still be such a room, or the call is refused."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -9845,7 +9844,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"session_id": {
 					"type": "string",
-					"description": "Room id (UUID or 8-character short code), used only when connection_id is omitted. Allowed only in a room where you own an attached connection, or that you created; such a post is not tied to any turn."
+					"description": "Room id (UUID or 8-character short code), used only when connection_id is omitted. One sent with connection_id is not used, but must still be a room in this project that you can open, or the call is refused. Allowed only in a room where you own an attached connection, or that you created; such a post is not tied to any turn."
 				},
 				"command_turn_id": {
 					"type": "string",
@@ -10159,7 +10158,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"session_id": {
 					"type": "string",
-					"description": "Room id (UUID or 8-character short code), used only when connection_id is omitted. Allowed only in a room where you own an attached connection, or that you created; such a post is not tied to any turn."
+					"description": "Room id (UUID or 8-character short code), used only when connection_id is omitted. One sent with connection_id is not used, but must still be a room in this project that you can open, or the call is refused. Allowed only in a room where you own an attached connection, or that you created; such a post is not tied to any turn."
 				},
 				"command_turn_id": {
 					"type": "string",
@@ -13861,111 +13860,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			]
 		},
 		"kind": "pump"
-	},
-	{
-		"name": "report_connection_check",
-		"label": "DevSpec: Report Connection Check",
-		"description": "Record, for each repository, whether the tagged empty commit for a verification item ([devspec-verify:<id>]) was pushed or skipped, and why. To check that this agent reaches DevSpec, use verify_agent_connection. Each call replaces the item's earlier report; no screen shows it.",
-		"searchIntent": "",
-		"modelInputSchema": {
-			"type": "object",
-			"properties": {
-				"verification_id": {
-					"type": "string",
-					"description": "The full UUID of the verification action item, in this project, that the tagged commits name ([devspec-verify:<id>]). A short code is not accepted."
-				},
-				"results": {
-					"type": "array",
-					"items": {
-						"type": "object",
-						"properties": {
-							"repo": {
-								"type": "string",
-								"description": "Repository full name, e.g. acme/web."
-							},
-							"outcome": {
-								"type": "string",
-								"enum": [
-									"pushed",
-									"skipped"
-								],
-								"description": "pushed = the tagged empty commit was pushed; skipped = not attempted, for example the repository is not cloned here."
-							},
-							"reason": {
-								"type": "string",
-								"description": "Short reason, especially for skipped (e.g. not cloned locally)."
-							},
-							"branch": {
-								"type": "string",
-								"description": "The branch the commit was pushed to."
-							}
-						},
-						"required": [
-							"repo",
-							"outcome"
-						]
-					},
-					"description": "One entry per repository you attempted or deliberately skipped; at least one."
-				}
-			},
-			"required": [
-				"verification_id",
-				"results"
-			]
-		},
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"verification_id": {
-					"type": "string",
-					"description": "The full UUID of the verification action item, in this project, that the tagged commits name ([devspec-verify:<id>]). A short code is not accepted."
-				},
-				"results": {
-					"type": "array",
-					"items": {
-						"type": "object",
-						"properties": {
-							"repo": {
-								"type": "string",
-								"description": "Repository full name, e.g. acme/web."
-							},
-							"outcome": {
-								"type": "string",
-								"enum": [
-									"pushed",
-									"skipped"
-								],
-								"description": "pushed = the tagged empty commit was pushed; skipped = not attempted, for example the repository is not cloned here."
-							},
-							"reason": {
-								"type": "string",
-								"description": "Short reason, especially for skipped (e.g. not cloned locally)."
-							},
-							"branch": {
-								"type": "string",
-								"description": "The branch the commit was pushed to."
-							}
-						},
-						"required": [
-							"repo",
-							"outcome"
-						]
-					},
-					"description": "One entry per repository you attempted or deliberately skipped; at least one."
-				}
-			},
-			"required": [
-				"verification_id",
-				"results"
-			]
-		},
-		"kind": "pump"
 	}
 ];
 
 export const CATALOG_COUNTS = {
-	total: 95,
+	total: 94,
 	model: 82,
-	pump: 12,
+	pump: 11,
 	never_model: 1,
 } as const;

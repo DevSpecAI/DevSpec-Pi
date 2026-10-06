@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { resolveEndpoint } from "./auth-store.ts";
 import { callDevspec, MODEL_TIMEOUT_MS, readDevspecResource } from "./client.ts";
 import { unwrapMcpResult } from "./result.ts";
+import { UPDATE_EXTENSION_INSTRUCTION } from "./version-mismatch.ts";
 
 /**
  * The product implementation contract, as Pi loads and verifies it.
@@ -52,103 +53,39 @@ export interface ImplementationRule {
 	enforcement?: string;
 }
 
-export type WorkEntryOutcome =
-	| "claim_active"
-	| "reopen_incomplete"
-	| "create_linked_follow_up"
-	| "create_new";
-
-export type TrackingDecisionOutcome = "action_item" | "session_plan" | "both" | "neither";
-
-export interface TrackingDecision {
-	outcome: TrackingDecisionOutcome;
-	durable_outcome_required: boolean;
-	material_session_progress_value: boolean;
-	requirement: string;
-	examples: string[];
-}
-
-export interface WorkEntryContract {
-	schema_version: 1 | 2;
-	mutation_boundary: string;
-	explicit_request_authority: string;
-	tracking_basis?: string;
-	tracking_decisions?: TrackingDecision[];
-	plan_threshold?: string;
-	plan_lifecycle?: string;
-	ordered_decisions: Array<{
-		outcome: WorkEntryOutcome;
-		requirement: string;
-	}>;
-}
-
-export interface CommitProvenanceContract {
-	schema_version: 1;
-	authority_boundary: string;
-	early_claiming: string;
-	edit_behavior: string;
-	commit_reference: {
-		canonical_format: "[devspec:<action-item-uuid>]";
-		accepted_local_shapes: ["full_uuid", "eight_character_hex_short_code"];
-		multiplicity: "one_or_more";
-		validates_link_not_live_claim: true;
-	};
-	validation: {
-		local_outcomes: ["absent", "malformed", "well_formed", "multi_reference"];
-		online_outcomes: ["valid", "not_found", "unavailable", "indeterminate"];
-		unavailable_result: "allow_and_reconcile";
-		indeterminate_result: "allow_and_reconcile";
-		definitive_not_found_result: "non_terminating_recovery";
-		network_dependency: "optional";
-	};
-	stamping: string;
-	push_behavior: string;
-	project_association: string;
-	universal_recovery: string;
-	independent_controls: string;
-}
+/** A served section, kept exactly as DevSpec sent it. */
+export type ServedSection = Readonly<Record<string, unknown>>;
 
 /**
  * Who may change the project's record (DevSpec item ff803a1a). Served beside the
- * work-entry and commit-provenance sections since contract 4.4.0 (4.5.0 renamed the
- * lowest project role guest → viewer; the organisation Guest is a different role); Pi shows it to the
+ * work-entry and commit-provenance sections since contract 4.4.0. Pi shows it to the
  * model and relays its proposal outcome, and never restates it in its own prose.
+ *
+ * Read tolerantly (item 39c05c1f): a role, a class or a rule DevSpec adds reaches the
+ * model without a Pi release, and a field Pi does not show is ignored rather than
+ * refused.
  */
-export type AuthorityWriteClass = "talk" | "add" | "overrule";
-export type AuthorityWriteOutcome = "commit" | "propose" | "deny";
-
 export interface AuthorityContract {
 	schema_version: 1;
-	decision: string;
-	roles: Array<{ role: string; label: string; meaning: string }>;
-	role_source_rule: string;
 	classes: Array<{
-		class: AuthorityWriteClass;
+		class: string;
 		meaning: string;
-		outcomes: Record<"viewer" | "reviewed_contributor" | "contributor" | "maintainer" | "unattended", AuthorityWriteOutcome>;
+		/** role (or `unattended`) → outcome, in the order DevSpec served them. */
+		outcomes: Array<[string, string]>;
 	}>;
-	ownership_rule: string;
-	requester_rule: string;
-	unattended_rule: string;
-	proposal_outcome: {
-		token: "queued_for_review";
-		requirement: string;
-		because: string[];
-		ledgers: Record<string, string>;
-	};
-	contested_rule: string;
-	/** How a queued review-flag ruling behaves (server contract since 2026-09-14, item 3dff471b). */
-	flag_ruling_rule: string;
-	preview_rule: string;
-	verbs: Array<{
-		id: string;
-		class: AuthorityWriteClass;
-		scope: string;
-		unattended: string;
-		ledger: string;
-		overrule_when?: string;
-		description: string;
-	}>;
+	proposal_outcome?: { token: string; requirement: string };
+	/** The rule texts the model reads, quoted verbatim, in the order shown. */
+	rules: Array<{ key: string; text: string }>;
+}
+
+/**
+ * A section Pi could not read in full — at a schema_version it does not know, or in
+ * a shape it does not recognise. It is shown to the model exactly as served, so the
+ * model still has DevSpec's words, and the notice says to update the extension.
+ */
+export interface UnreadSection {
+	section: string;
+	value: unknown;
 }
 
 export interface ImplementationContractContext {
@@ -157,9 +94,15 @@ export interface ImplementationContractContext {
 	resourceUri: string;
 	source: "resource" | "compatibility" | "cache" | "local_safety_fallback";
 	rules: ImplementationRule[];
-	workEntryContract?: WorkEntryContract;
-	commitProvenanceContract?: CommitProvenanceContract;
+	/** Shown to the model exactly as served: Pi only carries it. */
+	workEntryContract?: ServedSection;
+	/** Carried as served; Pi does not interpret it. */
+	commitProvenanceContract?: ServedSection;
 	authorityContract?: AuthorityContract;
+	/** Known sections Pi could not read in full; shown as served. */
+	unreadSections?: UnreadSection[];
+	/** Rules in the core section Pi could not read (no id or requirement). */
+	skippedRules?: number;
 	/**
 	 * Top-level sections this Pi does not implement, present in the document it
 	 * verified. Not an error — see `parseContractBundle`.
@@ -184,12 +127,12 @@ interface ContractCache {
 
 // v7 added the canonical work-entry v2 tracking/plan boundary; v8 added the
 // authority_contract section (contract 4.4.0); v9 records unknown top-level
-// sections instead of rejecting the document for carrying one; v11 reads the
-// commit-provenance section that allows one or more references (contract
-// 4.13.0, item 96f3dfb7). Older parser
-// caches cannot authorize: they either did not validate those sections, or
-// carry no record of a section this generation would have warned about.
-const CACHE_KEY = Symbol.for("devspec.pi.implementation-contract.v11");
+// sections instead of rejecting the document for carrying one; v11 read the
+// one-or-more commit-provenance section (item 96f3dfb7); v12 reads every section
+// on its own and tolerantly, so a section Pi cannot read is carried as served
+// instead of taking the others down (item 39c05c1f). Older parser caches cannot
+// authorize: they hold shapes this generation no longer produces.
+const CACHE_KEY = Symbol.for("devspec.pi.implementation-contract.v12");
 
 function cache(): ContractCache {
 	const root = globalThis as typeof globalThis & { [CACHE_KEY]?: ContractCache };
@@ -226,43 +169,30 @@ function exactContractString(value: unknown): string | undefined {
 	return typeof value === "string" && value.length > 0 && value === value.trim() ? value : undefined;
 }
 
+/** Text Pi shows the model: taken exactly as served, never trimmed or rewritten. */
+function servedText(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim() ? value : undefined;
+}
+
 const CONTRACT_HASH_PATTERN = /^sha256:[a-f0-9]{64}$/;
-/** Schema v1 contracts remain compatible within the product's v4 major line. */
-const CONTRACT_VERSION_PATTERN = /^4\.\d+\.\d+$/;
-const RULE_PHASES = new Set([
-	"discovery", "claim", "implementation", "verification", "delivery", "completion", "failure", "governance",
-]);
-const RULE_ENFORCEMENTS = new Set(["server", "host", "agent", "human"]);
-const WORK_ENTRY_OUTCOMES: readonly WorkEntryOutcome[] = [
-	"claim_active",
-	"reopen_incomplete",
-	"create_linked_follow_up",
-	"create_new",
-];
+const CONTRACT_VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
+/**
+ * The document's own format. This — not the product's contract_version — is what
+ * says whether Pi can read the document at all. DevSpec raises it only when the
+ * whole document changes shape; anything less is a change inside a section, which
+ * that section's own schema_version describes.
+ */
+const READABLE_ROOT_SCHEMA_VERSIONS = new Set([1]);
 const PRODUCT_SOURCE = {
 	authority: "devspec_product",
 	tier: "product_implementation_contract",
 } as const;
-const INSTRUCTION_BOUNDARY = {
-	customer_tiers_excluded: [
-		"project_custom_instructions",
-		"project_agent_rules",
-		"owner_agent_rules",
-		"live_owner_command",
-	],
-	non_overridable: ["all_product_contract_rules"],
-	contextual_precedence_high_to_low: [
-		"live_owner_command",
-		"owner_agent_rules",
-		"project_agent_rules",
-		"project_custom_instructions",
-	],
-	override_policy: {
-		product_contract_rules: "never_override",
-		project_shared_repo_safety: "never_weaken",
-		other_customer_context: "higher_tier_specializes_lower_tier_when_non_conflicting",
-	},
-} as const;
+
+/** The sections Pi knows by name; anything else is an unknown section. */
+const KNOWN_ROOT_KEYS = [
+	"kind", "schema_version", "contract_version", "contract_hash", "source", "instruction_boundary",
+	"core_implementation_contract", "work_entry_contract", "commit_provenance_contract", "authority_contract",
+] as const;
 
 function normalizeForCanonicalJson(value: unknown): unknown {
 	if (Array.isArray(value)) return value.map(normalizeForCanonicalJson);
@@ -284,207 +214,100 @@ export function hashContractValue(value: unknown): string {
 	return `sha256:${createHash("sha256").update(canonicalJson(value), "utf8").digest("hex")}`;
 }
 
-function exactMetadata(value: unknown, expected: unknown): boolean {
-	return canonicalJson(value) === canonicalJson(expected);
-}
-
-function hasExactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
-	const actual = Object.keys(value).sort();
-	const wanted = [...expected].sort();
-	return actual.length === wanted.length && actual.every((key, index) => key === wanted[index]);
-}
-
-/** Keys the document must carry, in any order. */
-function missingKeys(value: Record<string, unknown>, expected: readonly string[]): string[] {
-	return expected.filter((key) => !Object.hasOwn(value, key));
-}
-
 /** Keys the document carries that this parser knows nothing about. */
 function extraKeys(value: Record<string, unknown>, expected: readonly string[]): string[] {
 	return Object.keys(value).filter((key) => !expected.includes(key)).sort();
 }
 
-function parseRules(value: unknown): ImplementationRule[] | null {
+/**
+ * A section at a schema_version this Pi has a reader for. A section without one is
+ * read as version 1, which is how every section that has never changed is served.
+ */
+function sectionVersionIsReadable(section: Record<string, unknown>, readable: readonly number[]): boolean {
+	const version = section.schema_version ?? 1;
+	return typeof version === "number" && readable.includes(version);
+}
+
+/**
+ * The core rules. Pi needs an id and the requirement text; phase and enforcement
+ * are carried when present, whatever their value, because Pi only shows them. A
+ * rule without an id or a requirement is skipped and counted, never the reason
+ * every other rule is thrown away.
+ */
+function readRules(value: unknown): { rules: ImplementationRule[]; skipped: number } | null {
 	const section = asRecord(value);
-	if (!section || !hasExactKeys(section, ["rules"]) || !Array.isArray(section.rules)) return null;
+	if (!section || !sectionVersionIsReadable(section, [1]) || !Array.isArray(section.rules)) return null;
 	const rules: ImplementationRule[] = [];
+	let skipped = 0;
 	for (const candidate of section.rules) {
 		const row = asRecord(candidate);
-		if (!row || !hasExactKeys(row, ["id", "phase", "requirement", "enforcement"])) return null;
-		const id = exactContractString(row.id);
-		const phase = exactContractString(row.phase);
-		const requirement = exactContractString(row.requirement);
-		const enforcement = exactContractString(row.enforcement);
-		if (
-			!id || !phase || !RULE_PHASES.has(phase) || !requirement ||
-			!enforcement || !RULE_ENFORCEMENTS.has(enforcement)
-		) return null;
-		rules.push({ id, phase, requirement, enforcement });
+		const id = row ? servedText(row.id) : undefined;
+		const requirement = row ? servedText(row.requirement) : undefined;
+		if (!row || !id || !requirement) {
+			skipped++;
+			continue;
+		}
+		const phase = servedText(row.phase);
+		const enforcement = servedText(row.enforcement);
+		rules.push({ id, ...(phase ? { phase } : {}), requirement, ...(enforcement ? { enforcement } : {}) });
 	}
-	return rules.length > 0 ? rules : null;
+	return rules.length > 0 ? { rules, skipped } : null;
 }
 
-function parseWorkEntryContract(value: unknown): WorkEntryContract | null {
-	const section = asRecord(value);
-	if (!section || (section.schema_version !== 1 && section.schema_version !== 2)) return null;
-	const v2 = section.schema_version === 2;
-	const expectedKeys = v2
-		? ["schema_version", "mutation_boundary", "explicit_request_authority", "tracking_basis", "tracking_decisions", "plan_threshold", "plan_lifecycle", "ordered_decisions"]
-		: ["schema_version", "mutation_boundary", "explicit_request_authority", "ordered_decisions"];
-	if (!hasExactKeys(section, expectedKeys) || !Array.isArray(section.ordered_decisions)) return null;
-	const mutationBoundary = exactContractString(section.mutation_boundary);
-	const explicitRequestAuthority = exactContractString(section.explicit_request_authority);
-	if (!mutationBoundary || !explicitRequestAuthority || section.ordered_decisions.length !== WORK_ENTRY_OUTCOMES.length) {
-		return null;
-	}
-	const orderedDecisions: WorkEntryContract["ordered_decisions"] = [];
-	for (const [index, candidate] of section.ordered_decisions.entries()) {
-		const row = asRecord(candidate);
-		if (!row || !hasExactKeys(row, ["outcome", "requirement"])) return null;
-		const outcome = exactContractString(row.outcome);
-		const requirement = exactContractString(row.requirement);
-		if (outcome !== WORK_ENTRY_OUTCOMES[index] || !requirement) return null;
-		orderedDecisions.push({ outcome, requirement });
-	}
-	if (!v2) {
-		return {
-			schema_version: 1,
-			mutation_boundary: mutationBoundary,
-			explicit_request_authority: explicitRequestAuthority,
-			ordered_decisions: orderedDecisions,
-		};
-	}
+/**
+ * Authority rule texts Pi quotes, with the label each is shown under, in order.
+ * Any other `*_rule` text DevSpec serves is quoted after these under a label made
+ * from its name, so a rule added on the server reaches the model before Pi knows
+ * its name. The two left out here are deliberately not shown: role_source_rule
+ * matters to people reading the record, not to an agent's next write, and
+ * preview_rule describes the web review screen.
+ */
+const AUTHORITY_RULE_LABELS: ReadonlyArray<readonly [string, string]> = [
+	["ownership_rule", "Ownership rule"],
+	["unattended_rule", "Unattended rule"],
+	["requester_rule", "Requester rule"],
+	["contested_rule", "Contested rulings"],
+	["flag_ruling_rule", "Queued review-flag rulings"],
+];
+const AUTHORITY_RULES_NOT_SHOWN = new Set(["role_source_rule", "preview_rule"]);
 
-	const trackingBasis = exactContractString(section.tracking_basis);
-	const planThreshold = exactContractString(section.plan_threshold);
-	const planLifecycle = exactContractString(section.plan_lifecycle);
-	if (!trackingBasis || !planThreshold || !planLifecycle || !Array.isArray(section.tracking_decisions)) return null;
-	const expectedTracking = [
-		["both", true, true],
-		["action_item", true, false],
-		["session_plan", false, true],
-		["neither", false, false],
-	] as const;
-	if (section.tracking_decisions.length !== expectedTracking.length) return null;
-	const trackingDecisions: TrackingDecision[] = [];
-	for (const [index, candidate] of section.tracking_decisions.entries()) {
+function readAuthorityContract(value: unknown): AuthorityContract | null {
+	const section = asRecord(value);
+	if (!section || !sectionVersionIsReadable(section, [1]) || !Array.isArray(section.classes)) return null;
+	const classes: AuthorityContract["classes"] = [];
+	for (const candidate of section.classes) {
 		const row = asRecord(candidate);
-		if (!row || !hasExactKeys(row, [
-			"outcome", "durable_outcome_required", "material_session_progress_value", "requirement", "examples",
-		])) return null;
-		const [outcome, durable, progress] = expectedTracking[index]!;
-		const requirement = exactContractString(row.requirement);
-		if (row.outcome !== outcome || row.durable_outcome_required !== durable ||
-			row.material_session_progress_value !== progress || !requirement || !Array.isArray(row.examples)) return null;
-		const examples = row.examples.map(exactContractString);
-		if (examples.length === 0 || examples.some((entry) => !entry)) return null;
-		trackingDecisions.push({
-			outcome,
-			durable_outcome_required: durable,
-			material_session_progress_value: progress,
-			requirement,
-			examples: examples as string[],
-		});
+		const name = row ? servedText(row.class) : undefined;
+		const meaning = row ? servedText(row.meaning) : undefined;
+		const outcomes = row ? asRecord(row.outcomes) : null;
+		// A class Pi cannot read would be shown with a hole in it; the section is
+		// carried as served instead, which still gives the model DevSpec's words.
+		if (!name || !meaning || !outcomes) return null;
+		const pairs = Object.entries(outcomes).filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim() !== "");
+		if (pairs.length === 0) return null;
+		classes.push({ class: name, meaning, outcomes: pairs });
+	}
+	if (classes.length === 0) return null;
+	const proposal = asRecord(section.proposal_outcome);
+	const token = proposal ? servedText(proposal.token) : undefined;
+	const requirement = proposal ? servedText(proposal.requirement) : undefined;
+	const known = new Set(AUTHORITY_RULE_LABELS.map(([key]) => key));
+	const rules: AuthorityContract["rules"] = [];
+	for (const [key] of AUTHORITY_RULE_LABELS) {
+		const text = servedText(section[key]);
+		if (text) rules.push({ key, text });
+	}
+	for (const key of Object.keys(section)) {
+		if (known.has(key) || AUTHORITY_RULES_NOT_SHOWN.has(key) || !key.endsWith("_rule")) continue;
+		const text = servedText(section[key]);
+		if (text) rules.push({ key, text });
 	}
 	return {
-		schema_version: 2,
-		mutation_boundary: mutationBoundary,
-		explicit_request_authority: explicitRequestAuthority,
-		tracking_basis: trackingBasis,
-		tracking_decisions: trackingDecisions,
-		plan_threshold: planThreshold,
-		plan_lifecycle: planLifecycle,
-		ordered_decisions: orderedDecisions,
+		schema_version: 1,
+		classes,
+		...(token && requirement ? { proposal_outcome: { token, requirement } } : {}),
+		rules,
 	};
-}
-
-function exactStringTuple(value: unknown, expected: readonly string[]): boolean {
-	return Array.isArray(value) && value.length === expected.length &&
-		value.every((entry, index) => entry === expected[index]);
-}
-
-function parseCommitProvenanceContract(value: unknown): CommitProvenanceContract | null {
-	const section = asRecord(value);
-	if (!section || !hasExactKeys(section, [
-		"schema_version", "authority_boundary", "early_claiming", "edit_behavior",
-		"commit_reference", "validation", "stamping", "push_behavior",
-		"project_association", "universal_recovery", "independent_controls",
-	]) || section.schema_version !== 1) return null;
-	for (const key of [
-		"authority_boundary", "early_claiming", "edit_behavior", "stamping", "push_behavior",
-		"project_association", "universal_recovery", "independent_controls",
-	]) {
-		if (!exactContractString(section[key])) return null;
-	}
-	const reference = asRecord(section.commit_reference);
-	const validation = asRecord(section.validation);
-	if (
-		!reference || !hasExactKeys(reference, [
-			"canonical_format", "accepted_local_shapes", "multiplicity", "validates_link_not_live_claim",
-		]) ||
-		reference.canonical_format !== "[devspec:<action-item-uuid>]" ||
-		!exactStringTuple(reference.accepted_local_shapes, ["full_uuid", "eight_character_hex_short_code"]) ||
-		reference.multiplicity !== "one_or_more" || reference.validates_link_not_live_claim !== true ||
-		!validation || !hasExactKeys(validation, [
-			"local_outcomes", "online_outcomes", "unavailable_result", "indeterminate_result",
-			"definitive_not_found_result", "network_dependency",
-		]) ||
-		!exactStringTuple(validation.local_outcomes, ["absent", "malformed", "well_formed", "multi_reference"]) ||
-		!exactStringTuple(validation.online_outcomes, ["valid", "not_found", "unavailable", "indeterminate"]) ||
-		validation.unavailable_result !== "allow_and_reconcile" ||
-		validation.indeterminate_result !== "allow_and_reconcile" ||
-		validation.definitive_not_found_result !== "non_terminating_recovery" ||
-		validation.network_dependency !== "optional"
-	) return null;
-	return section as unknown as CommitProvenanceContract;
-}
-
-const AUTHORITY_CLASSES: readonly AuthorityWriteClass[] = ["talk", "add", "overrule"];
-const AUTHORITY_OUTCOMES = new Set<string>(["commit", "propose", "deny"]);
-// reviewed_contributor arrived with the fixed-role work authority (server contract
-// 2026-10-04, item cbbb0b75); Pi rejected every contract from then until 96f3dfb7.
-const AUTHORITY_OUTCOME_KEYS = ["viewer", "reviewed_contributor", "contributor", "maintainer", "unattended"] as const;
-
-function parseAuthorityContract(value: unknown): AuthorityContract | null {
-	const section = asRecord(value);
-	if (!section || !hasExactKeys(section, [
-		"schema_version", "decision", "roles", "role_source_rule", "classes", "ownership_rule",
-		"requester_rule", "unattended_rule", "proposal_outcome", "contested_rule", "flag_ruling_rule", "preview_rule", "verbs",
-	]) || section.schema_version !== 1) return null;
-	for (const key of ["decision", "role_source_rule", "ownership_rule", "requester_rule", "unattended_rule", "contested_rule", "flag_ruling_rule", "preview_rule"]) {
-		if (!exactContractString(section[key])) return null;
-	}
-	if (!Array.isArray(section.roles) || section.roles.length === 0) return null;
-	for (const candidate of section.roles) {
-		const row = asRecord(candidate);
-		if (!row || !hasExactKeys(row, ["role", "label", "meaning"])) return null;
-		if (!exactContractString(row.role) || !exactContractString(row.label) || !exactContractString(row.meaning)) return null;
-	}
-	if (!Array.isArray(section.classes) || section.classes.length !== AUTHORITY_CLASSES.length) return null;
-	for (const [index, candidate] of section.classes.entries()) {
-		const row = asRecord(candidate);
-		if (!row || !hasExactKeys(row, ["class", "meaning", "outcomes"]) || row.class !== AUTHORITY_CLASSES[index]) return null;
-		if (!exactContractString(row.meaning)) return null;
-		const outcomes = asRecord(row.outcomes);
-		if (!outcomes || !hasExactKeys(outcomes, AUTHORITY_OUTCOME_KEYS)) return null;
-		for (const key of AUTHORITY_OUTCOME_KEYS) {
-			if (typeof outcomes[key] !== "string" || !AUTHORITY_OUTCOMES.has(outcomes[key] as string)) return null;
-		}
-	}
-	const proposal = asRecord(section.proposal_outcome);
-	if (
-		!proposal || !hasExactKeys(proposal, ["token", "requirement", "because", "ledgers"]) ||
-		proposal.token !== "queued_for_review" || !exactContractString(proposal.requirement) ||
-		!Array.isArray(proposal.because) || proposal.because.length === 0 ||
-		!proposal.because.every((entry) => exactContractString(entry)) ||
-		!asRecord(proposal.ledgers)
-	) return null;
-	if (!Array.isArray(section.verbs) || section.verbs.length === 0) return null;
-	for (const candidate of section.verbs) {
-		const row = asRecord(candidate);
-		if (!row || !exactContractString(row.id) || !exactContractString(row.class) || !AUTHORITY_CLASSES.includes(row.class as AuthorityWriteClass)) return null;
-	}
-	return section as unknown as AuthorityContract;
 }
 
 function parseJsonText(value: unknown, expectedResourceUri: string): unknown {
@@ -499,118 +322,142 @@ function parseJsonText(value: unknown, expectedResourceUri: string): unknown {
 }
 
 /**
- * One parser for both delivery paths, because both now carry the same document.
- * `contract_hash` covers every other served field, so a bundle authenticates
- * itself: no second read, and no mode to reconcile.
- *
- * A section this Pi does not implement is NOT a reason to reject the document
- * (DevSpec item 689d44cb). Every section named below still has to be present and
- * exactly the shape this parser verifies, and the hash still has to cover the
- * whole served document — including the part Pi cannot read, so nothing is
- * accepted unverified. What changes is what happens when DevSpec adds a section:
- * Pi keeps the sixteen rules plus work entry, provenance and authority it does
- * understand, and says which section it did not, instead of throwing all of it
- * away for five generic local ones. Failing closed on an ADDITION is not the
- * safer choice — it is a silent, total loss of the contract, and it has happened
- * twice (4.4.0 adding `authority_contract` was the second time).
+ * Why a served document could not be read at all. Only these take Pi to its
+ * built-in rules; everything inside a section degrades that section alone.
  */
-function parseContractBundle(root: Record<string, unknown>, resourceUri: string): CachedContract | null {
+class UnreadableContract extends Error {}
+
+/**
+ * One parser for both delivery paths, because both carry the same document.
+ * `contract_hash` covers every other served field, so a bundle authenticates itself.
+ *
+ * Each section is read on its own (item 39c05c1f). Pi takes what it shows the model
+ * and ignores the rest, so DevSpec can add a field, a role, a rule or a whole section
+ * without a Pi release. A section Pi cannot read — a schema_version it has no reader
+ * for, or a shape it does not recognise — is carried exactly as served, with a notice
+ * saying to update the extension; the other sections stay in force. Before this, one
+ * changed field in any section Pi verified sent /devspec.work back to five generic
+ * local rules: from 2026-09-14 (flag_ruling_rule, 3dff471b) for three weeks, and again
+ * when the server and Pi disagreed about commit references (96f3dfb7).
+ *
+ * What still refuses the whole document: it is not DevSpec's product contract, its
+ * own format (root schema_version) is one Pi cannot read, or the hash does not cover
+ * exactly what was served — including any part Pi cannot read, so nothing is
+ * accepted unverified.
+ */
+function parseContractBundle(root: Record<string, unknown>, resourceUri: string): CachedContract {
+	if (root.kind !== "devspec.product.implementation_contract") {
+		throw new UnreadableContract("the served document is not DevSpec's implementation contract");
+	}
+	if (typeof root.schema_version !== "number" || !READABLE_ROOT_SCHEMA_VERSIONS.has(root.schema_version)) {
+		throw new UnreadableContract(`the contract is in a format (${String(root.schema_version)}) newer than this extension reads`);
+	}
+	const source = asRecord(root.source);
+	if (!source || source.authority !== PRODUCT_SOURCE.authority || source.tier !== PRODUCT_SOURCE.tier) {
+		throw new UnreadableContract("the served document does not name DevSpec's product contract as its source");
+	}
 	const contractVersion = exactContractString(root.contract_version);
-	if (!contractVersion || !CONTRACT_VERSION_PATTERN.test(contractVersion)) return null;
-	const expectedKeys = [
-		"kind", "schema_version", "contract_version", "contract_hash", "source", "instruction_boundary",
-		"core_implementation_contract", "work_entry_contract", "commit_provenance_contract", "authority_contract",
-	];
-	const unknownSections = extraKeys(root, expectedKeys);
-	if (
-		missingKeys(root, expectedKeys).length > 0 ||
-		root.kind !== "devspec.product.implementation_contract" ||
-		root.schema_version !== 1 ||
-		!exactMetadata(root.source, PRODUCT_SOURCE) ||
-		!exactMetadata(root.instruction_boundary, INSTRUCTION_BOUNDARY)
-	) return null;
+	if (!contractVersion || !CONTRACT_VERSION_PATTERN.test(contractVersion)) {
+		throw new UnreadableContract("the served document carries no contract version");
+	}
+	// Hash exactly what was served; no trimming or reconstructed value may
+	// authenticate a differently encoded document.
 	const contractHash = exactContractString(root.contract_hash);
-	const rules = parseRules(root.core_implementation_contract);
-	const workEntryContract = parseWorkEntryContract(root.work_entry_contract);
-	const commitProvenanceContract = parseCommitProvenanceContract(root.commit_provenance_contract);
-	const authorityContract = parseAuthorityContract(root.authority_contract);
-	if (
-		!contractHash || !CONTRACT_HASH_PATTERN.test(contractHash) || !rules ||
-		!workEntryContract || !commitProvenanceContract || !authorityContract
-	) return null;
-	// Hash exactly what was served. Validation above guarantees the shape and
-	// canonical strings; no trimming or reconstructed value may authenticate a
-	// differently encoded document.
 	const { contract_hash: _contractHash, ...contractHashInput } = root;
-	if (hashContractValue(contractHashInput) !== contractHash) return null;
+	if (!contractHash || !CONTRACT_HASH_PATTERN.test(contractHash) || hashContractValue(contractHashInput) !== contractHash) {
+		throw new UnreadableContract("the served document does not match its own hash");
+	}
+
+	const unreadSections: UnreadSection[] = [];
+	const unread = (section: string) => {
+		if (Object.hasOwn(root, section)) unreadSections.push({ section, value: root[section] });
+	};
+	const core = readRules(root.core_implementation_contract);
+	if (!core) unread("core_implementation_contract");
+	// Pi shows these two exactly as served and interprets neither, so any object
+	// DevSpec sends is one Pi can carry, at any schema_version.
+	const workEntryContract = asRecord(root.work_entry_contract) ?? undefined;
+	if (!workEntryContract) unread("work_entry_contract");
+	const commitProvenanceContract = asRecord(root.commit_provenance_contract) ?? undefined;
+	const authorityContract = readAuthorityContract(root.authority_contract) ?? undefined;
+	if (!authorityContract) unread("authority_contract");
+	const unknownSections = extraKeys(root, KNOWN_ROOT_KEYS);
 	return {
 		contractVersion,
 		contractHash,
 		resourceUri,
-		rules,
-		workEntryContract,
-		commitProvenanceContract,
-		authorityContract,
+		// Without readable core rules the model still gets Pi's built-in ones, with
+		// the served section beside them and a notice saying which is which.
+		rules: core?.rules ?? [...LOCAL_SAFETY_RULES],
+		...(workEntryContract ? { workEntryContract } : {}),
+		...(commitProvenanceContract ? { commitProvenanceContract } : {}),
+		...(authorityContract ? { authorityContract } : {}),
+		...(unreadSections.length > 0 ? { unreadSections } : {}),
+		...(core && core.skipped > 0 ? { skippedRules: core.skipped } : {}),
 		...(unknownSections.length > 0 ? { unknownSections } : {}),
 	};
 }
 
-function contractFromResourcePayload(payload: unknown, resourceUri: string): CachedContract | null {
+function contractFromResourcePayload(payload: unknown, resourceUri: string): CachedContract {
 	const root = asRecord(parseJsonText(payload, resourceUri));
-	return root ? parseContractBundle(root, resourceUri) : null;
+	if (!root) throw new UnreadableContract("the served document is not a JSON object");
+	return parseContractBundle(root, resourceUri);
 }
 
-function contractFromCompatibilityPayload(payload: unknown, resourceUri: string): CachedContract | null {
+function contractFromCompatibilityPayload(payload: unknown, resourceUri: string): CachedContract {
 	const root = asRecord(payload);
-	if (!root) return null;
+	if (!root) throw new UnreadableContract("the compatibility payload is not a JSON object");
 	const bundle = asRecord(root.implementation_contract) ?? root;
 	return parseContractBundle(bundle, resourceUri);
 }
 
 /**
- * What Pi teaches when it cannot get the canonical contract at all. These are
- * deliberately the same in every situation: the two rules that used to be the
- * unattended overlay are here unconditionally, because "do not invent authority"
- * was never contingent on nobody watching.
+ * What Pi teaches when it cannot read the canonical contract at all, and beside a
+ * served core section it could not read. These are deliberately the same in every
+ * situation: the two rules that used to be the unattended overlay are here
+ * unconditionally, because "do not invent authority" was never contingent on
+ * nobody watching.
  */
+const LOCAL_SAFETY_RULES: readonly ImplementationRule[] = [
+	{
+		id: "pi-fallback.claim-early",
+		phase: "claim",
+		requirement: "Search, reuse or create the smallest covering item and claim it early when DevSpec is available; an absent claim never blocks local repository work.",
+		enforcement: "agent",
+	},
+	{
+		id: "pi-fallback.commit-link",
+		phase: "delivery",
+		requirement: "Prefer one full [devspec:<action-item-id>] commit reference and use record_implementation for authoritative post-commit linkage; unsupported Git surfaces rely on server reconciliation.",
+		enforcement: "agent",
+	},
+	{
+		id: "pi-fallback.no-human-assumption",
+		phase: "implementation",
+		requirement: "Do not assume a human is present and do not invent authority or intent.",
+		enforcement: "agent",
+	},
+	{
+		id: "pi-fallback.stop-at-implemented",
+		phase: "completion",
+		requirement: "Record implementation after pushing and stop at implemented; never mark the item done.",
+		enforcement: "server",
+	},
+	{
+		id: "pi-fallback.truthful-handoff",
+		phase: "failure",
+		requirement: "On failure, use fail_work_item or release_work_item truthfully; never leave failed work implementing.",
+		enforcement: "agent",
+	},
+];
+
 function localSafetyFallback(resourceUri: string, warning: string): ImplementationContractContext {
 	return {
 		contractVersion: "pi-local-fail-open-v1",
 		resourceUri,
 		source: "local_safety_fallback",
 		warning,
-		rules: [
-			{
-				id: "pi-fallback.claim-early",
-				phase: "claim",
-				requirement: "Search, reuse or create the smallest covering item and claim it early when DevSpec is available; an absent claim never blocks local repository work.",
-				enforcement: "agent",
-			},
-			{
-				id: "pi-fallback.commit-link",
-				phase: "delivery",
-				requirement: "Prefer one full [devspec:<action-item-id>] commit reference and use record_implementation for authoritative post-commit linkage; unsupported Git surfaces rely on server reconciliation.",
-				enforcement: "agent",
-			},
-			{
-				id: "pi-fallback.no-human-assumption",
-				phase: "implementation",
-				requirement: "Do not assume a human is present and do not invent authority or intent.",
-				enforcement: "agent",
-			},
-			{
-				id: "pi-fallback.stop-at-implemented",
-				phase: "completion",
-				requirement: "Record implementation after pushing and stop at implemented; never mark the item done.",
-				enforcement: "server",
-			},
-			{
-				id: "pi-fallback.truthful-handoff",
-				phase: "failure",
-				requirement: "On failure, use fail_work_item or release_work_item truthfully; never leave failed work implementing.",
-				enforcement: "agent",
-			},
-		],
+		rules: [...LOCAL_SAFETY_RULES],
 	};
 }
 
@@ -624,15 +471,43 @@ function storeContract(scope: string, value: CachedContract): void {
 	current.latestByResource.set(latestIdentity(scope, value.resourceUri), value);
 }
 
+/** How a section is named to a person, who has never seen the document's keys. */
+const SECTION_LABELS: Readonly<Record<string, string>> = {
+	core_implementation_contract: "the core rules",
+	work_entry_contract: "the rules for starting work",
+	commit_provenance_contract: "the rules for linking commits",
+	authority_contract: "the rules for who may change the project's record",
+};
+
+function sectionLabel(section: string): string {
+	return SECTION_LABELS[section] ?? section;
+}
+
+function listOf(items: readonly string[]): string {
+	return items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+}
+
 /**
- * The notice an accepted contract carries. A section Pi does not implement is
- * worth saying out loud — the model is reading a contract that has more in it
- * than this plugin can show — but it never downgrades the sections Pi did read.
+ * The notice an accepted contract carries when part of it is something this Pi
+ * cannot read. It never downgrades what Pi did read; it says what was not, that
+ * the rest is in force, and how to fix it.
  */
-function unknownSectionNotice(contract: CachedContract): string | undefined {
+function partialReadNotice(contract: CachedContract): string | undefined {
+	const parts: string[] = [];
+	const unread = contract.unreadSections ?? [];
+	if (unread.length > 0) {
+		const coreUnread = unread.some((entry) => entry.section === "core_implementation_contract");
+		parts.push(`This version of the DevSpec Pi extension could not fully read ${listOf(unread.map((entry) => sectionLabel(entry.section)))} in DevSpec's rules for agents, so ${unread.length === 1 ? "that part is" : "those parts are"} shown exactly as DevSpec sent ${unread.length === 1 ? "it" : "them"}${coreUnread ? ", next to Pi's built-in rules" : ""}.`);
+	}
+	if (contract.skippedRules) {
+		parts.push(`${contract.skippedRules} of DevSpec's core rules could not be read by this version of the DevSpec Pi extension.`);
+	}
 	const unknown = contract.unknownSections ?? [];
-	if (unknown.length === 0) return undefined;
-	return `This DevSpec serves ${unknown.length === 1 ? "a contract section" : "contract sections"} this Pi does not understand (${unknown.join(", ")}); everything else in the contract is loaded and in force. Update the DevSpec Pi plugin to read ${unknown.length === 1 ? "it" : "them"}.`;
+	if (unknown.length > 0) {
+		parts.push(`DevSpec's rules for agents include ${unknown.length === 1 ? "a part" : "parts"} this version of the DevSpec Pi extension does not know (${unknown.join(", ")}); get_workflow_rules with include_implementation_contract returns the whole contract.`);
+	}
+	if (parts.length === 0) return undefined;
+	return [...parts, "Everything else is loaded and in force.", UPDATE_EXTENSION_INSTRUCTION].join(" ");
 }
 
 function acceptedContract(
@@ -640,7 +515,7 @@ function acceptedContract(
 	source: "resource" | "compatibility" | "cache",
 	warning?: string,
 ): ImplementationContractContext {
-	const notice = unknownSectionNotice(contract);
+	const notice = partialReadNotice(contract);
 	const combined = [warning, notice].filter(Boolean).join(" ");
 	return { ...contract, source, ...(combined ? { warning: combined } : {}) };
 }
@@ -685,9 +560,9 @@ export async function loadImplementationContext(input: {
 	}
 
 	const errors: string[] = [];
-	// A document that arrived and failed verification is a different situation from
-	// one that never arrived: the first needs a plugin update, the second needs the
-	// service back. Saying "unavailable" for both sends whoever reads it looking in
+	// A document that arrived and could not be read is a different situation from
+	// one that never arrived: the first needs an extension update, the second needs
+	// the service back. Saying "unavailable" for both sends whoever reads it looking in
 	// the wrong place.
 	let served = false;
 	try {
@@ -695,7 +570,6 @@ export async function loadImplementationContext(input: {
 		input.assertCurrent?.();
 		served = true;
 		const contract = contractFromResourcePayload(payload, resourceUri);
-		if (!contract) throw new Error("the served document did not match the contract shape this Pi verifies");
 		if (expectedVersion && contract.contractVersion !== expectedVersion) {
 			throw new Error(`resource version ${contract.contractVersion} did not match kickoff version ${expectedVersion}`);
 		}
@@ -711,7 +585,6 @@ export async function loadImplementationContext(input: {
 		input.assertCurrent?.();
 		served = true;
 		const contract = contractFromCompatibilityPayload(payload, resourceUri);
-		if (!contract) throw new Error("the compatibility payload did not match the contract shape this Pi verifies");
 		if (expectedVersion && contract.contractVersion !== expectedVersion) {
 			throw new Error(`compatibility version ${contract.contractVersion} did not match kickoff version ${expectedVersion}`);
 		}
@@ -738,8 +611,8 @@ export async function loadImplementationContext(input: {
 	return localSafetyFallback(
 		resourceUri,
 		served
-			? `DevSpec served a contract this Pi could not verify (${errors.join("; ") || "unknown error"}); the Pi safety fallback is active. Update the DevSpec Pi plugin — this is a version mismatch, not an outage.`
-			: `DevSpec contract unavailable (${errors.join("; ") || "unknown error"}); the Pi safety fallback is active.`,
+			? `DevSpec sent its rules for agents in a form this version of the DevSpec Pi extension cannot read (${errors.join("; ") || "unknown error"}), so Pi is using its short built-in rules instead. ${UPDATE_EXTENSION_INSTRUCTION}`
+			: `DevSpec's rules for agents could not be fetched (${errors.join("; ") || "unknown error"}), so Pi is using its short built-in rules instead.`,
 	);
 }
 
@@ -817,15 +690,31 @@ export function formatImplementationContext(context: ImplementationContractConte
 	].filter(Boolean).join(" · ");
 	return [
 		`${context.source === "local_safety_fallback" ? "Local fail-open fallback (the canonical product contract was not loaded; the notice below says why)" : "Product implementation contract"} (${identity})`,
-		...(context.warning ? [`Availability notice: ${context.warning}`] : []),
+		...(context.warning ? [`Availability notice (tell the person you are working with): ${context.warning}`] : []),
 		...(context.workEntryContract ? [
 			"Canonical work entry contract (the only action-item/session-plan boundary):",
 			JSON.stringify(context.workEntryContract),
 		] : []),
 		...(context.authorityContract ? formatAuthorityContract(context.authorityContract) : []),
+		// A section this Pi could not read in full still reaches the model in
+		// DevSpec's own words; only Pi's summary of it is missing.
+		...(context.unreadSections ?? []).flatMap((entry) => [
+			`${entry.section}, exactly as DevSpec sent it (this version of the extension could not read it in full):`,
+			JSON.stringify(entry.value),
+		]),
 		"Rules:",
 		...context.rules.map((rule) => `- [${rule.id}] ${rule.requirement}`),
 	].join("\n");
+}
+
+/** Shown before the proposal outcome; every other rule text follows it. */
+const AUTHORITY_RULES_BEFORE_PROPOSAL = new Set(["ownership_rule", "unattended_rule", "requester_rule"]);
+
+function authorityRuleLabel(key: string): string {
+	const known = AUTHORITY_RULE_LABELS.find(([name]) => name === key)?.[1];
+	if (known) return known;
+	const words = key.replace(/_/g, " ").trim();
+	return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 /**
@@ -839,21 +728,21 @@ export function formatImplementationContext(context: ImplementationContractConte
  * item 689d44cb): the table says an `add` commits unattended, while the served
  * unattended rule records `memory.record` and `artifact.create` as proposals and
  * refuses personal-scope writes; and the ownership rule is what makes closing your
- * own item an add and closing a colleague's an overrule. Both are quoted from the
- * served document, never paraphrased — this plugin does not own these sentences.
+ * own item an add and closing a colleague's an overrule. Every rule is quoted from
+ * the served document, never paraphrased — this plugin does not own these sentences.
+ * Outcomes are printed for whichever roles DevSpec serves, in its order, so a role
+ * added on the server is shown without a Pi release.
  */
 export function formatAuthorityContract(authority: AuthorityContract): string[] {
+	const rule = (entry: { key: string; text: string }) => `- ${authorityRuleLabel(entry.key)}: ${entry.text}`;
 	return [
 		"Write authority (authority_contract — who may change the project's record is decided per call by the server from the verb, the person's project role and whether the run is unattended; read every write's outcome, never predict it):",
 		...authority.classes.map((cls) =>
-			`- ${cls.class}: ${cls.meaning} Outcomes — viewer ${cls.outcomes.viewer}, reviewed contributor ${cls.outcomes.reviewed_contributor}, contributor ${cls.outcomes.contributor}, maintainer ${cls.outcomes.maintainer}, unattended ${cls.outcomes.unattended}.`,
+			`- ${cls.class}: ${cls.meaning} Outcomes — ${cls.outcomes.map(([role, outcome]) => `${role.replace(/_/g, " ")} ${outcome}`).join(", ")}.`,
 		),
-		`- Ownership rule: ${authority.ownership_rule}`,
-		`- Unattended rule: ${authority.unattended_rule}`,
-		`- Requester rule: ${authority.requester_rule}`,
-		`- ${authority.proposal_outcome.token}: ${authority.proposal_outcome.requirement}`,
-		`- Contested rulings: ${authority.contested_rule}`,
-		`- Queued review-flag rulings: ${authority.flag_ruling_rule}`,
+		...authority.rules.filter((entry) => AUTHORITY_RULES_BEFORE_PROPOSAL.has(entry.key)).map(rule),
+		...(authority.proposal_outcome ? [`- ${authority.proposal_outcome.token}: ${authority.proposal_outcome.requirement}`] : []),
+		...authority.rules.filter((entry) => !AUTHORITY_RULES_BEFORE_PROPOSAL.has(entry.key)).map(rule),
 	];
 }
 

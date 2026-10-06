@@ -469,7 +469,17 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// the rooms you can open; get_automation_runs searches the runs its list shows.
 		// No projection family changed. Benchmark before/after: initial surface
 		// 45,446 -> 45,507 estimated tokens; every budget still passes.
-		"d61abb8b902629cfae78ba6bc13f2e94da568a7c037e4d20a918eed64aae89db",
+		// Rebaselined 2026-10-07 for DevSpec item 589a7b30 (decision 1d9f3a95),
+		// regenerated against server staging 24d9f3d0c. Compared old/new generated
+		// catalogues: 82 -> 81 model verbs; get_unresolved_questions is retired
+		// (open questions are Still to Discuss points), so it also leaves the
+		// list-projection and fetch-hint families. Model shape change: the type
+		// enums of record_memory and search_memories are the four knowledge types
+		// (decision, convention, insight, risk; search adds "all"), and their texts
+		// say so. get_decisions changed only in text (a design decision is a
+		// decision). Benchmark before/after: initial surface 45,507 -> 44,922
+		// estimated tokens; every budget still passes.
+		"a5163098922bd4a3086b499c1c074f166d6154a3bbe632077f74679748ee9c76",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

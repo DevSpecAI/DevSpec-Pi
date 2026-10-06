@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 0d0ddf6274af1ba71bc6cd19e533f6c4737a7f9370432223269cbb71e31e8bde
- * Description fingerprint: fafaedf77e744b5bbbdda27c35655b4c111fe28355a68205c5ea2780e39069cf
- * Regenerated: 2026-10-06T20:42:50.857Z
+ * Schema fingerprint: ec8a277c5bc41078e5ebea6adf8e772b0693c3aa820efa26b6e07d88caa790a5
+ * Description fingerprint: 8afcb32e4e6af66b597659a1c5d128f58eb576640a057d6d0e9b161e1395532d
+ * Regenerated: 2026-10-06T23:05:49.547Z
  */
-export const MCP_CATALOG_FINGERPRINT = "0d0ddf6274af1ba71bc6cd19e533f6c4737a7f9370432223269cbb71e31e8bde";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "fafaedf77e744b5bbbdda27c35655b4c111fe28355a68205c5ea2780e39069cf";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-06T20:42:50.857Z";
-export const TOOL_CATALOG_VERSION = "829e9d3c41dc5f4d5148a21c6a47e457a6db8223650c7dd9e5662571d2c3b0c4";
+export const MCP_CATALOG_FINGERPRINT = "ec8a277c5bc41078e5ebea6adf8e772b0693c3aa820efa26b6e07d88caa790a5";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "8afcb32e4e6af66b597659a1c5d128f58eb576640a057d6d0e9b161e1395532d";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-06T23:05:49.547Z";
+export const TOOL_CATALOG_VERSION = "0a303533aace934d48a9a3423967e6df279d36106906c2a57530452dda85d044";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -152,7 +152,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_decisions",
 		"name": "get decisions",
-		"description": "List the project's decisions, most recently updated first, as cards: memories of type decision and of type architecture, under which architecture decisions are recorded. Current versions only, whether in discussion or decided. Risks, insights and other types are not included: find those with search_memories and its type filter. Use search_memories when you know the topic, and read a chosen record with get_memory. page.total_matching counts the decisions matching your filters; pass page.next_offset as offset for the next page.",
+		"description": "List the project's decisions, most recently updated first, as cards: memories of type decision, including how things are built. Current versions only, whether in discussion or decided. Conventions, insights and risks are not included: find those with get_conventions, or search_memories and its type filter. Use search_memories when you know the topic, and read a chosen record with get_memory. page.total_matching counts the decisions matching your filters; pass page.next_offset as offset for the next page.",
 		"intent": "list browse recorded project decisions what have we decided"
 	},
 	{
@@ -238,12 +238,6 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"name": "get testing brief",
 		"description": "Gather what testing one action item needs: its description, completion summary, testing and usage notes, deployments and deployment evidence, connected database targets, AI test runs, commits, pull requests, implementation notes, every comment, recent activity, and the decisions and documents relevant to it. It includes the item's intent, its acceptance criteria with their ids and each line's promotion state, and when the round under test was delivered. Comments, deployments and test runs are complete; activity is the newest 50 events, and activity_page.older says how to read earlier ones. To work on or edit the item, read get_action_item; record what you observe with record_criterion_verdicts.",
 		"intent": "how to test verify feature testing brief deployments database targets implementation evidence"
-	},
-	{
-		"id": "get_unresolved_questions",
-		"name": "get unresolved questions",
-		"description": "List memories of type unresolved: open project questions someone recorded and nobody has answered yet, most recently updated first, as cards. These are not review flags (get_review_queue). To ask the person in this conversation something, use manage_directed_question; to record a new open question, use record_memory with type unresolved. page.total_matching counts the questions matching your filters; pass page.next_offset as offset for the next page.",
-		"intent": "list recorded open unanswered project questions unknowns"
 	},
 	{
 		"id": "get_workflow_rules",
@@ -332,8 +326,8 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_memory",
 		"name": "record memory",
-		"description": "Record a durable piece of project knowledge: a decision, convention, architecture fact, risk, insight or open question. Work in progress and delivery evidence belong on the action item (add_implementation_note, record_implementation), and a long document is an artifact (create_resource). As it is written, a quick closeness check (it does not read the records) compares the draft with existing memories. If one closely resembles it, nothing is recorded and the response names it (reconcile_required, closest_match; on a write that would be queued, code reconcile_required and reconcile.closest): read it, then supersede or update it, link the two if both stand, re-call with confirm_new if yours is genuinely distinct, or ask the person, which is often the right answer. Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
-		"intent": "record save capture remember new decision convention architecture risk insight open question"
+		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Work in progress and delivery evidence belong on the action item (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a long document or reference material is an artifact (create_resource). As it is written, a quick closeness check (it does not read the records) compares the draft with existing memories. If one closely resembles it, nothing is recorded and the response names it (reconcile_required, closest_match; on a write that would be queued, code reconcile_required and reconcile.closest): read it, then supersede or update it, link the two if both stand, re-call with confirm_new if yours is genuinely distinct, or ask the person, which is often the right answer. Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"intent": "record save capture remember new decision convention architecture insight risk"
 	},
 	{
 		"id": "release_work_item",
@@ -410,8 +404,8 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "search_memories",
 		"name": "search memories",
-		"description": "Find project memories (decisions, conventions, architecture notes, risks, open questions and other durable knowledge) by meaning or keywords. Returns cards, not bodies: read a chosen record with get_memory before relying on it or changing it. To list decisions, conventions or open questions in full, use get_decisions, get_conventions or get_unresolved_questions; for documents, use search_resources. Every memory the filters allow is returned, best match first: the query orders them and excludes none. word_matches counts the ones containing your words, and page.total_matching counts the whole filtered set. With flagged or signal_type and no query, it lists the flagged memories, most recently updated first. Pass page.next_offset as offset for the next page.",
-		"intent": "find search memory decision convention architecture risk rationale what did we decide topic"
+		"description": "Find project memories (decisions, conventions, insights and risks) by meaning or keywords. Returns cards, not bodies: read a chosen record with get_memory before relying on it or changing it. To list decisions or conventions in full, use get_decisions or get_conventions; for open questions, search_discussion_points; for documents, search_resources. Every memory the filters allow is returned, best match first: the query orders them and excludes none. word_matches counts the ones containing your words, and page.total_matching counts the whole filtered set. With flagged or signal_type and no query, it lists the flagged memories, most recently updated first. Pass page.next_offset as offset for the next page.",
+		"intent": "find search memory decision convention insight risk architecture rationale what did we decide topic"
 	},
 	{
 		"id": "search_resources",
@@ -559,7 +553,6 @@ export const MODEL_VERB_NAMES = [
 	"get_memory",
 	"get_decisions",
 	"get_conventions",
-	"get_unresolved_questions",
 	"get_resources",
 	"search_resources",
 	"get_resource",
@@ -2267,8 +2260,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "search_memories",
 		"label": "DevSpec: Search Memories",
-		"description": "Find project memories (decisions, conventions, architecture notes, risks, open questions and other durable knowledge) by meaning or keywords. Returns cards, not bodies: read a chosen record with get_memory before relying on it or changing it. To list decisions, conventions or open questions in full, use get_decisions, get_conventions or get_unresolved_questions; for documents, use search_resources. Every memory the filters allow is returned, best match first: the query orders them and excludes none. word_matches counts the ones containing your words, and page.total_matching counts the whole filtered set. With flagged or signal_type and no query, it lists the flagged memories, most recently updated first. Pass page.next_offset as offset for the next page.",
-		"searchIntent": "find search memory decision convention architecture risk rationale what did we decide topic",
+		"description": "Find project memories (decisions, conventions, insights and risks) by meaning or keywords. Returns cards, not bodies: read a chosen record with get_memory before relying on it or changing it. To list decisions or conventions in full, use get_decisions or get_conventions; for open questions, search_discussion_points; for documents, search_resources. Every memory the filters allow is returned, best match first: the query orders them and excludes none. word_matches counts the ones containing your words, and page.total_matching counts the whole filtered set. With flagged or signal_type and no query, it lists the flagged memories, most recently updated first. Pass page.next_offset as offset for the next page.",
+		"searchIntent": "find search memory decision convention insight risk architecture rationale what did we decide topic",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -2285,19 +2278,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						"decision",
 						"convention",
-						"architecture",
-						"risk",
-						"preference",
 						"insight",
-						"goal",
-						"unresolved",
-						"reference",
-						"user_observation",
-						"team_observation",
-						"org_context",
+						"risk",
 						"all"
 					],
-					"description": "Only memories of this one type. Omitted or all: every type."
+					"description": "Only memories of this one type: decision (something we chose, including how things are built), convention (how we do things here), insight (something we learned or noticed), risk (a known hazard to watch for). Omitted or all: every type."
 				},
 				"include_superseded": {
 					"type": "boolean",
@@ -2373,19 +2358,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						"decision",
 						"convention",
-						"architecture",
-						"risk",
-						"preference",
 						"insight",
-						"goal",
-						"unresolved",
-						"reference",
-						"user_observation",
-						"team_observation",
-						"org_context",
+						"risk",
 						"all"
 					],
-					"description": "Only memories of this one type. Omitted or all: every type."
+					"description": "Only memories of this one type: decision (something we chose, including how things are built), convention (how we do things here), insight (something we learned or noticed), risk (a known hazard to watch for). Omitted or all: every type."
 				},
 				"include_superseded": {
 					"type": "boolean",
@@ -2525,7 +2502,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_decisions",
 		"label": "DevSpec: Get Decisions",
-		"description": "List the project's decisions, most recently updated first, as cards: memories of type decision and of type architecture, under which architecture decisions are recorded. Current versions only, whether in discussion or decided. Risks, insights and other types are not included: find those with search_memories and its type filter. Use search_memories when you know the topic, and read a chosen record with get_memory. page.total_matching counts the decisions matching your filters; pass page.next_offset as offset for the next page.",
+		"description": "List the project's decisions, most recently updated first, as cards: memories of type decision, including how things are built. Current versions only, whether in discussion or decided. Conventions, insights and risks are not included: find those with get_conventions, or search_memories and its type filter. Use search_memories when you know the topic, and read a chosen record with get_memory. page.total_matching counts the decisions matching your filters; pass page.next_offset as offset for the next page.",
 		"searchIntent": "list browse recorded project decisions what have we decided",
 		"modelInputSchema": {
 			"type": "object",
@@ -2642,121 +2619,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"label": "DevSpec: Get Conventions",
 		"description": "List memories of type convention (coding conventions and team standards), most recently updated first, as cards. Current versions only. Before non-trivial work, read the ones that bear on your change with get_memory; use search_memories for a specific topic. page.total_matching counts the conventions matching your filters; pass page.next_offset as offset for the next page.",
 		"searchIntent": "list coding conventions standards team practices",
-		"modelInputSchema": {
-			"type": "object",
-			"properties": {
-				"offset": {
-					"type": "number",
-					"description": "Where this page starts: page.next_offset from the previous page. Default 0."
-				},
-				"limit": {
-					"type": "number",
-					"description": "Cards per page, 1-100. Default 20."
-				},
-				"flagged": {
-					"type": "boolean",
-					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match. Default false: no flag filter."
-				},
-				"signal_type": {
-					"type": "string",
-					"enum": [
-						"possibly_contradictory",
-						"possibly_stale"
-					],
-					"description": "Only memories carrying this review flag. Implies flagged. Omitted: either flag when flagged is true, otherwise no flag filter."
-				},
-				"requested_by": {
-					"type": "string",
-					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
-				},
-				"request_origin": {
-					"type": "string",
-					"enum": [
-						"human_requested",
-						"agent_initiative",
-						"automatic",
-						"unattributed",
-						"nobody_asked",
-						"unrecorded",
-						"all"
-					],
-					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
-				},
-				"project_id": {
-					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
-					"type": "string"
-				},
-				"git_remote": {
-					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
-					"type": "string"
-				},
-				"pinned_project_id": {
-					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
-					"type": "string"
-				}
-			}
-		},
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"offset": {
-					"type": "number",
-					"description": "Where this page starts: page.next_offset from the previous page. Default 0."
-				},
-				"limit": {
-					"type": "number",
-					"description": "Cards per page, 1-100. Default 20."
-				},
-				"flagged": {
-					"type": "boolean",
-					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match. Default false: no flag filter."
-				},
-				"signal_type": {
-					"type": "string",
-					"enum": [
-						"possibly_contradictory",
-						"possibly_stale"
-					],
-					"description": "Only memories carrying this review flag. Implies flagged. Omitted: either flag when flagged is true, otherwise no flag filter."
-				},
-				"requested_by": {
-					"type": "string",
-					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
-				},
-				"request_origin": {
-					"type": "string",
-					"enum": [
-						"human_requested",
-						"agent_initiative",
-						"automatic",
-						"unattributed",
-						"nobody_asked",
-						"unrecorded",
-						"all"
-					],
-					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
-				},
-				"project_id": {
-					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
-					"type": "string"
-				},
-				"git_remote": {
-					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
-					"type": "string"
-				},
-				"pinned_project_id": {
-					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
-					"type": "string"
-				}
-			}
-		},
-		"kind": "model"
-	},
-	{
-		"name": "get_unresolved_questions",
-		"label": "DevSpec: Get Unresolved Questions",
-		"description": "List memories of type unresolved: open project questions someone recorded and nobody has answered yet, most recently updated first, as cards. These are not review flags (get_review_queue). To ask the person in this conversation something, use manage_directed_question; to record a new open question, use record_memory with type unresolved. page.total_matching counts the questions matching your filters; pass page.next_offset as offset for the next page.",
-		"searchIntent": "list recorded open unanswered project questions unknowns",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -7533,8 +7395,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_memory",
 		"label": "DevSpec: Record Memory",
-		"description": "Record a durable piece of project knowledge: a decision, convention, architecture fact, risk, insight or open question. Work in progress and delivery evidence belong on the action item (add_implementation_note, record_implementation), and a long document is an artifact (create_resource). As it is written, a quick closeness check (it does not read the records) compares the draft with existing memories. If one closely resembles it, nothing is recorded and the response names it (reconcile_required, closest_match; on a write that would be queued, code reconcile_required and reconcile.closest): read it, then supersede or update it, link the two if both stand, re-call with confirm_new if yours is genuinely distinct, or ask the person, which is often the right answer. Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
-		"searchIntent": "record save capture remember new decision convention architecture risk insight open question",
+		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Work in progress and delivery evidence belong on the action item (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a long document or reference material is an artifact (create_resource). As it is written, a quick closeness check (it does not read the records) compares the draft with existing memories. If one closely resembles it, nothing is recorded and the response names it (reconcile_required, closest_match; on a write that would be queued, code reconcile_required and reconcile.closest): read it, then supersede or update it, link the two if both stand, re-call with confirm_new if yours is genuinely distinct, or ask the person, which is often the right answer. Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"searchIntent": "record save capture remember new decision convention architecture insight risk",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -7547,18 +7409,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						"decision",
 						"convention",
-						"architecture",
-						"risk",
-						"preference",
 						"insight",
-						"goal",
-						"unresolved",
-						"reference",
-						"user_observation",
-						"team_observation",
-						"org_context"
+						"risk"
 					],
-					"description": "What kind of knowledge this is: decision (a choice made), convention (a coding or team standard), architecture (how the system is built), risk (a known danger), insight (a non-obvious finding), preference (how a person or the team likes things done), reference (a pointer to an outside source), unresolved (an open question; listed by get_unresolved_questions), goal (a goal-shaped note; project goals themselves are separate), user_observation (about a person), team_observation (about how the team works), org_context (about the organisation)."
+					"description": "What sort of knowledge this is: decision (something we chose, including how things are built), convention (how we do things here), insight (something we learned or noticed), risk (a known hazard to watch for). How something is built is a decision; tag it architecture to keep it findable."
 				},
 				"title": {
 					"type": "string",
@@ -7645,18 +7499,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						"decision",
 						"convention",
-						"architecture",
-						"risk",
-						"preference",
 						"insight",
-						"goal",
-						"unresolved",
-						"reference",
-						"user_observation",
-						"team_observation",
-						"org_context"
+						"risk"
 					],
-					"description": "What kind of knowledge this is: decision (a choice made), convention (a coding or team standard), architecture (how the system is built), risk (a known danger), insight (a non-obvious finding), preference (how a person or the team likes things done), reference (a pointer to an outside source), unresolved (an open question; listed by get_unresolved_questions), goal (a goal-shaped note; project goals themselves are separate), user_observation (about a person), team_observation (about how the team works), org_context (about the organisation)."
+					"description": "What sort of knowledge this is: decision (something we chose, including how things are built), convention (how we do things here), insight (something we learned or noticed), risk (a known hazard to watch for). How something is built is a decision; tag it architecture to keep it findable."
 				},
 				"title": {
 					"type": "string",
@@ -9865,7 +9711,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"message": {
 					"type": "string",
 					"maxLength": 100000,
-					"description": "The message, in Markdown. With phase trail, your whole output for the turn so far; with turn_kind local_prompt, the prompt exactly as the person typed it."
+					"description": "The message, in Markdown. With phase trail, your whole live work output for the turn so far; with turn_kind local_prompt, the prompt exactly as the person typed it."
 				},
 				"reply_to_message_id": {
 					"type": "string",
@@ -9885,7 +9731,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"complete_turn": {
 					"type": "boolean",
-					"description": "true on your final answer: ends your turn in the same call, so Working clears. false on a finished intermediate answer when more work follows; a later trail post may then open a new Working bubble. Omit on progress posts. Ignored without connection_id and for local prompts; phase error always ends the turn."
+					"description": "true on your final answer: ends your turn in the same call, so Working clears. Omit it on a progress message while you keep working; Working stays on. Ignored without connection_id and for local prompts; phase error always ends the turn."
 				},
 				"phase": {
 					"type": "string",
@@ -9895,7 +9741,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"answer",
 						"error"
 					],
-					"description": "answer: a finished message; it closes your open trail bubble. trail: live mid-turn output that grows one bubble; send about once a second, not per line. needs_input: the turn is blocked on the person (pass needs_input); it stays open. error: the turn failed; the bubble closes in an error state and the turn ends. trail and needs_input need connection_id and an open turn. Omitted: answer."
+					"description": "answer: a message people read in the room. Use it for everything you write for a person, progress while you keep working included. trail: live work output, such as terminal and tool output, shown under your Technical details and never in the conversation, so a person reading the room does not see it; send it about once a second, not per line. needs_input: the turn is blocked on the person (pass needs_input); it stays open. error: the turn failed; the turn ends in an error state. trail and needs_input need connection_id and an open turn. Omitted: answer."
 				},
 				"needs_input": {
 					"type": "object",
@@ -10260,7 +10106,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"message": {
 					"type": "string",
 					"maxLength": 100000,
-					"description": "The message, in Markdown. With phase trail, your whole output for the turn so far; with turn_kind local_prompt, the prompt exactly as the person typed it."
+					"description": "The message, in Markdown. With phase trail, your whole live work output for the turn so far; with turn_kind local_prompt, the prompt exactly as the person typed it."
 				},
 				"reply_to_message_id": {
 					"type": "string",
@@ -10280,7 +10126,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"complete_turn": {
 					"type": "boolean",
-					"description": "true on your final answer: ends your turn in the same call, so Working clears. false on a finished intermediate answer when more work follows; a later trail post may then open a new Working bubble. Omit on progress posts. Ignored without connection_id and for local prompts; phase error always ends the turn."
+					"description": "true on your final answer: ends your turn in the same call, so Working clears. Omit it on a progress message while you keep working; Working stays on. Ignored without connection_id and for local prompts; phase error always ends the turn."
 				},
 				"phase": {
 					"type": "string",
@@ -10290,7 +10136,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"answer",
 						"error"
 					],
-					"description": "answer: a finished message; it closes your open trail bubble. trail: live mid-turn output that grows one bubble; send about once a second, not per line. needs_input: the turn is blocked on the person (pass needs_input); it stays open. error: the turn failed; the bubble closes in an error state and the turn ends. trail and needs_input need connection_id and an open turn. Omitted: answer."
+					"description": "answer: a message people read in the room. Use it for everything you write for a person, progress while you keep working included. trail: live work output, such as terminal and tool output, shown under your Technical details and never in the conversation, so a person reading the room does not see it; send it about once a second, not per line. needs_input: the turn is blocked on the person (pass needs_input); it stays open. error: the turn failed; the turn ends in an error state. trail and needs_input need connection_id and an open turn. Omitted: answer."
 				},
 				"needs_input": {
 					"type": "object",
@@ -13864,8 +13710,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 94,
-	model: 82,
+	total: 93,
+	model: 81,
 	pump: 11,
 	never_model: 1,
 } as const;

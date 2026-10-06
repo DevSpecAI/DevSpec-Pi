@@ -46,7 +46,6 @@ const COLLECTION_VERBS = new Set([
 	"search_memories",
 	"get_decisions",
 	"get_conventions",
-	"get_unresolved_questions",
 	"get_recent_sessions",
 	"search_sessions",
 	"search_discussion_points",
@@ -536,7 +535,7 @@ function totalRows(root: Row, found: number): number {
 
 function fetchHint(toolName: string): string {
 	if (toolName.includes("action_item")) return "Fetch an exact item with get_action_item(id); rerun with a narrower filter or next offset/page for more.";
-	if (toolName.includes("memor") || ["get_decisions", "get_conventions", "get_unresolved_questions"].includes(toolName)) {
+	if (toolName.includes("memor") || ["get_decisions", "get_conventions"].includes(toolName)) {
 		return "Fetch an exact memory with get_memory(id); rerun the list/search with a narrower filter for more.";
 	}
 	if (toolName.includes("resource")) return "Fetch an exact resource with get_resource(id); rerun the list/search with a narrower filter for more.";

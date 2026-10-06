@@ -429,7 +429,21 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// (3573c378). No projection family changed. Benchmark before/after: initial
 		// surface 41,699 -> 43,836 estimated tokens, from the rewritten description
 		// text; every budget still passes.
-		"78f93bedf3663e46f65204d1a22133f18228ba7871a9ef53d18800210fba4696",
+		// Rebaselined 2026-10-06 for DevSpec items 3573c378 and 92cd98be, regenerated
+		// against server staging d11acda5b. Compared old/new generated model objects:
+		// 82 -> 82 model verbs, none added or removed. One shape change:
+		// get_recent_sessions gains optional status (active | archived), which the
+		// server now filters and counts (92cd98be). Four changed only in text:
+		// search_discussion_points says points from rooms you can't open are left out
+		// and that a session_id it is sent is checked, not ignored (3573c378); the
+		// markdown guidance on add_implementation_note.content,
+		// record_implementation.completion_note and
+		// record_completed_work.implementation_summary came with this regeneration
+		// from server work since the last one. Host-only parameters marked since the
+		// last one stay in the wire schemas and leave only the model schemas of pump
+		// verbs. No projection family changed. Benchmark before/after: initial surface
+		// 43,836 -> 44,086 estimated tokens; every budget still passes.
+		"223fea12c4741124023253ed33430aad2d6f6e4274dab445d29c53fa03646859",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.4
+
+- Recent sessions can be narrowed to active or archived rooms, and the count covers just those. Three tool descriptions now say what the tools do: which rooms the recent list and Still to Discuss search leave out, and that a room id sent to Still to Discuss search is checked rather than ignored. The catalogue is regenerated against DevSpec's current tools.
+
 ## 0.4.3
 
 - DevSpec now works out for itself whether an agent's work was unattended, so Pi's tools no longer carry a setting for it, and the retired runner heartbeat is gone from Pi's catalogue. The catalogue is regenerated against DevSpec's current tools, including their rewritten descriptions.

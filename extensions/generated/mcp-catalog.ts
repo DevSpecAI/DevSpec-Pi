@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 42c305acbe98370d6297abf93ce1e36e2da8944887b4951295670efbb2217645
- * Description fingerprint: ad3d1af96586e2d64d1ccb258928cdce395271191d172834d9a43d0871352e98
- * Regenerated: 2026-10-05T23:07:17.474Z
+ * Schema fingerprint: 48ce32414f92c6cb5241516e1f0866a213edaca012ab7923126002b3e5eeea5b
+ * Description fingerprint: 924779191ef996be7b63e8502950718101515fda1240d3aab73a32651dd68250
+ * Regenerated: 2026-10-06T11:24:06.152Z
  */
-export const MCP_CATALOG_FINGERPRINT = "42c305acbe98370d6297abf93ce1e36e2da8944887b4951295670efbb2217645";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "ad3d1af96586e2d64d1ccb258928cdce395271191d172834d9a43d0871352e98";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-05T23:07:17.474Z";
-export const TOOL_CATALOG_VERSION = "d6ac4ccd120efee1a22ef3e1894f5a991a133bf02607075c82bb41d47cfc2ef8";
+export const MCP_CATALOG_FINGERPRINT = "48ce32414f92c6cb5241516e1f0866a213edaca012ab7923126002b3e5eeea5b";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "924779191ef996be7b63e8502950718101515fda1240d3aab73a32651dd68250";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-06T11:24:06.152Z";
+export const TOOL_CATALOG_VERSION = "ba22652305e92ebe115533bca8117e9cf3231f9e8970f4247059158bd8f92a1a";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -206,7 +206,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_recent_sessions",
 		"name": "get recent sessions",
-		"description": "List this project's rooms, newest created first, each with id, title, status, created_at and last_activity_at. For a remembered topic or phrase use search_sessions; to read a room use get_session_transcript. page.total_matching is how many exist; pass page.next_offset as offset for more.",
+		"description": "List the rooms in this project that you can open, newest created first, each with id, title, status, created_at and last_activity_at. Private and Restricted rooms you are not in, background rooms and direct messages are not listed. For a remembered topic or phrase use search_sessions; to read a room use get_session_transcript. page.total_matching is how many rooms you can open; pass page.next_offset as offset for more.",
 		"intent": "list browse recent conversations rooms sessions newest"
 	},
 	{
@@ -404,7 +404,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "search_discussion_points",
 		"name": "search discussion points",
-		"description": "Find this project's Still to Discuss points: topics a conversation raised but has not settled. Without query it lists open points, newest first; with query it searches every state, most relevant first; state narrows either. Cards carry a title and preview; read one in full with get_discussion_point. These are discussion records, not work (search_action_items) or decisions (search_memories). page.total_matching counts every point your filters allow and word_matches those containing your words; pass page.next_offset as offset for more.",
+		"description": "Find this project's Still to Discuss points: topics a conversation raised but has not settled. Points raised in a room you can't open are left out, and so are not counted. Without query it lists open points, newest first; with query it searches every state, most relevant first; state narrows either. Cards carry a title and preview; read one in full with get_discussion_point. These are discussion records, not work (search_action_items) or decisions (search_memories). page.total_matching counts every point your filters allow and word_matches those containing your words; pass page.next_offset as offset for more.",
 		"intent": "find open unresolved still to discuss discussion topics loops"
 	},
 	{
@@ -3435,7 +3435,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_recent_sessions",
 		"label": "DevSpec: Get Recent Sessions",
-		"description": "List this project's rooms, newest created first, each with id, title, status, created_at and last_activity_at. For a remembered topic or phrase use search_sessions; to read a room use get_session_transcript. page.total_matching is how many exist; pass page.next_offset as offset for more.",
+		"description": "List the rooms in this project that you can open, newest created first, each with id, title, status, created_at and last_activity_at. Private and Restricted rooms you are not in, background rooms and direct messages are not listed. For a remembered topic or phrase use search_sessions; to read a room use get_session_transcript. page.total_matching is how many rooms you can open; pass page.next_offset as offset for more.",
 		"searchIntent": "list browse recent conversations rooms sessions newest",
 		"modelInputSchema": {
 			"type": "object",
@@ -3447,6 +3447,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"limit": {
 					"type": "number",
 					"description": "Rooms per page. Defaults to 10; at most 50."
+				},
+				"status": {
+					"type": "string",
+					"enum": [
+						"active",
+						"archived"
+					],
+					"description": "Only rooms with this status; page.total_matching then counts those rooms only. Omitted: active and archived rooms both."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -3472,6 +3480,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"limit": {
 					"type": "number",
 					"description": "Rooms per page. Defaults to 10; at most 50."
+				},
+				"status": {
+					"type": "string",
+					"enum": [
+						"active",
+						"archived"
+					],
+					"description": "Only rooms with this status; page.total_matching then counts those rooms only. Omitted: active and archived rooms both."
 				},
 				"project_id": {
 					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
@@ -3571,7 +3587,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "search_discussion_points",
 		"label": "DevSpec: Search Discussion Points",
-		"description": "Find this project's Still to Discuss points: topics a conversation raised but has not settled. Without query it lists open points, newest first; with query it searches every state, most relevant first; state narrows either. Cards carry a title and preview; read one in full with get_discussion_point. These are discussion records, not work (search_action_items) or decisions (search_memories). page.total_matching counts every point your filters allow and word_matches those containing your words; pass page.next_offset as offset for more.",
+		"description": "Find this project's Still to Discuss points: topics a conversation raised but has not settled. Points raised in a room you can't open are left out, and so are not counted. Without query it lists open points, newest first; with query it searches every state, most relevant first; state narrows either. Cards carry a title and preview; read one in full with get_discussion_point. These are discussion records, not work (search_action_items) or decisions (search_memories). page.total_matching counts every point your filters allow and word_matches those containing your words; pass page.next_offset as offset for more.",
 		"searchIntent": "find open unresolved still to discuss discussion topics loops",
 		"modelInputSchema": {
 			"type": "object",
@@ -3607,7 +3623,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"session_id": {
 					"type": "string",
-					"description": "The room to search when scope is room (UUID or 8-character short code). Ignored for a project-wide search."
+					"description": "The room to search when scope is room (UUID or 8-character short code). It must be a room in this project that you can open. A project-wide search does not use it, but one sent anyway must still be such a room, or the call is refused."
 				},
 				"tag": {
 					"type": "string",
@@ -3669,7 +3685,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"session_id": {
 					"type": "string",
-					"description": "The room to search when scope is room (UUID or 8-character short code). Ignored for a project-wide search."
+					"description": "The room to search when scope is room (UUID or 8-character short code). It must be a room in this project that you can open. A project-wide search does not use it, but one sent anyway must still be such a room, or the call is refused."
 				},
 				"tag": {
 					"type": "string",
@@ -3943,7 +3959,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_connection_dispatch",
 		"label": "DevSpec: Get Connection Dispatch",
-		"description": "Read the automation runs waiting for a connection you own. Its dispatches are explicit automation runs only, never action-item work: work asked for in a conversation is reserved with reserve_work_items, then claimed in order. Runs that name a different agent, or that this agent may not take unattended, are left out. Pass dispatch_id to recheck one run: an empty result then means it is no longer waiting for this connection. poll_connection already carries these in dispatches[], and get_automation_runs is the list models read; take a run with claim_automation_run. Reading with another of the owner's tokens rebinds the connection to that token.",
+		"description": "Read the automation runs waiting for a connection you own. Its dispatches are explicit automation runs only, never action-item work: work asked for in a conversation is reserved with reserve_work_items, then claimed in order. Runs that name a different agent, or that this agent may not take unattended, are left out. Pass dispatch_id to recheck one run: an empty result then means it is no longer waiting for this connection. poll_connection already carries these in dispatches[], and get_automation_runs is the list models read; take a run with claim_automation_run.",
 		"searchIntent": "",
 		"modelInputSchema": {
 			"type": "object",
@@ -5711,7 +5727,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"content": {
 					"type": "string",
-					"description": "The note, in Markdown."
+					"description": "The note. Shown to people as formatted markdown. Say everything you would anyway, then lay it out so it's easy to scan: short headings when there are several parts, bullets for separate points, `code` for file and function names, and a blank line between sections."
 				},
 				"session_id": {
 					"type": "string",
@@ -5770,7 +5786,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"content": {
 					"type": "string",
-					"description": "The note, in Markdown."
+					"description": "The note. Shown to people as formatted markdown. Say everything you would anyway, then lay it out so it's easy to scan: short headings when there are several parts, bullets for separate points, `code` for file and function names, and a blank line between sections."
 				},
 				"session_id": {
 					"type": "string",
@@ -6311,7 +6327,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"completion_note": {
 					"type": "string",
-					"description": "What you did, for the implementation record. It is stored as this round's summary and added as an implementation note. Omitted, the earlier completion note is kept."
+					"description": "What you did, for the implementation record. It is stored as this round's summary and added as an implementation note. Omitted, the earlier completion note is kept. Shown to people as formatted markdown. Say everything you would anyway, then lay it out so it's easy to scan: short headings when there are several parts, bullets for separate points, `code` for file and function names, and a blank line between sections."
 				},
 				"completion_confidence": {
 					"type": "integer",
@@ -6495,7 +6511,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"completion_note": {
 					"type": "string",
-					"description": "What you did, for the implementation record. It is stored as this round's summary and added as an implementation note. Omitted, the earlier completion note is kept."
+					"description": "What you did, for the implementation record. It is stored as this round's summary and added as an implementation note. Omitted, the earlier completion note is kept. Shown to people as formatted markdown. Say everything you would anyway, then lay it out so it's easy to scan: short headings when there are several parts, bullets for separate points, `code` for file and function names, and a blank line between sections."
 				},
 				"completion_confidence": {
 					"type": "integer",
@@ -6678,7 +6694,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"implementation_summary": {
 					"type": "string",
-					"description": "What was actually done: the implementation, the decisions and the trade-offs. It becomes the item's completion note and an implementation note, and it renders as Markdown. Use bold for key terms, a bullet per distinct change, inline code for file and function names, and blank lines between sections."
+					"description": "What was actually done: the implementation, the decisions and the trade-offs. It becomes the item's completion note and an implementation note. Shown to people as formatted markdown. Say everything you would anyway, then lay it out so it's easy to scan: short headings when there are several parts, bullets for separate points, `code` for file and function names, and a blank line between sections."
 				},
 				"commits": {
 					"type": "array",
@@ -6849,7 +6865,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"implementation_summary": {
 					"type": "string",
-					"description": "What was actually done: the implementation, the decisions and the trade-offs. It becomes the item's completion note and an implementation note, and it renders as Markdown. Use bold for key terms, a bullet per distinct change, inline code for file and function names, and blank lines between sections."
+					"description": "What was actually done: the implementation, the decisions and the trade-offs. It becomes the item's completion note and an implementation note. Shown to people as formatted markdown. Say everything you would anyway, then lay it out so it's easy to scan: short headings when there are several parts, bullets for separate points, `code` for file and function names, and a blank line between sections."
 				},
 				"commits": {
 					"type": "array",
@@ -11563,13 +11579,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"description": "Send 1 to get project_selection in the reply: the resolved project, its organisation and how it was chosen (explicit, git_remote, folder_pin, single_project, conversation or connection)."
 				},
-				"connection_capability_version": {
-					"type": "number",
-					"enum": [
-						1
-					],
-					"description": "Host-only. 1 returns a freshly rotated per-connection capability in the result _meta, which replaces any capability issued for this connection before. Never show the value to the model."
-				},
 				"folder_scope_only": {
 					"type": "boolean",
 					"description": "For a registration the host makes by itself at startup, not one a person asked for: resolve the project from this folder's git remote or pin only, never from \"your only project\". When honoured the reply echoes folder_scope_only: true; if it does not, the server ignored the flag and the host should not stay registered."
@@ -11664,6 +11673,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						1
 					],
+					"x-devspec-host-only": true,
 					"description": "Host-only. 1 returns a freshly rotated per-connection capability in the result _meta, which replaces any capability issued for this connection before. Never show the value to the model."
 				},
 				"folder_scope_only": {
@@ -12489,68 +12499,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"description": "With room_context_version 1: null the first time, then room_context.deletions.seen from the previous response, verbatim. Deletions after that point come back oldest first with the room's tombstone total; truncated means more follow, so keep polling. If your tombstone count is below total once complete, send null to relist."
 				},
-				"interaction_event_version": {
-					"type": "integer",
-					"enum": [
-						1
-					],
-					"description": "Host-only in practice. 1 opts into interaction events: the answer to this connection's directed question, delivered for the host to claim and acknowledge. An event is never a command and carries no conversational authority. Requires this connection's capability."
-				},
-				"question_dismissal_event_version": {
-					"type": "integer",
-					"enum": [
-						1
-					],
-					"description": "1 also opts into dismissal events (the person dismissed your question) and their acknowledgements; requires interaction_event_version 1. Answers take priority."
-				},
-				"question_dismissal_event_ack": {
-					"type": "object",
-					"properties": {
-						"event_id": {
-							"type": "string",
-							"format": "uuid"
-						},
-						"question_id": {
-							"type": "string",
-							"format": "uuid"
-						},
-						"claim_token": {
-							"type": "string",
-							"format": "uuid"
-						}
-					},
-					"required": [
-						"event_id",
-						"question_id",
-						"claim_token"
-					],
-					"additionalProperties": false,
-					"description": "Acknowledge a dismissal event with its {event_id, question_id, claim_token}, only after the host has durably persisted its continuation; requires both event negotiations."
-				},
-				"interaction_event_ack": {
-					"type": "object",
-					"properties": {
-						"event_id": {
-							"type": "string",
-							"format": "uuid"
-						},
-						"response_id": {
-							"type": "string",
-							"format": "uuid"
-						},
-						"claim_token": {
-							"type": "string",
-							"format": "uuid"
-						}
-					},
-					"required": [
-						"event_id",
-						"response_id",
-						"claim_token"
-					],
-					"additionalProperties": false,
-					"description": "Acknowledge an interaction event with its {event_id, response_id, claim_token}, only after the host has durably applied it; requires interaction_event_version 1 and this connection's capability."
-				},
 				"cursor": {
 					"type": "string",
 					"description": "Legacy: the last message id you saw. The server upgrades it and returns cursor_v2; echo cursor_v2 from then on. One that does not resolve returns the window as history with reseed: true."
@@ -13048,14 +12996,16 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						1
 					],
-					"description": "Host-only in practice. 1 opts into interaction events: the answer to this connection's directed question, delivered for the host to claim and acknowledge. An event is never a command and carries no conversational authority. Requires this connection's capability."
+					"x-devspec-host-only": true,
+					"description": "Host-only. 1 opts into interaction events: the answer to this connection's directed question, delivered for the host to claim and acknowledge. An event is never a command and carries no conversational authority. Requires this connection's capability."
 				},
 				"question_dismissal_event_version": {
 					"type": "integer",
 					"enum": [
 						1
 					],
-					"description": "1 also opts into dismissal events (the person dismissed your question) and their acknowledgements; requires interaction_event_version 1. Answers take priority."
+					"x-devspec-host-only": true,
+					"description": "Host-only. 1 also opts into dismissal events (the person dismissed your question) and their acknowledgements; requires interaction_event_version 1. Answers take priority."
 				},
 				"question_dismissal_event_ack": {
 					"type": "object",
@@ -13079,7 +13029,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"claim_token"
 					],
 					"additionalProperties": false,
-					"description": "Acknowledge a dismissal event with its {event_id, question_id, claim_token}, only after the host has durably persisted its continuation; requires both event negotiations."
+					"x-devspec-host-only": true,
+					"description": "Host-only. Acknowledge a dismissal event with its {event_id, question_id, claim_token}, only after the host has durably persisted its continuation; requires both event negotiations."
 				},
 				"interaction_event_ack": {
 					"type": "object",
@@ -13103,7 +13054,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"claim_token"
 					],
 					"additionalProperties": false,
-					"description": "Acknowledge an interaction event with its {event_id, response_id, claim_token}, only after the host has durably applied it; requires interaction_event_version 1 and this connection's capability."
+					"x-devspec-host-only": true,
+					"description": "Host-only. Acknowledge an interaction event with its {event_id, response_id, claim_token}, only after the host has durably applied it; requires interaction_event_version 1 and this connection's capability."
 				},
 				"cursor": {
 					"type": "string",

@@ -27,6 +27,7 @@ import { observeSuccessfulWorkResult } from "./core/work-state.ts";
 import { guardWriteRefs, observeResultClaimRefs } from "./core/provenance-refs.ts";
 import { directedQuestionTranscriptReceiptId } from "./core/question-receipt-lifecycle.ts";
 import {
+	catalogEntry,
 	DIRECTED_QUESTION_TOOL_NAME,
 	HOT_SET_VERBS,
 	isConnectionBoundTool,
@@ -63,6 +64,7 @@ import {
 	paintStatus,
 } from "./core/status-line.ts";
 import { MODEL_VERB_NAMES, type CatalogEntry } from "./generated/mcp-catalog.ts";
+import { toolVersionMismatchNote } from "./core/version-mismatch.ts";
 
 /**
  * A write the server queued instead of committing (DevSpec item 06936ee9). The
@@ -98,7 +100,12 @@ export function unwrapOrThrow(name: string, raw: unknown) {
 		} catch {
 			/* parsed JSON should be serializable; retain the generic fallback if not */
 		}
-		throw new Error(text || structuredError || `DevSpec tool ${name} failed.`);
+		// A refusal caused by DevSpec and this extension describing the tool
+		// differently says so, so the model can tell the person to update
+		// (item 39c05c1f). Ordinary mistakes carry no such note.
+		const mismatch = toolVersionMismatchNote(name, details, catalogEntry(name)?.inputSchema);
+		const reason = text || structuredError || `DevSpec tool ${name} failed.`;
+		throw new Error(mismatch ? `${reason}\n\n${mismatch}` : reason);
 	}
 	const projected = projectedToolResult(name, { text: unwrapped.text, details, isError });
 	// Append AFTER projection: ack/full projections intentionally read details,

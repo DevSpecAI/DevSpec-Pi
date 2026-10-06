@@ -1,8 +1,15 @@
 # Changelog
 
-## 0.4.5
+## 0.5.1
 
 - Ending Pi from DevSpec (End on the Agents page or in a session) now closes Pi in its terminal, straight away and even mid-task, so with many terminals open you no longer have to find the right one and quit it by hand. Any running work is stopped and Pi prints how to resume the conversation. Stopping it from the terminal, a detach, or a brief problem on DevSpec's side never closes Pi.
+
+## 0.5.0
+
+- Pi keeps working when DevSpec is newer than this extension. DevSpec's rules for agents are read part by part: anything Pi does not recognise is ignored, and a part it cannot read is passed to the agent exactly as DevSpec sent it, with a note. Before, one changed detail anywhere in those rules made `/devspec.work` set them all aside and use Pi's short built-in rules, which is what had been happening since mid-September. Pi now reads the rules DevSpec serves today in full.
+- When a DevSpec tool call fails because DevSpec has changed that tool (a new required input, different allowed values, or a tool that no longer exists), the error says so and tells the agent to ask you to update the extension. Ordinary mistakes in a call are reported as before.
+- When DevSpec sends Pi a message it cannot read, Pi says so once, here and in the room, instead of retrying silently. It keeps checking, so the message is still acted on once Pi can read it. Room details Pi cannot read, such as polls or Still to Discuss, are reported once here too.
+- Each of these notes says how to fix it: run `pi update --extensions`, then restart Pi.
 
 ## 0.4.4
 

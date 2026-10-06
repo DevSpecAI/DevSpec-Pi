@@ -436,6 +436,16 @@ export function isPermanentServerEnd(status?: string | null, endReason?: string 
 	return endReason === "ui" || endReason === "local_stop";
 }
 
+/**
+ * A person ended this agent from DevSpec (End on the Agents page or in a session), so
+ * Pi closes itself (item 7813bcd9). The server's `ui` is the only end that does this:
+ * only the connection's owner can cause it. A local stop means the person is at this
+ * terminal and keeps Pi open, and every recoverable end keeps it open too.
+ */
+export function personEndClosesPi(status?: string | null, endReason?: string | null): boolean {
+	return isPermanentServerEnd(status, endReason) && endReason === "ui";
+}
+
 export interface CallOptions {
 	/** Host-frozen endpoint for an existing observation; never adopt a new login's URL on retry. */
 	endpoint?: string;

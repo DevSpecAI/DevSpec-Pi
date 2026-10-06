@@ -69,6 +69,8 @@ const DEBUG_FIELDS = {
 	"push channel closed": ["reasonPresent"],
 	"push channel connect failed": ["errorPresent"],
 	"push ended recoverable": ["reasonPresent"],
+	"ended from DevSpec — closing Pi": [],
+	"shutdown after End failed": ["errorPresent"],
 	"push reconnect attempt": ["attempt", "delayMs"],
 	"push reconnects exhausted — held long-poll fallback": [],
 	"push unavailable — held long-poll fallback": [],

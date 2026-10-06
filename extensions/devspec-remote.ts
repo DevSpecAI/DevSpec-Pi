@@ -38,6 +38,7 @@ import {
 	readDevspecResource,
 	DevspecAuthError,
 	isPermanentServerEnd,
+	personEndClosesPi,
 	MODEL_TIMEOUT_MS,
 	DevspecToolError,
 	shouldEndBondOnPollFailure,
@@ -1362,6 +1363,29 @@ function scheduleTitleRefresh(sessionId: string, delayMs = 8_000): void {
 	if (typeof timer.unref === "function") timer.unref();
 }
 
+/**
+ * End from DevSpec closes Pi (item 7813bcd9). Runs after the pump has stopped, so the
+ * connection is already settled; Pi's own graceful shutdown then runs session_shutdown,
+ * which finishes this extension's cleanup. Only a person's End reaches here
+ * (personEndClosesPi), never a local stop or a recoverable end.
+ *
+ * Pi's shutdown() only RECORDS the request while the agent is working, and carries it
+ * out when the run settles (interactive-mode `shutdownHandler` → `agent_settled`).
+ * Measured 2026-10-06 on Pi 1.0.0: mid-turn, shutdown() alone left Pi running its
+ * tool for over a minute. The owner decided End closes even mid-task, so the run is
+ * aborted after the request is recorded, and the settle it causes does the shutdown.
+ */
+function closePiOnPersonEnd(ctx: ExtensionContext, status: string | null | undefined, endReason: string | null | undefined): void {
+	if (!personEndClosesPi(status, endReason)) return;
+	debug("ended from DevSpec — closing Pi");
+	try {
+		ctx.shutdown();
+		if (!ctx.isIdle()) ctx.abort();
+	} catch (err) {
+		debug("shutdown after End failed", { errorPresent: Boolean(err) });
+	}
+}
+
 async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "owner_gone" | "auth", serverAlreadyEnded = false): Promise<void> {
 	const active = pump;
 	if (!active) return;
@@ -2352,6 +2376,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (isPermanentServerEnd("ended", active.pushEnded)) {
 				notify(ctx, `DevSpec remote: connection ended${active.pushEnded ? ` (${active.pushEnded})` : ""}.`, "info");
 				await stopPump(ctx, "owner_gone", true);
+				closePiOnPersonEnd(ctx, "ended", active.pushEnded);
 				return;
 			}
 			debug("push ended recoverable", { reasonPresent: Boolean(active.pushEnded) });
@@ -2531,6 +2556,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (isPermanentServerEnd(status, endReason)) {
 				notify(ctx, `DevSpec remote: connection ended${endReason ? ` (${endReason})` : ""}.`, "info");
 				await stopPump(ctx, "owner_gone", true);
+				closePiOnPersonEnd(ctx, status, endReason);
 				return;
 			}
 			active.errors += 1;

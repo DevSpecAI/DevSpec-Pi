@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.5
+
+- Ending Pi from DevSpec (End on the Agents page or in a session) now closes Pi in its terminal, straight away and even mid-task, so with many terminals open you no longer have to find the right one and quit it by hand. Any running work is stopped and Pi prints how to resume the conversation. Stopping it from the terminal, a detach, or a brief problem on DevSpec's side never closes Pi.
+
 ## 0.4.4
 
 - Recent sessions can be narrowed to active or archived rooms, and the count covers just those. Three tool descriptions now say what the tools do: which rooms the recent list and Still to Discuss search leave out, and that a room id sent to Still to Discuss search is checked rather than ignored. The catalogue is regenerated against DevSpec's current tools.

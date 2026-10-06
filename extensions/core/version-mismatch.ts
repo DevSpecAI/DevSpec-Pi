@@ -110,3 +110,25 @@ export function toolVersionMismatchNote(toolName: string, refusal: unknown, wire
 			return null;
 	}
 }
+
+/**
+ * What to say when DevSpec sends this Pi a remote message it cannot read — once per
+ * distinct reason, not on every retry. Before, Pi only wrote a debug line and
+ * retried, so a command sent from a room never arrived and nobody was told why.
+ * Pi keeps retrying with the cursor where it was, so a corrected message is still
+ * picked up; this only makes the wait visible. The room text is for whoever sent
+ * the command, who cannot see Pi's terminal; the reason stays local, because it is
+ * Pi's parser talking.
+ */
+export function unreadableRemoteMessageNotice(
+	reason: string | undefined,
+	alreadyReported: string | undefined,
+): { key: string; local: string; room: string } | null {
+	const key = reason?.trim() || "the message did not match any format this extension reads";
+	if (key === alreadyReported) return null;
+	return {
+		key,
+		local: `DevSpec sent this Pi a message it cannot read (${key}), so Pi has not acted on it. Pi keeps checking and will act on the message once it can read it. ${UPDATE_EXTENSION_INSTRUCTION}`,
+		room: "I couldn't read a message DevSpec sent me, so I haven't acted on it. My DevSpec Pi extension is probably out of date: on the computer I'm running on, run `pi update --extensions`, then restart Pi.",
+	};
+}

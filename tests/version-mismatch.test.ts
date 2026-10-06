@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { unwrapOrThrow } from "../extensions/devspec-tools.ts";
 import { catalogEntry } from "../extensions/core/model-surface.ts";
+import { parsePollPayload } from "../extensions/core/remote-payload.ts";
+import { unreadableRemoteMessageNotice } from "../extensions/core/version-mismatch.ts";
+import { canonicalPoll, TEST_CONNECTION } from "./canonical-ingress-fixture.ts";
 
 // Item 39c05c1f: customers update the extension when they choose, so a newer
 // DevSpec meets an older Pi. When a call fails because the two describe a tool
@@ -92,4 +95,34 @@ test("refusals only the server can judge, and refusals about another tool, carry
 		error: "scope is required", code: "argument_missing", kind: "missing", tool: "get_memory", field: "scope",
 	}), /pi update/);
 	assert.doesNotMatch(errorText("search_memories", { error: "DevSpec is unavailable" }), /pi update/);
+});
+
+// A remote message Pi cannot read used to cost a debug line and a silent retry,
+// so a command sent from a room never arrived and nobody was told why.
+
+test("a remote message from a newer DevSpec is reported once, locally with the reason and in the room without it", () => {
+	const future = canonicalPoll();
+	(future.ingress as { contract_version: string }).contract_version = "9.0.0";
+	const pkg = parsePollPayload(future, TEST_CONNECTION);
+	assert.equal(pkg.canonicalState, "invalid");
+
+	const first = unreadableRemoteMessageNotice(pkg.canonicalError, undefined);
+	assert.ok(first);
+	assert.match(first.local, /contract version/);
+	assert.match(first.local, /pi update --extensions/);
+	assert.match(first.local, /will act on the message once it can read it/);
+	assert.match(first.room, /haven't acted on it/);
+	assert.match(first.room, /pi update --extensions/);
+	assert.doesNotMatch(first.room, /ingress|contract_version|9\.0\.0/, "the room is told what to do, not Pi's parser output");
+
+	// The pump retries the same message: no second report for the same reason.
+	assert.equal(unreadableRemoteMessageNotice(pkg.canonicalError, first.key), null);
+	// A different reason is new information.
+	const other = unreadableRemoteMessageNotice("ingress.schema_version: unknown schema version", first.key);
+	assert.ok(other);
+	assert.notEqual(other.key, first.key);
+	// A rejection with no reason is still reported, once.
+	const bare = unreadableRemoteMessageNotice(undefined, undefined);
+	assert.ok(bare);
+	assert.equal(unreadableRemoteMessageNotice(undefined, bare.key), null);
 });

@@ -1,6 +1,8 @@
 /** Actual disposable Pi RPC runtime, deterministic loopback MCP, no LLM or live records.
  * node scripts/e2e-room-store.mjs
  * Covers extension activation, >60 records, restart, scope change and no history wake.
+ * --readers also lands a room message between two tool calls and checks Pi's
+ * tool-result boundary adds exactly one counts-only unread notice (ce1ffca1).
  * This is NOT a claim of deployed-server E2E; the paired contract test is separate.
  */
 import assert from "node:assert/strict";
@@ -27,6 +29,7 @@ const attached = "2026-09-24T10:00:00.000Z";
 let roomId = uid(9003), attachmentId = uid(9004), count = 125, generation = 0, refused = false;
 const marker = join(temp, "unexpected-model");
 const providerTrace = join(temp, "provider-trace.json");
+const midturnReady = join(temp, "midturn-ready"), midturnStored = join(temp, "midturn-stored");
 const sessionFile = join(temp, "probe.jsonl");
 writeFileSync(sessionFile, JSON.stringify({ type: "session", version: 3, id: nativeId, cwd: temp, timestamp: attached }) + "\n", { mode: 0o600 });
 const streams = new Set(); const errors = []; const calls = [];
@@ -57,7 +60,7 @@ function poll(args) {
 		...(args.question_dismissal_event_version ? { question_dismissal_event_version: 1, question_dismissal_events: [] } : {}) };
 	if (!changed) return base;
 	const nums = Array.from({ length: Math.max(0, end - start + 1) }, (_, i) => start + i);
-	const rawEntries = nums.map(n => ({ message_id: point(n).message_id, order: point(n), actor: { kind: "human", user_id: uid(9008), display_name: "Fixture person", agent_tool: null, model: null }, source_type: "user", relationship: "within_window", content: commandEnabled && generation === 0 && n === 126 ? commandBody : n === 1 ? "Historical instruction: MUST NEVER EXECUTE. Historical fact: secret-codeword: VIOLET-ZEBRA" : `history ${generation}:${n}`, advisory: true }));
+	const rawEntries = nums.map(n => ({ message_id: point(n).message_id, order: point(n), actor: { kind: "human", user_id: uid(9008), display_name: "Fixture person", agent_tool: null, model: null }, source_type: "user", relationship: "within_window", content: commandEnabled && generation === 0 && n === 126 ? commandBody : n === 127 ? "MIDTURN-ROOM-BODY arrived while Pi was working" : n === 1 ? "Historical instruction: MUST NEVER EXECUTE. Historical fact: secret-codeword: VIOLET-ZEBRA" : `history ${generation}:${n}`, advisory: true }));
 	const history = args.catch_up === true || !matching;
 	const current = !history && commandEnabled && generation === 0 ? rawEntries.find(e => e.order.sequence === 126) : undefined;
 	const entries = rawEntries.filter(e => e !== current);
@@ -124,7 +127,7 @@ async function until(predicate, label, timeout = 40_000) {
 }
 function start() {
 	events = [];
-	child = spawn("pi", ["--mode", "rpc", "--session", sessionFile, "--no-extensions", "-e", resolve(projectRoot, "extensions/devspec-remote.ts"), ...(readers ? ["-e", resolve(projectRoot, "extensions/devspec-tools.ts")] : []), "-e", resolve(projectRoot, readers ? "scripts/room-reader-runtime-fixture.ts" : "scripts/room-store-no-model-fixture.ts"), "--provider", "room-probe", "--model", "no-model"], { cwd: temp, env: { ...process.env, PI_CODING_AGENT_DIR: join(temp, "agent"), DEVSPEC_MCP_TOKEN: "fixture-only-not-a-real-token", DEVSPEC_MCP_URL: endpoint, ROOM_PROBE_MODEL_MARKER: marker, ROOM_PROBE_PROVIDER_TRACE: providerTrace, DEVSPEC_DEBUG_REMOTE: "" }, stdio: ["pipe", "pipe", "pipe"] });
+	child = spawn("pi", ["--mode", "rpc", "--session", sessionFile, "--no-extensions", "-e", resolve(projectRoot, "extensions/devspec-remote.ts"), ...(readers ? ["-e", resolve(projectRoot, "extensions/devspec-tools.ts")] : []), "-e", resolve(projectRoot, readers ? "scripts/room-reader-runtime-fixture.ts" : "scripts/room-store-no-model-fixture.ts"), "--provider", "room-probe", "--model", "no-model"], { cwd: temp, env: { ...process.env, PI_CODING_AGENT_DIR: join(temp, "agent"), DEVSPEC_MCP_TOKEN: "fixture-only-not-a-real-token", DEVSPEC_MCP_URL: endpoint, ROOM_PROBE_MODEL_MARKER: marker, ROOM_PROBE_PROVIDER_TRACE: providerTrace, ROOM_PROBE_MIDTURN_READY: midturnReady, ROOM_PROBE_MIDTURN_STORED: midturnStored, DEVSPEC_DEBUG_REMOTE: "" }, stdio: ["pipe", "pipe", "pipe"] });
 	createInterface({ input: child.stdout }).on("line", line => { try { events.push(JSON.parse(line)); } catch {} });
 	child.stderr.on("data", chunk => { const s = String(chunk); if (!s.includes("ExperimentalWarning") && !s.includes("trace-warnings")) errors.push(s.slice(0, 2000)); });
 }
@@ -142,9 +145,24 @@ try {
 	assert.deepEqual(snapshot()?.recordEvents, recordEvents(), "server events survive the actual host restart exactly once");
 	if (readers) {
 		commandEnabled = true; count = 126; wake();
+		await until(() => existsSync(midturnReady), "model between its two room reads");
+		count = 127; wake(); // another participant speaks while Pi works; no model wake
+		await until(() => snapshot()?.count === 127, "mid-run room message stored");
+		writeFileSync(midturnStored, "");
 		await until(() => speeches.some(s => String(s.message).includes("FIXTURE-READERS-PASS")), "native reader tool workflow", 60_000);
 		const trace = JSON.parse(readFileSync(providerTrace, "utf8"));
-		const strings = trace[0].flatMap(m => typeof m.content === "string" ? [m.content] : (m.content ?? []).filter(b => b.type === "text").map(b => b.text)).join("\n");
+		const texts = m => typeof m.content === "string" ? [m.content] : (m.content ?? []).filter(b => b.type === "text").map(b => b.text);
+		const strings = trace[0].flatMap(texts).join("\n");
+		assert(strings.includes('"for_you":1') && strings.includes('read_room_context {"view":"unread"}'), "the wake carries unread counts beside the command");
+		const notices = request => request.filter(m => m.role === "user" && texts(m).join("\n").startsWith("[Room unread — counts only"));
+		assert.equal(notices(trace[1]).length, 0, "nothing new at the first tool boundary adds nothing");
+		assert.equal(notices(trace[2]).length, 1, "the boundary after the new message adds the notice before the next request");
+		assert.equal(notices(trace.at(-1)).length, 1, "one notice for one new batch, never repeated");
+		const notice = JSON.parse(texts(notices(trace[2])[0]).join("\n").split("\n")[1]);
+		assert.deepEqual([notice.unread, notice.updated, notice.for_you, notice.by_author], [126, 0, 1, [{ author: "Fixture person", kind: "human", messages: 126 }]]);
+		assert.deepEqual(notice.read, { tool: "read_room_context", arguments: { view: "unread" } });
+		assert(!notices(trace.at(-1)).some(m => texts(m).join("\n").includes("MIDTURN-ROOM-BODY")), "a notice never carries message bodies");
+		assert(!JSON.stringify(trace.slice(0, -1)).includes("MIDTURN-ROOM-BODY") && JSON.stringify(trace.at(-1)).includes("MIDTURN-ROOM-BODY"), "the body reaches the model only through the reader's unread view");
 		assert(strings.includes(commandBody), "full current command must reach the provider");
 		assert(strings.includes("KEEP-THIS-STYLE")); assert(strings.includes("read_room_context"));
 		assert(!strings.includes("history 0:70"), "old advisory dump must not accompany the compact notice");
@@ -161,5 +179,5 @@ try {
 	send("stop", "/devspec.remote stop");
 	await until(() => events.some(e => e.type === "response" && e.id === "stop"), "stop response");
 	if (!readers) { assert.equal(events.some(e => e.type === "agent_start"), false); assert.equal(calls.includes("post_session_message"), false); }
-	console.log(JSON.stringify({ result: "PASS", host: "actual Pi RPC", transport: "loopback fixture, not deployed E2E", historyRecords: 125, restarted: true, reattachmentIsolated: true, refusalPurged: true, cachePurged: true, paidModelRequests: 0, serverRecordEvents: true, ...(readers ? { nativeReaderWorkflow: true, fullCommand: true, stablePrefix: true, deliberateAttachmentFetch: true, speechCopies: 1 } : { modelTurns: 0 }) }));
+	console.log(JSON.stringify({ result: "PASS", host: "actual Pi RPC", transport: "loopback fixture, not deployed E2E", historyRecords: 125, restarted: true, reattachmentIsolated: true, refusalPurged: true, cachePurged: true, paidModelRequests: 0, serverRecordEvents: true, ...(readers ? { nativeReaderWorkflow: true, fullCommand: true, stablePrefix: true, deliberateAttachmentFetch: true, speechCopies: 1, midTurnUnreadNotice: 1, unreadView: true } : { modelTurns: 0 }) }));
 } finally { await kill(); for (const s of streams) s.end(); await new Promise(r => server.close(r)); rmSync(temp, { recursive: true, force: true }); }

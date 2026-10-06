@@ -39,6 +39,22 @@ Every result is labelled a local snapshot, with observation time and fixed-cutof
 
 When the current page is safely stored and the reader is available, ordinary command delivery omits bulky advisory history and adds a compact snapshot notice at the current delivery tail. Full current command text, exact requester/authority/scope, style and direct-command attachment handling remain unchanged. If storage/reader readiness is missing, retain the supported delivery fallback. Question/control/notice protocols stay separate; room changes alone do not start model turns. Checkpoints are navigation, never a claim that the model read those messages.
 
+## Read bookmark and unread notice
+
+Item `ce1ffca1` (brief `4d258656`, decision `c4c6190f`). Three facts are kept apart, all in the same attachment copy (`room_marks` table, `extensions/core/room-unread.ts`); there is no second store:
+
+- **Saved through**: the coverage checkpoint above. Navigation only.
+- **Read**: per message id, the exact version (visible text and attachment references) `read_room_context` handed to the model. Only the reader writes it: the `unread` view, a complete `message` read (or the last fragment of an unchanged chain), and history/search previews that are the whole message. A partial preview, a wake, a notice and Pi's own reply never do.
+- **Presented**: what a notice has told the model exists. It decides whether a mid-turn notice has anything new; it never marks anything read. A command Pi is woken with (now, steer or follow-up) is presented at delivery, so it never makes a notice fresh, and it stays unread and `for_you` until the reader hands it over.
+
+A real message is judged by what a person sees: text or attachments from a person, another agent or the in-session AI, final or in progress. System lines (presence markers, notices), empty rows in any state, deleted rows and this connection's own rows are excluded. Own rows are known by exact post-receipt id, and, for rows from before this copy existed, by the connection's `Tool · Codename` label (only when it has a codename). A read message that changes is `updated`, never unread again; finishing with the same text is not a change.
+
+The notice is JSON counts (unread, updated, for you, oldest unread time, per author, and the exact `read_room_context {"view":"unread"}` call), never bodies; author labels are data. It is shown on every wake beside the command, on the first wake or boundary after an attach (a new attachment starts with nothing read), and at Pi's tool-result boundary (`turn_end`) only when something waiting was not yet presented, as a hidden entry appended to the current turn. The boundary check reuses one pass per SQLite file change counter, so an unchanged copy is never re-parsed.
+
+Before the answer: Pi's speech lane posts each assistant message as it finishes, so a check after the final message could only add a second bubble. The notice therefore reaches the model at the tool-result boundary, before the request that may write the final message. Messages that land while that last request is already generating are reported by the next wake's counts. No follow-up turn is started: room changes alone never start model work, and two agents continuing on each other's replies would loop.
+
+The `unread` view returns waiting messages oldest first, whole, and marks exactly those read. Its only page bound is Pi's own tool-result ceiling (`DEFAULT_MAX_BYTES`); past it the result states the total, what it returned and the call for the rest. A single message larger than that is listed with the exact lossless `message` read and stays unread until that read completes.
+
 ## Quality before numeric targets
 
 Ali's2026-09-24 clarification: prioritize useful instructions, complete access and real results over the former8k prompt ceiling. The larger prefix alarm catches accidental catalogue/contract dumps, not necessary growth. Bounded local pages remain lossless through explicit continuation; they do not ration the available history. Focused correctness checks are the shipping gate. Comparable provider measurements are needed before making savings claims, not as a reason to postpone a safe release indefinitely.

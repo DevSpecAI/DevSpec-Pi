@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.2
+
+- Pi now knows which room messages it has actually read. Before, the room note Pi saw at the start of each task moved its "read up to here" mark even when Pi never opened the messages, so things people said while Pi was busy could slip past it. Now a message only counts as read once Pi has read it, and it stays unread until then.
+- When Pi starts a task, it sees how many room messages it has not read, how many have changed since it read them, how many are addressed to it, and who sent them. These are counts only, never the messages themselves. When Pi joins a room, everything already there starts unread.
+- If new messages arrive while Pi is working, it is told at its next step, before it writes its reply, so it can read them first. It is told once for each new batch, and nothing is added when nothing new has arrived. Pi's own messages, join and leave lines, deleted messages and empty messages are never counted.
+- `read_room_context` has a new `unread` view. It returns the unread messages in full, oldest first, and marks exactly those as read. When there are more than fit in one reply, it says how many are left and how to get the rest.
+- Messages addressed to Pi still interrupt it exactly as before.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.1
 
 - Ending Pi from DevSpec (End on the Agents page or in a session) now closes Pi in its terminal, straight away and even mid-task, so with many terminals open you no longer have to find the right one and quit it by hand. Any running work is stopped and Pi prints how to resume the conversation. Stopping it from the terminal, a detach, or a brief problem on DevSpec's side never closes Pi.

@@ -94,10 +94,13 @@ The snapshot is appended as data, not instructions. Identical snapshots already 
 When the server advertises room-context1.6, Pi keeps a private, recoverable room
 copy using Node's SQLite support (available in the current stock Pi runtime).
 Messages and recovery positions commit together. `read_room_context` offers local
-history, search, exact message reads and observed-state snapshots, with explicit
-continuation and freshness. When the local copy is ready, compact awareness replaces
+unread messages, history, search, exact message reads and observed-state snapshots,
+with explicit continuation and freshness. When the local copy is ready, compact awareness replaces
 repeated background-history dumps; full current commands and speech keep their
 existing paths. The online transcript and current-record tools remain available.
+Pi keeps a read bookmark: only the reader handing a message to the model marks it
+read. Each wake, and each tool step where something new has arrived, tells the
+model how many real messages it has not read, as counts only.
 
 The session activity index contains IDs and relationships only. Lifecycle,
 supersession and other current record facts must come from the native online

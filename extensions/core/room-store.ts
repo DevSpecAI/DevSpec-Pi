@@ -6,6 +6,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { devspecDir } from "./config.ts";
 import type { PollPackage, RoomRecord } from "./remote-payload.ts";
 import type { ActivityIndex, DeletionSeen, RoomAddressee, RoomCoverage, RoomMessage, RoomRowState } from "./room-context.ts";
+import { ROOM_MARKS_TABLE, writeRoomMarks, type RoomMarkKind } from "./room-unread.ts";
 
 import type { SessionEvents } from "./session-events.ts";
 
@@ -71,6 +72,8 @@ export function roomStorePath(scope: RoomStoreScope, root = join(devspecDir(), "
 export async function openRoomStore(scope: RoomStoreScope, options: {
 	root?: string;
 	principalFingerprint?: string;
+	/** This connection's "Tool · Codename" label, or null without a codename (ce1ffca1). */
+	selfLabel?: string | null;
 	current?: () => boolean;
 	crash?: (boundary: "after_records" | "before_commit" | "after_commit") => void;
 } = {}): Promise<RoomStore> {
@@ -95,7 +98,7 @@ export async function openRoomStore(scope: RoomStoreScope, options: {
 	if (process.platform !== "win32") chmodSync(path, 0o600);
 	const construct = () => {
 		const db = new DatabaseSync(path);
-		try { return new RoomStore(db, path, scope, options.current ?? (() => true), options.crash, options.principalFingerprint); }
+		try { return new RoomStore(db, path, scope, options.current ?? (() => true), options.crash, options.principalFingerprint, options.selfLabel); }
 		catch (e) { db.close(); throw e; }
 	};
 	try { return construct(); }
@@ -122,7 +125,7 @@ export class RoomStore {
 	private crash?: (boundary: "after_records" | "before_commit" | "after_commit") => void;
 	constructor(db: DatabaseSync, path: string, scope: RoomStoreScope,
 		current: () => boolean,
-		crash?: (boundary: "after_records" | "before_commit" | "after_commit") => void, principalFingerprint?: string) {
+		crash?: (boundary: "after_records" | "before_commit" | "after_commit") => void, principalFingerprint?: string, selfLabel?: string | null) {
 		this.db = db; this.path = path; this.scope = scope; this.current = current; this.crash = crash;
 		const format = Number(db.prepare("PRAGMA user_version").get()?.user_version ?? 0);
 		if (format > 1) throw new Error("unsupported future room cache format");
@@ -130,6 +133,7 @@ export class RoomStore {
 		db.exec("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, sequence INTEGER UNIQUE NOT NULL, state TEXT NOT NULL, body TEXT NOT NULL); CREATE TABLE IF NOT EXISTS tombstones (id TEXT PRIMARY KEY);");
 		// Additive table: existing v1 caches and older readers remain valid.
 		db.exec("CREATE TABLE IF NOT EXISTS session_events (id TEXT PRIMARY KEY, body TEXT NOT NULL);");
+		db.exec(ROOM_MARKS_TABLE);
 		const prior = this.meta<RoomStoreScope>("scope");
 		if (prior && JSON.stringify(scopeIdentity(prior)) !== JSON.stringify(scopeIdentity(scope))) throw new Error("room cache scope mismatch");
 		const version = this.meta<number>("schema");
@@ -143,6 +147,7 @@ export class RoomStore {
 			if (!/^[a-f0-9]{64}$/.test(principalFingerprint)) throw new Error("invalid principal fingerprint");
 			this.setMeta("principal_fingerprint", principalFingerprint);
 		}
+		if (selfLabel !== undefined) this.setMeta("self_label", selfLabel);
 	}
 	private assertCurrent(): void { if (this.closed || !this.current()) throw new Error("room cache attachment no longer current"); }
 	private meta<T>(key: string): T | undefined {
@@ -345,6 +350,17 @@ export class RoomStore {
 	state(): { version: 1; snapshots: Record<string, ObservedSnapshot | null> } {
 		this.assertCurrent();
 		return { version: 1, snapshots: Object.fromEntries(["plans", "polls", "discussion", "activity", "question_event", "notice_delivery"].map(key => [key, this.meta<ObservedSnapshot>(`snapshot:${key}`) ?? null])) };
+	}
+	/** A row Pi itself posted (exact receipt id): never unread for this agent (ce1ffca1). */
+	markOwn(messageIds: readonly string[]): void { this.mark("own", messageIds.map(id => [id.toLowerCase(), ""] as const)); }
+	/** The model was TOLD these exist (a delivered command). Never a read mark. */
+	markPresented(keys: readonly string[]): void { this.mark("presented", keys.map(key => [key, ""] as const)); }
+	private mark(kind: RoomMarkKind, entries: ReadonlyArray<readonly [string, string]>): void {
+		this.assertCurrent();
+		if (!entries.length) return;
+		this.db.exec("BEGIN IMMEDIATE");
+		try { writeRoomMarks(this.db, kind, entries); this.db.exec("COMMIT"); }
+		catch (error) { try { this.db.exec("ROLLBACK"); } catch { /* already rolled back */ } throw error; }
 	}
 	/** A last-observed event pointer, not a pending-question inventory or an ACK. */
 	observeQuestion(event: { question_id: string; event_id: string; kind: string }, now = new Date().toISOString()): void {

@@ -49,9 +49,10 @@ import { applyConnectionContext } from "./core/connection-context.ts";
 import { installProjectSelection } from "./core/project-selection-ui.ts";
 import { getProjectChoice, projectFromRegistration, projectRemoteArgs, type ProjectCandidate, type ProjectChoice, type ProjectChoiceRequired } from "./core/project-choice.ts";
 import { openRoomStore, roomPrincipalFingerprint, type RoomStoreScope } from "./core/room-store.ts";
-import { readRoomForContext } from "./core/room-tools.ts";
+import { readRoomForContext, roomUnreadBoundary, roomUnreadForContext } from "./core/room-tools.ts";
 import { observeRoomAccess } from "./core/room-access.ts";
-import { compactRoomAwareness, previousRoomCheckpoint, roomScopeFromEntries, ROOM_READ_TOOL, ROOM_SCOPE_ENTRY, ROOM_NAV_ENTRY } from "./core/room-reader.ts";
+import { compactRoomAwareness, roomScopeFromEntries, ROOM_READ_TOOL, ROOM_SCOPE_ENTRY } from "./core/room-reader.ts";
+import { deliveredCommandKeys } from "./core/room-unread.ts";
 import { advertisesRoomContext } from "./core/room-context.ts";
 import { advertisesSessionEvents } from "./core/session-events.ts";
 import { RoomSync } from "./core/room-sync.ts";
@@ -648,6 +649,7 @@ function deliverAssistantSpeech(t: TurnState, message: unknown, append: (type: s
 					// has not moved since (the drop-on-move policy is unchanged).
 					const receipt = parsePostSessionReceipt(raw, { connectionId: String(scope.connection_id), sessionId: binding.sessionId ?? String(scope.expected_session_id), phase: "answer", assistantSourceId: record.assistantSourceId });
 					stored = receipt.status === "stored" || receipt.status === "idempotently_stored";
+					if ("messageId" in receipt) noteOwnRoomMessage(receipt.messageId);
 				}
 			}
 		} catch { /* Exact raw text and source remain in JSONL; never relabel or replay. */ }
@@ -821,6 +823,7 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 		}
 		opts.onReceipt?.(receipt.status);
 		debug("post stored", { idempotent: receipt.status === "idempotently_stored" });
+		noteOwnRoomMessage(receipt.messageId);
 		if (isCurrent() && activeCommandTurnIdentity === parkedIdentity) {
 			if (opts.completeTurn === true) noteCommandTurnClosed(opts.commandTurnId);
 		}
@@ -830,6 +833,12 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 		// NOT STORED, and never replay non-idempotent speech/local_prompt.
 		return failure(err instanceof DevspecToolError ? "rejected" : "unknown");
 	}
+}
+
+/** Pi's own rows never count as unread for Pi; the post receipt names each one exactly (ce1ffca1). */
+function noteOwnRoomMessage(messageId: string): void {
+	try { pump?.roomSync?.store.markOwn([messageId]); }
+	catch { debug("room storage unavailable", { errorPresent: true }); }
 }
 
 function trackTerminalPost(post: Promise<void>): void {
@@ -2304,7 +2313,10 @@ async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: s
 	try {
 		const advertised = await readDevspecResource(token, "devspec://product/remote-ingress-contract", { lane: "pump", timeoutMs: 5_000 });
 		if (!current() || !advertisesRoomContext(advertised)) return;
-		const store = await openRoomStore(scope, { current, principalFingerprint: roomPrincipalFingerprint(token) });
+		// Rows this connection posted before this copy existed are its own too; a
+		// bare "Pi" without a codename would also match the owner's other Pis.
+		const identity = active.connectionIdentity;
+		const store = await openRoomStore(scope, { current, principalFingerprint: roomPrincipalFingerprint(token), selfLabel: identity.connection_id === scope.connectionId && identity.codename ? identity.label : null });
 		if (!current()) { store.close(true); return; }
 		const sessionEventsNegotiated = advertisesSessionEvents(advertised);
 		active.roomSync = new RoomSync({
@@ -3561,6 +3573,14 @@ export default function (pi: ExtensionAPI) {
 			commandTurnBindings.forget(message, commandTurnId, commandMessageId);
 			throw error;
 		}
+		// Being woken with a command is being TOLD about it, however it was queued
+		// (now, steer or follow-up), so it never makes a notice fresh. It still
+		// counts as unread for this agent until the reader hands it over (ce1ffca1).
+		const told = deliveredCommandKeys(commandMessageId, canonicalQueueItem?.details);
+		if (told.length) {
+			try { pump?.roomSync?.store.markPresented(told); }
+			catch { debug("room storage unavailable", { errorPresent: true }); }
+		}
 	};
 	pi_abort = () => {
 		if (lastCtx && !lastCtx.isIdle()) lastCtx.abort();
@@ -3812,6 +3832,22 @@ export default function (pi: ExtensionAPI) {
 		if (turn) turn.receiptBatch.reset(turn.revision);
 	});
 
+	// Pi's tool-result boundary: the mid-turn unread notice, which is also the
+	// check before Pi's answer reaches the room (ce1ffca1). Speech posts each
+	// assistant message as it finishes, so the notice must reach the model
+	// BEFORE the request that may write the final message, not after it.
+	// Counts only, and only when something arrived that no notice has told the
+	// model about: nothing new adds nothing. Directed commands keep their own
+	// interruption path; this never starts or extends a run. Only an attached
+	// copy can change mid-run; an offline one was fully presented at the wake.
+	pi.on("turn_end", async (event, ctx) => {
+		lastCtx = ctx;
+		if (!pump?.bond.sessionId || !pi_roomReaderAvailable()) return undefined;
+		const boundary = await roomUnreadBoundary(event, () => roomUnreadForContext(ctx, "fresh"));
+		if (boundary) noteInjectedContext("roomDigest", boundary.entries.reduce((n, e) => n + e.content.length, 0));
+		return boundary;
+	});
+
 	// Leftover bg receipts arrive as custom_message (customType
 	// background-task-notification) and may then replay the last typed prompt
 	// as a user message. Stamp harness origin here so that replay cannot
@@ -3858,10 +3894,13 @@ export default function (pi: ExtensionAPI) {
 			const stillSameRoom = !expected || (expected.session_id === active?.bond.sessionId && expected.attachment_id === active?.bond.speechAttachmentId);
 			let status: Record<string, unknown> = stillSameRoom ? await readRoomForContext(ctx, { view: "status" }) : { availability: "unavailable" };
 			if (expected && (status.room_id !== expected.session_id || expected.attachment_id !== active?.bond.speechAttachmentId)) status = { availability: "unavailable", room_id: expected.session_id };
-			if (typeof status.checkpoint === "string") {
-				status.since_previous_context = previousRoomCheckpoint(ctx.sessionManager.getBranch(), status.checkpoint);
-				try { pi.appendEntry(ROOM_NAV_ENTRY, { version: 1, checkpoint: status.checkpoint }); }
-				catch { debug("room storage unavailable", { errorPresent: true }); }
+			// Every wake carries the unread counts beside the command. Showing them
+			// records them as PRESENTED, never read: only read_room_context handing
+			// messages over moves the read bookmark (ce1ffca1). A new attachment
+			// starts with nothing read, so its first notice covers the whole room.
+			if (status.coverage) {
+				const unread = await roomUnreadForContext(ctx, "always");
+				if (unread && unread.room_id === status.room_id) status.unread = unread.summary;
 			}
 			const awareness = compactRoomAwareness(status);
 			hiddenContent = appendActivePlanTail(hiddenContent, awareness);

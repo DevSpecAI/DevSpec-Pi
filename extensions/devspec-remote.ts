@@ -59,7 +59,7 @@ import {
 	isPumpAuthorityCurrent,
 	planRecoveredConnectionScope,
 } from "./core/bond-recovery.ts";
-import { unreadableRemoteMessageNotice } from "./core/version-mismatch.ts";
+import { unreadableRemoteMessageNotice, unreadableRoomStateNotice } from "./core/version-mismatch.ts";
 import {
 	formatCanonicalDeliveryContext,
 	formatInboundBundleMessage,
@@ -257,6 +257,12 @@ interface PumpState {
 	systemNoticeCursor?: string;
 	/** The unreadable-message reason already reported to the person and the room (39c05c1f). */
 	unreadableIngressReported?: string;
+	/**
+	 * The unreadable room-state set already reported to the person (39c05c1f). Kept
+	 * for the life of this pump: room state is re-sent whenever it changes, and the
+	 * person needs telling once, not on every change.
+	 */
+	unreadableRoomStateReported?: string;
 	/** Frozen exact addressee for this registered pump generation. */
 	connectionIdentity: RemoteConnectionIdentity;
 	/** globalThis notice state key: Pi session + connection + pump generation. */
@@ -2741,6 +2747,11 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				...(pkg.advisoryRejections.includes("session_activity") ? { sessionActivity: true } : {}),
 				...(pkg.advisoryRejections.includes("session_events") ? { sessionEvents: true } : {}),
 			});
+			const roomState = unreadableRoomStateNotice(pkg.advisoryRejections, active.unreadableRoomStateReported);
+			if (roomState) {
+				active.unreadableRoomStateReported = roomState.key;
+				notify(ctx, roomState.local, "warning");
+			}
 		}
 
 		if (pkg.unboundSenderStyleIds && pkg.unboundSenderStyleIds.length > 0) {

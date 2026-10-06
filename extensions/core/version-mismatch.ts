@@ -132,3 +132,33 @@ export function unreadableRemoteMessageNotice(
 		room: "I couldn't read a message DevSpec sent me, so I haven't acted on it. My DevSpec Pi extension is probably out of date: on the computer I'm running on, run `pi update --extensions`, then restart Pi.",
 	};
 }
+
+const ROOM_STATE_LABELS: Readonly<Record<string, string>> = {
+	session_polls: "polls",
+	still_to_discuss: "Still to Discuss",
+	session_activity: "what the session produced",
+	session_events: "recent changes to the session's records",
+};
+
+/**
+ * Room state Pi could not read is already left out on its own, without holding
+ * up commands (item 01b7c2e2), but only a debug line said so — the agent simply
+ * worked without the room's polls or Still to Discuss. Say it once per distinct
+ * set, to the person at Pi only: this is context, not a command anyone is
+ * waiting on.
+ */
+export function unreadableRoomStateNotice(
+	rejected: readonly string[] | undefined,
+	alreadyReported: string | undefined,
+): { key: string; local: string } | null {
+	if (!rejected || rejected.length === 0) return null;
+	const names = [...new Set(rejected)].sort();
+	const key = names.join(",");
+	if (key === alreadyReported) return null;
+	const labels = names.map((name) => ROOM_STATE_LABELS[name] ?? name);
+	const list = labels.length <= 1 ? labels.join("") : `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}`;
+	return {
+		key,
+		local: `This version of the DevSpec Pi extension could not read the room's ${list} from DevSpec, so Pi is working without ${labels.length === 1 ? "it" : "them"}; everything else is in force. ${UPDATE_EXTENSION_INSTRUCTION}`,
+	};
+}

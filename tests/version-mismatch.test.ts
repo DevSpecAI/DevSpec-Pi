@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { unwrapOrThrow } from "../extensions/devspec-tools.ts";
 import { catalogEntry } from "../extensions/core/model-surface.ts";
 import { parsePollPayload } from "../extensions/core/remote-payload.ts";
-import { unreadableRemoteMessageNotice } from "../extensions/core/version-mismatch.ts";
+import { unreadableRemoteMessageNotice, unreadableRoomStateNotice } from "../extensions/core/version-mismatch.ts";
 import { canonicalPoll, TEST_CONNECTION } from "./canonical-ingress-fixture.ts";
 
 // Item 39c05c1f: customers update the extension when they choose, so a newer
@@ -125,4 +125,16 @@ test("a remote message from a newer DevSpec is reported once, locally with the r
 	const bare = unreadableRemoteMessageNotice(undefined, undefined);
 	assert.ok(bare);
 	assert.equal(unreadableRemoteMessageNotice(undefined, bare.key), null);
+});
+
+test("room state Pi cannot read is reported once per distinct set, by name, locally", () => {
+	assert.equal(unreadableRoomStateNotice(undefined, undefined), null);
+	assert.equal(unreadableRoomStateNotice([], undefined), null);
+	const first = unreadableRoomStateNotice(["still_to_discuss", "session_polls"], undefined);
+	assert.ok(first);
+	assert.match(first.local, /could not read the room's polls and Still to Discuss/);
+	assert.match(first.local, /working without them/);
+	assert.match(first.local, /pi update --extensions/);
+	assert.equal(unreadableRoomStateNotice(["session_polls", "still_to_discuss"], first.key), null, "the same set in another order is not news");
+	assert.ok(unreadableRoomStateNotice(["session_polls"], first.key), "a different set is");
 });

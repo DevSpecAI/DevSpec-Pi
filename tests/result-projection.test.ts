@@ -443,7 +443,20 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// last one stay in the wire schemas and leave only the model schemas of pump
 		// verbs. No projection family changed. Benchmark before/after: initial surface
 		// 43,836 -> 44,086 estimated tokens; every budget still passes.
-		"223fea12c4741124023253ed33430aad2d6f6e4274dab445d29c53fa03646859",
+		// Rebaselined 2026-10-06 for DevSpec item 3573c378 (the description review
+		// 206adafd), regenerated against server staging e2d5fb61d. Compared old/new
+		// generated model objects: 82 -> 82 model verbs, none added or removed. Five
+		// shape changes: get_action_items and get_decisions drop a connection_id
+		// nothing read; update_action_item's assigned_to and parent_action_item_id
+		// accept null, as their texts always said (and its acceptance_criteria union
+		// branches lose their duplicated texts); supersede_resource.resource_type is
+		// create_resource's enum; record_criterion_verdicts.verdicts needs at least
+		// one entry (8450edd6, server work since the last regeneration). 63 more
+		// changed only in text: untrue or incomplete parameter and description text
+		// corrected, missing defaults stated, and who-may rules pointed at the served
+		// contract. No projection family changed. Benchmark before/after: initial
+		// surface 45,446 -> 44,123 estimated tokens; every budget still passes.
+		"666a63ea3a3309dde4f515f16a572bfde09a3ef7f735d8dd522a6052ff61d248",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

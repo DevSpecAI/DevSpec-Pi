@@ -2,43 +2,43 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 48ce32414f92c6cb5241516e1f0866a213edaca012ab7923126002b3e5eeea5b
- * Description fingerprint: 924779191ef996be7b63e8502950718101515fda1240d3aab73a32651dd68250
- * Regenerated: 2026-10-06T11:24:06.152Z
+ * Schema fingerprint: c312070998462b0cbafb108814e54e46c4e601186698fabf6821c4986148d6fa
+ * Description fingerprint: 0d2fb8ae44ba88af702f60aee82e1191e67cfaa6051af333a96d6accbd285874
+ * Regenerated: 2026-10-06T15:49:21.060Z
  */
-export const MCP_CATALOG_FINGERPRINT = "48ce32414f92c6cb5241516e1f0866a213edaca012ab7923126002b3e5eeea5b";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "924779191ef996be7b63e8502950718101515fda1240d3aab73a32651dd68250";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-06T11:24:06.152Z";
-export const TOOL_CATALOG_VERSION = "ba22652305e92ebe115533bca8117e9cf3231f9e8970f4247059158bd8f92a1a";
+export const MCP_CATALOG_FINGERPRINT = "c312070998462b0cbafb108814e54e46c4e601186698fabf6821c4986148d6fa";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "0d2fb8ae44ba88af702f60aee82e1191e67cfaa6051af333a96d6accbd285874";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-06T15:49:21.060Z";
+export const TOOL_CATALOG_VERSION = "281dffa325a8eca0f74239d1ad1fa520961b04f92647effa4037a77803235d4c";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
 		"name": "add commit reference",
-		"description": "Link a commit you are not reporting through record_implementation to an action item, session or memory in this project. A short or full SHA is accepted. Linking it to an action item marks that item's current item-level verification stale, a person's sign-off included (schema checks and criterion verdicts are kept), and links any deployment that already shipped the commit. Linking a commit to an item it is already linked to returns the existing link (deduplicated: true) and marks nothing stale; on an item, verification_effect in the response says what was marked stale. The project comes from project_id, git_remote or pinned_project_id, not from the ids you link. A link is not completion evidence: report delivered work with record_implementation.",
+		"description": "Link a commit you are not reporting through record_implementation to an action item, session or memory in this project. A short or full SHA is accepted. Pass at least one of action_item_id, session_id or memory_id; with none, the commit is linked to the project alone. Linking it to an action item marks that item's current item-level verification stale, a person's sign-off included (schema checks and criterion verdicts are kept), and links any deployment that already shipped the commit. Linking the same commit to the same target with the same provenance_source returns the existing link (deduplicated: true) and marks nothing stale; under a different provenance_source it adds a second link, which marks the item's verification stale like any new link; on an item, verification_effect in the response says what was marked stale. The project comes from project_id, git_remote or pinned_project_id, not from the ids you link. A link is not completion evidence: report delivered work with record_implementation.",
 		"intent": "link attach existing git commit to action item session memory"
 	},
 	{
 		"id": "add_implementation_note",
 		"name": "add implementation note",
-		"description": "Add a Markdown note (context, caveats, links) to an action item's history, where people read it on the item. action_item_id is required: a note belongs to an item. It is a note for people and changes no state: report delivered work with record_implementation, criterion evidence with record_criterion_verdicts, and commits with add_commit_reference.",
+		"description": "Add a Markdown note (context, caveats, links) to an action item's history, where people read it on the item. It is a note for people and changes no state: report delivered work with record_implementation, criterion evidence with record_criterion_verdicts, and commits with add_commit_reference.",
 		"intent": "add note context caveat to action item history"
 	},
 	{
 		"id": "archive_resource",
 		"name": "archive resource",
-		"description": "Archive an AI-written artifact that is finished or no longer relevant. It leaves lists and search but stays readable by id; nothing is deleted. Use supersede_resource when a replacement should become current; uploaded documents cannot be archived here. Archiving someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it.",
+		"description": "Archive an AI-written artifact that is finished or no longer relevant. It leaves lists and search but stays readable by id; nothing is deleted. Use supersede_resource when a replacement should become current; uploaded documents cannot be archived here. Archiving a document that is already archived is refused. Archiving someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "archive retire obsolete finished document artifact"
 	},
 	{
 		"id": "claim_automation_run",
 		"name": "claim automation run",
-		"description": "Take one waiting automation run before doing it; the reply carries its instruction, acceptance criteria with ids, permission and expected tools. Pass connection_id, the agent doing the run: without it the run goes to the agent it was aimed at, or to your only connected agent, and is otherwise refused. The permission governs what you do on the machine and its repositories, not what you write to DevSpec: look_only means investigate and report only, can_commit allows local commits but no push, can_push allows both; check the expected tools first. A refusal names its reason and says whether a retry could work: already_taken is normal contention, so move on; already_yours means carry on and report it; already_finished means correct it with record_automation_run instead; a scheduled run is not offered to an agent in the middle of a conversation; a run aimed at another agent is left for that one. When done, report with record_automation_run.",
+		"description": "Take one waiting automation run before doing it; the reply carries its instruction, acceptance criteria with ids, permission and expected tools. Pass connection_id, the agent doing the run: without it the run goes to the agent it was aimed at, or to your only connected agent, and is otherwise refused. The permission governs what you do on the machine and its repositories, not what you write to DevSpec: look_only means investigate and report only, can_commit allows local commits but no push, can_push allows both; check the expected tools first. A refusal names its reason and says whether a retry could work: already_taken is normal contention, so move on; already_yours means carry on and report it; already_finished: if you ran it, correct it with record_automation_run, otherwise there is nothing to take; a scheduled run is not offered to an agent in the middle of a conversation; a run aimed at another agent is left for that one. When done, report with record_automation_run.",
 		"intent": "claim take waiting automation run start the job"
 	},
 	{
 		"id": "claim_work_item",
 		"name": "claim work item",
-		"description": "Claim one action item before you start implementing it. Read what comes back: intent, criteria, spec_changes, session_context, project instruction tiers, review signals, unresolved conflicts and earlier attempts. A refused claim names the guard that stopped it: another holder or reservation, an assignee, an unfinished blocker, overlapping files, or an unresolved possible conflict (settle that with resolve_action_item_conflict). force with a reason overrides these and is recorded; human-only items and work awaiting approval cannot be claimed at all. When to claim, and when an override is justified, is set by work_entry_contract in devspec://product/implementation-contract.",
+		"description": "Claim one action item before you start implementing it. Read what comes back: intent, criteria, spec_changes, session_context, project instruction tiers, review signals, unresolved conflicts and earlier attempts. A refused claim names the guard that stopped it: another holder or reservation, an assignee, an unfinished blocker, overlapping files, or an unresolved possible conflict (settle that with resolve_action_item_conflict). It also refuses an item whose last attempt failed (release_work_item hands it back) or whose implementation is already recorded (reopen_action_item reopens it). force with a reason overrides these and is recorded; human-only items and work awaiting approval cannot be claimed at all. When to claim is set by work_entry_contract, and when an override is justified by core_implementation_contract, in devspec://product/implementation-contract.",
 		"intent": "claim start working on action item before implementing"
 	},
 	{
@@ -56,19 +56,19 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "create_automation",
 		"name": "create automation",
-		"description": "Save a reusable job, owned by you, that agents can run again and again. It is private to you unless you set visibility 'project'; do that only when the person asks to share it. Offer it when they have just done, or described, something they will repeat, and create it once they agree. Write the instruction as intent rather than machine-specific paths, and propose a few short checkable acceptance criteria: each run reports a verdict per line. It does not schedule or start runs: those are set up in the app, and runs then reach agents through get_automation_runs. A one-off task is an action item (create_action_item); a reference document is an artifact (create_resource). A name you already use for another of your automations is refused.",
+		"description": "Save a reusable job, owned by you, that agents can run again and again. It is private to you unless you set visibility 'project'. Offer it when the person has just done, or described, something they will repeat, and create it once they agree. Propose a few short checkable acceptance criteria: each run reports a verdict per line. It does not schedule or start runs: those are set up in the app, and runs then reach agents through get_automation_runs. A one-off task is an action item (create_action_item); a reference document is an artifact (create_resource). A name you already use for another of your automations is refused.",
 		"intent": "save create reusable repeatable automation job with instructions and criteria"
 	},
 	{
 		"id": "create_resource",
 		"name": "create resource",
-		"description": "Create a shared project document: an ADR, plan, guide, runbook, checklist, summary, convention, reference or other (investigations and handoffs fit summary or other). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for. As it is written, a quick closeness check (it does not read the documents) compares the draft with existing artifacts. If one closely resembles it, nothing is created and the response names it (reconcile_required, closest_match): read it, then update or supersede it, re-call with confirm_new if yours is genuinely separate, or ask the person, which is often the right answer. Updating or superseding someone else's settled document overrules them, so ask first unless you were already told to go ahead. Only the whole document decides a duplicate: a different document with the same title is created, and resending the same one returns the first. outcome committed is live; queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it.",
+		"description": "Create a shared project document: an ADR, plan, guide, runbook, checklist, summary, convention, reference or other (investigations and handoffs fit summary or other). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for; a single decision, convention or fact is a memory (record_memory). As it is written, a quick closeness check (it does not read the documents) compares the draft with existing artifacts. If one closely resembles it, nothing is created and the response names it (reconcile_required, closest_match; on a creation that would be queued, code reconcile_required and reconcile.closest): read it, then update or supersede it, re-call with confirm_new if yours is genuinely separate, or ask the person, which is often the right answer. Updating or superseding someone else's settled document overrules them, so ask first unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "write save create shared document artifact ADR plan guide runbook checklist reference handoff investigation for teammates next agent"
 	},
 	{
 		"id": "create_session",
 		"name": "create session",
-		"description": "Open a new room in this project and return its session_id and session_url, when the person wants a fresh conversation they can pick up in DevSpec. The room is shared with everyone on the project unless you set access, and it is passive: Dev does not reply, and creating it notifies nobody. initial_message is posted as your agent, like post_session_message; if that post fails the room still exists, so check initial_message_posted. Not for finding past rooms (search_sessions) or answering in the current one (post_session_message).",
+		"description": "Open a new room in this project and return its session_id and session_url, when the person wants a fresh conversation they can pick up in DevSpec. The room is shared with everyone on the project unless you set access. Creating it starts no Dev turn and notifies nobody beyond anyone @mentioned in initial_message; Dev does not reply until a person in the room sends it a message. initial_message is posted as your agent, like post_session_message; if that post fails the room still exists, so check initial_message_posted. Not for finding past rooms (search_sessions) or answering in the current one (post_session_message).",
 		"intent": "start create open new conversation room session link"
 	},
 	{
@@ -98,7 +98,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_action_item",
 		"name": "get action item",
-		"description": "Read one action item in full: description, intent, acceptance criteria with each line's promotion state, implementation notes, the commits currently linked, goals, review signals and unresolved conflicts. Search and list results are previews; read this before working on, editing or judging an item, and use get_action_item_history for its timeline. version is the value to pass as update_action_item's expected_version. unresolved_conflicts lists the possible conflicts that keep the item from being claimed; settle each with resolve_action_item_conflict. Suggested work that has not been accepted says so in agreement.",
+		"description": "Read one action item in full: description, intent, acceptance criteria with each line's promotion state, implementation notes, the commits currently linked, goals, review signals and unresolved conflicts. Search and list results are previews; read this before working on, editing or judging an item, and use get_action_item_history for its timeline. version is the value to pass as update_action_item's expected_version. unresolved_conflicts lists the possible conflicts that keep the item from being claimed; settle each with resolve_action_item_conflict. Suggested work that has not been accepted says so in agreement. To test or verify the item, get_testing_brief also gathers its deployments, test runs and comments.",
 		"intent": "read full action item intent acceptance criteria current specification"
 	},
 	{
@@ -122,19 +122,19 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_automation",
 		"name": "get automation",
-		"description": "Read one automation you can see (yours or shared) in full, by automation_id or by name: its instruction, acceptance criteria with their ids, permission, agent constraint, tags and whose it is. A name matching several returns ambiguous: true with the candidates instead of guessing; ask which, or call again with the id. Read it before update_automation. This does not start a run: to do the job ad hoc, follow its instruction within its permission, or ask the person to start a run in the app so it is recorded.",
+		"description": "Read one automation you can see (yours or shared) in full, by automation_id or by name: its instruction, acceptance criteria with their ids, permission, the agents it may run on (eligible_agents, each with any model it needs; empty means any agent), tags and whose it is. A name matching several returns ambiguous: true with the candidates instead of guessing; ask which, or call again with the id. Read it before update_automation. This does not start a run: to do the job ad hoc, follow its instruction within its permission, or ask the person to start a run in the app so it is recorded.",
 		"intent": "read one saved automation instructions criteria permission by name or id"
 	},
 	{
 		"id": "get_automation_runs",
 		"name": "get automation runs",
-		"description": "With no automation_id: the automation runs waiting for your agent to claim; take one with claim_automation_run and its run_id. Pass connection_id so the list is worked out for you: with several of your agents connected and none named, the call is refused, and with none connected it returns waiting_for_an_agent with a note. Runs that name a different agent are listed under not_for_you and are not yours to take. Each entry gives the run, the automation's name, how it was triggered, its owner, permission and queued time; the instruction comes with the claim. With automation_id: that automation's run history, newest first, a page at a time; query searches the runs' summary, failure reason and output. Use get_automations for definitions.",
+		"description": "With no automation_id: the automation runs waiting for your agent to claim; take one with claim_automation_run and its run_id. Pass connection_id so the list is worked out for you: with several of your agents connected and none named, the call is refused, and with none connected it returns waiting_for_an_agent with a note. Runs that name a different agent are listed under not_for_you and are not yours to take. Each entry gives the run, the automation's name, how it was triggered, its owner, permission and queued time; the instruction comes with the claim. With automation_id: that automation's run history, newest first, a page at a time: your runs plus its schedule and event runs that belong to the whole project (a teammate's runs are not included); query searches your own runs' summary, failure reason and output. Use get_automations for definitions.",
 		"intent": "waiting automation runs to pick up, my automation inbox queue, automation run history results outcomes"
 	},
 	{
 		"id": "get_automations",
 		"name": "get automations",
-		"description": "Browse the automations you can see: yours plus those teammates shared with the project. Each row says whose it is (created_by, yours) and who can see it (visibility); anyone who can see one may run it on their own agents, but only its author can change or archive it. name resolves one the person named; query searches name, instruction and tags; with neither, you get the list, most recently used first. Archived automations are not listed. You cannot start a run from here: runs start in the app or from a schedule or trigger, then reach agents through get_automation_runs. Use get_automation for one in full; a one-off task is an action item, not an automation.",
+		"description": "Browse the automations you can see: yours plus those teammates shared with the project. Each row says whose it is (created_by, yours), who can see it (visibility) and which agents may run it (eligible_agents, each with any model it needs; empty means any agent). Anyone who can see one may run it on their own agents, but only its author can change or archive it. name resolves one the person named; query searches name, instruction and tags; with neither, you get the list, most recently used first. Archived automations are not listed. You cannot start a run from here: runs start in the app or from a schedule or trigger, then reach agents through get_automation_runs. Use get_automation for one in full; a one-off task is an action item, not an automation.",
 		"intent": "list find saved reusable automations jobs shared with the project, run my automation"
 	},
 	{
@@ -146,7 +146,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_database_schema",
 		"name": "get database schema",
-		"description": "Read the schemas of the databases connected to this project, from each one's last sync. Pass query for the most relevant tables, columns, functions and enums across every database, grouped by table: the best default. Pass table_name for that table in every database that has it, with its columns, keys, indexes, triggers and policies. With neither, it returns a paged overview of the databases and their tables. A failed lookup is reported as a failure, and a database with no schema yet (not synced, or MongoDB) says why. It never runs SQL or changes a database.",
+		"description": "Read the schemas of the databases connected to this project, from each one's last sync. Pass query for the most relevant tables, columns, functions and enums across every database, grouped by table: the best default. Pass table_name for that table in every database that has it, with its columns, keys, indexes, triggers and policies. With neither, it returns a paged overview of the databases and their tables. A database with no schema yet (not synced, or MongoDB) says why. It never runs SQL or changes a database.",
 		"intent": "inspect connected database schema tables columns functions enums foreign keys"
 	},
 	{
@@ -194,7 +194,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_project_summary",
 		"name": "get project summary",
-		"description": "Orient on one project before working in it. It returns the team rules every coding agent follows (execution.custom_instructions = principles, execution.agent_rules = agent mechanics), your own personal agent rules (owner_agent_rules), the push, merge, branch-prefix, commit-prefix and protected-path settings, each repo's target_branch, connected database targets for migrations, current goals with progress, members (ids and names) and total session and action-item counts. It returns no integrations list or activity feed. To pick a project use list_projects; for topic context use the search tools.",
+		"description": "Orient on one project before working in it. It returns the team rules every coding agent follows (execution.custom_instructions = principles, execution.agent_rules = agent mechanics), your own personal agent rules (owner_agent_rules), the push, merge, branch-prefix, commit-prefix and protected-path settings, each repo's target_branch, connected database targets for migrations, current goals with progress, members (ids and names), the total action-item count, and a room count (stats.sessions) that leaves out background rooms but includes deleted rooms and rooms you cannot open; to list the rooms you can open, use get_recent_sessions. It returns no integrations list or activity feed. To pick a project use list_projects; for topic context use the search tools.",
 		"intent": "project overview team rules agent rules personal rules target branch push merge settings database targets members goals orientation before working"
 	},
 	{
@@ -224,7 +224,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_review_queue",
 		"name": "get review queue",
-		"description": "List what in this project waits on a ruling or an acceptance: records flagged as contradicting each other or a decision, records flagged as possibly out of date, and queued proposals. you_can on each entry says whether you may rule on, discuss or decide it. Rule on a flag with its record's tool: resolve_action_item_conflict, resolve_action_item_decision_flag, resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial.",
+		"description": "List what in this project waits on a ruling or an acceptance: records flagged as contradicting each other or a decision, records flagged as possibly out of date, and queued proposals. you_can on each entry says whether you may rule on, discuss or decide it. Rule on a flag with its record's tool: resolve_action_item_conflict, resolve_action_item_decision_flag, resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
 		"intent": "review inbox disagreements flags proposed changes waiting for a ruling or acceptance"
 	},
 	{
@@ -236,7 +236,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_testing_brief",
 		"name": "get testing brief",
-		"description": "Gather what testing one action item needs: its description, completion summary, testing and usage notes, deployments and deployment evidence, connected database targets, AI test runs, commits, pull requests, implementation notes, every comment, recent activity, and the decisions and documents relevant to it. It includes the item's intent, its acceptance criteria with their ids and each line's promotion state, and when the round under test was delivered. Comments, deployments and test runs are complete; activity is the newest 50 events, and activity_page.older says how to read earlier ones.",
+		"description": "Gather what testing one action item needs: its description, completion summary, testing and usage notes, deployments and deployment evidence, connected database targets, AI test runs, commits, pull requests, implementation notes, every comment, recent activity, and the decisions and documents relevant to it. It includes the item's intent, its acceptance criteria with their ids and each line's promotion state, and when the round under test was delivered. Comments, deployments and test runs are complete; activity is the newest 50 events, and activity_page.older says how to read earlier ones. To work on or edit the item, read get_action_item; record what you observe with record_criterion_verdicts.",
 		"intent": "how to test verify feature testing brief deployments database targets implementation evidence"
 	},
 	{
@@ -254,13 +254,13 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "import_instruction_rules",
 		"name": "import instruction rules",
-		"description": "Turn an existing agent-rules file (CLAUDE.md, AGENTS.md, .cursorrules or similar) into team rules. You sort each item into a destination and cite its source_line; do not file the whole file as agent rules. A call without confirm writes nothing and returns the plan: show it to the person, let them drop or move entries, then call again with confirm:true. Only project_agent_rules and project_principles items are written; personal_agent_rules and memory items come back for you to save with update_personal_instructions and record_memory, and leave_in_repo items are not written. Read the current rules first: where one already covers a subject, leave the item out and amend that rule with write_project_instruction_rule. Whether the import commits is decided under devspec://product/implementation-contract. Read outcome: committed means the rules are live; queued_for_review carries proposal_ids and changes nothing until a Maintainer accepts them.",
+		"description": "Turn an existing agent-rules file (CLAUDE.md, AGENTS.md, .cursorrules or similar) into team rules. You sort each item into a destination and cite its source_line; do not file the whole file as agent rules. A call without confirm writes nothing and returns the plan: show it to the person, let them drop or move entries, then call again with confirm:true. If the rules would take a tier, or a rationale, past its length limit, the whole import is refused with the limit and length, with or without confirm, and nothing is written. Only project_agent_rules and project_principles items are written; personal_agent_rules and memory items come back for you to save with update_personal_instructions and record_memory, and leave_in_repo items are not written. Read the current rules first: where one already covers a subject, leave the item out and amend that rule with write_project_instruction_rule. Whether the import commits is decided under devspec://product/implementation-contract. Read outcome: committed means the rules are live; queued_for_review carries proposal_ids and changes nothing until a Maintainer accepts them.",
 		"intent": "import CLAUDE.md AGENTS.md cursorrules agent rules file into team instructions"
 	},
 	{
 		"id": "link_action_items",
 		"name": "link action items",
-		"description": "Record a directed relationship between two action items in this project: action_item_id <relationship> related_to_id. caused_by: the source was caused by the target. blocks: the source blocks the target, which cannot be claimed until the source is done or dismissed. related_to: they bear on each other. To retire work another item replaces, use resolve_action_item_conflict with supersedes, which also clears flags and closes the replaced item; a bare supersedes edge needs acknowledge_half_resolution and a Maintainer. When creating a follow-up, pass follow_up_from_action_item_id to create_action_item instead. For links between memories and documents, use manage_knowledge_links.",
+		"description": "Record a directed relationship between two action items in this project: action_item_id <relationship> related_to_id. caused_by: the source was caused by the target. blocks: the source blocks the target, which cannot be claimed until the source is done or dismissed. related_to: they bear on each other. To retire work another item replaces, use resolve_action_item_conflict with supersedes, which also clears flags and closes the replaced item; a bare supersedes edge needs acknowledge_half_resolution, and is refused rather than queued when your ruling would need review. From an unattended run nothing is recorded: the call returns the edge as a proposal (committed: false) for a person to make. When creating a follow-up, pass follow_up_from_action_item_id to create_action_item instead. For links between memories and documents, use manage_knowledge_links.",
 		"intent": "link relationship between work tasks action items blocking caused by related"
 	},
 	{
@@ -278,7 +278,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "manage_discussion_point",
 		"name": "manage discussion point",
-		"description": "Add, edit, strike (mark discussed), reopen, watch or unwatch a Still to Discuss point, only when the person asks. add with session_id puts the point on that room's list; without it, on the project list. A point records an unsettled topic, not work (create_action_item) or a settled decision (record_memory). Watching only adds the point to your mine:true results in search_discussion_points. The reply returns the changed point and its list: a room's whole list, or the project list's first 20 open points with rows_page.next_call to read on.",
+		"description": "Add, edit, strike (mark discussed), reopen, watch or unwatch a Still to Discuss point, only when the person asks. add puts the point on the project list, or on a room's list when you pass scope:\"room\" with that room's session_id. A point records an unsettled topic, not work (create_action_item) or a settled decision (record_memory). Watching only adds the point to your mine:true results in search_discussion_points. The reply returns the changed point and its list: a room's whole list, or the project list's first 20 open points with rows_page.next_call to read on.",
 		"intent": "add update strike reopen watch still to discuss discussion topic"
 	},
 	{
@@ -308,7 +308,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_automation_run",
 		"name": "record automation run",
-		"description": "Report the outcome of an automation run you claimed, or correct one already reported. Give a verdict for each acceptance criterion: met, not_met and intent_met need evidence (what you ran and what came back), and are refused without it; use unknown for anything you did not check. Criteria a first report leaves out are recorded as unknown. A first report must come from the agent that claimed the run; any other agent needs force with a reason, as does correcting a report whose agent is gone. Calling it again on a finished run corrects that run: your verdicts merge over the stored ones, fields you omit keep their values, and the correction is stamped on the run. A report that says the run committed or pushed beyond its permission is recorded as failed and returns an error; any failed run alerts you. List what the run produced in artifacts; an empty list is a fine answer for a run that only looked.",
+		"description": "Report the outcome of an automation run you claimed, or correct one already reported. Give a verdict for each acceptance criterion: met, not_met and intent_met need evidence (what you ran and what came back); if any lacks it, the whole report is refused and nothing is recorded. Use unknown for anything you did not check. Criteria a first report leaves out are recorded as unknown. A first report must come from the agent that claimed the run; any other agent needs force with a reason, as does correcting a report whose agent is gone. Calling it again on a finished run corrects that run: your verdicts merge over the stored ones, fields you omit keep their values, and the correction is stamped on the run. A report that says the run committed or pushed beyond its permission is recorded as failed and returns an error; any failed run alerts you. List what the run produced in artifacts; an empty list is a fine answer for a run that only looked.",
 		"intent": "report correct automation run outcome results criterion verdicts evidence"
 	},
 	{
@@ -320,19 +320,19 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_criterion_verdicts",
 		"name": "record criterion verdicts",
-		"description": "Record what you observed for an item's acceptance criteria: per criterion, what you ran or queried, what came back, and the layer that produced it. Checking a criterion you can run or query is your job, not one to leave for a person. Reading source alone is not runtime evidence: use unknown for checks not made, and intent_met, not not_met, when the work took a better route than the wording. For a line only a person can ever judge, use classify_criterion; a person's sign-off on the whole item is verify_action_item. One malformed verdict rejects the whole batch, with a reason for each. Settled criteria can complete the item, so report the returned criterion_promotion. Verdicts that landed on an earlier round of work come back under not_counted.",
+		"description": "Record what you observed for an item's acceptance criteria: per criterion, what you ran or queried, what came back, and the layer that produced it. A verdict that cites reading code (layer ai_review, or an evidence action that describes reading source) is rejected: use unknown for a check you did not make, and intent_met, not not_met, when the work took a better route than the wording. Which criteria you are expected to check is set by devspec://product/implementation-contract. For a line only a person can ever judge, use classify_criterion; a person's sign-off on the whole item is verify_action_item. One malformed verdict rejects the whole batch, with a reason for each. Settled criteria can complete the item, so report the returned criterion_promotion. Verdicts that landed on an earlier round of work come back under not_counted.",
 		"intent": "record observed acceptance criteria check results evidence met unknown"
 	},
 	{
 		"id": "record_implementation",
 		"name": "record implementation",
-		"description": "Record delivered work on an existing action item, claimed or not: the commit, changed files, checks and an honest summary. If the item is claimed, only the claim's holder can record it, and the claim and its reservation close. Each call opens a new implementation round, so call it once per delivery; add later context with add_implementation_note or add_commit_reference. For work that has no item, use record_completed_work. Act on any returned own_criteria_follow_through or brief_follow_through before you report. Then report the commit, lifecycle and verification status exactly as returned. This is not human sign-off. Lifecycle and completion follow devspec://product/implementation-contract.",
+		"description": "Record delivered work on an existing action item, claimed or not: the commit, changed files, checks and an honest summary. If the item is claimed, only the claim's holder can record it, and the claim and its reservation close. The item moves to implemented, or straight to done if its recorded evidence already settles it; lifecycle in the response says where it landed. Each call opens a new implementation round, so call it once per delivery; add later context with add_implementation_note or add_commit_reference. For work that has no item, use record_completed_work. Act on any returned own_criteria_follow_through or brief_follow_through before you report. Then report the commit, lifecycle and verification status exactly as returned. This is not human sign-off. Lifecycle and completion follow devspec://product/implementation-contract.",
 		"intent": "record report delivered implementation on an existing action item claimed or unclaimed commit changed files checks completion"
 	},
 	{
 		"id": "record_memory",
 		"name": "record memory",
-		"description": "Record a durable piece of project knowledge: a decision, convention, architecture fact, risk, insight or open question. Work in progress and delivery evidence belong on the action item, and a long document is an artifact (create_resource). As it is written, a quick closeness check (it does not read the records) compares the draft with existing memories. If one closely resembles it, nothing is recorded and the response names it (reconcile_required, closest_match): read it, then supersede or update it, link the two if both stand, re-call with confirm_new if yours is genuinely distinct, or ask the person, which is often the right answer. Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it.",
+		"description": "Record a durable piece of project knowledge: a decision, convention, architecture fact, risk, insight or open question. Work in progress and delivery evidence belong on the action item (add_implementation_note, record_implementation), and a long document is an artifact (create_resource). As it is written, a quick closeness check (it does not read the records) compares the draft with existing memories. If one closely resembles it, nothing is recorded and the response names it (reconcile_required, closest_match; on a write that would be queued, code reconcile_required and reconcile.closest): read it, then supersede or update it, link the two if both stand, re-call with confirm_new if yours is genuinely distinct, or ask the person, which is often the right answer. Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "record save capture remember new decision convention architecture risk insight open question"
 	},
 	{
@@ -344,13 +344,13 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "reopen_action_item",
 		"name": "reopen action item",
-		"description": "Reopen recorded work whose implementation does not do what was agreed, as an audited new round: the item returns to open and unclaimed (a brief to in progress), and the previous round's verifications and criterion verdicts are marked stale, except failed ones. Claim it again before working on it. New scope on finished work belongs in a follow-up (create_action_item with follow_up_from_action_item_id), and a deferred, dismissed or blocked item resumes with update_action_item (lifecycle open). Items already open or in progress are refused. Reopen versus follow-up is decided by work_entry_contract in devspec://product/implementation-contract.",
+		"description": "Reopen recorded work whose implementation does not do what was agreed, as an audited new round: the item returns to open and unclaimed (a brief to in progress), and the previous round's verifications and criterion verdicts are marked stale, except failed ones. Claim it again before working on it. New scope on finished work belongs in a follow-up (create_action_item with follow_up_from_action_item_id). To resume a deferred, dismissed or blocked item without opening a new round, use update_action_item (lifecycle open). Items already open or in progress are refused. Reopen versus follow-up is decided by work_entry_contract in devspec://product/implementation-contract.",
 		"intent": "reopen incomplete broken implemented done work new round"
 	},
 	{
 		"id": "report_progress",
 		"name": "report progress",
-		"description": "Add a progress note to an item that is currently being implemented, without changing its lifecycle or activity. It is stored as an implementation note and as a 'Progress update' entry in the item's history. It is not delivery evidence (use record_implementation), and it does not replace telling the person in the conversation.",
+		"description": "Add a progress note to an item that is currently being implemented, without changing its lifecycle or activity. It is stored as an implementation note and as a 'Progress update' entry in the item's history. For a note on an item nobody is implementing, or context rather than progress, use add_implementation_note. It is not delivery evidence (use record_implementation), and it posts nothing to the conversation and notifies no one.",
 		"intent": "progress update note on item being implemented"
 	},
 	{
@@ -362,7 +362,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "resolve_action_item_conflict",
 		"name": "resolve action item conflict",
-		"description": "Rule on an action item's possible_conflict or possibly_stale flag after reading both items. supersedes closes the item that is replaced: dismissed if it never shipped, done if it shipped, or pending until the replacing item ships. related records a related_to link and not_a_conflict records that the two do not clash; both clear the flag on both items and close nothing, and not_a_conflict lifts if either item's content materially changes. discuss opens a session seeded with the items and @mentions their creators, leaving the flags lit. For a staleness flag that names no other item, omit counterpart_item_id. Preview the outcome first with preview_conflict_resolution. A pair ruling can come back queued_for_review with a proposal_id: both items then read contested, and nothing is settled until a Maintainer accepts it. For a flag against a decided memory, use resolve_action_item_decision_flag.",
+		"description": "Rule on an action item's possible_conflict or possibly_stale flag after reading both items. supersedes closes the item that is replaced: dismissed if it never shipped, done if it shipped, or pending until the replacing item ships. related records a related_to link and not_a_conflict records that the two do not clash; both clear the flag on both items and close nothing, and not_a_conflict lifts if either item's content materially changes. discuss opens a session seeded with the items and @mentions their creators, leaving the flags lit; from an unattended run it opens nothing and returns the discussion as a proposal (committed: false) for a person to open. For a staleness flag that names no other item, omit counterpart_item_id. Preview the outcome first with preview_conflict_resolution. A pair ruling can come back queued_for_review with a proposal_id: both items then read contested, and nothing is settled until a Maintainer accepts it. For a flag against a decided memory, use resolve_action_item_decision_flag.",
 		"intent": "resolve flagged conflicting stale pair work action items judgement supersession"
 	},
 	{
@@ -374,19 +374,19 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "resolve_memory_flag",
 		"name": "resolve memory flag",
-		"description": "Rule on a review flag on a memory (possibly_stale or possibly_contradictory) and clear it. Read the records involved in full first (get_memory, not the search card). related and not_a_conflict keep both records as they are; settle those yourself when the facts are plain. supersedes records your judgement only and replaces nothing: if one memory really replaces the other, also call supersede_memory. Before a supersedes ruling against someone else's decision, say which decision would stop being current and ask, unless you were already told to go ahead. committed: true means the flag is cleared and will not be raised again for the same reason unless a record changes; outcome queued_for_review carries a proposal_id, and the flag stays lit until a Maintainer accepts it. For a flag on a document, use resolve_resource_flag.",
+		"description": "Rule on a review flag on a memory (possibly_stale or possibly_contradictory) and clear it on this memory and, for a contradiction, on the counterpart too. Read the records involved in full first (get_memory, not the search card). related and not_a_conflict keep both records as they are; settle those yourself when the facts are plain. supersedes records your judgement only and replaces nothing: if one memory really replaces the other, also call supersede_memory. committed: true means the ruling is recorded and the flag will not be raised again for the same reason unless a record changes; marks_cleared says what was cleared on each side, and warnings name any mark that was kept or not ruled on. outcome queued_for_review carries a proposal_id, and the flag stays lit until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. For a flag on a document, use resolve_resource_flag.",
 		"intent": "resolve rule on memory stale contradictory review flag"
 	},
 	{
 		"id": "resolve_resource_flag",
 		"name": "resolve resource flag",
-		"description": "Rule on a review flag on an AI-written artifact (possibly_stale or possibly_contradictory) and clear it. Read the documents involved in full first (get_resource). related and not_a_conflict keep both as they are; settle those yourself when the facts are plain. On documents a contradiction is often a real replacement, so do not use not_a_conflict to make a flag go away. supersedes records your judgement only and archives nothing: if one document really replaces the other, also call supersede_resource. Before a supersedes ruling against someone else's document, say what would stop being current and ask, unless you were already told to go ahead. committed: true means the flag is cleared and will not be raised again for the same reason unless the content changes; outcome queued_for_review carries a proposal_id, and the flag stays lit until a Maintainer accepts it. For a flag on a memory, use resolve_memory_flag.",
+		"description": "Rule on a review flag on an AI-written artifact (possibly_stale or possibly_contradictory) and clear it on this artifact and, for a contradiction, on the counterpart too. Read the documents involved in full first (get_resource). related and not_a_conflict keep both as they are; settle those yourself when the facts are plain. On documents a contradiction is often a real replacement, so do not use not_a_conflict to make a flag go away. supersedes records your judgement only and archives nothing: if one document really replaces the other, also call supersede_resource. committed: true means the ruling is recorded and the flag will not be raised again for the same reason unless the content changes; outcome queued_for_review carries a proposal_id, and the flag stays lit until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. For a flag on a memory, use resolve_memory_flag.",
 		"intent": "resolve rule on document artifact stale contradictory review flag"
 	},
 	{
 		"id": "retract_memory",
 		"name": "retract memory",
-		"description": "Retract a memory that is no longer true and that nothing replaces. It is kept and marked retracted: lists stop returning it, and so does search unless include_superseded is set; get_memory still reads it. Use supersede_memory when a newer decision should take its place. Retracting someone else's settled decision overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it.",
+		"description": "Retract a memory that is no longer true and that nothing replaces. It is kept and marked retracted: lists stop returning it, and so does search unless include_superseded is set; get_memory still reads it. Use supersede_memory when a newer decision should take its place. Retracting someone else's settled decision overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "retract retire withdraw incorrect no longer true memory"
 	},
 	{
@@ -398,7 +398,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "search_devspec_tools",
 		"name": "search devspec tools",
-		"description": "Ask which DevSpec tool fits a task when you are unsure; it returns recommended tools with their descriptions and never runs anything. It may return no match, and tools you already know can be called directly. degraded:true means the results are keyword-only, with reason saying why. Pass page.next_offset as offset for more matches.",
+		"description": "Ask which DevSpec tool fits a task when you are unsure; it returns recommended tools with their descriptions and never runs anything. It may return no match, and tools you already know can be called directly. For how DevSpec itself works (setup, integrations, billing), use devspec_help_search. degraded:true means the ranking fell back, and reason says why: the results are keyword-only, or there are none when the host's tool catalogue is out of date (catalog_mismatch). Pass page.next_offset as offset for more matches.",
 		"intent": "find appropriate available tools capabilities by intent"
 	},
 	{
@@ -410,7 +410,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "search_memories",
 		"name": "search memories",
-		"description": "Find project memories (decisions, conventions, architecture notes, risks, open questions and other durable knowledge) by meaning or keywords. Returns cards, not bodies: read a chosen record with get_memory before relying on it or changing it. To list every memory of one type, use get_decisions, get_conventions or get_unresolved_questions; for documents, use search_resources. With flagged or signal_type and no query, it lists the flagged memories, most recently updated first. Paged: page.total_matching counts every match; pass page.next_offset as offset for the next page.",
+		"description": "Find project memories (decisions, conventions, architecture notes, risks, open questions and other durable knowledge) by meaning or keywords. Returns cards, not bodies: read a chosen record with get_memory before relying on it or changing it. To list decisions, conventions or open questions in full, use get_decisions, get_conventions or get_unresolved_questions; for documents, use search_resources. Every memory the filters allow is returned, best match first: the query orders them and excludes none. word_matches counts the ones containing your words, and page.total_matching counts the whole filtered set. With flagged or signal_type and no query, it lists the flagged memories, most recently updated first. Pass page.next_offset as offset for the next page.",
 		"intent": "find search memory decision convention architecture risk rationale what did we decide topic"
 	},
 	{
@@ -434,13 +434,13 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "supersede_memory",
 		"name": "supersede memory",
-		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. If a different memory closely resembles the new text, nothing is superseded and the response names it (reconcile_required, closest_match); read it before deciding. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it.",
+		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. If a different memory closely resembles the new text, nothing is superseded and the response names it (reconcile_required, closest_match); read it before deciding. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "replace changed decision memory new agreed version supersede"
 	},
 	{
 		"id": "supersede_resource",
 		"name": "supersede resource",
-		"description": "Replace an AI-written artifact with a rewritten successor. The new version becomes current; the old one is archived, pointing to it. Read the current document first and carry over what still holds. Use update_resource for refinements and archive_resource when nothing replaces it; uploaded documents cannot be superseded. Replacing someone else's settled document overrules them, so ask unless you were already told to go ahead. If a different artifact closely resembles the replacement, nothing is superseded and the response names it (reconcile_required, closest_match); read it before deciding. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it.",
+		"description": "Replace an AI-written artifact with a rewritten successor. The new version becomes current; the old one is archived, pointing to it. Read the current document first and carry over what still holds. Use update_resource for refinements and archive_resource when nothing replaces it; uploaded documents cannot be superseded. Replacing someone else's settled document overrules them, so ask unless you were already told to go ahead. If a different artifact closely resembles the replacement, nothing is superseded and the response names it (reconcile_required, closest_match); read it before deciding. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "replace rewrite document artifact successor supersede"
 	},
 	{
@@ -452,7 +452,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "unlink_action_items",
 		"name": "unlink action items",
-		"description": "Remove one directed relationship between two action items, matched in the direction it was linked. Removing blocks lets the target be claimed; removing a pending supersedes cancels the supersession: nothing closes when the replacing item ships, and neither item reads as pending supersession any more. The response says which of these happened. Neither item's lifecycle changes, and removing a supersedes edge does not reopen the item it closed.",
+		"description": "Remove one directed relationship between two action items, matched in the direction it was linked. Removing blocks stops this item blocking the target's claim; removing a pending supersedes cancels the supersession: nothing closes when the replacing item ships, and neither item reads as pending supersession any more. The response says which of these happened. Neither item's lifecycle changes, and removing a supersedes edge does not reopen the item it closed. From an unattended run nothing is removed: the call returns the removal as a proposal (committed: false) for a person to make.",
 		"intent": "remove relationship between work tasks action items"
 	},
 	{
@@ -470,19 +470,19 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "update_memory",
 		"name": "update memory",
-		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence or affected files, or correct its title, summary or body. State, tags, confidence and affected files change in place. A wording change saves a new version with a new id, returned in the response: cite that id from then on. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. A body change is compared with existing memories; if another closely resembles it, nothing changes and the response names it (reconcile_required, closest_match). outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
+		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence or affected files, or correct its title, summary or body. State, tags, confidence and affected files change in place. A wording change saves a new version with a new id, returned in the response: cite that id from then on. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. A body change is compared with existing memories; if another closely resembles it, nothing changes and the response names it (reconcile_required, closest_match). outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
 		"intent": "mark memory decided agreed promote correct edit wording tags existing memory"
 	},
 	{
 		"id": "update_personal_instructions",
 		"name": "update personal instructions",
-		"description": "Change your own personal agent rules (given only to your coding agents) or response style (also used by Dev, the in-app assistant) when the person asks. The text you pass is appended by default; every agent the person runs reads all of it, so add only what is new. To revise or remove existing text, read it with get_personal_instructions and send the complete revised tier with mode:\"replace\", which overwrites the whole tier. Show the person the exact result first: dry_run:true returns it without saving. It is refused from an unattended run. Team-wide rules belong in write_project_instruction_rule.",
+		"description": "Change your own personal agent rules (given only to your coding agents) or response style (also used by Dev, the in-app assistant) when the person asks. The text you pass is appended by default; every agent the person runs reads all of it, so add only what is new. To revise or remove existing text, read it with get_personal_instructions and send the complete revised tier with mode:\"replace\", which overwrites the whole tier. Show the person the exact result first: dry_run:true returns it without saving. A change that would leave a tier over its length limit, and longer than before, is refused with the limit and length; nothing is saved. It is refused from an unattended run. Team-wide rules belong in write_project_instruction_rule.",
 		"intent": "change update own personal agent instructions response style preferences"
 	},
 	{
 		"id": "update_resource",
 		"name": "update resource",
-		"description": "Edit an AI-written artifact to keep it current: its title, summary, tags or body. Prefer body_edits (targeted replace or append) to a full body, so detail others added is not lost. A title, summary or body change saves a new version with a new id and retires the old one: use the returned id from then on, because edits to the old id are refused. Tags alone change in place. Use supersede_resource for a material rewrite and archive_resource to retire a document; uploaded documents cannot be edited. Rewriting someone else's settled document overrules them, so ask unless you were already told to go ahead. A body change is compared with existing artifacts; if another closely resembles it, nothing changes and the response names it (reconcile_required, closest_match). outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it.",
+		"description": "Edit an AI-written artifact to keep it current: its title, summary, tags or body. Prefer body_edits (targeted replace or append) to a full body, so detail others added is not lost. A title, summary or body change saves a new version with a new id and retires the old one: use the returned id from then on, because edits to the old id are refused. Tags alone change in place. Use supersede_resource for a material rewrite and archive_resource to retire a document; uploaded documents cannot be edited. Rewriting someone else's settled document overrules them, so ask unless you were already told to go ahead. A body change is compared with existing artifacts; if another closely resembles it, nothing changes and the response names it (reconcile_required, closest_match). outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "update edit refine existing document artifact plan runbook keep current"
 	},
 	{
@@ -494,7 +494,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "verify_action_item",
 		"name": "verify action item",
-		"description": "Record a present person's explicit decision on one implemented action item: passed: true signs it off, passed: false requests changes and flags it for attention. Before calling, tell the person which item and which decision. Who may decide is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, callers who are not allowed verifiers, and passed: true while a required follow-up step is open. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. The response does not return the resulting lifecycle.",
+		"description": "Record a person's decision on one implemented action item: passed: true signs it off, passed: false requests changes and flags it for attention. Who may decide, and when you may relay a decision, is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, callers who are not allowed verifiers, and passed: true while a required follow-up step is open. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. The response does not return the resulting lifecycle.",
 		"intent": "person signs off verifies implemented item request changes"
 	},
 	{
@@ -670,7 +670,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "search_devspec_tools",
 		"label": "DevSpec: Search Devspec Tools",
-		"description": "Ask which DevSpec tool fits a task when you are unsure; it returns recommended tools with their descriptions and never runs anything. It may return no match, and tools you already know can be called directly. degraded:true means the results are keyword-only, with reason saying why. Pass page.next_offset as offset for more matches.",
+		"description": "Ask which DevSpec tool fits a task when you are unsure; it returns recommended tools with their descriptions and never runs anything. It may return no match, and tools you already know can be called directly. For how DevSpec itself works (setup, integrations, billing), use devspec_help_search. degraded:true means the ranking fell back, and reason says why: the results are keyword-only, or there are none when the host's tool catalogue is out of date (catalog_mismatch). Pass page.next_offset as offset for more matches.",
 		"searchIntent": "find appropriate available tools capabilities by intent",
 		"modelInputSchema": {
 			"type": "object",
@@ -698,15 +698,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your own connection id, if you are a connected agent, so this search's cost is attributed to your connection and its room. It changes no results; an id that is not one of your live connections is ignored."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -762,15 +762,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your own connection id, if you are a connected agent, so this search's cost is attributed to your connection and its room. It changes no results; an id that is not one of your live connections is ignored."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -808,21 +808,21 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_project_summary",
 		"label": "DevSpec: Get Project Summary",
-		"description": "Orient on one project before working in it. It returns the team rules every coding agent follows (execution.custom_instructions = principles, execution.agent_rules = agent mechanics), your own personal agent rules (owner_agent_rules), the push, merge, branch-prefix, commit-prefix and protected-path settings, each repo's target_branch, connected database targets for migrations, current goals with progress, members (ids and names) and total session and action-item counts. It returns no integrations list or activity feed. To pick a project use list_projects; for topic context use the search tools.",
+		"description": "Orient on one project before working in it. It returns the team rules every coding agent follows (execution.custom_instructions = principles, execution.agent_rules = agent mechanics), your own personal agent rules (owner_agent_rules), the push, merge, branch-prefix, commit-prefix and protected-path settings, each repo's target_branch, connected database targets for migrations, current goals with progress, members (ids and names), the total action-item count, and a room count (stats.sessions) that leaves out background rooms but includes deleted rooms and rooms you cannot open; to list the rooms you can open, use get_recent_sessions. It returns no integrations list or activity feed. To pick a project use list_projects; for topic context use the search tools.",
 		"searchIntent": "project overview team rules agent rules personal rules target branch push merge settings database targets members goals orientation before working",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -831,15 +831,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"type": "object",
 			"properties": {
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -871,15 +871,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Only this tier. agent_rules: team execution mechanics, for coding agents only. principles: team philosophy, also given to Dev. Omitted: both tiers."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -904,15 +904,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Only this tier. agent_rules: team execution mechanics, for coding agents only. principles: team philosophy, also given to Dev. Omitted: both tiers."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -942,10 +942,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
-				"connection_id": {
-					"type": "string",
-					"description": "Optional. Your agent_connections id, so this search is attributed to your connection and its attached session in the organisation's usage view. Omit when you are not running as a connection."
-				},
 				"lifecycle": {
 					"type": "string",
 					"enum": [
@@ -1083,7 +1079,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"requested_by": {
 					"type": "string",
-					"description": "Filter by who ASKED for the item to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID; \"anyone\" or omitting it disables the filter. Same grammar as assigned_to."
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
 				},
 				"request_origin": {
 					"type": "string",
@@ -1096,18 +1092,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -1115,10 +1111,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"inputSchema": {
 			"type": "object",
 			"properties": {
-				"connection_id": {
-					"type": "string",
-					"description": "Optional. Your agent_connections id, so this search is attributed to your connection and its attached session in the organisation's usage view. Omit when you are not running as a connection."
-				},
 				"lifecycle": {
 					"type": "string",
 					"enum": [
@@ -1256,7 +1248,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"requested_by": {
 					"type": "string",
-					"description": "Filter by who ASKED for the item to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID; \"anyone\" or omitting it disables the filter. Same grammar as assigned_to."
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
 				},
 				"request_origin": {
 					"type": "string",
@@ -1269,18 +1261,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -1328,7 +1320,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"requested_by": {
 					"type": "string",
-					"description": "Filter by who ASKED for the item to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID; \"anyone\" or omitting it disables the filter. Same grammar as assigned_to."
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
 				},
 				"request_origin": {
 					"type": "string",
@@ -1341,18 +1333,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -1396,7 +1388,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"requested_by": {
 					"type": "string",
-					"description": "Filter by who ASKED for the item to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID; \"anyone\" or omitting it disables the filter. Same grammar as assigned_to."
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
 				},
 				"request_origin": {
 					"type": "string",
@@ -1409,18 +1401,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -1433,7 +1425,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_action_item",
 		"label": "DevSpec: Get Action Item",
-		"description": "Read one action item in full: description, intent, acceptance criteria with each line's promotion state, implementation notes, the commits currently linked, goals, review signals and unresolved conflicts. Search and list results are previews; read this before working on, editing or judging an item, and use get_action_item_history for its timeline. version is the value to pass as update_action_item's expected_version. unresolved_conflicts lists the possible conflicts that keep the item from being claimed; settle each with resolve_action_item_conflict. Suggested work that has not been accepted says so in agreement.",
+		"description": "Read one action item in full: description, intent, acceptance criteria with each line's promotion state, implementation notes, the commits currently linked, goals, review signals and unresolved conflicts. Search and list results are previews; read this before working on, editing or judging an item, and use get_action_item_history for its timeline. version is the value to pass as update_action_item's expected_version. unresolved_conflicts lists the possible conflicts that keep the item from being claimed; settle each with resolve_action_item_conflict. Suggested work that has not been accepted says so in agreement. To test or verify the item, get_testing_brief also gathers its deployments, test runs and comments.",
 		"searchIntent": "read full action item intent acceptance criteria current specification",
 		"modelInputSchema": {
 			"type": "object",
@@ -1542,7 +1534,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_testing_brief",
 		"label": "DevSpec: Get Testing Brief",
-		"description": "Gather what testing one action item needs: its description, completion summary, testing and usage notes, deployments and deployment evidence, connected database targets, AI test runs, commits, pull requests, implementation notes, every comment, recent activity, and the decisions and documents relevant to it. It includes the item's intent, its acceptance criteria with their ids and each line's promotion state, and when the round under test was delivered. Comments, deployments and test runs are complete; activity is the newest 50 events, and activity_page.older says how to read earlier ones.",
+		"description": "Gather what testing one action item needs: its description, completion summary, testing and usage notes, deployments and deployment evidence, connected database targets, AI test runs, commits, pull requests, implementation notes, every comment, recent activity, and the decisions and documents relevant to it. It includes the item's intent, its acceptance criteria with their ids and each line's promotion state, and when the round under test was delivered. Comments, deployments and test runs are complete; activity is the newest 50 events, and activity_page.older says how to read earlier ones. To work on or edit the item, read get_action_item; record what you observe with record_criterion_verdicts.",
 		"searchIntent": "how to test verify feature testing brief deployments database targets implementation evidence",
 		"modelInputSchema": {
 			"type": "object",
@@ -1553,7 +1545,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"include_session_transcript": {
 					"type": "boolean",
-					"description": "true currently returns an empty transcript with a message count of 0 and transcript_complete true. Default false: the originating room's id and its real message count."
+					"description": "true adds the originating room's first 100 messages and its real message count. When there are more, transcript_complete is false and transcript_note gives the get_session_transcript call for the rest. Default false: the room's id and message count, without messages. source_session is null when the item has no room or you cannot open it."
 				}
 			},
 			"required": [
@@ -1569,7 +1561,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"include_session_transcript": {
 					"type": "boolean",
-					"description": "true currently returns an empty transcript with a message count of 0 and transcript_complete true. Default false: the originating room's id and its real message count."
+					"description": "true adds the originating room's first 100 messages and its real message count. When there are more, transcript_complete is false and transcript_note gives the get_session_transcript call for the rest. Default false: the room's id and message count, without messages. source_session is null when the item has no room or you cannot open it."
 				}
 			},
 			"required": [
@@ -1650,7 +1642,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_review_queue",
 		"label": "DevSpec: Get Review Queue",
-		"description": "List what in this project waits on a ruling or an acceptance: records flagged as contradicting each other or a decision, records flagged as possibly out of date, and queued proposals. you_can on each entry says whether you may rule on, discuss or decide it. Rule on a flag with its record's tool: resolve_action_item_conflict, resolve_action_item_decision_flag, resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial.",
+		"description": "List what in this project waits on a ruling or an acceptance: records flagged as contradicting each other or a decision, records flagged as possibly out of date, and queued proposals. you_can on each entry says whether you may rule on, discuss or decide it. Rule on a flag with its record's tool: resolve_action_item_conflict, resolve_action_item_decision_flag, resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
 		"searchIntent": "review inbox disagreements flags proposed changes waiting for a ruling or acceptance",
 		"modelInputSchema": {
 			"type": "object",
@@ -1712,15 +1704,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your connection id, when you run as one, so a search's cost is attributed to you and your room. Omitted: the connection your client proved, or your token's only live connection."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -1785,15 +1777,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your connection id, when you run as one, so a search's cost is attributed to you and your room. Omitted: the connection your client proved, or your token's only live connection."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -1813,15 +1805,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "true adds the full versioned implementation contract to the response. Default false: only verifiers."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -1834,15 +1826,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "true adds the full versioned implementation contract to the response. Default false: only verifiers."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -2007,18 +1999,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pull_request_id": {
 					"type": "string",
-					"description": "DevSpec's pull request UUID, as a Discuss seed or timeline event carries it. Takes precedence over number. Omitted: number is used."
+					"description": "DevSpec's pull request UUID, as the opening message of a pull-request discussion or a timeline event carries it. Takes precedence over number. Omitted: number is used."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -2044,18 +2036,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pull_request_id": {
 					"type": "string",
-					"description": "DevSpec's pull request UUID, as a Discuss seed or timeline event carries it. Takes precedence over number. Omitted: number is used."
+					"description": "DevSpec's pull request UUID, as the opening message of a pull-request discussion or a timeline event carries it. Takes precedence over number. Omitted: number is used."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -2093,15 +2085,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "With goal_id: items per page. Defaults to 500, the maximum; larger values are capped."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -2132,15 +2124,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "With goal_id: items per page. Defaults to 500, the maximum; larger values are capped."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -2156,15 +2148,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"type": "object",
 			"properties": {
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -2173,15 +2165,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"type": "object",
 			"properties": {
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -2191,7 +2183,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_database_schema",
 		"label": "DevSpec: Get Database Schema",
-		"description": "Read the schemas of the databases connected to this project, from each one's last sync. Pass query for the most relevant tables, columns, functions and enums across every database, grouped by table: the best default. Pass table_name for that table in every database that has it, with its columns, keys, indexes, triggers and policies. With neither, it returns a paged overview of the databases and their tables. A failed lookup is reported as a failure, and a database with no schema yet (not synced, or MongoDB) says why. It never runs SQL or changes a database.",
+		"description": "Read the schemas of the databases connected to this project, from each one's last sync. Pass query for the most relevant tables, columns, functions and enums across every database, grouped by table: the best default. Pass table_name for that table in every database that has it, with its columns, keys, indexes, triggers and policies. With neither, it returns a paged overview of the databases and their tables. A database with no schema yet (not synced, or MongoDB) says why. It never runs SQL or changes a database.",
 		"searchIntent": "inspect connected database schema tables columns functions enums foreign keys",
 		"modelInputSchema": {
 			"type": "object",
@@ -2219,15 +2211,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "For the overview: tables per page, 1 to 500. Defaults to 200."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -2258,15 +2250,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "For the overview: tables per page, 1 to 500. Defaults to 200."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -2276,14 +2268,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "search_memories",
 		"label": "DevSpec: Search Memories",
-		"description": "Find project memories (decisions, conventions, architecture notes, risks, open questions and other durable knowledge) by meaning or keywords. Returns cards, not bodies: read a chosen record with get_memory before relying on it or changing it. To list every memory of one type, use get_decisions, get_conventions or get_unresolved_questions; for documents, use search_resources. With flagged or signal_type and no query, it lists the flagged memories, most recently updated first. Paged: page.total_matching counts every match; pass page.next_offset as offset for the next page.",
+		"description": "Find project memories (decisions, conventions, architecture notes, risks, open questions and other durable knowledge) by meaning or keywords. Returns cards, not bodies: read a chosen record with get_memory before relying on it or changing it. To list decisions, conventions or open questions in full, use get_decisions, get_conventions or get_unresolved_questions; for documents, use search_resources. Every memory the filters allow is returned, best match first: the query orders them and excludes none. word_matches counts the ones containing your words, and page.total_matching counts the whole filtered set. With flagged or signal_type and no query, it lists the flagged memories, most recently updated first. Pass page.next_offset as offset for the next page.",
 		"searchIntent": "find search memory decision convention architecture risk rationale what did we decide topic",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
 				"connection_id": {
 					"type": "string",
-					"description": "Optional. Your agent_connections id, so this search is attributed to your connection and its attached session in the organisation's usage view. Omit when you are not running as a connection."
+					"description": "Your own connection id, if you are a connected agent: the usage a query incurs is attributed to it and its session in the organisation's usage view. The connection your client authenticated, if any, is used instead. Omitted, or not one of your token's live connections: your token's only live connection, if it has exactly one; otherwise no agent is named."
 				},
 				"query": {
 					"type": "string",
@@ -2334,7 +2326,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"requested_by": {
 					"type": "string",
-					"description": "Filter by who ASKED for the item to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID; \"anyone\" or omitting it disables the filter. Same grammar as assigned_to."
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
 				},
 				"request_origin": {
 					"type": "string",
@@ -2347,18 +2339,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -2371,7 +2363,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"connection_id": {
 					"type": "string",
-					"description": "Optional. Your agent_connections id, so this search is attributed to your connection and its attached session in the organisation's usage view. Omit when you are not running as a connection."
+					"description": "Your own connection id, if you are a connected agent: the usage a query incurs is attributed to it and its session in the organisation's usage view. The connection your client authenticated, if any, is used instead. Omitted, or not one of your token's live connections: your token's only live connection, if it has exactly one; otherwise no agent is named."
 				},
 				"query": {
 					"type": "string",
@@ -2422,7 +2414,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"requested_by": {
 					"type": "string",
-					"description": "Filter by who ASKED for the item to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID; \"anyone\" or omitting it disables the filter. Same grammar as assigned_to."
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
 				},
 				"request_origin": {
 					"type": "string",
@@ -2435,18 +2427,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -2543,10 +2535,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "number",
 					"description": "Where this page starts: page.next_offset from the previous page. Default 0."
 				},
-				"connection_id": {
-					"type": "string",
-					"description": "Optional. Your agent_connections id, so this search is attributed to your connection and its attached session in the organisation's usage view. Omit when you are not running as a connection."
-				},
 				"limit": {
 					"type": "number",
 					"description": "Cards per page, 1-100. Default 20."
@@ -2565,7 +2553,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"requested_by": {
 					"type": "string",
-					"description": "Filter by who ASKED for the item to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID; \"anyone\" or omitting it disables the filter. Same grammar as assigned_to."
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
 				},
 				"request_origin": {
 					"type": "string",
@@ -2578,18 +2566,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -2601,10 +2589,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "number",
 					"description": "Where this page starts: page.next_offset from the previous page. Default 0."
 				},
-				"connection_id": {
-					"type": "string",
-					"description": "Optional. Your agent_connections id, so this search is attributed to your connection and its attached session in the organisation's usage view. Omit when you are not running as a connection."
-				},
 				"limit": {
 					"type": "number",
 					"description": "Cards per page, 1-100. Default 20."
@@ -2623,7 +2607,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"requested_by": {
 					"type": "string",
-					"description": "Filter by who ASKED for the item to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID; \"anyone\" or omitting it disables the filter. Same grammar as assigned_to."
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
 				},
 				"request_origin": {
 					"type": "string",
@@ -2636,18 +2620,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -2684,7 +2668,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"requested_by": {
 					"type": "string",
-					"description": "Filter by who ASKED for the item to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID; \"anyone\" or omitting it disables the filter. Same grammar as assigned_to."
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
 				},
 				"request_origin": {
 					"type": "string",
@@ -2697,18 +2681,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -2738,7 +2722,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"requested_by": {
 					"type": "string",
-					"description": "Filter by who ASKED for the item to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID; \"anyone\" or omitting it disables the filter. Same grammar as assigned_to."
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
 				},
 				"request_origin": {
 					"type": "string",
@@ -2751,18 +2735,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -2799,7 +2783,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"requested_by": {
 					"type": "string",
-					"description": "Filter by who ASKED for the item to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID; \"anyone\" or omitting it disables the filter. Same grammar as assigned_to."
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
 				},
 				"request_origin": {
 					"type": "string",
@@ -2812,18 +2796,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -2853,7 +2837,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"requested_by": {
 					"type": "string",
-					"description": "Filter by who ASKED for the item to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID; \"anyone\" or omitting it disables the filter. Same grammar as assigned_to."
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
 				},
 				"request_origin": {
 					"type": "string",
@@ -2866,18 +2850,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -2898,7 +2882,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id. Uploads attached to a session are listed only for the session it is attached to, and it selects the project when project_id is omitted. Omitted: if this token is attached to exactly one session in the project, that one; otherwise project documents only. A connection that is not live or not yours is refused."
+					"description": "Your connection id. Uploads attached to a session are listed only for the session it is attached to, and it selects the project when project_id is omitted. Omitted: the one session your live connections in this project are attached to, if there is exactly one; otherwise project documents only. A connection that is not live or not yours is refused."
 				},
 				"source": {
 					"type": "string",
@@ -2943,7 +2927,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"requested_by": {
 					"type": "string",
-					"description": "Filter by who ASKED for the item to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID; \"anyone\" or omitting it disables the filter. Same grammar as assigned_to."
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
 				},
 				"request_origin": {
 					"type": "string",
@@ -2956,18 +2940,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -2981,7 +2965,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id. Uploads attached to a session are listed only for the session it is attached to, and it selects the project when project_id is omitted. Omitted: if this token is attached to exactly one session in the project, that one; otherwise project documents only. A connection that is not live or not yours is refused."
+					"description": "Your connection id. Uploads attached to a session are listed only for the session it is attached to, and it selects the project when project_id is omitted. Omitted: the one session your live connections in this project are attached to, if there is exactly one; otherwise project documents only. A connection that is not live or not yours is refused."
 				},
 				"source": {
 					"type": "string",
@@ -3026,7 +3010,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"requested_by": {
 					"type": "string",
-					"description": "Filter by who ASKED for the item to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID; \"anyone\" or omitting it disables the filter. Same grammar as assigned_to."
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
 				},
 				"request_origin": {
 					"type": "string",
@@ -3039,18 +3023,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -3080,7 +3064,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id; the server finds its attached session. Needed for scope session, and to include that session's uploads under all; it also selects the project when project_id is omitted. Omitted: if this token is attached to exactly one session in the project, that one; otherwise project documents only."
+					"description": "Your connection id; the server finds its attached session, whose uploads scope all and scope session include. It also selects the project when project_id is omitted. Omitted: the one session your live connections in this project are attached to, if there is exactly one; otherwise project documents only. A connection that is not live or not yours is refused."
 				},
 				"scope": {
 					"type": "string",
@@ -3101,7 +3085,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"requested_by": {
 					"type": "string",
-					"description": "Filter by who ASKED for the item to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID; \"anyone\" or omitting it disables the filter. Same grammar as assigned_to."
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
 				},
 				"request_origin": {
 					"type": "string",
@@ -3114,18 +3098,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -3148,7 +3132,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id; the server finds its attached session. Needed for scope session, and to include that session's uploads under all; it also selects the project when project_id is omitted. Omitted: if this token is attached to exactly one session in the project, that one; otherwise project documents only."
+					"description": "Your connection id; the server finds its attached session, whose uploads scope all and scope session include. It also selects the project when project_id is omitted. Omitted: the one session your live connections in this project are attached to, if there is exactly one; otherwise project documents only. A connection that is not live or not yours is refused."
 				},
 				"scope": {
 					"type": "string",
@@ -3169,7 +3153,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"requested_by": {
 					"type": "string",
-					"description": "Filter by who ASKED for the item to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID; \"anyone\" or omitting it disables the filter. Same grammar as assigned_to."
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
 				},
 				"request_origin": {
 					"type": "string",
@@ -3182,18 +3166,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"unrecorded",
 						"all"
 					],
-					"description": "Filter by HOW the item came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -3210,7 +3194,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id. Needed to read a file attached to a session, unless this token is attached to exactly one session in the project. A connection that is not live or not yours is refused."
+					"description": "Your connection id; files attached to the session it is attached to are readable. Omitted: the one session your live connections in this project are attached to, if there is exactly one; otherwise only project documents are readable. A connection that is not live or not yours is refused."
 				},
 				"id": {
 					"type": "string",
@@ -3238,7 +3222,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id. Needed to read a file attached to a session, unless this token is attached to exactly one session in the project. A connection that is not live or not yours is refused."
+					"description": "Your connection id; files attached to the session it is attached to are readable. Omitted: the one session your live connections in this project are attached to, if there is exactly one; otherwise only project documents are readable. A connection that is not live or not yours is refused."
 				},
 				"id": {
 					"type": "string",
@@ -3280,13 +3264,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						1
 					],
-					"description": "Optional instruction_tiers_version previously retained by this client. Send with known_instruction_tiers_hash; both must match before identical tier texts are omitted."
+					"description": "The instruction_tiers_version from an earlier response; send it with known_instruction_tiers_hash. When both match, tier texts this call would return are left out. Omitted: tier texts are sent in full."
 				},
 				"known_instruction_tiers_hash": {
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
+					"description": "The instruction_tiers_hash this process retained from an earlier response; after a restart, omit it. Omitted: tier texts are sent in full."
 				},
 				"since_created_at": {
 					"type": "string",
@@ -3294,7 +3278,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"after_message_id": {
 					"type": "string",
-					"description": "Message id forward cursor: only messages after it; prefer it to since_created_at; with both, a message id found in this room decides and since_created_at is ignored. Without limit, returns the first 50 after it. An id not found in this room is ignored, so the read starts from the room's first message. Not combinable with before_message_id."
+					"description": "Message id forward cursor: only messages after it; prefer it to since_created_at; with both, a message id found in this room decides and since_created_at is ignored. Without limit, returns the first 50 after it. An id not found in this room is ignored, so the read starts after since_created_at if given, else from the room's first message. Not combinable with before_message_id."
 				},
 				"before_message_id": {
 					"type": "string",
@@ -3361,13 +3345,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						1
 					],
-					"description": "Optional instruction_tiers_version previously retained by this client. Send with known_instruction_tiers_hash; both must match before identical tier texts are omitted."
+					"description": "The instruction_tiers_version from an earlier response; send it with known_instruction_tiers_hash. When both match, tier texts this call would return are left out. Omitted: tier texts are sent in full."
 				},
 				"known_instruction_tiers_hash": {
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
+					"description": "The instruction_tiers_hash this process retained from an earlier response; after a restart, omit it. Omitted: tier texts are sent in full."
 				},
 				"since_created_at": {
 					"type": "string",
@@ -3375,7 +3359,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"after_message_id": {
 					"type": "string",
-					"description": "Message id forward cursor: only messages after it; prefer it to since_created_at; with both, a message id found in this room decides and since_created_at is ignored. Without limit, returns the first 50 after it. An id not found in this room is ignored, so the read starts from the room's first message. Not combinable with before_message_id."
+					"description": "Message id forward cursor: only messages after it; prefer it to since_created_at; with both, a message id found in this room decides and since_created_at is ignored. Without limit, returns the first 50 after it. An id not found in this room is ignored, so the read starts after since_created_at if given, else from the room's first message. Not combinable with before_message_id."
 				},
 				"before_message_id": {
 					"type": "string",
@@ -3457,15 +3441,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Only rooms with this status; page.total_matching then counts those rooms only. Omitted: active and archived rooms both."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -3490,15 +3474,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Only rooms with this status; page.total_matching then counts those rooms only. Omitted: active and archived rooms both."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -3530,15 +3514,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Room cards per page. Defaults to 5; at most 10."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -3566,15 +3550,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Room cards per page. Defaults to 5; at most 10."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -3638,15 +3622,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Cards per page. Defaults to 20; at most 50."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -3700,15 +3684,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Cards per page. Defaults to 20; at most 50."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -3749,7 +3733,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_automation_runs",
 		"label": "DevSpec: Get Automation Runs",
-		"description": "With no automation_id: the automation runs waiting for your agent to claim; take one with claim_automation_run and its run_id. Pass connection_id so the list is worked out for you: with several of your agents connected and none named, the call is refused, and with none connected it returns waiting_for_an_agent with a note. Runs that name a different agent are listed under not_for_you and are not yours to take. Each entry gives the run, the automation's name, how it was triggered, its owner, permission and queued time; the instruction comes with the claim. With automation_id: that automation's run history, newest first, a page at a time; query searches the runs' summary, failure reason and output. Use get_automations for definitions.",
+		"description": "With no automation_id: the automation runs waiting for your agent to claim; take one with claim_automation_run and its run_id. Pass connection_id so the list is worked out for you: with several of your agents connected and none named, the call is refused, and with none connected it returns waiting_for_an_agent with a note. Runs that name a different agent are listed under not_for_you and are not yours to take. Each entry gives the run, the automation's name, how it was triggered, its owner, permission and queued time; the instruction comes with the claim. With automation_id: that automation's run history, newest first, a page at a time: your runs plus its schedule and event runs that belong to the whole project (a teammate's runs are not included); query searches your own runs' summary, failure reason and output. Use get_automations for definitions.",
 		"searchIntent": "waiting automation runs to pick up, my automation inbox queue, automation run history results outcomes",
 		"modelInputSchema": {
 			"type": "object",
@@ -3768,22 +3752,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"query": {
 					"type": "string",
-					"description": "With automation_id: full-text search over the runs' summary, failure reason and captured output, best match first. Ignored without automation_id."
+					"description": "With automation_id: full-text search over your own runs' summary, failure reason and captured output, best match first; runs that belong to the whole project are not searched. Ignored without automation_id."
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id; the waiting queue is filtered for that agent. Omitted, or not a live connection of yours: your most recently seen live connection on the project is used, which may be another of your agents."
+					"description": "Your connection id; the waiting queue is worked out for that agent. A connection your client authenticated is used instead when there is one. Omitted, or not a live connection of yours: your only live connection on this project; with several, the call is refused."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -3805,22 +3789,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"query": {
 					"type": "string",
-					"description": "With automation_id: full-text search over the runs' summary, failure reason and captured output, best match first. Ignored without automation_id."
+					"description": "With automation_id: full-text search over your own runs' summary, failure reason and captured output, best match first; runs that belong to the whole project are not searched. Ignored without automation_id."
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id; the waiting queue is filtered for that agent. Omitted, or not a live connection of yours: your most recently seen live connection on the project is used, which may be another of your agents."
+					"description": "Your connection id; the waiting queue is worked out for that agent. A connection your client authenticated is used instead when there is one. Omitted, or not a live connection of yours: your only live connection on this project; with several, the call is refused."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -3830,7 +3814,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_automations",
 		"label": "DevSpec: Get Automations",
-		"description": "Browse the automations you can see: yours plus those teammates shared with the project. Each row says whose it is (created_by, yours) and who can see it (visibility); anyone who can see one may run it on their own agents, but only its author can change or archive it. name resolves one the person named; query searches name, instruction and tags; with neither, you get the list, most recently used first. Archived automations are not listed. You cannot start a run from here: runs start in the app or from a schedule or trigger, then reach agents through get_automation_runs. Use get_automation for one in full; a one-off task is an action item, not an automation.",
+		"description": "Browse the automations you can see: yours plus those teammates shared with the project. Each row says whose it is (created_by, yours), who can see it (visibility) and which agents may run it (eligible_agents, each with any model it needs; empty means any agent). Anyone who can see one may run it on their own agents, but only its author can change or archive it. name resolves one the person named; query searches name, instruction and tags; with neither, you get the list, most recently used first. Archived automations are not listed. You cannot start a run from here: runs start in the app or from a schedule or trigger, then reach agents through get_automation_runs. Use get_automation for one in full; a one-off task is an action item, not an automation.",
 		"searchIntent": "list find saved reusable automations jobs shared with the project, run my automation",
 		"modelInputSchema": {
 			"type": "object",
@@ -3844,15 +3828,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Full-text search over name, instruction and tags, best match first; at most 50. Ignored when name is given. With neither, up to 200 are listed."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -3869,15 +3853,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Full-text search over name, instruction and tags, best match first; at most 50. Ignored when name is given. With neither, up to 200 are listed."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -3887,7 +3871,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_automation",
 		"label": "DevSpec: Get Automation",
-		"description": "Read one automation you can see (yours or shared) in full, by automation_id or by name: its instruction, acceptance criteria with their ids, permission, agent constraint, tags and whose it is. A name matching several returns ambiguous: true with the candidates instead of guessing; ask which, or call again with the id. Read it before update_automation. This does not start a run: to do the job ad hoc, follow its instruction within its permission, or ask the person to start a run in the app so it is recorded.",
+		"description": "Read one automation you can see (yours or shared) in full, by automation_id or by name: its instruction, acceptance criteria with their ids, permission, the agents it may run on (eligible_agents, each with any model it needs; empty means any agent), tags and whose it is. A name matching several returns ambiguous: true with the candidates instead of guessing; ask which, or call again with the id. Read it before update_automation. This does not start a run: to do the job ad hoc, follow its instruction within its permission, or ask the person to start a run in the app so it is recorded.",
 		"searchIntent": "read one saved automation instructions criteria permission by name or id",
 		"modelInputSchema": {
 			"type": "object",
@@ -3901,15 +3885,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Resolve by name instead: case-insensitive match on any part of the name, exact matches win. Omitted: automation_id is required."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -3926,15 +3910,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Resolve by name instead: case-insensitive match on any part of the name, exact matches win. Omitted: automation_id is required."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -3944,7 +3928,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "verify_agent_connection",
 		"label": "DevSpec: Verify Agent Connection",
-		"description": "Check that this coding agent reaches DevSpec with its token. Call it with no arguments; it needs no project, so it works before any exists. It returns who you are connected as and marks the person's connect-your-coding-agent setup step done; a DevSpec page waiting for that updates by itself. It proves the connection only, nothing about any work.",
+		"description": "Check that this coding agent reaches DevSpec with its token. Call it with no arguments; it needs no project, so it works before any exists. It returns who you are connected as and marks the person's connect-your-coding-agent setup step done; a DevSpec page waiting for that updates by itself. It proves the connection only, nothing about any work. It does not register this conversation as an agent on the Agents page or deliver commands to it; that is register_connection.",
 		"searchIntent": "verify check test my DevSpec connection setup token am I connected",
 		"modelInputSchema": {
 			"type": "object",
@@ -4050,15 +4034,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your own connection id, if you are a connected agent, so the write is judged as the person whose command you are serving. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -4116,15 +4100,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your own connection id, if you are a connected agent, so the write is judged as the person whose command you are serving. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -4137,7 +4121,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "import_instruction_rules",
 		"label": "DevSpec: Import Instruction Rules",
-		"description": "Turn an existing agent-rules file (CLAUDE.md, AGENTS.md, .cursorrules or similar) into team rules. You sort each item into a destination and cite its source_line; do not file the whole file as agent rules. A call without confirm writes nothing and returns the plan: show it to the person, let them drop or move entries, then call again with confirm:true. Only project_agent_rules and project_principles items are written; personal_agent_rules and memory items come back for you to save with update_personal_instructions and record_memory, and leave_in_repo items are not written. Read the current rules first: where one already covers a subject, leave the item out and amend that rule with write_project_instruction_rule. Whether the import commits is decided under devspec://product/implementation-contract. Read outcome: committed means the rules are live; queued_for_review carries proposal_ids and changes nothing until a Maintainer accepts them.",
+		"description": "Turn an existing agent-rules file (CLAUDE.md, AGENTS.md, .cursorrules or similar) into team rules. You sort each item into a destination and cite its source_line; do not file the whole file as agent rules. A call without confirm writes nothing and returns the plan: show it to the person, let them drop or move entries, then call again with confirm:true. If the rules would take a tier, or a rationale, past its length limit, the whole import is refused with the limit and length, with or without confirm, and nothing is written. Only project_agent_rules and project_principles items are written; personal_agent_rules and memory items come back for you to save with update_personal_instructions and record_memory, and leave_in_repo items are not written. Read the current rules first: where one already covers a subject, leave the item out and amend that rule with write_project_instruction_rule. Whether the import commits is decided under devspec://product/implementation-contract. Read outcome: committed means the rules are live; queued_for_review carries proposal_ids and changes nothing until a Maintainer accepts them.",
 		"searchIntent": "import CLAUDE.md AGENTS.md cursorrules agent rules file into team instructions",
 		"modelInputSchema": {
 			"type": "object",
@@ -4173,7 +4157,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 									"mechanics",
 									"style"
 								],
-								"description": "Project destinations only. Safety items (force-push, branch protection, secrets) need a maintainer and confirm_safety_change."
+								"description": "Project destinations only. Safety items (force-push, branch protection, secrets) need a maintainer and confirm_safety_change. Omitted: mechanics."
 							},
 							"rationale": {
 								"type": "string",
@@ -4205,15 +4189,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your own connection id, if you are a connected agent, so the write is judged as the person whose command you are serving. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -4256,7 +4240,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 									"mechanics",
 									"style"
 								],
-								"description": "Project destinations only. Safety items (force-push, branch protection, secrets) need a maintainer and confirm_safety_change."
+								"description": "Project destinations only. Safety items (force-push, branch protection, secrets) need a maintainer and confirm_safety_change. Omitted: mechanics."
 							},
 							"rationale": {
 								"type": "string",
@@ -4288,15 +4272,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your own connection id, if you are a connected agent, so the write is judged as the person whose command you are serving. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -4310,18 +4294,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_personal_instructions",
 		"label": "DevSpec: Update Personal Instructions",
-		"description": "Change your own personal agent rules (given only to your coding agents) or response style (also used by Dev, the in-app assistant) when the person asks. The text you pass is appended by default; every agent the person runs reads all of it, so add only what is new. To revise or remove existing text, read it with get_personal_instructions and send the complete revised tier with mode:\"replace\", which overwrites the whole tier. Show the person the exact result first: dry_run:true returns it without saving. It is refused from an unattended run. Team-wide rules belong in write_project_instruction_rule.",
+		"description": "Change your own personal agent rules (given only to your coding agents) or response style (also used by Dev, the in-app assistant) when the person asks. The text you pass is appended by default; every agent the person runs reads all of it, so add only what is new. To revise or remove existing text, read it with get_personal_instructions and send the complete revised tier with mode:\"replace\", which overwrites the whole tier. Show the person the exact result first: dry_run:true returns it without saving. A change that would leave a tier over its length limit, and longer than before, is refused with the limit and length; nothing is saved. It is refused from an unattended run. Team-wide rules belong in write_project_instruction_rule.",
 		"searchIntent": "change update own personal agent instructions response style preferences",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
 				"personal_agent_rules": {
 					"type": "string",
-					"description": "Text for your personal agent rules: machine and tooling context such as installed tools, local ports and personal workflow. Appended unless mode is replace."
+					"description": "Text for your personal agent rules: machine and tooling context such as installed tools, local ports and personal workflow. Appended unless mode is replace. Omitted: this tier is unchanged; omitting both is refused."
 				},
 				"chat_response_style": {
 					"type": "string",
-					"description": "Text for your response style: your conversational tone. Appended unless mode is replace."
+					"description": "Text for your response style: your conversational tone. Appended unless mode is replace. Omitted: this tier is unchanged; omitting both is refused."
 				},
 				"mode": {
 					"type": "string",
@@ -4342,11 +4326,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"personal_agent_rules": {
 					"type": "string",
-					"description": "Text for your personal agent rules: machine and tooling context such as installed tools, local ports and personal workflow. Appended unless mode is replace."
+					"description": "Text for your personal agent rules: machine and tooling context such as installed tools, local ports and personal workflow. Appended unless mode is replace. Omitted: this tier is unchanged; omitting both is refused."
 				},
 				"chat_response_style": {
 					"type": "string",
-					"description": "Text for your response style: your conversational tone. Appended unless mode is replace."
+					"description": "Text for your response style: your conversational tone. Appended unless mode is replace. Omitted: this tier is unchanged; omitting both is refused."
 				},
 				"mode": {
 					"type": "string",
@@ -4434,16 +4418,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"acceptance_criteria": {
 					"anyOf": [
 						{
-							"type": "string",
-							"description": "List of checkable criteria. Preserve existing {id,text} entries for unchanged criteria to retain evidence; strings create new identities. Maximum 30 entries, 1000 characters each."
+							"type": "string"
 						},
 						{
 							"maxItems": 30,
 							"type": "array",
 							"items": {
 								"type": "string"
-							},
-							"description": "List of checkable criteria. Preserve existing {id,text} entries for unchanged criteria to retain evidence; strings create new identities. Maximum 30 entries, 1000 characters each."
+							}
 						},
 						{
 							"maxItems": 30,
@@ -4462,8 +4444,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 									"id",
 									"text"
 								]
-							},
-							"description": "List of checkable criteria. Preserve existing {id,text} entries for unchanged criteria to retain evidence; strings create new identities. Maximum 30 entries, 1000 characters each."
+							}
 						}
 					],
 					"description": "The complete criteria list; it replaces the stored one. Send an unchanged line as {id, text}, or with the same text, to keep its id and verdicts; lines you leave out are deleted, and an empty list clears them. Also accepts one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: unchanged."
@@ -4522,7 +4503,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"idempotency_key": {
 					"type": "string",
-					"description": "Needed only when the change is saved for review (the response says queued_for_review): one UUID per intended change, sent with expected_version, and reused with the same fields after an uncertain response to recover the saved proposal instead of making another. A change saved for review may contain only title, description or description_edits, intent and acceptance_criteria; other fields in the same call are refused."
+					"description": "One UUID per intended change; send one, with expected_version, on every edit to the title, description, intent or criteria. When your change is saved for review, a call without a UUID key and expected_version is refused and nothing changes; reuse the key with the same fields after an uncertain response to recover the saved proposal instead of making another. A change saved for review may contain only title, description or description_edits, intent and acceptance_criteria; other fields in the same call are refused. Omitted: a change that is not saved for review goes ahead without it."
 				},
 				"agent_branch": {
 					"type": "string",
@@ -4545,20 +4526,34 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "The DevSpec room this edit is made for, when you are working on a room's behalf (UUID or short code): the change is recorded as made in that room and shows in its This session panel. An id that is not a room in this project is ignored. Omitted: no room."
 				},
 				"assigned_to": {
-					"type": "string",
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
 					"description": "Adds this user (UUID) as an assignee; existing assignees stay. null removes every assignee, so to hand the item to someone else, clear with null and then add them. Once assigned, only an assignee can claim the item without forcing. An assignment that cannot be stored is listed under not_stored. Omitted: unchanged."
 				},
 				"commit_sha": {
 					"type": "string",
-					"description": "Links a commit to the item, short or full; never pad a short SHA. A commit not yet indexed is stored as provisional and resolves itself when it lands. Linking marks the item's current item-level verification stale. add_commit_reference links a commit without editing anything. Omitted: no commit is linked."
+					"description": "Links a commit to the item, short or full; never pad a short SHA. A commit not yet indexed is stored as provisional and resolves itself when it lands. Linking marks the item's current item-level verification stale, unless the commit is already linked to the item as server_linked: that link is returned instead (commit_reference_deduplicated) and nothing is marked stale. A link that cannot be stored is listed under not_stored. add_commit_reference links a commit without editing anything. Omitted: no commit is linked."
 				},
 				"note": {
 					"type": "string",
 					"description": "Replaces the item's completion note, the delivery summary shown on the item, rather than adding to it. To add a remark, use add_implementation_note. Omitted: unchanged."
 				},
 				"parent_action_item_id": {
-					"type": "string",
-					"description": "Moves the item under this brief (UUID or short code); null takes it out of its brief. The brief must itself be top-level and in this project, and a brief that is already implemented or done is reopened for a new round. Omitted: unchanged."
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Moves the item under this brief (UUID or short code). The brief must itself be top-level and in this project, and a brief that is already implemented or done is reopened for a new round. null takes the item out of its brief, and the brief can then roll up to done without it; unlike spin_off_action_item, it records no derived_from link back to the brief. Omitted: unchanged."
 				},
 				"goal_ids": {
 					"type": "array",
@@ -4684,16 +4679,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"acceptance_criteria": {
 					"anyOf": [
 						{
-							"type": "string",
-							"description": "List of checkable criteria. Preserve existing {id,text} entries for unchanged criteria to retain evidence; strings create new identities. Maximum 30 entries, 1000 characters each."
+							"type": "string"
 						},
 						{
 							"maxItems": 30,
 							"type": "array",
 							"items": {
 								"type": "string"
-							},
-							"description": "List of checkable criteria. Preserve existing {id,text} entries for unchanged criteria to retain evidence; strings create new identities. Maximum 30 entries, 1000 characters each."
+							}
 						},
 						{
 							"maxItems": 30,
@@ -4712,8 +4705,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 									"id",
 									"text"
 								]
-							},
-							"description": "List of checkable criteria. Preserve existing {id,text} entries for unchanged criteria to retain evidence; strings create new identities. Maximum 30 entries, 1000 characters each."
+							}
 						}
 					],
 					"description": "The complete criteria list; it replaces the stored one. Send an unchanged line as {id, text}, or with the same text, to keep its id and verdicts; lines you leave out are deleted, and an empty list clears them. Also accepts one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: unchanged."
@@ -4772,7 +4764,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"idempotency_key": {
 					"type": "string",
-					"description": "Needed only when the change is saved for review (the response says queued_for_review): one UUID per intended change, sent with expected_version, and reused with the same fields after an uncertain response to recover the saved proposal instead of making another. A change saved for review may contain only title, description or description_edits, intent and acceptance_criteria; other fields in the same call are refused."
+					"description": "One UUID per intended change; send one, with expected_version, on every edit to the title, description, intent or criteria. When your change is saved for review, a call without a UUID key and expected_version is refused and nothing changes; reuse the key with the same fields after an uncertain response to recover the saved proposal instead of making another. A change saved for review may contain only title, description or description_edits, intent and acceptance_criteria; other fields in the same call are refused. Omitted: a change that is not saved for review goes ahead without it."
 				},
 				"agent_branch": {
 					"type": "string",
@@ -4795,20 +4787,34 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "The DevSpec room this edit is made for, when you are working on a room's behalf (UUID or short code): the change is recorded as made in that room and shows in its This session panel. An id that is not a room in this project is ignored. Omitted: no room."
 				},
 				"assigned_to": {
-					"type": "string",
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
 					"description": "Adds this user (UUID) as an assignee; existing assignees stay. null removes every assignee, so to hand the item to someone else, clear with null and then add them. Once assigned, only an assignee can claim the item without forcing. An assignment that cannot be stored is listed under not_stored. Omitted: unchanged."
 				},
 				"commit_sha": {
 					"type": "string",
-					"description": "Links a commit to the item, short or full; never pad a short SHA. A commit not yet indexed is stored as provisional and resolves itself when it lands. Linking marks the item's current item-level verification stale. add_commit_reference links a commit without editing anything. Omitted: no commit is linked."
+					"description": "Links a commit to the item, short or full; never pad a short SHA. A commit not yet indexed is stored as provisional and resolves itself when it lands. Linking marks the item's current item-level verification stale, unless the commit is already linked to the item as server_linked: that link is returned instead (commit_reference_deduplicated) and nothing is marked stale. A link that cannot be stored is listed under not_stored. add_commit_reference links a commit without editing anything. Omitted: no commit is linked."
 				},
 				"note": {
 					"type": "string",
 					"description": "Replaces the item's completion note, the delivery summary shown on the item, rather than adding to it. To add a remark, use add_implementation_note. Omitted: unchanged."
 				},
 				"parent_action_item_id": {
-					"type": "string",
-					"description": "Moves the item under this brief (UUID or short code); null takes it out of its brief. The brief must itself be top-level and in this project, and a brief that is already implemented or done is reopened for a new round. Omitted: unchanged."
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Moves the item under this brief (UUID or short code). The brief must itself be top-level and in this project, and a brief that is already implemented or done is reopened for a new round. null takes the item out of its brief, and the brief can then roll up to done without it; unlike spin_off_action_item, it records no derived_from link back to the brief. Omitted: unchanged."
 				},
 				"goal_ids": {
 					"type": "array",
@@ -4894,16 +4900,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"acceptance_criteria": {
 					"anyOf": [
 						{
-							"type": "string",
-							"description": "List of checkable criteria, distinct from intent and implementation approach. Prefer 3–6 concrete conditions; maximum 30 entries, 1000 characters each."
+							"type": "string"
 						},
 						{
 							"maxItems": 30,
 							"type": "array",
 							"items": {
 								"type": "string"
-							},
-							"description": "List of checkable criteria, distinct from intent and implementation approach. Prefer 3–6 concrete conditions; maximum 30 entries, 1000 characters each."
+							}
 						},
 						{
 							"maxItems": 30,
@@ -4922,8 +4926,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 									"id",
 									"text"
 								]
-							},
-							"description": "List of checkable criteria, distinct from intent and implementation approach. Prefer 3–6 concrete conditions; maximum 30 entries, 1000 characters each."
+							}
 						}
 					],
 					"description": "Checkable conditions that define done, distinct from intent and approach; three to six is typical. A list of strings, or one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: none."
@@ -5009,22 +5012,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"idempotency_key": {
 					"type": "string",
-					"description": "One UUID you choose per intended create. A retry with the same key returns the original item (deduplicated: true) instead of a duplicate, with or without a room. Required when your role saves the create as suggested work (the response says queued_for_review). Without a key, a create in the same room identical in every field returns the earlier item."
+					"description": "One UUID you choose per intended create; send one on every create. A retry with the same key returns the original item (deduplicated: true) instead of a duplicate, with or without a room. Omitted: when your role saves creates as suggested work, the call is refused and nothing is created; otherwise only a create in the same room identical in every field returns the earlier item."
 				},
 				"agent_name": {
 					"type": "string",
 					"description": "The tool name to show on the room card when your connection has none recorded, for example Claude Code. Only used with session_id. Omitted: the name your client reports, else Local agent."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				},
 				"provenance_ref": {
@@ -5058,16 +5061,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"acceptance_criteria": {
 					"anyOf": [
 						{
-							"type": "string",
-							"description": "List of checkable criteria, distinct from intent and implementation approach. Prefer 3–6 concrete conditions; maximum 30 entries, 1000 characters each."
+							"type": "string"
 						},
 						{
 							"maxItems": 30,
 							"type": "array",
 							"items": {
 								"type": "string"
-							},
-							"description": "List of checkable criteria, distinct from intent and implementation approach. Prefer 3–6 concrete conditions; maximum 30 entries, 1000 characters each."
+							}
 						},
 						{
 							"maxItems": 30,
@@ -5086,8 +5087,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 									"id",
 									"text"
 								]
-							},
-							"description": "List of checkable criteria, distinct from intent and implementation approach. Prefer 3–6 concrete conditions; maximum 30 entries, 1000 characters each."
+							}
 						}
 					],
 					"description": "Checkable conditions that define done, distinct from intent and approach; three to six is typical. A list of strings, or one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: none."
@@ -5173,22 +5173,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"idempotency_key": {
 					"type": "string",
-					"description": "One UUID you choose per intended create. A retry with the same key returns the original item (deduplicated: true) instead of a duplicate, with or without a room. Required when your role saves the create as suggested work (the response says queued_for_review). Without a key, a create in the same room identical in every field returns the earlier item."
+					"description": "One UUID you choose per intended create; send one on every create. A retry with the same key returns the original item (deduplicated: true) instead of a duplicate, with or without a room. Omitted: when your role saves creates as suggested work, the call is refused and nothing is created; otherwise only a create in the same room identical in every field returns the earlier item."
 				},
 				"agent_name": {
 					"type": "string",
 					"description": "The tool name to show on the room card when your connection has none recorded, for example Claude Code. Only used with session_id. Omitted: the name your client reports, else Local agent."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				},
 				"provenance_ref": {
@@ -5248,7 +5248,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "resolve_action_item_conflict",
 		"label": "DevSpec: Resolve Action Item Conflict",
-		"description": "Rule on an action item's possible_conflict or possibly_stale flag after reading both items. supersedes closes the item that is replaced: dismissed if it never shipped, done if it shipped, or pending until the replacing item ships. related records a related_to link and not_a_conflict records that the two do not clash; both clear the flag on both items and close nothing, and not_a_conflict lifts if either item's content materially changes. discuss opens a session seeded with the items and @mentions their creators, leaving the flags lit. For a staleness flag that names no other item, omit counterpart_item_id. Preview the outcome first with preview_conflict_resolution. A pair ruling can come back queued_for_review with a proposal_id: both items then read contested, and nothing is settled until a Maintainer accepts it. For a flag against a decided memory, use resolve_action_item_decision_flag.",
+		"description": "Rule on an action item's possible_conflict or possibly_stale flag after reading both items. supersedes closes the item that is replaced: dismissed if it never shipped, done if it shipped, or pending until the replacing item ships. related records a related_to link and not_a_conflict records that the two do not clash; both clear the flag on both items and close nothing, and not_a_conflict lifts if either item's content materially changes. discuss opens a session seeded with the items and @mentions their creators, leaving the flags lit; from an unattended run it opens nothing and returns the discussion as a proposal (committed: false) for a person to open. For a staleness flag that names no other item, omit counterpart_item_id. Preview the outcome first with preview_conflict_resolution. A pair ruling can come back queued_for_review with a proposal_id: both items then read contested, and nothing is settled until a Maintainer accepts it. For a flag against a decided memory, use resolve_action_item_decision_flag.",
 		"searchIntent": "resolve flagged conflicting stale pair work action items judgement supersession",
 		"modelInputSchema": {
 			"type": "object",
@@ -5438,7 +5438,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "link_action_items",
 		"label": "DevSpec: Link Action Items",
-		"description": "Record a directed relationship between two action items in this project: action_item_id <relationship> related_to_id. caused_by: the source was caused by the target. blocks: the source blocks the target, which cannot be claimed until the source is done or dismissed. related_to: they bear on each other. To retire work another item replaces, use resolve_action_item_conflict with supersedes, which also clears flags and closes the replaced item; a bare supersedes edge needs acknowledge_half_resolution and a Maintainer. When creating a follow-up, pass follow_up_from_action_item_id to create_action_item instead. For links between memories and documents, use manage_knowledge_links.",
+		"description": "Record a directed relationship between two action items in this project: action_item_id <relationship> related_to_id. caused_by: the source was caused by the target. blocks: the source blocks the target, which cannot be claimed until the source is done or dismissed. related_to: they bear on each other. To retire work another item replaces, use resolve_action_item_conflict with supersedes, which also clears flags and closes the replaced item; a bare supersedes edge needs acknowledge_half_resolution, and is refused rather than queued when your ruling would need review. From an unattended run nothing is recorded: the call returns the edge as a proposal (committed: false) for a person to make. When creating a follow-up, pass follow_up_from_action_item_id to create_action_item instead. For links between memories and documents, use manage_knowledge_links.",
 		"searchIntent": "link relationship between work tasks action items blocking caused by related",
 		"modelInputSchema": {
 			"type": "object",
@@ -5509,7 +5509,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "unlink_action_items",
 		"label": "DevSpec: Unlink Action Items",
-		"description": "Remove one directed relationship between two action items, matched in the direction it was linked. Removing blocks lets the target be claimed; removing a pending supersedes cancels the supersession: nothing closes when the replacing item ships, and neither item reads as pending supersession any more. The response says which of these happened. Neither item's lifecycle changes, and removing a supersedes edge does not reopen the item it closed.",
+		"description": "Remove one directed relationship between two action items, matched in the direction it was linked. Removing blocks stops this item blocking the target's claim; removing a pending supersedes cancels the supersession: nothing closes when the replacing item ships, and neither item reads as pending supersession any more. The response says which of these happened. Neither item's lifecycle changes, and removing a supersedes edge does not reopen the item it closed. From an unattended run nothing is removed: the call returns the removal as a proposal (committed: false) for a person to make.",
 		"searchIntent": "remove relationship between work tasks action items",
 		"modelInputSchema": {
 			"type": "object",
@@ -5570,7 +5570,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "reopen_action_item",
 		"label": "DevSpec: Reopen Action Item",
-		"description": "Reopen recorded work whose implementation does not do what was agreed, as an audited new round: the item returns to open and unclaimed (a brief to in progress), and the previous round's verifications and criterion verdicts are marked stale, except failed ones. Claim it again before working on it. New scope on finished work belongs in a follow-up (create_action_item with follow_up_from_action_item_id), and a deferred, dismissed or blocked item resumes with update_action_item (lifecycle open). Items already open or in progress are refused. Reopen versus follow-up is decided by work_entry_contract in devspec://product/implementation-contract.",
+		"description": "Reopen recorded work whose implementation does not do what was agreed, as an audited new round: the item returns to open and unclaimed (a brief to in progress), and the previous round's verifications and criterion verdicts are marked stale, except failed ones. Claim it again before working on it. New scope on finished work belongs in a follow-up (create_action_item with follow_up_from_action_item_id). To resume a deferred, dismissed or blocked item without opening a new round, use update_action_item (lifecycle open). Items already open or in progress are refused. Reopen versus follow-up is decided by work_entry_contract in devspec://product/implementation-contract.",
 		"searchIntent": "reopen incomplete broken implemented done work new round",
 		"modelInputSchema": {
 			"type": "object",
@@ -5720,7 +5720,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "add_implementation_note",
 		"label": "DevSpec: Add Implementation Note",
-		"description": "Add a Markdown note (context, caveats, links) to an action item's history, where people read it on the item. action_item_id is required: a note belongs to an item. It is a note for people and changes no state: report delivered work with record_implementation, criterion evidence with record_criterion_verdicts, and commits with add_commit_reference.",
+		"description": "Add a Markdown note (context, caveats, links) to an action item's history, where people read it on the item. It is a note for people and changes no state: report delivered work with record_implementation, criterion evidence with record_criterion_verdicts, and commits with add_commit_reference.",
 		"searchIntent": "add note context caveat to action item history",
 		"modelInputSchema": {
 			"type": "object",
@@ -5764,15 +5764,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Structured links stored with the note: a list of {type: url, file or commit, value}. Stored as given. Omitted: none."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -5823,15 +5823,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Structured links stored with the note: a list of {type: url, file or commit, value}. Stored as given. Omitted: none."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -5869,15 +5869,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your connection id, if you run as one; omitted, the connection your client proved is used. The batch is bound to it: only that connection can claim, release or fail the batch's items, and it can hold only one batch with unsettled items at a time. With no connection at all, any call from your user can act on the batch. A connection that is not live, or not yours, is refused."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				},
 				"provenance_ref": {
@@ -5911,15 +5911,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your connection id, if you run as one; omitted, the connection your client proved is used. The batch is bound to it: only that connection can claim, release or fail the batch's items, and it can hold only one batch with unsettled items at a time. With no connection at all, any call from your user can act on the batch. A connection that is not live, or not yours, is refused."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				},
 				"provenance_ref": {
@@ -5936,7 +5936,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "claim_work_item",
 		"label": "DevSpec: Claim Work Item",
-		"description": "Claim one action item before you start implementing it. Read what comes back: intent, criteria, spec_changes, session_context, project instruction tiers, review signals, unresolved conflicts and earlier attempts. A refused claim names the guard that stopped it: another holder or reservation, an assignee, an unfinished blocker, overlapping files, or an unresolved possible conflict (settle that with resolve_action_item_conflict). force with a reason overrides these and is recorded; human-only items and work awaiting approval cannot be claimed at all. When to claim, and when an override is justified, is set by work_entry_contract in devspec://product/implementation-contract.",
+		"description": "Claim one action item before you start implementing it. Read what comes back: intent, criteria, spec_changes, session_context, project instruction tiers, review signals, unresolved conflicts and earlier attempts. A refused claim names the guard that stopped it: another holder or reservation, an assignee, an unfinished blocker, overlapping files, or an unresolved possible conflict (settle that with resolve_action_item_conflict). It also refuses an item whose last attempt failed (release_work_item hands it back) or whose implementation is already recorded (reopen_action_item reopens it). force with a reason overrides these and is recorded; human-only items and work awaiting approval cannot be claimed at all. When to claim is set by work_entry_contract, and when an override is justified by core_implementation_contract, in devspec://product/implementation-contract.",
 		"searchIntent": "claim start working on action item before implementing",
 		"modelInputSchema": {
 			"type": "object",
@@ -5954,13 +5954,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						1
 					],
-					"description": "Optional instruction_tiers_version previously retained by this client. Send with known_instruction_tiers_hash; both must match before identical tier texts are omitted."
+					"description": "The instruction_tiers_version from an earlier response; send it with known_instruction_tiers_hash. When both match, tier texts this call would return are left out. Omitted: tier texts are sent in full."
 				},
 				"known_instruction_tiers_hash": {
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
+					"description": "The instruction_tiers_hash this process retained from an earlier response; after a restart, omit it. Omitted: tier texts are sent in full."
 				},
 				"provider": {
 					"type": "string",
@@ -5988,7 +5988,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"force": {
 					"type": "boolean",
-					"description": "Override the reservation, assignee, blocker, overlapping-file, possible-conflict and existing-claim guards. It requires reason and is recorded in the item's history, and it frees the other holder's reservation slot. It cannot override human-only items or work awaiting approval. Default false."
+					"description": "Override the reservation, assignee, blocker, overlapping-file, possible-conflict and existing-claim guards. It requires reason and is recorded in the item's history, and it frees the other holder's reservation slot. The previous holder is not notified. It cannot override human-only items or work awaiting approval. Default false."
 				},
 				"reason": {
 					"type": "string",
@@ -6020,13 +6020,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						1
 					],
-					"description": "Optional instruction_tiers_version previously retained by this client. Send with known_instruction_tiers_hash; both must match before identical tier texts are omitted."
+					"description": "The instruction_tiers_version from an earlier response; send it with known_instruction_tiers_hash. When both match, tier texts this call would return are left out. Omitted: tier texts are sent in full."
 				},
 				"known_instruction_tiers_hash": {
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
+					"description": "The instruction_tiers_hash this process retained from an earlier response; after a restart, omit it. Omitted: tier texts are sent in full."
 				},
 				"provider": {
 					"type": "string",
@@ -6054,7 +6054,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"force": {
 					"type": "boolean",
-					"description": "Override the reservation, assignee, blocker, overlapping-file, possible-conflict and existing-claim guards. It requires reason and is recorded in the item's history, and it frees the other holder's reservation slot. It cannot override human-only items or work awaiting approval. Default false."
+					"description": "Override the reservation, assignee, blocker, overlapping-file, possible-conflict and existing-claim guards. It requires reason and is recorded in the item's history, and it frees the other holder's reservation slot. The previous holder is not notified. It cannot override human-only items or work awaiting approval. Default false."
 				},
 				"reason": {
 					"type": "string",
@@ -6161,7 +6161,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"partial_work_notes": {
 					"type": "string",
-					"description": "What you attempted and where you got stuck. It is added to the item as a 'Failed — Partial work notes' implementation note. Omitted, no note is added."
+					"description": "What you attempted and where you got stuck. It is added to the item as a 'Failed — Partial work notes' implementation note; if it cannot be stored, the response lists it under not_stored. Omitted, no note is added."
 				},
 				"conflict_context": {
 					"type": "object",
@@ -6223,7 +6223,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"partial_work_notes": {
 					"type": "string",
-					"description": "What you attempted and where you got stuck. It is added to the item as a 'Failed — Partial work notes' implementation note. Omitted, no note is added."
+					"description": "What you attempted and where you got stuck. It is added to the item as a 'Failed — Partial work notes' implementation note; if it cannot be stored, the response lists it under not_stored. Omitted, no note is added."
 				},
 				"conflict_context": {
 					"type": "object",
@@ -6277,7 +6277,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_implementation",
 		"label": "DevSpec: Record Implementation",
-		"description": "Record delivered work on an existing action item, claimed or not: the commit, changed files, checks and an honest summary. If the item is claimed, only the claim's holder can record it, and the claim and its reservation close. Each call opens a new implementation round, so call it once per delivery; add later context with add_implementation_note or add_commit_reference. For work that has no item, use record_completed_work. Act on any returned own_criteria_follow_through or brief_follow_through before you report. Then report the commit, lifecycle and verification status exactly as returned. This is not human sign-off. Lifecycle and completion follow devspec://product/implementation-contract.",
+		"description": "Record delivered work on an existing action item, claimed or not: the commit, changed files, checks and an honest summary. If the item is claimed, only the claim's holder can record it, and the claim and its reservation close. The item moves to implemented, or straight to done if its recorded evidence already settles it; lifecycle in the response says where it landed. Each call opens a new implementation round, so call it once per delivery; add later context with add_implementation_note or add_commit_reference. For work that has no item, use record_completed_work. Act on any returned own_criteria_follow_through or brief_follow_through before you report. Then report the commit, lifecycle and verification status exactly as returned. This is not human sign-off. Lifecycle and completion follow devspec://product/implementation-contract.",
 		"searchIntent": "record report delivered implementation on an existing action item claimed or unclaimed commit changed files checks completion",
 		"modelInputSchema": {
 			"type": "object",
@@ -6292,7 +6292,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"commit_sha": {
 					"type": "string",
-					"description": "The commit this landed in, short or full; never pad a short SHA. If the host observed a commit for this claim, that commit is used instead of a different value you send (see commit_sha_source in the response). Omitted, the observed commit is used if there is one; otherwise no commit is linked. A commit not yet indexed is stored provisional and resolves when it lands. A commit already linked to the item is reused, not linked twice (commit_reference.deduplicated)."
+					"description": "The commit this landed in, short or full; never pad a short SHA. If the host observed a commit for this claim, that commit is used instead of a different value you send (see commit_sha_source in the response). Omitted, the observed commit is used if there is one; otherwise no commit is linked. A commit not yet indexed is stored provisional and resolves when it lands. A commit already linked to the item under the same commit_provenance_source is reused, not linked twice (commit_reference.deduplicated); under another source it is linked again."
 				},
 				"commit_message": {
 					"type": "string",
@@ -6305,7 +6305,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"plugin_stamped",
 						"server_linked"
 					],
-					"description": "How the commit's tag came about, as the host observed it; this is not an authentication signal. Pass plugin_stamped only when the host itself appended the tag. Defaults to server_linked."
+					"description": "How the commit's [devspec:…] tag came about, as the host observed it: agent_authored (you wrote the tag into the message), plugin_stamped (the host appended it), or server_linked (no observed tag). It is not an authentication signal. Defaults to server_linked."
 				},
 				"agent_merged": {
 					"type": "boolean",
@@ -6476,7 +6476,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"commit_sha": {
 					"type": "string",
-					"description": "The commit this landed in, short or full; never pad a short SHA. If the host observed a commit for this claim, that commit is used instead of a different value you send (see commit_sha_source in the response). Omitted, the observed commit is used if there is one; otherwise no commit is linked. A commit not yet indexed is stored provisional and resolves when it lands. A commit already linked to the item is reused, not linked twice (commit_reference.deduplicated)."
+					"description": "The commit this landed in, short or full; never pad a short SHA. If the host observed a commit for this claim, that commit is used instead of a different value you send (see commit_sha_source in the response). Omitted, the observed commit is used if there is one; otherwise no commit is linked. A commit not yet indexed is stored provisional and resolves when it lands. A commit already linked to the item under the same commit_provenance_source is reused, not linked twice (commit_reference.deduplicated); under another source it is linked again."
 				},
 				"commit_message": {
 					"type": "string",
@@ -6489,7 +6489,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"plugin_stamped",
 						"server_linked"
 					],
-					"description": "How the commit's tag came about, as the host observed it; this is not an authentication signal. Pass plugin_stamped only when the host itself appended the tag. Defaults to server_linked."
+					"description": "How the commit's [devspec:…] tag came about, as the host observed it: agent_authored (you wrote the tag into the message), plugin_stamped (the host appended it), or server_linked (no observed tag). It is not an authentication signal. Defaults to server_linked."
 				},
 				"agent_merged": {
 					"type": "boolean",
@@ -6690,7 +6690,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"items": {
 						"type": "string"
 					},
-					"description": "Labels for the item, inferred from the change; at most 10. Don't add type, priority or status tags, because those have their own fields. If the tags can't be applied, the item is still created without them; in an unattended run, words the project doesn't use yet are left off. Omitted: none."
+					"description": "Labels for the item, inferred from the change; at most 10. Don't add type, priority or status tags, because those have their own fields. If the tags can't be applied, the item is still created without them and the response lists them under not_stored; in an unattended run, words the project doesn't use yet are left off. Omitted: none."
 				},
 				"implementation_summary": {
 					"type": "string",
@@ -6781,7 +6781,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"usage_notes": {
 					"type": "string",
-					"description": "Where people find the feature in the product and how to use it. Leave it out for invisible work such as refactors."
+					"description": "Where people find the feature in the product and how to use it. Leave it out for invisible work such as refactors. Omitted: none."
 				},
 				"completion_confidence": {
 					"type": "integer",
@@ -6800,15 +6800,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "What you did: implemented a fix, found the code already correct, made a partial fix, or used a workaround. Defaults to implemented."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				},
 				"provenance_ref": {
@@ -6861,7 +6861,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"items": {
 						"type": "string"
 					},
-					"description": "Labels for the item, inferred from the change; at most 10. Don't add type, priority or status tags, because those have their own fields. If the tags can't be applied, the item is still created without them; in an unattended run, words the project doesn't use yet are left off. Omitted: none."
+					"description": "Labels for the item, inferred from the change; at most 10. Don't add type, priority or status tags, because those have their own fields. If the tags can't be applied, the item is still created without them and the response lists them under not_stored; in an unattended run, words the project doesn't use yet are left off. Omitted: none."
 				},
 				"implementation_summary": {
 					"type": "string",
@@ -6952,7 +6952,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"usage_notes": {
 					"type": "string",
-					"description": "Where people find the feature in the product and how to use it. Leave it out for invisible work such as refactors."
+					"description": "Where people find the feature in the product and how to use it. Leave it out for invisible work such as refactors. Omitted: none."
 				},
 				"completion_confidence": {
 					"type": "integer",
@@ -6971,15 +6971,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "What you did: implemented a fix, found the code already correct, made a partial fix, or used a workaround. Defaults to implemented."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				},
 				"provenance_ref": {
@@ -7001,7 +7001,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "report_progress",
 		"label": "DevSpec: Report Progress",
-		"description": "Add a progress note to an item that is currently being implemented, without changing its lifecycle or activity. It is stored as an implementation note and as a 'Progress update' entry in the item's history. It is not delivery evidence (use record_implementation), and it does not replace telling the person in the conversation.",
+		"description": "Add a progress note to an item that is currently being implemented, without changing its lifecycle or activity. It is stored as an implementation note and as a 'Progress update' entry in the item's history. For a note on an item nobody is implementing, or context rather than progress, use add_implementation_note. It is not delivery evidence (use record_implementation), and it posts nothing to the conversation and notifies no one.",
 		"searchIntent": "progress update note on item being implemented",
 		"modelInputSchema": {
 			"type": "object",
@@ -7102,7 +7102,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "verify_action_item",
 		"label": "DevSpec: Verify Action Item",
-		"description": "Record a present person's explicit decision on one implemented action item: passed: true signs it off, passed: false requests changes and flags it for attention. Before calling, tell the person which item and which decision. Who may decide is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, callers who are not allowed verifiers, and passed: true while a required follow-up step is open. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. The response does not return the resulting lifecycle.",
+		"description": "Record a person's decision on one implemented action item: passed: true signs it off, passed: false requests changes and flags it for attention. Who may decide, and when you may relay a decision, is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, callers who are not allowed verifiers, and passed: true while a required follow-up step is open. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. The response does not return the resulting lifecycle.",
 		"searchIntent": "person signs off verifies implemented item request changes",
 		"modelInputSchema": {
 			"type": "object",
@@ -7159,7 +7159,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_criterion_verdicts",
 		"label": "DevSpec: Record Criterion Verdicts",
-		"description": "Record what you observed for an item's acceptance criteria: per criterion, what you ran or queried, what came back, and the layer that produced it. Checking a criterion you can run or query is your job, not one to leave for a person. Reading source alone is not runtime evidence: use unknown for checks not made, and intent_met, not not_met, when the work took a better route than the wording. For a line only a person can ever judge, use classify_criterion; a person's sign-off on the whole item is verify_action_item. One malformed verdict rejects the whole batch, with a reason for each. Settled criteria can complete the item, so report the returned criterion_promotion. Verdicts that landed on an earlier round of work come back under not_counted.",
+		"description": "Record what you observed for an item's acceptance criteria: per criterion, what you ran or queried, what came back, and the layer that produced it. A verdict that cites reading code (layer ai_review, or an evidence action that describes reading source) is rejected: use unknown for a check you did not make, and intent_met, not not_met, when the work took a better route than the wording. Which criteria you are expected to check is set by devspec://product/implementation-contract. For a line only a person can ever judge, use classify_criterion; a person's sign-off on the whole item is verify_action_item. One malformed verdict rejects the whole batch, with a reason for each. Settled criteria can complete the item, so report the returned criterion_promotion. Verdicts that landed on an earlier round of work come back under not_counted.",
 		"searchIntent": "record observed acceptance criteria check results evidence met unknown",
 		"modelInputSchema": {
 			"type": "object",
@@ -7169,6 +7169,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "The item whose criteria you checked: a UUID or 8-character short code. To check a brief's own criteria, pass the brief's id."
 				},
 				"verdicts": {
+					"minItems": 1,
 					"type": "array",
 					"items": {
 						"type": "object",
@@ -7250,7 +7251,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"verdict"
 						]
 					},
-					"description": "One entry for each criterion you actually checked, at most one per criterion. Criteria you leave out stay as they are. An empty list records nothing."
+					"description": "One entry for each criterion you actually checked, at most one per criterion; at least one. Criteria you leave out stay as they are."
 				}
 			},
 			"required": [
@@ -7266,6 +7267,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "The item whose criteria you checked: a UUID or 8-character short code. To check a brief's own criteria, pass the brief's id."
 				},
 				"verdicts": {
+					"minItems": 1,
 					"type": "array",
 					"items": {
 						"type": "object",
@@ -7347,7 +7349,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"verdict"
 						]
 					},
-					"description": "One entry for each criterion you actually checked, at most one per criterion. Criteria you leave out stay as they are. An empty list records nothing."
+					"description": "One entry for each criterion you actually checked, at most one per criterion; at least one. Criteria you leave out stay as they are."
 				}
 			},
 			"required": [
@@ -7375,7 +7377,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"intrinsic": {
 					"type": "boolean",
-					"description": "true: only a person can ever settle this line. false: revert it to mechanically checkable, which clears the mark and its reason from the line. Asking for the state it is already in writes nothing."
+					"description": "true: only a person can ever settle this line. false: revert it to mechanically checkable, which clears the mark and its reason from the line. Asking for the state it is already in writes nothing, except that marking an intrinsic line again with a different reason replaces its reason."
 				},
 				"reason": {
 					"type": "string",
@@ -7405,7 +7407,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"intrinsic": {
 					"type": "boolean",
-					"description": "true: only a person can ever settle this line. false: revert it to mechanically checkable, which clears the mark and its reason from the line. Asking for the state it is already in writes nothing."
+					"description": "true: only a person can ever settle this line. false: revert it to mechanically checkable, which clears the mark and its reason from the line. Asking for the state it is already in writes nothing, except that marking an intrinsic line again with a different reason replaces its reason."
 				},
 				"reason": {
 					"type": "string",
@@ -7427,7 +7429,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "add_commit_reference",
 		"label": "DevSpec: Add Commit Reference",
-		"description": "Link a commit you are not reporting through record_implementation to an action item, session or memory in this project. A short or full SHA is accepted. Linking it to an action item marks that item's current item-level verification stale, a person's sign-off included (schema checks and criterion verdicts are kept), and links any deployment that already shipped the commit. Linking a commit to an item it is already linked to returns the existing link (deduplicated: true) and marks nothing stale; on an item, verification_effect in the response says what was marked stale. The project comes from project_id, git_remote or pinned_project_id, not from the ids you link. A link is not completion evidence: report delivered work with record_implementation.",
+		"description": "Link a commit you are not reporting through record_implementation to an action item, session or memory in this project. A short or full SHA is accepted. Pass at least one of action_item_id, session_id or memory_id; with none, the commit is linked to the project alone. Linking it to an action item marks that item's current item-level verification stale, a person's sign-off included (schema checks and criterion verdicts are kept), and links any deployment that already shipped the commit. Linking the same commit to the same target with the same provenance_source returns the existing link (deduplicated: true) and marks nothing stale; under a different provenance_source it adds a second link, which marks the item's verification stale like any new link; on an item, verification_effect in the response says what was marked stale. The project comes from project_id, git_remote or pinned_project_id, not from the ids you link. A link is not completion evidence: report delivered work with record_implementation.",
 		"searchIntent": "link attach existing git commit to action item session memory",
 		"modelInputSchema": {
 			"type": "object",
@@ -7459,18 +7461,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"plugin_stamped",
 						"server_linked"
 					],
-					"description": "How the item link was observed, as the host reports it; this is not an authentication signal. Pass plugin_stamped only when the host itself appended the tag. Defaults to server_linked."
+					"description": "How the commit's [devspec:…] tag came about, as the host observed it: agent_authored (you wrote the tag into the message), plugin_stamped (the host appended it), or server_linked (no observed tag, and this call is the link). It is not an authentication signal. An action item link to a full SHA marked agent_authored or plugin_stamped counts as the host's observed commit for the item's current round of work, so record_implementation uses it in place of a different commit_sha. Defaults to server_linked."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -7508,18 +7510,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"plugin_stamped",
 						"server_linked"
 					],
-					"description": "How the item link was observed, as the host reports it; this is not an authentication signal. Pass plugin_stamped only when the host itself appended the tag. Defaults to server_linked."
+					"description": "How the commit's [devspec:…] tag came about, as the host observed it: agent_authored (you wrote the tag into the message), plugin_stamped (the host appended it), or server_linked (no observed tag, and this call is the link). It is not an authentication signal. An action item link to a full SHA marked agent_authored or plugin_stamped counts as the host's observed commit for the item's current round of work, so record_implementation uses it in place of a different commit_sha. Defaults to server_linked."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -7532,7 +7534,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_memory",
 		"label": "DevSpec: Record Memory",
-		"description": "Record a durable piece of project knowledge: a decision, convention, architecture fact, risk, insight or open question. Work in progress and delivery evidence belong on the action item, and a long document is an artifact (create_resource). As it is written, a quick closeness check (it does not read the records) compares the draft with existing memories. If one closely resembles it, nothing is recorded and the response names it (reconcile_required, closest_match): read it, then supersede or update it, link the two if both stand, re-call with confirm_new if yours is genuinely distinct, or ask the person, which is often the right answer. Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it.",
+		"description": "Record a durable piece of project knowledge: a decision, convention, architecture fact, risk, insight or open question. Work in progress and delivery evidence belong on the action item (add_implementation_note, record_implementation), and a long document is an artifact (create_resource). As it is written, a quick closeness check (it does not read the records) compares the draft with existing memories. If one closely resembles it, nothing is recorded and the response names it (reconcile_required, closest_match; on a write that would be queued, code reconcile_required and reconcile.closest): read it, then supersede or update it, link the two if both stand, re-call with confirm_new if yours is genuinely distinct, or ask the person, which is often the right answer. Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "record save capture remember new decision convention architecture risk insight open question",
 		"modelInputSchema": {
 			"type": "object",
@@ -7603,18 +7605,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"idempotency_key": {
 					"type": "string",
-					"description": "A fresh UUID for this intended memory. Required when the write is queued for review, which you cannot always know in advance, so send one every time. Retrying with the same key and fields returns the original result instead of a second record"
+					"description": "A fresh UUID for each intended memory. Required when the write is queued for review, which you cannot always know in advance, so send one every time. Resending a key saves nothing new: with the same fields you get the first result back; with different fields a direct write still answers with the first memory's id and a queued one is refused. Never reuse a key for a different memory. Omitted: a write queued for review is refused, and a direct one counts as a resend only when your connection is attached to a session and the same type and body are sent again from it."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				},
 				"provenance_ref": {
@@ -7701,18 +7703,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"idempotency_key": {
 					"type": "string",
-					"description": "A fresh UUID for this intended memory. Required when the write is queued for review, which you cannot always know in advance, so send one every time. Retrying with the same key and fields returns the original result instead of a second record"
+					"description": "A fresh UUID for each intended memory. Required when the write is queued for review, which you cannot always know in advance, so send one every time. Resending a key saves nothing new: with the same fields you get the first result back; with different fields a direct write still answers with the first memory's id and a queued one is refused. Never reuse a key for a different memory. Omitted: a write queued for review is refused, and a direct one counts as a resend only when your connection is attached to a session and the same type and body are sent again from it."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				},
 				"provenance_ref": {
@@ -7735,7 +7737,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "supersede_memory",
 		"label": "DevSpec: Supersede Memory",
-		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. If a different memory closely resembles the new text, nothing is superseded and the response names it (reconcile_required, closest_match); read it before deciding. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it.",
+		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. If a different memory closely resembles the new text, nothing is superseded and the response names it (reconcile_required, closest_match); read it before deciding. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "replace changed decision memory new agreed version supersede",
 		"modelInputSchema": {
 			"type": "object",
@@ -7878,7 +7880,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_memory",
 		"label": "DevSpec: Update Memory",
-		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence or affected files, or correct its title, summary or body. State, tags, confidence and affected files change in place. A wording change saves a new version with a new id, returned in the response: cite that id from then on. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. A body change is compared with existing memories; if another closely resembles it, nothing changes and the response names it (reconcile_required, closest_match). outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
+		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence or affected files, or correct its title, summary or body. State, tags, confidence and affected files change in place. A wording change saves a new version with a new id, returned in the response: cite that id from then on. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. A body change is compared with existing memories; if another closely resembles it, nothing changes and the response names it (reconcile_required, closest_match). outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
 		"searchIntent": "mark memory decided agreed promote correct edit wording tags existing memory",
 		"modelInputSchema": {
 			"type": "object",
@@ -8061,7 +8063,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "retract_memory",
 		"label": "DevSpec: Retract Memory",
-		"description": "Retract a memory that is no longer true and that nothing replaces. It is kept and marked retracted: lists stop returning it, and so does search unless include_superseded is set; get_memory still reads it. Use supersede_memory when a newer decision should take its place. Retracting someone else's settled decision overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it.",
+		"description": "Retract a memory that is no longer true and that nothing replaces. It is kept and marked retracted: lists stop returning it, and so does search unless include_superseded is set; get_memory still reads it. Use supersede_memory when a newer decision should take its place. Retracting someone else's settled decision overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "retract retire withdraw incorrect no longer true memory",
 		"modelInputSchema": {
 			"type": "object",
@@ -8124,7 +8126,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "resolve_memory_flag",
 		"label": "DevSpec: Resolve Memory Flag",
-		"description": "Rule on a review flag on a memory (possibly_stale or possibly_contradictory) and clear it. Read the records involved in full first (get_memory, not the search card). related and not_a_conflict keep both records as they are; settle those yourself when the facts are plain. supersedes records your judgement only and replaces nothing: if one memory really replaces the other, also call supersede_memory. Before a supersedes ruling against someone else's decision, say which decision would stop being current and ask, unless you were already told to go ahead. committed: true means the flag is cleared and will not be raised again for the same reason unless a record changes; outcome queued_for_review carries a proposal_id, and the flag stays lit until a Maintainer accepts it. For a flag on a document, use resolve_resource_flag.",
+		"description": "Rule on a review flag on a memory (possibly_stale or possibly_contradictory) and clear it on this memory and, for a contradiction, on the counterpart too. Read the records involved in full first (get_memory, not the search card). related and not_a_conflict keep both records as they are; settle those yourself when the facts are plain. supersedes records your judgement only and replaces nothing: if one memory really replaces the other, also call supersede_memory. committed: true means the ruling is recorded and the flag will not be raised again for the same reason unless a record changes; marks_cleared says what was cleared on each side, and warnings name any mark that was kept or not ruled on. outcome queued_for_review carries a proposal_id, and the flag stays lit until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. For a flag on a document, use resolve_resource_flag.",
 		"searchIntent": "resolve rule on memory stale contradictory review flag",
 		"modelInputSchema": {
 			"type": "object",
@@ -8160,7 +8162,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent. It lets a teammate's command be judged as the person who gave it, and names your connection on what is recorded. Omitted: the connection your client authenticated, if any. Refused if the connection is not live or not yours."
+					"description": "Your own connection id, if you are a connected agent. Used only so that, when you are carrying out a teammate's command, the call is judged as the person who gave it; the connection your client authenticated, if any, is used instead. Omitted, or not yours: the call is judged as you."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
@@ -8212,7 +8214,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent. It lets a teammate's command be judged as the person who gave it, and names your connection on what is recorded. Omitted: the connection your client authenticated, if any. Refused if the connection is not live or not yours."
+					"description": "Your own connection id, if you are a connected agent. Used only so that, when you are carrying out a teammate's command, the call is judged as the person who gave it; the connection your client authenticated, if any, is used instead. Omitted, or not yours: the call is judged as you."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
@@ -8269,18 +8271,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent. It lets a teammate's command be judged as the person who gave it, and names your connection on what is recorded. Omitted: the connection your client authenticated, if any. Refused if the connection is not live or not yours."
+					"description": "Your own connection id, if you are a connected agent. Used only so that, when you are carrying out a teammate's command, the call is judged as the person who gave it; the connection your client authenticated, if any, is used instead. Omitted, or not yours: the call is judged as you."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				},
 				"provenance_ref": {
@@ -8329,18 +8331,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent. It lets a teammate's command be judged as the person who gave it, and names your connection on what is recorded. Omitted: the connection your client authenticated, if any. Refused if the connection is not live or not yours."
+					"description": "Your own connection id, if you are a connected agent. Used only so that, when you are carrying out a teammate's command, the call is judged as the person who gave it; the connection your client authenticated, if any, is used instead. Omitted, or not yours: the call is judged as you."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				},
 				"provenance_ref": {
@@ -8362,7 +8364,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "create_resource",
 		"label": "DevSpec: Create Resource",
-		"description": "Create a shared project document: an ADR, plan, guide, runbook, checklist, summary, convention, reference or other (investigations and handoffs fit summary or other). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for. As it is written, a quick closeness check (it does not read the documents) compares the draft with existing artifacts. If one closely resembles it, nothing is created and the response names it (reconcile_required, closest_match): read it, then update or supersede it, re-call with confirm_new if yours is genuinely separate, or ask the person, which is often the right answer. Updating or superseding someone else's settled document overrules them, so ask first unless you were already told to go ahead. Only the whole document decides a duplicate: a different document with the same title is created, and resending the same one returns the first. outcome committed is live; queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it.",
+		"description": "Create a shared project document: an ADR, plan, guide, runbook, checklist, summary, convention, reference or other (investigations and handoffs fit summary or other). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for; a single decision, convention or fact is a memory (record_memory). As it is written, a quick closeness check (it does not read the documents) compares the draft with existing artifacts. If one closely resembles it, nothing is created and the response names it (reconcile_required, closest_match; on a creation that would be queued, code reconcile_required and reconcile.closest): read it, then update or supersede it, re-call with confirm_new if yours is genuinely separate, or ask the person, which is often the right answer. Updating or superseding someone else's settled document overrules them, so ask first unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "write save create shared document artifact ADR plan guide runbook checklist reference handoff investigation for teammates next agent",
 		"modelInputSchema": {
 			"type": "object",
@@ -8411,18 +8413,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"idempotency_key": {
 					"type": "string",
-					"description": "A fresh UUID for this intended document. Required when the creation is queued for review, which you cannot always know in advance, so send one every time. Retrying with the same key and fields returns the original result instead of a second document"
+					"description": "A fresh UUID for each intended document. Required when the creation is queued for review, which you cannot always know in advance, so send one every time. Resending a key saves nothing new: with the same fields you get the first result back; with different fields a direct creation still answers with the first document's id and a queued one is refused. Never reuse a key for a different document. Omitted: a creation queued for review is refused, and a direct one counts as a resend only when your connection is attached to a session and the same type, title, summary and body are sent again from it."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				},
 				"provenance_ref": {
@@ -8486,18 +8488,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"idempotency_key": {
 					"type": "string",
-					"description": "A fresh UUID for this intended document. Required when the creation is queued for review, which you cannot always know in advance, so send one every time. Retrying with the same key and fields returns the original result instead of a second document"
+					"description": "A fresh UUID for each intended document. Required when the creation is queued for review, which you cannot always know in advance, so send one every time. Resending a key saves nothing new: with the same fields you get the first result back; with different fields a direct creation still answers with the first document's id and a queued one is refused. Never reuse a key for a different document. Omitted: a creation queued for review is refused, and a direct one counts as a resend only when your connection is attached to a session and the same type, title, summary and body are sent again from it."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				},
 				"provenance_ref": {
@@ -8519,7 +8521,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_resource",
 		"label": "DevSpec: Update Resource",
-		"description": "Edit an AI-written artifact to keep it current: its title, summary, tags or body. Prefer body_edits (targeted replace or append) to a full body, so detail others added is not lost. A title, summary or body change saves a new version with a new id and retires the old one: use the returned id from then on, because edits to the old id are refused. Tags alone change in place. Use supersede_resource for a material rewrite and archive_resource to retire a document; uploaded documents cannot be edited. Rewriting someone else's settled document overrules them, so ask unless you were already told to go ahead. A body change is compared with existing artifacts; if another closely resembles it, nothing changes and the response names it (reconcile_required, closest_match). outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it.",
+		"description": "Edit an AI-written artifact to keep it current: its title, summary, tags or body. Prefer body_edits (targeted replace or append) to a full body, so detail others added is not lost. A title, summary or body change saves a new version with a new id and retires the old one: use the returned id from then on, because edits to the old id are refused. Tags alone change in place. Use supersede_resource for a material rewrite and archive_resource to retire a document; uploaded documents cannot be edited. Rewriting someone else's settled document overrules them, so ask unless you were already told to go ahead. A body change is compared with existing artifacts; if another closely resembles it, nothing changes and the response names it (reconcile_required, closest_match). outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "update edit refine existing document artifact plan runbook keep current",
 		"modelInputSchema": {
 			"type": "object",
@@ -8678,7 +8680,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "supersede_resource",
 		"label": "DevSpec: Supersede Resource",
-		"description": "Replace an AI-written artifact with a rewritten successor. The new version becomes current; the old one is archived, pointing to it. Read the current document first and carry over what still holds. Use update_resource for refinements and archive_resource when nothing replaces it; uploaded documents cannot be superseded. Replacing someone else's settled document overrules them, so ask unless you were already told to go ahead. If a different artifact closely resembles the replacement, nothing is superseded and the response names it (reconcile_required, closest_match); read it before deciding. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it.",
+		"description": "Replace an AI-written artifact with a rewritten successor. The new version becomes current; the old one is archived, pointing to it. Read the current document first and carry over what still holds. Use update_resource for refinements and archive_resource when nothing replaces it; uploaded documents cannot be superseded. Replacing someone else's settled document overrules them, so ask unless you were already told to go ahead. If a different artifact closely resembles the replacement, nothing is superseded and the response names it (reconcile_required, closest_match); read it before deciding. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "replace rewrite document artifact successor supersede",
 		"modelInputSchema": {
 			"type": "object",
@@ -8705,6 +8707,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"resource_type": {
 					"type": "string",
+					"enum": [
+						"adr",
+						"guide",
+						"checklist",
+						"plan",
+						"summary",
+						"convention",
+						"runbook",
+						"reference",
+						"other"
+					],
 					"description": "The replacement's type. Omitted: the current document's type."
 				},
 				"tags": {
@@ -8758,6 +8771,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"resource_type": {
 					"type": "string",
+					"enum": [
+						"adr",
+						"guide",
+						"checklist",
+						"plan",
+						"summary",
+						"convention",
+						"runbook",
+						"reference",
+						"other"
+					],
 					"description": "The replacement's type. Omitted: the current document's type."
 				},
 				"tags": {
@@ -8791,7 +8815,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "archive_resource",
 		"label": "DevSpec: Archive Resource",
-		"description": "Archive an AI-written artifact that is finished or no longer relevant. It leaves lists and search but stays readable by id; nothing is deleted. Use supersede_resource when a replacement should become current; uploaded documents cannot be archived here. Archiving someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it.",
+		"description": "Archive an AI-written artifact that is finished or no longer relevant. It leaves lists and search but stays readable by id; nothing is deleted. Use supersede_resource when a replacement should become current; uploaded documents cannot be archived here. Archiving a document that is already archived is refused. Archiving someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "archive retire obsolete finished document artifact",
 		"modelInputSchema": {
 			"type": "object",
@@ -8802,7 +8826,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"id": {
 					"type": "string",
-					"description": "The artifact to archive: its id or 8-character short code. It must be the current version."
+					"description": "The artifact to archive: its id or 8-character short code. A replaced document that is still live can be archived to finish its replacement."
 				},
 				"reason": {
 					"type": "string",
@@ -8831,7 +8855,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"id": {
 					"type": "string",
-					"description": "The artifact to archive: its id or 8-character short code. It must be the current version."
+					"description": "The artifact to archive: its id or 8-character short code. A replaced document that is still live can be archived to finish its replacement."
 				},
 				"reason": {
 					"type": "string",
@@ -8856,7 +8880,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "resolve_resource_flag",
 		"label": "DevSpec: Resolve Resource Flag",
-		"description": "Rule on a review flag on an AI-written artifact (possibly_stale or possibly_contradictory) and clear it. Read the documents involved in full first (get_resource). related and not_a_conflict keep both as they are; settle those yourself when the facts are plain. On documents a contradiction is often a real replacement, so do not use not_a_conflict to make a flag go away. supersedes records your judgement only and archives nothing: if one document really replaces the other, also call supersede_resource. Before a supersedes ruling against someone else's document, say what would stop being current and ask, unless you were already told to go ahead. committed: true means the flag is cleared and will not be raised again for the same reason unless the content changes; outcome queued_for_review carries a proposal_id, and the flag stays lit until a Maintainer accepts it. For a flag on a memory, use resolve_memory_flag.",
+		"description": "Rule on a review flag on an AI-written artifact (possibly_stale or possibly_contradictory) and clear it on this artifact and, for a contradiction, on the counterpart too. Read the documents involved in full first (get_resource). related and not_a_conflict keep both as they are; settle those yourself when the facts are plain. On documents a contradiction is often a real replacement, so do not use not_a_conflict to make a flag go away. supersedes records your judgement only and archives nothing: if one document really replaces the other, also call supersede_resource. committed: true means the ruling is recorded and the flag will not be raised again for the same reason unless the content changes; outcome queued_for_review carries a proposal_id, and the flag stays lit until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. For a flag on a memory, use resolve_memory_flag.",
 		"searchIntent": "resolve rule on document artifact stale contradictory review flag",
 		"modelInputSchema": {
 			"type": "object",
@@ -8892,7 +8916,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent. It lets a teammate's command be judged as the person who gave it, and names your connection on what is recorded. Omitted: the connection your client authenticated, if any. Refused if the connection is not live or not yours."
+					"description": "Your own connection id, if you are a connected agent. Used only so that, when you are carrying out a teammate's command, the call is judged as the person who gave it; the connection your client authenticated, if any, is used instead. Omitted, or not yours: the call is judged as you."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
@@ -8944,7 +8968,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent. It lets a teammate's command be judged as the person who gave it, and names your connection on what is recorded. Omitted: the connection your client authenticated, if any. Refused if the connection is not live or not yours."
+					"description": "Your own connection id, if you are a connected agent. Used only so that, when you are carrying out a teammate's command, the call is judged as the person who gave it; the connection your client authenticated, if any, is used instead. Omitted, or not yours: the call is judged as you."
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
@@ -8967,7 +8991,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "manage_discussion_point",
 		"label": "DevSpec: Manage Discussion Point",
-		"description": "Add, edit, strike (mark discussed), reopen, watch or unwatch a Still to Discuss point, only when the person asks. add with session_id puts the point on that room's list; without it, on the project list. A point records an unsettled topic, not work (create_action_item) or a settled decision (record_memory). Watching only adds the point to your mine:true results in search_discussion_points. The reply returns the changed point and its list: a room's whole list, or the project list's first 20 open points with rows_page.next_call to read on.",
+		"description": "Add, edit, strike (mark discussed), reopen, watch or unwatch a Still to Discuss point, only when the person asks. add puts the point on the project list, or on a room's list when you pass scope:\"room\" with that room's session_id. A point records an unsettled topic, not work (create_action_item) or a settled decision (record_memory). Watching only adds the point to your mine:true results in search_discussion_points. The reply returns the changed point and its list: a room's whole list, or the project list's first 20 open points with rows_page.next_call to read on.",
 		"searchIntent": "add update strike reopen watch still to discuss discussion topic",
 		"modelInputSchema": {
 			"type": "object",
@@ -9011,15 +9035,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "add only, with scope room: the room the point belongs to (UUID or 8-character short code). Ignored otherwise."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -9069,15 +9093,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "add only, with scope room: the room the point belongs to (UUID or 8-character short code). Ignored otherwise."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -9171,15 +9195,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Required for fail_step: whether the step can be tried again."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -9266,15 +9290,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Required for fail_step: whether the step can be tried again."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -9364,15 +9388,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "list only: which polls to return. Default all."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -9455,15 +9479,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "list only: which polls to return. Default all."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -9529,7 +9553,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"allow_custom": {
 					"type": "boolean",
-					"description": "Select kinds only: whether the person may answer outside your options. Pass false only when the answer must be one of them. Ignored for text questions."
+					"description": "Select kinds only: whether the person may answer outside your options. Pass false only when the answer must be one of them. Ignored for text questions. Default true."
 				},
 				"provenance_ref": {
 					"type": "string",
@@ -9546,15 +9570,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Required for cancel: the question's current revision."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -9613,7 +9637,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"allow_custom": {
 					"type": "boolean",
-					"description": "Select kinds only: whether the person may answer outside your options. Pass false only when the answer must be one of them. Ignored for text questions."
+					"description": "Select kinds only: whether the person may answer outside your options. Pass false only when the answer must be one of them. Ignored for text questions. Default true."
 				},
 				"provenance_ref": {
 					"type": "string",
@@ -9630,15 +9654,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Required for cancel: the question's current revision."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -9651,7 +9675,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "create_session",
 		"label": "DevSpec: Create Session",
-		"description": "Open a new room in this project and return its session_id and session_url, when the person wants a fresh conversation they can pick up in DevSpec. The room is shared with everyone on the project unless you set access, and it is passive: Dev does not reply, and creating it notifies nobody. initial_message is posted as your agent, like post_session_message; if that post fails the room still exists, so check initial_message_posted. Not for finding past rooms (search_sessions) or answering in the current one (post_session_message).",
+		"description": "Open a new room in this project and return its session_id and session_url, when the person wants a fresh conversation they can pick up in DevSpec. The room is shared with everyone on the project unless you set access. Creating it starts no Dev turn and notifies nobody beyond anyone @mentioned in initial_message; Dev does not reply until a person in the room sends it a message. initial_message is posted as your agent, like post_session_message; if that post fails the room still exists, so check initial_message_posted. Not for finding past rooms (search_sessions) or answering in the current one (post_session_message).",
 		"searchIntent": "start create open new conversation room session link",
 		"modelInputSchema": {
 			"type": "object",
@@ -9661,13 +9685,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						1
 					],
-					"description": "Optional instruction_tiers_version previously retained by this client. Send with known_instruction_tiers_hash; both must match before identical tier texts are omitted."
+					"description": "The instruction_tiers_version from an earlier response; send it with known_instruction_tiers_hash. When both match, tier texts this call would return are left out. Omitted: tier texts are sent in full."
 				},
 				"known_instruction_tiers_hash": {
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
+					"description": "The instruction_tiers_hash this process retained from an earlier response; after a restart, omit it. Omitted: tier texts are sent in full."
 				},
 				"title": {
 					"type": "string",
@@ -9676,7 +9700,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"initial_message": {
 					"type": "string",
-					"description": "An opening message in Markdown, posted as \"<agent> (<your name>)\". An @Full Name in it notifies that person. A longer message is refused and no room is created. Omitted: no opening message."
+					"description": "An opening message in Markdown, posted as \"<agent> (<your name>)\". An @Full Name in it notifies that person. Over 100,000 characters is refused, and then no room is created. Omitted: no opening message."
 				},
 				"agent_name": {
 					"type": "string",
@@ -9684,27 +9708,27 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"machine_hostname": {
 					"type": "string",
-					"description": "Only with session_type agent_remote_control and no title: the hostname shown in the default title."
+					"description": "Omit it. Read only with session_type agent_remote_control when neither title nor initial_message is given: the hostname shown in the default title."
 				},
 				"hostname": {
 					"type": "string",
-					"description": "Alias for machine_hostname; machine_hostname wins. Omitted: only machine_hostname is read."
+					"description": "Omit it. Alias for machine_hostname; machine_hostname wins."
 				},
 				"cwd": {
 					"type": "string",
-					"description": "Only with session_type agent_remote_control and no title: the working directory whose last segment is shown in the default title."
+					"description": "Omit it. Read only with session_type agent_remote_control when neither title nor initial_message is given: the working directory whose last segment is shown in the default title."
 				},
 				"session_codename": {
 					"type": "string",
-					"description": "Only with session_type agent_remote_control: the codename that leads the default title and is returned as session_codename."
+					"description": "Omit it. Read only with session_type agent_remote_control: the codename returned as session_codename, which also leads the default title when neither title nor initial_message is given."
 				},
 				"codename": {
 					"type": "string",
-					"description": "Alias for session_codename; session_codename wins. Omitted: only session_codename is read."
+					"description": "Omit it. Alias for session_codename; session_codename wins."
 				},
 				"session_type": {
 					"type": "string",
-					"description": "Omit it. agent_remote_control is accepted from older plugins: the room is still an ordinary one, but the call then needs remote control enabled, titles the room with a codename by default, posts a 'waiting for your agent' banner when there is no initial_message, and returns session_codename plus the instruction tiers. Any other value is refused."
+					"description": "Omit it. agent_remote_control needs remote control enabled; the room is an ordinary one, but it gets a codename title by default and a 'waiting for your agent' banner when there is no initial_message, and the result adds session_codename and the instruction tiers. standard is the same as omitting it; any other value is refused."
 				},
 				"access": {
 					"type": "string",
@@ -9713,18 +9737,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"shared",
 						"invite_only"
 					],
-					"description": "Who can open the room. shared: everyone on the project. private: only you. invite_only: you and the participants added later. Choose private or invite_only only when the person asked."
+					"description": "Who can open the room. shared: everyone on the project. private: only you. invite_only: you and the participants added later. Choose private or invite_only only when the person asked. Omitted: shared."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -9737,13 +9761,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						1
 					],
-					"description": "Optional instruction_tiers_version previously retained by this client. Send with known_instruction_tiers_hash; both must match before identical tier texts are omitted."
+					"description": "The instruction_tiers_version from an earlier response; send it with known_instruction_tiers_hash. When both match, tier texts this call would return are left out. Omitted: tier texts are sent in full."
 				},
 				"known_instruction_tiers_hash": {
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
+					"description": "The instruction_tiers_hash this process retained from an earlier response; after a restart, omit it. Omitted: tier texts are sent in full."
 				},
 				"title": {
 					"type": "string",
@@ -9752,7 +9776,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"initial_message": {
 					"type": "string",
-					"description": "An opening message in Markdown, posted as \"<agent> (<your name>)\". An @Full Name in it notifies that person. A longer message is refused and no room is created. Omitted: no opening message."
+					"description": "An opening message in Markdown, posted as \"<agent> (<your name>)\". An @Full Name in it notifies that person. Over 100,000 characters is refused, and then no room is created. Omitted: no opening message."
 				},
 				"agent_name": {
 					"type": "string",
@@ -9760,27 +9784,27 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"machine_hostname": {
 					"type": "string",
-					"description": "Only with session_type agent_remote_control and no title: the hostname shown in the default title."
+					"description": "Omit it. Read only with session_type agent_remote_control when neither title nor initial_message is given: the hostname shown in the default title."
 				},
 				"hostname": {
 					"type": "string",
-					"description": "Alias for machine_hostname; machine_hostname wins. Omitted: only machine_hostname is read."
+					"description": "Omit it. Alias for machine_hostname; machine_hostname wins."
 				},
 				"cwd": {
 					"type": "string",
-					"description": "Only with session_type agent_remote_control and no title: the working directory whose last segment is shown in the default title."
+					"description": "Omit it. Read only with session_type agent_remote_control when neither title nor initial_message is given: the working directory whose last segment is shown in the default title."
 				},
 				"session_codename": {
 					"type": "string",
-					"description": "Only with session_type agent_remote_control: the codename that leads the default title and is returned as session_codename."
+					"description": "Omit it. Read only with session_type agent_remote_control: the codename returned as session_codename, which also leads the default title when neither title nor initial_message is given."
 				},
 				"codename": {
 					"type": "string",
-					"description": "Alias for session_codename; session_codename wins. Omitted: only session_codename is read."
+					"description": "Omit it. Alias for session_codename; session_codename wins."
 				},
 				"session_type": {
 					"type": "string",
-					"description": "Omit it. agent_remote_control is accepted from older plugins: the room is still an ordinary one, but the call then needs remote control enabled, titles the room with a codename by default, posts a 'waiting for your agent' banner when there is no initial_message, and returns session_codename plus the instruction tiers. Any other value is refused."
+					"description": "Omit it. agent_remote_control needs remote control enabled; the room is an ordinary one, but it gets a codename title by default and a 'waiting for your agent' banner when there is no initial_message, and the result adds session_codename and the instruction tiers. standard is the same as omitting it; any other value is refused."
 				},
 				"access": {
 					"type": "string",
@@ -9789,18 +9813,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"shared",
 						"invite_only"
 					],
-					"description": "Who can open the room. shared: everyone on the project. private: only you. invite_only: you and the participants added later. Choose private or invite_only only when the person asked."
+					"description": "Who can open the room. shared: everyone on the project. private: only you. invite_only: you and the participants added later. Choose private or invite_only only when the person asked. Omitted: shared."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			}
@@ -9829,7 +9853,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"command_message_id": {
 					"type": "string",
-					"description": "The command message id from the same delivery as command_turn_id, so answering one follow-up does not close newer ones. Requires command_turn_id. Omitted: the newest command in that turn."
+					"description": "The command message id from the same delivery as command_turn_id, so answering one follow-up does not close newer ones. Requires command_turn_id. Omitted: the post answers the turn's newest open command and replies to the turn's first command."
 				},
 				"command_turn_unbound": {
 					"type": "boolean",
@@ -10143,7 +10167,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"command_message_id": {
 					"type": "string",
-					"description": "The command message id from the same delivery as command_turn_id, so answering one follow-up does not close newer ones. Requires command_turn_id. Omitted: the newest command in that turn."
+					"description": "The command message id from the same delivery as command_turn_id, so answering one follow-up does not close newer ones. Requires command_turn_id. Omitted: the post answers the turn's newest open command and replies to the turn's first command."
 				},
 				"command_turn_unbound": {
 					"type": "boolean",
@@ -10534,7 +10558,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "claim_automation_run",
 		"label": "DevSpec: Claim Automation Run",
-		"description": "Take one waiting automation run before doing it; the reply carries its instruction, acceptance criteria with ids, permission and expected tools. Pass connection_id, the agent doing the run: without it the run goes to the agent it was aimed at, or to your only connected agent, and is otherwise refused. The permission governs what you do on the machine and its repositories, not what you write to DevSpec: look_only means investigate and report only, can_commit allows local commits but no push, can_push allows both; check the expected tools first. A refusal names its reason and says whether a retry could work: already_taken is normal contention, so move on; already_yours means carry on and report it; already_finished means correct it with record_automation_run instead; a scheduled run is not offered to an agent in the middle of a conversation; a run aimed at another agent is left for that one. When done, report with record_automation_run.",
+		"description": "Take one waiting automation run before doing it; the reply carries its instruction, acceptance criteria with ids, permission and expected tools. Pass connection_id, the agent doing the run: without it the run goes to the agent it was aimed at, or to your only connected agent, and is otherwise refused. The permission governs what you do on the machine and its repositories, not what you write to DevSpec: look_only means investigate and report only, can_commit allows local commits but no push, can_push allows both; check the expected tools first. A refusal names its reason and says whether a retry could work: already_taken is normal contention, so move on; already_yours means carry on and report it; already_finished: if you ran it, correct it with record_automation_run, otherwise there is nothing to take; a scheduled run is not offered to an agent in the middle of a conversation; a run aimed at another agent is left for that one. When done, report with record_automation_run.",
 		"searchIntent": "claim take waiting automation run start the job",
 		"modelInputSchema": {
 			"type": "object",
@@ -10545,22 +10569,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id. Omitted, or not a live connection of yours: your most recently seen live connection on the project is used, which may be another of your agents."
+					"description": "The agent doing the run: your connection id. A connection your client authenticated is used instead when there is one. Omitted, or not a live connection of yours: your only live connection on this project; with several, the agent the run was aimed at if it is still live, or the newly launched agent when the run is waiting for one; otherwise the claim is refused."
 				},
 				"provider": {
 					"type": "string",
 					"description": "Not used to match: the agent is taken from your connection. Stored as the run's coding agent only when the connection has no agent name."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -10577,22 +10601,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id. Omitted, or not a live connection of yours: your most recently seen live connection on the project is used, which may be another of your agents."
+					"description": "The agent doing the run: your connection id. A connection your client authenticated is used instead when there is one. Omitted, or not a live connection of yours: your only live connection on this project; with several, the agent the run was aimed at if it is still live, or the newly launched agent when the run is waiting for one; otherwise the claim is refused."
 				},
 				"provider": {
 					"type": "string",
 					"description": "Not used to match: the agent is taken from your connection. Stored as the run's coding agent only when the connection has no agent name."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -10605,7 +10629,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_automation_run",
 		"label": "DevSpec: Record Automation Run",
-		"description": "Report the outcome of an automation run you claimed, or correct one already reported. Give a verdict for each acceptance criterion: met, not_met and intent_met need evidence (what you ran and what came back), and are refused without it; use unknown for anything you did not check. Criteria a first report leaves out are recorded as unknown. A first report must come from the agent that claimed the run; any other agent needs force with a reason, as does correcting a report whose agent is gone. Calling it again on a finished run corrects that run: your verdicts merge over the stored ones, fields you omit keep their values, and the correction is stamped on the run. A report that says the run committed or pushed beyond its permission is recorded as failed and returns an error; any failed run alerts you. List what the run produced in artifacts; an empty list is a fine answer for a run that only looked.",
+		"description": "Report the outcome of an automation run you claimed, or correct one already reported. Give a verdict for each acceptance criterion: met, not_met and intent_met need evidence (what you ran and what came back); if any lacks it, the whole report is refused and nothing is recorded. Use unknown for anything you did not check. Criteria a first report leaves out are recorded as unknown. A first report must come from the agent that claimed the run; any other agent needs force with a reason, as does correcting a report whose agent is gone. Calling it again on a finished run corrects that run: your verdicts merge over the stored ones, fields you omit keep their values, and the correction is stamped on the run. A report that says the run committed or pushed beyond its permission is recorded as failed and returns an error; any failed run alerts you. List what the run produced in artifacts; an empty list is a fine answer for a run that only looked.",
 		"searchIntent": "report correct automation run outcome results criterion verdicts evidence",
 		"modelInputSchema": {
 			"type": "object",
@@ -10616,7 +10640,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id; it decides whether a correction is yours to make. Omitted, or not a live connection of yours: your most recently seen live connection on the project."
+					"description": "Your connection id; it is checked against the agent that claimed the run, for a first report and a correction alike. A connection your client authenticated is used instead when there is one. Omitted, or not a live connection of yours: your only live connection on this project, or with several, the claiming agent if it is still live; otherwise the call is refused."
 				},
 				"status": {
 					"type": "string",
@@ -10783,7 +10807,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"local_session_id": {
 					"type": "string",
-					"description": "Your local conversation id, so a later run can resume the same conversation. On a correction, omit it to keep the stored one."
+					"description": "Your local conversation id, stored with the run. On a correction, omit it to keep the stored one."
 				},
 				"provider": {
 					"type": "string",
@@ -10798,15 +10822,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Why you are correcting the run: required with force, and recorded on the run as the correction note whenever you correct one."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -10824,7 +10848,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id; it decides whether a correction is yours to make. Omitted, or not a live connection of yours: your most recently seen live connection on the project."
+					"description": "Your connection id; it is checked against the agent that claimed the run, for a first report and a correction alike. A connection your client authenticated is used instead when there is one. Omitted, or not a live connection of yours: your only live connection on this project, or with several, the claiming agent if it is still live; otherwise the call is refused."
 				},
 				"status": {
 					"type": "string",
@@ -10991,7 +11015,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"local_session_id": {
 					"type": "string",
-					"description": "Your local conversation id, so a later run can resume the same conversation. On a correction, omit it to keep the stored one."
+					"description": "Your local conversation id, stored with the run. On a correction, omit it to keep the stored one."
 				},
 				"provider": {
 					"type": "string",
@@ -11006,15 +11030,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Why you are correcting the run: required with force, and recorded on the run as the correction note whenever you correct one."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -11028,7 +11052,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "create_automation",
 		"label": "DevSpec: Create Automation",
-		"description": "Save a reusable job, owned by you, that agents can run again and again. It is private to you unless you set visibility 'project'; do that only when the person asks to share it. Offer it when they have just done, or described, something they will repeat, and create it once they agree. Write the instruction as intent rather than machine-specific paths, and propose a few short checkable acceptance criteria: each run reports a verdict per line. It does not schedule or start runs: those are set up in the app, and runs then reach agents through get_automation_runs. A one-off task is an action item (create_action_item); a reference document is an artifact (create_resource). A name you already use for another of your automations is refused.",
+		"description": "Save a reusable job, owned by you, that agents can run again and again. It is private to you unless you set visibility 'project'. Offer it when the person has just done, or described, something they will repeat, and create it once they agree. Propose a few short checkable acceptance criteria: each run reports a verdict per line. It does not schedule or start runs: those are set up in the app, and runs then reach agents through get_automation_runs. A one-off task is an action item (create_action_item); a reference document is an artifact (create_resource). A name you already use for another of your automations is refused.",
 		"searchIntent": "save create reusable repeatable automation job with instructions and criteria",
 		"modelInputSchema": {
 			"type": "object",
@@ -11039,7 +11063,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"name": {
 					"type": "string",
-					"description": "A short name, used exactly as given. Omitted: one is generated from the instruction and criteria."
+					"description": "A short name, used exactly as given. Omitted: one is generated from the instruction and criteria (a short model call billed to the project's organisation)."
 				},
 				"acceptance_criteria": {
 					"type": "array",
@@ -11081,7 +11105,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"can_commit",
 						"can_push"
 					],
-					"description": "What a run may do on the machine: look_only = investigate and report only; can_commit = commit locally, never push; can_push = commit and push. Raise it only when the job must write."
+					"description": "What a run may do on the machine: look_only = investigate and report only; can_commit = commit locally, never push; can_push = commit and push. Raise it only when the job must write. Omitted: look_only."
 				},
 				"expected_tools": {
 					"type": "array",
@@ -11092,7 +11116,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"enabled": {
 					"type": "boolean",
-					"description": "false saves it switched off: its schedule does not fire. Omitted: switched on."
+					"description": "false pauses its schedule only: event triggers and Run in the app still start runs; to stop it entirely, archive it with delete_automation. Omitted: on."
 				},
 				"visibility": {
 					"type": "string",
@@ -11100,7 +11124,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"private",
 						"project"
 					],
-					"description": "private = only you can see and run it; project = everyone on the project can see it and run it on their own agents, while only you can change it. Share only when the person asks."
+					"description": "private = only you can see and run it; project = everyone on the project can see it and run it on their own agents, while only you can change it. Share only when the person asks. Omitted: private."
 				},
 				"tags": {
 					"type": "array",
@@ -11114,15 +11138,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. The automation is always saved as yours. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -11139,7 +11163,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"name": {
 					"type": "string",
-					"description": "A short name, used exactly as given. Omitted: one is generated from the instruction and criteria."
+					"description": "A short name, used exactly as given. Omitted: one is generated from the instruction and criteria (a short model call billed to the project's organisation)."
 				},
 				"acceptance_criteria": {
 					"type": "array",
@@ -11181,7 +11205,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"can_commit",
 						"can_push"
 					],
-					"description": "What a run may do on the machine: look_only = investigate and report only; can_commit = commit locally, never push; can_push = commit and push. Raise it only when the job must write."
+					"description": "What a run may do on the machine: look_only = investigate and report only; can_commit = commit locally, never push; can_push = commit and push. Raise it only when the job must write. Omitted: look_only."
 				},
 				"expected_tools": {
 					"type": "array",
@@ -11192,7 +11216,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"enabled": {
 					"type": "boolean",
-					"description": "false saves it switched off: its schedule does not fire. Omitted: switched on."
+					"description": "false pauses its schedule only: event triggers and Run in the app still start runs; to stop it entirely, archive it with delete_automation. Omitted: on."
 				},
 				"visibility": {
 					"type": "string",
@@ -11200,7 +11224,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"private",
 						"project"
 					],
-					"description": "private = only you can see and run it; project = everyone on the project can see it and run it on their own agents, while only you can change it. Share only when the person asks."
+					"description": "private = only you can see and run it; project = everyone on the project can see it and run it on their own agents, while only you can change it. Share only when the person asks. Omitted: private."
 				},
 				"tags": {
 					"type": "array",
@@ -11214,15 +11238,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. The automation is always saved as yours. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -11277,11 +11301,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"opencode",
 						"pi"
 					],
-					"description": "Changes the coding agent it is written for; it cannot be cleared from here. gemini, copilot and windsurf do not restrict which agent takes a run. Omitted: unchanged."
+					"description": "Runs it on this one agent only, replacing any agents chosen for it in the app. Without preferred_model, its model is kept when this same agent was its only one. gemini, copilot and windsurf are refused, and opening it to any agent is done in the app, not here. Omitted: unchanged."
 				},
 				"preferred_model": {
 					"type": "string",
-					"description": "Changes the model; an empty string clears it. Omitted: unchanged."
+					"description": "The model its agent must report; an empty string clears it. With preferred_provider it applies to that agent. Alone it changes the model of the automation's one agent, and is refused when it has no agent (send preferred_provider too) or several (change them in the app). Omitted: unchanged."
 				},
 				"permission": {
 					"type": "string",
@@ -11301,7 +11325,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"enabled": {
 					"type": "boolean",
-					"description": "Switches it on or off; while off its schedule does not fire. Omitted: unchanged."
+					"description": "true resumes its schedule, false pauses it; event triggers and Run in the app still start runs either way. Omitted: unchanged."
 				},
 				"visibility": {
 					"type": "string",
@@ -11309,7 +11333,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"private",
 						"project"
 					],
-					"description": "project shares it with the project; private makes it yours alone again and cancels others' waiting runs. An automation whose runs belong to the whole project stays shared. Omitted: unchanged."
+					"description": "project shares it with the project; private makes it yours alone again and cancels others' waiting runs. Making private an automation whose runs belong to the whole project is refused, and nothing else in that call is applied. Omitted: unchanged."
 				},
 				"tags": {
 					"type": "array",
@@ -11323,15 +11347,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. Only automations you wrote can be changed either way. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -11379,11 +11403,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"opencode",
 						"pi"
 					],
-					"description": "Changes the coding agent it is written for; it cannot be cleared from here. gemini, copilot and windsurf do not restrict which agent takes a run. Omitted: unchanged."
+					"description": "Runs it on this one agent only, replacing any agents chosen for it in the app. Without preferred_model, its model is kept when this same agent was its only one. gemini, copilot and windsurf are refused, and opening it to any agent is done in the app, not here. Omitted: unchanged."
 				},
 				"preferred_model": {
 					"type": "string",
-					"description": "Changes the model; an empty string clears it. Omitted: unchanged."
+					"description": "The model its agent must report; an empty string clears it. With preferred_provider it applies to that agent. Alone it changes the model of the automation's one agent, and is refused when it has no agent (send preferred_provider too) or several (change them in the app). Omitted: unchanged."
 				},
 				"permission": {
 					"type": "string",
@@ -11403,7 +11427,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"enabled": {
 					"type": "boolean",
-					"description": "Switches it on or off; while off its schedule does not fire. Omitted: unchanged."
+					"description": "true resumes its schedule, false pauses it; event triggers and Run in the app still start runs either way. Omitted: unchanged."
 				},
 				"visibility": {
 					"type": "string",
@@ -11411,7 +11435,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"private",
 						"project"
 					],
-					"description": "project shares it with the project; private makes it yours alone again and cancels others' waiting runs. An automation whose runs belong to the whole project stays shared. Omitted: unchanged."
+					"description": "project shares it with the project; private makes it yours alone again and cancels others' waiting runs. Making private an automation whose runs belong to the whole project is refused, and nothing else in that call is applied. Omitted: unchanged."
 				},
 				"tags": {
 					"type": "array",
@@ -11425,15 +11449,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. Only automations you wrote can be changed either way. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -11460,15 +11484,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -11488,15 +11512,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -11519,13 +11543,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						1
 					],
-					"description": "Optional instruction_tiers_version previously retained by this client. Send with known_instruction_tiers_hash; both must match before identical tier texts are omitted."
+					"description": "The instruction_tiers_version from an earlier response; send it with known_instruction_tiers_hash. When both match, tier texts this call would return are left out. Omitted: tier texts are sent in full."
 				},
 				"known_instruction_tiers_hash": {
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
+					"description": "The instruction_tiers_hash this process retained from an earlier response; after a restart, omit it. Omitted: tier texts are sent in full."
 				},
 				"local_id": {
 					"type": "string",
@@ -11584,15 +11608,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "For a registration the host makes by itself at startup, not one a person asked for: resolve the project from this folder's git remote or pin only, never from \"your only project\". When honoured the reply echoes folder_scope_only: true; if it does not, the server ignored the flag and the host should not stay registered."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -11608,13 +11632,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						1
 					],
-					"description": "Optional instruction_tiers_version previously retained by this client. Send with known_instruction_tiers_hash; both must match before identical tier texts are omitted."
+					"description": "The instruction_tiers_version from an earlier response; send it with known_instruction_tiers_hash. When both match, tier texts this call would return are left out. Omitted: tier texts are sent in full."
 				},
 				"known_instruction_tiers_hash": {
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
+					"description": "The instruction_tiers_hash this process retained from an earlier response; after a restart, omit it. Omitted: tier texts are sent in full."
 				},
 				"local_id": {
 					"type": "string",
@@ -11681,15 +11705,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "For a registration the host makes by itself at startup, not one a person asked for: resolve the project from this folder's git remote or pin only, never from \"your only project\". When honoured the reply echoes folder_scope_only: true; if it does not, the server ignored the flag and the host should not stay registered."
 				},
 				"project_id": {
-					"description": "Project UUID. Omit if you can reach exactly one project. If both this and git_remote are set, project_id wins.",
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
 				},
 				"git_remote": {
-					"description": "Optional `git remote get-url origin`. Used only when project_id is omitted and exactly one accessible project tracks that remote.",
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
 					"type": "string"
 				},
 				"pinned_project_id": {
-					"description": "Optional project_id from `.devspec/project.json` in the working folder. Used only when project_id is omitted and no git remote resolves.",
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -11712,13 +11736,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						1
 					],
-					"description": "Optional instruction_tiers_version previously retained by this client. Send with known_instruction_tiers_hash; both must match before identical tier texts are omitted."
+					"description": "The instruction_tiers_version from an earlier response; send it with known_instruction_tiers_hash. When both match, tier texts this call would return are left out. Omitted: tier texts are sent in full."
 				},
 				"known_instruction_tiers_hash": {
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
+					"description": "The instruction_tiers_hash this process retained from an earlier response; after a restart, omit it. Omitted: tier texts are sent in full."
 				},
 				"connection_id": {
 					"type": "string",
@@ -11752,13 +11776,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						1
 					],
-					"description": "Optional instruction_tiers_version previously retained by this client. Send with known_instruction_tiers_hash; both must match before identical tier texts are omitted."
+					"description": "The instruction_tiers_version from an earlier response; send it with known_instruction_tiers_hash. When both match, tier texts this call would return are left out. Omitted: tier texts are sent in full."
 				},
 				"known_instruction_tiers_hash": {
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
+					"description": "The instruction_tiers_hash this process retained from an earlier response; after a restart, omit it. Omitted: tier texts are sent in full."
 				},
 				"connection_id": {
 					"type": "string",
@@ -11820,7 +11844,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "heartbeat_connection",
 		"label": "DevSpec: Heartbeat Connection",
-		"description": "Keep your registered connection live, or take it offline. Presence lapses about 90 seconds after the last heartbeat or poll, and poll_connection already carries this heartbeat, so a host that polls need not send both. busy:true shows Working… in the room and picks up or renews the connection's activity; busy:false clears Working… but does not close an activity whose lease is still running (report_complete does). status 'offline' clears presence and closes the connection's open activity; adding end_reason also ends the connection and posts 'left' in its room, so only registering again brings it back (the same local_id within 24 hours revives the same connection). A connection that is not live answers status 'not_found', not an error: register again.",
+		"description": "Keep your registered connection live, or take it offline. Presence lapses about 90 seconds after the last heartbeat or poll, and poll_connection already carries this heartbeat, so a host that polls need not send both. busy:true shows Working… in the room and picks up or renews the connection's activity; busy:false clears Working… but does not close an activity whose lease is still running (report_complete does). status 'offline' clears presence and closes the connection's open activity; adding end_reason also ends the connection and posts 'left' in its room, so only registering again brings it back (the same local_id within 24 hours revives the same connection). An ended or unknown connection answers status 'not_found', not an error: register again.",
 		"searchIntent": "",
 		"modelInputSchema": {
 			"type": "object",
@@ -11839,7 +11863,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"live",
 						"offline"
 					],
-					"description": "live refreshes presence; offline clears it (see end_reason)."
+					"description": "live refreshes presence; offline clears it (see end_reason). Omitted: live."
 				},
 				"agent_name": {
 					"type": "string",
@@ -11877,7 +11901,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"auth",
 						"ui"
 					],
-					"description": "With status offline: why the connection is ending, which makes the end sticky: the connection is ended, its open activity is closed and 'left' is posted. local_stop = a person ran the tool's remote-stop; owner_gone = the poller found its host process dead; keep them distinct. Omit it for a non-sticky disconnect: presence clears and the next poll_connection or heartbeat_connection makes the connection live again."
+					"description": "With status offline: why the connection is ending, which makes the end sticky: the connection is ended, its open activity is closed and 'left' is posted. local_stop = a person ran the tool's remote-stop; owner_gone = the poller found its host process dead; keep them distinct. idle_timeout = the host stopped after its own idle limit; auth = its token stopped working; ui = a person ended it in the app. Omit it for a non-sticky disconnect: presence clears and the next poll_connection or heartbeat_connection makes the connection live again."
 				},
 				"observed_alive_until": {
 					"type": "string",
@@ -12094,7 +12118,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"live",
 						"offline"
 					],
-					"description": "live refreshes presence; offline clears it (see end_reason)."
+					"description": "live refreshes presence; offline clears it (see end_reason). Omitted: live."
 				},
 				"agent_name": {
 					"type": "string",
@@ -12137,11 +12161,62 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"auth",
 						"ui"
 					],
-					"description": "With status offline: why the connection is ending, which makes the end sticky: the connection is ended, its open activity is closed and 'left' is posted. local_stop = a person ran the tool's remote-stop; owner_gone = the poller found its host process dead; keep them distinct. Omit it for a non-sticky disconnect: presence clears and the next poll_connection or heartbeat_connection makes the connection live again."
+					"description": "With status offline: why the connection is ending, which makes the end sticky: the connection is ended, its open activity is closed and 'left' is posted. local_stop = a person ran the tool's remote-stop; owner_gone = the poller found its host process dead; keep them distinct. idle_timeout = the host stopped after its own idle limit; auth = its token stopped working; ui = a person ended it in the app. Omit it for a non-sticky disconnect: presence clears and the next poll_connection or heartbeat_connection makes the connection live again."
 				},
 				"observed_alive_until": {
 					"type": "string",
 					"description": "With status offline and no end_reason: ISO time of your last successful contact with the server. The offline clear then lands only if the stored presence is older, so a quick re-register or reconnect is not undone by the old process's shutdown. A value that is not a date is ignored. Omit for deliberate stops."
+				},
+				"terminal_wait": {
+					"x-devspec-host-only": true,
+					"oneOf": [
+						{
+							"type": "object",
+							"properties": {
+								"kind": {
+									"type": "string",
+									"enum": [
+										"permission",
+										"input"
+									]
+								},
+								"label": {
+									"type": "string",
+									"maxLength": 200
+								}
+							},
+							"required": [
+								"kind",
+								"label"
+							],
+							"additionalProperties": false
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Host-only. With status live: the agent is now waiting for its owner in its terminal. kind is 'permission' (a prompt to approve a tool) or 'input' (a server or tool asking a question); label names the tool or server (\"Bash\", \"Supabase · execute_sql\"), never its command, SQL or other input. DevSpec shows the agent as needing attention and notifies its owner. Send null once it has been answered. Omitted: unchanged."
+				},
+				"control_verbs": {
+					"x-devspec-host-only": true,
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"abort",
+							"set_model",
+							"set_thinking",
+							"compact",
+							"reload",
+							"list_models"
+						]
+					},
+					"description": "Host-only. With status live: the owner controls this running agent can carry out now, such as [\"abort\"]. A report is authoritative for this connection: DevSpec offers exactly these and no others, and [] offers none. Verbs DevSpec does not know are ignored. Omit it when the host does not report this; DevSpec then decides by host. Cleared when the connection goes offline."
+				},
+				"control_ack": {
+					"type": "string",
+					"x-devspec-host-only": true,
+					"description": "Host-only. The id of the owner control this agent just handled, which frees the connection's one control slot. Send it once the control was carried out, and also when it could not be, so the slot is never held. An id that is not the pending control changes nothing. poll_connection takes the same."
 				},
 				"agent_stats": {
 					"type": "object",
@@ -12352,13 +12427,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						1
 					],
-					"description": "Optional instruction_tiers_version previously retained by this client. Send with known_instruction_tiers_hash; both must match before identical tier texts are omitted."
+					"description": "The instruction_tiers_version from an earlier response; send it with known_instruction_tiers_hash. When both match, tier texts this call would return are left out. Omitted: tier texts are sent in full."
 				},
 				"known_instruction_tiers_hash": {
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
+					"description": "The instruction_tiers_hash this process retained from an earlier response; after a restart, omit it. Omitted: tier texts are sent in full."
 				},
 				"connection_id": {
 					"type": "string",
@@ -12517,7 +12592,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"wait_ms": {
 					"type": "number",
-					"description": "How long the server may hold the call before answering changed:false, in milliseconds. Lower it only if your host cannot keep a request open."
+					"description": "How long the server may hold the call before answering changed:false, in milliseconds. Lower it only if your host cannot keep a request open. Omitted: 25000; above 30000 is held to 30000."
 				},
 				"catch_up": {
 					"type": "boolean",
@@ -12771,13 +12846,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						1
 					],
-					"description": "Optional instruction_tiers_version previously retained by this client. Send with known_instruction_tiers_hash; both must match before identical tier texts are omitted."
+					"description": "The instruction_tiers_version from an earlier response; send it with known_instruction_tiers_hash. When both match, tier texts this call would return are left out. Omitted: tier texts are sent in full."
 				},
 				"known_instruction_tiers_hash": {
 					"type": "string",
 					"maxLength": 71,
 					"pattern": "^sha256:[a-f0-9]{64}$",
-					"description": "Optional instruction_tiers_hash previously retained by this client. Restart-safe client proof: the server never assumes a connection row proves what this process still possesses. Omitted: tier texts are sent in full."
+					"description": "The instruction_tiers_hash this process retained from an earlier response; after a restart, omit it. Omitted: tier texts are sent in full."
 				},
 				"connection_id": {
 					"type": "string",
@@ -13075,7 +13150,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"wait_ms": {
 					"type": "number",
-					"description": "How long the server may hold the call before answering changed:false, in milliseconds. Lower it only if your host cannot keep a request open."
+					"description": "How long the server may hold the call before answering changed:false, in milliseconds. Lower it only if your host cannot keep a request open. Omitted: 25000; above 30000 is held to 30000."
 				},
 				"catch_up": {
 					"type": "boolean",
@@ -13305,6 +13380,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Display name of the coding tool. It is set only when the connection has none; it never renames one."
 				},
+				"control_verbs": {
+					"x-devspec-host-only": true,
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"abort",
+							"set_model",
+							"set_thinking",
+							"compact",
+							"reload",
+							"list_models"
+						]
+					},
+					"description": "Host-only. The owner controls this running agent can carry out now, such as [\"abort\"], as on heartbeat_connection: a report is authoritative for this connection, [] offers none, unknown verbs are ignored, and omitting it leaves the last report."
+				},
 				"control_ack": {
 					"anyOf": [
 						{
@@ -13336,7 +13427,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "report_pickup",
 		"label": "DevSpec: Report Pickup",
-		"description": "Mark this connection as working in its room. With only connection_id it picks up the newest pending command; failing that it keeps an unexpired working attempt alive; failing that it opens a new working attempt, even when nothing was delivered. Picking up a pending command or opening a new attempt closes the connection's other open attempts as superseded, and it marks every command addressed to the connection as delivered, so none is redelivered. The room shows Working… until report_complete, or until the five-minute lease lapses without report_keepalive. Pass attempt_id to pick up one exact pending attempt instead. Usually called by the host plugin when a turn starts; it grants no authority over the work.",
+		"description": "Mark this connection as working in its room. With only connection_id it picks up the newest pending command; failing that it keeps an unexpired working attempt alive; failing that it opens a new working attempt, even when nothing was delivered. Picking up a pending command or opening a new attempt closes the connection's other open attempts as superseded. Whichever happens, and with attempt_id too, every command addressed to the connection is marked delivered, so none is redelivered. The room shows Working… until report_complete, or until the five-minute lease lapses without report_keepalive. Pass attempt_id to pick up one exact pending attempt instead. Usually called by the host plugin when a turn starts; it grants no authority over the work.",
 		"searchIntent": "",
 		"modelInputSchema": {
 			"type": "object",
@@ -13652,7 +13743,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "report_complete",
 		"label": "DevSpec: Report Complete",
-		"description": "End this connection's open activity: the attempt is marked done and, when its turn closes, the room's Working… and pending state is cleared and its open answer bubble completed. With only connection_id it closes the newest working attempt, else the newest pending one, which can be an owner command never started; pass command_turn_id (from poll_connection) or attempt_id to close exactly that one. Usually called by the host plugin; a turn whose answer went out with post_session_message complete_turn:true is already complete. When nothing was open, closed_as is null and already_finalized is true. This is not implementation evidence for an action item.",
+		"description": "End this connection's open activity: the attempt is marked done and, when its turn closes, the room's Working… and pending state is cleared and its open answer bubble completed. With only connection_id it closes the newest working attempt, else the newest pending one, which can be an owner command never started; pass command_turn_id (from poll_connection) or attempt_id to close exactly that one. Usually called by the host plugin; a turn whose answer went out with post_session_message complete_turn:true is already complete. When nothing was open, closed_as is null and already_finalized is true. This is not implementation evidence for an action item; to report delivered work on one, use record_implementation.",
 		"searchIntent": "",
 		"modelInputSchema": {
 			"type": "object",
@@ -13774,7 +13865,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "report_connection_check",
 		"label": "DevSpec: Report Connection Check",
-		"description": "Legacy commit-mode setup check: record, for each repository, whether the tagged empty commit for a verification item was pushed or skipped, and why. The current setup flow issues no such item; to check that this agent reaches DevSpec, use verify_agent_connection. Each call replaces the item's earlier report, and no current screen shows it.",
+		"description": "Record, for each repository, whether the tagged empty commit for a verification item ([devspec-verify:<id>]) was pushed or skipped, and why. To check that this agent reaches DevSpec, use verify_agent_connection. Each call replaces the item's earlier report; no screen shows it.",
 		"searchIntent": "",
 		"modelInputSchema": {
 			"type": "object",

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.3
+
+- DevSpec's tool descriptions now say what each tool actually does, after an independent review of every tool: wrong claims are corrected, each optional setting says what happens when it is left out, and rules about who may do what point to DevSpec's served contract instead of being repeated. Clearing an item's assignees or taking it out of its brief with `null` now works as the description always said. The catalogue is regenerated against DevSpec's current tools.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.2
 
 - Pi now knows which room messages it has actually read. Before, the room note Pi saw at the start of each task moved its "read up to here" mark even when Pi never opened the messages, so things people said while Pi was busy could slip past it. Now a message only counts as read once Pi has read it, and it stays unread until then.

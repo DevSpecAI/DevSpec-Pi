@@ -2740,6 +2740,13 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		// notice/question ACKs, Working, attachment hydration or speech.
 		active.roomSync?.observe(pkg);
 
+		// Tell the person once, by closed section names only: the agent is working
+		// without that part of the room (item 39c05c1f).
+		const roomState = unreadableRoomStateNotice(pkg.advisoryRejections, active.unreadableRoomStateReported);
+		if (roomState) {
+			active.unreadableRoomStateReported = roomState.key;
+			notify(ctx, roomState.local, "warning");
+		}
 		if (pkg.advisoryRejections?.length) {
 			debug("optional room state rejected", {
 				sessionPolls: pkg.advisoryRejections.includes("session_polls"),
@@ -2747,11 +2754,6 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				...(pkg.advisoryRejections.includes("session_activity") ? { sessionActivity: true } : {}),
 				...(pkg.advisoryRejections.includes("session_events") ? { sessionEvents: true } : {}),
 			});
-			const roomState = unreadableRoomStateNotice(pkg.advisoryRejections, active.unreadableRoomStateReported);
-			if (roomState) {
-				active.unreadableRoomStateReported = roomState.key;
-				notify(ctx, roomState.local, "warning");
-			}
 		}
 
 		if (pkg.unboundSenderStyleIds && pkg.unboundSenderStyleIds.length > 0) {

@@ -107,17 +107,11 @@ export function deliveredCommandKeys(primaryMessageId: string | undefined, detai
 	return [...ids].map(roomPresentedKey);
 }
 
-function label(s: string): string {
-	let end = Math.min(s.length, 120);
-	if (end && /[\uD800-\uDBFF]/.test(s[end - 1]!)) end--;
-	return s.slice(0, end);
-}
-
 /** Counts only. Author labels are participant-written data; callers encode them as JSON. */
 export function summarizeRoomUnread(waiting: readonly RoomWaitingMessage[]): RoomUnreadSummary {
 	const authors = new Map<string, { author: string; kind: string; messages: number }>();
 	for (const w of waiting) {
-		const author = label(w.author); const k = JSON.stringify([w.kind, author]);
+		const author = w.author; const k = JSON.stringify([w.kind, author]);
 		const entry = authors.get(k) ?? { author, kind: w.kind, messages: 0 };
 		entry.messages++; authors.set(k, entry);
 	}

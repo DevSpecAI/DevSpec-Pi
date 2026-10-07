@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: ec8a277c5bc41078e5ebea6adf8e772b0693c3aa820efa26b6e07d88caa790a5
- * Description fingerprint: 8afcb32e4e6af66b597659a1c5d128f58eb576640a057d6d0e9b161e1395532d
- * Regenerated: 2026-10-06T23:05:49.547Z
+ * Schema fingerprint: 89fade43a2ede8c6401cf63d62eacacfe9861beb1715641b13a7568b8e49bcb9
+ * Description fingerprint: 6a20c7c0a0416d2b01ef78b706084adffe35388f662b0316dac7cf855a1d40fe
+ * Regenerated: 2026-10-07T18:26:12.059Z
  */
-export const MCP_CATALOG_FINGERPRINT = "ec8a277c5bc41078e5ebea6adf8e772b0693c3aa820efa26b6e07d88caa790a5";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "8afcb32e4e6af66b597659a1c5d128f58eb576640a057d6d0e9b161e1395532d";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-06T23:05:49.547Z";
-export const TOOL_CATALOG_VERSION = "0a303533aace934d48a9a3423967e6df279d36106906c2a57530452dda85d044";
+export const MCP_CATALOG_FINGERPRINT = "89fade43a2ede8c6401cf63d62eacacfe9861beb1715641b13a7568b8e49bcb9";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "6a20c7c0a0416d2b01ef78b706084adffe35388f662b0316dac7cf855a1d40fe";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-07T18:26:12.059Z";
+export const TOOL_CATALOG_VERSION = "4804d557e72e4ec56ea69c10e747ee5aad46b3e583371bddf08dc2262c252a02";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -38,7 +38,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "claim_work_item",
 		"name": "claim work item",
-		"description": "Claim one action item before you start implementing it. Read what comes back: intent, criteria, spec_changes, session_context, project instruction tiers, review signals, unresolved conflicts and earlier attempts. A refused claim names the guard that stopped it: another holder or reservation, an assignee, an unfinished blocker, overlapping files, or an unresolved possible conflict (settle that with resolve_action_item_conflict). It also refuses an item whose last attempt failed (release_work_item hands it back) or whose implementation is already recorded (reopen_action_item reopens it). force with a reason overrides these and is recorded; human-only items and work awaiting approval cannot be claimed at all. When to claim is set by work_entry_contract, and when an override is justified by core_implementation_contract, in devspec://product/implementation-contract.",
+		"description": "Claim one action item before you start implementing it. Read what comes back: intent, criteria, spec_changes, session_context, project instruction tiers, review signals, unresolved conflicts, earlier attempts, and the project's decisions, conventions and documents that bear on the item (relevant_memories, relevant_artifacts; knowledge_unavailable names any that could not be read, which is not the same as none applying). A refused claim names the guard that stopped it: another holder or reservation, an assignee, an unfinished blocker, overlapping files, or an unresolved possible conflict (settle that with resolve_action_item_conflict). It also refuses an item whose last attempt failed (release_work_item hands it back) or whose implementation is already recorded (reopen_action_item reopens it). force with a reason overrides these and is recorded; human-only items and work awaiting approval cannot be claimed at all. When to claim is set by work_entry_contract, and when an override is justified by core_implementation_contract, in devspec://product/implementation-contract.",
 		"intent": "claim start working on action item before implementing"
 	},
 	{
@@ -5624,6 +5624,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Structured links stored with the note: a list of {type: url, file or commit, value}. Stored as given. Omitted: none."
 				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, when you run as one: the note names your agent, so people can tell which of their agents wrote it. Omitted: the connection your client proved is used, otherwise none. A connection that is not live or not yours refuses the call, and no note is added."
+				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
@@ -5682,6 +5686,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						]
 					},
 					"description": "Structured links stored with the note: a list of {type: url, file or commit, value}. Stored as given. Omitted: none."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, when you run as one: the note names your agent, so people can tell which of their agents wrote it. Omitted: the connection your client proved is used, otherwise none. A connection that is not live or not yours refuses the call, and no note is added."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -5797,7 +5805,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "claim_work_item",
 		"label": "DevSpec: Claim Work Item",
-		"description": "Claim one action item before you start implementing it. Read what comes back: intent, criteria, spec_changes, session_context, project instruction tiers, review signals, unresolved conflicts and earlier attempts. A refused claim names the guard that stopped it: another holder or reservation, an assignee, an unfinished blocker, overlapping files, or an unresolved possible conflict (settle that with resolve_action_item_conflict). It also refuses an item whose last attempt failed (release_work_item hands it back) or whose implementation is already recorded (reopen_action_item reopens it). force with a reason overrides these and is recorded; human-only items and work awaiting approval cannot be claimed at all. When to claim is set by work_entry_contract, and when an override is justified by core_implementation_contract, in devspec://product/implementation-contract.",
+		"description": "Claim one action item before you start implementing it. Read what comes back: intent, criteria, spec_changes, session_context, project instruction tiers, review signals, unresolved conflicts, earlier attempts, and the project's decisions, conventions and documents that bear on the item (relevant_memories, relevant_artifacts; knowledge_unavailable names any that could not be read, which is not the same as none applying). A refused claim names the guard that stopped it: another holder or reservation, an assignee, an unfinished blocker, overlapping files, or an unresolved possible conflict (settle that with resolve_action_item_conflict). It also refuses an item whose last attempt failed (release_work_item hands it back) or whose implementation is already recorded (reopen_action_item reopens it). force with a reason overrides these and is recorded; human-only items and work awaiting approval cannot be claimed at all. When to claim is set by work_entry_contract, and when an override is justified by core_implementation_contract, in devspec://product/implementation-contract.",
 		"searchIntent": "claim start working on action item before implementing",
 		"modelInputSchema": {
 			"type": "object",

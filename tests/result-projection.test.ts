@@ -479,7 +479,18 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// say so. get_decisions changed only in text (a design decision is a
 		// decision). Benchmark before/after: initial surface 45,507 -> 44,922
 		// estimated tokens; every budget still passes.
-		"a5163098922bd4a3086b499c1c074f166d6154a3bbe632077f74679748ee9c76",
+		// Rebaselined 2026-10-07 for DevSpec item 838672a6 (a note records which agent
+		// wrote it), regenerated against server staging with that change. Compared
+		// old/new generated catalogues: 81 model verbs before and after, none added
+		// or removed. The only schema change is add_implementation_note gaining an
+		// optional connection_id; Pi already stamps the bonded connection on that
+		// verb (stampKnownScope) and slimSchema keeps it off the model surface, so
+		// the server can now record which Pi wrote a note. Outside this fingerprint,
+		// claim_work_item's description now mentions relevant_memories /
+		// relevant_artifacts (DevSpec 7593fe5b). No projection family or hot-set
+		// membership changed. Benchmark before/after: initial surface 44,922 ->
+		// 44,975 estimated tokens; every budget still passes.
+		"e9bed6bd6a44401cd5f74c07526ca1b16ac42dccd42d9035e93b9805a30186de",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.6
+
+- A note Pi leaves on a DevSpec action item now says which Pi wrote it, not only whose account, so two of your agents working the same item are told apart on the item. Pi already sends its connection with every note; DevSpec now records it. The catalogue is regenerated against DevSpec's current tools.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.5
 
 - DevSpec memories now have four types: decision, convention, insight and risk. Recording or searching a memory offers those four, and how something is built is recorded as a decision. Open questions live in Still to Discuss, so the separate open-questions memory tool is gone. The catalogue is regenerated against DevSpec's current tools.

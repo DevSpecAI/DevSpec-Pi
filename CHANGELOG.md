@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.7
+
+- Pi can keep working in DevSpec between your commands while it holds several pieces of work at once: it can answer in its room, claim the next item it reserved, and record notes and criterion checks on an item it just finished. DevSpec used to refuse those because it could not tell who had asked. The tools that note, link or check an item now also take the claim or command they are for, for the rare case DevSpec cannot work that out. The catalogue is regenerated against DevSpec's current tools.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.6
 
 - A note Pi leaves on a DevSpec action item now says which Pi wrote it, not only whose account, so two of your agents working the same item are told apart on the item. Pi already sends its connection with every note; DevSpec now records it. The catalogue is regenerated against DevSpec's current tools.

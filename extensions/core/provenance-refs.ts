@@ -11,8 +11,10 @@
  * this process has actually been DEALT (delivery refs from validated ingress
  * commands, work-claim refs observed in claim results). The guard refuses a
  * write whose ref was never dealt here — locally, before the network, naming
- * the current turn's refs and teaching omission, which is the safe default
- * (the server attributes to the connection's single open turn).
+ * the current turn's refs and teaching omission, which is the safe default:
+ * the server works out who asked from the connection (its work on the item the
+ * write is about, its newest command, its only claim — DevSpec migrations 1161,
+ * 1216), and refuses rather than guesses when that is ambiguous.
  *
  * Deliberate scope: the rule is NEVER-DEALT, never "not currently valid".
  * Whether a dealt ref is still inside the live turn is the server's call
@@ -122,8 +124,8 @@ function refuse(kind: "provenance_ref" | "work_claim_ref", value: string): RefGu
 	if (kind === "provenance_ref") {
 		const known = currentTurnRefs();
 		const hint = known.length > 0
-			? `This session's current command refs are: ${known.join(", ")}. Unless you mean one of those exactly, omit the parameter: the server attributes the write to the active turn by default.`
-			: "No command has been delivered to this process, so that value did not come from a delivery here. Omit the parameter: the server attributes the write to the active turn by default.";
+			? `This session's current command refs are: ${known.join(", ")}. Unless you mean one of those exactly, omit the parameter: by default the server works out who asked from your connection.`
+			: "No command has been delivered to this process, so that value did not come from a delivery here. Omit the parameter: by default the server works out who asked from your connection.";
 		return {
 			ok: false,
 			message: `Unknown provenance_ref "${value}" — never delivered to this process (a mistyped ref fails closed; the server would reject it too). ${hint}`,
@@ -131,7 +133,7 @@ function refuse(kind: "provenance_ref" | "work_claim_ref", value: string): RefGu
 	}
 	return {
 		ok: false,
-		message: `Unknown work_claim_ref "${value}" — no claim result this process has seen carries it. Copy the work_claim_ref from the claim_work_item result verbatim, or omit it and let the server resolve the current claim.`,
+		message: `Unknown work_claim_ref "${value}" — no claim result this process has seen carries it. Copy the work_claim_ref from the claim_work_item result verbatim, or omit it and let the server work out who asked from your connection.`,
 	};
 }
 

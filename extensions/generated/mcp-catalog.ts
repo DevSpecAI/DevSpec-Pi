@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 89fade43a2ede8c6401cf63d62eacacfe9861beb1715641b13a7568b8e49bcb9
+ * Schema fingerprint: 6d61a1b6a5744211ca62c5d4f74db613c214a624ab24433ad7d36fe94c39bf33
  * Description fingerprint: 6a20c7c0a0416d2b01ef78b706084adffe35388f662b0316dac7cf855a1d40fe
- * Regenerated: 2026-10-07T18:26:12.059Z
+ * Regenerated: 2026-10-07T21:41:56.400Z
  */
-export const MCP_CATALOG_FINGERPRINT = "89fade43a2ede8c6401cf63d62eacacfe9861beb1715641b13a7568b8e49bcb9";
+export const MCP_CATALOG_FINGERPRINT = "6d61a1b6a5744211ca62c5d4f74db613c214a624ab24433ad7d36fe94c39bf33";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "6a20c7c0a0416d2b01ef78b706084adffe35388f662b0316dac7cf855a1d40fe";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-07T18:26:12.059Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-07T21:41:56.400Z";
 export const TOOL_CATALOG_VERSION = "4804d557e72e4ec56ea69c10e747ee5aad46b3e583371bddf08dc2262c252a02";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -4467,7 +4467,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "For query-type items, the result of running the query: status (success, error or timeout), output, executed_at, mcp_tools_used, execution_time_ms, and error_message on failure. Stored as given. Omitted: unchanged."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				}
 			},
@@ -4728,7 +4728,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "For query-type items, the result of running the query: status (success, error or timeout), output, executed_at, mcp_tools_used, execution_time_ms, and error_message on failure. Stored as given. Omitted: unchanged."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				}
 			},
@@ -4892,11 +4892,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -5053,11 +5053,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -5325,6 +5325,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"acknowledge_half_resolution": {
 					"type": "boolean",
 					"description": "For supersedes only: true confirms you want the bare edge without clearing flags or closing the replaced item, for example when back-filling history. Default false, which refuses a supersedes edge."
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -5357,6 +5365,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"acknowledge_half_resolution": {
 					"type": "boolean",
 					"description": "For supersedes only: true confirms you want the bare edge without clearing flags or closing the replaced item, for example when back-filling history. Default false, which refuses a supersedes edge."
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -5392,6 +5408,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"related_to"
 					],
 					"description": "Which relationship to remove. Omitted: the only one in that direction; refused when there are several."
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -5419,6 +5443,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"related_to"
 					],
 					"description": "Which relationship to remove. Omitted: the only one in that direction; refused when there are several."
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -5639,6 +5671,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"pinned_project_id": {
 					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -5702,6 +5742,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"pinned_project_id": {
 					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -5750,7 +5798,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				}
 			},
@@ -5792,7 +5840,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				}
 			},
@@ -5864,7 +5912,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Required when force is true: why the override is justified. Recorded with the claim. Ignored without force."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				}
 			},
@@ -5930,7 +5978,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Required when force is true: why the override is justified. Recorded with the claim. Ignored without force."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				}
 			},
@@ -5966,11 +6014,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Release a claim or reservation you do not hold, for a stale hold whose agent is gone. It requires reason, and is recorded as a forced release naming you. Default false: only the holder can release."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -5998,11 +6046,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Release a claim or reservation you do not hold, for a stale hold whose agent is gone. It requires reason, and is recorded as a forced release naming you. Default false: only the holder can release."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -6030,7 +6078,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"partial_work_notes": {
 					"type": "string",
-					"description": "What you attempted and where you got stuck. It is added to the item as a 'Failed — Partial work notes' implementation note; if it cannot be stored, the response lists it under not_stored. Omitted, no note is added."
+					"description": "What you attempted and where you got stuck. It is added to the item as a 'Failed — Partial work notes' implementation note; if it cannot be stored, the failure still stands and the response lists the note under not_stored with the add_implementation_note call that adds it. Omitted, no note is added."
 				},
 				"conflict_context": {
 					"type": "object",
@@ -6066,11 +6114,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your connection id, if you run as one; omitted, the connection your client proved is used. It must be the identity that claimed the item. A connection that is not live, or not yours, is refused."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -6092,7 +6140,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"partial_work_notes": {
 					"type": "string",
-					"description": "What you attempted and where you got stuck. It is added to the item as a 'Failed — Partial work notes' implementation note; if it cannot be stored, the response lists it under not_stored. Omitted, no note is added."
+					"description": "What you attempted and where you got stuck. It is added to the item as a 'Failed — Partial work notes' implementation note; if it cannot be stored, the failure still stands and the response lists the note under not_stored with the add_implementation_note call that adds it. Omitted, no note is added."
 				},
 				"conflict_context": {
 					"type": "object",
@@ -6128,11 +6176,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your connection id, if you run as one; omitted, the connection your client proved is used. It must be the identity that claimed the item. A connection that is not live, or not yours, is refused."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -6196,7 +6244,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"completion_note": {
 					"type": "string",
-					"description": "What you did, for the implementation record. It is stored as this round's summary and added as an implementation note. Omitted, the earlier completion note is kept. Shown to people as formatted markdown. Say everything you would anyway, then lay it out so it's easy to scan: short headings when there are several parts, bullets for separate points, `code` for file and function names, and a blank line between sections."
+					"description": "What you did, for the implementation record. It is stored as this round's summary and added as an implementation note; if the note cannot be stored, the implementation still stands and the response lists it under not_stored with the add_implementation_note call that adds it. Omitted, the earlier completion note is kept. Shown to people as formatted markdown. Say everything you would anyway, then lay it out so it's easy to scan: short headings when there are several parts, bullets for separate points, `code` for file and function names, and a blank line between sections."
 				},
 				"completion_confidence": {
 					"type": "integer",
@@ -6320,11 +6368,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "The DevSpec user id of the person whose machine ran the session; only they see the resume command. When local_session_id is sent without it, it defaults to you, which is right for an interactive run."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -6380,7 +6428,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"completion_note": {
 					"type": "string",
-					"description": "What you did, for the implementation record. It is stored as this round's summary and added as an implementation note. Omitted, the earlier completion note is kept. Shown to people as formatted markdown. Say everything you would anyway, then lay it out so it's easy to scan: short headings when there are several parts, bullets for separate points, `code` for file and function names, and a blank line between sections."
+					"description": "What you did, for the implementation record. It is stored as this round's summary and added as an implementation note; if the note cannot be stored, the implementation still stands and the response lists it under not_stored with the add_implementation_note call that adds it. Omitted, the earlier completion note is kept. Shown to people as formatted markdown. Say everything you would anyway, then lay it out so it's easy to scan: short headings when there are several parts, bullets for separate points, `code` for file and function names, and a blank line between sections."
 				},
 				"completion_confidence": {
 					"type": "integer",
@@ -6504,11 +6552,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "The DevSpec user id of the person whose machine ran the session; only they see the resume command. When local_session_id is sent without it, it defaults to you, which is right for an interactive run."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -6563,7 +6611,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"implementation_summary": {
 					"type": "string",
-					"description": "What was actually done: the implementation, the decisions and the trade-offs. It becomes the item's completion note and an implementation note. Shown to people as formatted markdown. Say everything you would anyway, then lay it out so it's easy to scan: short headings when there are several parts, bullets for separate points, `code` for file and function names, and a blank line between sections."
+					"description": "What was actually done: the implementation, the decisions and the trade-offs. It becomes the item's completion note and an implementation note; if the note cannot be stored, the item still stands and the response lists it under not_stored with the add_implementation_note call that adds it. Shown to people as formatted markdown. Say everything you would anyway, then lay it out so it's easy to scan: short headings when there are several parts, bullets for separate points, `code` for file and function names, and a blank line between sections."
 				},
 				"commits": {
 					"type": "array",
@@ -6681,11 +6729,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -6734,7 +6782,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"implementation_summary": {
 					"type": "string",
-					"description": "What was actually done: the implementation, the decisions and the trade-offs. It becomes the item's completion note and an implementation note. Shown to people as formatted markdown. Say everything you would anyway, then lay it out so it's easy to scan: short headings when there are several parts, bullets for separate points, `code` for file and function names, and a blank line between sections."
+					"description": "What was actually done: the implementation, the decisions and the trade-offs. It becomes the item's completion note and an implementation note; if the note cannot be stored, the item still stands and the response lists it under not_stored with the add_implementation_note call that adds it. Shown to people as formatted markdown. Say everything you would anyway, then lay it out so it's easy to scan: short headings when there are several parts, bullets for separate points, `code` for file and function names, and a blank line between sections."
 				},
 				"commits": {
 					"type": "array",
@@ -6852,11 +6900,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -7121,6 +7169,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						]
 					},
 					"description": "One entry for each criterion you actually checked, at most one per criterion; at least one. Criteria you leave out stay as they are."
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -7219,6 +7275,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						]
 					},
 					"description": "One entry for each criterion you actually checked, at most one per criterion; at least one. Criteria you leave out stay as they are."
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -7255,6 +7319,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your own connection id, recorded as the agent that made the change. Omitted, the connection your client proved is used, otherwise none. A connection that is not live, or not yours, is refused."
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -7285,6 +7357,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your own connection id, recorded as the agent that made the change. Omitted, the connection your client proved is used, otherwise none. A connection that is not live, or not yours, is refused."
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -7343,6 +7423,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"pinned_project_id": {
 					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -7391,6 +7479,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -7481,11 +7577,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -7571,11 +7667,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -7646,11 +7742,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Set true only after reading the closest_match a refused call named and judging the new text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match refuses the supersede."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -7714,11 +7810,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Set true only after reading the closest_match a refused call named and judging the new text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match refuses the supersede."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -7811,11 +7907,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "The receipt_id of a preview_required answer, confirming that exact previewed edit. Send the same edit again with it before expires_at; any change to the edit needs a new preview. Omitted: an edit that needs a preview answers preview_required and changes nothing."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -7899,11 +7995,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "The receipt_id of a preview_required answer, confirming that exact previewed edit. Send the same edit again with it before expires_at; any change to the edit needs a new preview. Omitted: an edit that needs a preview answers preview_required and changes nothing."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -7934,11 +8030,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Why it no longer stands. Stored with the retraction in the memory's history, and shown to the reviewer when the retraction is queued. Omitted: no reason."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -7962,11 +8058,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Why it no longer stands. Stored with the retraction in the memory's history, and shown to the reviewer when the retraction is queued. Omitted: no reason."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -8018,11 +8114,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your own connection id, if you are a connected agent. Used only so that, when you are carrying out a teammate's command, the call is judged as the person who gave it; the connection your client authenticated, if any, is used instead. Omitted, or not yours: the call is judged as you."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -8070,11 +8166,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your own connection id, if you are a connected agent. Used only so that, when you are carrying out a teammate's command, the call is judged as the person who gave it; the connection your client authenticated, if any, is used instead. Omitted, or not yours: the call is judged as you."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -8139,11 +8235,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -8199,11 +8295,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -8281,11 +8377,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -8356,11 +8452,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -8440,11 +8536,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replaces the tag list (at most 10). Tags alone change in place. Omitted: the current tags are kept."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -8516,11 +8612,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replaces the tag list (at most 10). Tags alone change in place. Omitted: the current tags are kept."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -8585,11 +8681,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Set true only after reading the closest_match a refused call named and judging the replacement genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match stops the replacement."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -8649,11 +8745,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Set true only after reading the closest_match a refused call named and judging the replacement genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match stops the replacement."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -8687,11 +8783,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Why it is being archived. Stored with the change in the document's history, and shown to the reviewer when the archive is queued. Omitted: none."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -8716,11 +8812,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Why it is being archived. Stored with the change in the document's history, and shown to the reviewer when the archive is queued. Omitted: none."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -8772,11 +8868,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your own connection id, if you are a connected agent. Used only so that, when you are carrying out a teammate's command, the call is judged as the person who gave it; the connection your client authenticated, if any, is used instead. Omitted, or not yours: the call is judged as you."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},
@@ -8824,11 +8920,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Your own connection id, if you are a connected agent. Used only so that, when you are carrying out a teammate's command, the call is judged as the person who gave it; the connection your client authenticated, if any, is used instead. Omitted, or not yours: the call is judged as you."
 				},
 				"provenance_ref": {
-					"description": "The provenance_ref of the command that asked for this work. Omit it to attribute the write to your connection’s current turn, which is right unless this work was caused by a different command in that turn. A wrong ref is refused. Never send a user id.",
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned. Pass it on writes produced by that work so who asked for it survives a reconnect. Omitted: your connection’s claim on the item the write is about, else its newest command, else its only current claim.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
 					"type": "string"
 				}
 			},

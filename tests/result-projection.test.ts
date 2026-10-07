@@ -490,7 +490,19 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// relevant_artifacts (DevSpec 7593fe5b). No projection family or hot-set
 		// membership changed. Benchmark before/after: initial surface 44,922 ->
 		// 44,975 estimated tokens; every budget still passes.
-		"e9bed6bd6a44401cd5f74c07526ca1b16ac42dccd42d9035e93b9805a30186de",
+		// Rebaselined 2026-10-07 for DevSpec items 0cd03a68 and 82ecd7dd (an agent
+		// between commands can talk, claim what it reserved and follow through on
+		// what it delivered), regenerated against the DevSpecV2 tree carrying that
+		// change. Compared old/new generated catalogues: 81 model verbs before and
+		// after, none added or removed. link_action_items, unlink_action_items,
+		// add_implementation_note, add_commit_reference, record_criterion_verdicts
+		// and classify_criterion gain optional provenance_ref and work_claim_ref,
+		// so a write about an item none of the agent's work covers can name who
+		// asked; the two refs' shared descriptions now point at how DevSpec works
+		// out who asked. No projection family or hot-set membership changed.
+		// Benchmark before/after: initial surface 44,975 -> 46,061 estimated
+		// tokens; every budget still passes.
+		"4c6253d2c374f4bf69c0e1eac9cffbf02a00c34188481b413572b2f3b115d8de",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

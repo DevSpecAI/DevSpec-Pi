@@ -502,7 +502,20 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// out who asked. No projection family or hot-set membership changed.
 		// Benchmark before/after: initial surface 44,975 -> 46,061 estimated
 		// tokens; every budget still passes.
-		"4c6253d2c374f4bf69c0e1eac9cffbf02a00c34188481b413572b2f3b115d8de",
+		// Rebaselined 2026-10-07 for DevSpec item a00ce1d8 (get_database_schema's
+		// query honours database), regenerated against the DevSpecV2 tree carrying
+		// that change. Compared old/new generated catalogues: 81 model verbs before
+		// and after, none added or removed, no input added, removed or made
+		// required. Descriptions only: get_database_schema and its query and
+		// database parameters now say database narrows a query too (an unknown one
+		// is refused, naming the project's databases), that results name their
+		// database when there are several, and that each result's source says
+		// observed on the database or declared in code. get_database_schema stays
+		// in the lossless family, so the new result fields reach the model whole.
+		// No projection family or hot-set membership changed. Benchmark
+		// before/after: initial surface 46,061 -> 46,155 estimated tokens;
+		// every budget still passes.
+		"5721a4ec355b0ef61b38e71a5efcab66210349479707dca4c0d6df76931b7a11",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

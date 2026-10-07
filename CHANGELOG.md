@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.8
+
+- Searching a project's database schema can now be narrowed to one database: give `get_database_schema` a `query` and a `database`, and it searches only that database. A database the project doesn't have is refused, with the list of the ones it has. When a project has several databases, each result names the one it came from, and every result says whether it was read from the database itself or declared in your code (a MongoDB collection comes from your models). The catalogue is regenerated against DevSpec's current tools.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.7
 
 - Pi can keep working in DevSpec between your commands while it holds several pieces of work at once: it can answer in its room, claim the next item it reserved, and record notes and criterion checks on an item it just finished. DevSpec used to refuse those because it could not tell who had asked. The tools that note, link or check an item now also take the claim or command they are for, for the rare case DevSpec cannot work that out. The catalogue is regenerated against DevSpec's current tools.

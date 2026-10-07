@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 6d61a1b6a5744211ca62c5d4f74db613c214a624ab24433ad7d36fe94c39bf33
- * Description fingerprint: 6a20c7c0a0416d2b01ef78b706084adffe35388f662b0316dac7cf855a1d40fe
- * Regenerated: 2026-10-07T21:41:56.400Z
+ * Schema fingerprint: 66a0996a475e2ea89795a266e063e74917229b028e1ade4fcbe79a044e2899e4
+ * Description fingerprint: 37a64f319eb2c9339f1437aecd89522098a93585c34a3a77a161fa1368d988b5
+ * Regenerated: 2026-10-07T22:17:32.724Z
  */
-export const MCP_CATALOG_FINGERPRINT = "6d61a1b6a5744211ca62c5d4f74db613c214a624ab24433ad7d36fe94c39bf33";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "6a20c7c0a0416d2b01ef78b706084adffe35388f662b0316dac7cf855a1d40fe";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-07T21:41:56.400Z";
-export const TOOL_CATALOG_VERSION = "4804d557e72e4ec56ea69c10e747ee5aad46b3e583371bddf08dc2262c252a02";
+export const MCP_CATALOG_FINGERPRINT = "66a0996a475e2ea89795a266e063e74917229b028e1ade4fcbe79a044e2899e4";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "37a64f319eb2c9339f1437aecd89522098a93585c34a3a77a161fa1368d988b5";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-07T22:17:32.725Z";
+export const TOOL_CATALOG_VERSION = "92014eb5fe25cc840a5fd4b95f1b7cb1e60a941abf76e45693bd046764df5004";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -146,7 +146,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_database_schema",
 		"name": "get database schema",
-		"description": "Read the schemas of the databases connected to this project, from each one's last sync. Pass query for the most relevant tables, columns, functions and enums across every database, grouped by table: the best default. Pass table_name for that table in every database that has it, with its columns, keys, indexes, triggers and policies. With neither, it returns a paged overview of the databases and their tables. A database with no schema yet (not synced, or MongoDB) says why. It never runs SQL or changes a database.",
+		"description": "Read the schemas of the databases connected to this project, from each one's last sync. Pass query for the most relevant tables, columns, functions and enums, grouped by table: the best default. Pass table_name for that table in every database that has it, with its columns, keys, indexes, triggers and policies. With neither, it returns a paged overview of the databases and their tables. Pass database with any of these to read just that one. A database with no schema yet (not synced, or MongoDB) says why. It never runs SQL or changes a database.",
 		"intent": "inspect connected database schema tables columns functions enums foreign keys"
 	},
 	{
@@ -2175,14 +2175,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_database_schema",
 		"label": "DevSpec: Get Database Schema",
-		"description": "Read the schemas of the databases connected to this project, from each one's last sync. Pass query for the most relevant tables, columns, functions and enums across every database, grouped by table: the best default. Pass table_name for that table in every database that has it, with its columns, keys, indexes, triggers and policies. With neither, it returns a paged overview of the databases and their tables. A database with no schema yet (not synced, or MongoDB) says why. It never runs SQL or changes a database.",
+		"description": "Read the schemas of the databases connected to this project, from each one's last sync. Pass query for the most relevant tables, columns, functions and enums, grouped by table: the best default. Pass table_name for that table in every database that has it, with its columns, keys, indexes, triggers and policies. With neither, it returns a paged overview of the databases and their tables. Pass database with any of these to read just that one. A database with no schema yet (not synced, or MongoDB) says why. It never runs SQL or changes a database.",
 		"searchIntent": "inspect connected database schema tables columns functions enums foreign keys",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
 				"query": {
 					"type": "string",
-					"description": "A concept or keyword to search the schema for. Returns the best-matching tables, columns, functions and enums, with columns grouped under their table, at most ten results. Takes precedence over table_name. If the schema has not been indexed yet, the result says so. Omitted: table_name is used if given, otherwise the overview."
+					"description": "A concept or keyword to search the schema for, in the database named by database, else in every database. Returns the best-matching tables, columns, functions and enums, with columns grouped under their table, at most ten results. When the project has several databases, each result names its database. Each result's source says whether its structure was observed on the database or declared in your code (MongoDB collections come from your models). Takes precedence over table_name. If the schema has not been indexed yet, the result says so. Omitted: table_name is used if given, otherwise the overview."
 				},
 				"table_name": {
 					"type": "string",
@@ -2190,7 +2190,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"database": {
 					"type": "string",
-					"description": "One database, by name or id as get_project_summary's database_targets lists them. Narrows table_name and the overview; query always searches every database. Omitted: every database."
+					"description": "One database, by name or id as get_project_summary's database_targets lists them. Narrows query, table_name and the overview to that database; a name or id the project does not have is refused, naming the databases it has. Omitted: every database."
 				},
 				"offset": {
 					"type": "number",
@@ -2221,7 +2221,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"query": {
 					"type": "string",
-					"description": "A concept or keyword to search the schema for. Returns the best-matching tables, columns, functions and enums, with columns grouped under their table, at most ten results. Takes precedence over table_name. If the schema has not been indexed yet, the result says so. Omitted: table_name is used if given, otherwise the overview."
+					"description": "A concept or keyword to search the schema for, in the database named by database, else in every database. Returns the best-matching tables, columns, functions and enums, with columns grouped under their table, at most ten results. When the project has several databases, each result names its database. Each result's source says whether its structure was observed on the database or declared in your code (MongoDB collections come from your models). Takes precedence over table_name. If the schema has not been indexed yet, the result says so. Omitted: table_name is used if given, otherwise the overview."
 				},
 				"table_name": {
 					"type": "string",
@@ -2229,7 +2229,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"database": {
 					"type": "string",
-					"description": "One database, by name or id as get_project_summary's database_targets lists them. Narrows table_name and the overview; query always searches every database. Omitted: every database."
+					"description": "One database, by name or id as get_project_summary's database_targets lists them. Narrows query, table_name and the overview to that database; a name or id the project does not have is refused, naming the databases it has. Omitted: every database."
 				},
 				"offset": {
 					"type": "number",

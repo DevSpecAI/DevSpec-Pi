@@ -2,6 +2,19 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { shouldTerminateAfterDirectedQuestionCreate } from "../extensions/devspec-tools.ts";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+
+/**
+ * The installed host's agent loop. `pi-agent-core` is resolved from `pi-coding-agent` the way
+ * Node resolves it: nested under the host when its shrinkwrap pins it (Pi 1.0), hoisted when
+ * it does not (Pi 1.1).
+ */
+function installedAgentLoop(): string {
+	const host = createRequire(new URL("../node_modules/@earendil-works/pi-coding-agent/package.json", import.meta.url));
+	const core = dirname(host.resolve("@earendil-works/pi-agent-core/package.json"));
+	return readFileSync(join(core, "dist/agent-loop.js"), "utf8");
+}
 
 const remote = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 const tools = readFileSync(new URL("../extensions/devspec-tools.ts", import.meta.url), "utf8");
@@ -30,7 +43,7 @@ test("only a receipt-owning successful directed-question create requests Pi term
 });
 
 test("installed Pi termination is batch-safe and stops only an all-terminating tool batch", () => {
-	const loop = readFileSync(new URL("../node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-agent-core/dist/agent-loop.js", import.meta.url), "utf8");
+	const loop = installedAgentLoop();
 	assert.match(loop, /hasMoreToolCalls = !executedToolBatch\.terminate/);
 	assert.match(loop, /finalizedCalls\.length > 0 && finalizedCalls\.every\(\(finalized\) => finalized\.result\.terminate === true\)/);
 });

@@ -1,6 +1,6 @@
 # MCP compatibility and release qualification
 
-Requires Pi 1.0+ and Node.js 22.19+. DevSpec supplies native tools and its own authenticated connection. No MCP adapter is required. Use Pi’s `/mcp` for other services; an existing `pi-mcp-adapter` installation is optional (qualified against 4.0).
+Requires Pi 1.0+ and Node.js 22.19+. Development and CI qualify against Pi 1.1; 1.0.x hosts remain accepted because 1.1 adds only optional fields and flags this plugin does not read. DevSpec supplies native tools and its own authenticated connection. No MCP adapter is required. Use Pi’s `/mcp` for other services; an existing `pi-mcp-adapter` installation is optional (qualified against 4.0).
 
 ## Configuration ownership
 

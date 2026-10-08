@@ -8,6 +8,19 @@ import {
 	isPotentialDirectedQuestionCreate,
 	isReceiptOwningDirectedQuestionCreate,
 } from "../extensions/core/question-receipt-lifecycle.ts";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+
+/**
+ * The installed host's agent loop. `pi-agent-core` is resolved from `pi-coding-agent` the way
+ * Node resolves it: nested under the host when its shrinkwrap pins it (Pi 1.0), hoisted when
+ * it does not (Pi 1.1).
+ */
+function installedAgentLoop(): string {
+	const host = createRequire(new URL("../node_modules/@earendil-works/pi-coding-agent/package.json", import.meta.url));
+	const core = dirname(host.resolve("@earendil-works/pi-agent-core/package.json"));
+	return readFileSync(join(core, "dist/agent-loop.js"), "utf8");
+}
 
 const RECEIPT_A = "11111111-1111-4111-8111-111111111111";
 const RECEIPT_B = "22222222-2222-4222-8222-222222222222";
@@ -196,7 +209,7 @@ test("newer revision invalidates stale receipt suppression and stale results", (
 
 test("installed Pi awaits tool_execution_start handlers before invoking the tool", () => {
 	const session = readFileSync(new URL("../node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js", import.meta.url), "utf8");
-	const loop = readFileSync(new URL("../node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-agent-core/dist/agent-loop.js", import.meta.url), "utf8");
+	const loop = installedAgentLoop();
 	const sessionStart = session.indexOf('event.type === "tool_execution_start"');
 	const sessionEnd = session.indexOf('event.type === "tool_execution_update"', sessionStart);
 	assert.match(session.slice(sessionStart, sessionEnd), /await this\._extensionRunner\.emit\(extensionEvent\)/);

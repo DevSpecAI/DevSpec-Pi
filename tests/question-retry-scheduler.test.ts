@@ -19,6 +19,7 @@ async function replay(attempted: boolean, futureRetry: boolean) {
 	const sleeps: number[] = [];
 	let attempts = 0;
 	let observations = 0;
+	let controlAttempts = 0;
 	const scope: any = {
 		active, pump: active, ctx: {}, lastCtx: null, token: "fixture", endpoint: "loopback",
 		pushMode: false, notifiedFallback: false, polls: 0,
@@ -27,12 +28,14 @@ async function replay(attempted: boolean, futureRetry: boolean) {
 		pi_refreshBackgroundWork: () => { observations += 1; return new Promise(() => {}); },
 		nextInteractionRetryAt: () => futureRetry ? 11_000 : null,
 		drainInteractionRetries: async () => { if (++attempts >= 3) active.stop = true; return attempted; },
+		// Result delivery is independent too: its network wait must not block intake.
+		drainControlResults: () => { controlAttempts += 1; return new Promise(() => {}); },
 		Date: { now: () => 1_000 },
 		setTimeout: (callback: () => void, delay: number) => { sleeps.push(delay); callback(); },
 	};
 	vm.createContext(scope);
 	await vm.runInContext(probe, scope);
-	return { polls: scope.polls, attempts, sleeps, observations };
+	return { polls: scope.polls, attempts, sleeps, observations, controlAttempts };
 }
 
 test("a deferred retry attempt cannot consume the ordinary command/control poll", async () => {
@@ -40,10 +43,12 @@ test("a deferred retry attempt cannot consume the ordinary command/control poll"
 	assert.equal(result.polls, 1, "ordinary polling must run even when a retry was attempted");
 	assert.equal(result.attempts, 1);
 	assert.equal(result.observations, 1);
+	assert.equal(result.controlAttempts, 1);
 });
 
 test("a future retry deadline cannot delay a ready ordinary poll", async () => {
 	const result = await replay(false, true);
 	assert.equal(result.polls, 1);
 	assert.deepEqual(result.sleeps, [], "retry timers schedule retries, not a barrier before ordinary polling");
+	assert.equal(result.controlAttempts, 1);
 });

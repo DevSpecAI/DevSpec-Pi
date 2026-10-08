@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.13
+
+- The catalogue is regenerated against DevSpec's current tools. Editing an action item, splitting one out of its brief, reopening one, ruling on a flagged pair or a decision flag, writing team rules and creating, changing or deleting automations now accept `work_claim_ref`: while you hold several claims and no request is open, name the claim the change serves instead of being refused. Previewing a ruling on a flagged pair takes the same references, so it shows the ruling as it will be judged.
+- Pi already sends your project and connection with each call. DevSpec now uses them only on the tools that declare them, which are the tools where they change the result.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.12
 
 - Changing model in DevSpec now returns the complete list this Pi can use, including models previously missing beyond the first 400.

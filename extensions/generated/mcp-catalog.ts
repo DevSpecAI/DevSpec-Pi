@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 9166ee537baa78515595a8005ce12a5a1f2fa4df9bc96fc49ad7b3ac3d1a89d4
+ * Schema fingerprint: 332f20c000350aeeb7449909d9a7360663e03ed65f0ce73833f636895e0b80eb
  * Description fingerprint: 4b7428287e6de2ddb8ac9180777bda58e7538f05f36fa5e069b4026077dbcbbd
- * Regenerated: 2026-10-08T16:45:19.156Z
+ * Regenerated: 2026-10-08T18:23:53.383Z
  */
-export const MCP_CATALOG_FINGERPRINT = "9166ee537baa78515595a8005ce12a5a1f2fa4df9bc96fc49ad7b3ac3d1a89d4";
+export const MCP_CATALOG_FINGERPRINT = "332f20c000350aeeb7449909d9a7360663e03ed65f0ce73833f636895e0b80eb";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "4b7428287e6de2ddb8ac9180777bda58e7538f05f36fa5e069b4026077dbcbbd";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-08T16:45:19.156Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-08T18:23:53.383Z";
 export const TOOL_CATALOG_VERSION = "5c5bad15d62d9507dd38f933d83118193fe70a3b2e7a8c0892a513a8f197dc3d";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -645,6 +645,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"offset": {
 					"type": "number",
 					"description": "How many ranked sections to skip. Pass page.next_offset from the previous page. Default 0."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, when you run as one, so the cost of this search, which DevSpec pays for, is attributed to you and your room. It changes no results. Omitted, or not one of your live connections: the connection your client proved, or your token's only live connection."
 				}
 			},
 			"required": [
@@ -665,6 +669,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"offset": {
 					"type": "number",
 					"description": "How many ranked sections to skip. Pass page.next_offset from the previous page. Default 0."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, when you run as one, so the cost of this search, which DevSpec pays for, is attributed to you and your room. It changes no results. Omitted, or not one of your live connections: the connection your client proved, or your token's only live connection."
 				}
 			},
 			"required": [
@@ -1439,6 +1447,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"action_item_id": {
 					"type": "string",
 					"description": "The item's UUID or its 8-character short code."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -1451,6 +1463,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"action_item_id": {
 					"type": "string",
 					"description": "The item's UUID or its 8-character short code."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -1478,6 +1494,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"action_item_id": {
 					"type": "string",
 					"description": "The item's UUID or 8-character short code."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -1498,6 +1518,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"action_item_id": {
 					"type": "string",
 					"description": "The item's UUID or 8-character short code."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -1517,6 +1541,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"action_item_id": {
 					"type": "string",
 					"description": "A child item's UUID or 8-character short code, not the brief's."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, when you run as one, so the cost of recalling the memories and documents relevant to the work is attributed to you and your room. It changes no results. Omitted, or not one of your live connections: the connection your client proved, or your token's only live connection."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -1529,6 +1561,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"action_item_id": {
 					"type": "string",
 					"description": "A child item's UUID or 8-character short code, not the brief's."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, when you run as one, so the cost of recalling the memories and documents relevant to the work is attributed to you and your room. It changes no results. Omitted, or not one of your live connections: the connection your client proved, or your token's only live connection."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -1552,6 +1592,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"include_session_transcript": {
 					"type": "boolean",
 					"description": "true adds the originating room's first 100 messages and its real message count. When there are more, transcript_complete is false and transcript_note gives the get_session_transcript call for the rest. Default false: the room's id and message count, without messages. source_session is null when the item has no room or you cannot open it."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, when you run as one, so the cost of recalling the memories and documents relevant to the work is attributed to you and your room. It changes no results. Omitted, or not one of your live connections: the connection your client proved, or your token's only live connection."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -1568,6 +1616,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"include_session_transcript": {
 					"type": "boolean",
 					"description": "true adds the originating room's first 100 messages and its real message count. When there are more, transcript_complete is false and transcript_note gives the get_session_transcript call for the rest. Default false: the room's id and message count, without messages. source_session is null when the item has no room or you cannot open it."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, when you run as one, so the cost of recalling the memories and documents relevant to the work is attributed to you and your room. It changes no results. Omitted, or not one of your live connections: the connection your client proved, or your token's only live connection."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -1605,6 +1661,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"superseding_item_id": {
 					"type": "string",
 					"description": "For supersedes only: which item wins; it must be one of the pair. Defaults to action_item_id."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "The connection_id you would send resolve_action_item_conflict, so the preview is judged as the ruling would be: by the role of the person whose command that connection is carrying out, and as unattended while it works an automation run. The connection your client signed in as is used instead when there is one. Omitted: as the ruling would be judged with none."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "The work_claim_ref you would send resolve_action_item_conflict, so the preview is judged by that claim's requester as the ruling would be. Omitted: as the ruling would be judged without one."
+				},
+				"provenance_ref": {
+					"type": "string",
+					"description": "The provenance_ref you would send resolve_action_item_conflict, so the preview is judged by that command's requester as the ruling would be. Omitted: as the ruling would be judged without one. Never send a user id."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -1636,6 +1708,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"superseding_item_id": {
 					"type": "string",
 					"description": "For supersedes only: which item wins; it must be one of the pair. Defaults to action_item_id."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "The connection_id you would send resolve_action_item_conflict, so the preview is judged as the ruling would be: by the role of the person whose command that connection is carrying out, and as unattended while it works an automation run. The connection your client signed in as is used instead when there is one. Omitted: as the ruling would be judged with none."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "The work_claim_ref you would send resolve_action_item_conflict, so the preview is judged by that claim's requester as the ruling would be. Omitted: as the ruling would be judged without one."
+				},
+				"provenance_ref": {
+					"type": "string",
+					"description": "The provenance_ref you would send resolve_action_item_conflict, so the preview is judged by that command's requester as the ruling would be. Omitted: as the ruling would be judged without one. Never send a user id."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -1880,6 +1968,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"body": {
 					"type": "string",
 					"description": "A longer description, added after a blank line. Omitted, the message is the subject line alone."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -1915,6 +2007,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"body": {
 					"type": "string",
 					"description": "A longer description, added after a blank line. Omitted, the message is the subject line alone."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -2471,6 +2567,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"minimum": 1,
 					"maximum": 100,
 					"description": "Evidence entries per page, 1-100. Default 10."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -2505,6 +2605,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"minimum": 1,
 					"maximum": 100,
 					"description": "Evidence entries per page, 1-100. Default 10."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -3086,6 +3190,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"search": {
 					"type": "string",
 					"description": "Return only the lines containing this text (case-insensitive), each with 5 lines of context either side, 30 matches per page. Omitted: the whole body, or the start_line to end_line range."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -3114,6 +3222,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"search": {
 					"type": "string",
 					"description": "Return only the lines containing this text (case-insensitive), each with 5 lines of context either side, 30 matches per page. Omitted: the whole body, or the start_line to end_line range."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -3202,6 +3314,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your own connection id, if you are a connected agent. When an agent is attached to the room, each message's remote_control then says whether it is a command addressed to you; without it every message is advisory. A read without a forward cursor from your own connection attached to this room also returns the project and owner instruction tiers. Omitted: no instruction tiers are returned."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -3283,6 +3399,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your own connection id, if you are a connected agent. When an agent is attached to the room, each message's remote_control then says whether it is a command addressed to you; without it every message is advisory. A read without a forward cursor from your own connection attached to this room also returns the project and owner instruction tiers. Omitted: no instruction tiers are returned."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -3585,6 +3705,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"id": {
 					"type": "string",
 					"description": "The point's full UUID. Short codes are not accepted."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -3597,6 +3721,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"id": {
 					"type": "string",
 					"description": "The point's full UUID. Short codes are not accepted."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -3830,6 +3958,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"dispatch_id": {
 					"type": "string",
 					"description": "Recheck one run by its id. An empty result then means it is no longer waiting for this connection; a failed read is an error, never an empty result."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -3846,6 +3978,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"dispatch_id": {
 					"type": "string",
 					"description": "Recheck one run by its id. An empty result then means it is no longer waiting for this connection; a failed read is an error, never an empty result."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -3919,6 +4055,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"pinned_project_id": {
 					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -3984,6 +4128,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -4061,7 +4213,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent, so the write is judged as the person whose command you are serving. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -4073,6 +4225,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -4144,7 +4304,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent, so the write is judged as the person whose command you are serving. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -4156,6 +4316,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -4193,6 +4361,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"dry_run": {
 					"type": "boolean",
 					"description": "true returns the exact text that would be saved, and saves nothing. Default false: the text is saved."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. An automation run cannot change your own rules, so a change made while that connection works one is refused; with no connection, it is refused while any of your agents is working an automation run. A connection that is not yours names nothing and is ignored."
 				}
 			}
 		},
@@ -4218,6 +4390,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"dry_run": {
 					"type": "boolean",
 					"description": "true returns the exact text that would be saved, and saves nothing. Default false: the text is saved."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. An automation run cannot change your own rules, so a change made while that connection works one is refused; with no connection, it is refused while any of your agents is working an automation run. A connection that is not yours names nothing and is ignored."
 				}
 			}
 		},
@@ -4480,8 +4656,16 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"description": "For query-type items, the result of running the query: status (success, error or timeout), output, executed_at, mcp_tools_used, execution_time_ms, and error_message on failure. Stored as given. Omitted: unchanged."
 				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -4741,8 +4925,16 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"description": "For query-type items, the result of running the query: status (success, error or timeout), output, executed_at, mcp_tools_used, execution_time_ms, and error_message on failure. Stored as given. Omitted: unchanged."
 				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -5096,6 +5288,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"defer": {
 					"type": "boolean",
 					"description": "true, the default, also parks the item as deferred and clears its agent branch and commit; refused for an implemented, done or claimed item. false detaches it and leaves its lifecycle as it is."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -5112,6 +5320,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"defer": {
 					"type": "boolean",
 					"description": "true, the default, also parks the item as deferred and clears its agent branch and commit; refused for an implemented, done or claimed item. false detaches it and leaves its lifecycle as it is."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -5166,6 +5390,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"basis": {
 					"type": "string",
 					"description": "The evidence for basis_kind: the person's answer, their quoted words, or the facts that justify the ruling; a title resemblance alone is not evidence. Omitted: note is used. A thin basis is recorded with a warning, not refused."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -5214,6 +5454,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"basis": {
 					"type": "string",
 					"description": "The evidence for basis_kind: the person's answer, their quoted words, or the facts that justify the ruling; a title resemblance alone is not evidence. Omitted: note is used. A thin basis is recorded with a warning, not refused."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -5259,6 +5515,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"basis": {
 					"type": "string",
 					"description": "The facts showing there is no real contradiction, or the person's words authorising the ruling. Recorded with the ruling."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -5299,6 +5571,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"basis": {
 					"type": "string",
 					"description": "The facts showing there is no real contradiction, or the person's words authorising the ruling. Recorded with the ruling."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -5340,6 +5628,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "boolean",
 					"description": "For supersedes only: true confirms you want the bare edge without clearing flags or closing the replaced item, for example when back-filling history. Default false, which refuses a supersedes edge."
 				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -5379,6 +5675,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"acknowledge_half_resolution": {
 					"type": "boolean",
 					"description": "For supersedes only: true confirms you want the bare edge without clearing flags or closing the replaced item, for example when back-filling history. Default false, which refuses a supersedes edge."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
@@ -5423,6 +5727,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"description": "Which relationship to remove. Omitted: the only one in that direction; refused when there are several."
 				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -5457,6 +5769,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"related_to"
 					],
 					"description": "Which relationship to remove. Omitted: the only one in that direction; refused when there are several."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
@@ -5496,6 +5816,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"note": {
 					"type": "string",
 					"description": "What is incomplete or broken, recorded with the reopen on the item's history. It must not be blank."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -5521,6 +5857,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"note": {
 					"type": "string",
 					"description": "What is incomplete or broken, recorded with the reopen on the item's history. It must not be blank."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -5572,6 +5924,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"agent_name": {
 					"type": "string",
 					"description": "The tool name to show on the cards when your connection has none recorded, for example Claude Code. Omitted: your client's name, or Local agent."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -5615,6 +5971,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"agent_name": {
 					"type": "string",
 					"description": "The tool name to show on the cards when your connection has none recorded, for example Claude Code. Omitted: your client's name, or Local agent."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -5925,6 +6285,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Required when force is true: why the override is justified. Recorded with the claim. Ignored without force."
 				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -5991,6 +6355,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Required when force is true: why the override is justified. Recorded with the claim. Ignored without force."
 				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -6027,6 +6395,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "boolean",
 					"description": "Release a claim or reservation you do not hold, for a stale hold whose agent is gone. It requires reason, and is recorded as a forced release naming you. Default false: only the holder can release."
 				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -6058,6 +6430,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"force": {
 					"type": "boolean",
 					"description": "Release a claim or reservation you do not hold, for a stale hold whose agent is gone. It requires reason, and is recorded as a forced release naming you. Default false: only the holder can release."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
@@ -6127,6 +6503,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Your connection id, if you run as one; omitted, the connection your client proved is used. It must be the identity that claimed the item. A connection that is not live, or not yours, is refused."
 				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -6188,6 +6568,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your connection id, if you run as one; omitted, the connection your client proved is used. It must be the identity that claimed the item. A connection that is not live, or not yours, is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
@@ -6381,6 +6765,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "The DevSpec user id of the person whose machine ran the session; only they see the resume command. When local_session_id is sent without it, it defaults to you, which is right for an interactive run."
 				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -6564,6 +6952,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"machine_user_id": {
 					"type": "string",
 					"description": "The DevSpec user id of the person whose machine ran the session; only they see the resume command. When local_session_id is sent without it, it defaults to you, which is right for an interactive run."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
@@ -6974,6 +7366,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						]
 					},
 					"description": "Optional links stored with the note. Omitted: none."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -7021,6 +7417,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						]
 					},
 					"description": "Optional links stored with the note. Omitted: none."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -7053,6 +7453,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your own connection id, recorded as the agent that relayed the decision; it grants nothing. Omitted, the connection your client proved is used, otherwise none. A connection that is not live, or not yours, is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -7078,6 +7482,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your own connection id, recorded as the agent that relayed the decision; it grants nothing. Omitted, the connection your client proved is used, otherwise none. A connection that is not live, or not yours, is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -7184,6 +7592,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "One entry for each criterion you actually checked, at most one per criterion; at least one. Criteria you leave out stay as they are."
 				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -7290,6 +7706,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "One entry for each criterion you actually checked, at most one per criterion; at least one. Criteria you leave out stay as they are."
 				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -7334,6 +7758,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Your own connection id, recorded as the agent that made the change. Omitted, the connection your client proved is used, otherwise none. A connection that is not live, or not yours, is refused."
 				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -7371,6 +7799,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your own connection id, recorded as the agent that made the change. Omitted, the connection your client proved is used, otherwise none. A connection that is not live, or not yours, is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
@@ -7425,6 +7857,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"server_linked"
 					],
 					"description": "How the commit's [devspec:…] tag came about, as the host observed it: agent_authored (you wrote the tag into the message), plugin_stamped (the host appended it), or server_linked (no observed tag, and this call is the link). It is not an authentication signal. An action item link to a full SHA marked agent_authored or plugin_stamped counts as the host's observed commit for the item's current round of work, so record_implementation uses it in place of a different commit_sha. Defaults to server_linked."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -7482,6 +7918,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"server_linked"
 					],
 					"description": "How the commit's [devspec:…] tag came about, as the host observed it: agent_authored (you wrote the tag into the message), plugin_stamped (the host appended it), or server_linked (no observed tag, and this call is the link). It is not an authentication signal. An action item link to a full SHA marked agent_authored or plugin_stamped counts as the host's observed commit for the item's current round of work, so record_implementation uses it in place of a different commit_sha. Defaults to server_linked."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -7550,6 +7990,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Your connection id, if you run as one; omitted, the connection your client proved is used. It records which agent made the assessment. A connection that is not live, or not yours, is refused."
 				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -7598,6 +8042,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your connection id, if you run as one; omitted, the connection your client proved is used. It records which agent made the assessment. A connection that is not live, or not yours, is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
@@ -7675,6 +8123,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Your connection id, if you run as one; omitted, the connection your client proved is used. It records which agent made the assessment. A connection that is not live, or not yours, is refused."
 				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -7742,6 +8194,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your connection id, if you run as one; omitted, the connection your client proved is used. It records which agent made the assessment. A connection that is not live, or not yours, is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
@@ -8003,6 +8459,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "boolean",
 					"description": "Set true only after reading the closest_match a refused call named and judging the new text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match refuses the supersede."
 				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -8070,6 +8530,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"confirm_new": {
 					"type": "boolean",
 					"description": "Set true only after reading the closest_match a refused call named and judging the new text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match refuses the supersede."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
@@ -8168,6 +8632,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"format": "uuid",
 					"description": "The receipt_id of a preview_required answer, confirming that exact previewed edit. Send the same edit again with it before expires_at; any change to the edit needs a new preview. Omitted: an edit that needs a preview answers preview_required and changes nothing."
 				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -8256,6 +8724,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"format": "uuid",
 					"description": "The receipt_id of a preview_required answer, confirming that exact previewed edit. Send the same edit again with it before expires_at; any change to the edit needs a new preview. Omitted: an edit that needs a preview answers preview_required and changes nothing."
 				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -8291,6 +8763,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Why it no longer stands. Stored with the retraction in the memory's history, and shown to the reviewer when the retraction is queued. Omitted: no reason."
 				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -8318,6 +8794,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"reason": {
 					"type": "string",
 					"description": "Why it no longer stands. Stored with the retraction in the memory's history, and shown to the reviewer when the retraction is queued. Omitted: no reason."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
@@ -8373,7 +8853,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent. Used only so that, when you are carrying out a teammate's command, the call is judged as the person who gave it; the connection your client authenticated, if any, is used instead. Omitted, or not yours: the call is judged as you."
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
@@ -8425,7 +8909,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent. Used only so that, when you are carrying out a teammate's command, the call is judged as the person who gave it; the connection your client authenticated, if any, is used instead. Omitted, or not yours: the call is judged as you."
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
@@ -8482,7 +8970,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent. Used only so that, when you are carrying out a teammate's command, the call is judged as the person who gave it; the connection your client authenticated, if any, is used instead. Omitted, or not yours: the call is judged as you."
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -8542,7 +9030,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent. Used only so that, when you are carrying out a teammate's command, the call is judged as the person who gave it; the connection your client authenticated, if any, is used instead. Omitted, or not yours: the call is judged as you."
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -8797,6 +9285,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Replaces the tag list (at most 10). Tags alone change in place. Omitted: the current tags are kept."
 				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -8873,6 +9365,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Replaces the tag list (at most 10). Tags alone change in place. Omitted: the current tags are kept."
 				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -8942,6 +9438,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "boolean",
 					"description": "Set true only after reading the closest_match a refused call named and judging the replacement genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match stops the replacement."
 				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -9006,6 +9506,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "boolean",
 					"description": "Set true only after reading the closest_match a refused call named and judging the replacement genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match stops the replacement."
 				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -9044,6 +9548,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"maxLength": 2000,
 					"description": "Why it is being archived. Stored with the change in the document's history, and shown to the reviewer when the archive is queued. Omitted: none."
 				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
 					"type": "string"
@@ -9072,6 +9580,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"maxLength": 2000,
 					"description": "Why it is being archived. Stored with the change in the document's history, and shown to the reviewer when the archive is queued. Omitted: none."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
@@ -9127,7 +9639,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent. Used only so that, when you are carrying out a teammate's command, the call is judged as the person who gave it; the connection your client authenticated, if any, is used instead. Omitted, or not yours: the call is judged as you."
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
@@ -9179,7 +9695,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your own connection id, if you are a connected agent. Used only so that, when you are carrying out a teammate's command, the call is judged as the person who gave it; the connection your client authenticated, if any, is used instead. Omitted, or not yours: the call is judged as you."
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				},
 				"provenance_ref": {
 					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
@@ -10355,6 +10875,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						}
 					},
 					"description": "Optional {providerID, modelID} of the model that wrote this reply, shown beside it. Malformed values are dropped. Omitted: the post names no model."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -10758,6 +11282,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"x-devspec-host-only": true,
 					"description": "Host-only. The interaction-event contract version this answer continues, when it answers an interaction event. Never combine it with the question-dismissal fields."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -11359,6 +11887,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"pinned_project_id": {
 					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -11458,6 +11994,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -11568,6 +12112,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"pinned_project_id": {
 					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -11670,6 +12222,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"pinned_project_id": {
 					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -11705,6 +12265,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"pinned_project_id": {
 					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -11732,6 +12300,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"pinned_project_id": {
 					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -11972,6 +12548,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"session_id": {
 					"type": "string",
 					"description": "The room: a full UUID or its 8-character short code. It must be in the connection's project and one you can open; an ambiguous or unknown short code is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -12012,6 +12592,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"session_id": {
 					"type": "string",
 					"description": "The room: a full UUID or its 8-character short code. It must be in the connection's project and one you can open; an ambiguous or unknown short code is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -12032,6 +12616,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your connection id, from register_connection."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -12044,6 +12632,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your connection id, from register_connection."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -12309,6 +12901,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"at"
 					],
 					"description": "Runtime telemetry riding this call, stored as the connection's last known report: {v: 1, model {provider, id}, thinkingLevel, supportedThinkingLevels (at most 7 of off|minimal|low|medium|high|xhigh|max), context {tokens, window, percent}, contextBudget (numeric counts and generated tool-verb ids only, never prompt text, arguments, results or credentials), turn and session usage {input, output, cacheRead, cacheWrite, costUsd, messages|turns}, at (ISO time)}. Read leniently: a report that is not a v1 shape is dropped silently and the call still succeeds."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
 				}
 			}
 		},
@@ -12620,6 +13224,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"at"
 					],
 					"description": "Runtime telemetry riding this call, stored as the connection's last known report: {v: 1, model {provider, id}, thinkingLevel, supportedThinkingLevels (at most 7 of off|minimal|low|medium|high|xhigh|max), context {tokens, window, percent}, contextBudget (numeric counts and generated tool-verb ids only, never prompt text, arguments, results or credentials), turn and session usage {input, output, cacheRead, cacheWrite, costUsd, messages|turns}, at (ISO time)}. Read leniently: a report that is not a v1 shape is dropped silently and the call still succeeds."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
 				}
 			}
 		},
@@ -13043,6 +13659,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"model_catalog": {
 					"type": "object",
 					"description": "With control_ack after a list_models control: the complete host model list {v: 1, current, models: [{provider, id, name?}], at}. Stored atomically with the exact acknowledgement, never posted to the room. Invalid data refuses acknowledgement rather than publishing a partial success."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -13656,6 +14276,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "boolean",
 					"x-devspec-host-only": true,
 					"description": "Host-only. true acknowledges the context wipe this response asked for (OpenCode), once the host has carried it out, unblocking the attach, archive or delete waiting on it. The string \"true\" is accepted."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -13680,6 +14304,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"format": "uuid",
 					"description": "Pick up this exact pending attempt instead of resolving the connection's current one; refused if it is not pending. With local_activity_version: the id for the new local attempt. Do not send it with an interaction or dismissal identity: the reply returns that attempt."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -13809,6 +14437,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"x-devspec-host-only": true,
 					"format": "uuid",
 					"description": "Host-only. The dismissal claim token."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -13848,6 +14480,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"pinned_project_id": {
 					"type": "string",
 					"description": "The project id from .devspec/project.json, used only when git_remote is absent. It must equal the connection's project, or the call is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -13881,6 +14517,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"pinned_project_id": {
 					"type": "string",
 					"description": "The project id from .devspec/project.json, used only when git_remote is absent. It must equal the connection's project, or the call is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -13906,6 +14546,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"format": "uuid",
 					"description": "Renew this exact working attempt instead of the connection's current one. Required with an interaction or dismissal identity."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -13972,6 +14616,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"x-devspec-host-only": true,
 					"format": "uuid",
 					"description": "Host-only. The dismissal claim bound to attempt_id."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -14012,6 +14660,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"reason": {
 					"type": "string",
 					"description": "A short label stored as the terminal reason; omitted, it is recorded as host_complete_unspecified. A normal end needs no particular value. Only turn_error, delivery_unavailable, process_exit, max_turn_ms, codex_turn_failed, codex_turn_interrupted or codex_turn_unconfirmed mark the turn stopped, so its open bubbles show it ended before finishing; boundary closes a segment and ends any other open bubble of the turn."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -14094,6 +14746,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "boolean",
 					"x-devspec-host-only": true,
 					"description": "Host-only. true releases an interaction continuation whose host persistence failed before it was applied; needs attempt_id and the exact identity, and refuses command_turn_id and command_turn_unbound."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
 				}
 			},
 			"required": [

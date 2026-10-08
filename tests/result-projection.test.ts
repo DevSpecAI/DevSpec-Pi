@@ -537,7 +537,25 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// projection family or hot-set membership changed. Benchmark before/after:
 		// initial surface 47,418 -> 47,004 estimated tokens; every budget still
 		// passes.
-		"b7cbadf4769dd0d12ed5e26f112f83ac68093fe9ee44a4424748d441f489c21d",
+		//
+		// Rebaselined 2026-10-08 for DevSpec item 8db6c513 (the route reads only
+		// what a tool declares), regenerated against the DevSpecV2 tree carrying
+		// it. Compared old/new generated catalogues: 95 verbs before and after,
+		// none added or removed, nothing made required. Optional inputs added:
+		// project_id on every tool whose record sets the project (it is checked
+		// against that record, never resolved from); connection_id on the writes
+		// judged by who asked (spin_off, both flag rulings, link/unlink, reopen,
+		// record_criterion_verdicts, add_commit_reference,
+		// update_personal_instructions) and on get_action_item_siblings,
+		// get_testing_brief and devspec_help_search (usage attribution); and
+		// work_claim_ref/provenance_ref on update_action_item (work_claim_ref
+		// only), spin_off, both flag rulings, reopen, both rule writers, the three
+		// automation writers and preview_conflict_resolution. Pi hides and stamps
+		// project_id and connection_id as before (SCOPE_KEYS), so its model sees
+		// only the refs. No projection family or hot-set membership changed.
+		// Benchmark before/after: initial surface 47,004 -> 48,448 estimated
+		// tokens; every budget still passes.
+		"580de6a7a8d01807ec72bfe1fb6bb435468ba34b8ff189cf5b90d4325707047a",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

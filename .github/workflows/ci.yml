@@ -25,3 +25,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      - name: Triaged security audit gate
+        # Fails on a high or critical advisory that is not triaged in
+        # scripts/audit-allowlist.json with a reason and an unexpired expiry.
+        # Its regression tests run in npm test (tests/audit-gate.test.ts).
+        run: npm run audit:gate

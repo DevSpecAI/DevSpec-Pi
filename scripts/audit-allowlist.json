@@ -1,0 +1,21 @@
+{
+  "//": "Triaged audit acceptances consumed by scripts/audit-gate.mjs. The gate fails on any UNLISTED or EXPIRED high/critical advisory. List ONLY high/critical advisories you have traced as not reachable from what customers install, each with a concrete reason and an expiry, so the acceptance resurfaces for re-review instead of rotting. Moderate/low advisories never block the gate. Match key is the GHSA id, so a NEW advisory on the same package still trips the gate. Prefer fixing the dependency (a targeted install, never npm audit fix) over listing it here.",
+  "advisories": [
+    {
+      "ghsa": "GHSA-qhr7-859c-m2p7",
+      "package": "brace-expansion",
+      "severity": "high",
+      "title": "brace-expansion: DoS via uncontrolled recursion on nested brace groups causing stack exhaustion",
+      "reason": "Not shipped. brace-expansion 5.0.9 reaches this repository only through the devDependency @earendil-works/pi-coding-agent 1.0.0 (the Pi host we typecheck and test against), whose npm-shrinkwrap pins minimatch 10.2.6 -> brace-expansion 5.0.9, so it cannot be re-resolved from our lockfile. The plugin's own runtime dependencies (@modelcontextprotocol/sdk, minisearch) do not include it: npm audit --omit=dev is clean (assessed 2026-10-08). Customers run their own Pi host, and pi-coding-agent 1.1.0 depends on brace-expansion 5.0.12. The patterns reaching this copy come only from our own test runs. Remove when the development host baseline moves to pi-coding-agent 1.1.0 or later (item dde31281).",
+      "expires": "2026-12-31"
+    },
+    {
+      "ghsa": "GHSA-6j4f-fj2g-mc7p",
+      "package": "brace-expansion",
+      "severity": "high",
+      "title": "brace-expansion: DoS via uncontrolled recursion in parseCommaParts causing stack exhaustion",
+      "reason": "Same dev-only path and assessment as GHSA-qhr7-859c-m2p7 above: brace-expansion 5.0.9 is pinned by the shrinkwrap of the devDependency @earendil-works/pi-coding-agent 1.0.0, is absent from the plugin's runtime dependencies, and is fixed in pi-coding-agent 1.1.0. The sibling moderate advisory GHSA-q2hr-2g5m-vwhr on the same copy does not block. Remove with the host baseline move (item dde31281).",
+      "expires": "2026-12-31"
+    }
+  ]
+}

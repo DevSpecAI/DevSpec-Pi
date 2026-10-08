@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.14
+
+- Pi's MCP client library (`@modelcontextprotocol/sdk`) is updated to 1.32.1, past the versions that dependency scanners report for advisory GHSA-6qxp-vccf-f47h. Pi was not exposed to it: it signs in with its own DevSpec token and never uses the library's sign-in flow that the advisory is about. `proxy-addr`, which the same library brings in, moves to 2.0.8 for the same reason.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.13
 
 - The catalogue is regenerated against DevSpec's current tools. Editing an action item, splitting one out of its brief, reopening one, ruling on a flagged pair or a decision flag, writing team rules and creating, changing or deleting automations now accept `work_claim_ref`: while you hold several claims and no request is open, name the claim the change serves instead of being refused. Previewing a ruling on a flagged pair takes the same references, so it shows the ruling as it will be judged.

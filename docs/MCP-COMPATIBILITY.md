@@ -24,8 +24,11 @@ node scripts/e2e-pi1-mcp.mjs
 PI_MCP_ADAPTER_ENTRY=/path/to/pi-mcp-adapter/index.ts node scripts/e2e-pi1-mcp.mjs
 python3 scripts/e2e-mcp-guidance.py
 npm audit --omit=dev
+npm run audit:gate
 npm pack --dry-run --ignore-scripts
 ```
+
+`npm audit --omit=dev` covers what customers install. `npm run audit:gate` (also run by CI) covers the whole tree, development dependencies included, and fails on any high or critical advisory not triaged in `scripts/audit-allowlist.json` with a reason and an unexpired expiry.
 
 The host fixture creates disposable homes and projects, uses a loopback MCP service, and makes no model calls. It checks fresh/Claude-first, native duplicate plus foreign discovery, untrusted project, legacy migration and an optional actual-adapter tool call. The PTY check covers quiet repeated starts and the first-change notice. Unit cases cover malformed/conflicting files, same-name precedence, credentials and idempotence.
 

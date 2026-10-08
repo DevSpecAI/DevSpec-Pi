@@ -46,6 +46,8 @@ immediately as native tools with purpose-written guidance. `search_devspec_tools
 is an optional selection aid, not an unlocking step: known tools work directly.
 Search combines keywords and embeddings when the server supports the matching
 catalogue, and falls back explicitly to local keyword search when unavailable.
+Compatibility uses the server's complete searchable catalogue independently of
+Pi's tool exposure; internal connection and posting tools stay private.
 The server refreshes catalogue embeddings automatically on worker startup, with
 read-repair requests and periodic reconciliation as backstops. It publishes only
 complete version/model-matched indexes and reuses unchanged vectors. A bundled
@@ -150,7 +152,12 @@ suite also fingerprint-checks every generated MCP tool name/schema against the
 current server contract. For worktrees or another location, run
 `DEVSPEC_V2_ROOT=/path/to/devspecv2 npm run check`. Run that paired check before
 merging any server tool change; standalone CI cannot read the separate private
-repository and therefore reports this one check as skipped.
+repository and therefore reports this one check as skipped. The paired check
+also compares the search-catalogue identity, not just tool names and schemas.
+Standalone generator tests cover the distinct server identity and Pi exposure.
+A pre-dumped source used with the generator's `--from` option must contain
+`{ tools, toolSearch: { version, documents } }`, with the canonical `toolSearch`
+values exported by DevSpecV2's `mcp/tool-search-index`.
 
 Set `DEVSPEC_DEBUG_REMOTE=1` to append privacy-safe runtime diagnostics to
 `devspec-remote-debug.log` under the platform's `os.tmpdir()`. Each settled bonded

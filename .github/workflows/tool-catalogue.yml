@@ -13,6 +13,7 @@ on:
       - 'tests/mcp-catalog.test.ts'
       - 'tests/catalog-drift.test.ts'
       - 'tests/tool-selection.test.ts'
+      - 'tests/catalog-generation.test.ts'
       - '.github/workflows/tool-catalogue.yml'
   pull_request:
     paths:
@@ -26,6 +27,7 @@ on:
       - 'tests/mcp-catalog.test.ts'
       - 'tests/catalog-drift.test.ts'
       - 'tests/tool-selection.test.ts'
+      - 'tests/catalog-generation.test.ts'
       - '.github/workflows/tool-catalogue.yml'
 permissions:
   contents: read
@@ -48,5 +50,5 @@ jobs:
       - run: npm run typecheck
       # No private-repository or model-provider credentials on public PR runners.
       # Paired source parity also runs when both checkouts are present locally.
-      - run: node --test --test-concurrency=1 tests/model-surface.test.ts tests/mcp-catalog.test.ts tests/tool-selection.test.ts tests/catalog-drift.test.ts
+      - run: node --test --test-concurrency=1 tests/model-surface.test.ts tests/mcp-catalog.test.ts tests/tool-selection.test.ts tests/catalog-drift.test.ts tests/catalog-generation.test.ts
       - run: npm run benchmark:context

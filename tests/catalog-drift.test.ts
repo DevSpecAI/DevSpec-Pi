@@ -9,6 +9,7 @@ import {
 	MCP_CATALOG,
 	MCP_CATALOG_DESCRIPTION_FINGERPRINT,
 	MCP_CATALOG_FINGERPRINT,
+	TOOL_CATALOG_VERSION,
 } from "../extensions/generated/mcp-catalog.ts";
 
 test('memory tools retain compatible evidence inputs without advertising Requirements', () => {
@@ -66,13 +67,14 @@ test("checked-in catalog matches the sibling DevSpecV2 verb surface when present
 	const script = `
 import { getMcpAllTools } from ${JSON.stringify(DEFINITIONS)};
 import { toDiscoveryTool } from ${JSON.stringify(resolve(V2_ROOT, 'apps/web/lib/mcp/tool-discovery.ts'))};
-import { toolSchemaFingerprint } from ${JSON.stringify(resolve(V2_ROOT, 'packages/core/src/mcp/tool-search-index.ts'))};
+import { toolSchemaFingerprint, TOOL_CATALOG_VERSION } from ${JSON.stringify(resolve(V2_ROOT, 'packages/core/src/mcp/tool-search-index.ts'))};
 const tools = getMcpAllTools();
 const wireFingerprint = toolSchemaFingerprint(tools);
 process.stdout.write(JSON.stringify(tools.map((t) => ({
   name: t.name,
   description: t.description ?? "",
   wireFingerprint,
+  searchVersion: TOOL_CATALOG_VERSION,
   modelInputSchema: toDiscoveryTool(t).inputSchema,
   inputSchema: t.inputSchema ?? { type: "object", properties: {} },
 }))));
@@ -83,7 +85,8 @@ process.stdout.write(JSON.stringify(tools.map((t) => ({
 		encoding: "utf8",
 		maxBuffer: 20 * 1024 * 1024,
 	});
-	const live = JSON.parse(raw) as Array<{ name: string; description: string; inputSchema: unknown; modelInputSchema: unknown; wireFingerprint: string }>;
+	const live = JSON.parse(raw) as Array<{ name: string; description: string; inputSchema: unknown; modelInputSchema: unknown; wireFingerprint: string; searchVersion: string }>;
+	assert.equal(live[0]?.searchVersion, TOOL_CATALOG_VERSION, 'server/client search identity must agree independently of Pi model exposure');
 	assert.equal(live[0]?.wireFingerprint, MCP_CATALOG_FINGERPRINT, 'server/client compatibility fingerprints must agree');
 	for (const tool of live) {
 		const generated = MCP_CATALOG.find(entry => entry.name === tool.name);

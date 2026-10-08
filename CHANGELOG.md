@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.11
+
+- Tool search now compares the same catalogue as DevSpec, so keeping internal tools private no longer forces a keyword-only fallback. Internal connection and posting tools remain unavailable to the model. When meaning-based search cannot run, Pi now distinguishes an extension/server version difference, an index being refreshed, unavailable ranking, an unreadable response and a connection failure. Known tools still work directly.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.10
 
 - The catalogue is regenerated against DevSpec's current tools. One parameter description is shorter: `work_claim_ref` now says that when you leave it out, DevSpec works out who asked from your connection and refuses when it cannot tell. Such a refusal now names only what the tool you called accepts.

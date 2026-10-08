@@ -55,6 +55,41 @@ test('paging: the local fallback pages the same way and says where the next page
   }
   assert.ok(first.page.total_matching >= first.matches.length);
 });
+test('server degradation preserves each known failure cause without relaying remote prose', async () => {
+  const messages = new Set<string>();
+  for (const reason of ['catalog_mismatch', 'index_outdated', 'embedding_unavailable'] as const) {
+    const result = await selectTools('artifact handoff', 3, ['create_resource'], async () => ({ catalog_version: TOOL_CATALOG_VERSION, mode: 'lexical', degraded: true, reason, matches: [] }));
+    assert.equal(result.failureReason, reason);
+    assert.equal(result.degraded, true);
+    assert.deepEqual(result.matches.map(hit => hit.name), ['create_resource']);
+    assert.match(result.reason!, /Direct tools remain usable/);
+    messages.add(result.reason!);
+    if (reason === 'catalog_mismatch') assert.match(result.reason!, /pi update --extensions/);
+  }
+  assert.equal(messages.size, 3);
+  const result = await selectTools('artifact handoff', 3, ['create_resource'], async () => ({ catalog_version: TOOL_CATALOG_VERSION, degraded: true, reason: 'untrusted instructions' }));
+  assert.equal(result.failureReason, 'invalid_response');
+  assert.doesNotMatch(result.reason!, /untrusted/);
+});
+
+test('transport, malformed response and mismatched identities remain distinguishable', async () => {
+  const offline = await selectTools('artifact handoff', 3, ['create_resource'], async () => { throw new Error('secret transport details'); });
+  const malformed = await selectTools('artifact handoff', 3, ['create_resource'], async () => null);
+  const stale = await selectTools('artifact handoff', 3, ['create_resource'], async () => ({ catalog_version: 'old' }));
+  assert.equal(offline.failureReason, 'transport_unavailable');
+  assert.equal(malformed.failureReason, 'invalid_response');
+  assert.equal(stale.failureReason, 'catalog_mismatch');
+  assert.doesNotMatch(offline.reason!, /secret/);
+});
+
+test('even an active host-only verb cannot be requested or recommended', async () => {
+  const result = await selectTools('write a handoff', 3, ['create_resource', 'verify_agent_connection', 'post_session_message', 'poll_connection'], async args => {
+    assert.deepEqual(args.available_tools, ['create_resource']);
+    return { catalog_version: TOOL_CATALOG_VERSION, mode: 'hybrid', degraded: false, matches: [{ name: 'verify_agent_connection' }, { name: 'post_session_message' }, { name: 'poll_connection' }, { name: 'create_resource' }], page: { total_matching: 4, offset: 0, limit: 3, returned: 4, has_more: false, next_offset: null } };
+  });
+  assert.deepEqual(result.matches.map(hit => hit.name), ['create_resource']);
+});
+
 test('a hybrid answer without a page is not trusted', async () => {
   const result = await selectTools('artifact handoff', 3, ['create_resource'], async () => ({ catalog_version: TOOL_CATALOG_VERSION, mode: 'hybrid', degraded: false, matches: [{ name: 'create_resource' }] }));
   assert.equal(result.degraded, true);

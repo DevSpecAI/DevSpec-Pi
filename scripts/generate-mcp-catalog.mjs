@@ -19,7 +19,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
@@ -62,14 +62,15 @@ function dumpFromV2(v2Root) {
 import { getMcpAllTools } from ${JSON.stringify(`${v2Root.replace(/\\/g, "/")}/apps/web/lib/mcp/tool-definitions.ts`)};
 import { toDiscoveryTool } from ${JSON.stringify(`${v2Root.replace(/\\/g, "/")}/apps/web/lib/mcp/tool-discovery.ts`)};
 import { getMcpTool } from ${JSON.stringify(`${v2Root.replace(/\\/g, "/")}/packages/core/src/mcp/tools/index.ts`)};
+import { TOOL_CATALOG_VERSION, TOOL_SEARCH_DOCUMENTS } from ${JSON.stringify(`${v2Root.replace(/\\/g, "/")}/packages/core/src/mcp/tool-search-index.ts`)};
 const tools = getMcpAllTools();
-process.stdout.write(JSON.stringify(tools.map((t) => ({
+process.stdout.write(JSON.stringify({ toolSearch: { version: TOOL_CATALOG_VERSION, documents: TOOL_SEARCH_DOCUMENTS }, tools: tools.map((t) => ({
   name: t.name,
   description: t.description ?? "",
   searchIntent: getMcpTool(t.name)?.searchIntent ?? '',
   modelInputSchema: toDiscoveryTool(t).inputSchema,
   inputSchema: t.inputSchema ?? { type: "object", properties: {} },
-}))));
+})) }));
 `;
 	// The --tsconfig flag is not optional: apps/web owns the `@/*` path alias, and
 	// without it tsx resolves `@/lib/...` against the monorepo root and dies on the
@@ -117,7 +118,29 @@ function descriptionFingerprint(tools) {
 	return h.digest("hex");
 }
 
-function emitTs(tools) {
+export function emitTs(source) {
+	const { tools, toolSearch } = source;
+	if (!Array.isArray(tools) || tools.length === 0) {
+		throw new Error("catalog source produced no tools");
+	}
+	// The server owns searchable-corpus identity; Pi owns exposure. These differ:
+	// verify_agent_connection and post_session_message are searchable on the server
+	// but intentionally not model-facing here (item 454c24ff).
+	if (!toolSearch || !Array.isArray(toolSearch.documents) || !toolSearch.documents.length) {
+		throw new Error("catalog source must include the server's toolSearch version and documents; regenerate the dump from DevSpecV2");
+	}
+	const canonical = [...toolSearch.documents].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+		.map(({ id, name, description, intent }) => ({ id, name, description, intent }));
+	const canonicalVersion = createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
+	if (toolSearch.version !== canonicalVersion) {
+		throw new Error("server tool-search version does not cover the supplied documents");
+	}
+	for (const doc of canonical) {
+		const tool = tools.find(tool => tool.name === doc.id);
+		if (!tool || doc.name !== doc.id.replaceAll('_', ' ') || doc.description !== tool.description || doc.intent !== tool.searchIntent) {
+			throw new Error(`server tool-search document differs from the wire tool: ${doc.id}`);
+		}
+	}
 	for (const tool of tools) {
 		if (classify(tool.name) === 'model' && (!tool.description || !tool.modelInputSchema || !tool.searchIntent)) {
 			throw new Error(`Missing authored model guidance for ${tool.name}; regenerate from the current shared discovery contract`);
@@ -136,7 +159,7 @@ function emitTs(tools) {
 	}));
 	const model = entries.filter((e) => e.kind === "model").map((e) => e.name);
 	const searchDocuments = entries.filter(e => e.kind === "model").map(e => ({ id: e.name, name: e.name.replaceAll('_', ' '), description: e.description, intent: e.searchIntent })).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-	const searchVersion = createHash('sha256').update(JSON.stringify(searchDocuments)).digest('hex');
+	const searchVersion = toolSearch.version;
 	const pump = entries.filter((e) => e.kind === "pump").map((e) => e.name);
 	const never = entries.filter((e) => e.kind === "never_model").map((e) => e.name);
 
@@ -203,12 +226,11 @@ function main() {
 		}
 		raw = dumpFromV2(v2);
 	}
-	const tools = JSON.parse(raw);
-	if (!Array.isArray(tools) || tools.length === 0) {
-		throw new Error("catalog source produced no tools");
-	}
+	const source = JSON.parse(raw);
+	const output = emitTs(source);
+	const { tools } = source;
 	mkdirSync(OUT_DIR, { recursive: true });
-	writeFileSync(OUT_TS, emitTs(tools));
+	writeFileSync(OUT_TS, output);
 	const kinds = { model: 0, pump: 0, never_model: 0 };
 	for (const t of tools) kinds[classify(t.name)] += 1;
 	process.stdout.write(
@@ -216,4 +238,4 @@ function main() {
 	);
 }
 
-main();
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) main();

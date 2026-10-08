@@ -5,8 +5,6 @@
  * scoped, else auth-filtered getAvailable(). Never a DevSpec-owned menu.
  */
 
-export const MODEL_CATALOG_MAX = 400;
-
 export interface ModelCatalogEntry {
 	provider: string;
 	id: string;
@@ -40,24 +38,21 @@ export function collectModelCatalog(ctx: {
 	const scoped = (ctx.scopedModels ?? [])
 		.map((s) => s?.model)
 		.filter((m): m is ModelLike => Boolean(m?.provider && m?.id));
-	const raw =
-		scoped.length > 0
-			? scoped
-			: (ctx.modelRegistry?.getAvailable?.() ?? []).filter((m) => {
-					if (!ctx.modelRegistry?.hasConfiguredAuth) return true;
-					try {
-						return ctx.modelRegistry.hasConfiguredAuth(m as never);
-					} catch {
-						return false;
-					}
-				});
+	let raw: readonly ModelLike[];
+	if (scoped.length > 0) raw = scoped;
+	else {
+		const available = ctx.modelRegistry?.getAvailable?.();
+		if (!Array.isArray(available)) throw new Error("Host model registry unavailable");
+		// Unknown auth state is a failed read, not proof that a provider has no models.
+		raw = available.filter((m: ModelLike) => !ctx.modelRegistry?.hasConfiguredAuth || ctx.modelRegistry.hasConfiguredAuth(m as never));
+	}
 
 	const seen = new Set<string>();
 	const models: ModelCatalogEntry[] = [];
 	for (const m of raw) {
 		const provider = typeof m.provider === "string" ? m.provider.trim() : "";
 		const id = typeof m.id === "string" ? m.id.trim() : "";
-		if (!provider || !id) continue;
+		if (!provider || !id || (m.name !== undefined && typeof m.name !== "string")) throw new Error("Invalid host model catalogue entry");
 		const key = `${provider}/${id}`;
 		if (seen.has(key)) continue;
 		seen.add(key);
@@ -67,7 +62,6 @@ export function collectModelCatalog(ctx: {
 			id,
 			...(name && name !== id ? { name } : {}),
 		});
-		if (models.length >= MODEL_CATALOG_MAX) break;
 	}
 
 	const currentProvider = typeof ctx.model?.provider === "string" ? ctx.model.provider.trim() : "";
@@ -78,6 +72,5 @@ export function collectModelCatalog(ctx: {
 		current: currentProvider && currentId ? `${currentProvider}/${currentId}` : null,
 		models,
 		at: ctx.now ?? new Date().toISOString(),
-		...(raw.length > models.length ? { truncated: true } : {}),
 	};
 }

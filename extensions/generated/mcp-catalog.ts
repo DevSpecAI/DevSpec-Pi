@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: db012884ecacdb8cff424aab98745af2a07f70f3a63f2e00625d360a42ae6d2a
+ * Schema fingerprint: 9166ee537baa78515595a8005ce12a5a1f2fa4df9bc96fc49ad7b3ac3d1a89d4
  * Description fingerprint: 4b7428287e6de2ddb8ac9180777bda58e7538f05f36fa5e069b4026077dbcbbd
- * Regenerated: 2026-10-08T15:27:02.823Z
+ * Regenerated: 2026-10-08T16:45:19.156Z
  */
-export const MCP_CATALOG_FINGERPRINT = "db012884ecacdb8cff424aab98745af2a07f70f3a63f2e00625d360a42ae6d2a";
+export const MCP_CATALOG_FINGERPRINT = "9166ee537baa78515595a8005ce12a5a1f2fa4df9bc96fc49ad7b3ac3d1a89d4";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "4b7428287e6de2ddb8ac9180777bda58e7538f05f36fa5e069b4026077dbcbbd";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-08T15:27:02.823Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-08T16:45:19.156Z";
 export const TOOL_CATALOG_VERSION = "5c5bad15d62d9507dd38f933d83118193fe70a3b2e7a8c0892a513a8f197dc3d";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -13042,7 +13042,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"model_catalog": {
 					"type": "object",
-					"description": "With control_ack after a list_models control: the host's model list {v: 1, current, models: [{provider, id, name?}], at}, stored as the connection's latest catalog and never posted to the room. Read leniently: a malformed snapshot is dropped silently."
+					"description": "With control_ack after a list_models control: the complete host model list {v: 1, current, models: [{provider, id, name?}], at}. Stored atomically with the exact acknowledgement, never posted to the room. Invalid data refuses acknowledgement rather than publishing a partial success."
 				}
 			},
 			"required": [
@@ -13619,9 +13619,38 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"description": "The id of the control verb you just carried out, which clears it so it is not delivered again. true clears whatever control is pending; an id that is not the pending one changes nothing."
 				},
+				"control_ack_only": {
+					"type": "boolean",
+					"x-devspec-host-only": true,
+					"description": "Host-only. true with an exact control_ack id and this connection's capability stores only that CONTROL result and returns its receipt. It never packages commands, advances transcript cursors, claims interaction events or consumes notices. Omitted: the existing combined acknowledgement and poll."
+				},
+				"control_result": {
+					"type": "object",
+					"properties": {
+						"status": {
+							"type": "string",
+							"enum": [
+								"completed",
+								"failed"
+							]
+						},
+						"error": {
+							"type": "string",
+							"enum": [
+								"model_catalog_unavailable",
+								"control_failed"
+							]
+						}
+					},
+					"required": [
+						"status"
+					],
+					"x-devspec-host-only": true,
+					"description": "Host-only. The outcome carried with control_ack; failed needs a safe error code, never raw provider text. Omitted: consumption only, or completed catalogue collection when model_catalog is supplied. A failed list_models keeps the last successful catalogue."
+				},
 				"model_catalog": {
 					"type": "object",
-					"description": "With control_ack after a list_models control: the host's model list {v: 1, current, models: [{provider, id, name?}], at}, stored as the connection's latest catalog and never posted to the room. Read leniently: a malformed snapshot is dropped silently."
+					"description": "With control_ack after a list_models control: the complete host model list {v: 1, current, models: [{provider, id, name?}], at}. Stored atomically with the exact acknowledgement, never posted to the room. Invalid data refuses acknowledgement rather than publishing a partial success."
 				},
 				"context_wipe_ack": {
 					"type": "boolean",

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.12
+
+- Changing model in DevSpec now returns the complete list this Pi can use, including models previously missing beyond the first 400.
+- Agent control results are saved in Pi's session journal and retried when delivery fails, without executing the control again. Acknowledging a result no longer consumes queued messages or notices. Delivery failures are reported instead of disappearing silently.
+- Requires the matching DevSpec server update. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.11
 
 - Tool search now compares the same catalogue as DevSpec, so keeping internal tools private no longer forces a keyword-only fallback. Internal connection and posting tools remain unavailable to the model. When meaning-based search cannot run, Pi now distinguishes an extension/server version difference, an index being refreshed, unavailable ranking, an unreadable response and a connection failure. Known tools still work directly.

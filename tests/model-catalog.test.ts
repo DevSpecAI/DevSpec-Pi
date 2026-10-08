@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { collectModelCatalog, MODEL_CATALOG_MAX } from "../extensions/core/model-catalog.ts";
+import { collectModelCatalog } from "../extensions/core/model-catalog.ts";
 
 test("collectModelCatalog prefers scopedModels over the full registry", () => {
 	const snap = collectModelCatalog({
@@ -37,14 +37,24 @@ test("collectModelCatalog drops models this process cannot call", () => {
 	assert.deepEqual(snap.models, [{ provider: "anthropic", id: "claude-sonnet-4-5" }]);
 });
 
-test("collectModelCatalog caps the stored list and marks truncated", () => {
-	const available = Array.from({ length: MODEL_CATALOG_MAX + 3 }, (_, i) => ({
+test("an unavailable registry or auth read is not an empty successful catalogue", () => {
+	assert.throws(() => collectModelCatalog({}), /registry unavailable/);
+	assert.throws(() => collectModelCatalog({ modelRegistry: { getAvailable: () => [{ provider: "p", id: "m" }], hasConfiguredAuth: () => { throw new Error("auth unavailable"); } } }), /auth unavailable/);
+	assert.deepEqual(collectModelCatalog({ modelRegistry: { getAvailable: () => [] } }).models, []);
+});
+
+test("a malformed host entry cannot silently hide part of the list", () => {
+	assert.throws(() => collectModelCatalog({ modelRegistry: { getAvailable: () => [{ provider: "p" }] } }), /Invalid host model/);
+});
+
+test("collectModelCatalog preserves the full available list", () => {
+	const available = Array.from({ length: 1201 }, (_, i) => ({
 		provider: "p",
 		id: `m${i}`,
 	}));
 	const snap = collectModelCatalog({
 		modelRegistry: { getAvailable: () => available, hasConfiguredAuth: () => true },
 	});
-	assert.equal(snap.models.length, MODEL_CATALOG_MAX);
-	assert.equal(snap.truncated, true);
+	assert.deepEqual(snap.models, available);
+	assert.equal(snap.truncated, undefined);
 });

@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 332f20c000350aeeb7449909d9a7360663e03ed65f0ce73833f636895e0b80eb
- * Description fingerprint: 4b7428287e6de2ddb8ac9180777bda58e7538f05f36fa5e069b4026077dbcbbd
- * Regenerated: 2026-10-08T18:23:53.383Z
+ * Schema fingerprint: de30a53d3be96cee3808202545d2a7ce150b82722681c980522a2cd0a56c94fc
+ * Description fingerprint: 1623bc5d92e8f34baf4d29e9d1de5265b6100e45ebac5005e38d1a10f8864102
+ * Regenerated: 2026-10-08T23:22:47.018Z
  */
-export const MCP_CATALOG_FINGERPRINT = "332f20c000350aeeb7449909d9a7360663e03ed65f0ce73833f636895e0b80eb";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "4b7428287e6de2ddb8ac9180777bda58e7538f05f36fa5e069b4026077dbcbbd";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-08T18:23:53.383Z";
-export const TOOL_CATALOG_VERSION = "5c5bad15d62d9507dd38f933d83118193fe70a3b2e7a8c0892a513a8f197dc3d";
+export const MCP_CATALOG_FINGERPRINT = "de30a53d3be96cee3808202545d2a7ce150b82722681c980522a2cd0a56c94fc";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "1623bc5d92e8f34baf4d29e9d1de5265b6100e45ebac5005e38d1a10f8864102";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-08T23:22:47.018Z";
+export const TOOL_CATALOG_VERSION = "cb3643104bf0e1bf531562371c4ec5f879b6cea285fe32173665c51f36160163";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -308,7 +308,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_automation_run",
 		"name": "record automation run",
-		"description": "Report the outcome of an automation run you claimed, or correct one already reported. Give a verdict for each acceptance criterion: met, not_met and intent_met need evidence (what you ran and what came back); if any lacks it, the whole report is refused and nothing is recorded. Use unknown for anything you did not check. Criteria a first report leaves out are recorded as unknown. A first report must come from the agent that claimed the run; any other agent needs force with a reason, as does correcting a report whose agent is gone. Calling it again on a finished run corrects that run: your verdicts merge over the stored ones, fields you omit keep their values, and the correction is stamped on the run. A report that says the run committed or pushed beyond its permission is recorded as failed and returns an error; any failed run alerts you. List what the run produced in artifacts; an empty list is a fine answer for a run that only looked.",
+		"description": "Report the outcome of an automation run you claimed, or correct one already reported. Give a verdict for each acceptance criterion: met, not_met and intent_met need evidence (what you ran and what came back); if any lacks it, the whole report is refused and nothing is recorded. Use unknown for anything you did not check. Criteria a first report leaves out are recorded as unknown. A first report must come from the agent that claimed the run; any other agent needs force with a reason, as does correcting a report whose agent is gone. Calling it again on a finished run corrects that run: your verdicts merge over the stored ones, fields you omit keep their values, and the correction is stamped on the run. A report that says the run committed or pushed beyond its permission is recorded as failed and returns an error; any failed run alerts you. List what the run produced in artifacts; an empty list is a fine answer for a run that only looked. Write summary as a short plain-English lead for a person glancing at the Automations page (what ran, outcome, what is fine, what still needs a person); put command dumps, version hashes and long technical narrative in captured_output. Checks stay the proof; summary is the story, not a second dump of the checks.",
 		"intent": "report correct automation run outcome results criterion verdicts evidence"
 	},
 	{
@@ -711,6 +711,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Your own connection id, if you are a connected agent, so this search's cost is attributed to your connection and its room. It changes no results; an id that is not one of your live connections is ignored."
 				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "The work_claim_ref claim_work_item returned for the work this search is for, when you hold more than one claim: the search's cost is then recorded against whoever asked for that work. It changes no results. Omitted: worked out from your connection, and your agent's owner when it cannot be."
+				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
@@ -774,6 +778,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your own connection id, if you are a connected agent, so this search's cost is attributed to your connection and its room. It changes no results; an id that is not one of your live connections is ignored."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "The work_claim_ref claim_work_item returned for the work this search is for, when you hold more than one claim: the search's cost is then recorded against whoever asked for that work. It changes no results. Omitted: worked out from your connection, and your agent's owner when it cannot be."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -1349,6 +1357,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "The work_claim_ref claim_work_item returned for the work this search is for, when you hold more than one claim: the search's cost is then recorded against whoever asked for that work. It changes no results. Omitted: worked out from your connection, and your agent's owner when it cannot be."
+				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
@@ -1416,6 +1428,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"all"
 					],
 					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "The work_claim_ref claim_work_item returned for the work this search is for, when you hold more than one claim: the search's cost is then recorded against whoever asked for that work. It changes no results. Omitted: worked out from your connection, and your agent's owner when it cannot be."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -1797,6 +1813,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Your connection id, when you run as one, so a search's cost is attributed to you and your room. Omitted: the connection your client proved, or your token's only live connection."
 				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "The work_claim_ref claim_work_item returned for the work this search is for, when you hold more than one claim: the search's cost is then recorded against whoever asked for that work. It changes no results. Omitted: worked out from your connection, and your agent's owner when it cannot be."
+				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
@@ -1869,6 +1889,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your connection id, when you run as one, so a search's cost is attributed to you and your room. Omitted: the connection your client proved, or your token's only live connection."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "The work_claim_ref claim_work_item returned for the work this search is for, when you hold more than one claim: the search's cost is then recorded against whoever asked for that work. It changes no results. Omitted: worked out from your connection, and your agent's owner when it cannot be."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -2435,6 +2459,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "The work_claim_ref claim_work_item returned for the work this search is for, when you hold more than one claim: the search's cost is then recorded against whoever asked for that work. It changes no results. Omitted: worked out from your connection, and your agent's owner when it cannot be."
+				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
@@ -2514,6 +2542,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"all"
 					],
 					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "The work_claim_ref claim_work_item returned for the work this search is for, when you hold more than one claim: the search's cost is then recorded against whoever asked for that work. It changes no results. Omitted: worked out from your connection, and your agent's owner when it cannot be."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -3079,6 +3111,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
 				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "The work_claim_ref claim_work_item returned for the work this search is for, when you hold more than one claim: the search's cost is then recorded against whoever asked for that work. It changes no results. Omitted: worked out from your connection, and your agent's owner when it cannot be."
+				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
@@ -3146,6 +3182,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"all"
 					],
 					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "The work_claim_ref claim_work_item returned for the work this search is for, when you hold more than one claim: the search's cost is then recorded against whoever asked for that work. It changes no results. Omitted: worked out from your connection, and your agent's owner when it cannot be."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -3508,6 +3548,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "number",
 					"description": "Room cards per page. Defaults to 5; at most 10."
 				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "The work_claim_ref claim_work_item returned for the work this search is for, when you hold more than one claim: the search's cost is then recorded against whoever asked for that work. It changes no results. Omitted: worked out from your connection, and your agent's owner when it cannot be."
+				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
@@ -3543,6 +3587,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"limit": {
 					"type": "number",
 					"description": "Room cards per page. Defaults to 5; at most 10."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "The work_claim_ref claim_work_item returned for the work this search is for, when you hold more than one claim: the search's cost is then recorded against whoever asked for that work. It changes no results. Omitted: worked out from your connection, and your agent's owner when it cannot be."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -3616,6 +3664,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "number",
 					"description": "Cards per page. Defaults to 20; at most 50."
 				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "The work_claim_ref claim_work_item returned for the work this search is for, when you hold more than one claim: the search's cost is then recorded against whoever asked for that work. It changes no results. Omitted: worked out from your connection, and your agent's owner when it cannot be."
+				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
@@ -3677,6 +3729,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"limit": {
 					"type": "number",
 					"description": "Cards per page. Defaults to 20; at most 50."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "The work_claim_ref claim_work_item returned for the work this search is for, when you hold more than one claim: the search's cost is then recorded against whoever asked for that work. It changes no results. Omitted: worked out from your connection, and your agent's owner when it cannot be."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -11368,7 +11424,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_automation_run",
 		"label": "DevSpec: Record Automation Run",
-		"description": "Report the outcome of an automation run you claimed, or correct one already reported. Give a verdict for each acceptance criterion: met, not_met and intent_met need evidence (what you ran and what came back); if any lacks it, the whole report is refused and nothing is recorded. Use unknown for anything you did not check. Criteria a first report leaves out are recorded as unknown. A first report must come from the agent that claimed the run; any other agent needs force with a reason, as does correcting a report whose agent is gone. Calling it again on a finished run corrects that run: your verdicts merge over the stored ones, fields you omit keep their values, and the correction is stamped on the run. A report that says the run committed or pushed beyond its permission is recorded as failed and returns an error; any failed run alerts you. List what the run produced in artifacts; an empty list is a fine answer for a run that only looked.",
+		"description": "Report the outcome of an automation run you claimed, or correct one already reported. Give a verdict for each acceptance criterion: met, not_met and intent_met need evidence (what you ran and what came back); if any lacks it, the whole report is refused and nothing is recorded. Use unknown for anything you did not check. Criteria a first report leaves out are recorded as unknown. A first report must come from the agent that claimed the run; any other agent needs force with a reason, as does correcting a report whose agent is gone. Calling it again on a finished run corrects that run: your verdicts merge over the stored ones, fields you omit keep their values, and the correction is stamped on the run. A report that says the run committed or pushed beyond its permission is recorded as failed and returns an error; any failed run alerts you. List what the run produced in artifacts; an empty list is a fine answer for a run that only looked. Write summary as a short plain-English lead for a person glancing at the Automations page (what ran, outcome, what is fine, what still needs a person); put command dumps, version hashes and long technical narrative in captured_output. Checks stay the proof; summary is the story, not a second dump of the checks.",
 		"searchIntent": "report correct automation run outcome results criterion verdicts evidence",
 		"modelInputSchema": {
 			"type": "object",
@@ -11391,11 +11447,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"summary": {
 					"type": "string",
-					"description": "A short account of what happened, shown on the run. On a correction, omit it to keep the stored one."
+					"description": "A short plain-English lead for a person glancing at the run (a few sentences): what ran, whether it worked, what is fine now, and what still needs a person. Not a command dump, version list, or checklist of every check. When a person still has follow-up work after a successful run, end with a line that starts exactly with \"Needs attention:\" then the follow-ups in plain words. On a correction, omit it to keep the stored one."
 				},
 				"captured_output": {
 					"type": "string",
-					"description": "Your fuller output, shown on the run; a conversation can be started from it later. On a correction, omit it to keep the stored one."
+					"description": "Your fuller technical output for the run (commands, logs, per-host detail). Shown under Show details; a conversation can be started from it later. Do not put this wall of text in summary. On a correction, omit it to keep the stored one."
 				},
 				"failure_reason": {
 					"type": "string",
@@ -11599,11 +11655,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"summary": {
 					"type": "string",
-					"description": "A short account of what happened, shown on the run. On a correction, omit it to keep the stored one."
+					"description": "A short plain-English lead for a person glancing at the run (a few sentences): what ran, whether it worked, what is fine now, and what still needs a person. Not a command dump, version list, or checklist of every check. When a person still has follow-up work after a successful run, end with a line that starts exactly with \"Needs attention:\" then the follow-ups in plain words. On a correction, omit it to keep the stored one."
 				},
 				"captured_output": {
 					"type": "string",
-					"description": "Your fuller output, shown on the run; a conversation can be started from it later. On a correction, omit it to keep the stored one."
+					"description": "Your fuller technical output for the run (commands, logs, per-host detail). Shown under Show details; a conversation can be started from it later. Do not put this wall of text in summary. On a correction, omit it to keep the stored one."
 				},
 				"failure_reason": {
 					"type": "string",

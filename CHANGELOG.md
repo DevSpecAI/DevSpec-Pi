@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.15
+
+- The catalogue is regenerated against DevSpec's current tools. The searches (action items, memories, documents, sessions, Still to Discuss, the review queue and tool search) now accept `work_claim_ref`: while you hold several claims and no request is open, name the claim a search is for, and its cost is recorded against whoever asked for that work rather than against you.
+- Reporting an automation run now asks for a short plain-English summary, with the technical detail in the output.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.14
 
 - Pi's MCP client library (`@modelcontextprotocol/sdk`) is updated to 1.32.1, past the versions that dependency scanners report for advisory GHSA-6qxp-vccf-f47h. Pi was not exposed to it: it signs in with its own DevSpec token and never uses the library's sign-in flow that the advisory is about. `proxy-addr`, which the same library brings in, moves to 2.0.8 for the same reason.

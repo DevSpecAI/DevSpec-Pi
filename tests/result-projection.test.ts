@@ -555,7 +555,19 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// only the refs. No projection family or hot-set membership changed.
 		// Benchmark before/after: initial surface 47,004 -> 48,448 estimated
 		// tokens; every budget still passes.
-		"580de6a7a8d01807ec72bfe1fb6bb435468ba34b8ff189cf5b90d4325707047a",
+		//
+		// Rebaselined 2026-10-08 for DevSpec item 81a891b4 (a search's cost names
+		// the claim it serves), regenerated against server staging d55109472.
+		// Compared old/new generated catalogues: 95 verbs before and after, none
+		// added or removed, nothing made required. One optional input added,
+		// work_claim_ref, on the seven searches whose cost names a person:
+		// search_action_items, search_memories, search_resources, search_sessions,
+		// search_discussion_points, search_devspec_tools and get_review_queue. The
+		// regeneration also carries record_automation_run's new summary/output
+		// guidance (descriptions only). No projection family or hot-set membership
+		// changed. Benchmark before/after: initial surface 48,448 -> 49,233
+		// estimated tokens; every budget still passes.
+		"e77ba7fe82329b0a490993b299a62cae56fac635af7c45a92c02bd8f7eabe1d4",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

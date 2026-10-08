@@ -14,12 +14,13 @@ function bodyBetween(start: string, end: string): string {
 test("main Pi poll capacity-gates system notices while control ack cannot claim them", () => {
 	const calls = [...source.matchAll(/callDevspec\([^]*?"poll_connection"[^]*?\{([^]*?)\}, \{/gu)];
 	assert.equal(calls.length, 4, "expected control ACK, exact interaction ACK, read-only room recovery and main pump poll");
-	for (const call of [calls[0]!, calls[2]!, calls[3]!]) {
+	for (const call of [calls[2]!, calls[3]!]) {
 		assert.match(call[1], /ingress_version: 1/);
 		assert.match(call[1], /delegated_scope_version: 1/);
 		assert.match(call[1], /active_plan_projection_version: 1/);
 	}
-	assert.doesNotMatch(calls[0]![1], /system_notice_version|system_notice_cursor/, "ackControl must never lease/ack at-most-once notices");
+	assert.match(calls[0]![1], /control_ack_only: true/);
+	assert.doesNotMatch(calls[0]![1], /system_notice_version|system_notice_cursor|cursor_v2/, "ackControl must never consume intake");
 	// The exact-event ACK is built by interactionEventAckArgs, which emits
 	// `interaction_event_ack` for an answer and `question_dismissal_event_ack` for a
 	// responder dismissal (debec963). The pin follows the helper call, not one key.

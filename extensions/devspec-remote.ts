@@ -80,6 +80,7 @@ import { compactWithContext, executeControlCommand, parseControlCommand, reloadW
 import { safeHasUI, withLiveUi } from "./core/ctx-guard.ts";
 import { commandReloadContext, rememberExtensionRunner } from "./core/command-runner.ts";
 import { collectModelCatalog, type ModelCatalogSnapshot } from "./core/model-catalog.ts";
+import { CONTROL_RESULT_ENTRY, ControlResultOutbox, type ControlResult, type ControlResultEntry, type ControlDeliveryOutcome } from "./core/control-result-outbox.ts";
 import {
 	AttachmentDeliveryLease,
 	cleanupMaterialisedAttachments,
@@ -311,6 +312,9 @@ interface PumpState {
 	pendingInteractionStarts: Map<string, PendingInteractionStartRetry>;
 	pendingInteractionReleases: Map<string, PendingInteractionReleaseRetry>;
 	interactionRetryTimer?: ReturnType<typeof setTimeout>;
+	controlResults: ControlResultOutbox;
+	controlResultRetryTimer?: ReturnType<typeof setTimeout>;
+	controlResultWarning?: boolean;
 	wakeGate: WakeGenerationGate;
 	/** Last attach-context/title fetch attempt — titles are job-generated, so a
 	 *  missing one is retried on a slow cadence, never hot-polled (Ali: a brand-new
@@ -1279,16 +1283,45 @@ async function ackControl(
 	connectionId: string,
 	controlId: string,
 	catalog?: ModelCatalogSnapshot,
-): Promise<void> {
-	await callDevspec(token, "poll_connection", {
+	result?: ControlResult,
+	endpoint?: string,
+): Promise<ControlDeliveryOutcome> {
+	const active = pump;
+	if (!active || active.stop || active.bond.connectionId !== connectionId) throw new Error("CONTROL authority changed");
+	const raw = await callDevspec(token, "poll_connection", {
 		connection_id: connectionId,
-		ingress_version: 1,
-		delegated_scope_version: 1,
-		active_plan_projection_version: 1,
 		control_ack: controlId,
-		wait_ms: 0,
+		control_ack_only: true,
+		...(result ? { control_result: result } : {}),
 		...(catalog ? { model_catalog: catalog } : {}),
-	}, { timeoutMs: 10_000, lane: "pump" });
+	}, { timeoutMs: 10_000, lane: "pump", endpoint, connectionCapability: active.bond.connectionCapability,
+		beforeSend: () => { if (pump !== active || active.stop) throw new Error("CONTROL authority changed"); } });
+	const details = unwrapMcpResult(raw).details as { control_ack?: { status?: string; result?: { id?: string } } } | undefined;
+	const receipt = details?.control_ack;
+	if (receipt?.status === "stale") {
+		if (!result) throw new Error("CONTROL is no longer pending"); // never reload on an obsolete control
+		return "superseded";
+	}
+	if ((receipt?.status === "acknowledged" || receipt?.status === "already_acknowledged") && receipt.result?.id === controlId) return "acknowledged";
+	throw new Error("Invalid CONTROL acknowledgement receipt");
+}
+
+function drainControlResults(active: PumpState, ctx: ExtensionContext, token: string, endpoint: string): void {
+	if (pump !== active || active.stop || active.controlResultRetryTimer || !active.controlResults.hasPending(active.bond.connectionId)) return;
+	void active.controlResults.drain(active.bond.connectionId,
+		value => ackControl(token, value.connectionId, value.controlId, value.catalog, value.result, endpoint),
+		pi_appendControlResult, () => pump === active && !active.stop,
+	).then(() => { if (!active.controlResults.hasPending(active.bond.connectionId)) active.controlResultWarning = false; }).catch(() => {
+		if (pump !== active || active.stop) return;
+		debug("control acknowledgement failed", { errorPresent: true });
+		if (!active.controlResultWarning) notify(ctx, "DevSpec remote: couldn't deliver the agent control result. Retrying automatically.", "warning");
+		active.controlResultWarning = true;
+		active.controlResultRetryTimer = setTimeout(() => {
+			active.controlResultRetryTimer = undefined;
+			if (pump === active && !active.stop) signalWake(active);
+		}, ERROR_BACKOFF_MS);
+		active.controlResultRetryTimer.unref?.();
+	});
 }
 
 function setRemoteStatus(ctx: ExtensionContext | null): void {
@@ -1415,6 +1448,8 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	pi_appendRoomScope(null, active.localSessionId);
 	if (active.interactionRetryTimer) clearTimeout(active.interactionRetryTimer);
 	active.interactionRetryTimer = undefined;
+	if (active.controlResultRetryTimer) clearTimeout(active.controlResultRetryTimer);
+	active.controlResultRetryTimer = undefined;
 	const starting = startingInteractionRun?.active === active ? startingInteractionRun : null;
 	if (starting?.application === "starting") {
 		await releaseInteractionBeforePersistence(starting, "interaction_pump_stopped_before_persistence");
@@ -2431,6 +2466,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		// ordinary command/control poll (4284a43c / 4221d08e).
 		await drainInteractionRetries(active, ctx);
 		if (active.stop || pump !== active) return;
+		drainControlResults(active, ctx, token, endpoint);
 
 		// The server can claim ten at once. Negotiate only when that complete batch
 		// fits; otherwise ordinary 1.3 command polling continues while notices stay
@@ -2856,14 +2892,16 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			// return. Do not notify on the old ctx after a successful reload.
 			if (control.verb === "reload") {
 				const lap = await runReloadLap({
-					ack: () => ackControl(token, active.bond.connectionId, control.id),
+					ack: async () => { await ackControl(token, active.bond.connectionId, control.id); },
 					reload: () => reloadWithContext(commandReloadContext() ?? (ctx as { reload?: () => Promise<void> })),
 				});
 				debug("control reload", { succeeded: lap.status === "reloaded", errorPresent: Boolean(lap.error) });
 				if (lap.status === "reloaded") return;
 				notify(ctx, `DevSpec remote: reload failed — ${lap.error ?? lap.status}`, "error");
-			} else {
+			} else if (!active.controlResults.has(active.bond.connectionId, control.id)) {
 				let catalog: ModelCatalogSnapshot | undefined;
+				let collectionMs: number | undefined;
+				let controlResult: ControlResult = { status: "completed" };
 				try {
 					const result = await executeControlCommand(control, {
 						isIdle: () => ctx.isIdle(),
@@ -2876,11 +2914,14 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					});
 					debug("control completed", { resultPresent: Boolean(result) });
 					if (control.verb === "list_models") {
+						const collectionStarted = performance.now();
 						catalog = collectModelCatalog({
 							scopedModels: ctx.scopedModels,
 							modelRegistry: ctx.modelRegistry,
 							model: ctx.model,
 						});
+						collectionMs = performance.now() - collectionStarted;
+						debug("control catalogue collected", { models: catalog.models.length, collectionMs, catalogBytes: Buffer.byteLength(JSON.stringify(catalog)) });
 						notify(ctx, `DevSpec remote: list_models — ${catalog.models.length} models.`);
 					} else {
 						notify(ctx, `DevSpec remote: ${control.verb} — ${result}.`);
@@ -2888,12 +2929,21 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				} catch (err) {
 					const msg = err instanceof Error ? err.message : String(err);
 					debug("control failed", { messageChars: msg.length });
+					controlResult = { status: "failed", error: control.verb === "list_models" ? "model_catalog_unavailable" : "control_failed" };
+					catalog = undefined;
 					notify(ctx, `DevSpec remote: ${control.verb} failed — ${msg}`, "error");
 				} finally {
 					// Pi emits no event when a request clamps to the already-active level.
 					if (control.verb === "set_thinking") scheduleRuntimeStamp(ctx);
 				}
-				void ackControl(token, active.bond.connectionId, control.id, catalog).catch(() => {});
+				try {
+					active.controlResults.produce({ connectionId: active.bond.connectionId, controlId: control.id, result: controlResult,
+						...(catalog ? { catalog } : {}), ...(collectionMs !== undefined ? { collectionMs } : {}) }, pi_appendControlResult);
+				} catch {
+					debug("control result persistence failed", { errorPresent: true });
+					notify(ctx, "DevSpec remote: couldn't save the control result locally. Delivery will retry in this runtime.", "warning");
+				}
+				drainControlResults(active, ctx, token, endpoint);
 			}
 		}
 
@@ -3168,6 +3218,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 		localSessionId: localId,
 		pendingInteractionStarts: new Map(),
 		pendingInteractionReleases: new Map(),
+		controlResults: ControlResultOutbox.reconstruct(ctx.sessionManager.getBranch()),
 		wakeGate: new WakeGenerationGate(),
 		automationQueue: new DeliveryQueue(),
 		automationRetryAttempts: new Map(),
@@ -3199,6 +3250,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 }
 
 // Late-bound so the loop can reference the ExtensionAPI closure.
+let pi_appendControlResult: (entry: ControlResultEntry) => void = () => { throw new Error("CONTROL journal unavailable"); };
 let pi_systemNoticeSend: (message: string, details: { notices: unknown[] }) => void = () => {};
 let pi_appendInteractionEntry: (
 	state: "observed" | "applied" | "acknowledged",
@@ -3521,6 +3573,7 @@ export default function (pi: ExtensionAPI) {
 			if (trackedTurn.trail.applySubagentFleet(toolCallId, snapshot)) trackedTurn.trailDelivery.markDirty();
 		});
 	};
+	pi_appendControlResult = entry => { pi.appendEntry(CONTROL_RESULT_ENTRY, entry); };
 	pi_appendInteractionEntry = (state, details) => {
 		pi.appendEntry(INTERACTION_EVENT_JOURNAL_TYPE, interactionEventJournalEntry(state, details));
 	};
@@ -4241,6 +4294,8 @@ export default function (pi: ExtensionAPI) {
 		if (!active) return;
 		if (active.interactionRetryTimer) clearTimeout(active.interactionRetryTimer);
 		active.interactionRetryTimer = undefined;
+		if (active.controlResultRetryTimer) clearTimeout(active.controlResultRetryTimer);
+		active.controlResultRetryTimer = undefined;
 		active.pendingInteractionStarts.clear();
 		active.pendingInteractionReleases.clear();
 		active.closing = true;

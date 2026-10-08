@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 66a0996a475e2ea89795a266e063e74917229b028e1ade4fcbe79a044e2899e4
- * Description fingerprint: 37a64f319eb2c9339f1437aecd89522098a93585c34a3a77a161fa1368d988b5
- * Regenerated: 2026-10-07T22:17:32.724Z
+ * Schema fingerprint: 5aa858f2f7285fa1c8b35cccd3ca3ba10dc5b534df8fd573c0378d5b5d80134d
+ * Description fingerprint: 4b7428287e6de2ddb8ac9180777bda58e7538f05f36fa5e069b4026077dbcbbd
+ * Regenerated: 2026-10-08T11:19:48.627Z
  */
-export const MCP_CATALOG_FINGERPRINT = "66a0996a475e2ea89795a266e063e74917229b028e1ade4fcbe79a044e2899e4";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "37a64f319eb2c9339f1437aecd89522098a93585c34a3a77a161fa1368d988b5";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-07T22:17:32.725Z";
-export const TOOL_CATALOG_VERSION = "92014eb5fe25cc840a5fd4b95f1b7cb1e60a941abf76e45693bd046764df5004";
+export const MCP_CATALOG_FINGERPRINT = "5aa858f2f7285fa1c8b35cccd3ca3ba10dc5b534df8fd573c0378d5b5d80134d";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "4b7428287e6de2ddb8ac9180777bda58e7538f05f36fa5e069b4026077dbcbbd";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-08T11:19:48.627Z";
+export const TOOL_CATALOG_VERSION = "c0c618c7231ef9be50b4b67f835962e3f18891239ef636abc854e793af1ff18e";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -28,6 +28,12 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"name": "archive resource",
 		"description": "Archive an AI-written artifact that is finished or no longer relevant. It leaves lists and search but stays readable by id; nothing is deleted. Use supersede_resource when a replacement should become current; uploaded documents cannot be archived here. Archiving a document that is already archived is refused. Archiving someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "archive retire obsolete finished document artifact"
+	},
+	{
+		"id": "assess_change_impact",
+		"name": "assess change impact",
+		"description": "Step 1 of the impact assessment a recording response asks for in impact_follow_through. Say what the change you just recorded did to existing behaviour or claims, before and after. DevSpec chooses the existing action items that may be affected, from that and from the change's links, stores the list and returns it with why each was chosen. Then rule on every one with record_change_impact. Nothing in the project changes because of an assessment: it is recorded so DevSpec can measure how well agents judge the effect of their own changes. A second call for the same assessment is refused; the list is fixed once served.",
+		"intent": "assess which existing action items my change affects replaced obsolete"
 	},
 	{
 		"id": "claim_automation_run",
@@ -306,6 +312,12 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"intent": "report correct automation run outcome results criterion verdicts evidence"
 	},
 	{
+		"id": "record_change_impact",
+		"name": "record change impact",
+		"description": "Step 2 of the impact assessment: rule on every candidate assess_change_impact returned, or abstain. Each ruling is replaced (this change deliberately replaced behaviour the item delivered), unnecessary (open work the item asks for is no longer needed because of this change), regression (this change breaks a requirement the item still holds) or not (the item still stands; related, refined or built on is not), with a one-sentence note. Any ruling other than not also quotes the item's own words and cites the part of the change that does it. A submission that leaves a candidate unruled, rules on something it was not shown, or quotes words the item does not contain is refused with the details, and nothing is stored. Nothing in the project changes because of a ruling. An assessment is ruled on once.",
+		"intent": "record rulings on which existing items my change affects abstain"
+	},
+	{
 		"id": "record_completed_work",
 		"name": "record completed work",
 		"description": "Create a new action item for work already done that has no item, recorded as implemented with its requirement, summary, commits and changed files. Search first with search_action_items: if an item already exists, claimed or not, use record_implementation on it instead of making a duplicate. Infer type, priority and tags from the git log and diff rather than interviewing the person; they can edit them afterwards. The new item is recorded as implemented, not done. Whether finished work needs an item is set by work_entry_contract in devspec://product/implementation-contract.",
@@ -320,13 +332,13 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_implementation",
 		"name": "record implementation",
-		"description": "Record delivered work on an existing action item, claimed or not: the commit, changed files, checks and an honest summary. If the item is claimed, only the claim's holder can record it, and the claim and its reservation close. The item moves to implemented, or straight to done if its recorded evidence already settles it; lifecycle in the response says where it landed. Each call opens a new implementation round, so call it once per delivery; add later context with add_implementation_note or add_commit_reference. For work that has no item, use record_completed_work. Act on any returned own_criteria_follow_through or brief_follow_through before you report. Then report the commit, lifecycle and verification status exactly as returned. This is not human sign-off. Lifecycle and completion follow devspec://product/implementation-contract.",
+		"description": "Record delivered work on an existing action item, claimed or not: the commit, changed files, checks and an honest summary. If the item is claimed, only the claim's holder can record it, and the claim and its reservation close. The item moves to implemented, or straight to done if its recorded evidence already settles it; lifecycle in the response says where it landed. Each call opens a new implementation round, so call it once per delivery; add later context with add_implementation_note or add_commit_reference. For work that has no item, use record_completed_work. Act on any returned own_criteria_follow_through, brief_follow_through or impact_follow_through before you report. Then report the commit, lifecycle and verification status exactly as returned. This is not human sign-off. Lifecycle and completion follow devspec://product/implementation-contract.",
 		"intent": "record report delivered implementation on an existing action item claimed or unclaimed commit changed files checks completion"
 	},
 	{
 		"id": "record_memory",
 		"name": "record memory",
-		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Work in progress and delivery evidence belong on the action item (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a long document or reference material is an artifact (create_resource). As it is written, a quick closeness check (it does not read the records) compares the draft with existing memories. If one closely resembles it, nothing is recorded and the response names it (reconcile_required, closest_match; on a write that would be queued, code reconcile_required and reconcile.closest): read it, then supersede or update it, link the two if both stand, re-call with confirm_new if yours is genuinely distinct, or ask the person, which is often the right answer. Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Work in progress and delivery evidence belong on the action item (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a long document or reference material is an artifact (create_resource). As it is written, a quick closeness check (it does not read the records) compares the draft with existing memories. If one closely resembles it, nothing is recorded and the response names it (reconcile_required, closest_match; on a write that would be queued, code reconcile_required and reconcile.closest): read it, then supersede or update it, link the two if both stand, re-call with confirm_new if yours is genuinely distinct, or ask the person, which is often the right answer. Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. A response for a decision or convention may carry impact_follow_through: act on it before you report.",
 		"intent": "record save capture remember new decision convention architecture insight risk"
 	},
 	{
@@ -428,7 +440,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "supersede_memory",
 		"name": "supersede memory",
-		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. If a different memory closely resembles the new text, nothing is superseded and the response names it (reconcile_required, closest_match); read it before deciding. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. If a different memory closely resembles the new text, nothing is superseded and the response names it (reconcile_required, closest_match); read it before deciding. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. A response for a decision or convention may carry impact_follow_through: act on it before you report.",
 		"intent": "replace changed decision memory new agreed version supersede"
 	},
 	{
@@ -588,6 +600,8 @@ export const MODEL_VERB_NAMES = [
 	"record_criterion_verdicts",
 	"classify_criterion",
 	"add_commit_reference",
+	"assess_change_impact",
+	"record_change_impact",
 	"record_memory",
 	"supersede_memory",
 	"update_memory",
@@ -6194,7 +6208,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_implementation",
 		"label": "DevSpec: Record Implementation",
-		"description": "Record delivered work on an existing action item, claimed or not: the commit, changed files, checks and an honest summary. If the item is claimed, only the claim's holder can record it, and the claim and its reservation close. The item moves to implemented, or straight to done if its recorded evidence already settles it; lifecycle in the response says where it landed. Each call opens a new implementation round, so call it once per delivery; add later context with add_implementation_note or add_commit_reference. For work that has no item, use record_completed_work. Act on any returned own_criteria_follow_through or brief_follow_through before you report. Then report the commit, lifecycle and verification status exactly as returned. This is not human sign-off. Lifecycle and completion follow devspec://product/implementation-contract.",
+		"description": "Record delivered work on an existing action item, claimed or not: the commit, changed files, checks and an honest summary. If the item is claimed, only the claim's holder can record it, and the claim and its reservation close. The item moves to implemented, or straight to done if its recorded evidence already settles it; lifecycle in the response says where it landed. Each call opens a new implementation round, so call it once per delivery; add later context with add_implementation_note or add_commit_reference. For work that has no item, use record_completed_work. Act on any returned own_criteria_follow_through, brief_follow_through or impact_follow_through before you report. Then report the commit, lifecycle and verification status exactly as returned. This is not human sign-off. Lifecycle and completion follow devspec://product/implementation-contract.",
 		"searchIntent": "record report delivered implementation on an existing action item claimed or unclaimed commit changed files checks completion",
 		"modelInputSchema": {
 			"type": "object",
@@ -7497,9 +7511,257 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"kind": "model"
 	},
 	{
+		"name": "assess_change_impact",
+		"label": "DevSpec: Assess Change Impact",
+		"description": "Step 1 of the impact assessment a recording response asks for in impact_follow_through. Say what the change you just recorded did to existing behaviour or claims, before and after. DevSpec chooses the existing action items that may be affected, from that and from the change's links, stores the list and returns it with why each was chosen. Then rule on every one with record_change_impact. Nothing in the project changes because of an assessment: it is recorded so DevSpec can measure how well agents judge the effect of their own changes. A second call for the same assessment is refused; the list is fixed once served.",
+		"searchIntent": "assess which existing action items my change affects replaced obsolete",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"assessment_id": {
+					"type": "string",
+					"description": "The assessment_id from impact_follow_through in the response that recorded the change."
+				},
+				"changed_behaviour": {
+					"minItems": 1,
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"before": {
+								"type": "string",
+								"minLength": 1,
+								"description": "What used to be true, required or offered."
+							},
+							"after": {
+								"type": "string",
+								"minLength": 1,
+								"description": "What is true now, after this change."
+							}
+						},
+						"required": [
+							"before",
+							"after"
+						]
+					},
+					"description": "Each effect the change had on existing behaviour or claims: removals, replacements, renames, tightened rules, changed defaults. Leave out additions that leave existing behaviour as it was."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; omitted, the connection your client proved is used. It records which agent made the assessment. A connection that is not live, or not yours, is refused."
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"type": "string"
+				}
+			},
+			"required": [
+				"assessment_id",
+				"changed_behaviour"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"assessment_id": {
+					"type": "string",
+					"description": "The assessment_id from impact_follow_through in the response that recorded the change."
+				},
+				"changed_behaviour": {
+					"minItems": 1,
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"before": {
+								"type": "string",
+								"minLength": 1,
+								"description": "What used to be true, required or offered."
+							},
+							"after": {
+								"type": "string",
+								"minLength": 1,
+								"description": "What is true now, after this change."
+							}
+						},
+						"required": [
+							"before",
+							"after"
+						]
+					},
+					"description": "Each effect the change had on existing behaviour or claims: removals, replacements, renames, tightened rules, changed defaults. Leave out additions that leave existing behaviour as it was."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; omitted, the connection your client proved is used. It records which agent made the assessment. A connection that is not live, or not yours, is refused."
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"type": "string"
+				}
+			},
+			"required": [
+				"assessment_id",
+				"changed_behaviour"
+			]
+		},
+		"kind": "model"
+	},
+	{
+		"name": "record_change_impact",
+		"label": "DevSpec: Record Change Impact",
+		"description": "Step 2 of the impact assessment: rule on every candidate assess_change_impact returned, or abstain. Each ruling is replaced (this change deliberately replaced behaviour the item delivered), unnecessary (open work the item asks for is no longer needed because of this change), regression (this change breaks a requirement the item still holds) or not (the item still stands; related, refined or built on is not), with a one-sentence note. Any ruling other than not also quotes the item's own words and cites the part of the change that does it. A submission that leaves a candidate unruled, rules on something it was not shown, or quotes words the item does not contain is refused with the details, and nothing is stored. Nothing in the project changes because of a ruling. An assessment is ruled on once.",
+		"searchIntent": "record rulings on which existing items my change affects abstain",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"assessment_id": {
+					"type": "string",
+					"description": "The assessment_id from impact_follow_through in the response that recorded the change."
+				},
+				"rulings": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"item_id": {
+								"type": "string",
+								"description": "A candidate's item_id, exactly as returned."
+							},
+							"relationship": {
+								"type": "string",
+								"enum": [
+									"replaced",
+									"unnecessary",
+									"regression",
+									"not"
+								],
+								"description": "replaced, unnecessary, regression or not."
+							},
+							"note": {
+								"type": "string",
+								"description": "One sentence: what in the change does it, or why the item still stands."
+							},
+							"item_quote": {
+								"type": "string",
+								"description": "Required unless relationship is not: the item's own words that the change replaces or makes unnecessary, quoted exactly."
+							},
+							"change_citation": {
+								"type": "string",
+								"description": "Required unless relationship is not: the part of the change that does it, such as a file and what it removed, or the decision's words."
+							}
+						},
+						"required": [
+							"item_id",
+							"relationship",
+							"note"
+						]
+					},
+					"description": "One ruling per candidate. Not together with abstain_reason. Omitted: abstain_reason must be given."
+				},
+				"abstain_reason": {
+					"type": "string",
+					"description": "Why you cannot assess this change now. Not together with rulings. Omitted: rulings must cover every candidate."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; omitted, the connection your client proved is used. It records which agent made the assessment. A connection that is not live, or not yours, is refused."
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"type": "string"
+				}
+			},
+			"required": [
+				"assessment_id"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"assessment_id": {
+					"type": "string",
+					"description": "The assessment_id from impact_follow_through in the response that recorded the change."
+				},
+				"rulings": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"item_id": {
+								"type": "string",
+								"description": "A candidate's item_id, exactly as returned."
+							},
+							"relationship": {
+								"type": "string",
+								"enum": [
+									"replaced",
+									"unnecessary",
+									"regression",
+									"not"
+								],
+								"description": "replaced, unnecessary, regression or not."
+							},
+							"note": {
+								"type": "string",
+								"description": "One sentence: what in the change does it, or why the item still stands."
+							},
+							"item_quote": {
+								"type": "string",
+								"description": "Required unless relationship is not: the item's own words that the change replaces or makes unnecessary, quoted exactly."
+							},
+							"change_citation": {
+								"type": "string",
+								"description": "Required unless relationship is not: the part of the change that does it, such as a file and what it removed, or the decision's words."
+							}
+						},
+						"required": [
+							"item_id",
+							"relationship",
+							"note"
+						]
+					},
+					"description": "One ruling per candidate. Not together with abstain_reason. Omitted: abstain_reason must be given."
+				},
+				"abstain_reason": {
+					"type": "string",
+					"description": "Why you cannot assess this change now. Not together with rulings. Omitted: rulings must cover every candidate."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; omitted, the connection your client proved is used. It records which agent made the assessment. A connection that is not live, or not yours, is refused."
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"type": "string"
+				}
+			},
+			"required": [
+				"assessment_id"
+			]
+		},
+		"kind": "model"
+	},
+	{
 		"name": "record_memory",
 		"label": "DevSpec: Record Memory",
-		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Work in progress and delivery evidence belong on the action item (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a long document or reference material is an artifact (create_resource). As it is written, a quick closeness check (it does not read the records) compares the draft with existing memories. If one closely resembles it, nothing is recorded and the response names it (reconcile_required, closest_match; on a write that would be queued, code reconcile_required and reconcile.closest): read it, then supersede or update it, link the two if both stand, re-call with confirm_new if yours is genuinely distinct, or ask the person, which is often the right answer. Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Work in progress and delivery evidence belong on the action item (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a long document or reference material is an artifact (create_resource). As it is written, a quick closeness check (it does not read the records) compares the draft with existing memories. If one closely resembles it, nothing is recorded and the response names it (reconcile_required, closest_match; on a write that would be queued, code reconcile_required and reconcile.closest): read it, then supersede or update it, link the two if both stand, re-call with confirm_new if yours is genuinely distinct, or ask the person, which is often the right answer. Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. A response for a decision or convention may carry impact_follow_through: act on it before you report.",
 		"searchIntent": "record save capture remember new decision convention architecture insight risk",
 		"modelInputSchema": {
 			"type": "object",
@@ -7686,7 +7948,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "supersede_memory",
 		"label": "DevSpec: Supersede Memory",
-		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. If a different memory closely resembles the new text, nothing is superseded and the response names it (reconcile_required, closest_match); read it before deciding. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. If a different memory closely resembles the new text, nothing is superseded and the response names it (reconcile_required, closest_match); read it before deciding. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. A response for a decision or convention may carry impact_follow_through: act on it before you report.",
 		"searchIntent": "replace changed decision memory new agreed version supersede",
 		"modelInputSchema": {
 			"type": "object",
@@ -13814,8 +14076,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 93,
-	model: 81,
+	total: 95,
+	model: 83,
 	pump: 11,
 	never_model: 1,
 } as const;

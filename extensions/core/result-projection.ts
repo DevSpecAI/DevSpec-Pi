@@ -139,6 +139,10 @@ const ACK_VERBS = new Set([
 	"surface_session_action_items",
 	"reserve_work_items",
 	"write_project_instruction_rule",
+	// The shadow impact assessment (DevSpec item 81f79916): both are writes whose
+	// result the model must act on, so they are acknowledgements with required blocks.
+	"assess_change_impact",
+	"record_change_impact",
 ]);
 
 const ROW_KEYS = [
@@ -161,6 +165,9 @@ const ACK_GATE_KEYS = [
 	"manual_followup_steps",
 	"own_criteria_follow_through",
 	"brief_follow_through",
+	"impact_follow_through",
+	"candidates",
+	"problems",
 	"blocked",
 	"is_blocked",
 	"claimed",
@@ -826,6 +833,39 @@ function followThroughBlock(kind: "own" | "brief", value: unknown): string {
 	return lines.join("\n");
 }
 
+/**
+ * DevSpec's request to assess which existing work a just-recorded change affects
+ * (item 81f79916). It is the whole instruction, so it is kept word for word: the
+ * steps are the contract the two tools follow, and clipping them loses the
+ * relationship definitions the rulings depend on.
+ */
+function impactFollowThroughBlock(value: unknown): string {
+	const row = record(value);
+	if (!row) return `Impact follow-through (act before reporting): ${reviewData(value)}`;
+	const lines = ["Impact follow-through (act before reporting):"];
+	if (typeof row.assessment_id === "string") lines.push(`- assessment_id: ${row.assessment_id}`);
+	if (typeof row.why === "string") lines.push(`- why: ${row.why}`);
+	const steps = Array.isArray(row.steps) ? row.steps.filter((step): step is string => typeof step === "string") : [];
+	steps.forEach((step, index) => lines.push(`${index + 1}. ${step}`));
+	if (lines.length === 1) lines.push(reviewData(value));
+	return lines.join("\n");
+}
+
+/** Every candidate assess_change_impact served, whole: the agent must rule on each one. */
+function impactCandidatesBlock(root: Row): string {
+	const candidates = Array.isArray(root.candidates) ? root.candidates : [];
+	const lines = [`Impact candidates — rule on every one (${candidates.length}), assessment_id ${String(root.assessment_id ?? "?")}:`];
+	for (const raw of candidates) {
+		const row = record(raw);
+		if (!row) continue;
+		const reasons = Array.isArray(row.reasons) ? row.reasons.filter((reason): reason is string => typeof reason === "string").join("; ") : "";
+		lines.push(`- [${String(row.item_id ?? "?")}] ${String(row.title ?? "")} (${String(row.lifecycle ?? "?")})${reasons ? ` — chosen because: ${reasons}` : ""}`);
+		if (typeof row.summary === "string" && row.summary) lines.push(`  ${row.summary}`);
+	}
+	for (const key of ["next", "shadow_note"] as const) if (typeof root[key] === "string") lines.push(String(root[key]));
+	return lines.join("\n");
+}
+
 function manualFollowUpBlock(root: Row): string | null {
 	const human = [
 		...(Array.isArray(root.human_actions_required) ? root.human_actions_required : []),
@@ -875,6 +915,8 @@ function ackProjection(toolName: string, details: unknown): string | null {
 		"receipt", "receipt_id", "operation_id", "draft_id", "read_status", "status_url", "preview",
 		"expires_at", "current_head", "expected_version", "version", "previous_id", "lineage",
 		"assessment", "assessment_receipt", "comparison_pending", "needs_clarification",
+		// The shadow impact assessment's receipt (item 81f79916).
+		"assessment_id", "abstained", "rulings", "by_relationship", "stored", "guidance", "shadow_note",
 		// A queued suggestion or edit: what happened and where a Maintainer reviews it.
 		"effect", "code", "fields", "proposal_revision", "review_url",
 		// reserve_work_items: what was reserved, and each item skipped with its reason
@@ -910,6 +952,15 @@ function ackProjection(toolName: string, details: unknown): string | null {
 	}
 	if (hasOwn(root, "brief_follow_through") && root.brief_follow_through != null) {
 		required.push(followThroughBlock("brief", root.brief_follow_through));
+	}
+	if (hasOwn(root, "impact_follow_through") && root.impact_follow_through != null) {
+		required.push(impactFollowThroughBlock(root.impact_follow_through));
+	}
+	if (toolName === "assess_change_impact" && Array.isArray(root.candidates)) {
+		required.push(impactCandidatesBlock(root));
+	}
+	if (toolName === "record_change_impact" && hasOwn(root, "problems")) {
+		required.push(`Impact assessment refused, nothing stored — every problem (server data):\n${reviewData(root.problems)}`);
 	}
 	const manual = manualFollowUpBlock(root);
 	if (manual) required.push(manual);

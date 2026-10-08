@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.9
+
+- When Pi records finished work or a decision in DevSpec, DevSpec may ask which existing action items that change affects. Pi now shows that request whole, offers the two tools that answer it (`assess_change_impact`, then `record_change_impact`), shows every item DevSpec puts forward, and shows exactly what to fix if an answer is refused. Nothing in your project changes because of the answers. The catalogue is regenerated against DevSpec's current tools.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.8
 
 - Searching a project's database schema can now be narrowed to one database: give `get_database_schema` a `query` and a `database`, and it searches only that database. A database the project doesn't have is refused, with the list of the ones it has. When a project has several databases, each result names the one it came from, and every result says whether it was read from the database itself or declared in your code (a MongoDB collection comes from your models). The catalogue is regenerated against DevSpec's current tools.

@@ -525,7 +525,19 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// name impact_follow_through; that block is required on their acks. No
 		// other schema or family changed. Benchmark before/after: initial surface
 		// 46,155 -> 47,418 estimated tokens; every budget still passes.
-		"b12f651dbc4d9ecc70b8f386da7429046b4943b7da7d16cd22b213bf6a18ae1c",
+		//
+		// Rebaselined 2026-10-08 for DevSpec items da44664a and 395f8da2 (work taken
+		// up between commands keeps its own requester; a refusal names only the
+		// refs a tool declares), regenerated against the DevSpecV2 tree carrying
+		// that change. Compared old/new generated catalogues: 83 model verbs before
+		// and after, none added or removed, no input added, removed or made
+		// required. Description only: the shared work_claim_ref text now says an
+		// omitted ref "refuses when it cannot tell" instead of restating the old
+		// several-claims rule, which stopped being true for work-record writes. No
+		// projection family or hot-set membership changed. Benchmark before/after:
+		// initial surface 47,418 -> 47,004 estimated tokens; every budget still
+		// passes.
+		"b7cbadf4769dd0d12ed5e26f112f83ac68093fe9ee44a4424748d441f489c21d",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 5aa858f2f7285fa1c8b35cccd3ca3ba10dc5b534df8fd573c0378d5b5d80134d
+ * Schema fingerprint: db012884ecacdb8cff424aab98745af2a07f70f3a63f2e00625d360a42ae6d2a
  * Description fingerprint: 4b7428287e6de2ddb8ac9180777bda58e7538f05f36fa5e069b4026077dbcbbd
- * Regenerated: 2026-10-08T11:19:48.627Z
+ * Regenerated: 2026-10-08T12:11:10.951Z
  */
-export const MCP_CATALOG_FINGERPRINT = "5aa858f2f7285fa1c8b35cccd3ca3ba10dc5b534df8fd573c0378d5b5d80134d";
+export const MCP_CATALOG_FINGERPRINT = "db012884ecacdb8cff424aab98745af2a07f70f3a63f2e00625d360a42ae6d2a";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "4b7428287e6de2ddb8ac9180777bda58e7538f05f36fa5e069b4026077dbcbbd";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-08T11:19:48.627Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-08T12:11:10.951Z";
 export const TOOL_CATALOG_VERSION = "c0c618c7231ef9be50b4b67f835962e3f18891239ef636abc854e793af1ff18e";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -4910,7 +4910,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -5071,7 +5071,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -5345,7 +5345,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -5385,7 +5385,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -5428,7 +5428,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -5463,7 +5463,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -5691,7 +5691,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -5762,7 +5762,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -6032,7 +6032,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -6064,7 +6064,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -6132,7 +6132,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -6194,7 +6194,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -6386,7 +6386,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -6570,7 +6570,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -6747,7 +6747,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -6918,7 +6918,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -7189,7 +7189,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -7295,7 +7295,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -7339,7 +7339,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -7377,7 +7377,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -7443,7 +7443,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -7500,7 +7500,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -7555,7 +7555,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -7604,7 +7604,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -7680,7 +7680,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -7748,7 +7748,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -7843,7 +7843,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -7933,7 +7933,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -8008,7 +8008,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -8076,7 +8076,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -8173,7 +8173,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -8261,7 +8261,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -8296,7 +8296,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -8324,7 +8324,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -8380,7 +8380,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -8432,7 +8432,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -8501,7 +8501,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -8561,7 +8561,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -8643,7 +8643,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -8718,7 +8718,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -8802,7 +8802,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -8878,7 +8878,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -8947,7 +8947,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -9011,7 +9011,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -9049,7 +9049,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -9078,7 +9078,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -9134,7 +9134,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},
@@ -9186,7 +9186,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when that is ambiguous (several claims, no live command, and a write about none of them).",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
 					"type": "string"
 				}
 			},

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.10
+
+- The catalogue is regenerated against DevSpec's current tools. One parameter description is shorter: `work_claim_ref` now says that when you leave it out, DevSpec works out who asked from your connection and refuses when it cannot tell. Such a refusal now names only what the tool you called accepts.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.9
 
 - When Pi records finished work or a decision in DevSpec, DevSpec may ask which existing action items that change affects. Pi now shows that request whole, offers the two tools that answer it (`assess_change_impact`, then `record_change_impact`), shows every item DevSpec puts forward, and shows exactly what to fix if an answer is refused. Nothing in your project changes because of the answers. The catalogue is regenerated against DevSpec's current tools.

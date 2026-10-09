@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 3be0de2ec437302457528efc0349e672bcdaa8c8b27984f5759354d89a546e56
- * Description fingerprint: c05d31ebeeabad7a6b5926a5b4027f82df38096bba188cfebffaffc43218d0f4
- * Regenerated: 2026-10-09T20:49:14.006Z
+ * Schema fingerprint: 5f2465aa259b329cdd142aa71a483dff4d1fc486e98b801053b1c3a2e1d6032c
+ * Description fingerprint: 1d482d687eda05fec001c8ca221719bff5e7328bcb4f6201388e36e9d6a6dd33
+ * Regenerated: 2026-10-09T22:26:10.244Z
  */
-export const MCP_CATALOG_FINGERPRINT = "3be0de2ec437302457528efc0349e672bcdaa8c8b27984f5759354d89a546e56";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "c05d31ebeeabad7a6b5926a5b4027f82df38096bba188cfebffaffc43218d0f4";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-09T20:49:14.006Z";
-export const TOOL_CATALOG_VERSION = "0fe57e9c454561238719c6505f0a2068042cb6602686e6de01066df4bfdf6e54";
+export const MCP_CATALOG_FINGERPRINT = "5f2465aa259b329cdd142aa71a483dff4d1fc486e98b801053b1c3a2e1d6032c";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "1d482d687eda05fec001c8ca221719bff5e7328bcb4f6201388e36e9d6a6dd33";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-09T22:26:10.244Z";
+export const TOOL_CATALOG_VERSION = "b4eaad9d6cefd75c8e97819333afc48c8a7b8c2e094bc7fa9b3602b643d753c4";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -62,7 +62,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "create_automation",
 		"name": "create automation",
-		"description": "Save a reusable job for the project that agents can run again and again. Everyone on the project can see it and run it, and its creator and Maintainers can change it. You are switched on for it, so when it starts by itself it can go to your agents; pass switched_on false to stay off. Offer it when the person has just done, or described, something they will repeat, and create it once they agree. Propose a few short checkable acceptance criteria: each run reports a verdict per line. It does not schedule or start runs: those are set up in the app, and runs then reach agents through get_automation_runs. A one-off task is an action item (create_action_item); a reference document is an artifact (create_resource). A name already used in this project is refused.",
+		"description": "Save a reusable job for the project that agents can run again and again. Everyone on the project can see it and run it, and its creator and Maintainers can change it. It is for the project (one run covers everyone) unless run_for says each_person, for a job about the runner's own setup that everyone runs for themselves. On a project automation you are switched on, so when it starts by itself it can go to your agents; pass switched_on false to stay off. Offer it when the person has just done, or described, something they will repeat, and create it once they agree. Propose a few short checkable acceptance criteria: each run reports a verdict per line. It does not schedule or start runs: those are set up in the app, and runs then reach agents through get_automation_runs. A one-off task is an action item (create_action_item); a reference document is an artifact (create_resource). A name already used in this project is refused.",
 		"intent": "save create reusable repeatable automation job with instructions and criteria"
 	},
 	{
@@ -470,7 +470,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "update_automation",
 		"name": "update automation",
-		"description": "Change an automation: its creator or a Maintainer may; anyone else is refused, though a Contributor can still run it. Only the fields you pass change, and a list field you pass (acceptance_criteria, target_repo_ids, expected_tools, tags) replaces the whole list. Pass existing criteria back as {id, text} to keep their ids, so past run verdicts stay attached; bare strings become new criteria, and criteria you leave out are removed. Raising permission switches everyone but you off for it and tells them, because they agreed to less. runs_by_itself false pauses it: schedules and events start nothing, and Run in the app still works. This edits the definition, not a run.",
+		"description": "Change an automation: its creator or a Maintainer may; anyone else is refused, though a Contributor can still run it. Only the fields you pass change, and a list field you pass (acceptance_criteria, target_repo_ids, expected_tools, tags) replaces the whole list. Pass existing criteria back as {id, text} to keep their ids, so past run verdicts stay attached; bare strings become new criteria, and criteria you leave out are removed. Raising permission switches everyone but you off for it and tells them, because they agreed to less. runs_by_itself false pauses it: schedules and events start nothing, and Run in the app still works. run_for changes who a run is for. This edits the definition, not a run.",
 		"intent": "edit update pause existing automation job definition instructions criteria"
 	},
 	{
@@ -11847,7 +11847,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "create_automation",
 		"label": "DevSpec: Create Automation",
-		"description": "Save a reusable job for the project that agents can run again and again. Everyone on the project can see it and run it, and its creator and Maintainers can change it. You are switched on for it, so when it starts by itself it can go to your agents; pass switched_on false to stay off. Offer it when the person has just done, or described, something they will repeat, and create it once they agree. Propose a few short checkable acceptance criteria: each run reports a verdict per line. It does not schedule or start runs: those are set up in the app, and runs then reach agents through get_automation_runs. A one-off task is an action item (create_action_item); a reference document is an artifact (create_resource). A name already used in this project is refused.",
+		"description": "Save a reusable job for the project that agents can run again and again. Everyone on the project can see it and run it, and its creator and Maintainers can change it. It is for the project (one run covers everyone) unless run_for says each_person, for a job about the runner's own setup that everyone runs for themselves. On a project automation you are switched on, so when it starts by itself it can go to your agents; pass switched_on false to stay off. Offer it when the person has just done, or described, something they will repeat, and create it once they agree. Propose a few short checkable acceptance criteria: each run reports a verdict per line. It does not schedule or start runs: those are set up in the app, and runs then reach agents through get_automation_runs. A one-off task is an action item (create_action_item); a reference document is an artifact (create_resource). A name already used in this project is refused.",
 		"searchIntent": "save create reusable repeatable automation job with instructions and criteria",
 		"modelInputSchema": {
 			"type": "object",
@@ -11909,9 +11909,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Tools or access the job needs (e.g. \"axiom\"); a claimed run is told to check them first and fail cleanly if one is missing. Omitted: none."
 				},
+				"run_for": {
+					"type": "string",
+					"enum": [
+						"project",
+						"each_person"
+					],
+					"description": "Who a run is for. project: it acts on something the project shares (a deploy, a branch, a server), one run at a time covers everyone. each_person: it checks or fixes the runner's own setup (their plugins, their machine), so everyone runs it for themselves on their own schedule or with Run. Omitted: project."
+				},
 				"switched_on": {
 					"type": "boolean",
-					"description": "false: you are not switched on, so when it starts by itself it does not go to your agents until you switch on in the app. Omitted: switched on."
+					"description": "Project automations only. false: you are not switched on, so when it starts by itself it does not go to your agents until you switch on in the app. Omitted: switched on."
 				},
 				"tags": {
 					"type": "array",
@@ -12009,9 +12017,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Tools or access the job needs (e.g. \"axiom\"); a claimed run is told to check them first and fail cleanly if one is missing. Omitted: none."
 				},
+				"run_for": {
+					"type": "string",
+					"enum": [
+						"project",
+						"each_person"
+					],
+					"description": "Who a run is for. project: it acts on something the project shares (a deploy, a branch, a server), one run at a time covers everyone. each_person: it checks or fixes the runner's own setup (their plugins, their machine), so everyone runs it for themselves on their own schedule or with Run. Omitted: project."
+				},
 				"switched_on": {
 					"type": "boolean",
-					"description": "false: you are not switched on, so when it starts by itself it does not go to your agents until you switch on in the app. Omitted: switched on."
+					"description": "Project automations only. false: you are not switched on, so when it starts by itself it does not go to your agents until you switch on in the app. Omitted: switched on."
 				},
 				"tags": {
 					"type": "array",
@@ -12054,7 +12070,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_automation",
 		"label": "DevSpec: Update Automation",
-		"description": "Change an automation: its creator or a Maintainer may; anyone else is refused, though a Contributor can still run it. Only the fields you pass change, and a list field you pass (acceptance_criteria, target_repo_ids, expected_tools, tags) replaces the whole list. Pass existing criteria back as {id, text} to keep their ids, so past run verdicts stay attached; bare strings become new criteria, and criteria you leave out are removed. Raising permission switches everyone but you off for it and tells them, because they agreed to less. runs_by_itself false pauses it: schedules and events start nothing, and Run in the app still works. This edits the definition, not a run.",
+		"description": "Change an automation: its creator or a Maintainer may; anyone else is refused, though a Contributor can still run it. Only the fields you pass change, and a list field you pass (acceptance_criteria, target_repo_ids, expected_tools, tags) replaces the whole list. Pass existing criteria back as {id, text} to keep their ids, so past run verdicts stay attached; bare strings become new criteria, and criteria you leave out are removed. Raising permission switches everyone but you off for it and tells them, because they agreed to less. runs_by_itself false pauses it: schedules and events start nothing, and Run in the app still works. run_for changes who a run is for. This edits the definition, not a run.",
 		"searchIntent": "edit update pause existing automation job definition instructions criteria",
 		"modelInputSchema": {
 			"type": "object",
@@ -12121,6 +12137,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"runs_by_itself": {
 					"type": "boolean",
 					"description": "false pauses it for everyone: schedules and events start nothing and its waiting runs that nobody pressed are cancelled; Run in the app still works. true resumes it. Omitted: unchanged."
+				},
+				"run_for": {
+					"type": "string",
+					"enum": [
+						"project",
+						"each_person"
+					],
+					"description": "Changes who a run is for. To each_person: refused while it starts when a deploy fails or its schedule waits for a condition; its shared schedule becomes a personal schedule for everyone switched on. To project: everyone's own schedule ends and they are told, and you are switched on. Omitted: unchanged."
 				},
 				"tags": {
 					"type": "array",
@@ -12223,6 +12247,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"runs_by_itself": {
 					"type": "boolean",
 					"description": "false pauses it for everyone: schedules and events start nothing and its waiting runs that nobody pressed are cancelled; Run in the app still works. true resumes it. Omitted: unchanged."
+				},
+				"run_for": {
+					"type": "string",
+					"enum": [
+						"project",
+						"each_person"
+					],
+					"description": "Changes who a run is for. To each_person: refused while it starts when a deploy fails or its schedule waits for a condition; its shared schedule becomes a personal schedule for everyone switched on. To project: everyone's own schedule ends and they are told, and you are switched on. Omitted: unchanged."
 				},
 				"tags": {
 					"type": "array",

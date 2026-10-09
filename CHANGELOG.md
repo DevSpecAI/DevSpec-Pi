@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.18
+
+- The catalogue is regenerated against DevSpec's current automation tools. Creating or changing an automation now takes `run_for`: `project` when one run covers everyone (a failed deploy, a merged branch), or `each_person` when everyone runs it for themselves on their own agents and their own schedule (cleaning up their machine, updating their tools). `switched_on` applies to automations for the project only.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.17
 
 - The catalogue is regenerated against DevSpec's current automation tools: they now say that Contributors and Maintainers run automations, and that a Contributor who didn't create one can still run it but not change it.

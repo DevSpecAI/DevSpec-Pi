@@ -580,7 +580,18 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// Maintainer can change it. No projection family or hot-set membership
 		// changed. Benchmark before/after: initial surface 49,233 -> 49,176
 		// estimated tokens; every budget still passes.
-		"1cbc522374a3cc80367b90d9d04beee3e0483dca8fa6dbd68e9c3374f30f0d24",
+		//
+		// Rebaselined 2026-10-09 for DevSpec decision f812ed99 (an automation is
+		// for the project or for each person; items 2a6570b7, f546c812),
+		// regenerated against the server branch feat/automations-for-each-person
+		// on staging cab85c019. 95 verbs before and after, none added or removed,
+		// nothing made required. create_automation and update_automation gain an
+		// optional run_for (project | each_person); create_automation's
+		// switched_on now says it applies to project automations only, and both
+		// descriptions say what each kind is for. No projection family or hot-set
+		// membership changed. Benchmark before/after: initial surface 49,180 ->
+		// 49,430 estimated tokens; every budget still passes.
+		"a0d3a47556bc32f2743dcde38f5dcadc4f0449b726eb8f7d20f4154d252e2986",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

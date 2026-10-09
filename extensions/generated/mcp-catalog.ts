@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: de30a53d3be96cee3808202545d2a7ce150b82722681c980522a2cd0a56c94fc
- * Description fingerprint: 1623bc5d92e8f34baf4d29e9d1de5265b6100e45ebac5005e38d1a10f8864102
- * Regenerated: 2026-10-08T23:22:47.018Z
+ * Schema fingerprint: 3be0de2ec437302457528efc0349e672bcdaa8c8b27984f5759354d89a546e56
+ * Description fingerprint: e8759307098b3f38ee55401eaf17abec39e63e73f77f97cc6003db9f58c3879b
+ * Regenerated: 2026-10-09T19:18:27.511Z
  */
-export const MCP_CATALOG_FINGERPRINT = "de30a53d3be96cee3808202545d2a7ce150b82722681c980522a2cd0a56c94fc";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "1623bc5d92e8f34baf4d29e9d1de5265b6100e45ebac5005e38d1a10f8864102";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-08T23:22:47.018Z";
-export const TOOL_CATALOG_VERSION = "cb3643104bf0e1bf531562371c4ec5f879b6cea285fe32173665c51f36160163";
+export const MCP_CATALOG_FINGERPRINT = "3be0de2ec437302457528efc0349e672bcdaa8c8b27984f5759354d89a546e56";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "e8759307098b3f38ee55401eaf17abec39e63e73f77f97cc6003db9f58c3879b";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-09T19:18:27.512Z";
+export const TOOL_CATALOG_VERSION = "5290d61705172d47daffe40ac0e8025c03e24bd5219919ce6d15733688c5e8fe";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -38,7 +38,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "claim_automation_run",
 		"name": "claim automation run",
-		"description": "Take one waiting automation run before doing it; the reply carries its instruction, acceptance criteria with ids, permission and expected tools. Pass connection_id, the agent doing the run: without it the run goes to the agent it was aimed at, or to your only connected agent, and is otherwise refused. The permission governs what you do on the machine and its repositories, not what you write to DevSpec: look_only means investigate and report only, can_commit allows local commits but no push, can_push allows both; check the expected tools first. A refusal names its reason and says whether a retry could work: already_taken is normal contention, so move on; already_yours means carry on and report it; already_finished: if you ran it, correct it with record_automation_run, otherwise there is nothing to take; a scheduled run is not offered to an agent in the middle of a conversation; a run aimed at another agent is left for that one. When done, report with record_automation_run.",
+		"description": "Take one waiting automation run before doing it; the reply carries its instruction, acceptance criteria with ids, permission and expected tools. Pass connection_id, the agent doing the run: without it the run goes to the agent it was aimed at, or to your only connected agent, and is otherwise refused. The permission governs what you do on the machine and its repositories, not what you write to DevSpec: look_only means investigate and report only, can_commit allows local commits but no push, can_push allows both; check the expected tools first. A refusal names its reason and says whether a retry could work: already_taken is normal contention, so move on; already_yours means carry on and report it; already_finished: if you ran it, correct it with record_automation_run, otherwise there is nothing to take; needs_consent: it started by itself and your owner has not switched this automation on; a scheduled run is not offered to an agent in the middle of a conversation; a run aimed at another agent is left for that one. When done, report with record_automation_run.",
 		"intent": "claim take waiting automation run start the job"
 	},
 	{
@@ -62,7 +62,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "create_automation",
 		"name": "create automation",
-		"description": "Save a reusable job, owned by you, that agents can run again and again. It is private to you unless you set visibility 'project'. Offer it when the person has just done, or described, something they will repeat, and create it once they agree. Propose a few short checkable acceptance criteria: each run reports a verdict per line. It does not schedule or start runs: those are set up in the app, and runs then reach agents through get_automation_runs. A one-off task is an action item (create_action_item); a reference document is an artifact (create_resource). A name you already use for another of your automations is refused.",
+		"description": "Save a reusable job for the project that agents can run again and again. Everyone on the project can see it and run it, and its creator and Maintainers can change it. You are switched on for it, so when it starts by itself it can go to your agents; pass switched_on false to stay off. Offer it when the person has just done, or described, something they will repeat, and create it once they agree. Propose a few short checkable acceptance criteria: each run reports a verdict per line. It does not schedule or start runs: those are set up in the app, and runs then reach agents through get_automation_runs. A one-off task is an action item (create_action_item); a reference document is an artifact (create_resource). A name already used in this project is refused.",
 		"intent": "save create reusable repeatable automation job with instructions and criteria"
 	},
 	{
@@ -80,7 +80,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "delete_automation",
 		"name": "delete automation",
-		"description": "Archive one of your own automations; nothing is deleted. It stops running and leaves every list, everyone's queued and waiting runs of it are cancelled, a run already in progress can still be reported, and its run history is kept. It can be restored on the Automations page, not from here. A teammate's automation is refused. Ask the person first: it is something they wrote to reuse.",
+		"description": "Archive an automation; nothing is deleted. Its creator or a Maintainer may; anyone else is refused. It stops running and leaves every list, everyone's queued and waiting runs of it are cancelled, a run already in progress can still be reported, and its run history is kept. It can be restored on the Automations page, not from here. Ask the person first: it is something the project relies on.",
 		"intent": "archive retire delete stop a saved automation job"
 	},
 	{
@@ -128,20 +128,20 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_automation",
 		"name": "get automation",
-		"description": "Read one automation you can see (yours or shared) in full, by automation_id or by name: its instruction, acceptance criteria with their ids, permission, the agents it may run on (eligible_agents, each with any model it needs; empty means any agent), tags and whose it is. A name matching several returns ambiguous: true with the candidates instead of guessing; ask which, or call again with the id. Read it before update_automation. This does not start a run: to do the job ad hoc, follow its instruction within its permission, or ask the person to start a run in the app so it is recorded.",
+		"description": "Read one of the project's automations in full, by automation_id or by name: its instruction, acceptance criteria with their ids, permission, the agents it may run on (eligible_agents, each with any model it needs; empty means any agent), tags, who created it, whether you may change it, whether it runs by itself and who it goes to. A name matching several returns ambiguous: true with the candidates instead of guessing; ask which, or call again with the id. Read it before update_automation. This does not start a run: to do the job ad hoc, follow its instruction within its permission, or ask the person to start a run in the app so it is recorded.",
 		"intent": "read one saved automation instructions criteria permission by name or id"
 	},
 	{
 		"id": "get_automation_runs",
 		"name": "get automation runs",
-		"description": "With no automation_id: the automation runs waiting for your agent to claim; take one with claim_automation_run and its run_id. Pass connection_id so the list is worked out for you: with several of your agents connected and none named, the call is refused, and with none connected it returns waiting_for_an_agent with a note. Runs that name a different agent are listed under not_for_you and are not yours to take. Each entry gives the run, the automation's name, how it was triggered, its owner, permission and queued time; the instruction comes with the claim. With automation_id: that automation's run history, newest first, a page at a time: your runs plus its schedule and event runs that belong to the whole project (a teammate's runs are not included); query searches your own runs' summary, failure reason and output. Use get_automations for definitions.",
+		"description": "With no automation_id: the automation runs waiting for your agent to claim; take one with claim_automation_run and its run_id. Pass connection_id so the list is worked out for you: with several of your agents connected and none named, the call is refused, and with none connected it returns waiting_for_an_agent with a note. Runs that name a different agent are listed under not_for_you and are not yours to take. Each entry gives the run, the automation's name, how it was triggered, its owner, permission and queued time; the instruction comes with the claim. With automation_id: that automation's run history, newest first, a page at a time: every run of it, whoever started it; query searches their summary, failure reason and output. Use get_automations for definitions.",
 		"intent": "waiting automation runs to pick up, my automation inbox queue, automation run history results outcomes"
 	},
 	{
 		"id": "get_automations",
 		"name": "get automations",
-		"description": "Browse the automations you can see: yours plus those teammates shared with the project. Each row says whose it is (created_by, yours), who can see it (visibility) and which agents may run it (eligible_agents, each with any model it needs; empty means any agent). Anyone who can see one may run it on their own agents, but only its author can change or archive it. name resolves one the person named; query searches name, instruction and tags; with neither, you get the list, most recently used first. Archived automations are not listed. You cannot start a run from here: runs start in the app or from a schedule or trigger, then reach agents through get_automation_runs. Use get_automation for one in full; a one-off task is an action item, not an automation.",
-		"intent": "list find saved reusable automations jobs shared with the project, run my automation"
+		"description": "Browse the project's automations; every automation belongs to the project. Each row says who created it (created_by, yours), whether you may change it (you_can_change: its creator or a Maintainer), whether it runs by itself (runs_by_itself), who it goes to when it starts by itself (switched_on, you_switched_on; empty means no one) and which agents may run it (eligible_agents, each with any model it needs; empty means any agent). Anyone on the project may run one on their own agents. name resolves one the person named; query searches name, instruction and tags; with neither, you get the list, most recently used first. Archived automations are not listed. You cannot start a run from here: runs start in the app or from a schedule or trigger, then reach agents through get_automation_runs. Use get_automation for one in full; a one-off task is an action item, not an automation.",
+		"intent": "list find saved reusable automations jobs of the project, run my automation"
 	},
 	{
 		"id": "get_conventions",
@@ -470,8 +470,8 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "update_automation",
 		"name": "update automation",
-		"description": "Change one of your own automations: only the fields you pass change, and a list field you pass (acceptance_criteria, target_repo_ids, expected_tools, tags) replaces the whole list. An automation a teammate wrote is refused, though you can still run it. Pass existing criteria back as {id, text} to keep their ids, so past run verdicts stay attached; bare strings become new criteria, and criteria you leave out are removed. Making a shared automation private cancels other people's waiting runs of it, and one whose runs belong to the whole project cannot be made private. This edits the definition, not a run.",
-		"intent": "edit update existing automation job definition instructions criteria sharing"
+		"description": "Change an automation: its creator or a Maintainer may; anyone else is refused, though they can still run it. Only the fields you pass change, and a list field you pass (acceptance_criteria, target_repo_ids, expected_tools, tags) replaces the whole list. Pass existing criteria back as {id, text} to keep their ids, so past run verdicts stay attached; bare strings become new criteria, and criteria you leave out are removed. Raising permission switches everyone but you off for it and tells them, because they agreed to less. runs_by_itself false pauses it: schedules and events start nothing, and Run in the app still works. This edits the definition, not a run.",
+		"intent": "edit update pause existing automation job definition instructions criteria"
 	},
 	{
 		"id": "update_memory",
@@ -3792,7 +3792,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_automation_runs",
 		"label": "DevSpec: Get Automation Runs",
-		"description": "With no automation_id: the automation runs waiting for your agent to claim; take one with claim_automation_run and its run_id. Pass connection_id so the list is worked out for you: with several of your agents connected and none named, the call is refused, and with none connected it returns waiting_for_an_agent with a note. Runs that name a different agent are listed under not_for_you and are not yours to take. Each entry gives the run, the automation's name, how it was triggered, its owner, permission and queued time; the instruction comes with the claim. With automation_id: that automation's run history, newest first, a page at a time: your runs plus its schedule and event runs that belong to the whole project (a teammate's runs are not included); query searches your own runs' summary, failure reason and output. Use get_automations for definitions.",
+		"description": "With no automation_id: the automation runs waiting for your agent to claim; take one with claim_automation_run and its run_id. Pass connection_id so the list is worked out for you: with several of your agents connected and none named, the call is refused, and with none connected it returns waiting_for_an_agent with a note. Runs that name a different agent are listed under not_for_you and are not yours to take. Each entry gives the run, the automation's name, how it was triggered, its owner, permission and queued time; the instruction comes with the claim. With automation_id: that automation's run history, newest first, a page at a time: every run of it, whoever started it; query searches their summary, failure reason and output. Use get_automations for definitions.",
 		"searchIntent": "waiting automation runs to pick up, my automation inbox queue, automation run history results outcomes",
 		"modelInputSchema": {
 			"type": "object",
@@ -3811,7 +3811,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"query": {
 					"type": "string",
-					"description": "With automation_id: full-text search over the runs the list shows (yours, and the project's runs nobody started, such as scheduled ones), matching their summary, failure reason and captured output, best match first. Ignored without automation_id. Omitted: the runs are listed newest first."
+					"description": "With automation_id: full-text search over that automation's runs, matching their summary, failure reason and captured output, best match first. Ignored without automation_id. Omitted: the runs are listed newest first."
 				},
 				"connection_id": {
 					"type": "string",
@@ -3848,7 +3848,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"query": {
 					"type": "string",
-					"description": "With automation_id: full-text search over the runs the list shows (yours, and the project's runs nobody started, such as scheduled ones), matching their summary, failure reason and captured output, best match first. Ignored without automation_id. Omitted: the runs are listed newest first."
+					"description": "With automation_id: full-text search over that automation's runs, matching their summary, failure reason and captured output, best match first. Ignored without automation_id. Omitted: the runs are listed newest first."
 				},
 				"connection_id": {
 					"type": "string",
@@ -3873,14 +3873,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_automations",
 		"label": "DevSpec: Get Automations",
-		"description": "Browse the automations you can see: yours plus those teammates shared with the project. Each row says whose it is (created_by, yours), who can see it (visibility) and which agents may run it (eligible_agents, each with any model it needs; empty means any agent). Anyone who can see one may run it on their own agents, but only its author can change or archive it. name resolves one the person named; query searches name, instruction and tags; with neither, you get the list, most recently used first. Archived automations are not listed. You cannot start a run from here: runs start in the app or from a schedule or trigger, then reach agents through get_automation_runs. Use get_automation for one in full; a one-off task is an action item, not an automation.",
-		"searchIntent": "list find saved reusable automations jobs shared with the project, run my automation",
+		"description": "Browse the project's automations; every automation belongs to the project. Each row says who created it (created_by, yours), whether you may change it (you_can_change: its creator or a Maintainer), whether it runs by itself (runs_by_itself), who it goes to when it starts by itself (switched_on, you_switched_on; empty means no one) and which agents may run it (eligible_agents, each with any model it needs; empty means any agent). Anyone on the project may run one on their own agents. name resolves one the person named; query searches name, instruction and tags; with neither, you get the list, most recently used first. Archived automations are not listed. You cannot start a run from here: runs start in the app or from a schedule or trigger, then reach agents through get_automation_runs. Use get_automation for one in full; a one-off task is an action item, not an automation.",
+		"searchIntent": "list find saved reusable automations jobs of the project, run my automation",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
 				"name": {
 					"type": "string",
-					"description": "Resolve an automation the person named: case-insensitive match on any part of the name, exact matches win; at most 20. Takes precedence over query. Omitted: query is used if given; otherwise every unarchived automation you can see is listed."
+					"description": "Resolve an automation the person named: case-insensitive match on any part of the name, exact matches win; at most 20. Takes precedence over query. Omitted: query is used if given; otherwise every unarchived automation of the project is listed."
 				},
 				"query": {
 					"type": "string",
@@ -3905,7 +3905,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"name": {
 					"type": "string",
-					"description": "Resolve an automation the person named: case-insensitive match on any part of the name, exact matches win; at most 20. Takes precedence over query. Omitted: query is used if given; otherwise every unarchived automation you can see is listed."
+					"description": "Resolve an automation the person named: case-insensitive match on any part of the name, exact matches win; at most 20. Takes precedence over query. Omitted: query is used if given; otherwise every unarchived automation of the project is listed."
 				},
 				"query": {
 					"type": "string",
@@ -3930,7 +3930,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_automation",
 		"label": "DevSpec: Get Automation",
-		"description": "Read one automation you can see (yours or shared) in full, by automation_id or by name: its instruction, acceptance criteria with their ids, permission, the agents it may run on (eligible_agents, each with any model it needs; empty means any agent), tags and whose it is. A name matching several returns ambiguous: true with the candidates instead of guessing; ask which, or call again with the id. Read it before update_automation. This does not start a run: to do the job ad hoc, follow its instruction within its permission, or ask the person to start a run in the app so it is recorded.",
+		"description": "Read one of the project's automations in full, by automation_id or by name: its instruction, acceptance criteria with their ids, permission, the agents it may run on (eligible_agents, each with any model it needs; empty means any agent), tags, who created it, whether you may change it, whether it runs by itself and who it goes to. A name matching several returns ambiguous: true with the candidates instead of guessing; ask which, or call again with the id. Read it before update_automation. This does not start a run: to do the job ad hoc, follow its instruction within its permission, or ask the person to start a run in the app so it is recorded.",
 		"searchIntent": "read one saved automation instructions criteria permission by name or id",
 		"modelInputSchema": {
 			"type": "object",
@@ -11353,7 +11353,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "claim_automation_run",
 		"label": "DevSpec: Claim Automation Run",
-		"description": "Take one waiting automation run before doing it; the reply carries its instruction, acceptance criteria with ids, permission and expected tools. Pass connection_id, the agent doing the run: without it the run goes to the agent it was aimed at, or to your only connected agent, and is otherwise refused. The permission governs what you do on the machine and its repositories, not what you write to DevSpec: look_only means investigate and report only, can_commit allows local commits but no push, can_push allows both; check the expected tools first. A refusal names its reason and says whether a retry could work: already_taken is normal contention, so move on; already_yours means carry on and report it; already_finished: if you ran it, correct it with record_automation_run, otherwise there is nothing to take; a scheduled run is not offered to an agent in the middle of a conversation; a run aimed at another agent is left for that one. When done, report with record_automation_run.",
+		"description": "Take one waiting automation run before doing it; the reply carries its instruction, acceptance criteria with ids, permission and expected tools. Pass connection_id, the agent doing the run: without it the run goes to the agent it was aimed at, or to your only connected agent, and is otherwise refused. The permission governs what you do on the machine and its repositories, not what you write to DevSpec: look_only means investigate and report only, can_commit allows local commits but no push, can_push allows both; check the expected tools first. A refusal names its reason and says whether a retry could work: already_taken is normal contention, so move on; already_yours means carry on and report it; already_finished: if you ran it, correct it with record_automation_run, otherwise there is nothing to take; needs_consent: it started by itself and your owner has not switched this automation on; a scheduled run is not offered to an agent in the middle of a conversation; a run aimed at another agent is left for that one. When done, report with record_automation_run.",
 		"searchIntent": "claim take waiting automation run start the job",
 		"modelInputSchema": {
 			"type": "object",
@@ -11847,7 +11847,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "create_automation",
 		"label": "DevSpec: Create Automation",
-		"description": "Save a reusable job, owned by you, that agents can run again and again. It is private to you unless you set visibility 'project'. Offer it when the person has just done, or described, something they will repeat, and create it once they agree. Propose a few short checkable acceptance criteria: each run reports a verdict per line. It does not schedule or start runs: those are set up in the app, and runs then reach agents through get_automation_runs. A one-off task is an action item (create_action_item); a reference document is an artifact (create_resource). A name you already use for another of your automations is refused.",
+		"description": "Save a reusable job for the project that agents can run again and again. Everyone on the project can see it and run it, and its creator and Maintainers can change it. You are switched on for it, so when it starts by itself it can go to your agents; pass switched_on false to stay off. Offer it when the person has just done, or described, something they will repeat, and create it once they agree. Propose a few short checkable acceptance criteria: each run reports a verdict per line. It does not schedule or start runs: those are set up in the app, and runs then reach agents through get_automation_runs. A one-off task is an action item (create_action_item); a reference document is an artifact (create_resource). A name already used in this project is refused.",
 		"searchIntent": "save create reusable repeatable automation job with instructions and criteria",
 		"modelInputSchema": {
 			"type": "object",
@@ -11887,7 +11887,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"opencode",
 						"pi"
 					],
-					"description": "The coding agent this automation is written for: runs are then offered only to that agent, never substituted. Omitted: any of your agents may run it. gemini, copilot and windsurf are stored but do not restrict which agent takes a run."
+					"description": "The coding agent this automation is written for: runs are then offered only to that agent, never substituted. Omitted: any agent may run it. gemini, copilot and windsurf are stored but do not restrict which agent takes a run."
 				},
 				"preferred_model": {
 					"type": "string",
@@ -11909,17 +11909,9 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Tools or access the job needs (e.g. \"axiom\"); a claimed run is told to check them first and fail cleanly if one is missing. Omitted: none."
 				},
-				"enabled": {
+				"switched_on": {
 					"type": "boolean",
-					"description": "false pauses its schedule only: event triggers and Run in the app still start runs; to stop it entirely, archive it with delete_automation. Omitted: on."
-				},
-				"visibility": {
-					"type": "string",
-					"enum": [
-						"private",
-						"project"
-					],
-					"description": "private = only you can see and run it; project = everyone on the project can see it and run it on their own agents, while only you can change it. Share only when the person asks. Omitted: private."
+					"description": "false: you are not switched on, so when it starts by itself it does not go to your agents until you switch on in the app. Omitted: switched on."
 				},
 				"tags": {
 					"type": "array",
@@ -11930,7 +11922,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. The automation is always saved as yours. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
+					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. The automation is always saved as created by you. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -11995,7 +11987,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"opencode",
 						"pi"
 					],
-					"description": "The coding agent this automation is written for: runs are then offered only to that agent, never substituted. Omitted: any of your agents may run it. gemini, copilot and windsurf are stored but do not restrict which agent takes a run."
+					"description": "The coding agent this automation is written for: runs are then offered only to that agent, never substituted. Omitted: any agent may run it. gemini, copilot and windsurf are stored but do not restrict which agent takes a run."
 				},
 				"preferred_model": {
 					"type": "string",
@@ -12017,17 +12009,9 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Tools or access the job needs (e.g. \"axiom\"); a claimed run is told to check them first and fail cleanly if one is missing. Omitted: none."
 				},
-				"enabled": {
+				"switched_on": {
 					"type": "boolean",
-					"description": "false pauses its schedule only: event triggers and Run in the app still start runs; to stop it entirely, archive it with delete_automation. Omitted: on."
-				},
-				"visibility": {
-					"type": "string",
-					"enum": [
-						"private",
-						"project"
-					],
-					"description": "private = only you can see and run it; project = everyone on the project can see it and run it on their own agents, while only you can change it. Share only when the person asks. Omitted: private."
+					"description": "false: you are not switched on, so when it starts by itself it does not go to your agents until you switch on in the app. Omitted: switched on."
 				},
 				"tags": {
 					"type": "array",
@@ -12038,7 +12022,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. The automation is always saved as yours. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
+					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. The automation is always saved as created by you. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -12070,8 +12054,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_automation",
 		"label": "DevSpec: Update Automation",
-		"description": "Change one of your own automations: only the fields you pass change, and a list field you pass (acceptance_criteria, target_repo_ids, expected_tools, tags) replaces the whole list. An automation a teammate wrote is refused, though you can still run it. Pass existing criteria back as {id, text} to keep their ids, so past run verdicts stay attached; bare strings become new criteria, and criteria you leave out are removed. Making a shared automation private cancels other people's waiting runs of it, and one whose runs belong to the whole project cannot be made private. This edits the definition, not a run.",
-		"searchIntent": "edit update existing automation job definition instructions criteria sharing",
+		"description": "Change an automation: its creator or a Maintainer may; anyone else is refused, though they can still run it. Only the fields you pass change, and a list field you pass (acceptance_criteria, target_repo_ids, expected_tools, tags) replaces the whole list. Pass existing criteria back as {id, text} to keep their ids, so past run verdicts stay attached; bare strings become new criteria, and criteria you leave out are removed. Raising permission switches everyone but you off for it and tells them, because they agreed to less. runs_by_itself false pauses it: schedules and events start nothing, and Run in the app still works. This edits the definition, not a run.",
+		"searchIntent": "edit update pause existing automation job definition instructions criteria",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -12134,17 +12118,9 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Replaces the expected tools. Omitted: unchanged."
 				},
-				"enabled": {
+				"runs_by_itself": {
 					"type": "boolean",
-					"description": "true resumes its schedule, false pauses it; event triggers and Run in the app still start runs either way. Omitted: unchanged."
-				},
-				"visibility": {
-					"type": "string",
-					"enum": [
-						"private",
-						"project"
-					],
-					"description": "project shares it with the project; private makes it yours alone again and cancels others' waiting runs. Making private an automation whose runs belong to the whole project is refused, and nothing else in that call is applied. Omitted: unchanged."
+					"description": "false pauses it for everyone: schedules and events start nothing and its waiting runs that nobody pressed are cancelled; Run in the app still works. true resumes it. Omitted: unchanged."
 				},
 				"tags": {
 					"type": "array",
@@ -12155,7 +12131,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. Only automations you wrote can be changed either way. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
+					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role, so only its creator or a Maintainer can change it either way. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -12244,17 +12220,9 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Replaces the expected tools. Omitted: unchanged."
 				},
-				"enabled": {
+				"runs_by_itself": {
 					"type": "boolean",
-					"description": "true resumes its schedule, false pauses it; event triggers and Run in the app still start runs either way. Omitted: unchanged."
-				},
-				"visibility": {
-					"type": "string",
-					"enum": [
-						"private",
-						"project"
-					],
-					"description": "project shares it with the project; private makes it yours alone again and cancels others' waiting runs. Making private an automation whose runs belong to the whole project is refused, and nothing else in that call is applied. Omitted: unchanged."
+					"description": "false pauses it for everyone: schedules and events start nothing and its waiting runs that nobody pressed are cancelled; Run in the app still works. true resumes it. Omitted: unchanged."
 				},
 				"tags": {
 					"type": "array",
@@ -12265,7 +12233,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role. Only automations you wrote can be changed either way. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
+					"description": "Your connection id when acting on a teammate's command: the write is then judged by that person's project role, so only its creator or a Maintainer can change it either way. Omitted: the connection your client authenticated, if any; otherwise the write is judged as you."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -12297,7 +12265,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "delete_automation",
 		"label": "DevSpec: Delete Automation",
-		"description": "Archive one of your own automations; nothing is deleted. It stops running and leaves every list, everyone's queued and waiting runs of it are cancelled, a run already in progress can still be reported, and its run history is kept. It can be restored on the Automations page, not from here. A teammate's automation is refused. Ask the person first: it is something they wrote to reuse.",
+		"description": "Archive an automation; nothing is deleted. Its creator or a Maintainer may; anyone else is refused. It stops running and leaves every list, everyone's queued and waiting runs of it are cancelled, a run already in progress can still be reported, and its run history is kept. It can be restored on the Automations page, not from here. Ask the person first: it is something the project relies on.",
 		"searchIntent": "archive retire delete stop a saved automation job",
 		"modelInputSchema": {
 			"type": "object",

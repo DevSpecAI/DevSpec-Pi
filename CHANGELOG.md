@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.16
+
+- The catalogue is regenerated against DevSpec's current automation tools. Every automation now belongs to the project, so creating one no longer takes `visibility`. Creating one takes `switched_on`: whether it can go to your agents when it starts by itself (on unless you say otherwise), and changing one takes `runs_by_itself` to pause or resume everything that starts it by itself, in place of `enabled`. Only an automation's creator or a Maintainer can change it.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.15
 
 - The catalogue is regenerated against DevSpec's current tools. The searches (action items, memories, documents, sessions, Still to Discuss, the review queue and tool search) now accept `work_claim_ref`: while you hold several claims and no request is open, name the claim a search is for, and its cost is recorded against whoever asked for that work rather than against you.

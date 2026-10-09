@@ -567,7 +567,20 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// guidance (descriptions only). No projection family or hot-set membership
 		// changed. Benchmark before/after: initial surface 48,448 -> 49,233
 		// estimated tokens; every budget still passes.
-		"e77ba7fe82329b0a490993b299a62cae56fac635af7c45a92c02bd8f7eabe1d4",
+		//
+		// Rebaselined 2026-10-09 for DevSpec decision 77d27bef (automations belong
+		// to the project; items c1a11f99, 3877ae13, 535dcf91), regenerated against
+		// server staging cab85c019 plus that change. Compared old/new generated
+		// catalogues: 95 verbs before and after, none added or removed, nothing
+		// made required. create_automation loses visibility and enabled and gains
+		// switched_on ("Let my agents run this" for the creator); update_automation
+		// loses visibility and enabled and gains runs_by_itself (pauses or resumes
+		// everything that starts it by itself). The automation verbs' descriptions
+		// now say every automation is the project's and only its creator or a
+		// Maintainer can change it. No projection family or hot-set membership
+		// changed. Benchmark before/after: initial surface 49,233 -> 49,176
+		// estimated tokens; every budget still passes.
+		"1cbc522374a3cc80367b90d9d04beee3e0483dca8fa6dbd68e9c3374f30f0d24",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

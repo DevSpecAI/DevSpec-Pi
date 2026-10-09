@@ -3,13 +3,13 @@
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
  * Schema fingerprint: 3be0de2ec437302457528efc0349e672bcdaa8c8b27984f5759354d89a546e56
- * Description fingerprint: e8759307098b3f38ee55401eaf17abec39e63e73f77f97cc6003db9f58c3879b
- * Regenerated: 2026-10-09T19:18:27.511Z
+ * Description fingerprint: c05d31ebeeabad7a6b5926a5b4027f82df38096bba188cfebffaffc43218d0f4
+ * Regenerated: 2026-10-09T20:49:14.006Z
  */
 export const MCP_CATALOG_FINGERPRINT = "3be0de2ec437302457528efc0349e672bcdaa8c8b27984f5759354d89a546e56";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "e8759307098b3f38ee55401eaf17abec39e63e73f77f97cc6003db9f58c3879b";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-09T19:18:27.512Z";
-export const TOOL_CATALOG_VERSION = "5290d61705172d47daffe40ac0e8025c03e24bd5219919ce6d15733688c5e8fe";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "c05d31ebeeabad7a6b5926a5b4027f82df38096bba188cfebffaffc43218d0f4";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-09T20:49:14.006Z";
+export const TOOL_CATALOG_VERSION = "0fe57e9c454561238719c6505f0a2068042cb6602686e6de01066df4bfdf6e54";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -140,7 +140,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_automations",
 		"name": "get automations",
-		"description": "Browse the project's automations; every automation belongs to the project. Each row says who created it (created_by, yours), whether you may change it (you_can_change: its creator or a Maintainer), whether it runs by itself (runs_by_itself), who it goes to when it starts by itself (switched_on, you_switched_on; empty means no one) and which agents may run it (eligible_agents, each with any model it needs; empty means any agent). Anyone on the project may run one on their own agents. name resolves one the person named; query searches name, instruction and tags; with neither, you get the list, most recently used first. Archived automations are not listed. You cannot start a run from here: runs start in the app or from a schedule or trigger, then reach agents through get_automation_runs. Use get_automation for one in full; a one-off task is an action item, not an automation.",
+		"description": "Browse the project's automations; every automation belongs to the project. Each row says who created it (created_by, yours), whether you may change it (you_can_change: its creator or a Maintainer), whether it runs by itself (runs_by_itself), who it goes to when it starts by itself (switched_on, you_switched_on; empty means no one) and which agents may run it (eligible_agents, each with any model it needs; empty means any agent). Contributors and Maintainers may run one on their own agents. name resolves one the person named; query searches name, instruction and tags; with neither, you get the list, most recently used first. Archived automations are not listed. You cannot start a run from here: runs start in the app or from a schedule or trigger, then reach agents through get_automation_runs. Use get_automation for one in full; a one-off task is an action item, not an automation.",
 		"intent": "list find saved reusable automations jobs of the project, run my automation"
 	},
 	{
@@ -470,7 +470,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "update_automation",
 		"name": "update automation",
-		"description": "Change an automation: its creator or a Maintainer may; anyone else is refused, though they can still run it. Only the fields you pass change, and a list field you pass (acceptance_criteria, target_repo_ids, expected_tools, tags) replaces the whole list. Pass existing criteria back as {id, text} to keep their ids, so past run verdicts stay attached; bare strings become new criteria, and criteria you leave out are removed. Raising permission switches everyone but you off for it and tells them, because they agreed to less. runs_by_itself false pauses it: schedules and events start nothing, and Run in the app still works. This edits the definition, not a run.",
+		"description": "Change an automation: its creator or a Maintainer may; anyone else is refused, though a Contributor can still run it. Only the fields you pass change, and a list field you pass (acceptance_criteria, target_repo_ids, expected_tools, tags) replaces the whole list. Pass existing criteria back as {id, text} to keep their ids, so past run verdicts stay attached; bare strings become new criteria, and criteria you leave out are removed. Raising permission switches everyone but you off for it and tells them, because they agreed to less. runs_by_itself false pauses it: schedules and events start nothing, and Run in the app still works. This edits the definition, not a run.",
 		"intent": "edit update pause existing automation job definition instructions criteria"
 	},
 	{
@@ -3873,7 +3873,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_automations",
 		"label": "DevSpec: Get Automations",
-		"description": "Browse the project's automations; every automation belongs to the project. Each row says who created it (created_by, yours), whether you may change it (you_can_change: its creator or a Maintainer), whether it runs by itself (runs_by_itself), who it goes to when it starts by itself (switched_on, you_switched_on; empty means no one) and which agents may run it (eligible_agents, each with any model it needs; empty means any agent). Anyone on the project may run one on their own agents. name resolves one the person named; query searches name, instruction and tags; with neither, you get the list, most recently used first. Archived automations are not listed. You cannot start a run from here: runs start in the app or from a schedule or trigger, then reach agents through get_automation_runs. Use get_automation for one in full; a one-off task is an action item, not an automation.",
+		"description": "Browse the project's automations; every automation belongs to the project. Each row says who created it (created_by, yours), whether you may change it (you_can_change: its creator or a Maintainer), whether it runs by itself (runs_by_itself), who it goes to when it starts by itself (switched_on, you_switched_on; empty means no one) and which agents may run it (eligible_agents, each with any model it needs; empty means any agent). Contributors and Maintainers may run one on their own agents. name resolves one the person named; query searches name, instruction and tags; with neither, you get the list, most recently used first. Archived automations are not listed. You cannot start a run from here: runs start in the app or from a schedule or trigger, then reach agents through get_automation_runs. Use get_automation for one in full; a one-off task is an action item, not an automation.",
 		"searchIntent": "list find saved reusable automations jobs of the project, run my automation",
 		"modelInputSchema": {
 			"type": "object",
@@ -12054,7 +12054,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_automation",
 		"label": "DevSpec: Update Automation",
-		"description": "Change an automation: its creator or a Maintainer may; anyone else is refused, though they can still run it. Only the fields you pass change, and a list field you pass (acceptance_criteria, target_repo_ids, expected_tools, tags) replaces the whole list. Pass existing criteria back as {id, text} to keep their ids, so past run verdicts stay attached; bare strings become new criteria, and criteria you leave out are removed. Raising permission switches everyone but you off for it and tells them, because they agreed to less. runs_by_itself false pauses it: schedules and events start nothing, and Run in the app still works. This edits the definition, not a run.",
+		"description": "Change an automation: its creator or a Maintainer may; anyone else is refused, though a Contributor can still run it. Only the fields you pass change, and a list field you pass (acceptance_criteria, target_repo_ids, expected_tools, tags) replaces the whole list. Pass existing criteria back as {id, text} to keep their ids, so past run verdicts stay attached; bare strings become new criteria, and criteria you leave out are removed. Raising permission switches everyone but you off for it and tells them, because they agreed to less. runs_by_itself false pauses it: schedules and events start nothing, and Run in the app still works. This edits the definition, not a run.",
 		"searchIntent": "edit update pause existing automation job definition instructions criteria",
 		"modelInputSchema": {
 			"type": "object",

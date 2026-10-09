@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.17
+
+- The catalogue is regenerated against DevSpec's current automation tools: they now say that Contributors and Maintainers run automations, and that a Contributor who didn't create one can still run it but not change it.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.16
 
 - The catalogue is regenerated against DevSpec's current automation tools. Every automation now belongs to the project, so creating one no longer takes `visibility`. Creating one takes `switched_on`: whether it can go to your agents when it starts by itself (on unless you say otherwise), and changing one takes `runs_by_itself` to pause or resume everything that starts it by itself, in place of `enabled`. Only an automation's creator or a Maintainer can change it.

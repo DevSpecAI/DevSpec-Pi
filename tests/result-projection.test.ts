@@ -981,18 +981,10 @@ test("resource search projects both corpora and their matching passages instead 
 	assert.doesNotMatch(text, /Unrecognized result shape|fallback field/);
 });
 
-test("create/update projections keep decision, reconciliation, conflict, and duplicate gates", () => {
+test("create/update projections keep the review gate and related candidates", () => {
 	const payload = {
 		action_item: { id: "created-123", title: "Project structured results", lifecycle: "staged", parent_action_item_id: "brief-456", description: huge("REPEATED-INPUT") },
 		review_before_proceeding: { required: true, instruction: "Review candidates before creating." },
-		check_against_decisions: "Read the related decisions before implementation.",
-		related_decisions: [{ id: "decision-1", title: "Preserve criterion evidence", memory_type: "decision", summary: "Promotion follows evidence." }],
-		memory_reconciliation: { required: true, instruction: "Reconcile the closest memory first." },
-		reconcile_required: true,
-		closest_match: { id: "memory-1", title: "Existing result projection", memory_type: "convention" },
-		potential_conflicts: [{ id: "conflict-1", title: "Existing adapter work", why: "Touches the same pipeline" }],
-		near_duplicates: [{ id: "duplicate-1", title: "Compact result cards", why: "Very similar scope" }],
-		unresolved_conflicts: [{ conflicting_item_id: "item-conflict", reason: "May overlap the current adapter" }],
 		related_candidates: Array.from({ length: 5 }, (_, index) => ({ id: `candidate-${index + 1}`, title: `Candidate ${index + 1}`, lifecycle: "open" })),
 	};
 	for (const verb of ["create_action_item", "update_action_item"]) {
@@ -1000,47 +992,9 @@ test("create/update projections keep decision, reconciliation, conflict, and dup
 		assert.ok(text.length <= PROJECTION_BUDGETS.ack);
 		assert.match(text, /id=created-123 title=Project structured results state=staged/);
 		assert.match(text, /review_before_proceeding.*required: true.*Review candidates/);
-		assert.match(text, /check_against_decisions.*related decisions/i);
-		assert.match(text, /Related decisions:[\s\S]*decision-1/);
-		assert.match(text, /memory reconciliation.*required: true/i);
-		assert.match(text, /Closest existing memory:[\s\S]*memory-1/);
-		assert.match(text, /Potential conflicts:[\s\S]*conflict-1/);
-		assert.match(text, /Near duplicates:[\s\S]*duplicate-1/);
-		assert.match(text, /item-conflict.*overlap/);
 		assert.match(text, /Related candidates: 5; showing top 3/);
 		assert.doesNotMatch(text, /candidate-4|REPEATED-INPUT/);
 	}
-});
-
-/**
- * The write gate refuses documents as well as memories (DevSpec 134f4454), and a
- * refusal is only useful if the reader can go and open what it matched. Sending a
- * document id to get_memory returns nothing, which reads as "the gate matched
- * something that does not exist" — the dead end that item removed.
- */
-test("a gated document write points at get_resource, and a gated memory write at get_memory", () => {
-	const payload = {
-		created: false,
-		reconcile_required: true,
-		closest_match: { id: "artifact-77", title: "The other ADR" },
-		affordances: ["supersede", "link", "dismiss", "proceed_new"],
-		guidance: "This closely resembles a record that already exists.",
-	};
-
-	const document = projectModelText({ toolName: "create_resource", text: JSON.stringify(payload), details: payload });
-	assert.match(document, /Closest existing document/);
-	assert.match(document, /artifact-77/);
-	// The reader is what mattered: the old label said "memory" whatever the verb,
-	// and its fetch hint said get_memory — which returns nothing for a document id.
-	assert.doesNotMatch(document, /get_memory/);
-	assert.doesNotMatch(document, /Closest existing memory/);
-	// It must read as "nothing was written", not as a fault.
-	assert.match(document, /nothing was written/i);
-
-	const memory = projectModelText({ toolName: "record_memory", text: JSON.stringify(payload), details: payload });
-	assert.match(memory, /Closest existing memory/);
-	assert.doesNotMatch(memory, /get_resource/);
-	assert.doesNotMatch(memory, /Closest existing document/);
 });
 
 test("record_implementation clearly preserves own and brief criterion follow-through plus human steps", () => {
@@ -1131,7 +1085,7 @@ test("record_implementation reserves every own and brief criterion under its exp
 	assert.match(text, /instruction: Act on every brief criterion/);
 });
 
-test("acknowledgements reserve every simultaneous reconciliation category", () => {
+test("acknowledgements reserve both the review gate and related candidates under pressure", () => {
 	const candidates = (prefix: string) => Array.from({ length: 8 }, (_, index) => ({
 		id: `${prefix}-${index + 1}`,
 		title: huge(`${prefix} title ${index + 1}`, 2_000),
@@ -1140,37 +1094,14 @@ test("acknowledgements reserve every simultaneous reconciliation category", () =
 	const payload = {
 		action_item: { id: "created-gates", title: "All gates", lifecycle: "staged" },
 		review_before_proceeding: { required: true, instruction: huge("review first", 2_000), candidates: candidates("review") },
-		check_against_decisions: { required: true, instruction: huge("check decisions", 2_000), decisions: candidates("check") },
-		memory_reconciliation: {
-			required: true,
-			instruction: huge("reconcile", 2_000),
-			potential_conflicts: candidates("memory-conflict"),
-			near_duplicates: candidates("memory-duplicate"),
-			closest_match: candidates("closest")[0],
-		},
-		related_decisions: candidates("decision"),
-		potential_conflicts: candidates("conflict"),
-		near_duplicates: candidates("duplicate"),
 		related_candidates: candidates("related"),
 	};
 	const text = projectModelText({ toolName: "create_action_item", text: JSON.stringify(payload), details: payload });
 	assert.ok(text.length <= PROJECTION_BUDGETS.ack, `ack projection was ${text.length}`);
-	for (const [label, id] of [
-		["Review-before-proceeding candidates", "review-1"],
-		["Decisions to check", "check-1"],
-		["Related decisions", "decision-1"],
-		["Potential conflicts", "conflict-1"],
-		["Near duplicates", "duplicate-1"],
-		["Related candidates", "related-1"],
-		["Closest existing memory", "closest-1"],
-	] as const) {
-		const prefix = ["Related decisions", "Potential conflicts", "Near duplicates", "Related candidates"].includes(label) ? "Related context \\(advisory\\)" : "Gate category";
-		assert.match(text, new RegExp(`${prefix} — ${label}:[^\\n]*\\[${id}\\]`), label);
-	}
+	assert.match(text, /Gate category — Review-before-proceeding candidates:[^\n]*\[review-1\]/);
+	assert.match(text, /Related context \(advisory\) — Related candidates:[^\n]*\[related-1\]/);
 	assert.match(text, /7 more omitted from this mandatory summary/);
 	assert.match(text, /Gate — review_before_proceeding/);
-	assert.match(text, /Gate — check_against_decisions/);
-	assert.match(text, /Gate — memory reconciliation/);
 });
 
 test("claim_work_item remains a realistic lossless implementation-context read", () => {
@@ -1250,7 +1181,6 @@ test("update_memory preserves version identity, proposals and exact refusal/prev
 		{ updated: false, outcome: "queued_for_review", proposal_id: "proposal-1", reason: "A maintainer must accept it." },
 		{ updated: false, outcome: "preview_required", receipt_id: "receipt-1", expires_at: "2026-09-24T09:00:00Z", preview: { id: "memory-old", before: huge("original words"), after: huge("proposed words") }, guidance: "Review the exact change before confirming." },
 		{ updated: false, outcome: "stale_context", reason: "The memory changed.", detail: { current_version: 4, expected_version: 3 } },
-		{ updated: false, reconcile_required: true, closest_match: { id: "other-memory", title: "Existing decision" }, affordances: ["supersede", "link"], guidance: "Read the counterpart first." },
 	];
 	for (const details of payloads) {
 		const projected = projectModelText({ toolName: "update_memory", text: JSON.stringify(details), details });
@@ -1447,8 +1377,6 @@ test("production family budgets hold on adversarial selected fields without arbi
 			action_item: { id: huge("id", 2_000), title: huge("title", 3_000), lifecycle: huge("state", 2_000) },
 			review_before_proceeding: { required: true, instruction: huge("instruction", 5_000) },
 			related_candidates: noisyItems,
-			potential_conflicts: noisyItems,
-			near_duplicates: noisyItems,
 		},
 	});
 	assert.ok(ack.length <= PROJECTION_BUDGETS.ack);
@@ -1474,32 +1402,36 @@ test("unknown structured fallback omits whole fields and non-JSON fallback is tr
 	assert.doesNotMatch(plain, /remains in tool result details/i);
 });
 
-test("full details still drive conflict flags and work status", () => {
+test("full details still drive review flags and work status", () => {
 	const itemId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+	const memoryId = "bbbbbbbb-cccc-dddd-eeee-ffffffffffff";
 	const payload = {
 		claim_success: true,
 		item: { id: itemId, title: "Shape lifecycle response", lifecycle: "implemented" },
 		action_item_id: itemId,
-		unresolved_conflicts: [{ conflicting_item_id: "work-older", reason: "Potentially superseded" }],
 	};
-	const result = projectedToolResult("record_implementation", unwrapMcpResult(mcpJson(payload)));
-	assert.deepEqual(extractItemRef(result), { id: itemId, title: "Shape lifecycle response" });
-	const extracted = extractFlags("record_implementation", result.details);
+	const memory = projectedToolResult("get_memory", unwrapMcpResult(mcpJson({
+		id: memoryId, title: "Billing pools", body: huge("memory body"),
+		unresolved_disagreements: [{ key: `possibly_stale|memory:${memoryId}`, claimType: "possibly_stale", status: "open", issueId: null,
+			subject: { type: "memory", id: memoryId, title: "Billing pools", readable: true }, counterpart: null, evidence: { reason: "The code changed" } }],
+	})));
+	const extracted = extractFlags("get_memory", memory.details);
 	assert.equal(extracted.length, 1);
-	assert.equal(extracted[0].subject, itemId);
-	assert.equal(extracted[0].counterpart, "work-older");
-	assert.equal(extracted[0].kind, "item_conflict");
-	assert.match(extracted[0].label, /get_action_item/);
+	assert.equal(extracted[0].subject, memoryId);
+	assert.equal(extracted[0].kind, "memory_conflict");
+	assert.match(extracted[0].label, /get_review_queue/);
 	clearAllFlags();
 	resetStatus();
 	resetWorkStateForTests();
 	const sessionId = "projection-test-session";
+	consumeResultMechanics("get_memory", memory, { id: memoryId }, sessionId);
+	assert.equal(listFlags()[0]?.subject, memoryId);
+	assert.notEqual(listFlags()[0]?.scope, "legacy", "native calls isolate observations by session/project");
+	const result = projectedToolResult("record_implementation", unwrapMcpResult(mcpJson(payload)));
+	assert.deepEqual(extractItemRef(result), { id: itemId, title: "Shape lifecycle response" });
 	const claim = projectedToolResult("claim_work_item", unwrapMcpResult(mcpJson(payload)));
 	consumeResultMechanics("claim_work_item", claim, { action_item_id: itemId }, sessionId);
 	assert.equal(getStatusSnapshot().workId, itemId);
-	assert.equal(listFlags()[0]?.subject, itemId);
-	assert.equal(listFlags()[0]?.counterpart, "work-older");
-	assert.notEqual(listFlags()[0]?.scope, "legacy", "native calls isolate observations by session/project");
 	const supersession = projectedToolResult(
 		"supersede_action_item",
 		unwrapMcpResult(mcpJson({ committed: true, superseding_item_id: itemId, superseded_item_id: "work-older", closure: "dismissed", tense: "effective" })),

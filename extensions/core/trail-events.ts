@@ -171,6 +171,12 @@ export function classifyDomainTool(name: string, _args?: unknown): DomainSpec | 
 /** Fixed public dispositions only; receipt bodies and arbitrary outcome strings stay private. */
 export type TrailWriteOutcome = "committed" | "queued_for_review" | "pending" | "not_applied" | "failed";
 
+/** The boolean receipts a write sets: false means it did not apply, true that it did. */
+const WRITE_MARKERS = [
+	"applied", "committed", "recorded", "created", "updated", "superseded",
+	"retracted", "archived", "claim_success", "implementation_recorded",
+] as const;
+
 export function writeOutcomeFromResult(result: unknown): TrailWriteOutcome | undefined {
 	const row = unwrapResult(result);
 	if (!row) return undefined;
@@ -180,17 +186,14 @@ export function writeOutcomeFromResult(result: unknown): TrailWriteOutcome | und
 	if (asRecord(result)?.isError === true || row.isError === true || row.success === false || row.ok === false
 		|| row.outcome === "failed" || row.outcome === "error") return "failed";
 	// Queued creates explicitly say recorded/created=false. Keep the proposal
-	// distinct from a comparison gate or failure, without borrowing its source ID.
+	// distinct from a write that did not apply or failed, without borrowing its source ID.
 	if (row.outcome === "queued_for_review") return "queued_for_review";
 	if (row.closure === "pending" || row.tense === "pending") return "pending";
-	if (row.reconcile_required === true || [
-		"applied", "committed", "recorded", "created", "updated", "superseded",
-		"retracted", "archived", "claim_success", "implementation_recorded", "resolved",
-	].some((key) => row[key] === false)) return "not_applied";
+	if (WRITE_MARKERS.some((key) => row[key] === false)) return "not_applied";
 	if (row.outcome === "committed" || (row.outcome === "duplicate" && row.original_outcome === "committed")) return "committed";
 	// A new explicit disposition is not evidence that the default write happened.
 	if (typeof row.outcome === "string" && row.outcome.trim()) return "not_applied";
-	if (["applied", "committed", "recorded", "created", "updated", "superseded", "retracted", "archived", "claim_success", "implementation_recorded", "resolved"].some((key) => row[key] === true)) return "committed";
+	if (WRITE_MARKERS.some((key) => row[key] === true)) return "committed";
 	return undefined;
 }
 

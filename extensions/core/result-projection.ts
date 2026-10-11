@@ -154,14 +154,6 @@ const ROW_KEYS = [
 const COUNT_KEYS = ["total_matching", "total", "count"] as const;
 const ACK_GATE_KEYS = [
 	"review_before_proceeding",
-	"check_against_decisions",
-	"related_decisions",
-	"memory_reconciliation",
-	"reconcile_required",
-	"closest_match",
-	"potential_conflicts",
-	"near_duplicates",
-	"unresolved_conflicts",
 	"related_candidates",
 	"human_actions_required",
 	"manual_followup_steps",
@@ -324,8 +316,6 @@ function boundedId(row: Row, outer: Row = row): string | undefined {
 
 function signalLabels(row: Row): string[] {
 	const labels: string[] = [];
-	const unresolved = Array.isArray(row.unresolved_conflicts) ? row.unresolved_conflicts : [];
-	if (unresolved.length > 0) labels.push(`${unresolved.length} unresolved conflict${unresolved.length === 1 ? "" : "s"}`);
 	const review = Array.isArray(row.review_signals)
 		? row.review_signals
 		: Array.isArray(row.signals)
@@ -335,7 +325,6 @@ function signalLabels(row: Row): string[] {
 		const signal = typeof raw === "string" ? oneLine(raw, 80) : oneLine(first(record(raw) ?? {}, ["type", "signal_type", "kind"]), 80);
 		if (signal) labels.push(signal.replace(/_/g, " "));
 	}
-	if (row.reconcile_required === true) labels.push("reconcile required");
 	if (row.claimed === false) labels.push("not claimed");
 	if (row.blocked === true || row.is_blocked === true) labels.push("blocked");
 	if (Array.isArray(row.human_actions_required) && row.human_actions_required.length > 0) {
@@ -706,20 +695,6 @@ function completeProjectSummary(details: unknown): string | null {
 function conflictBlocks(root: Row): string[] {
 	const disagreements = disagreementBlock(root);
 	const blocks: string[] = disagreements ? [disagreements] : [];
-	const unresolved = Array.isArray(root.unresolved_conflicts) ? root.unresolved_conflicts : [];
-	if (unresolved.length) {
-		const lines = [`Gate — unresolved conflicts: ${unresolved.length}; showing top ${Math.min(unresolved.length, RELATED_LIMIT)}.`];
-		for (const raw of unresolved.slice(0, RELATED_LIMIT)) {
-			const row = record(raw) ?? {};
-			const id = oneLine(first(row, ["conflicting_item_id", "item_id", "id"]), 90) ?? "unknown";
-			lines.push(`- [${id}] ${oneLine(first(row, ["reason", "summary", "title"]), 180) ?? "possible conflict"}`);
-		}
-		if (unresolved.length > RELATED_LIMIT) lines.push(`- ${unresolved.length - RELATED_LIMIT} additional unresolved conflict(s) omitted; fetch the exact item and inspect its unresolved_conflicts before proceeding.`);
-		blocks.push(lines.join("\n"));
-	}
-	// The write gate stops memory AND document writes alike (devspecv2 134f4454).
-	// Nothing was written, and the closest record is named below.
-	if (root.reconcile_required === true) blocks.push("Gate — the write check named a close existing record; nothing was written. Read it, then supersede/update it, or re-call with confirm_new if it is genuinely separate.");
 	if (root.claimed === false) blocks.push("Gate — claim rejected/not acquired.");
 	if (root.blocked === true || root.is_blocked === true) blocks.push("Gate — result is blocked.");
 	return blocks;
@@ -911,7 +886,7 @@ function ackProjection(toolName: string, details: unknown): string | null {
 	// never lose the proposal/reason or an exact preview to the ack budget.
 	const receipt: Row = {};
 	for (const key of [
-		"committed", "applied", "success", "created", "updated", "recorded", "superseded", "resolved",
+		"committed", "applied", "success", "created", "updated", "recorded", "superseded",
 		"proposal_id", "reason", "note", "authority_note", "authority", "warnings", "flag_still_lit", "marks_cleared",
 		"closure", "tense", "verdict", "signal_type", "basis", "basis_warning", "superseding_item_id", "superseded_item_id", "would_close",
 		"receipt", "receipt_id", "operation_id", "draft_id", "read_status", "status_url", "preview",
@@ -930,24 +905,15 @@ function ackProjection(toolName: string, details: unknown): string | null {
 	required.push(...conflictBlocks(root));
 	if (entity !== root) required.push(...conflictBlocks(entity));
 
-	for (const key of ["review_before_proceeding", "check_against_decisions"] as const) {
-		if (!hasOwn(root, key)) continue;
-		required.push(`Gate — ${gateValue(key, root[key])}`);
-		const rows = candidateRows(root[key], key === "check_against_decisions"
-			? ["decisions", "related_decisions", "candidates", "items"]
-			: ["candidates", "related_candidates", "near_duplicates", "items"]);
+	if (hasOwn(root, "review_before_proceeding")) {
+		required.push(`Gate — ${gateValue("review_before_proceeding", root.review_before_proceeding)}`);
+		const rows = candidateRows(root.review_before_proceeding, ["candidates", "related_candidates", "items"]);
 		if (rows.length) {
-			const label = key === "check_against_decisions" ? "Decisions to check" : "Review-before-proceeding candidates";
+			const label = "Review-before-proceeding candidates";
 			required.push(mandatoryCategoryBlock(label, rows));
-			optional.push(relatedBlock(
-				label,
-				rows,
-				key === "check_against_decisions" ? "use get_memory(id) for the exact decision" : "fetch the exact candidate before proceeding",
-			));
+			optional.push(relatedBlock(label, rows, "fetch the exact candidate before proceeding"));
 		}
 	}
-	const memoryReconciliation = record(root.memory_reconciliation);
-	if (hasOwn(root, "memory_reconciliation")) required.push(`Gate — ${gateValue("memory reconciliation", root.memory_reconciliation)}`);
 
 	if (hasOwn(root, "own_criteria_follow_through") && root.own_criteria_follow_through != null) {
 		required.push(followThroughBlock("own", root.own_criteria_follow_through));
@@ -967,42 +933,10 @@ function ackProjection(toolName: string, details: unknown): string | null {
 	const manual = manualFollowUpBlock(root);
 	if (manual) required.push(manual);
 
-	const relatedContainer = record(root.related_candidates);
-	const groupedCandidates: Array<[string, unknown[], string]> = [
-		["Related decisions", uniqueRows([
-			...candidateRows(root.related_decisions),
-			...candidateRows(relatedContainer?.decisions),
-			...candidateRows(relatedContainer?.related_decisions),
-		]), "use get_memory(id) for the full decision"],
-		["Potential conflicts", uniqueRows([
-			...candidateRows(root.potential_conflicts),
-			...candidateRows(memoryReconciliation?.potential_conflicts),
-		]), "resolve/reconcile them or fetch the exact entity"],
-		["Near duplicates", uniqueRows([
-			...candidateRows(root.near_duplicates),
-			...candidateRows(memoryReconciliation?.near_duplicates),
-		]), "search and fetch the exact candidate before proceeding"],
-		["Related candidates", uniqueRows([
-			...candidateRows(root.related_candidates, ["candidates", "items", "results", "action_items", "artifacts", "resources", "memories"]),
-		]), "search/list then fetch the exact candidate by id"],
-	];
-	for (const [label, values, fetch] of groupedCandidates) {
-		if (!values.length) continue;
-		required.push(mandatoryCategoryBlock(label, values, "Related context (advisory)"));
-		optional.push(relatedBlock(label, values, fetch));
-	}
-	const closestMatch = root.closest_match ?? memoryReconciliation?.closest_match;
-	if (closestMatch != null) {
-		// Which corpus decides which reader to name. Sending a document id to
-		// get_memory returns nothing, which reads as "the gate matched something
-		// that does not exist" — the exact dead end 134f4454 removed.
-		const isDocument = toolName.includes("resource");
-		const label = isDocument ? "Closest existing document" : "Closest existing memory";
-		const fetch = isDocument
-			? "use get_resource(id) and read it, then update/supersede it — or confirm_new if it is genuinely separate"
-			: "use get_memory(id) and read it, then supersede it — or confirm_new if it is genuinely separate";
-		required.push(mandatoryCategoryBlock(label, [closestMatch]));
-		optional.push(relatedBlock(label, [closestMatch], fetch));
+	const relatedCandidates = uniqueRows(candidateRows(root.related_candidates, ["candidates", "items", "results", "action_items", "artifacts", "resources", "memories"]));
+	if (relatedCandidates.length) {
+		required.push(mandatoryCategoryBlock("Related candidates", relatedCandidates, "Related context (advisory)"));
+		optional.push(relatedBlock("Related candidates", relatedCandidates, "search/list then fetch the exact candidate by id"));
 	}
 
 	const budget = toolName === "record_implementation"

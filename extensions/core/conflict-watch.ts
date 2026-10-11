@@ -4,7 +4,7 @@ import { writeOutcomeFromResult } from "./trail-events.ts";
 
 export interface ConflictFlag {
 	key: string;
-	kind: "item_conflict" | "related_candidates" | "write_gate" | "memory_conflict";
+	kind: "related_candidates" | "memory_conflict";
 	label: string;
 	scope?: string;
 	/** Complete pair identity and exact observed evidence, never counterpart alone. */
@@ -35,9 +35,9 @@ export function addFlags(flags: ConflictFlag[]): ConflictFlag[] {
 export function clearFlag(key: string): void { store().delete(key); }
 export function clearAllFlags(): void { store().clear(); }
 
-/** Exclude attribution/confirmation, never semantic fields, from a write's identity. */
+/** Exclude attribution, never semantic fields, from a write's identity. */
 function operationKey(tool: string, args: Record<string, unknown>): string {
-	const excluded = new Set(["confirm_new", "provenance_ref", "work_claim_ref", "connection_id", "session_id", "local_session_id", "provider", "git_remote", "project_id", "pinned_project_id"]);
+	const excluded = new Set(["provenance_ref", "work_claim_ref", "connection_id", "session_id", "local_session_id", "provider", "git_remote", "project_id", "pinned_project_id"]);
 	return snapshotHash([tool, Object.fromEntries(Object.entries(args).filter(([key]) => !excluded.has(key)))]);
 }
 const text = (value: unknown): string | undefined => typeof value === "string" && value ? value : undefined;
@@ -48,15 +48,6 @@ export function extractFlags(toolName: string, details: unknown, scope = "legacy
 	const flags: ConflictFlag[] = [];
 	const subject = text(d.id) ?? text(d.action_item_id) ?? text(args.action_item_id) ?? text(args.id);
 	const operation = operationKey(toolName, args);
-	for (const value of Array.isArray(d.unresolved_conflicts) ? d.unresolved_conflicts : []) {
-		const c = row(value);
-		if (!c) continue;
-		const counterpart = text(c.conflicting_item_id) ?? text(c.item_id);
-		if (!subject || !counterpart) continue; // Never merge unidentified pairs into "unknown".
-		flags.push({ key: snapshotHash([scope, "item_conflict", ...[subject, counterpart].sort()]), scope,
-			kind: "item_conflict", subject, counterpart, revision: snapshotHash(c),
-			label: reviewData({ subject, counterpart, context: "Incomplete historical observation; use get_action_item to read both current permitted records." }) });
-	}
 	for (const value of Array.isArray(d.unresolved_disagreements) ? d.unresolved_disagreements : []) {
 		const c = row(value);
 		if (!c || !text(c.key)) continue;
@@ -66,18 +57,10 @@ export function extractFlags(toolName: string, details: unknown, scope = "legacy
 			revision: snapshotHash(safe), label: reviewData({ key: c.key, status: c.status,
 				context: "Incomplete historical observation; use get_review_queue with this key for current permitted claims. A record that cannot be read is not expanded here." }) });
 	}
-	if (d.reconcile_required === true) {
-		const match = row(d.closest_match);
-		flags.push({ key: snapshotHash([scope, "write_gate", operation]), scope, kind: "write_gate", operation,
-			revision: snapshotHash(match), label: reviewData({ write: toolName, status: "not written", closest_match: { id: match?.id, version: match?.version },
-				next: "Re-read the matched record for current permitted context, then follow the served reconciliation contract." }) });
-	}
 	// Retrieval suggestions are not established conflicts, nor obligatory rulings.
-	for (const key of ["related_candidates", "potential_conflicts"] as const) {
-		if (key === "related_candidates" && toolName !== "create_action_item") continue;
-		const candidates = d[key];
-		if (!Array.isArray(candidates) || !candidates.length) continue;
-		flags.push({ key: snapshotHash([scope, "suggestions", operation, subject, key]), scope, kind: "related_candidates", operation,
+	const candidates = d.related_candidates;
+	if (toolName === "create_action_item" && Array.isArray(candidates) && candidates.length) {
+		flags.push({ key: snapshotHash([scope, "suggestions", operation, subject, "related_candidates"]), scope, kind: "related_candidates", operation,
 			revision: snapshotHash(candidates), label: reviewData({ tool: toolName, suggestions: candidates.length,
 				meaning: "Retrieval candidates only; not a project-conflict count. Read relevant records before judging." }) });
 	}
@@ -90,18 +73,12 @@ export function extractFlags(toolName: string, details: unknown, scope = "legacy
 
 const FLAG_RULINGS = new Set(["resolve_memory_flag", "resolve_resource_flag"]);
 
-/** Only exact successful operations discharge their own checks/rulings. */
+/** Only exact successful rulings discharge their own observation. */
 export function observeReviewResult(tool: string, details: unknown, args: Record<string, unknown>, scope: string, observed: readonly ConflictFlag[] = []): void {
 	const d = row(details);
 	if (!d) return;
 	if (writeOutcomeFromResult(d) === "committed") {
-		const operation = operationKey(tool, args);
 		const unchanged = () => listFlags(scope).filter((f) => observed.some((old) => old.key === f.key && old.revision === f.revision));
-		for (const f of unchanged()) {
-			// A committed identical write is the existing server's comparison-completion
-			// receipt. Unrelated writes, changed text and proposals cannot discharge it.
-			if (f.kind === "write_gate" && f.operation === operation) clearFlag(f.key);
-		}
 		// A memory or document flag ruling names one record and one flag; only the
 		// observation of exactly that flag on exactly that record is discharged.
 		const subject = text(args.id);
@@ -118,14 +95,13 @@ export function observeReviewResult(tool: string, details: unknown, args: Record
 
 export function formatConflictNudge(flags: ConflictFlag[]): string | null {
 	if (!flags.length) return null;
-	const issues = flags.filter((f) => f.kind === "item_conflict" || f.kind === "memory_conflict");
-	const checks = flags.filter((f) => f.kind === "write_gate");
+	const issues = flags.filter((f) => f.kind === "memory_conflict");
 	const suggestions = flags.filter((f) => f.kind === "related_candidates");
 	const lines = ["### DevSpec — observed Review context",
-		`${issues.length} unresolved issue observation(s); ${checks.length} incomplete write check(s); ${suggestions.length} retrieval suggestion set(s). These are observations in this scope, not project totals.`,
+		`${issues.length} unresolved issue observation(s); ${suggestions.length} retrieval suggestion set(s). These are observations in this scope, not project totals.`,
 		"Use live records and the served authority contract. Candidates are not conflicts; finishing a session does not settle issues."];
 	let shown = 0;
-	for (const flag of [...issues, ...checks, ...suggestions]) {
+	for (const flag of [...issues, ...suggestions]) {
 		if (lines.join("\n").length + flag.label.length > 6_000) continue;
 		lines.push(flag.label); shown++;
 	}

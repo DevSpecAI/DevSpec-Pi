@@ -114,7 +114,7 @@ export default function (pi: ExtensionAPI, deps = { resolveToken, callDevspec, g
 	});
 
 	pi.registerCommand("devspec.conflicts", {
-		description: "List observed issues, write checks and retrieval suggestions in this session's project.",
+		description: "List observed issues and retrieval suggestions in this session's project.",
 		handler: async (_args, ctx) => {
 			const token = await deps.resolveToken();
 			if (!token) return;

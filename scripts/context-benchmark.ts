@@ -57,9 +57,7 @@ const projectSummary = {
 const acknowledgement = {
 	action_item: { id: "item-created", title: "Representative write", lifecycle: "open" },
 	review_before_proceeding: { required: true, instruction: repeat("Review before proceeding", 400) },
-	check_against_decisions: { required: true, instruction: repeat("Check decisions", 400) },
-	related_decisions: actionResults.slice(0, 8),
-	related_candidates: actionResults.slice(8, 16),
+	related_candidates: actionResults.slice(0, 16),
 };
 
 const help = {
@@ -132,7 +130,7 @@ const rows: BenchmarkRow[] = [
 	projectionRow("action-item search", "search_action_items", { count: actionResults.length, results: actionResults }, 2_000, PROJECTION_BUDGETS.collection, ["Representative action-item result 1", "Intent 1", "get_action_item"]),
 	projectionRow("resource search", "search_resources", { documents: resourceResults.slice(0, 5), artifacts: resourceResults.slice(5) }, 1_500, PROJECTION_BUDGETS.collection, ["Representative resource 1", "Matching passage 1", "get_resource"]),
 	projectionRow("project summary", "get_project_summary", projectSummary, 9_000, PROJECTION_BUDGETS.project, ["Team principles", "Team agent rules", "Owner agent rules"]),
-	projectionRow("write acknowledgement", "create_action_item", acknowledgement, 2_000, PROJECTION_BUDGETS.ack, ["review_before_proceeding", "check_against_decisions", "Related candidates"]),
+	projectionRow("write acknowledgement", "create_action_item", acknowledgement, 1_500, PROJECTION_BUDGETS.ack, ["review_before_proceeding", "Related candidates"]),
 	projectionRow("implementation acknowledgement", "record_implementation", implementation, 1_500, PROJECTION_BUDGETS.recordImplementation, ["Criterion 1", "Brief criterion 1", "record_criterion_verdicts"]),
 	projectionRow("help search", "devspec_help_search", help, 1_500, PROJECTION_BUDGETS.help, ["Context documentation 1", "https://docs.example.test/context-1", "Citeable help content 1"]),
 	projectionRow("fallback text", "generate_commit_message", fallback, 1_000, PROJECTION_BUDGETS.fallback, ["Generated commit message", "fallback field"]),

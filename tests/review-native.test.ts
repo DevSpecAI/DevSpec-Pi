@@ -15,6 +15,8 @@ const side = (id: string) => ({ type: "memory", id, title: `Title ${id}`, claim:
 const issue = { key: "possibly_contradictory|memory:a|memory:b", claimType: "possibly_contradictory", status: "open", issueId: null,
 	subject: side("a"), counterpart: side("b"), evidence: { reason: "These clauses differ", passage: "CLAIM_a", raisedAt: "2026-09-25" } };
 const card = { id: "a", title: "Memory A", type: "decision", summary: "A summary", version: 1, updated_at: "before", unresolved_disagreements: [issue] };
+const stale = (id: string, reason = "The code it describes changed") => ({ key: `possibly_stale|memory:${id}`, claimType: "possibly_stale", status: "open", issueId: null,
+	subject: side(id), counterpart: null, evidence: { reason, raisedAt: "2026-10-11" } });
 const project = (toolName: string, details: unknown) => projectModelText({ toolName, details, text: "" });
 
 test("native unwrap retains queued proposal, reason and relay AFTER compact projection", () => {
@@ -92,32 +94,14 @@ test("outside text cannot close the structural data fence", () => {
 	assert.equal((text.match(/<\/devspec-review-data>/g) ?? []).length, 2);
 });
 
-test("watch keeps overlapping pairs, scoped projects/accounts and changed evidence separate", () => {
+test("watch keeps records, scoped projects/accounts and changed evidence separate", () => {
 	clearAllFlags();
 	const a = reviewScope("session", "project", "account-a");
 	const b = reviewScope("session", "project", "account-b");
-	for (const id of ["one", "two"]) addFlags(extractFlags("get_action_item", { id, unresolved_conflicts: [{ conflicting_item_id: "shared", reason: id }] }, a));
+	for (const id of ["one", "two"]) addFlags(extractFlags("get_memory", { id, unresolved_disagreements: [stale(id)] }, a));
 	assert.equal(listFlags(a).length, 2); assert.equal(listFlags(b).length, 0);
-	assert.equal(addFlags(extractFlags("get_action_item", { id: "one", unresolved_conflicts: [{ conflicting_item_id: "shared", reason: "changed" }] }, a)).length, 1);
+	assert.equal(addFlags(extractFlags("get_memory", { id: "one", unresolved_disagreements: [stale("one", "Changed again")] }, a)).length, 1);
 	assert.equal(listFlags(a).length, 2);
-});
-
-test("only matching committed write clears its exact check, never an issue or a changed observation", () => {
-	clearAllFlags(); const scope = "checks";
-	const args = { title: "new", body: "content" };
-	const gate = { reconcile_required: true, closest_match: { id: "match", version: 1 } };
-	observeReviewResult("record_memory", gate, args, scope);
-	observeReviewResult("get_memory", card, {}, scope);
-	const before = listFlags(scope);
-	for (const result of [{ outcome: "queued_for_review" }, { outcome: "stale_context" }, { outcome: "comparison_pending" }]) observeReviewResult("record_memory", result, args, scope, before);
-	observeReviewResult("record_memory", { outcome: "committed" }, { ...args, body: "different" }, scope, before);
-	assert.equal(listFlags(scope).filter((f) => f.kind === "write_gate").length, 1);
-	observeReviewResult("record_memory", { ...gate, closest_match: { id: "match", version: 2 } }, args, scope);
-	observeReviewResult("record_memory", { outcome: "committed" }, { ...args, confirm_new: true }, scope, before);
-	assert.equal(listFlags(scope).filter((f) => f.kind === "write_gate").length, 1, "late receipt cannot clear changed evidence");
-	observeReviewResult("record_memory", { outcome: "committed" }, { ...args, confirm_new: true }, scope, listFlags(scope));
-	assert.equal(listFlags(scope).filter((f) => f.kind === "write_gate").length, 0);
-	assert.equal(listFlags(scope).filter((f) => f.kind === "memory_conflict").length, 1);
 });
 
 test("native result consumer does not call retrieval candidates project conflicts", () => {
@@ -187,8 +171,6 @@ test("registered before_agent_start hook appends immutable revisions and rejects
 
 test("a flag ruling clears only its observed flag on its own record, never another record, a queued ruling or a supersession", () => {
 	clearAllFlags(); const scope = "rulings";
-	const stale = (id: string) => ({ key: `possibly_stale|memory:${id}`, claimType: "possibly_stale", status: "open", issueId: null,
-		subject: side(id), counterpart: null, evidence: { reason: "The code it describes changed", raisedAt: "2026-10-11" } });
 	for (const id of ["a", "c"]) observeReviewResult("get_memory", { id, title: `Memory ${id}`, unresolved_disagreements: [stale(id)] }, {}, scope);
 	const before = listFlags(scope);
 	assert.equal(before.length, 2);

@@ -27,10 +27,10 @@ function completed(name: string, result: unknown, ok = true) {
 }
 
 const softGates: Array<[string, Record<string, unknown>]> = [
-	["supersede_memory", { superseded: false, reconcile_required: true }],
-	["supersede_resource", { superseded: false, reconcile_required: true }],
-	["update_resource", { updated: false, reconcile_required: true }],
-	["record_memory", { recorded: false, reconcile_required: true }],
+	["supersede_memory", { superseded: false }],
+	["supersede_resource", { superseded: false }],
+	["update_resource", { updated: false }],
+	["record_memory", { recorded: false }],
 	["create_resource", { created: false }],
 	["claim_work_item", { claim_success: false }],
 	["record_implementation", { implementation_recorded: false }],
@@ -40,8 +40,8 @@ const softGates: Array<[string, Record<string, unknown>]> = [
 ];
 for (const [wrapperName, wrap] of Object.entries(wrappers)) {
 	for (const [name, receipt] of softGates) {
-		test(`${name}: ${wrapperName} non-applied receipt never links the original or a suggested match`, () => {
-			const result = wrap({ ...receipt, closest_match: { id: RETURNED, body: PRIVATE }, guidance: PRIVATE });
+		test(`${name}: ${wrapperName} non-applied receipt never links the original or a returned record`, () => {
+			const result = wrap({ ...receipt, related: { id: RETURNED, body: PRIVATE }, guidance: PRIVATE });
 			assert.equal(writeOutcomeFromResult(result), "not_applied");
 			assert.equal(domainIdentity(name, { id: SOURCE }, result).id, undefined);
 			const event = completed(name, result);
@@ -168,7 +168,7 @@ test("unknown dispositions are not projected verbatim or treated as applied writ
 });
 
 test("only structured fields establish a non-applied outcome, never free-text heuristics", () => {
-	assert.equal(writeOutcomeFromResult({ content: [{ type: "text", text: "superseded:false reconcile_required:true" }] }), undefined);
+	assert.equal(writeOutcomeFromResult({ content: [{ type: "text", text: "superseded:false recorded:false" }] }), undefined);
 	assert.equal(writeOutcomeFromResult({ title: "not applied", note: "failed" }), undefined);
 	assert.equal(writeOutcomeFromResult({ outcome: "committed", superseded: false }), "not_applied");
 });

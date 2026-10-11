@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.21
+
+- DevSpec's trial that asked the agent to judge which existing items its own change affected has ended. Pi no longer offers its two tools or keeps its request in what the model sees.
+- The catalogue is regenerated against DevSpec's current tools.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.20
 
 - Recording that one action item replaces another is now its own action, `supersede_action_item`: name the replacing item and the one it replaces. `preview_supersession` shows first what would close and when, and whether it would be recorded or wait for a Maintainer. One that waits shows as proposed in the session's activity. A link between two items no longer retires either.

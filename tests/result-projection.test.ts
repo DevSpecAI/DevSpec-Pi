@@ -616,7 +616,18 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// 46,636 (regenerated catalogue, Pi unchanged) -> 46,590 estimated tokens
 		// once Pi's always-on instructions stopped naming possible_conflict and
 		// confirm_new; every budget still passes.
-		"8fb77eaa9d73949c648b308db68600eddff2b76cad9ea7aeeb339c2cbcfe9d7b",
+		//
+		// Rebaselined 2026-10-11 for DevSpec item 506d0806 (the shadow impact
+		// assessment is removed, DevSpecV2 0a4e7313), regenerated against the server
+		// tree carrying that removal. Verbs 94 -> 92 (model 82 -> 80). Removed:
+		// assess_change_impact and record_change_impact, from the ack family. Inputs
+		// changed: none; record_implementation, record_memory and supersede_memory
+		// stop naming impact_follow_through in their descriptions. Pi stops keeping
+		// impact_follow_through, the candidates and problems gates and the trial's
+		// receipt fields. No other projection family changed, and hot-set membership
+		// follows the same rule (78 -> 76). Benchmark before/after: initial surface
+		// 46,590 -> 45,362 estimated tokens; every budget still passes.
+		"42d977df01bb872441831a9811152bcb1cf2358605edf5b28ccb86af9586f513",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -1491,76 +1502,3 @@ test("a paged DevSpec list names the exact next page, and a ranked floor says so
 	assert.match(projectModelText({ toolName: "search_action_items", text: JSON.stringify(floor), details: floor }), /the count is a floor/);
 });
 
-// The shadow impact assessment (DevSpec item 81f79916). Shapes are the server's
-// own: impactFollowThrough(), assess_change_impact and record_change_impact.
-const IMPACT_FOLLOW_THROUGH = {
-	assessment_id: "9b1c2d3e-0000-4000-8000-000000000001",
-	why: "You hold the change and the reason for it, so you are the best judge of which existing work it affects. DevSpec is measuring how well that works: nothing in the project changes because of your answers.",
-	steps: [
-		"Call assess_change_impact with this assessment_id and what the change did to EXISTING behaviour or claims, each as { before, after }: what used to be true, required or offered, and what is true now. Include removals, replacements, renames, tightened rules and changed defaults. Leave out additions that leave existing behaviour as it was.",
-		"It returns the existing items DevSpec found. Rule on every one with record_change_impact: replaced (this change deliberately replaced behaviour the item delivered), unnecessary (open work the item asks for is no longer needed because of this change), regression (this change breaks a requirement the item still holds), or not (it still stands; related, refined or built on is not). For any ruling other than not, quote the item's own words and cite the part of the change that does it.",
-		"If you cannot assess it now, call record_change_impact with abstain_reason instead.",
-	],
-};
-
-test("record_implementation and record_memory keep the impact request word for word", () => {
-	for (const toolName of ["record_implementation", "record_memory", "supersede_memory"]) {
-		const payload = {
-			id: "work-789", outcome: "committed", lifecycle: "implemented",
-			impact_follow_through: IMPACT_FOLLOW_THROUGH,
-			completion_summary: huge("ECHOED-COMPLETION"),
-		};
-		const text = visible(projectedToolResult(toolName, unwrapMcpResult(mcpJson(payload))));
-		assert.match(text, /Impact follow-through \(act before reporting\)/, toolName);
-		assert.ok(text.includes(IMPACT_FOLLOW_THROUGH.assessment_id), toolName);
-		for (const step of IMPACT_FOLLOW_THROUGH.steps) assert.ok(text.includes(step), `${toolName} keeps: ${step.slice(0, 40)}`);
-	}
-});
-
-test("assess_change_impact shows every candidate whole, even past the acknowledgement budget", () => {
-	const candidates = Array.from({ length: 22 }, (_, i) => ({
-		item_id: `item-${String(i).padStart(2, "0")}`,
-		title: `Candidate ${i}`,
-		lifecycle: i % 2 ? "implemented" : "open",
-		version: 3,
-		reasons: [`similar to what the change did (rank ${i + 1})`, "filed in the same session"],
-		summary: `${"Summary words ".repeat(28)}end-${i}`,
-	}));
-	const payload = {
-		outcome: "committed",
-		assessment_id: IMPACT_FOLLOW_THROUGH.assessment_id,
-		candidates,
-		next: "Rule on every candidate with record_change_impact. Read an item in full with get_action_item before ruling on it.",
-		shadow_note: "Nothing in the project changed: this assessment is recorded for measurement.",
-	};
-	assert.equal(projectionFamily("assess_change_impact"), "ack");
-	const text = visible(projectedToolResult("assess_change_impact", unwrapMcpResult(mcpJson(payload))));
-	for (const candidate of candidates) {
-		assert.ok(text.includes(`[${candidate.item_id}]`), candidate.item_id);
-		assert.ok(text.includes(candidate.summary), `summary of ${candidate.item_id}`);
-		assert.ok(text.includes(candidate.reasons[0]!), `reason of ${candidate.item_id}`);
-	}
-	assert.match(text, /Rule on every candidate with record_change_impact/);
-});
-
-test("a refused record_change_impact shows every problem, and stores nothing", () => {
-	const payload = {
-		outcome: "refused",
-		stored: false,
-		assessment_id: IMPACT_FOLLOW_THROUGH.assessment_id,
-		problems: {
-			missing: ["item-03", "item-07"],
-			unknown: ["item-99"],
-			duplicated: [],
-			unquoted: [{ item_id: "item-01", quote: "a page that was never asked for" }],
-			incomplete: [{ item_id: "item-02", needs: ["item_quote", "change_citation"] }],
-		},
-		guidance: "Nothing was stored. Rule on every candidate exactly once (missing), only on candidates you were shown (unknown, duplicated), give every ruling a note, and for any ruling other than not quote the item's own words (unquoted) and cite the change (incomplete). Then call again.",
-	};
-	assert.equal(projectionFamily("record_change_impact"), "ack");
-	const text = visible(projectedToolResult("record_change_impact", unwrapMcpResult(mcpJson(payload))));
-	for (const needle of ["item-03", "item-07", "item-99", "a page that was never asked for", "change_citation", "Nothing was stored"]) {
-		assert.ok(text.includes(needle), needle);
-	}
-	assert.match(text, /outcome=refused/);
-});

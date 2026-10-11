@@ -81,6 +81,7 @@ const DEBUG_FIELDS = {
 	recall: ["queryChars", "newHits"],
 	"request chain failed": ["open", "close", "restore", "persist"],
 	"request launches restored": ["restored"],
+	"request launches ended after restore": ["ended"],
 	"request launches restore failed": ["errorPresent"],
 	"request launch record failed": ["errorPresent"],
 	"recall failed": ["errorPresent"],

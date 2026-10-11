@@ -17,6 +17,8 @@ import {
 	cancelledQuestionId,
 	declaresRequestRef,
 	installRequestChain,
+	isLaunchCall,
+	launchRefusal,
 	parseRequestLinkEntry,
 	questionKey,
 	REQUEST_LINK_ENTRY,
@@ -44,7 +46,7 @@ const MSG_C = "1000000c-0000-4000-8000-00000000000c";
 interface Call { action: string; request_id: string; kind?: string; provenance_ref?: string; reason?: string }
 
 /** A fake report_request: who asked follows the delivery; the owner typed prompts. */
-function harness(options: { requesters?: Record<string, string>; refuse?: (args: Call) => boolean; closed?: Set<string> } = {}) {
+function harness(options: { requesters?: Record<string, string>; refuse?: (args: Call) => boolean; closed?: Set<string>; hang?: (args: Call) => boolean } = {}) {
 	const calls: Call[] = [];
 	const journal: Array<Omit<RequestLinkEntry, "version" | "nativeSessionId" | "connectionId">> = [];
 	const requesters = options.requesters ?? { [DELIVERY_A]: ALI, [DELIVERY_B]: BRANDON, [DELIVERY_C]: ALI };
@@ -55,6 +57,7 @@ function harness(options: { requesters?: Record<string, string>; refuse?: (args:
 				const args = raw as unknown as Call;
 				calls.push(args);
 				if (options.refuse?.(args)) throw new Error("request: refused");
+				if (options.hang?.(args)) return new Promise(() => {});
 				if (args.action === "close") return { request_id: args.request_id, status: "closed", already_closed: false };
 				const status = options.closed?.has(args.request_id) ? "closed" : "open";
 				return { request_id: args.request_id, status, already_open: false,
@@ -202,8 +205,10 @@ describe("what a turn and a wake carry", () => {
 		chain.endTurn();
 		chain.arriveUnknown();
 		assert.deepEqual(chain.launchSnapshot(), { request: UNSTATED, also: [] });
-		assert.equal(chain.serve({ none: true }).ok, true);
+		chain.endTurn();
+		chain.arriveNobody();
 		assert.deepEqual(chain.launchSnapshot(), { request: NO_REQUEST, also: [] });
+		assert.deepEqual(chain.launchSnapshot({ commandTurnId: "turn", commandMessageId: MSG_A }).command, { commandTurnId: "turn", commandMessageId: MSG_A });
 		await settle();
 	});
 
@@ -248,7 +253,7 @@ describe("what a turn and a wake carry", () => {
 		chain.arrive([t]);
 		chain.arriveNobody();
 		assert.deepEqual((await chain.ambiguity())!.map((entry) => entry.id), [NO_REQUEST, t]);
-		chain.serve({ none: true });
+		assert.equal((await chain.serve({ none: true })).ok, true);
 		assert.equal(await chain.ambiguity(), null);
 		assert.equal(await chain.stamp(), NO_REQUEST);
 	});
@@ -300,7 +305,7 @@ describe("when a write must say whose request it serves", () => {
 		chain.arrive([a]);
 		chain.arrive([b]);
 		assert.deepEqual((await chain.ambiguity())!.map((entry) => entry.id), [a, b]);
-		assert.deepEqual(chain.serve({ messageId: MSG_B }), { ok: true, serving: `the room command with message_id ${MSG_B}` });
+		assert.deepEqual(await chain.serve({ messageId: MSG_B }), { ok: true, serving: `the room command with message_id ${MSG_B}` });
 		assert.equal(await chain.ambiguity(), null);
 		assert.equal(await chain.stamp(), calls.find((call) => call.provenance_ref === DELIVERY_B)!.request_id);
 	});
@@ -334,7 +339,7 @@ describe("when a write must say whose request it serves", () => {
 		const { chain } = harness();
 		chain.arrive([command(chain, DELIVERY_A, MSG_A)]);
 		chain.arrive([command(chain, DELIVERY_B, MSG_B)]);
-		chain.serve({ messageId: MSG_A });
+		assert.equal((await chain.serve({ messageId: MSG_A })).ok, true);
 		assert.equal(await chain.ambiguity(), null);
 		chain.arrive([chain.openTyped()!]);
 		assert.ok(await chain.ambiguity());
@@ -361,20 +366,81 @@ describe("when a write must say whose request it serves", () => {
 		assert.deepEqual((await chain.ambiguity())!.map((entry) => entry.id), [a, b]);
 	});
 
-	test("serve names a command by message id, the terminal prompt, or nobody, and refuses anything else", () => {
+	test("serve names only a request this turn carries, and only when they would be recorded differently", async () => {
 		const { chain } = harness();
 		const a = command(chain, DELIVERY_A, MSG_A);
-		const t = chain.openTyped()!;
 		chain.arrive([a]);
-		assert.equal(chain.serve({ messageId: MSG_A }).ok, true);
+		const alone = await chain.serve({ messageId: MSG_A });
+		assert.equal(alone.ok, false, "nothing to name when every write has one answer");
+		const t = chain.openTyped()!;
+		chain.arrive([t]);
+		assert.equal((await chain.serve({ messageId: MSG_A })).ok, true);
 		assert.equal(chain.currentRequestId(), a);
-		assert.equal(chain.serve({ terminal: true }).ok, true);
+		assert.equal((await chain.serve({ terminal: true })).ok, true);
 		assert.equal(chain.currentRequestId(), t);
-		assert.equal(chain.serve({ none: true }).ok, true);
-		assert.equal(chain.currentRequestId(), null);
-		assert.equal(chain.serve({ messageId: MSG_B }).ok, false);
-		assert.equal(chain.serve({ terminal: true, none: true }).ok, false);
-		assert.equal(chain.serve({}).ok, false);
+		assert.equal((await chain.serve({ messageId: MSG_A })).ok, true, "naming switches back");
+		assert.equal((await chain.serve({ none: true })).ok, false, "nobody's request is not among them");
+		const elsewhere = command(chain, DELIVERY_B, MSG_B);
+		assert.ok(elsewhere);
+		assert.equal((await chain.serve({ messageId: MSG_B })).ok, false, "open, but not carried by this turn");
+		assert.equal((await chain.serve({ terminal: true, none: true })).ok, false);
+		assert.equal((await chain.serve({})).ok, false);
+	});
+
+	test("a requester not known yet is its own person: undecided, and the wait for it is bounded", async () => {
+		const { chain } = harness({ hang: (args) => args.provenance_ref === DELIVERY_C });
+		chain.arrive([command(chain, DELIVERY_A, MSG_A)]);
+		chain.arrive([command(chain, DELIVERY_C, MSG_C)]);
+		const started = Date.now();
+		const carried = await chain.ambiguity(50);
+		assert.ok(Date.now() - started < 1_000);
+		assert.deepEqual(carried!.map((entry) => entry.messageId), [MSG_A, MSG_C], "the same person once known, but not yet");
+	});
+
+	test("an open that has not answered within the wait stamps nothing, and the wait is bounded", async () => {
+		const { chain } = harness({ hang: () => true });
+		chain.arrive([chain.openTyped()!]);
+		const started = Date.now();
+		assert.equal(await chain.stamp(50), null);
+		assert.ok(Date.now() - started < 1_000);
+	});
+
+	test("a wake prefers a launch whose request is still open, and a wake for nobody's and somebody's is undecided", async () => {
+		const { chain, settle } = harness();
+		const a = command(chain, DELIVERY_A, MSG_A);
+		chain.arrive([a]);
+		chain.recordLaunch(taskKey("gone"), { request: a, also: [] }, { notifies: false });
+		chain.endTurn();
+		await settle();
+		const b = command(chain, DELIVERY_B, MSG_B);
+		chain.arrive([b]);
+		chain.recordLaunch(taskKey("live"), chain.launchSnapshot());
+		chain.recordLaunch(taskKey("live2"), chain.launchSnapshot());
+		chain.recordLaunch(taskKey("own"), { request: NO_REQUEST, also: [] });
+		chain.endTurn();
+		await settle();
+		chain.wake([{ key: taskKey("gone"), terminal: true }, { key: taskKey("live"), terminal: true }]);
+		assert.equal(chain.currentRequestId(), b, "the finished primary does not decide it");
+		chain.endTurn();
+		chain.wake([{ key: taskKey("own"), terminal: true }, { key: taskKey("live2"), terminal: true }]);
+		assert.deepEqual((await chain.ambiguity())!.map((entry) => entry.id), [NO_REQUEST, b]);
+	});
+
+	test("a launch keeps the command it was made under even when no request could be opened", async () => {
+		const { chain, settle } = harness({ refuse: () => true });
+		chain.arrive([command(chain, DELIVERY_A, MSG_A)]);
+		await settle();
+		const snapshot = chain.launchSnapshot({ commandTurnId: "turn", commandMessageId: MSG_A });
+		assert.equal(snapshot.request, UNSTATED, "a request DevSpec did not open is never stamped");
+		chain.recordLaunch(taskKey("job"), snapshot);
+		chain.endTurn();
+		chain.wake([{ key: taskKey("job"), terminal: true }]);
+		assert.deepEqual(chain.wakeCommandIdentity(), { commandTurnId: "turn", commandMessageId: MSG_A });
+		assert.equal(await chain.stamp(), null);
+		chain.endTurn();
+		assert.equal(chain.wakeCommandIdentity(), null);
+		chain.wake([{ key: taskKey("stranger"), terminal: true }]);
+		assert.equal(chain.wakeCommandIdentity(), null, "a wake the chain knows nothing about leaves posting to the open turn");
 	});
 });
 
@@ -397,13 +463,17 @@ describe("stamping a DevSpec write", () => {
 		} finally { installRequestChain(null); }
 	});
 
-	test("stamps nobody's request as none, and leaves a call that already names a request as written", async () => {
+	test("stamps nobody's request as none, and never lets the model set attribution", async () => {
 		const { chain } = harness();
 		installRequestChain(chain);
 		try {
-			chain.serve({ none: true });
+			chain.arriveNobody();
 			assert.deepEqual(await stampRequestRef({ params: {}, inputSchema: declared, connectionId: CONN }), { args: { request_ref: NO_REQUEST } });
-			assert.deepEqual(await stampRequestRef({ params: { request_ref: "x" }, inputSchema: declared, connectionId: CONN }), { args: { request_ref: "x" } });
+			assert.deepEqual(await stampRequestRef({ params: { request_ref: "x" }, inputSchema: declared, connectionId: CONN }), { args: { request_ref: NO_REQUEST } });
+			chain.endTurn();
+			chain.arriveUnknown();
+			assert.deepEqual(await stampRequestRef({ params: { request_ref: "x", title: "t" }, inputSchema: declared, connectionId: CONN }), { args: { title: "t" } }, "removed even when nothing is stamped");
+			assert.deepEqual(await stampRequestRef({ params: { request_ref: "x" }, inputSchema: declared, connectionId: "other" }), { args: {} });
 		} finally { installRequestChain(null); }
 	});
 
@@ -413,23 +483,39 @@ describe("stamping a DevSpec write", () => {
 		try {
 			chain.arrive([command(chain, DELIVERY_A, MSG_A)]);
 			chain.arrive([command(chain, DELIVERY_B, MSG_B)]);
-			const refused = await stampRequestRef({ params: {}, inputSchema: declared, connectionId: CONN });
-			assert.ok("deny" in refused);
-			assert.match(refused.deny, /more than one person/);
+			const refused = await stampRequestRef({ params: { request_ref: "forged" }, inputSchema: declared, connectionId: CONN });
+			assert.ok("deny" in refused, "a model-supplied request_ref does not bypass the refusal");
+			assert.match(refused.deny, /more than one request that would be recorded differently/);
 			assert.match(refused.deny, new RegExp(`${SERVE_REQUEST_TOOL} with message_id "${MSG_A}"`));
 			assert.match(refused.deny, new RegExp(`${SERVE_REQUEST_TOOL} with message_id "${MSG_B}"`));
 			assert.ok("args" in await stampRequestRef({ params: {}, inputSchema: undeclared, connectionId: CONN }), "a read is never refused");
 			assert.ok("args" in await stampRequestRef({ params: { work_claim_ref: "w" }, inputSchema: declared, connectionId: CONN }));
 			assert.ok("args" in await stampRequestRef({ params: { provenance_ref: DELIVERY_B }, inputSchema: declared, connectionId: CONN }));
-			chain.serve({ messageId: MSG_B });
+			assert.equal((await chain.serve({ messageId: MSG_B })).ok, true);
 			assert.ok("args" in await stampRequestRef({ params: {}, inputSchema: declared, connectionId: CONN }));
 		} finally { installRequestChain(null); }
 	});
 
-	test("the refusal lists the terminal prompt and nobody's request with their own instructions", () => {
+	test("the refusal lists the terminal prompt and nobody's request with their own instructions, and never says two people when it is one", () => {
 		const text = ambiguityRefusal([{ id: NO_REQUEST, kind: "none", current: true }, { id: "t", kind: "typed_prompt", current: false }]);
 		assert.match(text, /none: true/);
 		assert.match(text, /terminal: true/);
+		assert.doesNotMatch(text, /more than one person/);
+		const launch = launchRefusal([{ id: "t", kind: "typed_prompt", current: true }, { id: "a", kind: "command", messageId: MSG_A, current: false }]);
+		assert.match(launch, /starts work that continues one of them/);
+		assert.match(launch, new RegExp(`message_id "${MSG_A}"`));
+	});
+
+	test("background work, async subagents and directed questions are launches; inspection and foreground runs are not", () => {
+		assert.equal(isLaunchCall("bg_run", {}), true);
+		assert.equal(isLaunchCall("fusion_research", {}), true);
+		assert.equal(isLaunchCall("bg_status", {}), false);
+		assert.equal(isLaunchCall("subagent", { agent: "worker", task: "x" }), true, "async by default");
+		assert.equal(isLaunchCall("subagent", { agent: "worker", task: "x", async: false }), false);
+		assert.equal(isLaunchCall("subagent", { action: "status" }), false);
+		assert.equal(isLaunchCall("manage_directed_question", { action: "create" }), true);
+		assert.equal(isLaunchCall("manage_directed_question", { action: "cancel" }), false);
+		assert.equal(isLaunchCall("record_memory", {}), false);
 	});
 
 	test("the tools that take a request come from the served catalogue: the 31 work-claim provenance writes", () => {
@@ -454,7 +540,8 @@ describe("launch and wake shapes", () => {
 	test("background launches record every task, and notice whether its end notifies", () => {
 		const receipt = (task: Record<string, unknown>) => ({ details: { task } });
 		assert.deepEqual(backgroundLaunch("bg_run", receipt({ id: "t1", startTime: 1, status: "running", notifyOnCompletion: true, triggerOnCompletion: true })), { id: "t1", notifies: true });
-		assert.deepEqual(backgroundLaunch("bg_run", receipt({ id: "t2", startTime: 1, status: "running" })), { id: "t2", notifies: false });
+		assert.deepEqual(backgroundLaunch("bg_run", receipt({ id: "t2", startTime: 1, status: "running" })), { id: "t2", notifies: true }, "a missing notify flag will wake");
+		assert.deepEqual(backgroundLaunch("bg_run", receipt({ id: "t5", startTime: 1, status: "running", notifyOnCompletion: false })), { id: "t5", notifies: false });
 		assert.equal(backgroundLaunch("bg_logs", receipt({ id: "t3", startTime: 1, status: "running" })), null, "inspection is not a launch");
 		assert.equal(backgroundLaunch("bg_run", receipt({ id: "t4", startTime: 1, status: "running" }), true), null);
 	});
@@ -527,6 +614,48 @@ describe("the journal keeps launches across /reload", () => {
 		assert.equal(await second.chain.stamp(), null);
 	});
 
+	test("a launch whose notice already reached the conversation is not restored; the rest keep their command", async () => {
+		const first = harness();
+		const a = command(first.chain, DELIVERY_A, MSG_A);
+		first.chain.arrive([a]);
+		const snapshot = first.chain.launchSnapshot({ commandTurnId: "turn", commandMessageId: MSG_A });
+		first.chain.recordLaunch(taskKey("seen"), snapshot);
+		first.chain.recordLaunch(taskKey("running"), snapshot);
+		const entries: unknown[] = first.journal.map((data) => ({ type: "custom", customType: REQUEST_LINK_ENTRY,
+			data: { version: 1, nativeSessionId: "native", connectionId: CONN, ...data } }));
+		entries.push({ type: "custom_message", customType: "background-task-notification",
+			content: "<background-task-notification><task-id>seen</task-id><status>completed</status></background-task-notification>" });
+		const noticeKeys = (entry: Record<string, unknown>) =>
+			wakeKeys({ text: String(entry.content), task: backgroundNotificationTask(String(entry.content), entry.details) });
+		const second = harness();
+		assert.equal(second.chain.restore(entries, "native", noticeKeys), 1);
+		assert.deepEqual(second.chain.restoredKeys(), [taskKey("running")]);
+		second.chain.wake([{ key: taskKey("running"), terminal: true }]);
+		assert.deepEqual(second.chain.wakeCommandIdentity(), { commandTurnId: "turn", commandMessageId: MSG_A });
+	});
+
+	test("restored launches the host no longer runs stop holding their requests; unknown ones wait", async () => {
+		const first = harness();
+		const a = command(first.chain, DELIVERY_A, MSG_A);
+		first.chain.arrive([a]);
+		for (const key of [taskKey("done"), taskKey("busy"), taskKey("unsure")]) first.chain.recordLaunch(key, first.chain.launchSnapshot());
+		const entries = first.journal.map((data) => ({ type: "custom", customType: REQUEST_LINK_ENTRY,
+			data: { version: 1, nativeSessionId: "native", connectionId: CONN, ...data } }));
+		const second = harness();
+		second.chain.restore(entries, "native");
+		await second.settle();
+		const verdicts: Record<string, boolean | undefined> = { [taskKey("done")]: false, [taskKey("busy")]: true, [taskKey("unsure")]: undefined };
+		assert.equal(second.chain.reconcileRestored((key) => verdicts[key]), 1);
+		assert.deepEqual(second.chain.restoredKeys(), [taskKey("unsure")]);
+		assert.deepEqual(second.chain.snapshot().pending.sort(), [taskKey("busy"), taskKey("unsure")]);
+		verdicts[taskKey("unsure")] = false;
+		second.chain.reconcileRestored((key) => verdicts[key]);
+		second.chain.endLaunch(taskKey("busy"));
+		await second.settle();
+		await second.settle();
+		assert.deepEqual(second.calls.map((call) => call.action), ["open", "close"], "closed once nothing it launched is still running");
+	});
+
 	test("the journal row is a strict allowlist", () => {
 		const row = { version: 1, nativeSessionId: "n", connectionId: CONN, key: "task:x", request: NO_REQUEST };
 		assert.ok(parseRequestLinkEntry(row));
@@ -534,6 +663,8 @@ describe("the journal keeps launches across /reload", () => {
 		assert.equal(parseRequestLinkEntry({ ...row, request: { id: "not-a-uuid", kind: "typed_prompt" } }), null);
 		assert.equal(parseRequestLinkEntry({ ...row, request: { id: CONN, kind: "command" } }), null, "a command needs its provenance_ref");
 		assert.equal(parseRequestLinkEntry({ ...row, request: "someone" }), null);
+		assert.ok(parseRequestLinkEntry({ ...row, command: { commandTurnId: "t", commandMessageId: "m" } }));
+		assert.equal(parseRequestLinkEntry({ ...row, command: { commandTurnId: "t" } }), null);
 	});
 });
 

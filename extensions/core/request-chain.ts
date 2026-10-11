@@ -41,7 +41,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { backgroundTaskFromLaunch } from "./background-observer.ts";
+import { backgroundTaskFromLaunch, isBackgroundLaunchTool } from "./background-observer.ts";
 import { automaticBackgroundTaskId } from "./turn-lifecycle.ts";
 
 export const REQUEST_LINK_ENTRY = "devspec-request-link";
@@ -71,11 +71,17 @@ export interface RequestLinkIdentity {
 	commandMessageId?: string;
 }
 
+/** The command a launch was made under, kept so its wake's reply lands in that command's turn. */
+export interface LaunchCommand {
+	commandTurnId: string;
+	commandMessageId: string;
+}
+
 /**
  * Journal row for one launch: what it was recorded against (a request, "none",
- * "unstated"), the other requests an undecided turn carried (`also`), and
- * whether its end reaches the agent as a notification. `request: null` says its
- * wake has come back (or it ended without one).
+ * "unstated"), the other requests an undecided turn carried (`also`), whether
+ * its end reaches the agent as a notification, and the command it was made
+ * under. `request: null` says its wake has come back (or it ended without one).
  */
 export interface RequestLinkEntry {
 	version: 1;
@@ -86,6 +92,7 @@ export interface RequestLinkEntry {
 	request: RequestLinkIdentity | typeof NO_REQUEST | typeof UNSTATED | null;
 	also?: RequestLinkIdentity[];
 	notifies?: boolean;
+	command?: LaunchCommand;
 }
 
 /** A request the current turn carries, as a refusal lists it. */
@@ -113,13 +120,18 @@ interface Launch {
 	also: string[];
 	notifies: boolean;
 	notified: boolean;
+	command?: LaunchCommand;
 }
 
 /** What a launch made now is recorded against. */
 export interface LaunchSnapshot {
 	request: string;
 	also: string[];
+	command?: LaunchCommand;
 }
+
+/** How long a decision waits, in total, for the opens it depends on. */
+export const OPEN_WAIT_MS = 3_000;
 
 function record(value: unknown): Record<string, unknown> | null {
 	return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -189,6 +201,10 @@ export class RequestChain {
 	 * unstamped, never credited to whoever was current before.
 	 */
 	private arrivals: string[][] = [];
+	/** The command the launch that woke this turn was made under (posting only, not attribution). */
+	private wakeCommand: LaunchCommand | null = null;
+	/** Launches rebuilt from the journal whose work has not yet been checked against the host. */
+	private readonly restored = new Set<string>();
 	private seq = 0;
 	private disposed = false;
 	private readonly closing = new Set<Promise<void>>();
@@ -272,6 +288,20 @@ export class RequestChain {
 		return state === "opening" || state === "open";
 	}
 
+	/** Wait, until a deadline, for the opens these requests depend on. */
+	private async settleOpens(ids: Iterable<string | null>, deadline: number): Promise<void> {
+		const pending = [...new Set(ids)].flatMap((id) => {
+			const request = id ? this.requests.get(id) : undefined;
+			return request?.state === "opening" ? [request.ready] : [];
+		});
+		const remaining = deadline - Date.now();
+		if (pending.length && remaining > 0) await withTimeout(Promise.all(pending).then(() => undefined), remaining, undefined);
+	}
+
+	private carriedIds(): (string | null)[] {
+		return [this.currentRequestId(), ...this.joined, ...this.arrivals.flat()];
+	}
+
 	// ---- The turn -------------------------------------------------------------
 
 	/** True once something this run carries has bound it (its first command, prompt, wake or notice). */
@@ -284,11 +314,6 @@ export class RequestChain {
 		return this.current && UUID.test(this.current) ? this.current : null;
 	}
 
-	/** Something besides the waking request reached this turn: naming one may be needed. */
-	get carriesSeveral(): boolean {
-		return this.joined.size > 0;
-	}
-
 	/** A new turn: it serves the request that woke it, and carries `also` besides. */
 	startTurn(ref: string | null, also: readonly string[] = []): void {
 		if (this.disposed) return;
@@ -298,6 +323,7 @@ export class RequestChain {
 		this.chosen = false;
 		this.turnStarted = true;
 		this.arrivals = [];
+		this.wakeCommand = null;
 		this.touched = new Set([...(this.currentRequestId() ? [this.current!] : []), ...this.joined]);
 		for (const id of previous) if (!this.touched.has(id)) this.maybeClose(id);
 	}
@@ -317,8 +343,9 @@ export class RequestChain {
 
 	/**
 	 * An input whose request is not known here (a command or prompt DevSpec did
-	 * not open, a wake nothing here launched): a turn it starts names nothing,
-	 * and mid-run it clears the current request — never keeps the previous one.
+	 * not open, a command message with no binding, a wake nothing here
+	 * launched): a turn it starts names nothing, and mid-run it clears the
+	 * current request — never keeps the previous one.
 	 */
 	arriveUnknown(): void {
 		if (this.disposed) return;
@@ -364,42 +391,88 @@ export class RequestChain {
 		this.turnStarted = false;
 		this.touched = new Set();
 		this.arrivals = [];
+		this.wakeCommand = null;
 		for (const id of released) this.maybeClose(id);
 	}
 
+	// ---- What the turn carries ---------------------------------------------------
+
 	/**
-	 * The agent names the request its writes now serve (serve_request): the
-	 * command with this message id, the newest prompt typed here, or nobody's.
-	 * Holds until another request reaches it.
+	 * Who a request is from as a write would record it: a person, and whether at
+	 * this terminal or in a room. A requester not yet known is its own person —
+	 * never assumed to be the same as anyone else.
 	 */
-	serve(input: { messageId?: unknown; terminal?: unknown; none?: unknown }): { ok: true; serving: string } | { ok: false; error: string } {
-		const messageId = typeof input.messageId === "string" && input.messageId.trim() ? input.messageId.trim() : null;
+	private attribution(request: CarriedRequest): string {
+		return `${request.requester ?? `unknown:${request.id}`}:${request.kind === "typed_prompt" ? "terminal" : "room"}`;
+	}
+
+	/**
+	 * The requests the turn carries when they would not all be recorded the same
+	 * way (whether or not the agent has named one); null when every write this
+	 * turn makes has one answer.
+	 */
+	private carriedNow(): CarriedEntry[] | null {
+		const carried: CarriedRequest[] = [];
+		const add = (id: string | null) => {
+			const request = id && this.isOpen(id) ? this.requests.get(id) : undefined;
+			if (request && !carried.includes(request)) carried.push(request);
+		};
+		add(this.currentRequestId());
+		for (const id of this.joined) add(id);
+		const nobody = this.current === NO_REQUEST && carried.length > 0;
+		if (new Set(carried.map((request) => this.attribution(request))).size + (nobody ? 1 : 0) < 2) return null;
+		return [
+			...(nobody ? [{ id: NO_REQUEST, kind: "none" as const, current: true }] : []),
+			...carried.map((request) => ({ id: request.id, kind: request.kind, ...(request.messageId ? { messageId: request.messageId } : {}), current: request.id === this.current })),
+		];
+	}
+
+	/** The requests this turn carries that would be recorded differently, once their opens answer (bounded). */
+	async undecided(timeoutMs = OPEN_WAIT_MS): Promise<CarriedEntry[] | null> {
+		await this.settleOpens(this.carriedIds(), Date.now() + timeoutMs);
+		return this.carriedNow();
+	}
+
+	/**
+	 * The requests this turn carries when they would not all be recorded the
+	 * same way and the agent has not named one; null when every write this turn
+	 * makes has one answer. One DevSpec did not open is not carried.
+	 */
+	async ambiguity(timeoutMs = OPEN_WAIT_MS): Promise<CarriedEntry[] | null> {
+		if (this.chosen || this.joined.size === 0) return null;
+		const carried = await this.undecided(timeoutMs);
+		return this.chosen ? null : carried;
+	}
+
+	/**
+	 * The agent names the request its writes now serve (serve_request): one of
+	 * the requests this turn carries that would be recorded differently — the
+	 * command with this message id, the prompt typed here, or nobody's when
+	 * nobody's request is among them. Holds until another request reaches it.
+	 */
+	async serve(input: { messageId?: unknown; terminal?: unknown; none?: unknown }, timeoutMs = OPEN_WAIT_MS): Promise<{ ok: true; serving: string } | { ok: false; error: string }> {
+		const messageId = typeof input.messageId === "string" && input.messageId.trim() ? input.messageId.trim().toLowerCase() : null;
 		const terminal = input.terminal === true;
 		const none = input.none === true;
 		if ([Boolean(messageId), terminal, none].filter(Boolean).length !== 1) {
 			return { ok: false, error: "Name exactly one: message_id, terminal: true, or none: true." };
 		}
-		let ref: string | null = null;
-		if (none) ref = NO_REQUEST;
-		else {
-			let newest: CarriedRequest | null = null;
-			for (const request of this.requests.values()) {
-				if (!this.isOpen(request.id)) continue;
-				if (terminal ? request.kind === "typed_prompt" : request.messageId?.toLowerCase() === messageId!.toLowerCase()) {
-					if (!newest || request.seq > newest.seq) newest = request;
-				}
-			}
-			ref = newest?.id ?? null;
+		const carried = await this.undecided(timeoutMs);
+		if (!carried) {
+			return { ok: false, error: "Nothing to name: every request this turn carries would be recorded the same way, so its writes already have one answer." };
 		}
-		if (!ref) {
-			return { ok: false, error: messageId
-				? `No open request here is for message ${messageId}; name one the refusal listed.`
-				: "No prompt typed at this terminal is open here." };
-		}
+		const match = carried.filter((entry) => none ? entry.kind === "none"
+			: terminal ? entry.kind === "typed_prompt"
+				: entry.kind === "command" && entry.messageId?.toLowerCase() === messageId);
+		const ref = match.length ? match[match.length - 1]!.id : null;
+		if (!ref) return { ok: false, error: "That is not one of the requests this turn carries. Name one the refusal listed." };
+		const previous = this.currentRequestId();
 		this.current = ref;
 		this.chosen = true;
 		this.turnStarted = true;
 		this.arrivals = [];
+		// The request it was serving is still carried: naming it again switches back.
+		if (previous && previous !== ref) this.joined.add(previous);
 		if (UUID.test(ref)) this.touched.add(ref);
 		return { ok: true, serving: ref === NO_REQUEST ? "nobody's request: your own initiative" : this.describe(ref) };
 	}
@@ -410,13 +483,9 @@ export class RequestChain {
 		return request.kind === "typed_prompt" ? "the prompt your owner typed at this terminal" : `the room command with message_id ${request.messageId ?? "(unknown)"}`;
 	}
 
-	/** The command identity of the request the turn serves, for a wake that continues it. */
-	commandIdentity(): { commandTurnId: string; commandMessageId: string } | null {
-		const id = this.currentRequestId();
-		const request = id ? this.requests.get(id) : undefined;
-		return request?.kind === "command" && request.commandTurnId && request.commandMessageId
-			? { commandTurnId: request.commandTurnId, commandMessageId: request.commandMessageId }
-			: null;
+	/** The command the launch that woke this turn was made under, so its reply lands in that command's turn. */
+	wakeCommandIdentity(): LaunchCommand | null {
+		return this.wakeCommand;
 	}
 
 	// ---- Launches and wakes -----------------------------------------------------
@@ -424,32 +493,42 @@ export class RequestChain {
 	/**
 	 * What a launch made now belongs to: the current request while it is open,
 	 * "none" when the turn positively serves nobody's, "unstated" otherwise —
-	 * with the other requests an undecided turn was carrying.
+	 * with the other requests an undecided turn was carrying, and the command it
+	 * was made under (kept for posting even when no request could be opened).
 	 */
-	launchSnapshot(): LaunchSnapshot {
+	launchSnapshot(command?: LaunchCommand | null): LaunchSnapshot {
 		const cleared = this.arrivalFailed();
 		const request = cleared ? UNSTATED : this.current === NO_REQUEST ? NO_REQUEST
 			: this.currentRequestId() && this.isOpen(this.current) ? this.current! : UNSTATED;
-		const also = (this.ambiguityNow() ?? []).map((entry) => entry.id).filter((id) => UUID.test(id) && id !== request);
-		return { request, also };
+		const also = ((this.chosen ? null : this.carriedNow()) ?? []).map((entry) => entry.id).filter((id) => UUID.test(id) && id !== request);
+		return { request, also, ...(command?.commandTurnId && command.commandMessageId ? { command: { commandTurnId: command.commandTurnId, commandMessageId: command.commandMessageId } } : {}) };
+	}
+
+	/** The same, once the carried opens have answered (bounded), so who asked is known. */
+	async launchSnapshotReady(command?: LaunchCommand | null, timeoutMs = OPEN_WAIT_MS): Promise<LaunchSnapshot> {
+		await this.settleOpens(this.carriedIds(), Date.now() + timeoutMs);
+		return this.launchSnapshot(command);
 	}
 
 	/** Record a launch (every one, so its wake is never mistaken for one nothing here started). */
 	recordLaunch(key: string, snapshot: LaunchSnapshot, options: { aliases?: string[]; notifies?: boolean } = {}): void {
 		if (this.disposed || !key) return;
-		const launch: Launch = { request: snapshot.request, also: [...snapshot.also], notifies: options.notifies !== false, notified: false };
+		const launch: Launch = { request: snapshot.request, also: [...snapshot.also], notifies: options.notifies !== false, notified: false,
+			...(snapshot.command ? { command: { ...snapshot.command } } : {}) };
 		boundedMap(this.launches, key, launch);
 		const aliases = (options.aliases ?? []).filter(Boolean);
 		for (const alias of aliases) boundedMap(this.aliases, alias, key);
 		this.writeJournal(key, aliases, launch);
 	}
 
-	/** Work that ends without a wake (killed, a cancelled question) stops holding its requests open. */
+	/** Work that ends without a wake (killed, a cancelled question, gone after a reload) stops holding its requests open. */
 	endLaunch(key: string): void {
-		const launch = this.launches.get(this.resolveAlias(key));
+		const resolved = this.resolveAlias(key);
+		this.restored.delete(resolved);
+		const launch = this.launches.get(resolved);
 		if (!launch || launch.notified) return;
 		launch.notified = true;
-		this.writeJournal(this.resolveAlias(key), [], null);
+		this.writeJournal(resolved, [], null);
 		this.releaseLaunch(launch);
 	}
 
@@ -462,17 +541,16 @@ export class RequestChain {
 		return this.aliases.get(key) ?? key;
 	}
 
-	private carriedRef(launch: Launch): string {
-		return launch.request === NO_REQUEST || this.isOpen(launch.request) ? launch.request : UNSTATED;
-	}
-
 	/**
-	 * A wake reached the agent. The first input of a run is woken for the
-	 * request its launch was made for (none, or unstated when that request has
-	 * finished, the launch was unstated, or nothing here launched it); mid-run
-	 * the requests it carries join the turn. Terminal keys stop holding their
-	 * requests open — after they joined, so nothing closes underneath the turn.
-	 * Returns whether any key was one this chain launched.
+	 * A wake reached the agent. It continues the open requests its launches were
+	 * made for — preferring any still open over one that has finished — or
+	 * nobody's when a launch was made for nobody's; a wake that carries both is
+	 * undecided until the agent names one. When none of that is known (finished
+	 * requests, unstated launches, nothing here launched it) it names nothing.
+	 * The first input of a run is woken for it; mid-run its requests join the
+	 * turn. Terminal keys stop holding their requests open — after they joined,
+	 * so nothing closes underneath the turn. Returns whether any key was one
+	 * this chain launched.
 	 *
 	 * `alongside`: the notice reached the agent together with a prompt that
 	 * already decided what the turn serves (it was the session leaf when that
@@ -486,34 +564,43 @@ export class RequestChain {
 			if (!options.alongside) this.arriveUnknown();
 			return false;
 		}
-		const primary = this.launches.get(matched[0]!.key)!;
-		const ref = this.carriedRef(primary);
-		const also = new Set<string>();
+		const requests: string[] = [];
+		let nobody = false;
+		let command: LaunchCommand | null = null;
+		let fallbackCommand: LaunchCommand | null = null;
 		for (const entry of matched) {
 			const launch = this.launches.get(entry.key)!;
-			if (launch !== primary && this.isOpen(launch.request)) also.add(launch.request);
-			for (const id of launch.also) if (this.isOpen(id)) also.add(id);
+			if (launch.request === NO_REQUEST) nobody = true;
+			for (const id of [launch.request, ...launch.also]) {
+				if (UUID.test(id) && this.isOpen(id) && !requests.includes(id)) requests.push(id);
+			}
+			if (launch.command) {
+				fallbackCommand ??= launch.command;
+				if (!command && this.isOpen(launch.request)) command = launch.command;
+			}
 		}
-		also.delete(ref);
-		if (!this.turnStarted) this.startTurn(ref, [...also]);
-		else if (options.alongside) {
-			for (const id of [ref, ...also]) if (UUID.test(id)) this.join(id);
+		const ref = nobody ? NO_REQUEST : requests[0] ?? UNSTATED;
+		const also = nobody ? requests : requests.slice(1);
+		if (!this.turnStarted) {
+			this.startTurn(ref, also);
+			this.wakeCommand = command ?? fallbackCommand;
+		} else if (options.alongside) {
+			for (const id of requests) this.join(id);
 		} else {
-			if (UUID.test(ref)) this.join(ref);
-			// Nobody's request reached a turn serving somebody's: it now carries both.
-			else if (ref === NO_REQUEST) this.arriveNobody();
+			if (ref === NO_REQUEST) this.arriveNobody();
 			else if (ref === UNSTATED) this.arriveUnknown();
-			for (const id of also) this.join(id);
+			for (const id of requests) this.join(id);
 		}
 		this.noteNotified(matched);
 		return true;
 	}
 
-	/** A notification reached the agent outside a run (appended, no wake): its work is done. */
+	/** A notification reached the conversation: its work is done and stops holding its requests open. */
 	noteNotified(keys: readonly WakeKey[]): void {
 		for (const entry of keys) {
 			if (!entry.terminal) continue;
 			const key = this.resolveAlias(entry.key);
+			this.restored.delete(key);
 			const launch = this.launches.get(key);
 			if (!launch || launch.notified) continue;
 			launch.notified = true;
@@ -559,73 +646,50 @@ export class RequestChain {
 	/**
 	 * What a write made now carries: the current request's server id once it is
 	 * open, "none" for a turn that positively serves nobody's request, or null —
-	 * stamp nothing — for an unstated turn or a request whose open never landed.
+	 * stamp nothing — for an unstated turn or a request whose open has not
+	 * answered within the wait, or never landed.
 	 */
-	async stamp(timeoutMs = 10_000): Promise<RequestStamp> {
-		const arrivals = this.arrivals.flat();
-		if (arrivals.length) await withTimeout(Promise.all(arrivals.map((id) => this.requests.get(id)?.ready ?? Promise.resolve(false))), timeoutMs, []);
+	async stamp(timeoutMs = OPEN_WAIT_MS): Promise<RequestStamp> {
+		await this.settleOpens([this.currentRequestId(), ...this.arrivals.flat()], Date.now() + timeoutMs);
 		if (this.arrivalFailed()) return null;
-		const current = this.current;
-		if (current === NO_REQUEST) return NO_REQUEST;
+		if (this.current === NO_REQUEST) return NO_REQUEST;
 		const id = this.currentRequestId();
 		const request = id ? this.requests.get(id) : undefined;
-		if (!request) return null;
-		const opened = await withTimeout(request.ready, timeoutMs, false);
-		return opened && request.serverId && request.state !== "closed" ? request.serverId : null;
+		if (!request || request.failed || !request.serverId) return null;
+		return request.state === "open" || request.state === "closing" ? request.serverId : null;
 	}
 
 	private arrivalFailed(): boolean {
 		return this.arrivals.some((batch) => batch.length > 0 && batch.every((id) => this.requests.get(id)?.failed === true));
 	}
 
-	private attribution(request: CarriedRequest): string {
-		return `${request.requester ?? "unknown"}:${request.kind === "typed_prompt" ? "terminal" : "room"}`;
-	}
-
-	/** The undecided carried requests by what is known now (launches; no waiting). */
-	private ambiguityNow(): CarriedEntry[] | null {
-		if (this.chosen || this.joined.size === 0) return null;
-		const carried: CarriedRequest[] = [];
-		const add = (id: string | null) => {
-			const request = id && this.isOpen(id) ? this.requests.get(id) : undefined;
-			if (request && !carried.includes(request)) carried.push(request);
-		};
-		add(this.currentRequestId());
-		for (const id of this.joined) add(id);
-		const nobody = this.current === NO_REQUEST && carried.length > 0;
-		if (new Set(carried.map((request) => this.attribution(request))).size + (nobody ? 1 : 0) < 2) return null;
-		return [
-			...(nobody ? [{ id: NO_REQUEST, kind: "none" as const, current: true }] : []),
-			...carried.map((request) => ({ id: request.id, kind: request.kind, ...(request.messageId ? { messageId: request.messageId } : {}), current: request.id === this.current })),
-		];
-	}
-
-	/**
-	 * The requests this turn carries when they would not all be recorded the
-	 * same way and the agent has not named one; null when every write this turn
-	 * makes has one answer. Waits for the carried requests' opens first: one
-	 * DevSpec did not open is not carried.
-	 */
-	async ambiguity(timeoutMs = 10_000): Promise<CarriedEntry[] | null> {
-		if (this.chosen || this.joined.size === 0) return null;
-		const ids = [this.currentRequestId(), ...this.joined].filter((id): id is string => Boolean(id));
-		await withTimeout(Promise.all(ids.map((id) => this.requests.get(id)?.ready ?? Promise.resolve(false))), timeoutMs, []);
-		return this.ambiguityNow();
-	}
-
 	// ---- Lifecycle ------------------------------------------------------------------
 
-	/** Rebuild the launches a previous instance journaled on this branch; re-open each request to learn its state. */
-	restore(entries: readonly unknown[], nativeSessionId: string): number {
+	/**
+	 * Rebuild the launches a previous instance journaled on this branch, read in
+	 * order: a launch whose notice already appears later in the branch has
+	 * reached the agent and is not restored. Each remaining launch's requests are
+	 * re-opened by their own ids to learn whether they are still carried.
+	 * `noticeKeys` reads a branch entry's wake keys (custom messages only).
+	 */
+	restore(entries: readonly unknown[], nativeSessionId: string, noticeKeys?: (entry: Record<string, unknown>, known: readonly string[]) => WakeKey[]): number {
 		if (this.disposed) return 0;
 		const latest = new Map<string, RequestLinkEntry>();
+		const aliases = new Map<string, string>();
 		for (const value of entries) {
 			const row = record(value);
-			if (row?.type !== "custom" || row.customType !== REQUEST_LINK_ENTRY) continue;
-			const entry = parseRequestLinkEntry(row.data);
-			if (!entry || entry.nativeSessionId !== nativeSessionId || entry.connectionId !== this.connectionId) continue;
-			latest.delete(entry.key);
-			latest.set(entry.key, entry);
+			if (!row) continue;
+			if (row.type === "custom" && row.customType === REQUEST_LINK_ENTRY) {
+				const entry = parseRequestLinkEntry(row.data);
+				if (!entry || entry.nativeSessionId !== nativeSessionId || entry.connectionId !== this.connectionId) continue;
+				latest.delete(entry.key);
+				latest.set(entry.key, entry);
+				for (const alias of entry.aliases ?? []) aliases.set(alias, entry.key);
+			} else if (row.type === "custom_message" && noticeKeys && latest.size > 0) {
+				let keys: WakeKey[] = [];
+				try { keys = noticeKeys(row, [...latest.keys(), ...aliases.keys()]); } catch { /* not a notice */ }
+				for (const key of keys) if (key.terminal) latest.delete(aliases.get(key.key) ?? key.key);
+			}
 		}
 		const carry = (identity: RequestLinkIdentity): string => {
 			const known = this.requests.get(identity.id);
@@ -639,11 +703,34 @@ export class RequestChain {
 			if (entry.request === null || this.launches.has(entry.key)) continue;
 			const request = typeof entry.request === "string" ? entry.request : carry(entry.request);
 			const also = (entry.also ?? []).map(carry);
-			this.launches.set(entry.key, { request, also, notifies: entry.notifies !== false, notified: false });
+			this.launches.set(entry.key, { request, also, notifies: entry.notifies !== false, notified: false,
+				...(entry.command ? { command: { ...entry.command } } : {}) });
 			for (const alias of entry.aliases ?? []) boundedMap(this.aliases, alias, entry.key);
+			this.restored.add(entry.key);
 			restored += 1;
 		}
 		return restored;
+	}
+
+	/** Restored launches still waiting to be checked against what the host is actually running. */
+	restoredKeys(): string[] {
+		return [...this.restored];
+	}
+
+	/**
+	 * Check restored launches against the host: one it reports no longer
+	 * running is over (its wake will not come to this instance) and stops
+	 * holding its requests open; one it cannot tell about waits for a later check.
+	 */
+	reconcileRestored(running: (key: string) => boolean | undefined): number {
+		let ended = 0;
+		for (const key of [...this.restored]) {
+			const verdict = running(key);
+			if (verdict === undefined) continue;
+			this.restored.delete(key);
+			if (verdict === false) { this.endLaunch(key); ended += 1; }
+		}
+		return ended;
 	}
 
 	/** Process exit or reload: close what has nothing pending; work still to wake keeps its requests for after reload. */
@@ -653,12 +740,13 @@ export class RequestChain {
 		this.dispose();
 	}
 
-	/** Different authority (stop, replacement connection): forget everything locally. */
+	/** Different authority (stop, revive, replacement connection): forget everything locally. */
 	dispose(): void {
 		this.disposed = true;
 		this.current = null;
 		this.joined = new Set();
 		this.turnStarted = false;
+		this.wakeCommand = null;
 	}
 
 	private identity(id: string): RequestLinkIdentity | null {
@@ -681,7 +769,8 @@ export class RequestChain {
 					: this.identity(launch.request) ?? UNSTATED;
 			const also = launch ? launch.also.map((id) => this.identity(id)).filter((value): value is RequestLinkIdentity => value !== null) : [];
 			this.journal({ key, ...(aliases.length ? { aliases } : {}), request,
-				...(also.length ? { also } : {}), ...(launch ? { notifies: launch.notifies } : {}) });
+				...(also.length ? { also } : {}), ...(launch ? { notifies: launch.notifies } : {}),
+				...(launch?.command ? { command: { ...launch.command } } : {}) });
 		} catch {
 			this.onError("persist");
 		}
@@ -697,7 +786,7 @@ export class RequestChain {
 	}
 }
 
-const LINK_KEYS = ["version", "nativeSessionId", "connectionId", "key", "aliases", "request", "also", "notifies"];
+const LINK_KEYS = ["version", "nativeSessionId", "connectionId", "key", "aliases", "request", "also", "notifies", "command"];
 const REQUEST_KEYS = ["id", "kind", "provenanceRef", "messageId", "commandTurnId", "commandMessageId"];
 
 function parseIdentity(value: unknown): RequestLinkIdentity | null {
@@ -716,6 +805,15 @@ function parseIdentity(value: unknown): RequestLinkIdentity | null {
 		...(typeof row.commandTurnId === "string" ? { commandTurnId: row.commandTurnId } : {}),
 		...(typeof row.commandMessageId === "string" ? { commandMessageId: row.commandMessageId } : {}),
 	};
+}
+
+function parseCommand(value: unknown): LaunchCommand | null {
+	const row = record(value);
+	if (!row || Object.keys(row).some((key) => key !== "commandTurnId" && key !== "commandMessageId")) return null;
+	for (const field of ["commandTurnId", "commandMessageId"] as const) {
+		if (typeof row[field] !== "string" || !(row[field] as string) || (row[field] as string).length > 128) return null;
+	}
+	return { commandTurnId: row.commandTurnId as string, commandMessageId: row.commandMessageId as string };
 }
 
 /** Strict allowlist parse: a malformed row restores nothing. */
@@ -748,6 +846,12 @@ export function parseRequestLinkEntry(value: unknown): RequestLinkEntry | null {
 		}
 	}
 	if (row.notifies !== undefined && typeof row.notifies !== "boolean") return null;
+	let command: LaunchCommand | undefined;
+	if (row.command !== undefined) {
+		const parsed = parseCommand(row.command);
+		if (!parsed) return null;
+		command = parsed;
+	}
 	return {
 		version: 1,
 		nativeSessionId: row.nativeSessionId as string,
@@ -757,6 +861,7 @@ export function parseRequestLinkEntry(value: unknown): RequestLinkEntry | null {
 		request,
 		...(also ? { also } : {}),
 		...(typeof row.notifies === "boolean" ? { notifies: row.notifies } : {}),
+		...(command ? { command } : {}),
 	};
 }
 
@@ -764,7 +869,8 @@ export function parseRequestLinkEntry(value: unknown): RequestLinkEntry | null {
 
 /**
  * A background task a launch tool started (pi-background-tasks' receipt), and
- * whether its end reaches the agent as a notification (notifyOnCompletion).
+ * whether its end reaches the agent as a notification: it does unless the
+ * receipt says notifyOnCompletion false.
  */
 export function backgroundLaunch(toolName: string, result: unknown, isError = false): { id: string; notifies: boolean } | null {
 	if (isError) return null;
@@ -772,7 +878,19 @@ export function backgroundLaunch(toolName: string, result: unknown, isError = fa
 	if (!id) return null;
 	const outer = record(result);
 	const details = record(outer?.details) ?? outer;
-	return { id, notifies: record(details?.task)?.notifyOnCompletion === true };
+	return { id, notifies: record(details?.task)?.notifyOnCompletion !== false };
+}
+
+/**
+ * A call that would start work which wakes the agent later: a background task,
+ * an async subagent run (pi-subagents runs async unless told otherwise; an
+ * `action` call manages runs), or a directed question.
+ */
+export function isLaunchCall(toolName: string, input: unknown): boolean {
+	const args = record(input) ?? {};
+	if (isBackgroundLaunchTool(toolName)) return true;
+	if (toolName === "subagent") return args.action === undefined && args.async !== false;
+	return toolName === "manage_directed_question" && args.action === "create";
 }
 
 /** pi-subagents' async launch receipt: details.asyncId (the run id) and details.asyncDir. */
@@ -965,13 +1083,16 @@ export class TypedInputLedger {
 interface ChainStore {
 	chain: RequestChain | null;
 	ledger: TypedInputLedger;
+	/** Shows serve_request (devspec-remote owns the active tool set). */
+	showServeTool: ((enabled: boolean) => void) | null;
 }
 
 const STORE_KEY = Symbol.for("devspec.pi.request-chain.v1");
 
 function store(): ChainStore {
 	const root = globalThis as typeof globalThis & { [STORE_KEY]?: ChainStore };
-	if (!root[STORE_KEY]) root[STORE_KEY] = { chain: null, ledger: new TypedInputLedger() };
+	if (!root[STORE_KEY]) root[STORE_KEY] = { chain: null, ledger: new TypedInputLedger(), showServeTool: null };
+	root[STORE_KEY].showServeTool ??= null;
 	return root[STORE_KEY];
 }
 
@@ -985,6 +1106,10 @@ export function activeRequestChain(): RequestChain | null {
 
 export function typedInputLedger(): TypedInputLedger {
 	return store().ledger;
+}
+
+export function installServeToolSwitch(show: ((enabled: boolean) => void) | null): void {
+	store().showServeTool = show;
 }
 
 /** The extension's own send on the owner's behalf (/devspec.work) is typed input. */
@@ -1012,22 +1137,35 @@ function describeCarried(entry: CarriedEntry): string {
 	return `- the room command with message_id ${entry.messageId ?? "(unknown)"}: ${SERVE_REQUEST_TOOL} with message_id "${entry.messageId ?? "<id>"}"`;
 }
 
+const CARRIES = "This turn carries more than one request that would be recorded differently (different people, someone at this terminal and in a room, or a request and nobody's)";
+
+/** A DevSpec write that records who asked, refused until the agent names a request. */
 export function ambiguityRefusal(carried: readonly CarriedEntry[]): string {
 	return [
-		"This turn carries requests from more than one person (or from a person and nobody), and DevSpec records who asked for this write.",
+		`${CARRIES}, and DevSpec records who asked for this write.`,
 		`Say which request it serves with ${SERVE_REQUEST_TOOL}, then make the call again. One of:`,
 		...carried.map(describeCarried),
 		"Writes follow that request until another reaches you. Name each request before its writes when you switch.",
 	].join("\n");
 }
 
+/** Work that would wake the agent later, refused until the agent names the request it serves. */
+export function launchRefusal(carried: readonly CarriedEntry[]): string {
+	return [
+		`${CARRIES}, and this starts work that continues one of them when it wakes you.`,
+		`Say which request it serves with ${SERVE_REQUEST_TOOL}, then start it again. One of:`,
+		...carried.map(describeCarried),
+	].join("\n");
+}
+
 /**
  * The request a DevSpec write serves (item 7a4d04fd), for a tool whose wire
- * schema takes request_ref: stamped from the turn, never from the model. A call
- * that already names a request is left as written. When the turn carries
- * several people's requests and the agent has not named one, the write is
- * refused — unless it already cites the work it belongs to (work_claim_ref) or
- * the command it serves (provenance_ref), which DevSpec reads first.
+ * schema takes request_ref: stamped from the turn, never from the model — a
+ * model-supplied request_ref is always removed first. When the turn carries
+ * requests that would be recorded differently and the agent has not named
+ * one, the write is refused, unless it already cites the work it belongs to
+ * (work_claim_ref) or the command it serves (provenance_ref), which DevSpec
+ * reads first.
  */
 export async function stampRequestRef(input: {
 	params: Record<string, unknown>;
@@ -1035,14 +1173,18 @@ export async function stampRequestRef(input: {
 	connectionId: string | undefined;
 	timeoutMs?: number;
 }): Promise<{ args: Record<string, unknown> } | { deny: string }> {
-	const { params } = input;
-	const chain = store().chain;
-	if (!declaresRequestRef(input.inputSchema) || params.request_ref !== undefined ||
-		!chain || !input.connectionId || chain.connectionId !== input.connectionId) return { args: params };
+	if (!declaresRequestRef(input.inputSchema)) return { args: input.params };
+	const { request_ref: _model, ...params } = input.params;
+	const shared = store();
+	const chain = shared.chain;
+	if (!chain || !input.connectionId || chain.connectionId !== input.connectionId) return { args: params };
 	try {
 		const cites = typeof params.work_claim_ref === "string" || typeof params.provenance_ref === "string";
 		const carried = cites ? null : await chain.ambiguity(input.timeoutMs);
-		if (carried) return { deny: ambiguityRefusal(carried) };
+		if (carried) {
+			shared.showServeTool?.(true);
+			return { deny: ambiguityRefusal(carried) };
+		}
 		const ref = await chain.stamp(input.timeoutMs);
 		return { args: ref ? { ...params, request_ref: ref } : params };
 	} catch {

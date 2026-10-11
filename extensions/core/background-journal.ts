@@ -66,3 +66,20 @@ export function restoreBackgroundWork(entries: readonly unknown[], scope: Backgr
 	return [...tasks.values()].filter(task => task.state === "running" || task.state === "unknown")
 		.map(task => ({ id: task.id, startTime: task.startTime, state: "unknown" }));
 }
+
+/**
+ * Tasks this conversation and connection journaled as finished (any attachment):
+ * a launch restored after /reload whose task already ended will not wake this
+ * instance (item 7a4d04fd). Only explicit terminal rows count.
+ */
+export function journaledFinishedTasks(entries: readonly unknown[], nativeSessionId: string, connectionId: string): Set<string> {
+	const finished = new Set<string>();
+	for (const value of entries) {
+		const row = record(value);
+		if (row?.type !== "custom" || row.customType !== BACKGROUND_WORK_ENTRY) continue;
+		const entry = parseEntry(row.data);
+		if (!entry || entry.scope.nativeSessionId !== nativeSessionId || entry.scope.connectionId !== connectionId) continue;
+		if (entry.task.state === "completed" || entry.task.state === "failed" || entry.task.state === "killed") finished.add(entry.task.id);
+	}
+	return finished;
+}

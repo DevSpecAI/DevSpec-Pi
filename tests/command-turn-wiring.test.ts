@@ -75,13 +75,16 @@ test("completion wakes adopt the parked command identity; drops are reported wit
 	assert.match(source, /function adoptParkedCommandIdentity/);
 	assert.match(source, /if \(incomingCommand\?\.turnId && incomingCommand\?\.commandMessageId\)[^]*activeCommandTurnIdentity = \{ turnId: incomingCommand\.turnId/);
 	const messageStart = source.slice(source.indexOf('pi.on("message_start"'), source.indexOf('pi.on("message_update"'));
-	// A wake adopts only the command its own request continues (item 7a4d04fd),
-	// never simply the newest parked one.
+	// A wake adopts the command its launch was made under while that turn is
+	// open, else the open turn as before (item 7a4d04fd).
 	assert.match(messageStart, /if \(harness\) adoptParkedCommandIdentity\(turn, turn\.tracker\.userKind, continuedCommandIdentity\(\)\)/);
 	const beforeStart = source.slice(source.indexOf('pi.on("before_agent_start"'), source.indexOf('pi.on("message_start"'));
 	assert.match(beforeStart, /adoptParkedCommandIdentity\(turn, turn\.tracker\.userKind, continuedCommandIdentity\(\)\)/);
 	const adopt = source.slice(source.indexOf("function adoptParkedCommandIdentity"), source.indexOf("// ---- The request chain"));
-	assert.match(adopt, /activeCommandTurnIdentity\?\.turnId !== continued\.commandTurnId\) return/);
+	// Posting only: the open turn is always ridden (a reply must land, 759f2818);
+	// its own command's message while the woken work's command is in it.
+	assert.match(adopt, /const open = activeCommandTurnIdentity;\s*if \(!open\) return;/);
+	assert.match(adopt, /t\.commandMessageId = own \? continued\.commandMessageId : open\.commandMessageId/);
 	// Cleared exactly when the parked turn closes, never mid-park.
 	assert.match(source, /if \(opts\.completeTurn === true\) noteCommandTurnClosed\(opts\.commandTurnId\)/);
 	assert.match(source, /noteCommandTurnClosed\(commandTurnId\);/);

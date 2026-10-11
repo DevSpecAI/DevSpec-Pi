@@ -440,7 +440,7 @@ function registerServeRequestTool(pi: ExtensionAPI): void {
 			if (!chain || !bond || chain.connectionId !== bond.connectionId) {
 				return measuredToolResult(SERVE_REQUEST_TOOL, toolErrorResult("This Pi is not carrying any DevSpec requests, so there is nothing to name."));
 			}
-			const served = chain.serve({ messageId: input.message_id, terminal: input.terminal, none: input.none });
+			const served = await chain.serve({ messageId: input.message_id, terminal: input.terminal, none: input.none });
 			return measuredToolResult(SERVE_REQUEST_TOOL, served.ok
 				? toolTextResult(`Your next DevSpec writes serve ${served.serving}, until another request reaches you.`, { serving: served.serving })
 				: toolErrorResult(served.error));

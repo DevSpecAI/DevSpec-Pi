@@ -50,6 +50,11 @@ export function projectBackgroundTask(value: unknown): ObservedBackgroundTask | 
 	return { id: row.id, startTime: row.startTime, state: row.status as ObservedTaskState };
 }
 
+/** A tool that starts provider background work (the launch, not its inspection). */
+export function isBackgroundLaunchTool(toolName: string): boolean {
+	return LAUNCH_TOOLS.has(toolName);
+}
+
 /** A successful launch proves ownership; inspection of someone else's task does not. */
 export function backgroundTaskFromLaunch(toolName: string, result: unknown, isError = false): ObservedBackgroundTask | null {
 	if (isError || !LAUNCH_TOOLS.has(toolName)) return null;

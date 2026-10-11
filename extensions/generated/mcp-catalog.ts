@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 2545088f011f50706aefd1696e83e49084dc9c5ef8c0b3e056589cab6be31c31
+ * Schema fingerprint: b4b941e948d95e575728347ef609ef489bb6b0d8b83628cf679550d9c22b4916
  * Description fingerprint: 7e30ead5a8102487b70eb498763933937d86281c4abc8cefd85f19aa75adb819
- * Regenerated: 2026-10-11T17:14:31.466Z
+ * Regenerated: 2026-10-11T20:58:14.697Z
  */
-export const MCP_CATALOG_FINGERPRINT = "2545088f011f50706aefd1696e83e49084dc9c5ef8c0b3e056589cab6be31c31";
+export const MCP_CATALOG_FINGERPRINT = "b4b941e948d95e575728347ef609ef489bb6b0d8b83628cf679550d9c22b4916";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "7e30ead5a8102487b70eb498763933937d86281c4abc8cefd85f19aa75adb819";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-11T17:14:31.466Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-11T20:58:14.697Z";
 export const TOOL_CATALOG_VERSION = "b7d72f7b4fd5e18e7e78ae5716634309d362f7a2ab8d9c415a35389ec7381ec3";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -4023,7 +4023,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -4099,10 +4099,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -4199,7 +4199,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -4292,10 +4292,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -4637,7 +4637,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -4908,10 +4908,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -5079,7 +5079,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -5242,10 +5242,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -5284,7 +5284,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -5318,10 +5318,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -5377,7 +5377,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -5429,10 +5429,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -5481,7 +5481,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -5526,10 +5526,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -5580,7 +5580,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -5625,10 +5625,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -5675,7 +5675,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -5718,10 +5718,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -5901,7 +5901,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -5974,10 +5974,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -6259,7 +6259,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -6297,10 +6297,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -6372,7 +6372,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -6440,10 +6440,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -6639,7 +6639,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -6829,10 +6829,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -7009,7 +7009,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -7182,10 +7182,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -7480,7 +7480,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -7596,10 +7596,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -7647,7 +7647,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -7691,10 +7691,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -7764,7 +7764,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -7827,10 +7827,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -7921,7 +7921,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -8009,10 +8009,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -8087,7 +8087,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -8157,10 +8157,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -8257,7 +8257,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -8347,10 +8347,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -8389,7 +8389,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -8423,10 +8423,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -8479,7 +8479,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -8530,10 +8530,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -8602,7 +8602,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -8664,10 +8664,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -8745,7 +8745,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -8818,10 +8818,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -8905,7 +8905,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -8983,10 +8983,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -9055,7 +9055,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -9121,10 +9121,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -9166,7 +9166,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -9201,10 +9201,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -9257,7 +9257,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -9308,10 +9308,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -11498,7 +11498,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -11608,10 +11608,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -11728,7 +11728,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -11840,10 +11840,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -11886,7 +11886,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},
@@ -11924,10 +11924,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"request_ref": {
 					"type": "string",
 					"x-devspec-host-only": true,
-					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A closed or unknown request is refused."
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
 				},
 				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
 					"type": "string"
 				}
 			},

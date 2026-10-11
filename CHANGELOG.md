@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1 - 2026-10-11
+
+- Pi's DevSpec tools are updated to match DevSpec. When DevSpec can't tell whose request a change serves, it no longer turns the change away. A record of work is saved with the requester unknown, and anything else waits for someone to confirm it.
+
 ## 0.6.0
 
 - Work Pi does after something it started finishes (a background job, a subagent, or the answer to a question it asked) is now credited to whoever asked for that work in the first place, not to whoever spoke to Pi most recently.

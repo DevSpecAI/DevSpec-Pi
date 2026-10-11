@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 5f2465aa259b329cdd142aa71a483dff4d1fc486e98b801053b1c3a2e1d6032c
+ * Schema fingerprint: 73ab6f86c7aabb515bfbfd1844e14f5660a473ab91455456900d7bdf679a11d2
  * Description fingerprint: 1d482d687eda05fec001c8ca221719bff5e7328bcb4f6201388e36e9d6a6dd33
- * Regenerated: 2026-10-09T22:26:10.244Z
+ * Regenerated: 2026-10-11T00:27:06.884Z
  */
-export const MCP_CATALOG_FINGERPRINT = "5f2465aa259b329cdd142aa71a483dff4d1fc486e98b801053b1c3a2e1d6032c";
+export const MCP_CATALOG_FINGERPRINT = "73ab6f86c7aabb515bfbfd1844e14f5660a473ab91455456900d7bdf679a11d2";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "1d482d687eda05fec001c8ca221719bff5e7328bcb4f6201388e36e9d6a6dd33";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-09T22:26:10.244Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-11T00:27:06.884Z";
 export const TOOL_CATALOG_VERSION = "b4eaad9d6cefd75c8e97819333afc48c8a7b8c2e094bc7fa9b3602b643d753c4";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -13078,6 +13078,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"set_model",
 							"set_thinking",
 							"compact",
+							"clear",
 							"reload",
 							"list_models"
 						]
@@ -14277,6 +14278,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"set_model",
 							"set_thinking",
 							"compact",
+							"clear",
 							"reload",
 							"list_models"
 						]

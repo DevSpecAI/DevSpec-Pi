@@ -647,7 +647,7 @@ function command(
 	};
 }
 
-const CONTROL_VERBS = ["abort", "set_model", "set_thinking", "compact", "reload", "list_models"] as const;
+const CONTROL_VERBS = ["abort", "set_model", "set_thinking", "compact", "clear", "reload", "list_models"] as const;
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
 function control(value: unknown, path: string): unknown {

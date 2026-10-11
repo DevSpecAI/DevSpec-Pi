@@ -10,6 +10,9 @@ function host(calls: string[]) {
 		compact: async () => {
 			calls.push("compact");
 		},
+		clear: async () => {
+			calls.push("clear");
+		},
 		reload: async () => {
 			calls.push("reload");
 		},
@@ -202,4 +205,12 @@ test("executeControlCommand set_thinking rejects an unavailable or throwing sett
 	await assert.rejects(executeControlCommand(thinkingCommand("high"), {
 		...host([]), setThinkingLevel: () => { throw new Error("host rejected"); },
 	}), /host rejected/);
+});
+
+test("executeControlCommand clear empties the conversation through the host (item 6beb89c6)", async () => {
+	const calls: string[] = [];
+	const cmd = parseControlCommand({ id: "c9", verb: "clear", issuedAt: "2026-10-11T00:00:00.000Z", issuedByUserId: "u1" });
+	assert.ok(cmd);
+	assert.equal(await executeControlCommand(cmd, host(calls)), "cleared");
+	assert.deepEqual(calls, ["clear"]);
 });

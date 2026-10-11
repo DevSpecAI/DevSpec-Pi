@@ -78,6 +78,17 @@ export default function (pi: ExtensionAPI) {
 	// the injected block, not a boolean.
 	let injectedAttachContext: string | null = null;
 
+	// One-shot means once per branch, not once per process: after the conversation
+	// moves to a branch without them (the owner's Clear, item 6beb89c6, or /tree),
+	// the next turn adds them again.
+	pi.on("session_tree", (_event, ctx) => {
+		const branch = ctx.sessionManager.getBranch();
+		const holds = (customType: string) => branch.some((entry) =>
+			entry.type === "custom_message" && (entry as { customType?: string }).customType === customType);
+		if (!holds("devspec-attach-context")) injectedAttachContext = null;
+		if (!holds("devspec-room-orientation")) digestInjected = false;
+	});
+
 	pi.on("before_agent_start", async (event, _ctx) => {
 		const resolved = await resolveToken();
 		if (!resolved) return undefined;

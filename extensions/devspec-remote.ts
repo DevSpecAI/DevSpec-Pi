@@ -76,9 +76,10 @@ import {
 } from "./core/remote-payload.ts";
 import { CommandTurnBindings, type CanonicalQueueItem } from "./core/command-turn.ts";
 import { noteDeliveredCommandRefs, clearDealtRefs } from "./core/provenance-refs.ts";
-import { compactWithContext, executeControlCommand, parseControlCommand, reloadWithContext, runReloadLap } from "./core/control.ts";
+import { CONTROL_VERBS, compactWithContext, executeControlCommand, parseControlCommand, reloadWithContext, runReloadLap } from "./core/control.ts";
 import { safeHasUI, withLiveUi } from "./core/ctx-guard.ts";
-import { commandReloadContext, rememberExtensionRunner } from "./core/command-runner.ts";
+import { extensionCommandContext, rememberExtensionRunner } from "./core/command-runner.ts";
+import { clearConversation } from "./core/clear-conversation.ts";
 import { collectModelCatalog, type ModelCatalogSnapshot } from "./core/model-catalog.ts";
 import { CONTROL_RESULT_ENTRY, ControlResultOutbox, type ControlResult, type ControlResultEntry, type ControlDeliveryOutcome } from "./core/control-result-outbox.ts";
 import {
@@ -314,6 +315,8 @@ interface PumpState {
 	interactionRetryTimer?: ReturnType<typeof setTimeout>;
 	controlResults: ControlResultOutbox;
 	controlResultRetryTimer?: ReturnType<typeof setTimeout>;
+	/** Clears that arrived mid-response and wait for it to end (item 6beb89c6). */
+	queuedClears: Set<string>;
 	controlResultWarning?: boolean;
 	wakeGate: WakeGenerationGate;
 	/** Last attach-context/title fetch attempt — titles are job-generated, so a
@@ -2542,6 +2545,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					listener_armed: true,
 					agent_name: AGENT_NAME,
 					agent_stats: runtimeAgentStats(ctx),
+					// What this Pi carries out (item 6beb89c6). Authoritative once sent:
+					// DevSpec offers exactly these, so Clear only to a Pi that has it.
+					control_verbs: [...CONTROL_VERBS],
 				},
 				{ timeoutMs: POLL_TIMEOUT_MS, cwd: ctx.cwd, lane: "pump",
 					beforeSend: () => { if (commandHandoffReady && pi_commandHandoffReady(active, ctx) !== commandHandoffReady) throw new StaleCommandHandoffError("Command readiness changed before send."); },
@@ -2890,10 +2896,27 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			// Reload is terminal for this pump frame (item e4d5612c). Ack first so
 			// a revived bond cannot see the same pending CONTROL, then reload, then
 			// return. Do not notify on the old ctx after a successful reload.
-			if (control.verb === "reload") {
+			if (control.verb === "clear" && !ctx.isIdle()) {
+				// Mid-response: hand the control back now, as received rather than done,
+				// so DevSpec's one control slot, and with it the owner's Stop, stays free;
+				// the clear runs when this response ends. A redelivery before the ack
+				// lands schedules nothing twice.
+				if (!active.queuedClears.has(control.id)) {
+					active.queuedClears.add(control.id);
+					void clearForOwner(ctx).then(
+						() => notify(ctx, "DevSpec remote: conversation cleared."),
+						(err) => notify(ctx, `DevSpec remote: clear failed — ${err instanceof Error ? err.message : String(err)}`, "error"),
+					);
+				}
+				try {
+					await ackControl(token, active.bond.connectionId, control.id);
+				} catch {
+					debug("control acknowledgement failed", { errorPresent: true });
+				}
+			} else if (control.verb === "reload") {
 				const lap = await runReloadLap({
 					ack: async () => { await ackControl(token, active.bond.connectionId, control.id); },
-					reload: () => reloadWithContext(commandReloadContext() ?? (ctx as { reload?: () => Promise<void> })),
+					reload: () => reloadWithContext(extensionCommandContext() ?? (ctx as { reload?: () => Promise<void> })),
 				});
 				debug("control reload", { succeeded: lap.status === "reloaded", errorPresent: Boolean(lap.error) });
 				if (lap.status === "reloaded") return;
@@ -2907,7 +2930,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 						isIdle: () => ctx.isIdle(),
 						abort: () => ctx.abort(),
 						compact: () => compactWithContext(ctx),
-						reload: () => reloadWithContext(commandReloadContext() ?? (ctx as { reload?: () => Promise<void> })),
+						clear: () => clearForOwner(ctx),
+						reload: () => reloadWithContext(extensionCommandContext() ?? (ctx as { reload?: () => Promise<void> })),
 						setThinkingLevel: (level) => pi_setThinking(level),
 						setModel: (modelId) => pi_setModel(modelId),
 						notify: (message) => notify(ctx, message),
@@ -3104,6 +3128,25 @@ interface BondOutcome {
 }
 
 /**
+ * The owner's Clear (item 6beb89c6): empty this agent's conversation with Pi's own
+ * tree navigation, keeping the session and so the DevSpec connection. Pi will not
+ * navigate mid-response, so this waits for the response in progress to end, as a
+ * /tree typed now would have to.
+ */
+async function clearForOwner(ctx: ExtensionContext): Promise<void> {
+	const command = extensionCommandContext();
+	const navigateTree = command?.navigateTree;
+	if (!command || !navigateTree) throw new Error("this Pi cannot clear its conversation from here");
+	if (!ctx.isIdle()) await command.waitForIdle?.();
+	await clearConversation({
+		branch: () => ctx.sessionManager.getBranch(),
+		navigateTree: (targetId) => navigateTree.call(command, targetId, { summarize: false }),
+		getEditorText: () => ctx.ui.getEditorText(),
+		setEditorText: (text) => ctx.ui.setEditorText(text),
+	});
+}
+
+/**
  * Register/revive the bond and start the pump. Shared by /devspec.remote and
  * the auto-bond on session_start. Never throws.
  */
@@ -3219,6 +3262,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 		pendingInteractionStarts: new Map(),
 		pendingInteractionReleases: new Map(),
 		controlResults: ControlResultOutbox.reconstruct(ctx.sessionManager.getBranch()),
+		queuedClears: new Set(),
 		wakeGate: new WakeGenerationGate(),
 		automationQueue: new DeliveryQueue(),
 		automationRetryAttempts: new Map(),
@@ -3642,7 +3686,7 @@ export default function (pi: ExtensionAPI) {
 		lastCtx?.compact?.({});
 	};
 	pi_reload = async () => {
-		await reloadWithContext(commandReloadContext() ?? (lastCtx as { reload?: () => Promise<void> } | null));
+		await reloadWithContext(extensionCommandContext() ?? (lastCtx as { reload?: () => Promise<void> } | null));
 	};
 	pi_setThinking = (level) => {
 		if (typeof pi.setThinkingLevel !== "function") throw new Error("setThinkingLevel is not available");

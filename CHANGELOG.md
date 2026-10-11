@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.19
+
+- New: you can clear this Pi's conversation from DevSpec. Use Clear conversation in its agent controls, or type `/clear` to it. Pi starts afresh and stays connected to the same DevSpec session; the old conversation stays in Pi's history, reachable with `/tree`. If Pi is in the middle of a reply, it clears when the reply ends.
+- After a clear, or moving to another branch with `/tree`, Pi is given its DevSpec instructions, project facts and room orientation again on its next turn.
+- Pi now tells DevSpec which controls it carries out, so DevSpec offers Clear only to a Pi that has it.
+- The catalogue is regenerated against DevSpec's current agent tools, which know the clear control.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.18
 
 - The catalogue is regenerated against DevSpec's current automation tools. Creating or changing an automation now takes `run_for`: `project` when one run covers everyone (a failed deploy, a merged branch), or `each_person` when everyone runs it for themselves on their own agents and their own schedule (cleaning up their machine, updating their tools). `switched_on` applies to automations for the project only.

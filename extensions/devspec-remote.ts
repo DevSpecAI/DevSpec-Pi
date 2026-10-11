@@ -523,23 +523,18 @@ let activeCommandTurnIdentity: { turnId: string; commandMessageId: string } | nu
 
 /**
  * A completion-wake segment with no ids of its own rides the parked command
- * turn it is continuing, so its reply lands (759f2818). Posting only — who
- * asked is the request chain's (request_ref), not this. Item 7a4d04fd keeps the
- * command each launch was made under, recorded whether or not DevSpec opened a
- * request for it: while that command's turn is the open one, its own message
- * is used; otherwise — and for any wake the chain knows nothing about — the
- * open turn, exactly as before, so a host that cannot open requests posts as it
- * always has. Never for interaction runs (exact identity) or mid-owner-turn
- * injections (the turn is already bound).
+ * turn it is continuing, posting as that turn's newest command, so its reply
+ * lands (759f2818). Posting only: who asked travels in request_ref (item
+ * 7a4d04fd), never in the posting identity, so this is exactly as before for
+ * every host, including one that cannot open requests. Never for interaction
+ * runs (exact identity) or mid-owner-turn injections (the turn is already bound).
  */
-function adoptParkedCommandIdentity(t: { commandTurnId?: string; commandMessageId?: string; interaction?: unknown } | null, kind: string | null, continued: { commandTurnId: string; commandMessageId: string } | null): void {
+function adoptParkedCommandIdentity(t: { commandTurnId?: string; commandMessageId?: string; interaction?: unknown } | null, kind: string | null): void {
 	if (!t || t.interaction || kind !== "harness") return;
 	if (t.commandTurnId || t.commandMessageId) return;
-	const open = activeCommandTurnIdentity;
-	if (!open) return;
-	const own = continued && continued.commandTurnId === open.turnId;
-	t.commandTurnId = open.turnId;
-	t.commandMessageId = own ? continued.commandMessageId : open.commandMessageId;
+	if (!activeCommandTurnIdentity) return;
+	t.commandTurnId = activeCommandTurnIdentity.turnId;
+	t.commandMessageId = activeCommandTurnIdentity.commandMessageId;
 	debug("wake adopted command turn");
 }
 
@@ -728,7 +723,7 @@ function bindSegmentForMessage(input: {
 			ledger.dropForMessage(text);
 			kind = "command";
 			const ids = (incomingCommand.requests ?? []).flatMap((ref) => {
-				const id = chain?.openCommand({ provenanceRef: ref.provenanceRef, messageId: ref.messageId,
+				const id = chain?.openCommand({ provenanceRef: ref.provenanceRef, messageId: ref.messageId, fromOwner: ref.fromOwner === true,
 					commandTurnId: incomingCommand.turnId, commandMessageId: incomingCommand.commandMessageId });
 				return id ? [id] : [];
 			});
@@ -781,11 +776,6 @@ function bindSegmentForMessage(input: {
 	if (kind) segmentInputKind = kind;
 	refreshServeTool(chain);
 	return kind;
-}
-
-/** The command the launch that woke this segment was made under, for adoption. */
-function continuedCommandIdentity(): { commandTurnId: string; commandMessageId: string } | null {
-	return activeRequestChain()?.wakeCommandIdentity() ?? null;
 }
 
 function noteCommandTurnClosed(turnId: string | undefined): void {
@@ -2491,6 +2481,9 @@ async function reviveRecoverableBond(
 	// "confirmed revocation, stop retrying" from "still ambiguous, ride it
 	// out" without parsing messages (item 781886cf).
 	failure?: { authFailed: boolean },
+	// The server reported this connection ended (a push end or a poll status of
+	// ended/not_found): it closed every request the connection carried (7a4d04fd).
+	serverEnded = false,
 ): Promise<boolean> {
 	if (active.stop || pump !== active) return false;
 	const prior = active.bond;
@@ -2603,10 +2596,11 @@ async function reviveRecoverableBond(
 				}
 			}
 		}
-		// Every revive — a replacement row or the same one — rebuilds the request
-		// chain from the journal (item 7a4d04fd): the server may have closed what
-		// the old chain still thought it carried, and a replacement carries none.
-		dropRequestChain();
+		// The request chain (item 7a4d04fd) survives a same-row revive of a live
+		// connection: its requests are still open on the server, and dropping it
+		// would leak them. A replacement row carries none of them, and an ended
+		// connection's were all closed: then it rebuilds from the journal.
+		if (changedConnection || serverEnded) dropRequestChain();
 		setBond(bond);
 		pi_setPlanToolActive(Boolean(bond.sessionId));
 		pi_setQuestionToolActive(Boolean(bond.sessionId && bond.connectionCapability));
@@ -2737,7 +2731,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				return;
 			}
 			debug("push ended recoverable", { reasonPresent: Boolean(active.pushEnded) });
-			if (await reviveRecoverableBond(active, token, ctx)) {
+			if (await reviveRecoverableBond(active, token, ctx, undefined, true)) {
 				pushMode = true;
 				notifiedFallback = false;
 				continue;
@@ -2922,7 +2916,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			}
 			active.errors += 1;
 			debug("poll recoverable server response", { ended: status === "ended", reasonPresent: Boolean(endReason) });
-			if (await reviveRecoverableBond(active, token, ctx)) {
+			if (await reviveRecoverableBond(active, token, ctx, undefined, true)) {
 				pushMode = true;
 				notifiedFallback = false;
 				continue;
@@ -3375,7 +3369,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					// starts (item 7a4d04fd): a later command from someone else that joins
 					// an open turn is that person's request, not the first sender's.
 					pi_send(formatted, sendMode, hydrated.commandTurnId, primary.id, queueItem,
-						hydrated.commands.map((command) => ({ provenanceRef: command.delivery.provenance_ref, messageId: command.id })));
+						hydrated.commands.map((command) => ({ provenanceRef: command.delivery.provenance_ref, messageId: command.id, fromOwner: command.authority.kind === "owner" })));
 					attachmentLease.accept();
 					active.attachmentRetryAttempts.delete(hydrated.commandTurnId);
 					// Commit immediately after Pi accepts the sole queue item; later UI
@@ -3695,9 +3689,6 @@ export default function (pi: ExtensionAPI) {
 	const launchScopes = new Map<string, string>();
 	/** What each tool call's turn served when it started, and its args (item 7a4d04fd). */
 	const launchRequests = new Map<string, { snapshot: LaunchSnapshot | null; args: unknown }>();
-	/** The command the running segment answers, kept on each launch for posting its wake. */
-	const segmentCommand = (): { commandTurnId: string; commandMessageId: string } | null =>
-		turn?.commandTurnId && turn.commandMessageId ? { commandTurnId: turn.commandTurnId, commandMessageId: turn.commandMessageId } : null;
 	/**
 	 * Record what a tool call started against what its turn served when it
 	 * LAUNCHED (item 7a4d04fd): a background task, an async subagent run, a
@@ -3725,13 +3716,15 @@ export default function (pi: ExtensionAPI) {
 	};
 	/**
 	 * Restored launches against what the host still runs (item 7a4d04fd): a
-	 * background task the provider (or the journal) reports finished, or async
-	 * subagents when none is running, will not wake this instance, so they stop
-	 * holding their requests open. Anything the host cannot tell about waits.
+	 * background task the provider (or the journal) reports finished — or, after
+	 * a fresh refresh, one the provider does not list at all — or async subagents
+	 * when none is running, will not wake this instance, so they stop holding
+	 * their requests open. Anything the host cannot tell about waits.
 	 */
 	const reconcileRestored = (chain: RequestChain, refreshed: boolean, fleetActive: number | null): void => {
 		if (activeRequestChain() !== chain || !chain.restoredKeys().length) return;
 		const observation = backgroundObserver.snapshot();
+		const listedAfterRefresh = refreshed && observation.scope !== null;
 		const states = new Map(observation.tasks.map((task) => [task.id, task.state]));
 		const active = pump;
 		const finished = active && lastCtx?.sessionManager.getSessionId() === active.localSessionId
@@ -3743,6 +3736,7 @@ export default function (pi: ExtensionAPI) {
 				const state = states.get(id);
 				if (state === "running") return true;
 				if (state === "completed" || state === "failed" || state === "killed" || finished.has(id)) return false;
+				if (state === undefined && listedAfterRefresh) return false;
 				return undefined;
 			}
 			if (key.startsWith("subagent:")) return refreshed && fleetActive === 0 ? false : undefined;
@@ -4450,7 +4444,7 @@ export default function (pi: ExtensionAPI) {
 		// A completion wake rides the parked command turn it continues — an
 		// unbound wake post while a command turn is parked is fenced as
 		// stale_generation server-side and drops silently (759f2818 live repro).
-		adoptParkedCommandIdentity(turn, turn.tracker.userKind, continuedCommandIdentity());
+		adoptParkedCommandIdentity(turn, turn.tracker.userKind);
 		return injected;
 	});
 
@@ -4542,9 +4536,6 @@ export default function (pi: ExtensionAPI) {
 				turn.tracker.userMessage(text, { customType });
 				// Only a prompt the owner typed here is mirrored as a local prompt.
 				if (turn.requestKind !== "typed") turn.tracker.shouldMirrorPrompt = false;
-				// A prompt a completion wake replayed stays that wake's segment, so it
-				// rides the command the wake continues (item 7a4d04fd), if any.
-				if (turn.requestKind === "untyped") adoptParkedCommandIdentity(turn, turn.tracker.userKind, continuedCommandIdentity());
 				if (activityTransition?.beginBusyPresence && pump) {
 					pump.busy = true;
 					void beatBusy(true);
@@ -4553,9 +4544,7 @@ export default function (pi: ExtensionAPI) {
 				if (harness && backgroundTaskNotificationId(text, msg?.details)) void pi_refreshBackgroundWork();
 				turn.tracker.userMessage(text, { customType });
 				if (!turn.requestKind && segmentKind) turn.requestKind = segmentKind;
-				// A wake adopts only the command it continues (item 7a4d04fd); a wake
-				// that continues no command adopts nothing.
-				if (harness) adoptParkedCommandIdentity(turn, turn.tracker.userKind, continuedCommandIdentity());
+				if (harness) adoptParkedCommandIdentity(turn, turn.tracker.userKind);
 			}
 			// Idle triggerTurn custom messages bypass before_agent_start in Pi. The
 			// awaited message_start event is the earliest common point before the
@@ -4654,7 +4643,7 @@ export default function (pi: ExtensionAPI) {
 				pi_setServeToolActive(true);
 				return { block: true, reason: launchRefusal(carried) };
 			}
-			launchRequests.set(call.toolCallId, { snapshot: chain.launchSnapshot(segmentCommand()), args: call.input });
+			launchRequests.set(call.toolCallId, { snapshot: chain.launchSnapshot(), args: call.input });
 		} catch { debug("request launch record failed", { errorPresent: true }); }
 		return undefined;
 	});
@@ -4667,7 +4656,7 @@ export default function (pi: ExtensionAPI) {
 		// Work belongs to the request its segment continued when it LAUNCHED
 		// (item 7a4d04fd), whatever is current when the receipt comes back.
 		if (!launchRequests.has(event.toolCallId)) {
-			launchRequests.set(event.toolCallId, { snapshot: requestChain()?.launchSnapshot(segmentCommand()) ?? null, args: event.args });
+			launchRequests.set(event.toolCallId, { snapshot: requestChain()?.launchSnapshot() ?? null, args: event.args });
 		}
 		noteVerbStart(event.toolCallId, event.toolName, event.args);
 		paintStatus(ctx);

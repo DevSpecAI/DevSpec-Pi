@@ -34,6 +34,8 @@ export interface CommandTurnBinding {
 export interface CommandRequestRef {
 	provenanceRef: string;
 	messageId: string;
+	/** The connection's owner sent it (owner authority), so it is the owner's own request. */
+	fromOwner?: boolean;
 }
 
 export class CommandTurnBindings {

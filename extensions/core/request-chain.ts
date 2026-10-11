@@ -67,21 +67,17 @@ export interface RequestLinkIdentity {
 	kind: CarriedRequestKind;
 	provenanceRef?: string;
 	messageId?: string;
+	/** A room command the connection's owner sent (its delivery authority is the owner's). */
+	fromOwner?: boolean;
 	commandTurnId?: string;
 	commandMessageId?: string;
 }
 
-/** The command a launch was made under, kept so its wake's reply lands in that command's turn. */
-export interface LaunchCommand {
-	commandTurnId: string;
-	commandMessageId: string;
-}
-
 /**
  * Journal row for one launch: what it was recorded against (a request, "none",
- * "unstated"), the other requests an undecided turn carried (`also`), whether
- * its end reaches the agent as a notification, and the command it was made
- * under. `request: null` says its wake has come back (or it ended without one).
+ * "unstated"), the other requests an undecided turn carried (`also`), and
+ * whether its end reaches the agent as a notification. `request: null` says its
+ * wake has come back (or it ended without one).
  */
 export interface RequestLinkEntry {
 	version: 1;
@@ -92,7 +88,6 @@ export interface RequestLinkEntry {
 	request: RequestLinkIdentity | typeof NO_REQUEST | typeof UNSTATED | null;
 	also?: RequestLinkIdentity[];
 	notifies?: boolean;
-	command?: LaunchCommand;
 }
 
 /** A request the current turn carries, as a refusal lists it. */
@@ -110,6 +105,12 @@ interface CarriedRequest extends RequestLinkIdentity {
 	state: "opening" | "open" | "closing" | "closed";
 	/** DevSpec refused or could not be reached when it was opened: never carried. */
 	failed?: boolean;
+	/**
+	 * DevSpec knows it but reports it already closed (it closed in a /reload gap,
+	 * or with its connection): never carried, but a write that continues it may
+	 * still name it — DevSpec resolves a closed request to its requester.
+	 */
+	closedOnServer?: boolean;
 	ready: Promise<boolean>;
 	seq: number;
 }
@@ -120,14 +121,12 @@ interface Launch {
 	also: string[];
 	notifies: boolean;
 	notified: boolean;
-	command?: LaunchCommand;
 }
 
 /** What a launch made now is recorded against. */
 export interface LaunchSnapshot {
 	request: string;
 	also: string[];
-	command?: LaunchCommand;
 }
 
 /** How long a decision waits, in total, for the opens it depends on. */
@@ -201,8 +200,6 @@ export class RequestChain {
 	 * unstamped, never credited to whoever was current before.
 	 */
 	private arrivals: string[][] = [];
-	/** The command the launch that woke this turn was made under (posting only, not attribution). */
-	private wakeCommand: LaunchCommand | null = null;
 	/** Launches rebuilt from the journal whose work has not yet been checked against the host. */
 	private readonly restored = new Set<string>();
 	private seq = 0;
@@ -224,13 +221,14 @@ export class RequestChain {
 	// ---- Opening requests -----------------------------------------------------
 
 	/** A room command reached the agent: carry it (a command already carried is the request it already is). */
-	openCommand(input: { provenanceRef: string; messageId?: string; commandTurnId?: string; commandMessageId?: string }): string | null {
+	openCommand(input: { provenanceRef: string; messageId?: string; commandTurnId?: string; commandMessageId?: string; fromOwner?: boolean }): string | null {
 		if (this.disposed || !UUID.test(input.provenanceRef)) return null;
 		const ref = input.provenanceRef.toLowerCase();
 		const existing = this.byProvenance.get(ref);
 		if (existing && this.isOpen(existing)) return existing;
 		const request = this.create({ id: randomUUID(), kind: "command", provenanceRef: ref,
 			...(input.messageId ? { messageId: input.messageId } : {}),
+			...(input.fromOwner === true ? { fromOwner: true } : {}),
 			...(input.commandTurnId ? { commandTurnId: input.commandTurnId } : {}),
 			...(input.commandMessageId ? { commandMessageId: input.commandMessageId } : {}) });
 		boundedMap(this.byProvenance, ref, request.id);
@@ -266,7 +264,7 @@ export class RequestChain {
 				if (typeof receipt.requested_by_user_id === "string") request.requester = receipt.requested_by_user_id;
 				if (receipt.status !== "open") {
 					request.state = "closed";
-					request.failed = true;
+					request.closedOnServer = true;
 					return false;
 				}
 				if (request.state === "opening") request.state = "open";
@@ -286,6 +284,25 @@ export class RequestChain {
 	private isOpen(id: string | null | undefined): boolean {
 		const state = id ? this.requests.get(id)?.state : undefined;
 		return state === "opening" || state === "open";
+	}
+
+	/** Open, or known to DevSpec as closed: a write that continues it may name it. */
+	private isStampable(id: string | null | undefined): boolean {
+		return this.isOpen(id) || Boolean(id && this.requests.get(id)?.closedOnServer);
+	}
+
+	/**
+	 * Whether "nobody's request" may be offered: DevSpec refuses it while any
+	 * open request on this connection is someone else's (a teammate's command),
+	 * so it is offered only when every open request is the owner's own — typed
+	 * here, or a room command the owner sent.
+	 */
+	private noneAllowed(): boolean {
+		for (const request of this.requests.values()) {
+			if (!this.isOpen(request.id)) continue;
+			if (request.kind !== "typed_prompt" && request.fromOwner !== true) return false;
+		}
+		return true;
 	}
 
 	/** Wait, until a deadline, for the opens these requests depend on. */
@@ -318,12 +335,11 @@ export class RequestChain {
 	startTurn(ref: string | null, also: readonly string[] = []): void {
 		if (this.disposed) return;
 		const previous = this.touched;
-		this.current = ref === NO_REQUEST || ref === UNSTATED || (ref && this.isOpen(ref)) ? ref : UNSTATED;
+		this.current = ref === NO_REQUEST || ref === UNSTATED || (ref && this.isStampable(ref)) ? ref : UNSTATED;
 		this.joined = new Set(also.filter((id) => id !== this.current && this.isOpen(id)));
 		this.chosen = false;
 		this.turnStarted = true;
 		this.arrivals = [];
-		this.wakeCommand = null;
 		this.touched = new Set([...(this.currentRequestId() ? [this.current!] : []), ...this.joined]);
 		for (const id of previous) if (!this.touched.has(id)) this.maybeClose(id);
 	}
@@ -391,7 +407,6 @@ export class RequestChain {
 		this.turnStarted = false;
 		this.touched = new Set();
 		this.arrivals = [];
-		this.wakeCommand = null;
 		for (const id of released) this.maybeClose(id);
 	}
 
@@ -422,7 +437,7 @@ export class RequestChain {
 		const nobody = this.current === NO_REQUEST && carried.length > 0;
 		if (new Set(carried.map((request) => this.attribution(request))).size + (nobody ? 1 : 0) < 2) return null;
 		return [
-			...(nobody ? [{ id: NO_REQUEST, kind: "none" as const, current: true }] : []),
+			...(nobody && this.noneAllowed() ? [{ id: NO_REQUEST, kind: "none" as const, current: true }] : []),
 			...carried.map((request) => ({ id: request.id, kind: request.kind, ...(request.messageId ? { messageId: request.messageId } : {}), current: request.id === this.current })),
 		];
 	}
@@ -483,38 +498,31 @@ export class RequestChain {
 		return request.kind === "typed_prompt" ? "the prompt your owner typed at this terminal" : `the room command with message_id ${request.messageId ?? "(unknown)"}`;
 	}
 
-	/** The command the launch that woke this turn was made under, so its reply lands in that command's turn. */
-	wakeCommandIdentity(): LaunchCommand | null {
-		return this.wakeCommand;
-	}
-
 	// ---- Launches and wakes -----------------------------------------------------
 
 	/**
 	 * What a launch made now belongs to: the current request while it is open,
 	 * "none" when the turn positively serves nobody's, "unstated" otherwise —
-	 * with the other requests an undecided turn was carrying, and the command it
-	 * was made under (kept for posting even when no request could be opened).
+	 * with the other requests an undecided turn was carrying.
 	 */
-	launchSnapshot(command?: LaunchCommand | null): LaunchSnapshot {
+	launchSnapshot(): LaunchSnapshot {
 		const cleared = this.arrivalFailed();
 		const request = cleared ? UNSTATED : this.current === NO_REQUEST ? NO_REQUEST
-			: this.currentRequestId() && this.isOpen(this.current) ? this.current! : UNSTATED;
+			: this.currentRequestId() && this.isStampable(this.current) ? this.current! : UNSTATED;
 		const also = ((this.chosen ? null : this.carriedNow()) ?? []).map((entry) => entry.id).filter((id) => UUID.test(id) && id !== request);
-		return { request, also, ...(command?.commandTurnId && command.commandMessageId ? { command: { commandTurnId: command.commandTurnId, commandMessageId: command.commandMessageId } } : {}) };
+		return { request, also };
 	}
 
 	/** The same, once the carried opens have answered (bounded), so who asked is known. */
-	async launchSnapshotReady(command?: LaunchCommand | null, timeoutMs = OPEN_WAIT_MS): Promise<LaunchSnapshot> {
+	async launchSnapshotReady(timeoutMs = OPEN_WAIT_MS): Promise<LaunchSnapshot> {
 		await this.settleOpens(this.carriedIds(), Date.now() + timeoutMs);
-		return this.launchSnapshot(command);
+		return this.launchSnapshot();
 	}
 
 	/** Record a launch (every one, so its wake is never mistaken for one nothing here started). */
 	recordLaunch(key: string, snapshot: LaunchSnapshot, options: { aliases?: string[]; notifies?: boolean } = {}): void {
 		if (this.disposed || !key) return;
-		const launch: Launch = { request: snapshot.request, also: [...snapshot.also], notifies: options.notifies !== false, notified: false,
-			...(snapshot.command ? { command: { ...snapshot.command } } : {}) };
+		const launch: Launch = { request: snapshot.request, also: [...snapshot.also], notifies: options.notifies !== false, notified: false };
 		boundedMap(this.launches, key, launch);
 		const aliases = (options.aliases ?? []).filter(Boolean);
 		for (const alias of aliases) boundedMap(this.aliases, alias, key);
@@ -565,25 +573,22 @@ export class RequestChain {
 			return false;
 		}
 		const requests: string[] = [];
+		let closed: string | null = null;
 		let nobody = false;
-		let command: LaunchCommand | null = null;
-		let fallbackCommand: LaunchCommand | null = null;
 		for (const entry of matched) {
 			const launch = this.launches.get(entry.key)!;
 			if (launch.request === NO_REQUEST) nobody = true;
 			for (const id of [launch.request, ...launch.also]) {
 				if (UUID.test(id) && this.isOpen(id) && !requests.includes(id)) requests.push(id);
 			}
-			if (launch.command) {
-				fallbackCommand ??= launch.command;
-				if (!command && this.isOpen(launch.request)) command = launch.command;
-			}
+			if (!closed && this.requests.get(launch.request)?.closedOnServer) closed = launch.request;
 		}
-		const ref = nobody ? NO_REQUEST : requests[0] ?? UNSTATED;
+		// A request DevSpec reports closed (it closed in a /reload gap) still names
+		// its requester: the wake continues it when nothing it carries is open.
+		const ref = nobody ? NO_REQUEST : requests[0] ?? closed ?? UNSTATED;
 		const also = nobody ? requests : requests.slice(1);
 		if (!this.turnStarted) {
 			this.startTurn(ref, also);
-			this.wakeCommand = command ?? fallbackCommand;
 		} else if (options.alongside) {
 			for (const id of requests) this.join(id);
 		} else {
@@ -656,7 +661,7 @@ export class RequestChain {
 		const id = this.currentRequestId();
 		const request = id ? this.requests.get(id) : undefined;
 		if (!request || request.failed || !request.serverId) return null;
-		return request.state === "open" || request.state === "closing" ? request.serverId : null;
+		return request.state === "open" || request.state === "closing" || request.closedOnServer ? request.serverId : null;
 	}
 
 	private arrivalFailed(): boolean {
@@ -703,8 +708,7 @@ export class RequestChain {
 			if (entry.request === null || this.launches.has(entry.key)) continue;
 			const request = typeof entry.request === "string" ? entry.request : carry(entry.request);
 			const also = (entry.also ?? []).map(carry);
-			this.launches.set(entry.key, { request, also, notifies: entry.notifies !== false, notified: false,
-				...(entry.command ? { command: { ...entry.command } } : {}) });
+			this.launches.set(entry.key, { request, also, notifies: entry.notifies !== false, notified: false });
 			for (const alias of entry.aliases ?? []) boundedMap(this.aliases, alias, entry.key);
 			this.restored.add(entry.key);
 			restored += 1;
@@ -746,7 +750,6 @@ export class RequestChain {
 		this.current = null;
 		this.joined = new Set();
 		this.turnStarted = false;
-		this.wakeCommand = null;
 	}
 
 	private identity(id: string): RequestLinkIdentity | null {
@@ -756,6 +759,7 @@ export class RequestChain {
 			id: request.id, kind: request.kind,
 			...(request.provenanceRef ? { provenanceRef: request.provenanceRef } : {}),
 			...(request.messageId ? { messageId: request.messageId } : {}),
+			...(request.fromOwner ? { fromOwner: true } : {}),
 			...(request.commandTurnId ? { commandTurnId: request.commandTurnId } : {}),
 			...(request.commandMessageId ? { commandMessageId: request.commandMessageId } : {}),
 		};
@@ -769,8 +773,7 @@ export class RequestChain {
 					: this.identity(launch.request) ?? UNSTATED;
 			const also = launch ? launch.also.map((id) => this.identity(id)).filter((value): value is RequestLinkIdentity => value !== null) : [];
 			this.journal({ key, ...(aliases.length ? { aliases } : {}), request,
-				...(also.length ? { also } : {}), ...(launch ? { notifies: launch.notifies } : {}),
-				...(launch?.command ? { command: { ...launch.command } } : {}) });
+				...(also.length ? { also } : {}), ...(launch ? { notifies: launch.notifies } : {}) });
 		} catch {
 			this.onError("persist");
 		}
@@ -786,8 +789,8 @@ export class RequestChain {
 	}
 }
 
-const LINK_KEYS = ["version", "nativeSessionId", "connectionId", "key", "aliases", "request", "also", "notifies", "command"];
-const REQUEST_KEYS = ["id", "kind", "provenanceRef", "messageId", "commandTurnId", "commandMessageId"];
+const LINK_KEYS = ["version", "nativeSessionId", "connectionId", "key", "aliases", "request", "also", "notifies"];
+const REQUEST_KEYS = ["id", "kind", "provenanceRef", "messageId", "fromOwner", "commandTurnId", "commandMessageId"];
 
 function parseIdentity(value: unknown): RequestLinkIdentity | null {
 	const row = record(value);
@@ -795,6 +798,7 @@ function parseIdentity(value: unknown): RequestLinkIdentity | null {
 	if (typeof row.id !== "string" || !UUID.test(row.id) || (row.kind !== "command" && row.kind !== "typed_prompt")) return null;
 	if (row.kind === "command" && (typeof row.provenanceRef !== "string" || !UUID.test(row.provenanceRef))) return null;
 	if (row.kind === "typed_prompt" && row.provenanceRef !== undefined) return null;
+	if (row.fromOwner !== undefined && row.fromOwner !== true) return null;
 	for (const field of ["messageId", "commandTurnId", "commandMessageId"] as const) {
 		if (row[field] !== undefined && (typeof row[field] !== "string" || !(row[field] as string) || (row[field] as string).length > 128)) return null;
 	}
@@ -802,18 +806,10 @@ function parseIdentity(value: unknown): RequestLinkIdentity | null {
 		id: row.id, kind: row.kind,
 		...(typeof row.provenanceRef === "string" ? { provenanceRef: row.provenanceRef } : {}),
 		...(typeof row.messageId === "string" ? { messageId: row.messageId } : {}),
+		...(row.fromOwner === true ? { fromOwner: true } : {}),
 		...(typeof row.commandTurnId === "string" ? { commandTurnId: row.commandTurnId } : {}),
 		...(typeof row.commandMessageId === "string" ? { commandMessageId: row.commandMessageId } : {}),
 	};
-}
-
-function parseCommand(value: unknown): LaunchCommand | null {
-	const row = record(value);
-	if (!row || Object.keys(row).some((key) => key !== "commandTurnId" && key !== "commandMessageId")) return null;
-	for (const field of ["commandTurnId", "commandMessageId"] as const) {
-		if (typeof row[field] !== "string" || !(row[field] as string) || (row[field] as string).length > 128) return null;
-	}
-	return { commandTurnId: row.commandTurnId as string, commandMessageId: row.commandMessageId as string };
 }
 
 /** Strict allowlist parse: a malformed row restores nothing. */
@@ -846,12 +842,6 @@ export function parseRequestLinkEntry(value: unknown): RequestLinkEntry | null {
 		}
 	}
 	if (row.notifies !== undefined && typeof row.notifies !== "boolean") return null;
-	let command: LaunchCommand | undefined;
-	if (row.command !== undefined) {
-		const parsed = parseCommand(row.command);
-		if (!parsed) return null;
-		command = parsed;
-	}
 	return {
 		version: 1,
 		nativeSessionId: row.nativeSessionId as string,
@@ -861,7 +851,6 @@ export function parseRequestLinkEntry(value: unknown): RequestLinkEntry | null {
 		request,
 		...(also ? { also } : {}),
 		...(typeof row.notifies === "boolean" ? { notifies: row.notifies } : {}),
-		...(command ? { command } : {}),
 	};
 }
 

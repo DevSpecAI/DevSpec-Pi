@@ -113,7 +113,8 @@ test("recoverable server ends revive the same bond instead of spinning on an end
 		"same-row revival must retain exactly-once command memory");
 
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
-	assert.equal((pump.match(/await reviveRecoverableBond\(active, token, ctx\)/g) ?? []).length, 2,
+	// Both say the server ended the connection, so the revive also rebuilds the request chain (7a4d04fd).
+	assert.equal((pump.match(/await reviveRecoverableBond\(active, token, ctx, undefined, true\)/g) ?? []).length, 2,
 		"push and long-poll ended paths both revive mechanically");
 	assert.match(pump, /push ended recoverable[^]*await reviveRecoverableBond/);
 	assert.match(pump, /poll recoverable server response[^]*await reviveRecoverableBond/);
@@ -203,7 +204,7 @@ test("all send modes use the same visible bundle binding and idle retains hidden
 	assert.match(delivery, /const formatted = formatInboundBundleMessage\(hydrated\)/);
 	// Each delivered command's own provenance_ref rides the binding, so the
 	// command's request opens when its message starts (item 7a4d04fd).
-	assert.match(delivery, /pi_send\(formatted, sendMode, hydrated\.commandTurnId, primary\.id, queueItem,\s*hydrated\.commands\.map\(\(command\) => \(\{ provenanceRef: command\.delivery\.provenance_ref, messageId: command\.id \}\)\)\)/);
+	assert.match(delivery, /pi_send\(formatted, sendMode, hydrated\.commandTurnId, primary\.id, queueItem,\s*hydrated\.commands\.map\(\(command\) => \(\{ provenanceRef: command\.delivery\.provenance_ref, messageId: command\.id, fromOwner: command\.authority\.kind === "owner" \}\)\)\)/);
 
 	const sender = bodyBetween("pi_send =", "pi_abort =");
 	assert.match(sender, /commandTurnBindings\.remember\(message, commandTurnId, commandMessageId, canonicalQueueItem, requests\)/);

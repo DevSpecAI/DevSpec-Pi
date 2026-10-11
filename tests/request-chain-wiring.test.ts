@@ -24,7 +24,7 @@ import { SYSTEM_NOTICE_CUSTOM_TYPE } from "../extensions/core/system-notice.ts";
 
 const source = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 const tools = readFileSync(new URL("../extensions/devspec-tools.ts", import.meta.url), "utf8");
-const binder = source.slice(source.indexOf("const QUESTION_EVENT_CUSTOM_TYPES"), source.indexOf("/** The command the launch that woke this segment was made under"));
+const binder = source.slice(source.indexOf("const QUESTION_EVENT_CUSTOM_TYPES"), source.indexOf("function noteCommandTurnClosed("));
 const adoption = source.slice(source.indexOf("function adoptParkedCommandIdentity("), source.indexOf("// ---- The request chain (item 7a4d04fd)"));
 
 const DELIVERY_A = "2000000a-0000-4000-8000-00000000000a";
@@ -210,22 +210,31 @@ test("a system notice run names nothing", () => {
 	assert.equal(h.chain.currentRequestId(), null);
 });
 
-test("a wake's reply lands in the open command turn: its own command's message while that turn is open, else the open turn as before", () => {
+test("a wake's reply posts as the open command turn's newest command, on any server; who asked travels in request_ref", async () => {
 	const sandbox: Record<string, unknown> = { activeCommandTurnIdentity: null, debug() {} };
 	vm.createContext(sandbox);
 	vm.runInContext(stripTypeScriptTypes(adoption, { mode: "transform" }), sandbox);
-	const adopt = (continued: unknown, open: unknown, kind = "harness") => {
+	const adopt = (open: unknown, kind = "harness", t: Record<string, unknown> = {}) => {
 		sandbox.activeCommandTurnIdentity = open;
-		const t: Record<string, unknown> = {};
-		(sandbox.adoptParkedCommandIdentity as (t: unknown, kind: string, continued: unknown) => void)(t, kind, continued);
+		(sandbox.adoptParkedCommandIdentity as (t: unknown, kind: string) => void)(t, kind);
 		return t;
 	};
-	const open = { turnId: "T", commandMessageId: "newest" };
-	assert.deepEqual(adopt({ commandTurnId: "T", commandMessageId: "mine" }, open), { commandTurnId: "T", commandMessageId: "mine" });
-	assert.deepEqual(adopt({ commandTurnId: "OLD", commandMessageId: "mine" }, open), { commandTurnId: "T", commandMessageId: "newest" });
-	assert.deepEqual(adopt(null, open), { commandTurnId: "T", commandMessageId: "newest" }, "a host that cannot open requests posts as before");
-	assert.deepEqual(adopt(null, null), {});
-	assert.deepEqual(adopt(null, open, "local"), {});
+	// An old server: every open fails. M1 starts a job; M2 joins the same open
+	// turn; the job's wake must post as M2 so the newer segment is not left
+	// Working, while its writes name nothing (DevSpec resolves who asked).
+	const refused = new RequestChain({ connectionId: "connection", transport: { call: async () => { throw new Error("unknown tool report_request"); } } });
+	refused.arrive([refused.openCommand({ provenanceRef: DELIVERY_A, messageId: MSG_A, commandTurnId: "T", commandMessageId: MSG_A })!]);
+	await settle();
+	refused.recordLaunch(taskKey("job"), refused.launchSnapshot());
+	refused.arrive([refused.openCommand({ provenanceRef: DELIVERY_B, messageId: MSG_B, commandTurnId: "T", commandMessageId: MSG_B })!]);
+	await settle();
+	refused.endTurn();
+	assert.equal(refused.wake([{ key: taskKey("job"), terminal: true }]), true, "the launch was recorded though no request opened");
+	assert.equal(await refused.stamp(), null);
+	assert.deepEqual(adopt({ turnId: "T", commandMessageId: MSG_B }), { commandTurnId: "T", commandMessageId: MSG_B });
+	assert.deepEqual(adopt(null), {}, "no open command turn: posts unbound, as before");
+	assert.deepEqual(adopt({ turnId: "T", commandMessageId: MSG_B }, "local"), {});
+	assert.deepEqual(adopt({ turnId: "T", commandMessageId: MSG_B }, "harness", { commandTurnId: "own", commandMessageId: "own" }), { commandTurnId: "own", commandMessageId: "own" });
 });
 
 test("only a typed segment is admitted or mirrored as a local turn", () => {
@@ -240,23 +249,32 @@ test("only a typed segment is admitted or mirrored as a local turn", () => {
 	assert.ok(start.indexOf("bindSegmentForMessage(") < start.indexOf("if (!turn) return;"));
 });
 
-test("every revive rebuilds the chain; the run boundary, launches and shutdown feed it", () => {
+test("a revive keeps the chain unless the connection changed or ended; the run boundary, launches and shutdown feed it", () => {
 	const revive = source.slice(source.indexOf("async function reviveRecoverableBond("), source.indexOf("async function ensureRoomSync("));
-	const changed = revive.slice(revive.indexOf("if (changedConnection) {"), revive.indexOf("} else {", revive.indexOf("if (changedConnection) {")));
-	assert.doesNotMatch(changed, /dropRequestChain/, "not only for a replacement row");
-	assert.ok(revive.indexOf("dropRequestChain();") > revive.indexOf("} else {") && revive.indexOf("dropRequestChain();") < revive.indexOf("setBond(bond);"));
+	assert.match(revive, /if \(changedConnection \|\| serverEnded\) dropRequestChain\(\);\s*setBond\(bond\);/);
+	assert.equal((revive.match(/dropRequestChain\(\)/g) ?? []).length, 1);
+	const loop = source.slice(source.indexOf("async function pumpLoop("));
+	// The server said the connection ended (push end, poll status ended/not_found): its requests closed.
+	assert.match(loop, /push ended recoverable[^]{0,120}reviveRecoverableBond\(active, token, ctx, undefined, true\)/);
+	assert.match(loop, /poll recoverable server response[^]{0,160}reviveRecoverableBond\(active, token, ctx, undefined, true\)/);
+	// An auth-shaped poll failure revives the same, still-live connection: its requests stay carried.
+	assert.match(loop, /const failure = \{ authFailed: false \};\s*if \(await reviveRecoverableBond\(active, token, ctx, failure\)\)/);
 	const settled = source.slice(source.indexOf('pi.on("agent_settled"'), source.indexOf("const activeAtSettle = pump;"));
 	assert.match(settled, /typedInputLedger\(\)\.expire\(\);[^]*settledChain\?\.endTurn\(\);[^]*scanAppendedNotices\(settledChain, ctx\)/);
 	const call = source.slice(source.indexOf('pi.on("tool_call"'), source.indexOf('pi.on("tool_execution_start"'));
 	assert.match(call, /isLaunchCall\(call\.toolName, call\.input\)/);
 	assert.match(call, /const carried = await chain\.ambiguity\(\);[^]*return \{ block: true, reason: launchRefusal\(carried\) \}/);
 	const launch = source.slice(source.indexOf('pi.on("tool_execution_start"'), source.indexOf('pi.on("tool_execution_update"'));
-	assert.match(launch, /launchSnapshot\(segmentCommand\(\)\)/);
+	assert.match(launch, /if \(!launchRequests\.has\(event\.toolCallId\)\) \{\s*launchRequests\.set\(event\.toolCallId, \{ snapshot: requestChain\(\)\?\.launchSnapshot\(\) \?\? null/);
 	const end = source.slice(source.indexOf('pi.on("tool_execution_end"'), source.indexOf('pi.on("session_shutdown"'));
 	assert.match(end, /recordLaunchedWork\(event\.toolName, launch, event\.result, event\.isError\)/);
 	const observed = source.slice(source.indexOf("const applyBackgroundObservation ="), source.indexOf("const backgroundObserver = new BackgroundWorkObserver"));
 	assert.match(observed, /task\.state === "killed"\) chain\.endLaunch\(taskKey\(task\.id\)\)/);
 	assert.match(observed, /reconcileRestored\(chain, false, null\)/);
+	const reconcile = source.slice(source.indexOf("const reconcileRestored ="), source.indexOf("pi_reconcileRestoredLaunches ="));
+	// After a fresh refresh, a restored task the provider does not list (and the journal never saw finish) is over.
+	assert.match(reconcile, /const listedAfterRefresh = refreshed && observation\.scope !== null;/);
+	assert.match(reconcile, /if \(state === undefined && listedAfterRefresh\) return false;/);
 	const shutdown = source.slice(source.indexOf('pi.on("session_shutdown"'));
 	assert.ok(shutdown.indexOf("chainAtShutdown.shutdown()") < shutdown.indexOf("pump = null;"));
 	assert.match(source, /pi\.on\("input", \(event\) => \{\s*typedInputLedger\(\)\.noteInput\(event\);/);

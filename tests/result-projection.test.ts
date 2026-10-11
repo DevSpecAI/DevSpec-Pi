@@ -651,7 +651,15 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// request. No projection family or hot-set membership changed (76).
 		// Benchmark before/after: initial surface 45,332 -> 45,332 estimated
 		// tokens; every budget passes.
-		"6b490fc2d99285721cce0a9d7d2a08a249bb3cacdd2833cfd63aedb00f16cc4b",
+		// Rebaselined 2026-10-11 for item 3279dab5 (DevSpecV2 #370 + ee32d583): only
+		// descriptions changed. work_claim_ref on the 31 work-claim writes now says
+		// just "Omitted: DevSpec works out who asked from your connection." (what
+		// happens when it cannot tell is in each write's outcome and the contract's
+		// requester rule), and the host-only request_ref says a request that is not
+		// this connection's is refused. Verbs 80 model / 12 pump / 1 never-model,
+		// unchanged; no inputs added; families and hot set unchanged.
+		// Benchmark before/after: 45,332 -> 45,076 estimated tokens.
+		"2c32cd4248d0713528dab6f9349d095a684b8523981598ec41acc2e3a013d7ca",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

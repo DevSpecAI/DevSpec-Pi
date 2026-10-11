@@ -637,8 +637,9 @@ function isWakeMessage(text: string, customType: string | null, keys: readonly W
  * Feed the chain one message, attached or not. A run's first input is what it
  * was woken for; later input joins it. A command opens its requests; a prompt
  * the owner typed opens theirs; a wake continues the request its launch was
- * made for; an automation run, a system notice, or a wake nothing here
- * launched names nothing. Context injections are not input and change
+ * made for; an automation run is positively nobody's ("none", which DevSpec
+ * records as the running automation); a system notice, or a wake nothing here
+ * launched, names nothing. Context injections are not input and change
  * nothing. Returns the kind of input, or null when the message is not input.
  */
 function bindSegmentForMessage(input: {
@@ -667,7 +668,7 @@ function bindSegmentForMessage(input: {
 		} else if (userKind === "automation") {
 			ledger.dropForMessage(text);
 			kind = "automation";
-			chain?.arriveUnknown();
+			chain?.arriveNobody();
 		} else if (userKind === "local" && ledger.takeForMessage(text)) {
 			kind = "typed";
 			const id = chain?.openTyped();

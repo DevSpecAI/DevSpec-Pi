@@ -28,6 +28,10 @@
  *   stamps none; anything else — a closed request, an unstated launch, a wake
  *   nothing recorded — stamps nothing, so DevSpec resolves who asked as it
  *   always has. A missing record never becomes "none".
+ * - An **automation run** is positively nobody's request: its turn stamps
+ *   "none", which DevSpec records as the automation while that run is running
+ *   on the connection (else as the agent's own initiative). Left unstamped, a
+ *   live command would win DevSpec's default and be credited instead.
  *
  * Pi loads every extension file with a fresh module graph, so the live chain
  * and the typed-input ledger sit on globalThis under Symbol.for keys (the
@@ -313,14 +317,30 @@ export class RequestChain {
 
 	/**
 	 * An input whose request is not known here (a command or prompt DevSpec did
-	 * not open, an automation run, a wake nothing here launched): a turn it starts
-	 * names nothing, and mid-run it clears the current request — never keeps the
-	 * previous one.
+	 * not open, a wake nothing here launched): a turn it starts names nothing,
+	 * and mid-run it clears the current request — never keeps the previous one.
 	 */
 	arriveUnknown(): void {
 		if (this.disposed) return;
 		if (!this.turnStarted) this.startTurn(UNSTATED);
 		else { this.current = UNSTATED; this.chosen = false; }
+	}
+
+	/**
+	 * Input that is positively nobody's request (an automation run, a launch made
+	 * for nobody's): a turn it starts stamps "none". Mid-run it joins as
+	 * nobody's: a request the turn was serving is still carried, so the turn
+	 * carries both and is undecided until the agent names one.
+	 */
+	arriveNobody(): void {
+		if (this.disposed) return;
+		if (!this.turnStarted) { this.startTurn(NO_REQUEST); return; }
+		if (this.current === NO_REQUEST) return;
+		const previous = this.currentRequestId();
+		this.current = NO_REQUEST;
+		this.chosen = false;
+		this.arrivals = [];
+		if (previous) this.joined.add(previous);
 	}
 
 	/** Input that is nobody's in particular (another extension's send): it starts an unstated turn and joins a running one unchanged. */
@@ -480,13 +500,9 @@ export class RequestChain {
 			for (const id of [ref, ...also]) if (UUID.test(id)) this.join(id);
 		} else {
 			if (UUID.test(ref)) this.join(ref);
-			else if (ref === NO_REQUEST && this.current !== NO_REQUEST) {
-				// Nobody's request reached a turn serving somebody's: it now carries both.
-				const previous = this.currentRequestId();
-				this.current = NO_REQUEST;
-				this.chosen = false;
-				if (previous) this.joined.add(previous);
-			} else if (ref === UNSTATED) this.arriveUnknown();
+			// Nobody's request reached a turn serving somebody's: it now carries both.
+			else if (ref === NO_REQUEST) this.arriveNobody();
+			else if (ref === UNSTATED) this.arriveUnknown();
 			for (const id of also) this.join(id);
 		}
 		this.noteNotified(matched);

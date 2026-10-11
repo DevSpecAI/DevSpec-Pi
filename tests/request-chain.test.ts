@@ -221,13 +221,36 @@ describe("what a turn and a wake carry", () => {
 		assert.equal(await chain.stamp(), null, "a turn whose request has no id stamps nothing");
 	});
 
-	test("an automation run or an unknown wake mid-turn clears the current request", async () => {
+	test("an unknown input mid-turn clears the current request", async () => {
 		const { chain, settle } = harness();
 		chain.arrive([chain.openTyped()!]);
 		await settle();
 		assert.ok(await chain.stamp());
 		chain.arriveUnknown();
 		assert.equal(await chain.stamp(), null);
+	});
+
+	test("an automation run is positively nobody's request: its turn and its launches stamp none", async () => {
+		const { chain, calls } = harness();
+		chain.arriveNobody();
+		assert.equal(await chain.stamp(), NO_REQUEST, "DevSpec records the running automation, never a live command");
+		assert.deepEqual(chain.launchSnapshot(), { request: NO_REQUEST, also: [] });
+		chain.recordLaunch(taskKey("nightly"), chain.launchSnapshot());
+		chain.endTurn();
+		chain.wake([{ key: taskKey("nightly"), terminal: true }]);
+		assert.equal(await chain.stamp(), NO_REQUEST, "its job's wake is nobody's too");
+		assert.equal(calls.length, 0, "no request is opened for it");
+	});
+
+	test("an automation run reaching a turn that serves somebody's request makes it undecided", async () => {
+		const { chain } = harness();
+		const t = chain.openTyped()!;
+		chain.arrive([t]);
+		chain.arriveNobody();
+		assert.deepEqual((await chain.ambiguity())!.map((entry) => entry.id), [NO_REQUEST, t]);
+		chain.serve({ none: true });
+		assert.equal(await chain.ambiguity(), null);
+		assert.equal(await chain.stamp(), NO_REQUEST);
 	});
 
 	test("another extension's message changes nothing mid-turn and names nothing when it starts one", async () => {

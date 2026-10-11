@@ -5,6 +5,7 @@
 - Work Pi does after something it started finishes (a background job, a subagent, or the answer to a question it asked) is now credited to whoever asked for that work in the first place, not to whoever spoke to Pi most recently.
 - When two people's requests reach the same Pi, what it records for each is kept apart. If one stretch of work carries requests from more than one person (or from you at the terminal and you in a room), Pi names which request a DevSpec change serves before making it, rather than guessing.
 - Only what you type at Pi's terminal is shown in the room as your prompt and counted as your request. Automation runs, finished background jobs and DevSpec's own notices no longer are.
+- Work Pi does for an automation run is recorded as that automation's, even while someone's message to Pi is still open.
 - Work Pi starts on its own, with nobody's request behind it, is recorded as Pi's own initiative only when Pi knows that for certain; otherwise DevSpec works out who asked, as before.
 - The catalogue is regenerated against DevSpec's current tools.
 - Update with `pi update --extensions`, then restart Pi.

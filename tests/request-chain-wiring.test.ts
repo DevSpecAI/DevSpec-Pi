@@ -65,14 +65,16 @@ test("a prompt the owner typed opens their request; another extension's send doe
 	assert.equal(await h.chain.stamp(), null, "a run it starts names nothing");
 });
 
-test("an automation run is never admitted as typed, even while the owner has typed input queued", async () => {
+test("an automation run is never admitted as typed, and its writes are stamped nobody's request", async () => {
 	const h = harness();
 	const run = "[DevSpec remote — automation run] nightly";
 	h.ledger.noteInput({ text: run, source: "extension" });
 	h.ledger.noteInput({ text: "typed meanwhile", source: "interactive", streamingBehavior: "followUp" });
 	assert.equal(h.bind({ text: run }), "automation");
 	assert.equal(h.opened.length, 0);
-	assert.equal(await h.chain.stamp(), null, "the server records the automation itself");
+	// "none" resolves to the running automation on the server; unstamped, a
+	// live command would win DevSpec's default and be credited instead.
+	assert.equal(await h.chain.stamp(), "none");
 	assert.equal(h.ledger.pending(), 1, "the owner's typed record is still theirs");
 	assert.equal(h.bind({ text: "typed meanwhile" }), "typed");
 });

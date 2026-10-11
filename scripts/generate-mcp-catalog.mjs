@@ -33,6 +33,9 @@ export const PUMP_VERBS = [
 	"heartbeat_connection",
 	"report_keepalive",
 	"report_pickup",
+	// Host-only request registry (item 7a4d04fd): opened and closed by the
+	// extension with the connection capability, never by the model.
+	"report_request",
 	"report_complete",
 	"get_connection_dispatch",
 	"attach_connection",

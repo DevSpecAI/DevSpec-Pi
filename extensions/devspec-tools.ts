@@ -25,6 +25,13 @@ import { jsonSchemaToTypebox } from "./core/json-schema.ts";
 import { consumeDeliveryLifecycle } from "./core/active-deliveries.ts";
 import { observeSuccessfulWorkResult } from "./core/work-state.ts";
 import { guardWriteRefs, observeResultClaimRefs } from "./core/provenance-refs.ts";
+import {
+	activeRequestChain,
+	SERVE_REQUEST_DESCRIPTION,
+	SERVE_REQUEST_SCHEMA,
+	SERVE_REQUEST_TOOL,
+	stampRequestRef,
+} from "./core/request-chain.ts";
 import { directedQuestionTranscriptReceiptId } from "./core/question-receipt-lifecycle.ts";
 import {
 	catalogEntry,
@@ -320,11 +327,17 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 		const bond = getBond();
 		const scopedParams = stampKnownScope(params, name);
 		const augmentedParams = augment ? augment(scopedParams, ctx) : scopedParams;
-		const args = stampHostLocalSession(
-			name,
-			stampHostProvider(name, augmentedParams),
-			ctx.sessionManager.getSessionId(),
-		);
+		// The request this write serves (item 7a4d04fd): host-only request_ref,
+		// stamped from what woke this turn, on every tool whose wire schema takes
+		// it. A turn carrying several people's requests that the agent has not
+		// named one of refuses the write here, before the network.
+		const stamped = await stampRequestRef({
+			params: stampHostLocalSession(name, stampHostProvider(name, augmentedParams), ctx.sessionManager.getSessionId()),
+			inputSchema: catalogEntry(name)?.inputSchema,
+			connectionId: bond?.connectionId,
+		});
+		if ("deny" in stamped) return measuredToolResult(name, toolErrorResult(stamped.deny));
+		const args = stamped.args;
 		const localSessionId = ctx.sessionManager.getSessionId();
 		const scope = reviewScope(localSessionId, bond?.projectId ?? ctx.cwd, resolved.token);
 		const observed = listFlags(scope);
@@ -408,6 +421,33 @@ function registerToolLoader(pi: ExtensionAPI): void {
 	});
 }
 
+/**
+ * The agent names the request its next writes serve (item 7a4d04fd) when a
+ * turn carries several people's requests. A host tool, not a DevSpec verb:
+ * the request chain lives in this process. Active only while it can matter
+ * (devspec-remote shows it when a second request joins a turn).
+ */
+function registerServeRequestTool(pi: ExtensionAPI): void {
+	pi.registerTool({
+		name: SERVE_REQUEST_TOOL,
+		label: "Name the request",
+		description: SERVE_REQUEST_DESCRIPTION,
+		parameters: jsonSchemaToTypebox(SERVE_REQUEST_SCHEMA as unknown as Record<string, unknown>),
+		async execute(_toolCallId, params) {
+			const input = params as { message_id?: unknown; terminal?: unknown; none?: unknown };
+			const chain = activeRequestChain();
+			const bond = getBond();
+			if (!chain || !bond || chain.connectionId !== bond.connectionId) {
+				return measuredToolResult(SERVE_REQUEST_TOOL, toolErrorResult("This Pi is not carrying any DevSpec requests, so there is nothing to name."));
+			}
+			const served = await chain.serve({ messageId: input.message_id, terminal: input.terminal, none: input.none });
+			return measuredToolResult(SERVE_REQUEST_TOOL, served.ok
+				? toolTextResult(`Your next DevSpec writes serve ${served.serving}, until another request reaches you.`, { serving: served.serving })
+				: toolErrorResult(served.error));
+		},
+	});
+}
+
 /** Every safe generated model verb, each with its own slim schema. */
 export function modelFacingCatalog(): CatalogEntry[] {
 	return allModelFacingTools();
@@ -418,7 +458,8 @@ export function initialActiveTools(active: readonly string[]): string[] {
 	const devspecVerbs = new Set(modelFacingCatalog().map((entry) => entry.name));
 	return [
 		...new Set([
-			...active.filter((name) => !devspecVerbs.has(name) && name !== TOOL_LOADER_NAME && name !== ROOM_READ_TOOL),
+			// serve_request is shown only while a turn carries several requests.
+			...active.filter((name) => !devspecVerbs.has(name) && name !== TOOL_LOADER_NAME && name !== ROOM_READ_TOOL && name !== SERVE_REQUEST_TOOL),
 			...HOT_SET_VERBS,
 			TOOL_LOADER_NAME,
 			ROOM_READ_TOOL,
@@ -427,9 +468,10 @@ export function initialActiveTools(active: readonly string[]): string[] {
 }
 
 export default function (pi: ExtensionAPI) {
-	registerContextBudgetToolNames([...MODEL_VERB_NAMES, TOOL_LOADER_NAME, ROOM_READ_TOOL]);
+	registerContextBudgetToolNames([...MODEL_VERB_NAMES, TOOL_LOADER_NAME, ROOM_READ_TOOL, SERVE_REQUEST_TOOL]);
 	for (const entry of allModelFacingTools()) if (entry.name !== TOOL_LOADER_NAME) registerCatalogTool(pi, entry);
 	registerToolLoader(pi);
+	registerServeRequestTool(pi);
 	registerRoomReader(pi, () => {
 		if (sessionDeniedTools.has("get_session_transcript")) return false;
 		const active = pi.getActiveTools();

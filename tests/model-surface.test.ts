@@ -14,6 +14,7 @@ import {
 } from '../extensions/core/model-surface.ts';
 import registerDevspecTools, { initialActiveTools, modelFacingCatalog, stampKnownScope } from '../extensions/devspec-tools.ts';
 import { MODEL_VERB_NAMES, NEVER_MODEL_VERBS, PUMP_VERBS } from '../extensions/generated/mcp-catalog.ts';
+import { SERVE_REQUEST_TOOL } from '../extensions/core/request-chain.ts';
 
 test('every eligible safe operation starts available; there is no deferred subset', () => {
   const initial = initialActiveTools(['read', 'custom_tool', ...MODEL_VERB_NAMES]);
@@ -36,8 +37,10 @@ test('all and only safe generated model verbs are registered once', async () => 
   } as unknown as ExtensionAPI;
   setBond(null);
   registerDevspecTools(pi);
-  assert.equal(definitions.length, MODEL_VERB_NAMES.length + 1);
+  // + the room reader and serve_request host tools (item 7a4d04fd).
+  assert.equal(definitions.length, MODEL_VERB_NAMES.length + 2);
   assert.equal(definitions.filter(def => def.name === TOOL_LOADER_NAME).length, 1);
+  assert.equal(definitions.filter(def => def.name === SERVE_REQUEST_TOOL).length, 1);
   assert.deepEqual(allModelFacingTools().map(entry => entry.name), [...MODEL_VERB_NAMES]);
   assert.deepEqual(modelFacingCatalog().map(entry => entry.name), [...MODEL_VERB_NAMES]);
   for (const name of [...PUMP_VERBS, ...NEVER_MODEL_VERBS]) {
@@ -48,6 +51,7 @@ test('all and only safe generated model verbs are registered once', async () => 
     assert.equal(def.promptSnippet, undefined, 'do not duplicate the full guidance in the system prompt');
   }
   handlers.get('session_start')?.();
+  assert.ok(!active.includes(SERVE_REQUEST_TOOL), 'serve_request is shown only while a turn carries several requests');
   const before = [...active];
   const result = await definitions.find(def => def.name === TOOL_LOADER_NAME).execute('call', { query: 'create_resource' });
   assert.deepEqual(result.details.matches.map((hit: any) => hit.name), ['create_resource']);

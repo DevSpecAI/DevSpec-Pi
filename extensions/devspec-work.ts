@@ -16,6 +16,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
 import { createHash } from "node:crypto";
 import { getAdapterGuardState, SUPPRESSION_NOTICE } from "./core/adapter-overlap.ts";
+import { markTypedSend, unmarkTypedSend } from "./core/request-chain.ts";
 import { resolveToken } from "./core/auth-store.ts";
 import { callDevspec, MODEL_TIMEOUT_MS } from "./core/client.ts";
 import { agentsSettingsUrl } from "./core/config.ts";
@@ -193,9 +194,14 @@ export default function (pi: ExtensionAPI) {
 					context: implementationContext,
 				});
 				const delivery = recordActiveDelivery(kickoff, implementationContext);
+				const prompt = buildWorkPrompt(target, implementationContext);
+				// The owner typed /devspec.work here: the prompt it sends is their
+				// request, admitted like anything they type (item 7a4d04fd).
+				markTypedSend(prompt);
 				try {
-					pi.sendUserMessage(buildWorkPrompt(target, implementationContext));
+					pi.sendUserMessage(prompt);
 				} catch (error) {
+					unmarkTypedSend(prompt);
 					rollbackActiveDelivery(delivery);
 					throw error;
 				}

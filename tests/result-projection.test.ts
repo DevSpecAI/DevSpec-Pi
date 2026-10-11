@@ -638,7 +638,20 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// page. Nothing on an existing verb was made required. No projection
 		// family or hot-set membership changed (76). Benchmark before/after:
 		// initial surface 45,362 -> 45,332 estimated tokens; every budget passes.
-		"92a766160bca62ee3a463be95d602d2499fb3bb1c95b286f5203f41df0163659",
+		//
+		// Rebaselined 2026-10-11 for DevSpec item 7a4d04fd (every wake carries the
+		// request it continues), regenerated against the DevSpecV2 tree carrying it
+		// (59448271e). Verbs 92 -> 93: report_request is added as a pump verb (the
+		// extension opens and closes requests with the connection capability; never
+		// model-facing). Model verbs unchanged (80), none added or removed, nothing
+		// made required. One input added: an optional, host-only request_ref
+		// (x-devspec-host-only) on the 31 model verbs with work-claim provenance
+		// (the writes that record who asked). slimSchema drops it, so the model
+		// surface is byte-identical; Pi stamps it on the wire from the turn's
+		// request. No projection family or hot-set membership changed (76).
+		// Benchmark before/after: initial surface 45,332 -> 45,332 estimated
+		// tokens; every budget passes.
+		"6b490fc2d99285721cce0a9d7d2a08a249bb3cacdd2833cfd63aedb00f16cc4b",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

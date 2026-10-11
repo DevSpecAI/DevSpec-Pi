@@ -22,6 +22,18 @@ export interface CommandTurnBinding {
 	turnId: string;
 	commandMessageId: string;
 	canonicalQueueItem?: CanonicalQueueItem;
+	/**
+	 * Every command this delivery carries, oldest first, with its own delivery
+	 * provenance_ref and message id (item 7a4d04fd): the host opens each one's
+	 * request when the message starts, so every write the turn makes, and every
+	 * wake its work causes, names the sender it serves.
+	 */
+	requests?: CommandRequestRef[];
+}
+
+export interface CommandRequestRef {
+	provenanceRef: string;
+	messageId: string;
 }
 
 export class CommandTurnBindings {
@@ -32,9 +44,10 @@ export class CommandTurnBindings {
 		turnId: string | undefined,
 		commandMessageId: string | undefined,
 		canonicalQueueItem?: CanonicalQueueItem,
+		requests?: readonly CommandRequestRef[],
 	): void {
 		if (!turnId || !commandMessageId) return;
-		this.pending.push({ message, binding: { turnId, commandMessageId, ...(canonicalQueueItem ? { canonicalQueueItem } : {}) } });
+		this.pending.push({ message, binding: { turnId, commandMessageId, ...(canonicalQueueItem ? { canonicalQueueItem } : {}), ...(requests?.length ? { requests: requests.map((ref) => ({ ...ref })) } : {}) } });
 		if (this.pending.length > 128) this.pending.shift();
 	}
 

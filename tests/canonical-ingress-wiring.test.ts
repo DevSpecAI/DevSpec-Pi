@@ -201,10 +201,12 @@ test("all send modes use the same visible bundle binding and idle retains hidden
 	const delivery = bodyBetween("if (pkg.ownerBundle)", "const dispatches =");
 	assert.equal((delivery.match(/formatInboundBundleMessage\(/g) ?? []).length, 1);
 	assert.match(delivery, /const formatted = formatInboundBundleMessage\(hydrated\)/);
-	assert.match(delivery, /pi_send\(formatted, sendMode, hydrated\.commandTurnId, primary\.id, queueItem\)/);
+	// Each delivered command's own provenance_ref rides the binding, so the
+	// command's request opens when its message starts (item 7a4d04fd).
+	assert.match(delivery, /pi_send\(formatted, sendMode, hydrated\.commandTurnId, primary\.id, queueItem,\s*hydrated\.commands\.map\(\(command\) => \(\{ provenanceRef: command\.delivery\.provenance_ref, messageId: command\.id \}\)\)\)/);
 
 	const sender = bodyBetween("pi_send =", "pi_abort =");
-	assert.match(sender, /commandTurnBindings\.remember\(message, commandTurnId, commandMessageId, canonicalQueueItem\)/);
+	assert.match(sender, /commandTurnBindings\.remember\(message, commandTurnId, commandMessageId, canonicalQueueItem, requests\)/);
 	assert.match(sender, /if \(mode === "steer"\) pi\.sendUserMessage\(message, \{ deliverAs: "steer" \}\)/);
 	assert.match(sender, /else if \(mode === "followUp"\) pi\.sendUserMessage\(message, \{ deliverAs: "followUp" \}\)/);
 	assert.match(sender, /else pi\.sendUserMessage\(message\)/);

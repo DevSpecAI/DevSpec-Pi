@@ -5,7 +5,7 @@ import { test } from "node:test";
 const source = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 
 test("Pi carries immutable turn + command identity through every activity output path", () => {
-	assert.match(source, /commandTurnBindings\.remember\(message, commandTurnId, commandMessageId, canonicalQueueItem\)/);
+	assert.match(source, /commandTurnBindings\.remember\(message, commandTurnId, commandMessageId, canonicalQueueItem, requests\)/);
 	assert.match(source, /turn\.commandTurnId = incomingCommand\?\.turnId/);
 	assert.match(source, /turn\.commandMessageId = incomingCommand\?\.commandMessageId/);
 	assert.match(source, /command_turn_id: opts\.commandTurnId/);
@@ -75,9 +75,13 @@ test("completion wakes adopt the parked command identity; drops are reported wit
 	assert.match(source, /function adoptParkedCommandIdentity/);
 	assert.match(source, /if \(incomingCommand\?\.turnId && incomingCommand\?\.commandMessageId\)[^]*activeCommandTurnIdentity = \{ turnId: incomingCommand\.turnId/);
 	const messageStart = source.slice(source.indexOf('pi.on("message_start"'), source.indexOf('pi.on("message_update"'));
-	assert.match(messageStart, /if \(harness\) adoptParkedCommandIdentity\(turn, turn\.tracker\.userKind\)/);
+	// A wake adopts only the command its own request continues (item 7a4d04fd),
+	// never simply the newest parked one.
+	assert.match(messageStart, /if \(harness\) adoptParkedCommandIdentity\(turn, turn\.tracker\.userKind, continuedCommandIdentity\(\)\)/);
 	const beforeStart = source.slice(source.indexOf('pi.on("before_agent_start"'), source.indexOf('pi.on("message_start"'));
-	assert.match(beforeStart, /adoptParkedCommandIdentity\(turn, turn\.tracker\.userKind\)/);
+	assert.match(beforeStart, /adoptParkedCommandIdentity\(turn, turn\.tracker\.userKind, continuedCommandIdentity\(\)\)/);
+	const adopt = source.slice(source.indexOf("function adoptParkedCommandIdentity"), source.indexOf("// ---- The request chain"));
+	assert.match(adopt, /activeCommandTurnIdentity\?\.turnId !== continued\.commandTurnId\) return/);
 	// Cleared exactly when the parked turn closes, never mid-park.
 	assert.match(source, /if \(opts\.completeTurn === true\) noteCommandTurnClosed\(opts\.commandTurnId\)/);
 	assert.match(source, /noteCommandTurnClosed\(commandTurnId\);/);

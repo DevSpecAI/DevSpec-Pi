@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.22
+
+- DevSpec no longer checks action items for going out of date, so Pi no longer offers filtering items by that flag, and the review queue lists only memories and documents.
+- The catalogue is regenerated against DevSpec's current tools.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.21
 
 - DevSpec's trial that asked the agent to judge which existing items its own change affected has ended. Pi no longer offers its two tools or keeps its request in what the model sees.

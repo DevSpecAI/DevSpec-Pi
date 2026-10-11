@@ -627,7 +627,18 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// receipt fields. No other projection family changed, and hot-set membership
 		// follows the same rule (78 -> 76). Benchmark before/after: initial surface
 		// 46,590 -> 45,362 estimated tokens; every budget still passes.
-		"42d977df01bb872441831a9811152bcb1cf2358605edf5b28ccb86af9586f513",
+		//
+		// Rebaselined 2026-10-11 for DevSpec item b97d2ac7 (action items have no
+		// staleness system), regenerated against the server tree carrying that
+		// removal. Verbs unchanged (92; model 80). Inputs changed: get_action_items
+		// (in both its MCP shapes) loses possibly_stale from signal_type and risk
+		// from signal_bucket, whose description no longer names it;
+		// get_review_queue's subject enum is memory | artifact and its description
+		// no longer says an action item's out-of-date flag is ruled on the Review
+		// page. Nothing on an existing verb was made required. No projection
+		// family or hot-set membership changed (76). Benchmark before/after:
+		// initial surface 45,362 -> 45,332 estimated tokens; every budget passes.
+		"92a766160bca62ee3a463be95d602d2499fb3bb1c95b286f5203f41df0163659",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 82f461c27250131b784e31763287ed2d5008d65c9aab2d5eb6b4033596637d85
- * Description fingerprint: b0045b812e440980c8a5cafa761e69a514abaa40b9d3fb690453fbccd5e19cc2
- * Regenerated: 2026-10-11T13:20:04.865Z
+ * Schema fingerprint: 577ed3139279c40433bf7a34918c7bd911352ac092378b0d37229a1b45b036d6
+ * Description fingerprint: 1732fe9fb57e8e30cc1c174700cede363bc27bf49574d5e8314495af7c8a20bb
+ * Regenerated: 2026-10-11T14:08:15.512Z
  */
-export const MCP_CATALOG_FINGERPRINT = "82f461c27250131b784e31763287ed2d5008d65c9aab2d5eb6b4033596637d85";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "b0045b812e440980c8a5cafa761e69a514abaa40b9d3fb690453fbccd5e19cc2";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-11T13:20:04.865Z";
-export const TOOL_CATALOG_VERSION = "b33a7d871d4280b12b6f7e0e64cc383bc3617474ac9724645441d525c4ed9649";
+export const MCP_CATALOG_FINGERPRINT = "577ed3139279c40433bf7a34918c7bd911352ac092378b0d37229a1b45b036d6";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "1732fe9fb57e8e30cc1c174700cede363bc27bf49574d5e8314495af7c8a20bb";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-11T14:08:15.512Z";
+export const TOOL_CATALOG_VERSION = "b7d72f7b4fd5e18e7e78ae5716634309d362f7a2ab8d9c415a35389ec7381ec3";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -224,7 +224,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_review_queue",
 		"name": "get review queue",
-		"description": "List what in this project waits on a ruling or an acceptance: records flagged as possibly out of date, and queued proposals. you_can on each entry says whether you may rule on, discuss or decide it. Rule on a memory's flag with resolve_memory_flag and a document's with resolve_resource_flag; an action item's flag is ruled on the project's Review page. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
+		"description": "List what in this project waits on a ruling or an acceptance: records flagged as possibly out of date, and queued proposals. you_can on each entry says whether you may rule on, discuss or decide it. Rule on a memory's flag with resolve_memory_flag and a document's with resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
 		"intent": "review inbox out of date flags proposed changes waiting for a ruling or acceptance"
 	},
 	{
@@ -1054,7 +1054,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"agent_run_failed",
 						"deployment_failed",
 						"verification_failed",
-						"possibly_stale",
 						"blocked",
 						"implemented_unverified",
 						"superseded_pending",
@@ -1066,10 +1065,9 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"enum": [
 						"action",
-						"risk",
 						"state"
 					],
-					"description": "Only items carrying any signal in this family. action: follow-up required, agent run failed, deployment failed, verification failed. risk: possibly stale. state: blocked, implemented but unverified, will be superseded, supersedes when it ships. Takes precedence over flagged. Omitted: no family filter unless flagged is set."
+					"description": "Only items carrying any signal in this family. action: follow-up required, agent run failed, deployment failed, verification failed. state: blocked, implemented but unverified, will be superseded, supersedes when it ships. Takes precedence over flagged. Omitted: no family filter unless flagged is set."
 				},
 				"flagged": {
 					"type": "boolean",
@@ -1220,7 +1218,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"agent_run_failed",
 						"deployment_failed",
 						"verification_failed",
-						"possibly_stale",
 						"blocked",
 						"implemented_unverified",
 						"superseded_pending",
@@ -1232,10 +1229,9 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"enum": [
 						"action",
-						"risk",
 						"state"
 					],
-					"description": "Only items carrying any signal in this family. action: follow-up required, agent run failed, deployment failed, verification failed. risk: possibly stale. state: blocked, implemented but unverified, will be superseded, supersedes when it ships. Takes precedence over flagged. Omitted: no family filter unless flagged is set."
+					"description": "Only items carrying any signal in this family. action: follow-up required, agent run failed, deployment failed, verification failed. state: blocked, implemented but unverified, will be superseded, supersedes when it ships. Takes precedence over flagged. Omitted: no family filter unless flagged is set."
 				},
 				"flagged": {
 					"type": "boolean",
@@ -1697,7 +1693,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_review_queue",
 		"label": "DevSpec: Get Review Queue",
-		"description": "List what in this project waits on a ruling or an acceptance: records flagged as possibly out of date, and queued proposals. you_can on each entry says whether you may rule on, discuss or decide it. Rule on a memory's flag with resolve_memory_flag and a document's with resolve_resource_flag; an action item's flag is ruled on the project's Review page. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
+		"description": "List what in this project waits on a ruling or an acceptance: records flagged as possibly out of date, and queued proposals. you_can on each entry says whether you may rule on, discuss or decide it. Rule on a memory's flag with resolve_memory_flag and a document's with resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
 		"searchIntent": "review inbox out of date flags proposed changes waiting for a ruling or acceptance",
 		"modelInputSchema": {
 			"type": "object",
@@ -1723,8 +1719,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"type": "string",
 						"enum": [
 							"memory",
-							"artifact",
-							"action_item"
+							"artifact"
 						]
 					},
 					"description": "Only entries about these kinds of record. Omitted: all."
@@ -1787,8 +1782,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"type": "string",
 						"enum": [
 							"memory",
-							"artifact",
-							"action_item"
+							"artifact"
 						]
 					},
 					"description": "Only entries about these kinds of record. Omitted: all."

@@ -36,7 +36,6 @@ const softGates: Array<[string, Record<string, unknown>]> = [
 	["record_implementation", { implementation_recorded: false }],
 	["retract_memory", { retracted: false }],
 	["archive_resource", { archived: false }],
-	["resolve_action_item_conflict", { resolved: false }],
 	["update_action_item", { applied: false }],
 ];
 for (const [wrapperName, wrap] of Object.entries(wrappers)) {
@@ -53,14 +52,14 @@ for (const [wrapperName, wrap] of Object.entries(wrappers)) {
 		});
 	}
 
-	for (const name of ["record_memory", "supersede_memory", "create_resource", "update_resource", "supersede_resource", "resolve_action_item_conflict"]) {
+	for (const name of ["record_memory", "supersede_memory", "create_resource", "update_resource", "supersede_resource", "supersede_action_item"]) {
 		test(`${name}: ${wrapperName} proposal is not an applied source record or a record with the proposal's ID`, () => {
 			const result = wrap({ outcome: "queued_for_review", recorded: false, committed: false,
 				proposal_id: PROPOSAL, id: SOURCE, payload: { body: PRIVATE } });
 			assert.equal(writeOutcomeFromResult(result), "queued_for_review");
 			const event = completed(name, result);
 			assert.equal(event.status, "ok");
-			assert.equal(event.action, name === "resolve_action_item_conflict" ? "contested" : "proposed");
+			assert.equal(event.action, "proposed");
 			assert.equal(event.id, undefined);
 			assert.match(event.result ?? "", /outcome=queued_for_review/);
 		});
@@ -83,6 +82,23 @@ for (const name of ["supersede_memory", "supersede_resource", "record_memory", "
 		}
 	});
 }
+
+test("a supersession names the replacing item the server returned; a pending one says pending", () => {
+	const trail = new TrailBuilder();
+	trail.toolStart("call", "supersede_action_item", { action_item_id: "74000000", superseded_item_id: SOURCE });
+	trail.toolEnd("call", "supersede_action_item", true, { committed: true, superseding_item_id: RETURNED, superseded_item_id: SOURCE,
+		closure: "dismissed", tense: "effective", note: PRIVATE });
+	const event = trail.events()[0];
+	assert.equal(event?.kind, "domain");
+	if (event?.kind !== "domain") throw new Error("Expected domain event");
+	assert.equal(event.domain, "action_item");
+	assert.equal(event.action, "superseded");
+	assert.equal(event.id, RETURNED);
+	assert.ok(!JSON.stringify(trail.events()).includes(PRIVATE));
+	const pending = completed("supersede_action_item", { committed: true, superseding_item_id: RETURNED, superseded_item_id: SOURCE, closure: "pending", tense: "pending" });
+	assert.equal(pending.action, "pending");
+	assert.equal(pending.id, undefined, "a supersession that has not taken effect does not name an applied record");
+});
 
 test("same-record mutations may retain an exact safe argument ID when the receipt omits it", () => {
 	for (const name of ["update_resource", "retract_memory", "archive_resource", "update_action_item", "claim_work_item"]) {

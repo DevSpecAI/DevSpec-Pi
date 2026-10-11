@@ -36,19 +36,20 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /reserve_work_items/);
 	assert.doesNotMatch(text, /arrives by assignment/i);
 	assert.match(text, /claim_work_item/);
-	assert.match(text, /possible_conflict/);
+	// No claim waits on a pairwise conflict check any more (DevSpec item df1e2277).
+	assert.doesNotMatch(text, /possible_conflict/);
 	assert.match(text, /missing claim never blocks edits, execution, tests, worktrees, delegation, or follow-through/i);
 	assert.match(text, /commit_provenance_contract/);
 	// Who may commit, and what a queued write means, is the served authority section — pointed at, never restated (item 06936ee9).
 	// The pointer is a full sentence plus the operational relay of a queued write (item 45588384); it does not name who may commit.
 	assert.match(text, /authority_contract/);
-	assert.match(text, /Who may commit a memory, artifact, rule or conflict ruling/);
+	assert.match(text, /Who may commit a memory, artifact, rule, flag ruling or supersession/);
 	assert.match(text, /queued_for_review carries a proposal_id and a reason/);
 	assert.match(text, /relay both/);
 	assert.match(text, /never report the change as done/i);
 	assert.match(text, /not a rule to remember here/);
-	assert.match(text, /knowledge write can stop on a close match/);
-	assert.match(text, /read the named record/);
+	// Knowledge writes no longer stop on a close match, and confirm_new is gone (df1e2277).
+	assert.doesNotMatch(text, /close match|confirm_new/);
 	assert.match(text, /create_resource/);
 	assert.match(text, /Search is optional/);
 	assert.match(text, /include_implementation_contract:true/);

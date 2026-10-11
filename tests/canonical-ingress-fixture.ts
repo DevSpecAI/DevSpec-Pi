@@ -50,7 +50,7 @@ export function systemNotice(overrides: Record<string, unknown> = {}) {
 		],
 		allowed_tools: [
 			"get_action_item", "update_action_item", "link_action_items",
-			"resolve_action_item_conflict",
+			"supersede_action_item",
 		],
 		...overrides,
 	};

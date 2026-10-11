@@ -266,7 +266,6 @@ const AUTHORITY_RULE_LABELS: ReadonlyArray<readonly [string, string]> = [
 	["ownership_rule", "Ownership rule"],
 	["unattended_rule", "Unattended rule"],
 	["requester_rule", "Requester rule"],
-	["contested_rule", "Contested rulings"],
 	["flag_ruling_rule", "Queued review-flag rulings"],
 ];
 const AUTHORITY_RULES_NOT_SHOWN = new Set(["role_source_rule", "preview_rule"]);

@@ -71,7 +71,9 @@ const FULL_READ_VERBS = new Set([
 	"claim_work_item",
 	"get_session_transcript",
 	"get_discussion_point",
-	"preview_conflict_resolution",
+	// A read-only consequence preview: who decides, what closes, any refusal and
+	// what is not affected. Every sentence is the decision input, so it stays whole.
+	"preview_supersession",
 	"get_project_instruction_rules",
 	"get_personal_instructions",
 	"get_workflow_rules",
@@ -120,8 +122,8 @@ const ACK_VERBS = new Set([
 	"record_completed_work",
 	"reopen_action_item",
 	"spin_off_action_item",
-	"resolve_action_item_conflict",
-	"resolve_action_item_decision_flag",
+	// A receipt: committed with the closure and tense, or queued with a proposal_id.
+	"supersede_action_item",
 	"link_action_items",
 	"unlink_action_items",
 	"verify_action_item",
@@ -911,7 +913,7 @@ function ackProjection(toolName: string, details: unknown): string | null {
 	for (const key of [
 		"committed", "applied", "success", "created", "updated", "recorded", "superseded", "resolved",
 		"proposal_id", "reason", "note", "authority_note", "authority", "warnings", "flag_still_lit", "marks_cleared",
-		"closure", "tense", "verdict", "signal_type", "basis", "superseding_item_id", "superseded_item_id", "conflicting_id",
+		"closure", "tense", "verdict", "signal_type", "basis", "basis_warning", "superseding_item_id", "superseded_item_id", "would_close",
 		"receipt", "receipt_id", "operation_id", "draft_id", "read_status", "status_url", "preview",
 		"expires_at", "current_head", "expected_version", "version", "previous_id", "lineage",
 		"assessment", "assessment_receipt", "comparison_pending", "needs_clarification",

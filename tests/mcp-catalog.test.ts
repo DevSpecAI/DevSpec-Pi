@@ -56,7 +56,7 @@ test("post_session_message is never a model-facing tool", () => {
 test("catalog remains the complete wire map", () => {
 	const required = [
 		"record_criterion_verdicts",
-		"resolve_action_item_conflict",
+		"supersede_action_item",
 		"get_session_transcript",
 		"search_sessions",
 		"get_action_item_history",

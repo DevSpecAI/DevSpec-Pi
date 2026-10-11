@@ -519,8 +519,8 @@ test("realistic domain wrappers preserve safe lifecycle outcomes and markdown-sa
 });
 
 test("a queued write is not reported in the trail as one that landed (689d44cb)", () => {
-	// The served contested_rule ends "Never describe a contested pair as resolved",
-	// and the same holds for a memory nobody has accepted yet.
+	// A queued supersession has not superseded anything, and a memory nobody has
+	// accepted yet has not been recorded: both read "proposed".
 	const t = new TrailBuilder();
 	t.toolStart("tool-1", "record_memory", { title: "Two-pool billing" });
 	t.toolEnd("tool-1", "record_memory", true, {
@@ -531,13 +531,14 @@ test("a queued write is not reported in the trail as one that landed (689d44cb)"
 			title: "Two-pool billing",
 		}) }],
 	});
-	t.toolStart("tool-2", "resolve_action_item_conflict", { action_item_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" });
-	t.toolEnd("tool-2", "resolve_action_item_conflict", true, {
+	t.toolStart("tool-2", "supersede_action_item", { action_item_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", superseded_item_id: "bbbbbbbb-cccc-dddd-eeee-ffffffffffff" });
+	t.toolEnd("tool-2", "supersede_action_item", true, {
 		content: [{ type: "text", text: JSON.stringify({
 			committed: false,
 			outcome: "queued_for_review",
 			proposal_id: "prop-10",
-			contested: true,
+			superseding_item_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+			would_close: { id: "bbbbbbbb-cccc-dddd-eeee-ffffffffffff", title: "Older item", current_lifecycle: "open" },
 		}) }],
 	});
 	t.toolStart("tool-3", "record_memory", { title: "Committed one" });
@@ -548,7 +549,7 @@ test("a queued write is not reported in the trail as one that landed (689d44cb)"
 	const actions = t.events()
 		.filter((event): event is Extract<typeof event, { kind: "domain" }> => event.kind === "domain")
 		.map((event) => event.action);
-	assert.deepEqual(actions, ["proposed", "contested", "recorded"]);
+	assert.deepEqual(actions, ["proposed", "proposed", "recorded"]);
 });
 
 test("TrailBuilder.events emits stable seqs and classifies domain tools", () => {
@@ -556,10 +557,12 @@ test("TrailBuilder.events emits stable seqs and classifies domain tools", () => 
 		domain: "action_item",
 		action: "created",
 	});
-	assert.deepEqual(classifyDomainTool("resolve_action_item_decision_flag"), {
-		domain: "conflict",
-		action: "resolved",
+	assert.deepEqual(classifyDomainTool("supersede_action_item"), {
+		domain: "action_item",
+		action: "superseded",
 	});
+	assert.equal(classifyDomainTool("preview_supersession"), null);
+	assert.equal(classifyDomainTool("resolve_action_item_conflict"), null);
 	assert.equal(classifyDomainTool("devspec", { verb: "record_memory" }), null);
 	assert.equal(classifyDomainTool("bash"), null);
 

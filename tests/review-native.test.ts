@@ -18,7 +18,7 @@ const card = { id: "a", title: "Memory A", type: "decision", summary: "A summary
 const project = (toolName: string, details: unknown) => projectModelText({ toolName, details, text: "" });
 
 test("native unwrap retains queued proposal, reason and relay AFTER compact projection", () => {
-	for (const name of ["record_memory", "resolve_memory_flag", "resolve_action_item_conflict", "update_memory"]) {
+	for (const name of ["record_memory", "resolve_memory_flag", "supersede_action_item", "update_memory"]) {
 		const details = { outcome: "queued_for_review", committed: false, id: "source", proposal_id: "proposal-123", reason: "Needs maintainer acceptance", flag_still_lit: true };
 		const result = unwrapOrThrow(name, { content: [{ type: "text", text: JSON.stringify(details) }] });
 		const text = result.content[0].text;
@@ -34,8 +34,13 @@ test("mutation receipts keep exact preview and read handles, even above the opti
 	assert.ok(text.includes(JSON.stringify(details.preview.after))); assert.match(text, /receipt-1|read_status/);
 	const committed = project("supersede_memory", { outcome: "committed", id: "new", previous_id: "old", version: 2, receipt_id: "receipt-2" });
 	assert.match(committed, /committed/); assert.match(committed, /receipt-2/); assert.match(committed, /previous_id/);
-	const pending = project("resolve_action_item_conflict", { id: "item", committed: true, closure: "pending", tense: "pending", warnings: [{ reason: "newer evidence kept", id: "counterpart" }] });
-	assert.match(pending, /"closure": "pending"/); assert.match(pending, /newer evidence kept/); assert.match(pending, /counterpart/);
+	const pending = project("supersede_action_item", { committed: true, superseding_item_id: "replacing", superseded_item_id: "replaced", closure: "pending", tense: "pending",
+		basis: { kind: "factual_grounds", autonomous: true, substantiated: false, shortfall: "names no fact" }, basis_warning: "recorded with a thin basis",
+		note: "PENDING: the replaced item keeps its lifecycle until the replacing one ships." });
+	for (const pattern of [/"closure": "pending"/, /"tense": "pending"/, /replacing/, /replaced/, /thin basis/, /PENDING: the replaced item keeps its lifecycle/]) assert.match(pending, pattern);
+	const queued = project("supersede_action_item", { committed: false, outcome: "queued_for_review", proposal_id: "proposal-9", superseding_item_id: "replacing",
+		would_close: { id: "replaced", title: "Older item", current_lifecycle: "open" }, reason: "A Contributor's supersession is reviewed", note: "QUEUED, NOT RECORDED." });
+	for (const pattern of [/outcome=queued_for_review/, /proposal-9/, /Older item/, /A Contributor's supersession is reviewed/, /QUEUED, NOT RECORDED/]) assert.match(queued, pattern);
 });
 
 test("unknown write presentation never asks for another write", () => {
@@ -132,7 +137,10 @@ test("pending, stale, queued and unknown outcomes cannot use a committed activit
 	}
 	assert.equal(domainAction(spec, writeOutcomeFromResult({ outcome: "committed" })), "updated");
 	assert.equal(domainAction(spec, writeOutcomeFromResult({ committed: true, closure: "pending" })), "pending");
-	assert.equal(domainAction(spec, writeOutcomeFromResult({ committed: true, verdict: "discuss" })), "discussion recorded");
+	const supersede = classifyDomainTool("supersede_action_item")!;
+	assert.equal(domainAction(supersede, writeOutcomeFromResult({ committed: true, closure: "dismissed", tense: "effective" })), "superseded");
+	assert.equal(domainAction(supersede, writeOutcomeFromResult({ committed: true, closure: "pending", tense: "pending" })), "pending");
+	assert.equal(domainAction(supersede, writeOutcomeFromResult({ committed: false, outcome: "queued_for_review", proposal_id: "p" })), "proposed");
 });
 
 test("registered search reports unsupported exact names without changing activation", async () => {
@@ -177,13 +185,18 @@ test("registered before_agent_start hook appends immutable revisions and rejects
 	assert.equal(await handler(event, ctx), undefined, "old principal's late read is never injected under a new principal");
 });
 
-test("a ruling clears only its observed pair, not overlapping pairs, newer findings or warning-preserved marks", () => {
+test("a flag ruling clears only its observed flag on its own record, never another record, a queued ruling or a supersession", () => {
 	clearAllFlags(); const scope = "rulings";
-	for (const id of ["a", "c"]) observeReviewResult("get_action_item", { id, unresolved_conflicts: [{ conflicting_item_id: "b", reason: id }] }, {}, scope);
+	const stale = (id: string) => ({ key: `possibly_stale|memory:${id}`, claimType: "possibly_stale", status: "open", issueId: null,
+		subject: side(id), counterpart: null, evidence: { reason: "The code it describes changed", raisedAt: "2026-10-11" } });
+	for (const id of ["a", "c"]) observeReviewResult("get_memory", { id, title: `Memory ${id}`, unresolved_disagreements: [stale(id)] }, {}, scope);
 	const before = listFlags(scope);
-	const args = { action_item_id: "a", counterpart_item_id: "b", verdict: "not_a_conflict" };
-	observeReviewResult("resolve_action_item_conflict", { committed: true, marks_cleared: { total: 0 }, warnings: ["newer mark preserved"] }, args, scope, before);
+	assert.equal(before.length, 2);
+	const args = { id: "a", signal_type: "possibly_stale", verdict: "not_a_conflict" };
+	observeReviewResult("resolve_memory_flag", { committed: false, outcome: "queued_for_review", proposal_id: "p1", flag_still_lit: true, marks_cleared: { total: 0 } }, args, scope, before);
+	observeReviewResult("resolve_memory_flag", { committed: true, id: "a", marks_cleared: { total: 0 } }, args, scope, before);
+	observeReviewResult("supersede_action_item", { committed: true, superseding_item_id: "a", superseded_item_id: "c", closure: "dismissed", tense: "effective" }, { action_item_id: "a", superseded_item_id: "c" }, scope, before);
 	assert.equal(listFlags(scope).length, 2);
-	observeReviewResult("resolve_action_item_conflict", { committed: true, marks_cleared: { total: 2 } }, args, scope, before);
+	observeReviewResult("resolve_memory_flag", { committed: true, id: "a", marks_cleared: { total: 1 } }, args, scope, before);
 	assert.equal(listFlags(scope).length, 1); assert.equal(listFlags(scope)[0].subject, "c");
 });

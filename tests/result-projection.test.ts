@@ -591,7 +591,32 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// descriptions say what each kind is for. No projection family or hot-set
 		// membership changed. Benchmark before/after: initial surface 49,180 ->
 		// 49,430 estimated tokens; every budget still passes.
-		"a0d3a47556bc32f2743dcde38f5dcadc4f0449b726eb8f7d20f4154d252e2986",
+		//
+		// Rebaselined 2026-10-11 for DevSpec item df1e2277 (remove the old
+		// pairwise conflict checks), regenerated against server staging
+		// 90342183d. Verbs 95 -> 94 (model 83 -> 82). Removed:
+		// resolve_action_item_conflict, preview_conflict_resolution and
+		// resolve_action_item_decision_flag. Added: supersede_action_item
+		// (action_item_id and superseded_item_id required; note, basis_kind,
+		// basis and the who-asked refs optional; no verdict) in the ack family its
+		// predecessor held, and preview_supersession (the same two ids, read-only)
+		// in the full family its predecessor held. Inputs changed: get_review_queue
+		// loses claim. The same server change also drops confirm_new from
+		// record_memory, update_memory, supersede_memory, create_resource,
+		// update_resource and supersede_resource; conflicting_id from both flag
+		// rulings, whose signal_type is now possibly_stale and verdict
+		// not_a_conflict only; the supersedes relationship and
+		// acknowledge_half_resolution from link_action_items; and the pairwise and
+		// contradiction values from the signal_type filters of get_action_items,
+		// search_memories, get_decisions, get_conventions and get_resources.
+		// Nothing on an existing verb was made required. No other projection
+		// family changed, and hot-set membership follows the same rule (every model
+		// verb but search_devspec_tools and the three activation-only verbs: 79 ->
+		// 78). Benchmark before/after: initial surface 49,430 (old catalogue) ->
+		// 46,636 (regenerated catalogue, Pi unchanged) -> 46,590 estimated tokens
+		// once Pi's always-on instructions stopped naming possible_conflict and
+		// confirm_new; every budget still passes.
+		"8fb77eaa9d73949c648b308db68600eddff2b76cad9ea7aeeb339c2cbcfe9d7b",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -626,7 +651,7 @@ test("verb projections use explicit, loss-aware families", () => {
 	assert.equal(projectionFamily("devspec_help_search"), "help");
 	assert.equal(projectionFamily("create_action_item"), "ack");
 	for (const verb of [
-		"get_action_item", "claim_work_item", "get_session_transcript", "preview_conflict_resolution",
+		"get_action_item", "claim_work_item", "get_session_transcript", "preview_supersession",
 		"get_project_instruction_rules", "get_personal_instructions", "get_workflow_rules", "get_database_schema",
 		"get_goals", "get_project_goals", "create_session", "claim_automation_run",
 		"import_instruction_rules", "update_personal_instructions", "manage_plan", "manage_poll", "manage_directed_question",
@@ -1180,7 +1205,7 @@ test("claim_work_item remains a realistic lossless implementation-context read",
 test("full exact decision, instruction, transcript, and schema reads are never capped", () => {
 	const payload = { id: "exact", body: huge("LOSSLESS-EXACT-CONTENT", 9_000) };
 	for (const verb of [
-		"get_action_item", "get_session_transcript", "preview_conflict_resolution", "get_project_instruction_rules",
+		"get_action_item", "get_session_transcript", "preview_supersession", "get_project_instruction_rules",
 		"get_personal_instructions", "get_workflow_rules", "get_database_schema", "manage_plan", "manage_poll",
 	]) {
 		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
@@ -1475,12 +1500,12 @@ test("full details still drive conflict flags and work status", () => {
 	assert.equal(listFlags()[0]?.subject, itemId);
 	assert.equal(listFlags()[0]?.counterpart, "work-older");
 	assert.notEqual(listFlags()[0]?.scope, "legacy", "native calls isolate observations by session/project");
-	const decisionResolution = projectedToolResult(
-		"resolve_action_item_decision_flag",
-		unwrapMcpResult(mcpJson({ ok: true, action_item_id: itemId, marks_cleared: { actionItem: 1 } })),
+	const supersession = projectedToolResult(
+		"supersede_action_item",
+		unwrapMcpResult(mcpJson({ committed: true, superseding_item_id: itemId, superseded_item_id: "work-older", closure: "dismissed", tense: "effective" })),
 	);
-	consumeResultMechanics("resolve_action_item_decision_flag", decisionResolution);
-	assert.equal(getStatusSnapshot().workId, itemId, "a flag ruling is not a work-status transition");
+	consumeResultMechanics("supersede_action_item", supersession, { action_item_id: itemId, superseded_item_id: "work-older" }, sessionId);
+	assert.equal(getStatusSnapshot().workId, itemId, "a supersession is not a work-status transition");
 	consumeResultMechanics("record_implementation", result, { action_item_id: itemId }, sessionId);
 	assert.equal(getStatusSnapshot().workId, undefined);
 	clearAllFlags();

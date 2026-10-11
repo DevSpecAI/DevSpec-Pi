@@ -111,9 +111,11 @@ test("claimed work and a live DevSpec verb append; bash does not", () => {
 	assert.equal(resolveExecutingVerb("bash", { command: "ls" }), undefined);
 	assert.equal(resolveExecutingVerb("claim_work_item", { action_item_id: "x" }), "claim_work_item");
 	assert.equal(resolveExecutingVerb("search_devspec_tools", { query: "release work" }), "search_devspec_tools");
-	assert.equal(resolveExecutingVerb("resolve_action_item_decision_flag", { action_item_id: "x" }), "resolve_action_item_decision_flag");
+	assert.equal(resolveExecutingVerb("supersede_action_item", { action_item_id: "x" }), "supersede_action_item");
+	assert.equal(resolveExecutingVerb("resolve_action_item_decision_flag", { action_item_id: "x" }), undefined);
 	assert.equal(verbLabel("record_implementation"), "recording");
-	assert.equal(verbLabel("resolve_action_item_decision_flag"), "resolving decision flag");
+	assert.equal(verbLabel("supersede_action_item"), "superseding");
+	assert.equal(verbLabel("preview_supersession"), "previewing supersession");
 });
 
 test("first-text preview skips presence markers and empty / non-human rows", () => {

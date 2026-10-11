@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.20
+
+- Recording that one action item replaces another is now its own action, `supersede_action_item`: name the replacing item and the one it replaces. `preview_supersession` shows first what would close and when, and whether it would be recorded or wait for a Maintainer. One that waits shows as proposed in the session's activity. A link between two items no longer retires either.
+- DevSpec no longer checks pairs of action items, memories or documents for conflicts, so Pi no longer offers rulings on conflicting items or on an item that contradicts a decision, and a claim never waits on such a check. The review queue holds out-of-date flags and proposals; rule a memory or document still accurate with `resolve_memory_flag` or `resolve_resource_flag`.
+- Recording a memory or document no longer stops on a close match, so `confirm_new` is gone.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.5.19
 
 - New: you can clear this Pi's conversation from DevSpec. Use Clear conversation in its agent controls, or type `/clear` to it. Pi starts afresh and stays connected to the same DevSpec session; the old conversation stays in Pi's history, reachable with `/tree`. If Pi is in the middle of a reply, it clears when the reply ends.

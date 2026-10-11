@@ -58,7 +58,7 @@ const SYSTEM_NOTICE_ALLOWED_TOOLS = [
 	"get_action_item",
 	"update_action_item",
 	"link_action_items",
-	"resolve_action_item_conflict",
+	"supersede_action_item",
 ] as const;
 const MAX_COMMANDS_PER_ENVELOPE = 128;
 const MAX_SENDER_STYLE_NOTES = 8;

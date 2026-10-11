@@ -17,7 +17,6 @@ export const TRAIL_DOMAINS = [
 	"action_item",
 	"memory",
 	"implementation",
-	"conflict",
 	"criterion",
 	"resource",
 ] as const;
@@ -109,8 +108,8 @@ const DOMAIN_BY_NAME: Record<string, DomainSpec> = {
 	claim_work_item: { domain: "action_item", action: "claimed" },
 	record_implementation: { domain: "implementation", action: "recorded" },
 	record_criterion_verdicts: { domain: "criterion", action: "recorded" },
-	resolve_action_item_conflict: { domain: "conflict", action: "resolved" },
-	resolve_action_item_decision_flag: { domain: "conflict", action: "resolved" },
+	// The replacing item, like supersede_memory's successor: the one to read now.
+	supersede_action_item: { domain: "action_item", action: "superseded" },
 	record_memory: { domain: "memory", action: "recorded" },
 	update_memory: { domain: "memory", action: "updated" },
 	resolve_memory_flag: { domain: "memory", action: "reviewed" },
@@ -170,7 +169,7 @@ export function classifyDomainTool(name: string, _args?: unknown): DomainSpec | 
 }
 
 /** Fixed public dispositions only; receipt bodies and arbitrary outcome strings stay private. */
-export type TrailWriteOutcome = "committed" | "queued_for_review" | "pending" | "discussed" | "not_applied" | "failed";
+export type TrailWriteOutcome = "committed" | "queued_for_review" | "pending" | "not_applied" | "failed";
 
 export function writeOutcomeFromResult(result: unknown): TrailWriteOutcome | undefined {
 	const row = unwrapResult(result);
@@ -184,7 +183,6 @@ export function writeOutcomeFromResult(result: unknown): TrailWriteOutcome | und
 	// distinct from a comparison gate or failure, without borrowing its source ID.
 	if (row.outcome === "queued_for_review") return "queued_for_review";
 	if (row.closure === "pending" || row.tense === "pending") return "pending";
-	if (row.verdict === "discuss" && (row.committed === true || row.outcome === "committed")) return "discussed";
 	if (row.reconcile_required === true || [
 		"applied", "committed", "recorded", "created", "updated", "superseded",
 		"retracted", "archived", "claim_success", "implementation_recorded", "resolved",
@@ -196,13 +194,6 @@ export function writeOutcomeFromResult(result: unknown): TrailWriteOutcome | und
 	return undefined;
 }
 
-/** The word a queued write gets instead of the committed one, per domain. */
-const QUEUED_ACTION_BY_DOMAIN: Partial<Record<TrailDomain, string>> = {
-	// A queued pair ruling is contested, not resolved — the served contested_rule
-	// ends "Never describe a contested pair as resolved."
-	conflict: "contested",
-};
-
 /**
  * What the trail says a write DID. `DOMAIN_BY_NAME` names the committed outcome,
  * because that is the ordinary one; a write the server only queued did not resolve,
@@ -212,11 +203,9 @@ const QUEUED_ACTION_BY_DOMAIN: Partial<Record<TrailDomain, string>> = {
 export function domainAction(spec: DomainSpec, outcome?: TrailWriteOutcome): string {
 	if (outcome === undefined) return "outcome unknown";
 	if (outcome === "pending") return "pending";
-	if (outcome === "discussed") return "discussion recorded";
 	if (outcome === "not_applied") return "not applied";
 	if (outcome === "failed") return "failed";
-	if (outcome !== "queued_for_review") return spec.action;
-	return QUEUED_ACTION_BY_DOMAIN[spec.domain] ?? "proposed";
+	return outcome === "queued_for_review" ? "proposed" : spec.action;
 }
 
 export function domainIdentity(name: string, args?: unknown, result?: unknown): { id?: string; title?: string } {
@@ -229,7 +218,7 @@ export function domainIdentity(name: string, args?: unknown, result?: unknown): 
 	if (spec.domain === "action_item") nested = asRecord(r?.action_item) ?? asRecord(item?.action_item) ?? item ?? r;
 	if (spec.domain === "memory") nested = asRecord(r?.memory) ?? asRecord(item?.memory) ?? item ?? r;
 	if (spec.domain === "resource") nested = asRecord(r?.resource) ?? asRecord(item?.resource) ?? item ?? r;
-	if (["implementation", "criterion", "conflict"].includes(spec.domain)) {
+	if (["implementation", "criterion"].includes(spec.domain)) {
 		nested = asRecord(r?.action_item) ?? asRecord(item?.action_item) ?? item ?? r;
 	}
 
@@ -237,7 +226,7 @@ export function domainIdentity(name: string, args?: unknown, result?: unknown): 
 		? ["id", "memory_id"]
 		: spec.domain === "resource"
 			? ["id", "resource_id"]
-			: ["id", "action_item_id"];
+			: ["id", "action_item_id", "superseding_item_id"];
 	const argIdKeys = spec.domain === "memory"
 		? ["memory_id", "id"]
 		: spec.domain === "resource"

@@ -109,7 +109,6 @@ function authoritySection() {
 			because: ["unattended_run", "insufficient_role"],
 			ledgers: { proposals: "A real queue.", pending: "No queue yet.", none: "Refused." },
 		},
-		contested_rule: "A queued pair ruling is a pair_judgement proposal and the pair is CONTESTED.",
 		flag_ruling_rule: "A queued review-flag ruling is a real proposal and the flag stays lit until a Maintainer accepts it.",
 		preview_rule: "A direct overrule shows the exact text first.",
 		verbs: [
@@ -508,7 +507,7 @@ test("the authority section is carried to the model", async () => {
 	assert.match(text, /Unattended rule: An unattended run proposes every overrule/);
 	assert.match(text, /Requester rule: A delegated command is judged by the REQUESTER/);
 	assert.match(text, /queued_for_review: A propose outcome/);
-	assert.match(text, /Contested rulings:/);
+	assert.doesNotMatch(text, /Contested rulings/);
 	assert.match(text, /Queued review-flag rulings: A queued review-flag ruling/);
 	assert.doesNotMatch(text, /preview_rule|Preview rule|role_source_rule/);
 });
@@ -542,9 +541,9 @@ test("the authority section grows without a Pi release", async (t) => {
 		assert.match(text, /- pending_review: A propose outcome/);
 	});
 	await t.test("a rule DevSpec stops serving is simply not shown", async () => {
-		const context = await load(served((root) => { delete (root.authority_contract as Record<string, unknown>).contested_rule; }));
+		const context = await load(served((root) => { delete (root.authority_contract as Record<string, unknown>).flag_ruling_rule; }));
 		assert.equal(context.source, "resource");
-		assert.doesNotMatch(formatImplementationContext(context), /Contested rulings/);
+		assert.doesNotMatch(formatImplementationContext(context), /Queued review-flag rulings/);
 		assert.equal(context.warning, undefined);
 	});
 });

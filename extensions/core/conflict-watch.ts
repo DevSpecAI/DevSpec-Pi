@@ -88,6 +88,8 @@ export function extractFlags(toolName: string, details: unknown, scope = "legacy
 	return flags;
 }
 
+const FLAG_RULINGS = new Set(["resolve_memory_flag", "resolve_resource_flag"]);
+
 /** Only exact successful operations discharge their own checks/rulings. */
 export function observeReviewResult(tool: string, details: unknown, args: Record<string, unknown>, scope: string, observed: readonly ConflictFlag[] = []): void {
 	const d = row(details);
@@ -100,16 +102,14 @@ export function observeReviewResult(tool: string, details: unknown, args: Record
 			// receipt. Unrelated writes, changed text and proposals cannot discharge it.
 			if (f.kind === "write_gate" && f.operation === operation) clearFlag(f.key);
 		}
-		const subject = text(args.action_item_id) ?? text(args.id) ?? text(args.memory_id);
-		const counterpart = text(args.counterpart_item_id) ?? text(args.conflicting_id) ?? text(args.decision_memory_id);
+		// A memory or document flag ruling names one record and one flag; only the
+		// observation of exactly that flag on exactly that record is discharged.
+		const subject = text(args.id);
 		const marks = row(d.marks_cleared);
 		const cleared = marks && Object.values(marks).some((value) => typeof value === "number" && value > 0);
-		const warnings = Array.isArray(d.warnings) && d.warnings.length > 0;
-		if (tool.startsWith("resolve_") && args.verdict !== "discuss" && cleared && !warnings && d.closure !== "pending") {
+		if (FLAG_RULINGS.has(tool) && subject && cleared) {
 			for (const f of unchanged()) {
-				const exactPair = subject && ((f.subject === subject && f.counterpart === counterpart)
-					|| (counterpart && f.subject === counterpart && f.counterpart === subject));
-				if (exactPair && (!f.signal || f.signal === args.signal_type) && f.kind !== "write_gate" && f.kind !== "related_candidates") clearFlag(f.key);
+				if (f.kind === "memory_conflict" && f.subject === subject && !f.counterpart && (!f.signal || f.signal === args.signal_type)) clearFlag(f.key);
 			}
 		}
 	}

@@ -228,14 +228,13 @@ The model still needs instructions; the delivery is native now:
 DevSpec memory is the memory system — Pi just lets it breathe. But the
 framing is bigger than memory: **the intelligence layer is ONE system** —
 memories, action items, artifacts, hybrid search across all three, and
-conflict detection/settling between them. What already lives server-side
+review and supersession between them. What already lives server-side
 (build WITH it, never rebuild it):
 
-- recall-gated `record_memory`/`supersede_memory` (hybrid recall on write)
-- `create_action_item` related_candidates + background conflict checks
-- review signals, `unresolved_conflicts`, queue holds,
-  `preview_conflict_resolution` (what a verdict WOULD do),
-  `resolve_action_item_conflict` with the supersedes-escalation rules
+- `create_action_item` related_candidates
+- review signals (possibly stale), queue holds,
+  `supersede_action_item` (one item replaces another; a Contributor's call
+  queues for a Maintainer) and `preview_supersession` (what it WOULD do)
 - work items already carry `relevant_memories` + `relevant_artifacts`
 
 What Pi opens up (mechanical, zero-token, no model compliance):
@@ -244,12 +243,12 @@ What Pi opens up (mechanical, zero-token, no model compliance):
   searched against project memory BEFORE the turn starts; new hits inject
   into the system prompt with binding semantics marked; session-deduped.
   The model no longer has to remember to remember.
-- **Conflict surfacing** (shipped): payload signals become structural flags
-  with a per-turn nudge while open + `/devspec.conflicts`. Never silent
-  settling — supersedes escalates per the server rules.
+- **Review surfacing** (shipped): payload review signals become structural
+  flags with a per-turn nudge while open + `/devspec.conflicts`. Never silent
+  settling — whether a supersession commits or queues is the server's call.
 - **Structured settling UI** (next): pi's custom overlays can walk the human
-  through a conflict pair (both items side by side, preview_conflict_resolution
-  consequence, verdict picker) — "user involvement when appropriate" with a
+  through a supersession (both items side by side, the preview_supersession
+  consequence, confirm) — "user involvement when appropriate" with a
   real interface, not a wall of JSON. Nothing like this is possible on other
   hosts.
 - **Capture** (shipped: guidance + gates; next: proposals): the extension

@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 73ab6f86c7aabb515bfbfd1844e14f5660a473ab91455456900d7bdf679a11d2
- * Description fingerprint: 1d482d687eda05fec001c8ca221719bff5e7328bcb4f6201388e36e9d6a6dd33
- * Regenerated: 2026-10-11T00:27:06.884Z
+ * Schema fingerprint: 2e7e623ecd6b7cb7d7b7eea96d0035bd16cc6b66ddc469ec6f9505511bfbbccd
+ * Description fingerprint: f33b50ea10da4b0caf7c06b4987bb1d3579457faada1fa9d2acf4d3ac47ec54b
+ * Regenerated: 2026-10-11T12:35:17.305Z
  */
-export const MCP_CATALOG_FINGERPRINT = "73ab6f86c7aabb515bfbfd1844e14f5660a473ab91455456900d7bdf679a11d2";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "1d482d687eda05fec001c8ca221719bff5e7328bcb4f6201388e36e9d6a6dd33";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-11T00:27:06.884Z";
-export const TOOL_CATALOG_VERSION = "b4eaad9d6cefd75c8e97819333afc48c8a7b8c2e094bc7fa9b3602b643d753c4";
+export const MCP_CATALOG_FINGERPRINT = "2e7e623ecd6b7cb7d7b7eea96d0035bd16cc6b66ddc469ec6f9505511bfbbccd";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "f33b50ea10da4b0caf7c06b4987bb1d3579457faada1fa9d2acf4d3ac47ec54b";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-11T12:35:17.305Z";
+export const TOOL_CATALOG_VERSION = "bf679d83e38c0d29c30186a04906fc5ce082fa942c513c3e6eea59b6689497a1";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -44,7 +44,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "claim_work_item",
 		"name": "claim work item",
-		"description": "Claim one action item before you start implementing it. Read what comes back: intent, criteria, spec_changes, session_context, project instruction tiers, review signals, unresolved conflicts, earlier attempts, and the project's decisions, conventions and documents that bear on the item (relevant_memories, relevant_artifacts; knowledge_unavailable names any that could not be read, which is not the same as none applying). A refused claim names the guard that stopped it: another holder or reservation, an assignee, an unfinished blocker, overlapping files, or an unresolved possible conflict (settle that with resolve_action_item_conflict). It also refuses an item whose last attempt failed (release_work_item hands it back) or whose implementation is already recorded (reopen_action_item reopens it). force with a reason overrides these and is recorded; human-only items and work awaiting approval cannot be claimed at all. When to claim is set by work_entry_contract, and when an override is justified by core_implementation_contract, in devspec://product/implementation-contract.",
+		"description": "Claim one action item before you start implementing it. Read what comes back: intent, criteria, spec_changes, session_context, project instruction tiers, review signals, earlier attempts, and the project's decisions, conventions and documents that bear on the item (relevant_memories, relevant_artifacts; knowledge_unavailable names any that could not be read, which is not the same as none applying). A refused claim names the guard that stopped it: another holder or reservation, an assignee, an unfinished blocker, or overlapping files. It also refuses an item whose last attempt failed (release_work_item hands it back) or whose implementation is already recorded (reopen_action_item reopens it). force with a reason overrides these and is recorded; human-only items and work awaiting approval cannot be claimed at all. When to claim is set by work_entry_contract, and when an override is justified by core_implementation_contract, in devspec://product/implementation-contract.",
 		"intent": "claim start working on action item before implementing"
 	},
 	{
@@ -56,7 +56,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "create_action_item",
 		"name": "create action item",
-		"description": "Create a new action item: a title, the intent behind it and checkable acceptance criteria. Search for an existing item first (search_action_items); whether work should be tracked at all is set by work_entry_contract in devspec://product/implementation-contract. For work already done, use record_completed_work; for new scope found while working on another item, pass follow_up_from_action_item_id. Read the returned related_candidates and related_decisions before going on. With session_id the item also gets a card in that room. It can come back queued_for_review with a proposal_id: the item is saved as suggested work, and nothing is authorised until a Maintainer accepts it.",
+		"description": "Create a new action item: a title, the intent behind it and checkable acceptance criteria. Search for an existing item first (search_action_items); whether work should be tracked at all is set by work_entry_contract in devspec://product/implementation-contract. For work already done, use record_completed_work; for new scope found while working on another item, pass follow_up_from_action_item_id. Read the returned related_candidates before going on. With session_id the item also gets a card in that room. It can come back queued_for_review with a proposal_id: the item is saved as suggested work, and nothing is authorised until a Maintainer accepts it.",
 		"intent": "create capture requested new durable task feature bug work action item"
 	},
 	{
@@ -68,7 +68,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "create_resource",
 		"name": "create resource",
-		"description": "Create a shared project document: an ADR, plan, guide, runbook, checklist, summary, convention, reference or other (investigations and handoffs fit summary or other). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for; a single decision, convention or fact is a memory (record_memory). As it is written, a quick closeness check (it does not read the documents) compares the draft with existing artifacts. If one closely resembles it, nothing is created and the response names it (reconcile_required, closest_match; on a creation that would be queued, code reconcile_required and reconcile.closest): read it, then update or supersede it, re-call with confirm_new if yours is genuinely separate, or ask the person, which is often the right answer. Updating or superseding someone else's settled document overrules them, so ask first unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Create a shared project document: an ADR, plan, guide, runbook, checklist, summary, convention, reference or other (investigations and handoffs fit summary or other). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for; a single decision, convention or fact is a memory (record_memory). Updating or superseding someone else's settled document overrules them, so ask first unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "write save create shared document artifact ADR plan guide runbook checklist reference handoff investigation for teammates next agent"
 	},
 	{
@@ -104,7 +104,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_action_item",
 		"name": "get action item",
-		"description": "Read one action item in full: description, intent, acceptance criteria with each line's promotion state, implementation notes, the commits currently linked, goals, review signals and unresolved conflicts. Search and list results are previews; read this before working on, editing or judging an item, and use get_action_item_history for its timeline. version is the value to pass as update_action_item's expected_version. unresolved_conflicts lists the possible conflicts that keep the item from being claimed; settle each with resolve_action_item_conflict. Suggested work that has not been accepted says so in agreement. To test or verify the item, get_testing_brief also gathers its deployments, test runs and comments.",
+		"description": "Read one action item in full: description, intent, acceptance criteria with each line's promotion state, implementation notes, the commits currently linked, goals, and review signals. Search and list results are previews; read this before working on, editing or judging an item, and use get_action_item_history for its timeline. version is the value to pass as update_action_item's expected_version. Suggested work that has not been accepted says so in agreement. To test or verify the item, get_testing_brief also gathers its deployments, test runs and comments.",
 		"intent": "read full action item intent acceptance criteria current specification"
 	},
 	{
@@ -206,7 +206,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_pull_request",
 		"name": "get pull request",
-		"description": "Read one pull request as DevSpec last synced it: state, review, checks, branches, changed files, commits, and the action items, knowledge and conflict rulings linked to it by recorded evidence, plus anything still awaiting a maintainer. A link with nothing behind it is reported in absent, never guessed. Pass number (with repo when the project tracks several repositories) or pull_request_id; a pull request not yet synced comes back not found. Read-only: DevSpec never approves, merges or gates a pull request.",
+		"description": "Read one pull request as DevSpec last synced it: state, review, checks, branches, changed files, commits, and the action items and knowledge linked to it by recorded evidence, plus anything still awaiting a maintainer. A link with nothing behind it is reported in absent, never guessed. Pass number (with repo when the project tracks several repositories) or pull_request_id; a pull request not yet synced comes back not found. Read-only: DevSpec never approves, merges or gates a pull request.",
 		"intent": "read pull request changes commits linked action items knowledge review state"
 	},
 	{
@@ -230,8 +230,8 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_review_queue",
 		"name": "get review queue",
-		"description": "List what in this project waits on a ruling or an acceptance: records flagged as contradicting each other or a decision, records flagged as possibly out of date, and queued proposals. you_can on each entry says whether you may rule on, discuss or decide it. Rule on a flag with its record's tool: resolve_action_item_conflict, resolve_action_item_decision_flag, resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
-		"intent": "review inbox disagreements flags proposed changes waiting for a ruling or acceptance"
+		"description": "List what in this project waits on a ruling or an acceptance: records flagged as possibly out of date, and queued proposals. you_can on each entry says whether you may rule on, discuss or decide it. Rule on a memory's flag with resolve_memory_flag and a document's with resolve_resource_flag; an action item's flag is ruled on the project's Review page. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
+		"intent": "review inbox out of date flags proposed changes waiting for a ruling or acceptance"
 	},
 	{
 		"id": "get_session_transcript",
@@ -260,7 +260,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "link_action_items",
 		"name": "link action items",
-		"description": "Record a directed relationship between two action items in this project: action_item_id <relationship> related_to_id. caused_by: the source was caused by the target. blocks: the source blocks the target, which cannot be claimed until the source is done or dismissed. related_to: they bear on each other. To retire work another item replaces, use resolve_action_item_conflict with supersedes, which also clears flags and closes the replaced item; a bare supersedes edge needs acknowledge_half_resolution, and is refused rather than queued when your ruling would need review. From an unattended run nothing is recorded: the call returns the edge as a proposal (committed: false) for a person to make. When creating a follow-up, pass follow_up_from_action_item_id to create_action_item instead. For links between memories and documents, use manage_knowledge_links.",
+		"description": "Record a directed relationship between two action items in this project: action_item_id <relationship> related_to_id. caused_by: the source was caused by the target. blocks: the source blocks the target, which cannot be claimed until the source is done or dismissed. related_to: they bear on each other. A link retires nothing: to record that one item replaces another, use supersede_action_item. From an unattended run nothing is recorded: the call returns the edge as a proposal (committed: false) for a person to make. When creating a follow-up, pass follow_up_from_action_item_id to create_action_item instead. For links between memories and documents, use manage_knowledge_links.",
 		"intent": "link relationship between work tasks action items blocking caused by related"
 	},
 	{
@@ -284,7 +284,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "manage_knowledge_links",
 		"name": "manage knowledge links",
-		"description": "Link two memories or AI-written documents, in any combination, as companions a reader should see together, with a note saying why (link). You can also change that note (set_note), remove the link (unlink), or list one record's companions (list). A link is an association only: it does not say the two agree, clear a review flag, resolve a contradiction, supersede either record, make either more trusted or change who may edit them. Uploaded documents cannot be linked, and action items have their own links (link_action_items). Both records must be current versions, given by full id or 8-character short code; a code that matches both a memory and a document is refused as ambiguous.",
+		"description": "Link two memories or AI-written documents, in any combination, as companions a reader should see together, with a note saying why (link). You can also change that note (set_note), remove the link (unlink), or list one record's companions (list). A link is an association only: it does not say the two agree, clear a review flag, supersede either record, make either more trusted or change who may edit them. Uploaded documents cannot be linked, and action items have their own links (link_action_items). Both records must be current versions, given by full id or 8-character short code; a code that matches both a memory and a document is refused as ambiguous.",
 		"intent": "link plan document artifact to its supporting decision memory companions read together unlink"
 	},
 	{
@@ -300,10 +300,10 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"intent": "ask room poll vote choices options collaborative decision"
 	},
 	{
-		"id": "preview_conflict_resolution",
-		"name": "preview conflict resolution",
-		"description": "Preview, changing nothing, what resolve_action_item_conflict would do with a verdict on an action item's possible_conflict or possibly_stale flag: what closes and what stays, whether the ruling would be refused, why the flag fired, and whether your ruling would commit or be queued for a Maintainer. Use it before ruling, especially on supersedes. For a staleness flag that names no other item, omit counterpart_item_id. It does not cover memory, document or decision flags.",
-		"intent": "preview consequences resolving conflicting work items before ruling"
+		"id": "preview_supersession",
+		"name": "preview supersession",
+		"description": "Preview, changing nothing, what supersede_action_item would do with the same two items: which item closes and how, whether it takes effect now or when the replacing item ships, whether it would be refused, and whether your call would be recorded or queued for a Maintainer. Use it before superseding.",
+		"intent": "preview consequences superseding replacing work item before recording"
 	},
 	{
 		"id": "record_automation_run",
@@ -338,7 +338,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_memory",
 		"name": "record memory",
-		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Work in progress and delivery evidence belong on the action item (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a long document or reference material is an artifact (create_resource). As it is written, a quick closeness check (it does not read the records) compares the draft with existing memories. If one closely resembles it, nothing is recorded and the response names it (reconcile_required, closest_match; on a write that would be queued, code reconcile_required and reconcile.closest): read it, then supersede or update it, link the two if both stand, re-call with confirm_new if yours is genuinely distinct, or ask the person, which is often the right answer. Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. A response for a decision or convention may carry impact_follow_through: act on it before you report.",
+		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Work in progress and delivery evidence belong on the action item (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a long document or reference material is an artifact (create_resource). Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. A response for a decision or convention may carry impact_follow_through: act on it before you report.",
 		"intent": "record save capture remember new decision convention architecture insight risk"
 	},
 	{
@@ -366,28 +366,16 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"intent": "reserve several selected action items in order before working batch"
 	},
 	{
-		"id": "resolve_action_item_conflict",
-		"name": "resolve action item conflict",
-		"description": "Rule on an action item's possible_conflict or possibly_stale flag after reading both items. supersedes closes the item that is replaced: dismissed if it never shipped, done if it shipped, or pending until the replacing item ships. related records a related_to link and not_a_conflict records that the two do not clash; both clear the flag on both items and close nothing, and not_a_conflict lifts if either item's content materially changes. discuss opens a session seeded with the items and @mentions their creators, leaving the flags lit; from an unattended run it opens nothing and returns the discussion as a proposal (committed: false) for a person to open. For a staleness flag that names no other item, omit counterpart_item_id. Preview the outcome first with preview_conflict_resolution. A pair ruling can come back queued_for_review with a proposal_id: both items then read contested, and nothing is settled until a Maintainer accepts it. For a flag against a decided memory, use resolve_action_item_decision_flag.",
-		"intent": "resolve flagged conflicting stale pair work action items judgement supersession"
-	},
-	{
-		"id": "resolve_action_item_decision_flag",
-		"name": "resolve action item decision flag",
-		"description": "Rule on an action item's contradicts_decision flag after reading the item and the decided memory: related (both stand and are compatible) or not_a_conflict (there is no real contradiction). Either verdict clears the flag for the item and decision as they are now; it can be raised again if either changes. If the decision itself has changed, use supersede_memory; if the item really breaks the decision, change it with update_action_item or dismiss it. A ruling can come back queued_for_review with a proposal_id, and the flag stays lit until a Maintainer accepts it. For flags between two action items, use resolve_action_item_conflict.",
-		"intent": "resolve work action item contradicts decision memory flag"
-	},
-	{
 		"id": "resolve_memory_flag",
 		"name": "resolve memory flag",
-		"description": "Rule on a review flag on a memory (possibly_stale or possibly_contradictory) and clear it on this memory and, for a contradiction, on the counterpart too. Read the records involved in full first (get_memory, not the search card). related and not_a_conflict keep both records as they are; settle those yourself when the facts are plain. supersedes records your judgement only and replaces nothing: if one memory really replaces the other, also call supersede_memory. committed: true means the ruling is recorded and the flag will not be raised again for the same reason unless a record changes; marks_cleared says what was cleared on each side, and warnings name any mark that was kept or not ruled on. outcome queued_for_review carries a proposal_id, and the flag stays lit until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. For a flag on a document, use resolve_resource_flag.",
-		"intent": "resolve rule on memory stale contradictory review flag"
+		"description": "Rule that a memory flagged possibly_stale is still accurate, and clear the flag. Read the memory in full first (get_memory, not the search card) and check what it describes; settle it yourself when the facts are plain. If the memory really is out of date, do not rule: change it with update_memory, supersede_memory or retract_memory. committed: true means the ruling is recorded and the flag will not be raised again for the same reason unless the memory changes; marks_cleared says what was cleared. outcome queued_for_review carries a proposal_id, and the flag stays lit until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. For a flag on a document, use resolve_resource_flag.",
+		"intent": "resolve rule on memory stale review flag still accurate"
 	},
 	{
 		"id": "resolve_resource_flag",
 		"name": "resolve resource flag",
-		"description": "Rule on a review flag on an AI-written artifact (possibly_stale or possibly_contradictory) and clear it on this artifact and, for a contradiction, on the counterpart too. Read the documents involved in full first (get_resource). related and not_a_conflict keep both as they are; settle those yourself when the facts are plain. On documents a contradiction is often a real replacement, so do not use not_a_conflict to make a flag go away. supersedes records your judgement only and archives nothing: if one document really replaces the other, also call supersede_resource. committed: true means the ruling is recorded and the flag will not be raised again for the same reason unless the content changes; outcome queued_for_review carries a proposal_id, and the flag stays lit until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. For a flag on a memory, use resolve_memory_flag.",
-		"intent": "resolve rule on document artifact stale contradictory review flag"
+		"description": "Rule that an AI-written artifact flagged possibly_stale is still accurate, and clear the flag. Read the document in full first (get_resource) and check what it describes; settle it yourself when the facts are plain. If the document really is out of date, do not rule: change it with update_resource, supersede_resource or archive_resource. committed: true means the ruling is recorded and the flag will not be raised again for the same reason unless what it was judged against changes; outcome queued_for_review carries a proposal_id, and the flag stays lit until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. For a flag on a memory, use resolve_memory_flag.",
+		"intent": "resolve rule on document artifact stale review flag still accurate"
 	},
 	{
 		"id": "retract_memory",
@@ -438,15 +426,21 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"intent": "extract spin off child work from parent brief standalone follow-up"
 	},
 	{
+		"id": "supersede_action_item",
+		"name": "supersede action item",
+		"description": "Record that one action item replaces another, after reading both. The replaced item closes: dismissed if it never shipped, done and marked superseded if it shipped, or pending until the replacing item ships when only the replaced one has. A brief and its own child cannot supersede each other, and a dismissed item cannot replace anything. Preview the outcome first with preview_supersession. Superseding changes what the project has settled, so it can come back queued_for_review with a proposal_id; nothing changes until a Maintainer accepts it. To connect two items without retiring either, use link_action_items.",
+		"intent": "supersede replace duplicate work action item retire older close replaced"
+	},
+	{
 		"id": "supersede_memory",
 		"name": "supersede memory",
-		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. If a different memory closely resembles the new text, nothing is superseded and the response names it (reconcile_required, closest_match); read it before deciding. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. A response for a decision or convention may carry impact_follow_through: act on it before you report.",
+		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. A response for a decision or convention may carry impact_follow_through: act on it before you report.",
 		"intent": "replace changed decision memory new agreed version supersede"
 	},
 	{
 		"id": "supersede_resource",
 		"name": "supersede resource",
-		"description": "Replace an AI-written artifact with a rewritten successor. The new version becomes current; the old one is archived, pointing to it. Read the current document first and carry over what still holds. Use update_resource for refinements and archive_resource when nothing replaces it; uploaded documents cannot be superseded. Replacing someone else's settled document overrules them, so ask unless you were already told to go ahead. If a different artifact closely resembles the replacement, nothing is superseded and the response names it (reconcile_required, closest_match); read it before deciding. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Replace an AI-written artifact with a rewritten successor. The new version becomes current; the old one is archived, pointing to it. Read the current document first and carry over what still holds. Use update_resource for refinements and archive_resource when nothing replaces it; uploaded documents cannot be superseded. Replacing someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "replace rewrite document artifact successor supersede"
 	},
 	{
@@ -476,7 +470,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "update_memory",
 		"name": "update memory",
-		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence or affected files, or correct its title, summary or body. State, tags, confidence and affected files change in place. A wording change saves a new version with a new id, returned in the response: cite that id from then on. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. A body change is compared with existing memories; if another closely resembles it, nothing changes and the response names it (reconcile_required, closest_match). outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
+		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence or affected files, or correct its title, summary or body. State, tags, confidence and affected files change in place. A wording change saves a new version with a new id, returned in the response: cite that id from then on. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
 		"intent": "mark memory decided agreed promote correct edit wording tags existing memory"
 	},
 	{
@@ -488,7 +482,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "update_resource",
 		"name": "update resource",
-		"description": "Edit an AI-written artifact to keep it current: its title, summary, tags or body. Prefer body_edits (targeted replace or append) to a full body, so detail others added is not lost. A title, summary or body change saves a new version with a new id and retires the old one: use the returned id from then on, because edits to the old id are refused. Tags alone change in place. Use supersede_resource for a material rewrite and archive_resource to retire a document; uploaded documents cannot be edited. Rewriting someone else's settled document overrules them, so ask unless you were already told to go ahead. A body change is compared with existing artifacts; if another closely resembles it, nothing changes and the response names it (reconcile_required, closest_match). outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Edit an AI-written artifact to keep it current: its title, summary, tags or body. Prefer body_edits (targeted replace or append) to a full body, so detail others added is not lost. A title, summary or body change saves a new version with a new id and retires the old one: use the returned id from then on, because edits to the old id are refused. Tags alone change in place. Use supersede_resource for a material rewrite and archive_resource to retire a document; uploaded documents cannot be edited. Rewriting someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "update edit refine existing document artifact plan runbook keep current"
 	},
 	{
@@ -552,7 +546,7 @@ export const MODEL_VERB_NAMES = [
 	"get_action_item_history",
 	"get_action_item_siblings",
 	"get_testing_brief",
-	"preview_conflict_resolution",
+	"preview_supersession",
 	"get_review_queue",
 	"get_workflow_rules",
 	"generate_commit_message",
@@ -582,8 +576,7 @@ export const MODEL_VERB_NAMES = [
 	"update_action_item",
 	"create_action_item",
 	"spin_off_action_item",
-	"resolve_action_item_conflict",
-	"resolve_action_item_decision_flag",
+	"supersede_action_item",
 	"link_action_items",
 	"unlink_action_items",
 	"reopen_action_item",
@@ -1075,10 +1068,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"agent_run_failed",
 						"deployment_failed",
 						"verification_failed",
-						"possible_conflict",
 						"possibly_stale",
-						"contradicts_decision",
-						"contested",
 						"blocked",
 						"implemented_unverified",
 						"superseded_pending",
@@ -1093,7 +1083,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"risk",
 						"state"
 					],
-					"description": "Only items carrying any signal in this family. action: follow-up required, agent run failed, deployment failed, verification failed. risk: possible conflict, possibly stale, contradicts a decision, contested. state: blocked, implemented but unverified, will be superseded, supersedes when it ships. Takes precedence over flagged. Omitted: no family filter unless flagged is set."
+					"description": "Only items carrying any signal in this family. action: follow-up required, agent run failed, deployment failed, verification failed. risk: possibly stale. state: blocked, implemented but unverified, will be superseded, supersedes when it ships. Takes precedence over flagged. Omitted: no family filter unless flagged is set."
 				},
 				"flagged": {
 					"type": "boolean",
@@ -1244,10 +1234,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"agent_run_failed",
 						"deployment_failed",
 						"verification_failed",
-						"possible_conflict",
 						"possibly_stale",
-						"contradicts_decision",
-						"contested",
 						"blocked",
 						"implemented_unverified",
 						"superseded_pending",
@@ -1262,7 +1249,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"risk",
 						"state"
 					],
-					"description": "Only items carrying any signal in this family. action: follow-up required, agent run failed, deployment failed, verification failed. risk: possible conflict, possibly stale, contradicts a decision, contested. state: blocked, implemented but unverified, will be superseded, supersedes when it ships. Takes precedence over flagged. Omitted: no family filter unless flagged is set."
+					"description": "Only items carrying any signal in this family. action: follow-up required, agent run failed, deployment failed, verification failed. risk: possibly stale. state: blocked, implemented but unverified, will be superseded, supersedes when it ships. Takes precedence over flagged. Omitted: no family filter unless flagged is set."
 				},
 				"flagged": {
 					"type": "boolean",
@@ -1455,7 +1442,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_action_item",
 		"label": "DevSpec: Get Action Item",
-		"description": "Read one action item in full: description, intent, acceptance criteria with each line's promotion state, implementation notes, the commits currently linked, goals, review signals and unresolved conflicts. Search and list results are previews; read this before working on, editing or judging an item, and use get_action_item_history for its timeline. version is the value to pass as update_action_item's expected_version. unresolved_conflicts lists the possible conflicts that keep the item from being claimed; settle each with resolve_action_item_conflict. Suggested work that has not been accepted says so in agreement. To test or verify the item, get_testing_brief also gathers its deployments, test runs and comments.",
+		"description": "Read one action item in full: description, intent, acceptance criteria with each line's promotion state, implementation notes, the commits currently linked, goals, and review signals. Search and list results are previews; read this before working on, editing or judging an item, and use get_action_item_history for its timeline. version is the value to pass as update_action_item's expected_version. Suggested work that has not been accepted says so in agreement. To test or verify the item, get_testing_brief also gathers its deployments, test runs and comments.",
 		"searchIntent": "read full action item intent acceptance criteria current specification",
 		"modelInputSchema": {
 			"type": "object",
@@ -1649,46 +1636,32 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"kind": "model"
 	},
 	{
-		"name": "preview_conflict_resolution",
-		"label": "DevSpec: Preview Conflict Resolution",
-		"description": "Preview, changing nothing, what resolve_action_item_conflict would do with a verdict on an action item's possible_conflict or possibly_stale flag: what closes and what stays, whether the ruling would be refused, why the flag fired, and whether your ruling would commit or be queued for a Maintainer. Use it before ruling, especially on supersedes. For a staleness flag that names no other item, omit counterpart_item_id. It does not cover memory, document or decision flags.",
-		"searchIntent": "preview consequences resolving conflicting work items before ruling",
+		"name": "preview_supersession",
+		"label": "DevSpec: Preview Supersession",
+		"description": "Preview, changing nothing, what supersede_action_item would do with the same two items: which item closes and how, whether it takes effect now or when the replacing item ships, whether it would be refused, and whether your call would be recorded or queued for a Maintainer. Use it before superseding.",
+		"searchIntent": "preview consequences superseding replacing work item before recording",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
 				"action_item_id": {
 					"type": "string",
-					"description": "One item of the pair (UUID or short code). For supersedes it is the winner unless superseding_item_id says otherwise; for the other verdicts either side gives the same answer."
+					"description": "The item that would do the replacing (UUID or short code)."
 				},
-				"counterpart_item_id": {
+				"superseded_item_id": {
 					"type": "string",
-					"description": "The other item, from the flag's conflicting_item_id or superseded_by_item_id (UUID or short code). Omit it only for a staleness flag that names no other item; that case takes not_a_conflict or discuss."
-				},
-				"verdict": {
-					"type": "string",
-					"enum": [
-						"supersedes",
-						"related",
-						"not_a_conflict",
-						"discuss"
-					],
-					"description": "The ruling to preview: supersedes (one replaces the other and the replaced item closes), related (both stand), not_a_conflict (no clash) or discuss (a discussion instead of a ruling)."
-				},
-				"superseding_item_id": {
-					"type": "string",
-					"description": "For supersedes only: which item wins; it must be one of the pair. Defaults to action_item_id."
+					"description": "The item that would be replaced and close (UUID or short code)."
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "The connection_id you would send resolve_action_item_conflict, so the preview is judged as the ruling would be: by the role of the person whose command that connection is carrying out, and as unattended while it works an automation run. The connection your client signed in as is used instead when there is one. Omitted: as the ruling would be judged with none."
+					"description": "The connection_id you would send supersede_action_item, so the preview is judged as the call would be: by the role of the person whose command that connection is carrying out, and as unattended while it works an automation run. The connection your client signed in as is used instead when there is one. Omitted: as the call would be judged with none."
 				},
 				"work_claim_ref": {
 					"type": "string",
-					"description": "The work_claim_ref you would send resolve_action_item_conflict, so the preview is judged by that claim's requester as the ruling would be. Omitted: as the ruling would be judged without one."
+					"description": "The work_claim_ref you would send supersede_action_item, so the preview is judged by that claim's requester as the call would be. Omitted: as the call would be judged without one."
 				},
 				"provenance_ref": {
 					"type": "string",
-					"description": "The provenance_ref you would send resolve_action_item_conflict, so the preview is judged by that command's requester as the ruling would be. Omitted: as the ruling would be judged without one. Never send a user id."
+					"description": "The provenance_ref you would send supersede_action_item, so the preview is judged by that command's requester as the call would be. Omitted: as the call would be judged without one. Never send a user id."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -1697,7 +1670,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			},
 			"required": [
 				"action_item_id",
-				"verdict"
+				"superseded_item_id"
 			]
 		},
 		"inputSchema": {
@@ -1705,37 +1678,23 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"action_item_id": {
 					"type": "string",
-					"description": "One item of the pair (UUID or short code). For supersedes it is the winner unless superseding_item_id says otherwise; for the other verdicts either side gives the same answer."
+					"description": "The item that would do the replacing (UUID or short code)."
 				},
-				"counterpart_item_id": {
+				"superseded_item_id": {
 					"type": "string",
-					"description": "The other item, from the flag's conflicting_item_id or superseded_by_item_id (UUID or short code). Omit it only for a staleness flag that names no other item; that case takes not_a_conflict or discuss."
-				},
-				"verdict": {
-					"type": "string",
-					"enum": [
-						"supersedes",
-						"related",
-						"not_a_conflict",
-						"discuss"
-					],
-					"description": "The ruling to preview: supersedes (one replaces the other and the replaced item closes), related (both stand), not_a_conflict (no clash) or discuss (a discussion instead of a ruling)."
-				},
-				"superseding_item_id": {
-					"type": "string",
-					"description": "For supersedes only: which item wins; it must be one of the pair. Defaults to action_item_id."
+					"description": "The item that would be replaced and close (UUID or short code)."
 				},
 				"connection_id": {
 					"type": "string",
-					"description": "The connection_id you would send resolve_action_item_conflict, so the preview is judged as the ruling would be: by the role of the person whose command that connection is carrying out, and as unattended while it works an automation run. The connection your client signed in as is used instead when there is one. Omitted: as the ruling would be judged with none."
+					"description": "The connection_id you would send supersede_action_item, so the preview is judged as the call would be: by the role of the person whose command that connection is carrying out, and as unattended while it works an automation run. The connection your client signed in as is used instead when there is one. Omitted: as the call would be judged with none."
 				},
 				"work_claim_ref": {
 					"type": "string",
-					"description": "The work_claim_ref you would send resolve_action_item_conflict, so the preview is judged by that claim's requester as the ruling would be. Omitted: as the ruling would be judged without one."
+					"description": "The work_claim_ref you would send supersede_action_item, so the preview is judged by that claim's requester as the call would be. Omitted: as the call would be judged without one."
 				},
 				"provenance_ref": {
 					"type": "string",
-					"description": "The provenance_ref you would send resolve_action_item_conflict, so the preview is judged by that command's requester as the ruling would be. Omitted: as the ruling would be judged without one. Never send a user id."
+					"description": "The provenance_ref you would send supersede_action_item, so the preview is judged by that command's requester as the call would be. Omitted: as the call would be judged without one. Never send a user id."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -1744,7 +1703,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			},
 			"required": [
 				"action_item_id",
-				"verdict"
+				"superseded_item_id"
 			]
 		},
 		"kind": "model"
@@ -1752,8 +1711,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_review_queue",
 		"label": "DevSpec: Get Review Queue",
-		"description": "List what in this project waits on a ruling or an acceptance: records flagged as contradicting each other or a decision, records flagged as possibly out of date, and queued proposals. you_can on each entry says whether you may rule on, discuss or decide it. Rule on a flag with its record's tool: resolve_action_item_conflict, resolve_action_item_decision_flag, resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
-		"searchIntent": "review inbox disagreements flags proposed changes waiting for a ruling or acceptance",
+		"description": "List what in this project waits on a ruling or an acceptance: records flagged as possibly out of date, and queued proposals. you_can on each entry says whether you may rule on, discuss or decide it. Rule on a memory's flag with resolve_memory_flag and a document's with resolve_resource_flag; an action item's flag is ruled on the project's Review page. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
+		"searchIntent": "review inbox out of date flags proposed changes waiting for a ruling or acceptance",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -1772,19 +1731,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "question: a flag awaiting a ruling. proposal: a change awaiting a Maintainer. Omitted: both."
 				},
-				"claim": {
-					"type": "array",
-					"items": {
-						"type": "string",
-						"enum": [
-							"possible_conflict",
-							"possibly_contradictory",
-							"contradicts_decision",
-							"possibly_stale"
-						]
-					},
-					"description": "Only flags of these kinds; entries with no flag kind are left out. Omitted: all."
-				},
 				"subject": {
 					"type": "array",
 					"items": {
@@ -1795,7 +1741,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"action_item"
 						]
 					},
-					"description": "Only entries touching these kinds of record, on either end. Omitted: all."
+					"description": "Only entries about these kinds of record. Omitted: all."
 				},
 				"search": {
 					"type": "string",
@@ -1849,19 +1795,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "question: a flag awaiting a ruling. proposal: a change awaiting a Maintainer. Omitted: both."
 				},
-				"claim": {
-					"type": "array",
-					"items": {
-						"type": "string",
-						"enum": [
-							"possible_conflict",
-							"possibly_contradictory",
-							"contradicts_decision",
-							"possibly_stale"
-						]
-					},
-					"description": "Only flags of these kinds; entries with no flag kind are left out. Omitted: all."
-				},
 				"subject": {
 					"type": "array",
 					"items": {
@@ -1872,7 +1805,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"action_item"
 						]
 					},
-					"description": "Only entries touching these kinds of record, on either end. Omitted: all."
+					"description": "Only entries about these kinds of record. Omitted: all."
 				},
 				"search": {
 					"type": "string",
@@ -2102,7 +2035,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_pull_request",
 		"label": "DevSpec: Get Pull Request",
-		"description": "Read one pull request as DevSpec last synced it: state, review, checks, branches, changed files, commits, and the action items, knowledge and conflict rulings linked to it by recorded evidence, plus anything still awaiting a maintainer. A link with nothing behind it is reported in absent, never guessed. Pass number (with repo when the project tracks several repositories) or pull_request_id; a pull request not yet synced comes back not found. Read-only: DevSpec never approves, merges or gates a pull request.",
+		"description": "Read one pull request as DevSpec last synced it: state, review, checks, branches, changed files, commits, and the action items and knowledge linked to it by recorded evidence, plus anything still awaiting a maintainer. A link with nothing behind it is reported in absent, never guessed. Pass number (with repo when the project tracks several repositories) or pull_request_id; a pull request not yet synced comes back not found. Read-only: DevSpec never approves, merges or gates a pull request.",
 		"searchIntent": "read pull request changes commits linked action items knowledge review state",
 		"modelInputSchema": {
 			"type": "object",
@@ -2432,15 +2365,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match. Default false: no flag filter."
+					"description": "Only memories carrying a review flag (possibly_stale). Superseded and retracted memories never match. Default false: no flag filter."
 				},
 				"signal_type": {
 					"type": "string",
 					"enum": [
-						"possibly_contradictory",
 						"possibly_stale"
 					],
-					"description": "Only memories carrying this review flag. Implies flagged. Omitted: either flag when flagged is true, otherwise no flag filter."
+					"description": "Only memories carrying this review flag. Implies flagged. Omitted: no flag filter unless flagged is true."
 				},
 				"requested_by": {
 					"type": "string",
@@ -2516,15 +2448,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match. Default false: no flag filter."
+					"description": "Only memories carrying a review flag (possibly_stale). Superseded and retracted memories never match. Default false: no flag filter."
 				},
 				"signal_type": {
 					"type": "string",
 					"enum": [
-						"possibly_contradictory",
 						"possibly_stale"
 					],
-					"description": "Only memories carrying this review flag. Implies flagged. Omitted: either flag when flagged is true, otherwise no flag filter."
+					"description": "Only memories carrying this review flag. Implies flagged. Omitted: no flag filter unless flagged is true."
 				},
 				"requested_by": {
 					"type": "string",
@@ -2667,15 +2598,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match. Default false: no flag filter."
+					"description": "Only memories carrying a review flag (possibly_stale). Superseded and retracted memories never match. Default false: no flag filter."
 				},
 				"signal_type": {
 					"type": "string",
 					"enum": [
-						"possibly_contradictory",
 						"possibly_stale"
 					],
-					"description": "Only memories carrying this review flag. Implies flagged. Omitted: either flag when flagged is true, otherwise no flag filter."
+					"description": "Only memories carrying this review flag. Implies flagged. Omitted: no flag filter unless flagged is true."
 				},
 				"requested_by": {
 					"type": "string",
@@ -2721,15 +2651,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match. Default false: no flag filter."
+					"description": "Only memories carrying a review flag (possibly_stale). Superseded and retracted memories never match. Default false: no flag filter."
 				},
 				"signal_type": {
 					"type": "string",
 					"enum": [
-						"possibly_contradictory",
 						"possibly_stale"
 					],
-					"description": "Only memories carrying this review flag. Implies flagged. Omitted: either flag when flagged is true, otherwise no flag filter."
+					"description": "Only memories carrying this review flag. Implies flagged. Omitted: no flag filter unless flagged is true."
 				},
 				"requested_by": {
 					"type": "string",
@@ -2782,15 +2711,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match. Default false: no flag filter."
+					"description": "Only memories carrying a review flag (possibly_stale). Superseded and retracted memories never match. Default false: no flag filter."
 				},
 				"signal_type": {
 					"type": "string",
 					"enum": [
-						"possibly_contradictory",
 						"possibly_stale"
 					],
-					"description": "Only memories carrying this review flag. Implies flagged. Omitted: either flag when flagged is true, otherwise no flag filter."
+					"description": "Only memories carrying this review flag. Implies flagged. Omitted: no flag filter unless flagged is true."
 				},
 				"requested_by": {
 					"type": "string",
@@ -2836,15 +2764,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "Only memories carrying a review flag (possibly_stale or possibly_contradictory). Superseded and retracted memories never match. Default false: no flag filter."
+					"description": "Only memories carrying a review flag (possibly_stale). Superseded and retracted memories never match. Default false: no flag filter."
 				},
 				"signal_type": {
 					"type": "string",
 					"enum": [
-						"possibly_contradictory",
 						"possibly_stale"
 					],
-					"description": "Only memories carrying this review flag. Implies flagged. Omitted: either flag when flagged is true, otherwise no flag filter."
+					"description": "Only memories carrying this review flag. Implies flagged. Omitted: no flag filter unless flagged is true."
 				},
 				"requested_by": {
 					"type": "string",
@@ -2921,14 +2848,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "Only AI-written artifacts carrying a review flag (superseded_but_live, possibly_stale or possibly_contradictory). Default false: no flag filter."
+					"description": "Only AI-written artifacts carrying a review flag (superseded_but_live or possibly_stale). Default false: no flag filter."
 				},
 				"signal_type": {
 					"type": "string",
 					"enum": [
 						"superseded_but_live",
-						"possibly_stale",
-						"possibly_contradictory"
+						"possibly_stale"
 					],
 					"description": "Only artifacts carrying this review flag. Implies flagged. Omitted: any flag when flagged is true, otherwise no flag filter."
 				},
@@ -3004,14 +2930,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"flagged": {
 					"type": "boolean",
-					"description": "Only AI-written artifacts carrying a review flag (superseded_but_live, possibly_stale or possibly_contradictory). Default false: no flag filter."
+					"description": "Only AI-written artifacts carrying a review flag (superseded_but_live or possibly_stale). Default false: no flag filter."
 				},
 				"signal_type": {
 					"type": "string",
 					"enum": [
 						"superseded_but_live",
-						"possibly_stale",
-						"possibly_contradictory"
+						"possibly_stale"
 					],
 					"description": "Only artifacts carrying this review flag. Implies flagged. Omitted: any flag when flagged is true, otherwise no flag filter."
 				},
@@ -5003,7 +4928,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "create_action_item",
 		"label": "DevSpec: Create Action Item",
-		"description": "Create a new action item: a title, the intent behind it and checkable acceptance criteria. Search for an existing item first (search_action_items); whether work should be tracked at all is set by work_entry_contract in devspec://product/implementation-contract. For work already done, use record_completed_work; for new scope found while working on another item, pass follow_up_from_action_item_id. Read the returned related_candidates and related_decisions before going on. With session_id the item also gets a card in that room. It can come back queued_for_review with a proposal_id: the item is saved as suggested work, and nothing is authorised until a Maintainer accepts it.",
+		"description": "Create a new action item: a title, the intent behind it and checkable acceptance criteria. Search for an existing item first (search_action_items); whether work should be tracked at all is set by work_entry_contract in devspec://product/implementation-contract. For work already done, use record_completed_work; for new scope found while working on another item, pass follow_up_from_action_item_id. Read the returned related_candidates before going on. With session_id the item also gets a card in that room. It can come back queued_for_review with a proposal_id: the item is saved as suggested work, and nothing is authorised until a Maintainer accepts it.",
 		"searchIntent": "create capture requested new durable task feature bug work action item",
 		"modelInputSchema": {
 			"type": "object",
@@ -5401,38 +5326,24 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"kind": "model"
 	},
 	{
-		"name": "resolve_action_item_conflict",
-		"label": "DevSpec: Resolve Action Item Conflict",
-		"description": "Rule on an action item's possible_conflict or possibly_stale flag after reading both items. supersedes closes the item that is replaced: dismissed if it never shipped, done if it shipped, or pending until the replacing item ships. related records a related_to link and not_a_conflict records that the two do not clash; both clear the flag on both items and close nothing, and not_a_conflict lifts if either item's content materially changes. discuss opens a session seeded with the items and @mentions their creators, leaving the flags lit; from an unattended run it opens nothing and returns the discussion as a proposal (committed: false) for a person to open. For a staleness flag that names no other item, omit counterpart_item_id. Preview the outcome first with preview_conflict_resolution. A pair ruling can come back queued_for_review with a proposal_id: both items then read contested, and nothing is settled until a Maintainer accepts it. For a flag against a decided memory, use resolve_action_item_decision_flag.",
-		"searchIntent": "resolve flagged conflicting stale pair work action items judgement supersession",
+		"name": "supersede_action_item",
+		"label": "DevSpec: Supersede Action Item",
+		"description": "Record that one action item replaces another, after reading both. The replaced item closes: dismissed if it never shipped, done and marked superseded if it shipped, or pending until the replacing item ships when only the replaced one has. A brief and its own child cannot supersede each other, and a dismissed item cannot replace anything. Preview the outcome first with preview_supersession. Superseding changes what the project has settled, so it can come back queued_for_review with a proposal_id; nothing changes until a Maintainer accepts it. To connect two items without retiring either, use link_action_items.",
+		"searchIntent": "supersede replace duplicate work action item retire older close replaced",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
 				"action_item_id": {
 					"type": "string",
-					"description": "One item of the pair (UUID or short code). For supersedes it is the winner unless superseding_item_id says otherwise; for the other verdicts either side gives the same result."
+					"description": "The item that does the replacing (UUID or short code). Decide which actually replaces which rather than assuming the newer one."
 				},
-				"counterpart_item_id": {
+				"superseded_item_id": {
 					"type": "string",
-					"description": "The other item, from the flag's conflicting_item_id or superseded_by_item_id (UUID or short code). Omit it only for a possibly_stale flag that names no other item; that ruling takes not_a_conflict or discuss."
-				},
-				"verdict": {
-					"type": "string",
-					"enum": [
-						"supersedes",
-						"related",
-						"not_a_conflict",
-						"discuss"
-					],
-					"description": "supersedes (one replaces the other), related (both stand and bear on each other), not_a_conflict (they do not clash) or discuss (open a discussion instead of ruling)."
-				},
-				"superseding_item_id": {
-					"type": "string",
-					"description": "For supersedes: the item that replaces the other (UUID or short code); it must be one of the pair. Defaults to action_item_id. Decide which actually replaces which rather than assuming the newer one."
+					"description": "The item being replaced, which closes (UUID or short code)."
 				},
 				"note": {
 					"type": "string",
-					"description": "Why, recorded on both items' history and on the ruling. Used as the basis when basis is omitted."
+					"description": "Why, recorded on both items' history. Used as the basis when basis is omitted."
 				},
 				"basis_kind": {
 					"type": "string",
@@ -5441,11 +5352,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"cited_authorisation",
 						"factual_grounds"
 					],
-					"description": "How the ruling is justified: human_confirmed only when a person answered this question in the current conversation; cited_authorisation when basis quotes their earlier authorisation; factual_grounds when basis states verifiable facts about the pair. Omitted: factual_grounds, recorded as your own judgement; human_confirmed is recorded only when you say a person answered. Any other value is refused."
+					"description": "How the supersession is justified: human_confirmed only when a person answered this question in the current conversation; cited_authorisation when basis quotes their earlier authorisation; factual_grounds when basis states verifiable facts about the two items. Omitted: factual_grounds, recorded as your own judgement; human_confirmed is recorded only when you say a person answered. Any other value is refused."
 				},
 				"basis": {
 					"type": "string",
-					"description": "The evidence for basis_kind: the person's answer, their quoted words, or the facts that justify the ruling; a title resemblance alone is not evidence. Omitted: note is used. A thin basis is recorded with a warning, not refused."
+					"description": "The evidence for basis_kind: the person's answer, their quoted words, or the facts that justify it; a title resemblance alone is not evidence. Omitted: note is used. A thin basis is recorded with a warning, not refused."
 				},
 				"connection_id": {
 					"type": "string",
@@ -5466,7 +5377,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			},
 			"required": [
 				"action_item_id",
-				"verdict"
+				"superseded_item_id"
 			]
 		},
 		"inputSchema": {
@@ -5474,29 +5385,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"action_item_id": {
 					"type": "string",
-					"description": "One item of the pair (UUID or short code). For supersedes it is the winner unless superseding_item_id says otherwise; for the other verdicts either side gives the same result."
+					"description": "The item that does the replacing (UUID or short code). Decide which actually replaces which rather than assuming the newer one."
 				},
-				"counterpart_item_id": {
+				"superseded_item_id": {
 					"type": "string",
-					"description": "The other item, from the flag's conflicting_item_id or superseded_by_item_id (UUID or short code). Omit it only for a possibly_stale flag that names no other item; that ruling takes not_a_conflict or discuss."
-				},
-				"verdict": {
-					"type": "string",
-					"enum": [
-						"supersedes",
-						"related",
-						"not_a_conflict",
-						"discuss"
-					],
-					"description": "supersedes (one replaces the other), related (both stand and bear on each other), not_a_conflict (they do not clash) or discuss (open a discussion instead of ruling)."
-				},
-				"superseding_item_id": {
-					"type": "string",
-					"description": "For supersedes: the item that replaces the other (UUID or short code); it must be one of the pair. Defaults to action_item_id. Decide which actually replaces which rather than assuming the newer one."
+					"description": "The item being replaced, which closes (UUID or short code)."
 				},
 				"note": {
 					"type": "string",
-					"description": "Why, recorded on both items' history and on the ruling. Used as the basis when basis is omitted."
+					"description": "Why, recorded on both items' history. Used as the basis when basis is omitted."
 				},
 				"basis_kind": {
 					"type": "string",
@@ -5505,11 +5402,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"cited_authorisation",
 						"factual_grounds"
 					],
-					"description": "How the ruling is justified: human_confirmed only when a person answered this question in the current conversation; cited_authorisation when basis quotes their earlier authorisation; factual_grounds when basis states verifiable facts about the pair. Omitted: factual_grounds, recorded as your own judgement; human_confirmed is recorded only when you say a person answered. Any other value is refused."
+					"description": "How the supersession is justified: human_confirmed only when a person answered this question in the current conversation; cited_authorisation when basis quotes their earlier authorisation; factual_grounds when basis states verifiable facts about the two items. Omitted: factual_grounds, recorded as your own judgement; human_confirmed is recorded only when you say a person answered. Any other value is refused."
 				},
 				"basis": {
 					"type": "string",
-					"description": "The evidence for basis_kind: the person's answer, their quoted words, or the facts that justify the ruling; a title resemblance alone is not evidence. Omitted: note is used. A thin basis is recorded with a warning, not refused."
+					"description": "The evidence for basis_kind: the person's answer, their quoted words, or the facts that justify it; a title resemblance alone is not evidence. Omitted: note is used. A thin basis is recorded with a warning, not refused."
 				},
 				"connection_id": {
 					"type": "string",
@@ -5530,126 +5427,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			},
 			"required": [
 				"action_item_id",
-				"verdict"
-			]
-		},
-		"kind": "model"
-	},
-	{
-		"name": "resolve_action_item_decision_flag",
-		"label": "DevSpec: Resolve Action Item Decision Flag",
-		"description": "Rule on an action item's contradicts_decision flag after reading the item and the decided memory: related (both stand and are compatible) or not_a_conflict (there is no real contradiction). Either verdict clears the flag for the item and decision as they are now; it can be raised again if either changes. If the decision itself has changed, use supersede_memory; if the item really breaks the decision, change it with update_action_item or dismiss it. A ruling can come back queued_for_review with a proposal_id, and the flag stays lit until a Maintainer accepts it. For flags between two action items, use resolve_action_item_conflict.",
-		"searchIntent": "resolve work action item contradicts decision memory flag",
-		"modelInputSchema": {
-			"type": "object",
-			"properties": {
-				"action_item_id": {
-					"type": "string",
-					"description": "The flagged item (UUID or short code)."
-				},
-				"decision_memory_id": {
-					"type": "string",
-					"description": "The decided memory the flag names, from its detail.decision_memory_id (UUID or short code)."
-				},
-				"verdict": {
-					"type": "string",
-					"enum": [
-						"related",
-						"not_a_conflict"
-					],
-					"description": "related: both stand and are compatible. not_a_conflict: there is no actual contradiction."
-				},
-				"basis_kind": {
-					"type": "string",
-					"enum": [
-						"human_confirmed",
-						"cited_authorisation",
-						"factual_grounds"
-					],
-					"description": "human_confirmed only when a person answered this in the current conversation; cited_authorisation when basis quotes their earlier words; factual_grounds when basis states verifiable facts. Omitted: factual_grounds. Any other value refuses the call."
-				},
-				"basis": {
-					"type": "string",
-					"description": "The facts showing there is no real contradiction, or the person's words authorising the ruling. Recorded with the ruling."
-				},
-				"connection_id": {
-					"type": "string",
-					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
-				},
-				"project_id": {
-					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
-					"type": "string"
-				},
-				"provenance_ref": {
-					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
-					"type": "string"
-				},
-				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
-					"type": "string"
-				}
-			},
-			"required": [
-				"action_item_id",
-				"decision_memory_id",
-				"verdict",
-				"basis"
-			]
-		},
-		"inputSchema": {
-			"type": "object",
-			"properties": {
-				"action_item_id": {
-					"type": "string",
-					"description": "The flagged item (UUID or short code)."
-				},
-				"decision_memory_id": {
-					"type": "string",
-					"description": "The decided memory the flag names, from its detail.decision_memory_id (UUID or short code)."
-				},
-				"verdict": {
-					"type": "string",
-					"enum": [
-						"related",
-						"not_a_conflict"
-					],
-					"description": "related: both stand and are compatible. not_a_conflict: there is no actual contradiction."
-				},
-				"basis_kind": {
-					"type": "string",
-					"enum": [
-						"human_confirmed",
-						"cited_authorisation",
-						"factual_grounds"
-					],
-					"description": "human_confirmed only when a person answered this in the current conversation; cited_authorisation when basis quotes their earlier words; factual_grounds when basis states verifiable facts. Omitted: factual_grounds. Any other value refuses the call."
-				},
-				"basis": {
-					"type": "string",
-					"description": "The facts showing there is no real contradiction, or the person's words authorising the ruling. Recorded with the ruling."
-				},
-				"connection_id": {
-					"type": "string",
-					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
-				},
-				"project_id": {
-					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
-					"type": "string"
-				},
-				"provenance_ref": {
-					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
-					"type": "string"
-				},
-				"work_claim_ref": {
-					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection, and refuses when it cannot tell.",
-					"type": "string"
-				}
-			},
-			"required": [
-				"action_item_id",
-				"decision_memory_id",
-				"verdict",
-				"basis"
+				"superseded_item_id"
 			]
 		},
 		"kind": "model"
@@ -5657,7 +5435,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "link_action_items",
 		"label": "DevSpec: Link Action Items",
-		"description": "Record a directed relationship between two action items in this project: action_item_id <relationship> related_to_id. caused_by: the source was caused by the target. blocks: the source blocks the target, which cannot be claimed until the source is done or dismissed. related_to: they bear on each other. To retire work another item replaces, use resolve_action_item_conflict with supersedes, which also clears flags and closes the replaced item; a bare supersedes edge needs acknowledge_half_resolution, and is refused rather than queued when your ruling would need review. From an unattended run nothing is recorded: the call returns the edge as a proposal (committed: false) for a person to make. When creating a follow-up, pass follow_up_from_action_item_id to create_action_item instead. For links between memories and documents, use manage_knowledge_links.",
+		"description": "Record a directed relationship between two action items in this project: action_item_id <relationship> related_to_id. caused_by: the source was caused by the target. blocks: the source blocks the target, which cannot be claimed until the source is done or dismissed. related_to: they bear on each other. A link retires nothing: to record that one item replaces another, use supersede_action_item. From an unattended run nothing is recorded: the call returns the edge as a proposal (committed: false) for a person to make. When creating a follow-up, pass follow_up_from_action_item_id to create_action_item instead. For links between memories and documents, use manage_knowledge_links.",
 		"searchIntent": "link relationship between work tasks action items blocking caused by related",
 		"modelInputSchema": {
 			"type": "object",
@@ -5674,15 +5452,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"enum": [
 						"caused_by",
-						"supersedes",
 						"blocks",
 						"related_to"
 					],
-					"description": "caused_by, blocks or related_to; supersedes only with acknowledge_half_resolution."
-				},
-				"acknowledge_half_resolution": {
-					"type": "boolean",
-					"description": "For supersedes only: true confirms you want the bare edge without clearing flags or closing the replaced item, for example when back-filling history. Default false, which refuses a supersedes edge."
+					"description": "caused_by, blocks or related_to."
 				},
 				"connection_id": {
 					"type": "string",
@@ -5722,15 +5495,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"enum": [
 						"caused_by",
-						"supersedes",
 						"blocks",
 						"related_to"
 					],
-					"description": "caused_by, blocks or related_to; supersedes only with acknowledge_half_resolution."
-				},
-				"acknowledge_half_resolution": {
-					"type": "boolean",
-					"description": "For supersedes only: true confirms you want the bare edge without clearing flags or closing the replaced item, for example when back-filling history. Default false, which refuses a supersedes edge."
+					"description": "caused_by, blocks or related_to."
 				},
 				"connection_id": {
 					"type": "string",
@@ -6283,7 +6051,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "claim_work_item",
 		"label": "DevSpec: Claim Work Item",
-		"description": "Claim one action item before you start implementing it. Read what comes back: intent, criteria, spec_changes, session_context, project instruction tiers, review signals, unresolved conflicts, earlier attempts, and the project's decisions, conventions and documents that bear on the item (relevant_memories, relevant_artifacts; knowledge_unavailable names any that could not be read, which is not the same as none applying). A refused claim names the guard that stopped it: another holder or reservation, an assignee, an unfinished blocker, overlapping files, or an unresolved possible conflict (settle that with resolve_action_item_conflict). It also refuses an item whose last attempt failed (release_work_item hands it back) or whose implementation is already recorded (reopen_action_item reopens it). force with a reason overrides these and is recorded; human-only items and work awaiting approval cannot be claimed at all. When to claim is set by work_entry_contract, and when an override is justified by core_implementation_contract, in devspec://product/implementation-contract.",
+		"description": "Claim one action item before you start implementing it. Read what comes back: intent, criteria, spec_changes, session_context, project instruction tiers, review signals, earlier attempts, and the project's decisions, conventions and documents that bear on the item (relevant_memories, relevant_artifacts; knowledge_unavailable names any that could not be read, which is not the same as none applying). A refused claim names the guard that stopped it: another holder or reservation, an assignee, an unfinished blocker, or overlapping files. It also refuses an item whose last attempt failed (release_work_item hands it back) or whose implementation is already recorded (reopen_action_item reopens it). force with a reason overrides these and is recorded; human-only items and work awaiting approval cannot be claimed at all. When to claim is set by work_entry_contract, and when an override is justified by core_implementation_contract, in devspec://product/implementation-contract.",
 		"searchIntent": "claim start working on action item before implementing",
 		"modelInputSchema": {
 			"type": "object",
@@ -6335,7 +6103,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"force": {
 					"type": "boolean",
-					"description": "Override the reservation, assignee, blocker, overlapping-file, possible-conflict and existing-claim guards. It requires reason and is recorded in the item's history, and it frees the other holder's reservation slot. The previous holder is not notified. It cannot override human-only items or work awaiting approval. Default false."
+					"description": "Override the reservation, assignee, blocker, overlapping-file and existing-claim guards. It requires reason and is recorded in the item's history, and it frees the other holder's reservation slot. The previous holder is not notified. It cannot override human-only items or work awaiting approval. Default false."
 				},
 				"reason": {
 					"type": "string",
@@ -6405,7 +6173,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"force": {
 					"type": "boolean",
-					"description": "Override the reservation, assignee, blocker, overlapping-file, possible-conflict and existing-claim guards. It requires reason and is recorded in the item's history, and it frees the other holder's reservation slot. The previous holder is not notified. It cannot override human-only items or work awaiting approval. Default false."
+					"description": "Override the reservation, assignee, blocker, overlapping-file and existing-claim guards. It requires reason and is recorded in the item's history, and it frees the other holder's reservation slot. The previous holder is not notified. It cannot override human-only items or work awaiting approval. Default false."
 				},
 				"reason": {
 					"type": "string",
@@ -8273,7 +8041,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_memory",
 		"label": "DevSpec: Record Memory",
-		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Work in progress and delivery evidence belong on the action item (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a long document or reference material is an artifact (create_resource). As it is written, a quick closeness check (it does not read the records) compares the draft with existing memories. If one closely resembles it, nothing is recorded and the response names it (reconcile_required, closest_match; on a write that would be queued, code reconcile_required and reconcile.closest): read it, then supersede or update it, link the two if both stand, re-call with confirm_new if yours is genuinely distinct, or ask the person, which is often the right answer. Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. A response for a decision or convention may carry impact_follow_through: act on it before you report.",
+		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Work in progress and delivery evidence belong on the action item (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a long document or reference material is an artifact (create_resource). Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. A response for a decision or convention may carry impact_follow_through: act on it before you report.",
 		"searchIntent": "record save capture remember new decision convention architecture insight risk",
 		"modelInputSchema": {
 			"type": "object",
@@ -8330,10 +8098,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Repository paths this knowledge is about. Omitted: none."
 				},
-				"confirm_new": {
-					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging yours genuinely distinct. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. It has no effect on a write that is queued for review: there a close match refuses it until you revise it or a Maintainer resolves the overlap. Default false: a close match refuses the write."
-				},
 				"idempotency_key": {
 					"type": "string",
 					"description": "A fresh UUID for each intended memory. Required when the write is queued for review, which you cannot always know in advance, so send one every time. Resending a key saves nothing new: with the same fields you get the first result back; with different fields a direct write still answers with the first memory's id and a queued one is refused. Never reuse a key for a different memory. Omitted: a write queued for review is refused, and a direct one counts as a resend only when your connection is attached to a session and the same type and body are sent again from it."
@@ -8420,10 +8184,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Repository paths this knowledge is about. Omitted: none."
 				},
-				"confirm_new": {
-					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging yours genuinely distinct. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. It has no effect on a write that is queued for review: there a close match refuses it until you revise it or a Maintainer resolves the overlap. Default false: a close match refuses the write."
-				},
 				"idempotency_key": {
 					"type": "string",
 					"description": "A fresh UUID for each intended memory. Required when the write is queued for review, which you cannot always know in advance, so send one every time. Resending a key saves nothing new: with the same fields you get the first result back; with different fields a direct write still answers with the first memory's id and a queued one is refused. Never reuse a key for a different memory. Omitted: a write queued for review is refused, and a direct one counts as a resend only when your connection is attached to a session and the same type and body are sent again from it."
@@ -8460,7 +8220,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "supersede_memory",
 		"label": "DevSpec: Supersede Memory",
-		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. If a different memory closely resembles the new text, nothing is superseded and the response names it (reconcile_required, closest_match); read it before deciding. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. A response for a decision or convention may carry impact_follow_through: act on it before you report.",
+		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. A response for a decision or convention may carry impact_follow_through: act on it before you report.",
 		"searchIntent": "replace changed decision memory new agreed version supersede",
 		"modelInputSchema": {
 			"type": "object",
@@ -8510,10 +8270,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"type": "string"
 					},
 					"description": "Replaces the affected-files list. Omitted: the current list is kept."
-				},
-				"confirm_new": {
-					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging the new text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match refuses the supersede."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -8583,10 +8339,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Replaces the affected-files list. Omitted: the current list is kept."
 				},
-				"confirm_new": {
-					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging the new text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match refuses the supersede."
-				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
 					"type": "string"
@@ -8611,7 +8363,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_memory",
 		"label": "DevSpec: Update Memory",
-		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence or affected files, or correct its title, summary or body. State, tags, confidence and affected files change in place. A wording change saves a new version with a new id, returned in the response: cite that id from then on. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. A body change is compared with existing memories; if another closely resembles it, nothing changes and the response names it (reconcile_required, closest_match). outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
+		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence or affected files, or correct its title, summary or body. State, tags, confidence and affected files change in place. A wording change saves a new version with a new id, returned in the response: cite that id from then on. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
 		"searchIntent": "mark memory decided agreed promote correct edit wording tags existing memory",
 		"modelInputSchema": {
 			"type": "object",
@@ -8668,10 +8420,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"body": {
 					"type": "string",
 					"description": "The corrected full text, in Markdown. Saves a new version and is compared with existing memories. Omitted: unchanged."
-				},
-				"confirm_new": {
-					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging your edited text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match refuses the edit."
 				},
 				"note": {
 					"type": "string",
@@ -8760,10 +8508,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"body": {
 					"type": "string",
 					"description": "The corrected full text, in Markdown. Saves a new version and is compared with existing memories. Omitted: unchanged."
-				},
-				"confirm_new": {
-					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging your edited text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match refuses the edit."
 				},
 				"note": {
 					"type": "string",
@@ -8873,8 +8617,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "resolve_memory_flag",
 		"label": "DevSpec: Resolve Memory Flag",
-		"description": "Rule on a review flag on a memory (possibly_stale or possibly_contradictory) and clear it on this memory and, for a contradiction, on the counterpart too. Read the records involved in full first (get_memory, not the search card). related and not_a_conflict keep both records as they are; settle those yourself when the facts are plain. supersedes records your judgement only and replaces nothing: if one memory really replaces the other, also call supersede_memory. committed: true means the ruling is recorded and the flag will not be raised again for the same reason unless a record changes; marks_cleared says what was cleared on each side, and warnings name any mark that was kept or not ruled on. outcome queued_for_review carries a proposal_id, and the flag stays lit until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. For a flag on a document, use resolve_resource_flag.",
-		"searchIntent": "resolve rule on memory stale contradictory review flag",
+		"description": "Rule that a memory flagged possibly_stale is still accurate, and clear the flag. Read the memory in full first (get_memory, not the search card) and check what it describes; settle it yourself when the facts are plain. If the memory really is out of date, do not rule: change it with update_memory, supersede_memory or retract_memory. committed: true means the ruling is recorded and the flag will not be raised again for the same reason unless the memory changes; marks_cleared says what was cleared. outcome queued_for_review carries a proposal_id, and the flag stays lit until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. For a flag on a document, use resolve_resource_flag.",
+		"searchIntent": "resolve rule on memory stale review flag still accurate",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -8885,7 +8629,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"signal_type": {
 					"type": "string",
 					"enum": [
-						"possibly_contradictory",
 						"possibly_stale"
 					],
 					"description": "Which flag to rule on."
@@ -8893,15 +8636,9 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"verdict": {
 					"type": "string",
 					"enum": [
-						"supersedes",
-						"related",
 						"not_a_conflict"
 					],
-					"description": "related: both stand and bear on each other. not_a_conflict: they do not clash. supersedes: one replaces the other; this records the judgement only, so call supersede_memory to make the change."
-				},
-				"conflicting_id": {
-					"type": "string",
-					"description": "For possibly_contradictory: the full id of the counterpart the flag names (a memory, document or action item), to rule on that pair only. Omitted: every flag of this signal_type on the memory is ruled on at once; a ruling that is queued for review must name the counterpart when more than one flag matches."
+					"description": "not_a_conflict: the memory is still accurate."
 				},
 				"basis": {
 					"type": "string",
@@ -8941,7 +8678,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"signal_type": {
 					"type": "string",
 					"enum": [
-						"possibly_contradictory",
 						"possibly_stale"
 					],
 					"description": "Which flag to rule on."
@@ -8949,15 +8685,9 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"verdict": {
 					"type": "string",
 					"enum": [
-						"supersedes",
-						"related",
 						"not_a_conflict"
 					],
-					"description": "related: both stand and bear on each other. not_a_conflict: they do not clash. supersedes: one replaces the other; this records the judgement only, so call supersede_memory to make the change."
-				},
-				"conflicting_id": {
-					"type": "string",
-					"description": "For possibly_contradictory: the full id of the counterpart the flag names (a memory, document or action item), to rule on that pair only. Omitted: every flag of this signal_type on the memory is ruled on at once; a ruling that is queued for review must name the counterpart when more than one flag matches."
+					"description": "not_a_conflict: the memory is still accurate."
 				},
 				"basis": {
 					"type": "string",
@@ -8992,7 +8722,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "manage_knowledge_links",
 		"label": "DevSpec: Manage Knowledge Links",
-		"description": "Link two memories or AI-written documents, in any combination, as companions a reader should see together, with a note saying why (link). You can also change that note (set_note), remove the link (unlink), or list one record's companions (list). A link is an association only: it does not say the two agree, clear a review flag, resolve a contradiction, supersede either record, make either more trusted or change who may edit them. Uploaded documents cannot be linked, and action items have their own links (link_action_items). Both records must be current versions, given by full id or 8-character short code; a code that matches both a memory and a document is refused as ambiguous.",
+		"description": "Link two memories or AI-written documents, in any combination, as companions a reader should see together, with a note saying why (link). You can also change that note (set_note), remove the link (unlink), or list one record's companions (list). A link is an association only: it does not say the two agree, clear a review flag, supersede either record, make either more trusted or change who may edit them. Uploaded documents cannot be linked, and action items have their own links (link_action_items). Both records must be current versions, given by full id or 8-character short code; a code that matches both a memory and a document is refused as ambiguous.",
 		"searchIntent": "link plan document artifact to its supporting decision memory companions read together unlink",
 		"modelInputSchema": {
 			"type": "object",
@@ -9119,7 +8849,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "create_resource",
 		"label": "DevSpec: Create Resource",
-		"description": "Create a shared project document: an ADR, plan, guide, runbook, checklist, summary, convention, reference or other (investigations and handoffs fit summary or other). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for; a single decision, convention or fact is a memory (record_memory). As it is written, a quick closeness check (it does not read the documents) compares the draft with existing artifacts. If one closely resembles it, nothing is created and the response names it (reconcile_required, closest_match; on a creation that would be queued, code reconcile_required and reconcile.closest): read it, then update or supersede it, re-call with confirm_new if yours is genuinely separate, or ask the person, which is often the right answer. Updating or superseding someone else's settled document overrules them, so ask first unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Create a shared project document: an ADR, plan, guide, runbook, checklist, summary, convention, reference or other (investigations and handoffs fit summary or other). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for; a single decision, convention or fact is a memory (record_memory). Updating or superseding someone else's settled document overrules them, so ask first unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "write save create shared document artifact ADR plan guide runbook checklist reference handoff investigation for teammates next agent",
 		"modelInputSchema": {
 			"type": "object",
@@ -9127,10 +8857,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"connection_id": {
 					"type": "string",
 					"description": "Your own connection id, if you are a connected agent. It records which agent made this change and the session it came from, and lets a teammate's command be attributed to, and judged as, the person who gave it. Omitted: the connection your client authenticated, if any; otherwise the write names no agent or session. Refused if the connection is not live, not yours, or not the one your client authenticated."
-				},
-				"confirm_new": {
-					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging yours a genuinely separate document. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. It has no effect on a creation that is queued for review: there a close match refuses it until you revise it or a Maintainer resolves the overlap. Default false: a close match stops the creation."
 				},
 				"title": {
 					"type": "string",
@@ -9203,10 +8929,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Your own connection id, if you are a connected agent. It records which agent made this change and the session it came from, and lets a teammate's command be attributed to, and judged as, the person who gave it. Omitted: the connection your client authenticated, if any; otherwise the write names no agent or session. Refused if the connection is not live, not yours, or not the one your client authenticated."
 				},
-				"confirm_new": {
-					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging yours a genuinely separate document. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. It has no effect on a creation that is queued for review: there a close match refuses it until you revise it or a Maintainer resolves the overlap. Default false: a close match stops the creation."
-				},
 				"title": {
 					"type": "string",
 					"description": "The document's title (at most 500 characters)."
@@ -9276,7 +8998,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_resource",
 		"label": "DevSpec: Update Resource",
-		"description": "Edit an AI-written artifact to keep it current: its title, summary, tags or body. Prefer body_edits (targeted replace or append) to a full body, so detail others added is not lost. A title, summary or body change saves a new version with a new id and retires the old one: use the returned id from then on, because edits to the old id are refused. Tags alone change in place. Use supersede_resource for a material rewrite and archive_resource to retire a document; uploaded documents cannot be edited. Rewriting someone else's settled document overrules them, so ask unless you were already told to go ahead. A body change is compared with existing artifacts; if another closely resembles it, nothing changes and the response names it (reconcile_required, closest_match). outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Edit an AI-written artifact to keep it current: its title, summary, tags or body. Prefer body_edits (targeted replace or append) to a full body, so detail others added is not lost. A title, summary or body change saves a new version with a new id and retires the old one: use the returned id from then on, because edits to the old id are refused. Tags alone change in place. Use supersede_resource for a material rewrite and archive_resource to retire a document; uploaded documents cannot be edited. Rewriting someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "update edit refine existing document artifact plan runbook keep current",
 		"modelInputSchema": {
 			"type": "object",
@@ -9288,10 +9010,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"id": {
 					"type": "string",
 					"description": "The artifact to edit: its id or 8-character short code. It must be the current version."
-				},
-				"confirm_new": {
-					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging your edited text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match stops the edit."
 				},
 				"title": {
 					"type": "string",
@@ -9368,10 +9086,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"id": {
 					"type": "string",
 					"description": "The artifact to edit: its id or 8-character short code. It must be the current version."
-				},
-				"confirm_new": {
-					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging your edited text genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match stops the edit."
 				},
 				"title": {
 					"type": "string",
@@ -9443,7 +9157,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "supersede_resource",
 		"label": "DevSpec: Supersede Resource",
-		"description": "Replace an AI-written artifact with a rewritten successor. The new version becomes current; the old one is archived, pointing to it. Read the current document first and carry over what still holds. Use update_resource for refinements and archive_resource when nothing replaces it; uploaded documents cannot be superseded. Replacing someone else's settled document overrules them, so ask unless you were already told to go ahead. If a different artifact closely resembles the replacement, nothing is superseded and the response names it (reconcile_required, closest_match); read it before deciding. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Replace an AI-written artifact with a rewritten successor. The new version becomes current; the old one is archived, pointing to it. Read the current document first and carry over what still holds. Use update_resource for refinements and archive_resource when nothing replaces it; uploaded documents cannot be superseded. Replacing someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "replace rewrite document artifact successor supersede",
 		"modelInputSchema": {
 			"type": "object",
@@ -9489,10 +9203,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"type": "string"
 					},
 					"description": "Replaces the tag list (at most 10). Omitted: the current tags are kept."
-				},
-				"confirm_new": {
-					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging the replacement genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match stops the replacement."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -9557,10 +9267,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"type": "string"
 					},
 					"description": "Replaces the tag list (at most 10). Omitted: the current tags are kept."
-				},
-				"confirm_new": {
-					"type": "boolean",
-					"description": "Set true only after reading the closest_match a refused call named and judging the replacement genuinely distinct from it. It is a ruling recorded against the pair, not a retry or a way past the check, and it answers only that resemblance. Default false: a close match stops the replacement."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -9659,8 +9365,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "resolve_resource_flag",
 		"label": "DevSpec: Resolve Resource Flag",
-		"description": "Rule on a review flag on an AI-written artifact (possibly_stale or possibly_contradictory) and clear it on this artifact and, for a contradiction, on the counterpart too. Read the documents involved in full first (get_resource). related and not_a_conflict keep both as they are; settle those yourself when the facts are plain. On documents a contradiction is often a real replacement, so do not use not_a_conflict to make a flag go away. supersedes records your judgement only and archives nothing: if one document really replaces the other, also call supersede_resource. committed: true means the ruling is recorded and the flag will not be raised again for the same reason unless the content changes; outcome queued_for_review carries a proposal_id, and the flag stays lit until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. For a flag on a memory, use resolve_memory_flag.",
-		"searchIntent": "resolve rule on document artifact stale contradictory review flag",
+		"description": "Rule that an AI-written artifact flagged possibly_stale is still accurate, and clear the flag. Read the document in full first (get_resource) and check what it describes; settle it yourself when the facts are plain. If the document really is out of date, do not rule: change it with update_resource, supersede_resource or archive_resource. committed: true means the ruling is recorded and the flag will not be raised again for the same reason unless what it was judged against changes; outcome queued_for_review carries a proposal_id, and the flag stays lit until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. For a flag on a memory, use resolve_memory_flag.",
+		"searchIntent": "resolve rule on document artifact stale review flag still accurate",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -9671,23 +9377,16 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"signal_type": {
 					"type": "string",
 					"enum": [
-						"possibly_stale",
-						"possibly_contradictory"
+						"possibly_stale"
 					],
-					"description": "Which flag to rule on."
+					"description": "Which flag to rule on. superseded_but_live is not ruled on: it clears when the archive completes (archive_resource)."
 				},
 				"verdict": {
 					"type": "string",
 					"enum": [
-						"supersedes",
-						"related",
 						"not_a_conflict"
 					],
-					"description": "related: both stand and bear on each other. not_a_conflict: they do not clash. supersedes: one replaces the other; this records the judgement only, so call supersede_resource to make the change."
-				},
-				"conflicting_id": {
-					"type": "string",
-					"description": "For possibly_contradictory: the full id of the counterpart the flag names (a document or a memory), to rule on that pair only. Omitted: every flag of this signal_type on the artifact is ruled on at once; a ruling that is queued for review must name the counterpart when more than one flag matches."
+					"description": "not_a_conflict: the document is still accurate."
 				},
 				"note": {
 					"type": "string",
@@ -9727,23 +9426,16 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"signal_type": {
 					"type": "string",
 					"enum": [
-						"possibly_stale",
-						"possibly_contradictory"
+						"possibly_stale"
 					],
-					"description": "Which flag to rule on."
+					"description": "Which flag to rule on. superseded_but_live is not ruled on: it clears when the archive completes (archive_resource)."
 				},
 				"verdict": {
 					"type": "string",
 					"enum": [
-						"supersedes",
-						"related",
 						"not_a_conflict"
 					],
-					"description": "related: both stand and bear on each other. not_a_conflict: they do not clash. supersedes: one replaces the other; this records the judgement only, so call supersede_resource to make the change."
-				},
-				"conflicting_id": {
-					"type": "string",
-					"description": "For possibly_contradictory: the full id of the counterpart the flag names (a document or a memory), to rule on that pair only. Omitted: every flag of this signal_type on the artifact is ruled on at once; a ruling that is queued for review must name the counterpart when more than one flag matches."
+					"description": "not_a_conflict: the document is still accurate."
 				},
 				"note": {
 					"type": "string",
@@ -14819,8 +14511,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 95,
-	model: 83,
+	total: 94,
+	model: 82,
 	pump: 11,
 	never_model: 1,
 } as const;

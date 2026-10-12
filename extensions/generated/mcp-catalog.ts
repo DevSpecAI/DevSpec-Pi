@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: b4b941e948d95e575728347ef609ef489bb6b0d8b83628cf679550d9c22b4916
- * Description fingerprint: 7e30ead5a8102487b70eb498763933937d86281c4abc8cefd85f19aa75adb819
- * Regenerated: 2026-10-11T20:58:14.697Z
+ * Schema fingerprint: 8614352a6e78bfeabe0d8faaeb129e6e6bb59385120ac8ea2571570416c6bd2e
+ * Description fingerprint: 1c1dcf5392d30d140298a2c08000feb47d53b7ab056a0ef9b64d3979747c61b1
+ * Regenerated: 2026-10-11T23:42:00.749Z
  */
-export const MCP_CATALOG_FINGERPRINT = "b4b941e948d95e575728347ef609ef489bb6b0d8b83628cf679550d9c22b4916";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "7e30ead5a8102487b70eb498763933937d86281c4abc8cefd85f19aa75adb819";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-11T20:58:14.697Z";
-export const TOOL_CATALOG_VERSION = "b7d72f7b4fd5e18e7e78ae5716634309d362f7a2ab8d9c415a35389ec7381ec3";
+export const MCP_CATALOG_FINGERPRINT = "8614352a6e78bfeabe0d8faaeb129e6e6bb59385120ac8ea2571570416c6bd2e";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "1c1dcf5392d30d140298a2c08000feb47d53b7ab056a0ef9b64d3979747c61b1";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-11T23:42:00.749Z";
+export const TOOL_CATALOG_VERSION = "2958c3437e316fd3a7ed79795878b08e6489c6a6bab6dad69823d388a317d023";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -224,7 +224,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_review_queue",
 		"name": "get review queue",
-		"description": "List what in this project waits on a ruling or an acceptance: records flagged as possibly out of date, and queued proposals. you_can on each entry says whether you may rule on, discuss or decide it. Rule on a memory's flag with resolve_memory_flag and a document's with resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
+		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision. An explicit adoption or named co-owner answer uses manage_protected_intent; it is not a reversal ruling. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
 		"intent": "review inbox out of date flags proposed changes waiting for a ruling or acceptance"
 	},
 	{
@@ -292,6 +292,12 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"name": "manage poll",
 		"description": "Open a poll in your connection's room when the people there have a real choice between concrete options; ending it notifies everyone who could vote of the result. For one person's answer that you need before continuing, use manage_directed_question. Votes do not wake you: read results with get or list. update changes only the fields you send, but once anyone has voted it can only reword the question; anything else needs supersede. Every change to an existing poll needs expected_revision. It needs your connection's identity and an attached room: if a direct call is refused for that, make the call through your host's DevSpec helper, which your DevSpec skills name.",
 		"intent": "ask room poll vote choices options collaborative decision"
+	},
+	{
+		"id": "manage_protected_intent",
+		"name": "manage protected intent",
+		"description": "Record a person’s explicit ownership choice: adopt active agent-initiated intent, name a proposed co-owner with evidence before a reversal question exists, or record a named co-owner’s yes/no inside that question. Read the record or Review question first. Never infer adoption or agreement, and never act without that person’s explicit instruction. Historical requester facts stay unchanged; adoption adds who stands behind the intent. A co-owner answer applies to this question only. This does not judge a reversal, settle it or release a hold; those authority boundaries belong to devspec://product/implementation-contract. A stale result changes nothing: read again before retrying.",
+		"intent": "adopt agent initiated decision intent ownership proposed coowner confirm stand behind decision"
 	},
 	{
 		"id": "preview_supersession",
@@ -582,6 +588,7 @@ export const MODEL_VERB_NAMES = [
 	"record_criterion_verdicts",
 	"classify_criterion",
 	"add_commit_reference",
+	"manage_protected_intent",
 	"record_memory",
 	"supersede_memory",
 	"update_memory",
@@ -1694,7 +1701,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_review_queue",
 		"label": "DevSpec: Get Review Queue",
-		"description": "List what in this project waits on a ruling or an acceptance: records flagged as possibly out of date, and queued proposals. you_can on each entry says whether you may rule on, discuss or decide it. Rule on a memory's flag with resolve_memory_flag and a document's with resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
+		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision. An explicit adoption or named co-owner answer uses manage_protected_intent; it is not a reversal ruling. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
 		"searchIntent": "review inbox out of date flags proposed changes waiting for a ruling or acceptance",
 		"modelInputSchema": {
 			"type": "object",
@@ -1720,7 +1727,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"type": "string",
 						"enum": [
 							"memory",
-							"artifact"
+							"artifact",
+							"action_item"
 						]
 					},
 					"description": "Only entries about these kinds of record. Omitted: all."
@@ -1783,7 +1791,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"type": "string",
 						"enum": [
 							"memory",
-							"artifact"
+							"artifact",
+							"action_item"
 						]
 					},
 					"description": "Only entries about these kinds of record. Omitted: all."
@@ -7836,6 +7845,228 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			},
 			"required": [
 				"commit_sha"
+			]
+		},
+		"kind": "model"
+	},
+	{
+		"name": "manage_protected_intent",
+		"label": "DevSpec: Manage Protected Intent",
+		"description": "Record a person’s explicit ownership choice: adopt active agent-initiated intent, name a proposed co-owner with evidence before a reversal question exists, or record a named co-owner’s yes/no inside that question. Read the record or Review question first. Never infer adoption or agreement, and never act without that person’s explicit instruction. Historical requester facts stay unchanged; adoption adds who stands behind the intent. A co-owner answer applies to this question only. This does not judge a reversal, settle it or release a hold; those authority boundaries belong to devspec://product/implementation-contract. A stale result changes nothing: read again before retrying.",
+		"searchIntent": "adopt agent initiated decision intent ownership proposed coowner confirm stand behind decision",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"action": {
+					"type": "string",
+					"enum": [
+						"adopt",
+						"name_coowner",
+						"confirm_coowner"
+					],
+					"description": "adopt: make active agent-initiated intent your decision; name_coowner: name a proposed co-owner before a question exists; confirm_coowner: answer for this question only."
+				},
+				"record_type": {
+					"type": "string",
+					"enum": [
+						"action_item",
+						"memory",
+						"artifact"
+					],
+					"description": "Required for adopt and name_coowner: the record corpus. Not used for confirm_coowner."
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "Required for adopt and name_coowner: the full record UUID. Not used for confirm_coowner."
+				},
+				"expected_version": {
+					"type": "integer",
+					"exclusiveMinimum": 0,
+					"description": "Required for adopt and name_coowner: the version you read. If it changed, nothing is written."
+				},
+				"coowner_user_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "Required for name_coowner: the proposed person’s project-member UUID. Naming is not approval or ownership."
+				},
+				"evidence": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Required for name_coowner: the evidence for naming them. A citation alone never grants authority."
+				},
+				"confirmed_poll_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "For name_coowner only: an ended poll offered as the immediate confirmation shortcut. Requires confirmed_option_id; the server verifies the named person’s human vote and the poll’s own winning result. A citation alone is not confirmation."
+				},
+				"confirmed_option_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "For the poll shortcut: the winning option UUID. Required with confirmed_poll_id."
+				},
+				"issue_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "Required for confirm_coowner: the question UUID returned by Review."
+				},
+				"expected_revision": {
+					"type": "integer",
+					"minimum": 0,
+					"description": "Required for confirm_coowner: the question revision you read. A changed question refuses this answer as stale."
+				},
+				"yes": {
+					"type": "boolean",
+					"description": "Required for confirm_coowner: the named person’s explicit yes or no. Omitted is never an answer."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "Required for confirm_coowner: one fresh UUID per intended answer; reuse it for retries of that answer."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"action"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"action": {
+					"type": "string",
+					"enum": [
+						"adopt",
+						"name_coowner",
+						"confirm_coowner"
+					],
+					"description": "adopt: make active agent-initiated intent your decision; name_coowner: name a proposed co-owner before a question exists; confirm_coowner: answer for this question only."
+				},
+				"record_type": {
+					"type": "string",
+					"enum": [
+						"action_item",
+						"memory",
+						"artifact"
+					],
+					"description": "Required for adopt and name_coowner: the record corpus. Not used for confirm_coowner."
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "Required for adopt and name_coowner: the full record UUID. Not used for confirm_coowner."
+				},
+				"expected_version": {
+					"type": "integer",
+					"exclusiveMinimum": 0,
+					"description": "Required for adopt and name_coowner: the version you read. If it changed, nothing is written."
+				},
+				"coowner_user_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "Required for name_coowner: the proposed person’s project-member UUID. Naming is not approval or ownership."
+				},
+				"evidence": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Required for name_coowner: the evidence for naming them. A citation alone never grants authority."
+				},
+				"confirmed_poll_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "For name_coowner only: an ended poll offered as the immediate confirmation shortcut. Requires confirmed_option_id; the server verifies the named person’s human vote and the poll’s own winning result. A citation alone is not confirmation."
+				},
+				"confirmed_option_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "For the poll shortcut: the winning option UUID. Required with confirmed_poll_id."
+				},
+				"issue_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "Required for confirm_coowner: the question UUID returned by Review."
+				},
+				"expected_revision": {
+					"type": "integer",
+					"minimum": 0,
+					"description": "Required for confirm_coowner: the question revision you read. A changed question refuses this answer as stale."
+				},
+				"yes": {
+					"type": "boolean",
+					"description": "Required for confirm_coowner: the named person’s explicit yes or no. Omitted is never an answer."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "Required for confirm_coowner: one fresh UUID per intended answer; reuse it for retries of that answer."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"request_ref": {
+					"type": "string",
+					"x-devspec-host-only": true,
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"action"
 			]
 		},
 		"kind": "model"
@@ -14486,8 +14717,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 93,
-	model: 80,
+	total: 94,
+	model: 81,
 	pump: 12,
 	never_model: 1,
 } as const;

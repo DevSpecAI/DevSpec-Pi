@@ -514,13 +514,18 @@ describe("stamping a DevSpec write", () => {
 		assert.equal(isLaunchCall("record_memory", {}), false);
 	});
 
-	test("the tools that take a request come from the served catalogue: the 31 work-claim provenance writes", () => {
+	test("request-bearing writes derive from the served catalogue, not a frozen tool count", () => {
 		const takes = MCP_CATALOG.filter((entry) => declaresRequestRef(entry.inputSchema)).map((entry) => entry.name);
-		assert.equal(takes.length, 31);
+		assert.ok(takes.length > 0);
+		// Neither work_claim_ref nor provenance_ref implies a mutation: search
+		// uses a claim for cost and previews use refs to judge a hypothetical
+		// action. The host request declaration itself is the wire contract.
+		const declared = MCP_CATALOG.filter(entry => Object.hasOwn((entry.inputSchema.properties ?? {}) as object, "request_ref")).map(entry => entry.name);
+		assert.deepEqual(takes, declared);
 		for (const name of ["post_session_message", "reserve_work_items", "claim_work_item", "report_request", "get_action_item"]) {
 			assert.ok(!takes.includes(name), name);
 		}
-		for (const name of ["record_implementation", "update_action_item", "create_action_item", "record_memory"]) assert.ok(takes.includes(name), name);
+		for (const name of ["record_implementation", "update_action_item", "create_action_item", "record_memory", "manage_protected_intent"]) assert.ok(takes.includes(name), name);
 		for (const entry of MCP_CATALOG) {
 			assert.ok(!("request_ref" in ((entry.modelInputSchema.properties ?? {}) as Record<string, unknown>)), `${entry.name} hides request_ref from the model`);
 		}

@@ -103,6 +103,9 @@ const FULL_READ_VERBS = new Set([
 	// Same shape: revisioned link mutations plus `list`, whose companion rows
 	// must reach the model whole — a silently dropped link reads as "not linked".
 	"manage_knowledge_links",
+	// Exact ownership receipts: keep who adopted, revision, scope and refusals.
+	// Already small; no generic acknowledgement projection (988ad64c).
+	"manage_protected_intent",
 ]);
 
 const ACK_VERBS = new Set([

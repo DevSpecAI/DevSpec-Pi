@@ -662,7 +662,15 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// Rebaselined 2026-10-12 for 988ad64c: add manage_protected_intent
 		// as a lossless receipt, expand Review's action-item filter and authored
 		// guidance. 81 model verbs; no pump/never-model exposure changes.
-		"9fc7185bf52be0f38d4bf0da94cddcfd0f754d3b01415e420647098c4caef1fb",
+		// Rebaselined 2026-10-12 for 569c828c (knowledge version chain, DevSpecV2
+		// #387): record_memory, supersede_memory, update_memory, create_resource,
+		// update_resource and supersede_resource gain delivering_action_item_id;
+		// the four edit tools gain expected_version and idempotency_key for pending
+		// versions; get_memory and the edit tools describe pending versions,
+		// waiting_on and delivery. Verbs 81 model / 12 pump / 1 never-model,
+		// unchanged; families and hot set unchanged.
+		// Benchmark before/after: 46,281 -> 47,618 estimated tokens; every budget passes.
+		"6240e3ed4499323cb72825f33f3c03f1dee69951310a19378e48cb3f9b3f2ac1",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

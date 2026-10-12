@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.3 - 2026-10-12
+
+- Editing someone else's decision, convention or ADR now follows whose record it is. Your own records, descriptive ones, and records owned by someone at your role or below change straight away, and the owner is told. A record owned by someone with more authority keeps its current wording, and your change waits beside it as a pending version, naming who it waits on.
+- A decision can name the action item that delivers it. It then reads "Decided, not yet implemented" until that item is implemented.
+- Reading a memory says how to open any earlier version in full and shows changes still waiting for approval separately from the agreed wording.
+- The catalogue is regenerated against DevSpec's current tools. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.6.2 - 2026-10-12
 
 - Refresh the native wire catalogue for record-owned intent questions and explicit adoption/co-owner choices. Keep ownership receipts lossless, including the actor, question revision and scope.

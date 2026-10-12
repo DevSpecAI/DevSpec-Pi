@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 8614352a6e78bfeabe0d8faaeb129e6e6bb59385120ac8ea2571570416c6bd2e
- * Description fingerprint: 1c1dcf5392d30d140298a2c08000feb47d53b7ab056a0ef9b64d3979747c61b1
- * Regenerated: 2026-10-11T23:42:00.749Z
+ * Schema fingerprint: 6107d5f1d458cf067b4edb10bee27e5437b14556eefa0cf6d97dbe9f14b3e6e9
+ * Description fingerprint: b99b5b045c0faee565b8cd50d8e19c40dfaea54bcef7240d6d7a687a3e97bd2a
+ * Regenerated: 2026-10-12T21:57:43.750Z
  */
-export const MCP_CATALOG_FINGERPRINT = "8614352a6e78bfeabe0d8faaeb129e6e6bb59385120ac8ea2571570416c6bd2e";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "1c1dcf5392d30d140298a2c08000feb47d53b7ab056a0ef9b64d3979747c61b1";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-11T23:42:00.749Z";
-export const TOOL_CATALOG_VERSION = "2958c3437e316fd3a7ed79795878b08e6489c6a6bab6dad69823d388a317d023";
+export const MCP_CATALOG_FINGERPRINT = "6107d5f1d458cf067b4edb10bee27e5437b14556eefa0cf6d97dbe9f14b3e6e9";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "b99b5b045c0faee565b8cd50d8e19c40dfaea54bcef7240d6d7a687a3e97bd2a";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-12T21:57:43.750Z";
+export const TOOL_CATALOG_VERSION = "69ac7aaae0de989bfea594394673cd66b27c10370e23a1f94b73a33723c4c1b5";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -170,7 +170,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_memory",
 		"name": "get memory",
-		"description": "Read one memory in full: its body, state, lineage and change history. Search and list tools return cards; read the body here before relying on a memory, superseding it or contradicting it. If superseded_by is set, a newer version is current: read that one. Accepts the 8-character short code. For older history, pass history_next_before as history_before. If the response carries evidence, follow its evidence_guidance. A read that fails says unavailable, never not found: try again rather than concluding the memory does not exist.",
+		"description": "Read one memory in full: its body, state, lineage and change history. Search and list tools return cards; read the body here before relying on a memory, superseding it or contradicting it. If superseded_by is set, a newer version is current: read that one. Every earlier version stays readable in full: each history entry's resultRowId is that version's id, to pass here. Changes proposed and not yet agreed are in pending_versions, beside the agreed text and never part of it; delivery, when present, says the decision is not implemented yet and which item delivers it. Accepts the 8-character short code. For older history, pass history_next_before as history_before. If the response carries evidence, follow its evidence_guidance. A read that fails says unavailable, never not found: try again rather than concluding the memory does not exist.",
 		"intent": "read full memory decision convention rationale history lineage"
 	},
 	{
@@ -428,13 +428,13 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "supersede_memory",
 		"name": "supersede memory",
-		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "replace changed decision memory new agreed version supersede"
 	},
 	{
 		"id": "supersede_resource",
 		"name": "supersede resource",
-		"description": "Replace an AI-written artifact with a rewritten successor. The new version becomes current; the old one is archived, pointing to it. Read the current document first and carry over what still holds. Use update_resource for refinements and archive_resource when nothing replaces it; uploaded documents cannot be superseded. Replacing someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Replace an AI-written artifact with a rewritten successor. The new version becomes current; the old one is archived, pointing to it. Read the current document first and carry over what still holds. Use update_resource for refinements and archive_resource when nothing replaces it; uploaded documents cannot be superseded. Replacing someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "replace rewrite document artifact successor supersede"
 	},
 	{
@@ -464,7 +464,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "update_memory",
 		"name": "update memory",
-		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence or affected files, or correct its title, summary or body. State, tags, confidence and affected files change in place. A wording change saves a new version with a new id, returned in the response: cite that id from then on. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
+		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence or affected files, or correct its title, summary or body. State, tags, confidence and affected files change in place. A wording change saves a new version with a new id, returned in the response: cite that id from then on. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
 		"intent": "mark memory decided agreed promote correct edit wording tags existing memory"
 	},
 	{
@@ -476,7 +476,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "update_resource",
 		"name": "update resource",
-		"description": "Edit an AI-written artifact to keep it current: its title, summary, tags or body. Prefer body_edits (targeted replace or append) to a full body, so detail others added is not lost. A title, summary or body change saves a new version with a new id and retires the old one: use the returned id from then on, because edits to the old id are refused. Tags alone change in place. Use supersede_resource for a material rewrite and archive_resource to retire a document; uploaded documents cannot be edited. Rewriting someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Edit an AI-written artifact to keep it current: its title, summary, tags or body. Prefer body_edits (targeted replace or append) to a full body, so detail others added is not lost. A title, summary or body change saves a new version with a new id and retires the old one: use the returned id from then on, because edits to the old id are refused. Tags alone change in place. Use supersede_resource for a material rewrite and archive_resource to retire a document; uploaded documents cannot be edited. Rewriting someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "update edit refine existing document artifact plan runbook keep current"
 	},
 	{
@@ -2490,7 +2490,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_memory",
 		"label": "DevSpec: Get Memory",
-		"description": "Read one memory in full: its body, state, lineage and change history. Search and list tools return cards; read the body here before relying on a memory, superseding it or contradicting it. If superseded_by is set, a newer version is current: read that one. Accepts the 8-character short code. For older history, pass history_next_before as history_before. If the response carries evidence, follow its evidence_guidance. A read that fails says unavailable, never not found: try again rather than concluding the memory does not exist.",
+		"description": "Read one memory in full: its body, state, lineage and change history. Search and list tools return cards; read the body here before relying on a memory, superseding it or contradicting it. If superseded_by is set, a newer version is current: read that one. Every earlier version stays readable in full: each history entry's resultRowId is that version's id, to pass here. Changes proposed and not yet agreed are in pending_versions, beside the agreed text and never part of it; delivery, when present, says the decision is not implemented yet and which item delivers it. Accepts the 8-character short code. For older history, pass history_next_before as history_before. If the response carries evidence, follow its evidence_guidance. A read that fails says unavailable, never not found: try again rather than concluding the memory does not exist.",
 		"searchIntent": "read full memory decision convention rationale history lineage",
 		"modelInputSchema": {
 			"type": "object",
@@ -8135,6 +8135,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "A fresh UUID for each intended memory. Required when the write is queued for review, which you cannot always know in advance, so send one every time. Resending a key saves nothing new: with the same fields you get the first result back; with different fields a direct write still answers with the first memory's id and a queued one is refused. Never reuse a key for a different memory. Omitted: a write queued for review is refused, and a direct one counts as a resend only when your connection is attached to a session and the same type and body are sent again from it."
 				},
+				"delivering_action_item_id": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The action item that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
+				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
@@ -8221,6 +8232,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "A fresh UUID for each intended memory. Required when the write is queued for review, which you cannot always know in advance, so send one every time. Resending a key saves nothing new: with the same fields you get the first result back; with different fields a direct write still answers with the first memory's id and a queued one is refused. Never reuse a key for a different memory. Omitted: a write queued for review is refused, and a direct one counts as a resend only when your connection is attached to a session and the same type and body are sent again from it."
 				},
+				"delivering_action_item_id": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The action item that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
+				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
@@ -8258,7 +8280,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "supersede_memory",
 		"label": "DevSpec: Supersede Memory",
-		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "replace changed decision memory new agreed version supersede",
 		"modelInputSchema": {
 			"type": "object",
@@ -8270,6 +8292,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"id": {
 					"type": "string",
 					"description": "The memory being replaced: its id or 8-character short code. It must be the current version."
+				},
+				"expected_version": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "The version read with get_memory. Required with idempotency_key when this edit is saved for review; a changed version is refused rather than overwritten."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "One UUID for this intended edit. Required for a saved proposal. Keep the same key, expected_version and original fields after an uncertain response to recover that submission, not create another."
 				},
 				"title": {
 					"type": "string",
@@ -8308,6 +8341,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"type": "string"
 					},
 					"description": "Replaces the affected-files list. Omitted: the current list is kept."
+				},
+				"delivering_action_item_id": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The action item that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -8339,6 +8383,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "The memory being replaced: its id or 8-character short code. It must be the current version."
 				},
+				"expected_version": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "The version read with get_memory. Required with idempotency_key when this edit is saved for review; a changed version is refused rather than overwritten."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "One UUID for this intended edit. Required for a saved proposal. Keep the same key, expected_version and original fields after an uncertain response to recover that submission, not create another."
+				},
 				"title": {
 					"type": "string",
 					"description": "The new version's single-line name (at most 200 characters). Required even when it is unchanged."
@@ -8376,6 +8431,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"type": "string"
 					},
 					"description": "Replaces the affected-files list. Omitted: the current list is kept."
+				},
+				"delivering_action_item_id": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The action item that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -8406,7 +8472,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_memory",
 		"label": "DevSpec: Update Memory",
-		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence or affected files, or correct its title, summary or body. State, tags, confidence and affected files change in place. A wording change saves a new version with a new id, returned in the response: cite that id from then on. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
+		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence or affected files, or correct its title, summary or body. State, tags, confidence and affected files change in place. A wording change saves a new version with a new id, returned in the response: cite that id from then on. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
 		"searchIntent": "mark memory decided agreed promote correct edit wording tags existing memory",
 		"modelInputSchema": {
 			"type": "object",
@@ -8418,6 +8484,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"id": {
 					"type": "string",
 					"description": "The memory to change: its id or 8-character short code."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "One UUID for this intended wording edit. Required, with expected_version, for a saved proposal. Retry the exact original edit with the same key after an uncertain response."
 				},
 				"state": {
 					"type": "string",
@@ -8478,6 +8550,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"format": "uuid",
 					"description": "The receipt_id of a preview_required answer, confirming that exact previewed edit. Send the same edit again with it before expires_at; any change to the edit needs a new preview. Omitted: an edit that needs a preview answers preview_required and changes nothing."
+				},
+				"delivering_action_item_id": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The action item that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -8507,6 +8590,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "The memory to change: its id or 8-character short code."
 				},
+				"idempotency_key": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "One UUID for this intended wording edit. Required, with expected_version, for a saved proposal. Retry the exact original edit with the same key after an uncertain response."
+				},
 				"state": {
 					"type": "string",
 					"enum": [
@@ -8566,6 +8655,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"format": "uuid",
 					"description": "The receipt_id of a preview_required answer, confirming that exact previewed edit. Send the same edit again with it before expires_at; any change to the edit needs a new preview. Omitted: an edit that needs a preview answers preview_required and changes nothing."
+				},
+				"delivering_action_item_id": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The action item that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -8959,6 +9059,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "A fresh UUID for each intended document. Required when the creation is queued for review, which you cannot always know in advance, so send one every time. Resending a key saves nothing new: with the same fields you get the first result back; with different fields a direct creation still answers with the first document's id and a queued one is refused. Never reuse a key for a different document. Omitted: a creation queued for review is refused, and a direct one counts as a resend only when your connection is attached to a session and the same type, title, summary and body are sent again from it."
 				},
+				"delivering_action_item_id": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The action item that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
+				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
@@ -9030,6 +9141,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "A fresh UUID for each intended document. Required when the creation is queued for review, which you cannot always know in advance, so send one every time. Resending a key saves nothing new: with the same fields you get the first result back; with different fields a direct creation still answers with the first document's id and a queued one is refused. Never reuse a key for a different document. Omitted: a creation queued for review is refused, and a direct one counts as a resend only when your connection is attached to a session and the same type, title, summary and body are sent again from it."
 				},
+				"delivering_action_item_id": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The action item that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
+				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
@@ -9066,7 +9188,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_resource",
 		"label": "DevSpec: Update Resource",
-		"description": "Edit an AI-written artifact to keep it current: its title, summary, tags or body. Prefer body_edits (targeted replace or append) to a full body, so detail others added is not lost. A title, summary or body change saves a new version with a new id and retires the old one: use the returned id from then on, because edits to the old id are refused. Tags alone change in place. Use supersede_resource for a material rewrite and archive_resource to retire a document; uploaded documents cannot be edited. Rewriting someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Edit an AI-written artifact to keep it current: its title, summary, tags or body. Prefer body_edits (targeted replace or append) to a full body, so detail others added is not lost. A title, summary or body change saves a new version with a new id and retires the old one: use the returned id from then on, because edits to the old id are refused. Tags alone change in place. Use supersede_resource for a material rewrite and archive_resource to retire a document; uploaded documents cannot be edited. Rewriting someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "update edit refine existing document artifact plan runbook keep current",
 		"modelInputSchema": {
 			"type": "object",
@@ -9078,6 +9200,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"id": {
 					"type": "string",
 					"description": "The artifact to edit: its id or 8-character short code. It must be the current version."
+				},
+				"expected_version": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "The version read with get_resource. Required with idempotency_key when the edit is saved for review; a changed version is refused rather than overwritten."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "One UUID for this intended wording edit. Required for a saved proposal. Retry the same key, expected_version and original fields after an uncertain response."
 				},
 				"title": {
 					"type": "string",
@@ -9126,6 +9259,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"type": "string"
 					},
 					"description": "Replaces the tag list (at most 10). Tags alone change in place. Omitted: the current tags are kept."
+				},
+				"delivering_action_item_id": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The action item that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -9155,6 +9299,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "The artifact to edit: its id or 8-character short code. It must be the current version."
 				},
+				"expected_version": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "The version read with get_resource. Required with idempotency_key when the edit is saved for review; a changed version is refused rather than overwritten."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "One UUID for this intended wording edit. Required for a saved proposal. Retry the same key, expected_version and original fields after an uncertain response."
+				},
 				"title": {
 					"type": "string",
 					"description": "A new title (at most 500 characters). Saves a new version. Omitted: the current title is kept."
@@ -9203,6 +9358,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Replaces the tag list (at most 10). Tags alone change in place. Omitted: the current tags are kept."
 				},
+				"delivering_action_item_id": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The action item that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
+				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
 					"type": "string"
@@ -9230,7 +9396,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "supersede_resource",
 		"label": "DevSpec: Supersede Resource",
-		"description": "Replace an AI-written artifact with a rewritten successor. The new version becomes current; the old one is archived, pointing to it. Read the current document first and carry over what still holds. Use update_resource for refinements and archive_resource when nothing replaces it; uploaded documents cannot be superseded. Replacing someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Replace an AI-written artifact with a rewritten successor. The new version becomes current; the old one is archived, pointing to it. Read the current document first and carry over what still holds. Use update_resource for refinements and archive_resource when nothing replaces it; uploaded documents cannot be superseded. Replacing someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "replace rewrite document artifact successor supersede",
 		"modelInputSchema": {
 			"type": "object",
@@ -9242,6 +9408,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"id": {
 					"type": "string",
 					"description": "The artifact being replaced: its id or 8-character short code. It must be the current version."
+				},
+				"expected_version": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "The version read with get_resource. Required with idempotency_key when this edit is saved for review; a changed version is refused rather than overwritten."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "One UUID for this intended edit. Required for a saved proposal. Keep the same key, expected_version and original fields after an uncertain response."
 				},
 				"title": {
 					"type": "string",
@@ -9276,6 +9453,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"type": "string"
 					},
 					"description": "Replaces the tag list (at most 10). Omitted: the current tags are kept."
+				},
+				"delivering_action_item_id": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The action item that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -9307,6 +9495,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "The artifact being replaced: its id or 8-character short code. It must be the current version."
 				},
+				"expected_version": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "The version read with get_resource. Required with idempotency_key when this edit is saved for review; a changed version is refused rather than overwritten."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "One UUID for this intended edit. Required for a saved proposal. Keep the same key, expected_version and original fields after an uncertain response."
+				},
 				"title": {
 					"type": "string",
 					"description": "The replacement's title (at most 500 characters)."
@@ -9340,6 +9539,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"type": "string"
 					},
 					"description": "Replaces the tag list (at most 10). Omitted: the current tags are kept."
+				},
+				"delivering_action_item_id": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The action item that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",

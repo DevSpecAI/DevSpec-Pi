@@ -659,9 +659,23 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// this connection's is refused. Verbs 80 model / 12 pump / 1 never-model,
 		// unchanged; no inputs added; families and hot set unchanged.
 		// Benchmark before/after: 45,332 -> 45,076 estimated tokens.
-		"2c32cd4248d0713528dab6f9349d095a684b8523981598ec41acc2e3a013d7ca",
+		// Rebaselined 2026-10-12 for 988ad64c: add manage_protected_intent
+		// as a lossless receipt, expand Review's action-item filter and authored
+		// guidance. 81 model verbs; no pump/never-model exposure changes.
+		"9fc7185bf52be0f38d4bf0da94cddcfd0f754d3b01415e420647098c4caef1fb",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
+});
+
+test("intent ownership receipts retain actor, revision, scope and refusal intact", () => {
+	for (const payload of [
+		{ outcome: "adopted", adopted_by_user_id: "actual-requester", adopted_at: "2026-10-12T00:00:00Z", record_id: "record" },
+		{ outcome: "recorded", event_id: "answer", revision: 8, scope: "this_question" },
+		{ outcome: "refused", code: "explicit_instruction_required", error: "An unrequested wake is not a person's answer." },
+	]) {
+		const text = projectModelText({ toolName: "manage_protected_intent", text: JSON.stringify(payload), details: payload });
+		assert.deepEqual(JSON.parse(text), payload);
+	}
 });
 
 test("memory history continuation survives exact-read projection with all wording intact", () => {

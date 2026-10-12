@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.2 - 2026-10-12
+
+- Refresh the native wire catalogue for record-owned intent questions and explicit adoption/co-owner choices. Keep ownership receipts lossless, including the actor, question revision and scope.
+- Review can filter action-item intent alongside memories and documents; reversal questions are not accuracy flags. Authority remains with the served contract. Reload existing sessions to load the new native tools.
+
 ## 0.6.1 - 2026-10-11
 
 - Pi's DevSpec tools are updated to match DevSpec. When DevSpec can't tell whose request a change serves, it no longer turns the change away. A record of work is saved with the requester unknown, and anything else waits for someone to confirm it.

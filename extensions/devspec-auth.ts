@@ -26,27 +26,39 @@ const STATUS_KEY = "devspec";
 /** Process-local verification state — verify at most once per process. */
 let verifiedPrincipal: string | null = null;
 let verifyAttempted = false;
+let verifiedConnection = false;
 
 function setStatus(ctx: ExtensionContext, text: string | undefined): void {
 	if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY, text);
 }
 
-/** Best-effort human-readable "who am I" out of verify_agent_connection. */
-function principalFrom(result: unknown): string | null {
-	const { details, text } = unwrapMcpResult(result);
+function readablePrincipal(value: unknown): string | null {
+	if (typeof value !== "string") return null;
+	const name = value.trim();
+	// Identity is display data, not response syntax or terminal control output.
+	// Do not impose a length cap or silently crop a person's name (6673868e).
+	if (!name || /^[{\[]/.test(name) || /[\u0000-\u001f\u007f-\u009f]/.test(name)) return null;
+	return name;
+}
+
+/** Only structured identity fields, never an arbitrary first response line. */
+export function principalFrom(result: unknown): string | null {
+	const { details, isError } = unwrapMcpResult(result);
+	if (isError) return null;
 	if (details && typeof details === "object") {
 		const d = details as Record<string, unknown>;
-		for (const key of ["name", "user_name", "display_name", "email", "principal"]) {
-			if (typeof d[key] === "string" && d[key]) return d[key] as string;
+		// connected_as is verify_agent_connection's current wire field. Keep the
+		// explicit older identity shapes, but never fall back to its message text.
+		for (const key of ["connected_as", "name", "user_name", "display_name", "email", "principal"]) {
+			const name = readablePrincipal(d[key]);
+			if (name) return name;
 		}
 		if (details && typeof (d.user as unknown) === "object" && d.user !== null) {
 			const u = d.user as Record<string, unknown>;
-			if (typeof u.name === "string" && u.name) return u.name;
-			if (typeof u.email === "string" && u.email) return u.email;
+			return readablePrincipal(u.name) ?? readablePrincipal(u.email);
 		}
 	}
-	const firstLine = text.split("\n")[0]?.trim();
-	return firstLine && firstLine.length <= 120 ? firstLine : null;
+	return null;
 }
 
 async function doLogin(token: string, ctx: ExtensionContext): Promise<boolean> {
@@ -60,6 +72,7 @@ async function doLogin(token: string, ctx: ExtensionContext): Promise<boolean> {
 		const principal = principalFrom(result);
 		verifiedPrincipal = principal;
 		verifyAttempted = true;
+		verifiedConnection = true;
 		await saveAuth({ token, url: mcpUrl(), principal: principal ?? undefined, verifiedAt: new Date().toISOString() });
 		setStatus(ctx, undefined); // Successful identity is available in /devspec.status, not the footer.
 		const extra = getAdapterGuardState().suppressed.length > 0 ? ` ${SUPPRESSION_NOTICE}` : "";
@@ -115,6 +128,7 @@ export default function (pi: ExtensionAPI) {
 			resetClientCache();
 			verifiedPrincipal = null;
 			verifyAttempted = false;
+			verifiedConnection = false;
 			setStatus(ctx, undefined);
 			ctx.ui.notify(
 				`DevSpec token removed.${process.env[TOKEN_ENV_VAR] ? ` Note: ${TOKEN_ENV_VAR} is still set in the environment.` : ""}`,
@@ -134,7 +148,7 @@ export default function (pi: ExtensionAPI) {
 				);
 				return;
 			}
-			const who = verifiedPrincipal ?? "not verified this session";
+			const who = verifiedPrincipal ?? (verifiedConnection ? "connected" : "not verified this session");
 			const endpoint = await resolveEndpoint();
 			ctx.ui.notify(
 				`DevSpec: token from ${resolved.source === "env" ? TOKEN_ENV_VAR : "login store"} · ${who} · ${endpoint}`,
@@ -164,6 +178,7 @@ export default function (pi: ExtensionAPI) {
 					const { isError } = unwrapMcpResult(result);
 					if (isError) throw new DevspecAuthError("verify returned error");
 					verifiedPrincipal = principalFrom(result);
+					verifiedConnection = true;
 					setStatus(ctx, undefined);
 				})
 				.catch(() => {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.4 - 2026-10-13
+
+- DevSpec sign-in now reads your name from the verification response's identity fields instead of mistaking a JSON fragment for your name. If no name is available, sign-in and status still clearly confirm the connection without one.
+- Existing login commands, token storage and normal terminal output are unchanged. Reload or restart Pi after updating to load the fix.
+
 ## 0.6.3 - 2026-10-12
 
 - Editing someone else's decision, convention or ADR now follows whose record it is. Your own records, descriptive ones, and records owned by someone at your role or below change straight away, and the owner is told. A record owned by someone with more authority keeps its current wording, and your change waits beside it as a pending version, naming who it waits on.

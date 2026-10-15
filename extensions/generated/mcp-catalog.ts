@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 6107d5f1d458cf067b4edb10bee27e5437b14556eefa0cf6d97dbe9f14b3e6e9
- * Description fingerprint: b99b5b045c0faee565b8cd50d8e19c40dfaea54bcef7240d6d7a687a3e97bd2a
- * Regenerated: 2026-10-12T21:57:43.750Z
+ * Schema fingerprint: 6d555700323e61aa61075f69aee931efffc29f3acc6af1342353dfbc8da65781
+ * Description fingerprint: 1f65131568f6d7fb44723b3fa2d5f5cc86d262d46b5217ff57704aa512487bae
+ * Regenerated: 2026-10-15T21:54:54.060Z
  */
-export const MCP_CATALOG_FINGERPRINT = "6107d5f1d458cf067b4edb10bee27e5437b14556eefa0cf6d97dbe9f14b3e6e9";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "b99b5b045c0faee565b8cd50d8e19c40dfaea54bcef7240d6d7a687a3e97bd2a";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-12T21:57:43.750Z";
-export const TOOL_CATALOG_VERSION = "69ac7aaae0de989bfea594394673cd66b27c10370e23a1f94b73a33723c4c1b5";
+export const MCP_CATALOG_FINGERPRINT = "6d555700323e61aa61075f69aee931efffc29f3acc6af1342353dfbc8da65781";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "1f65131568f6d7fb44723b3fa2d5f5cc86d262d46b5217ff57704aa512487bae";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-15T21:54:54.060Z";
+export const TOOL_CATALOG_VERSION = "3cacea7c6a22c98c66ee47d8e4ab84d289d82f88194755664f8dca5328701422";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -224,7 +224,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_review_queue",
 		"name": "get review queue",
-		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision. An explicit adoption or named co-owner answer uses manage_protected_intent; it is not a reversal ruling. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
+		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Filter intent disputes by involvement (awaiting_me, raised_by_me, involving_me, involving_others, can_resolve), state (held, escalated, challenged, disputed, settled), person, or record_type. Ownership and reversal actions use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
 		"intent": "review inbox out of date flags proposed changes waiting for a ruling or acceptance"
 	},
 	{
@@ -296,8 +296,8 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "manage_protected_intent",
 		"name": "manage protected intent",
-		"description": "Record a person’s explicit ownership choice: adopt active agent-initiated intent, name a proposed co-owner with evidence before a reversal question exists, or record a named co-owner’s yes/no inside that question. Read the record or Review question first. Never infer adoption or agreement, and never act without that person’s explicit instruction. Historical requester facts stay unchanged; adoption adds who stands behind the intent. A co-owner answer applies to this question only. This does not judge a reversal, settle it or release a hold; those authority boundaries belong to devspec://product/implementation-contract. A stale result changes nothing: read again before retrying.",
-		"intent": "adopt agent initiated decision intent ownership proposed coowner confirm stand behind decision"
+		"description": "Record a person’s explicit ownership or reversal action on protected intent: adopt active agent-initiated intent (adopt), name or answer a proposed co-owner (name_coowner, confirm_coowner), claim or move ownership on an action item (take_ownership, move_commit), or act on a reversal question (accept, decline, challenge, rule, compromise, release, not_a_reversal, restore, reopen, withdraw, joint_settlement). Read the record or Review question first; tool results show the actual record text with labels (Protected record / Reversing record) rather than generated summaries. The five dispute states are: held (a change reverses protected intent and is held pending the owner’s response), escalated (the owner declined or asked to reconsider and it awaits a maintainer), challenged (the reverser or a third party challenged the decision or ruling), disputed (active disagreement awaiting a ruling), and settled (resolved by acceptance, withdrawal, compromise, ruling, restoration or not-a-reversal). Never infer adoption or agreement: casual agreement (\"fair point\", \"makes sense\", \"I see\") is not an instruction to rule. You act for the person who sent the command DevSpec delivered to you, with their authority: every single-party ruling passes instruction_message_id, the id of that command, and any other message is refused, whoever wrote it. So when person A instructs person B’s agent, the recorded actor and authority are A’s, and the audit shows \"A, via their agent\". For joint_settlement, when the decision owner and the reverser each state agreement to the same outcome (accept, withdraw or compromise) in their own messages in the conversation you were instructed in, and you act for one of them, pass both message ids and exact quotes; a compromise is stored as shared intent of both. A stale result changes nothing: read again before retrying.",
+		"intent": "adopt agent initiated decision intent ownership proposed coowner confirm stand behind decision reversal ruling accept decline challenge compromise release withdraw restore reopen joint settlement"
 	},
 	{
 		"id": "preview_supersession",
@@ -322,6 +322,12 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"name": "record criterion verdicts",
 		"description": "Record what you observed for an item's acceptance criteria: per criterion, what you ran or queried, what came back, and the layer that produced it. A verdict that cites reading code (layer ai_review, or an evidence action that describes reading source) is rejected: use unknown for a check you did not make, and intent_met, not not_met, when the work took a better route than the wording. Which criteria you are expected to check is set by devspec://product/implementation-contract. For a line only a person can ever judge, use classify_criterion; a person's sign-off on the whole item is verify_action_item. One malformed verdict rejects the whole batch, with a reason for each. Settled criteria can complete the item, so report the returned criterion_promotion. Verdicts that landed on an earlier round of work come back under not_counted.",
 		"intent": "record observed acceptance criteria check results evidence met unknown"
+	},
+	{
+		"id": "record_duplicate_nonmatch",
+		"name": "record duplicate nonmatch",
+		"description": "Record your explicit judgement that two current records do not describe the same overall outcome, after reading both in full. This suppresses that duplicate comparison only while the relevant content remains unchanged; it does not edit or close either record, settle an intent reversal, or suppress descriptive staleness. Do not call it merely because an automated check found no duplicate. Use the full record ids and versions you read, explain the difference, and reuse the same ruling_id after an uncertain reply.",
+		"intent": "not a duplicate different outcomes explicit nonmatch ruling stop repeated comparison"
 	},
 	{
 		"id": "record_implementation",
@@ -358,6 +364,12 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"name": "reserve work items",
 		"description": "Reserve several action items, in the order you will work them, so no other agent can claim them without force; then claim each in turn with claim_work_item. For a single item, claim it directly. Check reserved and skipped, not outcome. Items that can't be reserved come back in skipped with a reason: briefs (which list the children to reserve instead), human-only, awaiting approval, a failed agent run (release_work_item returns it to the pool), implementation already recorded, claimed or reserved by another agent (named), or not found in this project. A call that reserves nothing is refused with code nothing_reserved, and skipped says why. A connection holds one batch at a time: settle its items with record_implementation, release_work_item or fail_work_item before reserving again. The batch closes itself when its last item is settled. Which work to take on is set by work_entry_contract in devspec://product/implementation-contract.",
 		"intent": "reserve several selected action items in order before working batch"
+	},
+	{
+		"id": "resolve_duplicate",
+		"name": "resolve duplicate",
+		"description": "Preview or record a duplicate resolution after reading both records in full and folding any unique detail into the record being kept. keep stays open; duplicate closes with a duplicate_of relationship (not supersedes). Call with action:\"preview\" first to verify the exact snapshots, planned closure and whether the resolution commits directly or waits for approval in Review. Then call with action:\"resolve\" and a fresh UUID resolution_id. When outcome is queued_for_review, neither record changes until a Maintainer accepts the proposal.",
+		"intent": "resolve duplicate of keep one close duplicate item memory document artifact preview"
 	},
 	{
 		"id": "resolve_memory_flag",
@@ -588,6 +600,8 @@ export const MODEL_VERB_NAMES = [
 	"record_criterion_verdicts",
 	"classify_criterion",
 	"add_commit_reference",
+	"record_duplicate_nonmatch",
+	"resolve_duplicate",
 	"manage_protected_intent",
 	"record_memory",
 	"supersede_memory",
@@ -1701,7 +1715,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_review_queue",
 		"label": "DevSpec: Get Review Queue",
-		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision. An explicit adoption or named co-owner answer uses manage_protected_intent; it is not a reversal ruling. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
+		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Filter intent disputes by involvement (awaiting_me, raised_by_me, involving_me, involving_others, can_resolve), state (held, escalated, challenged, disputed, settled), person, or record_type. Ownership and reversal actions use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
 		"searchIntent": "review inbox out of date flags proposed changes waiting for a ruling or acceptance",
 		"modelInputSchema": {
 			"type": "object",
@@ -1732,6 +1746,50 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						]
 					},
 					"description": "Only entries about these kinds of record. Omitted: all."
+				},
+				"record_type": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"memory",
+							"artifact",
+							"action_item"
+						]
+					},
+					"description": "Filter entries by record type (memory, artifact, action_item). Omitted: all."
+				},
+				"involvement": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"awaiting_me",
+							"raised_by_me",
+							"involving_me",
+							"involving_others",
+							"can_resolve"
+						]
+					},
+					"description": "Filter intent disputes by involvement: awaiting_me, raised_by_me, involving_me, involving_others, or can_resolve. Omitted: all."
+				},
+				"state": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"held",
+							"escalated",
+							"challenged",
+							"disputed",
+							"settled"
+						]
+					},
+					"description": "Filter intent disputes by state: held, escalated, challenged, disputed, or settled. Omitted: all open disputes."
+				},
+				"person": {
+					"type": "string",
+					"description": "Filter intent disputes to those involving this person (user UUID). Omitted: any person."
 				},
 				"search": {
 					"type": "string",
@@ -1796,6 +1854,50 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						]
 					},
 					"description": "Only entries about these kinds of record. Omitted: all."
+				},
+				"record_type": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"memory",
+							"artifact",
+							"action_item"
+						]
+					},
+					"description": "Filter entries by record type (memory, artifact, action_item). Omitted: all."
+				},
+				"involvement": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"awaiting_me",
+							"raised_by_me",
+							"involving_me",
+							"involving_others",
+							"can_resolve"
+						]
+					},
+					"description": "Filter intent disputes by involvement: awaiting_me, raised_by_me, involving_me, involving_others, or can_resolve. Omitted: all."
+				},
+				"state": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"held",
+							"escalated",
+							"challenged",
+							"disputed",
+							"settled"
+						]
+					},
+					"description": "Filter intent disputes by state: held, escalated, challenged, disputed, or settled. Omitted: all open disputes."
+				},
+				"person": {
+					"type": "string",
+					"description": "Filter intent disputes to those involving this person (user UUID). Omitted: any person."
 				},
 				"search": {
 					"type": "string",
@@ -4398,7 +4500,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "New title, at most 1,000 characters. A blank value is ignored."
+					"description": "New title: a concise, scannable imperative requirement phrase stating what to build, fix, or change; keep symptoms and rationale in intent or description (at most 1,000 characters). A blank value is ignored."
 				},
 				"description": {
 					"type": "string",
@@ -4528,6 +4630,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"is_brief": {
 					"type": "boolean",
 					"description": "true marks the item as a brief (an item that groups others); false unmarks it. Nothing refuses unmarking a brief that still has children, so do not. Omitted: unchanged."
+				},
+				"is_experiment": {
+					"type": "boolean",
+					"description": "true marks the item as an experiment (built on its own branch, never held at claim, done blocked until agreed); taking the Experiment badge off (false) requires agreement from whoever can release what it clashes with. Omitted: unchanged."
+				},
+				"experiment_branch": {
+					"type": "string",
+					"description": "Records the dedicated experiment branch (for example exp/my-experiment) when the item is an experiment. Omitted: unchanged."
 				},
 				"expected_version": {
 					"type": "number",
@@ -4667,7 +4777,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "New title, at most 1,000 characters. A blank value is ignored."
+					"description": "New title: a concise, scannable imperative requirement phrase stating what to build, fix, or change; keep symptoms and rationale in intent or description (at most 1,000 characters). A blank value is ignored."
 				},
 				"description": {
 					"type": "string",
@@ -4797,6 +4907,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"is_brief": {
 					"type": "boolean",
 					"description": "true marks the item as a brief (an item that groups others); false unmarks it. Nothing refuses unmarking a brief that still has children, so do not. Omitted: unchanged."
+				},
+				"is_experiment": {
+					"type": "boolean",
+					"description": "true marks the item as an experiment (built on its own branch, never held at claim, done blocked until agreed); taking the Experiment badge off (false) requires agreement from whoever can release what it clashes with. Omitted: unchanged."
+				},
+				"experiment_branch": {
+					"type": "string",
+					"description": "Records the dedicated experiment branch (for example exp/my-experiment) when the item is an experiment. Omitted: unchanged."
 				},
 				"expected_version": {
 					"type": "number",
@@ -4940,7 +5058,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"title": {
 					"type": "string",
-					"description": "A short, specific title; at most 1,000 characters."
+					"description": "A concise, scannable imperative requirement phrase stating what to build, fix, or change — write a headline that reads cleanly on a card or aloud, and keep symptoms and rationale in intent or description (at most 1,000 characters)."
 				},
 				"description": {
 					"type": "string",
@@ -5035,6 +5153,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"is_brief": {
 					"type": "boolean",
 					"description": "true creates a brief: an item that groups other items. Default false."
+				},
+				"is_experiment": {
+					"type": "boolean",
+					"description": "true creates the item as an experiment (built on its own branch, never held at claim, done blocked until agreed). Default false."
+				},
+				"experiment_branch": {
+					"type": "string",
+					"description": "Optional dedicated branch name for the experiment (defaults to exp/<short-id> when is_experiment is true)."
 				},
 				"assigned_to": {
 					"type": "string",
@@ -5101,7 +5227,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"title": {
 					"type": "string",
-					"description": "A short, specific title; at most 1,000 characters."
+					"description": "A concise, scannable imperative requirement phrase stating what to build, fix, or change — write a headline that reads cleanly on a card or aloud, and keep symptoms and rationale in intent or description (at most 1,000 characters)."
 				},
 				"description": {
 					"type": "string",
@@ -5196,6 +5322,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"is_brief": {
 					"type": "boolean",
 					"description": "true creates a brief: an item that groups other items. Default false."
+				},
+				"is_experiment": {
+					"type": "boolean",
+					"description": "true creates the item as an experiment (built on its own branch, never held at claim, done blocked until agreed). Default false."
+				},
+				"experiment_branch": {
+					"type": "string",
+					"description": "Optional dedicated branch name for the experiment (defaults to exp/<short-id> when is_experiment is true)."
 				},
 				"assigned_to": {
 					"type": "string",
@@ -7850,10 +7984,480 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"kind": "model"
 	},
 	{
+		"name": "record_duplicate_nonmatch",
+		"label": "DevSpec: Record Duplicate Nonmatch",
+		"description": "Record your explicit judgement that two current records do not describe the same overall outcome, after reading both in full. This suppresses that duplicate comparison only while the relevant content remains unchanged; it does not edit or close either record, settle an intent reversal, or suppress descriptive staleness. Do not call it merely because an automated check found no duplicate. Use the full record ids and versions you read, explain the difference, and reuse the same ruling_id after an uncertain reply.",
+		"searchIntent": "not a duplicate different outcomes explicit nonmatch ruling stop repeated comparison",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"left": {
+					"type": "object",
+					"properties": {
+						"type": {
+							"type": "string",
+							"enum": [
+								"action_item",
+								"memory",
+								"artifact"
+							]
+						},
+						"id": {
+							"type": "string",
+							"format": "uuid",
+							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+						},
+						"version": {
+							"type": "integer",
+							"exclusiveMinimum": 0
+						}
+					},
+					"required": [
+						"type",
+						"id",
+						"version"
+					],
+					"additionalProperties": false,
+					"description": "The first current record: type, full UUID and exact version from its full read."
+				},
+				"right": {
+					"type": "object",
+					"properties": {
+						"type": {
+							"type": "string",
+							"enum": [
+								"action_item",
+								"memory",
+								"artifact"
+							]
+						},
+						"id": {
+							"type": "string",
+							"format": "uuid",
+							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+						},
+						"version": {
+							"type": "integer",
+							"exclusiveMinimum": 0
+						}
+					},
+					"required": [
+						"type",
+						"id",
+						"version"
+					],
+					"additionalProperties": false,
+					"description": "The other current record: type, full UUID and exact version from its full read."
+				},
+				"ruling_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "One fresh UUID for this judgement. Reuse it with unchanged arguments after an uncertain reply."
+				},
+				"note": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Why the complete outcomes differ, not merely their wording or shared subparts."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"left",
+				"right",
+				"ruling_id",
+				"note"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"left": {
+					"type": "object",
+					"properties": {
+						"type": {
+							"type": "string",
+							"enum": [
+								"action_item",
+								"memory",
+								"artifact"
+							]
+						},
+						"id": {
+							"type": "string",
+							"format": "uuid",
+							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+						},
+						"version": {
+							"type": "integer",
+							"exclusiveMinimum": 0
+						}
+					},
+					"required": [
+						"type",
+						"id",
+						"version"
+					],
+					"additionalProperties": false,
+					"description": "The first current record: type, full UUID and exact version from its full read."
+				},
+				"right": {
+					"type": "object",
+					"properties": {
+						"type": {
+							"type": "string",
+							"enum": [
+								"action_item",
+								"memory",
+								"artifact"
+							]
+						},
+						"id": {
+							"type": "string",
+							"format": "uuid",
+							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+						},
+						"version": {
+							"type": "integer",
+							"exclusiveMinimum": 0
+						}
+					},
+					"required": [
+						"type",
+						"id",
+						"version"
+					],
+					"additionalProperties": false,
+					"description": "The other current record: type, full UUID and exact version from its full read."
+				},
+				"ruling_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "One fresh UUID for this judgement. Reuse it with unchanged arguments after an uncertain reply."
+				},
+				"note": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Why the complete outcomes differ, not merely their wording or shared subparts."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"request_ref": {
+					"type": "string",
+					"x-devspec-host-only": true,
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"left",
+				"right",
+				"ruling_id",
+				"note"
+			]
+		},
+		"kind": "model"
+	},
+	{
+		"name": "resolve_duplicate",
+		"label": "DevSpec: Resolve Duplicate",
+		"description": "Preview or record a duplicate resolution after reading both records in full and folding any unique detail into the record being kept. keep stays open; duplicate closes with a duplicate_of relationship (not supersedes). Call with action:\"preview\" first to verify the exact snapshots, planned closure and whether the resolution commits directly or waits for approval in Review. Then call with action:\"resolve\" and a fresh UUID resolution_id. When outcome is queued_for_review, neither record changes until a Maintainer accepts the proposal.",
+		"searchIntent": "resolve duplicate of keep one close duplicate item memory document artifact preview",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"action": {
+					"type": "string",
+					"enum": [
+						"preview",
+						"resolve"
+					],
+					"description": "preview prepares and returns the exact comparison and closure plan without closing either record; resolve executes or queues the resolution."
+				},
+				"keep": {
+					"type": "object",
+					"properties": {
+						"type": {
+							"type": "string",
+							"enum": [
+								"action_item",
+								"memory",
+								"artifact"
+							]
+						},
+						"id": {
+							"type": "string",
+							"format": "uuid",
+							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+						},
+						"version": {
+							"type": "integer",
+							"exclusiveMinimum": 0
+						}
+					},
+					"required": [
+						"type",
+						"id",
+						"version"
+					],
+					"additionalProperties": false,
+					"description": "The current record to keep: type, full UUID and exact version from its full read."
+				},
+				"duplicate": {
+					"type": "object",
+					"properties": {
+						"type": {
+							"type": "string",
+							"enum": [
+								"action_item",
+								"memory",
+								"artifact"
+							]
+						},
+						"id": {
+							"type": "string",
+							"format": "uuid",
+							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+						},
+						"version": {
+							"type": "integer",
+							"exclusiveMinimum": 0
+						}
+					},
+					"required": [
+						"type",
+						"id",
+						"version"
+					],
+					"additionalProperties": false,
+					"description": "The current duplicate record to close: type, full UUID and exact version from its full read."
+				},
+				"preview_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "One UUID for this previewed comparison; pass the same preview_id on resolve."
+				},
+				"resolution_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "Required for action:\"resolve\": one fresh UUID for this resolution. Reuse it with unchanged arguments after an uncertain reply."
+				},
+				"note": {
+					"type": "string",
+					"minLength": 1,
+					"description": "How any unique detail from the duplicate record was preserved in the kept record."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"action",
+				"keep",
+				"duplicate",
+				"preview_id",
+				"note"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"action": {
+					"type": "string",
+					"enum": [
+						"preview",
+						"resolve"
+					],
+					"description": "preview prepares and returns the exact comparison and closure plan without closing either record; resolve executes or queues the resolution."
+				},
+				"keep": {
+					"type": "object",
+					"properties": {
+						"type": {
+							"type": "string",
+							"enum": [
+								"action_item",
+								"memory",
+								"artifact"
+							]
+						},
+						"id": {
+							"type": "string",
+							"format": "uuid",
+							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+						},
+						"version": {
+							"type": "integer",
+							"exclusiveMinimum": 0
+						}
+					},
+					"required": [
+						"type",
+						"id",
+						"version"
+					],
+					"additionalProperties": false,
+					"description": "The current record to keep: type, full UUID and exact version from its full read."
+				},
+				"duplicate": {
+					"type": "object",
+					"properties": {
+						"type": {
+							"type": "string",
+							"enum": [
+								"action_item",
+								"memory",
+								"artifact"
+							]
+						},
+						"id": {
+							"type": "string",
+							"format": "uuid",
+							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+						},
+						"version": {
+							"type": "integer",
+							"exclusiveMinimum": 0
+						}
+					},
+					"required": [
+						"type",
+						"id",
+						"version"
+					],
+					"additionalProperties": false,
+					"description": "The current duplicate record to close: type, full UUID and exact version from its full read."
+				},
+				"preview_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "One UUID for this previewed comparison; pass the same preview_id on resolve."
+				},
+				"resolution_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "Required for action:\"resolve\": one fresh UUID for this resolution. Reuse it with unchanged arguments after an uncertain reply."
+				},
+				"note": {
+					"type": "string",
+					"minLength": 1,
+					"description": "How any unique detail from the duplicate record was preserved in the kept record."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"request_ref": {
+					"type": "string",
+					"x-devspec-host-only": true,
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"action",
+				"keep",
+				"duplicate",
+				"preview_id",
+				"note"
+			]
+		},
+		"kind": "model"
+	},
+	{
 		"name": "manage_protected_intent",
 		"label": "DevSpec: Manage Protected Intent",
-		"description": "Record a person’s explicit ownership choice: adopt active agent-initiated intent, name a proposed co-owner with evidence before a reversal question exists, or record a named co-owner’s yes/no inside that question. Read the record or Review question first. Never infer adoption or agreement, and never act without that person’s explicit instruction. Historical requester facts stay unchanged; adoption adds who stands behind the intent. A co-owner answer applies to this question only. This does not judge a reversal, settle it or release a hold; those authority boundaries belong to devspec://product/implementation-contract. A stale result changes nothing: read again before retrying.",
-		"searchIntent": "adopt agent initiated decision intent ownership proposed coowner confirm stand behind decision",
+		"description": "Record a person’s explicit ownership or reversal action on protected intent: adopt active agent-initiated intent (adopt), name or answer a proposed co-owner (name_coowner, confirm_coowner), claim or move ownership on an action item (take_ownership, move_commit), or act on a reversal question (accept, decline, challenge, rule, compromise, release, not_a_reversal, restore, reopen, withdraw, joint_settlement). Read the record or Review question first; tool results show the actual record text with labels (Protected record / Reversing record) rather than generated summaries. The five dispute states are: held (a change reverses protected intent and is held pending the owner’s response), escalated (the owner declined or asked to reconsider and it awaits a maintainer), challenged (the reverser or a third party challenged the decision or ruling), disputed (active disagreement awaiting a ruling), and settled (resolved by acceptance, withdrawal, compromise, ruling, restoration or not-a-reversal). Never infer adoption or agreement: casual agreement (\"fair point\", \"makes sense\", \"I see\") is not an instruction to rule. You act for the person who sent the command DevSpec delivered to you, with their authority: every single-party ruling passes instruction_message_id, the id of that command, and any other message is refused, whoever wrote it. So when person A instructs person B’s agent, the recorded actor and authority are A’s, and the audit shows \"A, via their agent\". For joint_settlement, when the decision owner and the reverser each state agreement to the same outcome (accept, withdraw or compromise) in their own messages in the conversation you were instructed in, and you act for one of them, pass both message ids and exact quotes; a compromise is stored as shared intent of both. A stale result changes nothing: read again before retrying.",
+		"searchIntent": "adopt agent initiated decision intent ownership proposed coowner confirm stand behind decision reversal ruling accept decline challenge compromise release withdraw restore reopen joint settlement",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -7862,9 +8466,27 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						"adopt",
 						"name_coowner",
-						"confirm_coowner"
+						"confirm_coowner",
+						"accept",
+						"decline",
+						"challenge",
+						"rule",
+						"compromise",
+						"release",
+						"not_a_reversal",
+						"restore",
+						"reopen",
+						"withdraw",
+						"joint_settlement",
+						"take_ownership",
+						"move_commit",
+						"build_as_experiment",
+						"request_experiment_agreement",
+						"agree_experiment",
+						"decline_experiment",
+						"record_experiment_merged_while_badged"
 					],
-					"description": "adopt: make active agent-initiated intent your decision; name_coowner: name a proposed co-owner before a question exists; confirm_coowner: answer for this question only."
+					"description": "adopt: make active agent-initiated intent your decision; name_coowner: name a proposed co-owner before a question exists; confirm_coowner: answer for this question only; accept: accept the reversal on this question (including on a declined thread); decline: decline the reversal with a required reason; challenge: challenge a decline with a required response to the decline reason; rule: independent Maintainer ruling on a challenge; compromise: settle the question as a compromise; release: release a reversal hold; not_a_reversal: rule that the change is not a reversal; restore: require or complete restoration of the reversed decision; reopen: reopen a settled or declined question thread; withdraw: reverser withdraws their reversal; joint_settlement: record a joint settlement quoting both people when both stated agreement to the same outcome in one session (a compromise is stored as shared intent of both); take_ownership: take ownership of an untagged commit item; move_commit: move an untagged commit onto an existing action item; build_as_experiment: turn an item (or a held claim) into an experiment on its own branch; request_experiment_agreement: ask for agreement on an experiment and notify the decision owner(s); agree_experiment: agree to an experiment and remove the Experiment badge; decline_experiment: decline an experiment with a required reason and leave its branch in place; record_experiment_merged_while_badged: record that commits from a still-badged experiment reached the tracking branch."
 				},
 				"record_type": {
 					"type": "string",
@@ -7873,18 +8495,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"memory",
 						"artifact"
 					],
-					"description": "Required for adopt and name_coowner: the record corpus. Not used for confirm_coowner."
+					"description": "Required for adopt and name_coowner: the record corpus. Defaults to action_item for take_ownership and experiment actions."
 				},
 				"id": {
 					"type": "string",
 					"format": "uuid",
 					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Required for adopt and name_coowner: the full record UUID. Not used for confirm_coowner."
+					"description": "Required for adopt, name_coowner, take_ownership, and experiment actions (when issue_id is omitted): the full record UUID."
 				},
 				"expected_version": {
 					"type": "integer",
 					"exclusiveMinimum": 0,
-					"description": "Required for adopt and name_coowner: the version you read. If it changed, nothing is written."
+					"description": "Required for adopt, name_coowner, and take_ownership (and optional version guard on move_commit or question actions): the version you read. If it changed, nothing is written."
 				},
 				"coowner_user_id": {
 					"type": "string",
@@ -7913,12 +8535,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"format": "uuid",
 					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Required for confirm_coowner: the question UUID returned by Review."
+					"description": "Required for confirm_coowner, accept, decline, challenge, rule, compromise, release, not_a_reversal, restore, reopen, withdraw, and joint_settlement (and optional for experiment actions): the question UUID returned by Review."
 				},
 				"expected_revision": {
 					"type": "integer",
 					"minimum": 0,
-					"description": "Required for confirm_coowner: the question revision you read. A changed question refuses this answer as stale."
+					"description": "Required for question actions: the question revision you read. A changed question refuses this action as stale."
 				},
 				"yes": {
 					"type": "boolean",
@@ -7928,7 +8550,184 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"format": "uuid",
 					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Required for confirm_coowner: one fresh UUID per intended answer; reuse it for retries of that answer."
+					"description": "Required for question actions: one fresh UUID per intended action; reuse it for retries of that action."
+				},
+				"reason": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Required for decline and decline_experiment (why the owner declines) and challenge (response to the decline reason); optional note for accept, rule, compromise, release, not_a_reversal, restore, reopen, withdraw, joint_settlement, or experiment actions."
+				},
+				"note": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Optional note or reason alias for question rulings, experiment actions, and move_commit."
+				},
+				"event_ids": {
+					"minItems": 1,
+					"type": "array",
+					"items": {
+						"type": "string",
+						"format": "uuid",
+						"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+					},
+					"description": "Optional for question actions: specific reversal_evidence event UUIDs to cover. Defaults to all reversal evidence on the question."
+				},
+				"ruling": {
+					"type": "string",
+					"enum": [
+						"ruled",
+						"not_a_reversal",
+						"restored",
+						"compromise",
+						"accepted",
+						"uphold_reversal",
+						"uphold_decline"
+					],
+					"description": "For action=\"rule\" or action=\"joint_settlement\": the ruling or agreed outcome (defaults to \"ruled\" for rule, and \"compromise\" for joint_settlement)."
+				},
+				"consequences": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"type": {
+								"type": "string",
+								"enum": [
+									"action_item",
+									"memory",
+									"artifact"
+								]
+							},
+							"id": {
+								"type": "string",
+								"format": "uuid",
+								"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+							}
+						},
+						"required": [
+							"type",
+							"id"
+						]
+					},
+					"description": "Optional consequence records (such as a restore follow-up action item when ruling=\"restored\" or action=\"restore\" after shipping)."
+				},
+				"instruction_message_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "The id of the message that instructed you: over a connection, the command DevSpec delivered to you (required there for a single-party ruling); in Dev, the message that started this turn. You act for the person who sent it. Any other message is refused, whoever wrote it. Casual agreement (\"fair point\", \"makes sense\") is not an instruction to rule."
+				},
+				"joint_settlement": {
+					"type": "object",
+					"properties": {
+						"session_id": {
+							"type": "string",
+							"format": "uuid",
+							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+							"description": "Optional: the conversation you were instructed in, where both people stated agreement. Any other conversation is refused."
+						},
+						"owner_message_id": {
+							"type": "string",
+							"format": "uuid",
+							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+							"description": "Authenticated session_messages UUID where the protected intent owner stated agreement to this outcome."
+						},
+						"owner_quote": {
+							"type": "string",
+							"minLength": 1,
+							"description": "Exact quote from the owner’s message stating agreement to the outcome."
+						},
+						"reverser_message_id": {
+							"type": "string",
+							"format": "uuid",
+							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+							"description": "Authenticated session_messages UUID where the reverser stated agreement to the same outcome."
+						},
+						"reverser_quote": {
+							"type": "string",
+							"minLength": 1,
+							"description": "Exact quote from the reverser’s message stating agreement to the same outcome."
+						}
+					},
+					"required": [
+						"owner_message_id",
+						"owner_quote",
+						"reverser_message_id",
+						"reverser_quote"
+					],
+					"description": "When two people each state agreement to the same outcome in their own messages in one session, quotes and message IDs for both. A compromise is stored as shared intent of both."
+				},
+				"owner_message_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "For joint_settlement: authenticated session_messages UUID from the protected intent owner."
+				},
+				"owner_quote": {
+					"type": "string",
+					"minLength": 1,
+					"description": "For joint_settlement: exact quote from the owner’s message."
+				},
+				"reverser_message_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "For joint_settlement: authenticated session_messages UUID from the reverser."
+				},
+				"reverser_quote": {
+					"type": "string",
+					"minLength": 1,
+					"description": "For joint_settlement: exact quote from the reverser’s message."
+				},
+				"session_id": {
+					"type": "string",
+					"description": "Optional: the room you were instructed in, as its UUID or 8-character short code. DevSpec takes the room from the command it delivered to you and refuses any other. Omitted: that room, or the room your connection is attached to when the action needs no instruction."
+				},
+				"intent": {
+					"type": "string",
+					"minLength": 1,
+					"description": "For take_ownership (or compromise): the confirmed intent text."
+				},
+				"auto_item_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "Required for move_commit: the auto-tracked untagged-commit action item UUID."
+				},
+				"target_item_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "Required for move_commit: the existing action item UUID to move the commit onto."
+				},
+				"resolution_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "Optional for move_commit: idempotency/resolution UUID."
+				},
+				"experiment_branch": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Optional branch name for build_as_experiment or record_experiment_merged_while_badged."
+				},
+				"target_branch": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Optional tracking branch name for record_experiment_merged_while_badged."
+				},
+				"commit_sha": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Commit SHA when recording an experiment merged while badged."
+				},
+				"commit_shas": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					},
+					"description": "Optional list of commit SHAs when recording an experiment merged while badged."
 				},
 				"connection_id": {
 					"type": "string",
@@ -7967,9 +8766,27 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						"adopt",
 						"name_coowner",
-						"confirm_coowner"
+						"confirm_coowner",
+						"accept",
+						"decline",
+						"challenge",
+						"rule",
+						"compromise",
+						"release",
+						"not_a_reversal",
+						"restore",
+						"reopen",
+						"withdraw",
+						"joint_settlement",
+						"take_ownership",
+						"move_commit",
+						"build_as_experiment",
+						"request_experiment_agreement",
+						"agree_experiment",
+						"decline_experiment",
+						"record_experiment_merged_while_badged"
 					],
-					"description": "adopt: make active agent-initiated intent your decision; name_coowner: name a proposed co-owner before a question exists; confirm_coowner: answer for this question only."
+					"description": "adopt: make active agent-initiated intent your decision; name_coowner: name a proposed co-owner before a question exists; confirm_coowner: answer for this question only; accept: accept the reversal on this question (including on a declined thread); decline: decline the reversal with a required reason; challenge: challenge a decline with a required response to the decline reason; rule: independent Maintainer ruling on a challenge; compromise: settle the question as a compromise; release: release a reversal hold; not_a_reversal: rule that the change is not a reversal; restore: require or complete restoration of the reversed decision; reopen: reopen a settled or declined question thread; withdraw: reverser withdraws their reversal; joint_settlement: record a joint settlement quoting both people when both stated agreement to the same outcome in one session (a compromise is stored as shared intent of both); take_ownership: take ownership of an untagged commit item; move_commit: move an untagged commit onto an existing action item; build_as_experiment: turn an item (or a held claim) into an experiment on its own branch; request_experiment_agreement: ask for agreement on an experiment and notify the decision owner(s); agree_experiment: agree to an experiment and remove the Experiment badge; decline_experiment: decline an experiment with a required reason and leave its branch in place; record_experiment_merged_while_badged: record that commits from a still-badged experiment reached the tracking branch."
 				},
 				"record_type": {
 					"type": "string",
@@ -7978,18 +8795,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"memory",
 						"artifact"
 					],
-					"description": "Required for adopt and name_coowner: the record corpus. Not used for confirm_coowner."
+					"description": "Required for adopt and name_coowner: the record corpus. Defaults to action_item for take_ownership and experiment actions."
 				},
 				"id": {
 					"type": "string",
 					"format": "uuid",
 					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Required for adopt and name_coowner: the full record UUID. Not used for confirm_coowner."
+					"description": "Required for adopt, name_coowner, take_ownership, and experiment actions (when issue_id is omitted): the full record UUID."
 				},
 				"expected_version": {
 					"type": "integer",
 					"exclusiveMinimum": 0,
-					"description": "Required for adopt and name_coowner: the version you read. If it changed, nothing is written."
+					"description": "Required for adopt, name_coowner, and take_ownership (and optional version guard on move_commit or question actions): the version you read. If it changed, nothing is written."
 				},
 				"coowner_user_id": {
 					"type": "string",
@@ -8018,12 +8835,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"format": "uuid",
 					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Required for confirm_coowner: the question UUID returned by Review."
+					"description": "Required for confirm_coowner, accept, decline, challenge, rule, compromise, release, not_a_reversal, restore, reopen, withdraw, and joint_settlement (and optional for experiment actions): the question UUID returned by Review."
 				},
 				"expected_revision": {
 					"type": "integer",
 					"minimum": 0,
-					"description": "Required for confirm_coowner: the question revision you read. A changed question refuses this answer as stale."
+					"description": "Required for question actions: the question revision you read. A changed question refuses this action as stale."
 				},
 				"yes": {
 					"type": "boolean",
@@ -8033,7 +8850,184 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"format": "uuid",
 					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Required for confirm_coowner: one fresh UUID per intended answer; reuse it for retries of that answer."
+					"description": "Required for question actions: one fresh UUID per intended action; reuse it for retries of that action."
+				},
+				"reason": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Required for decline and decline_experiment (why the owner declines) and challenge (response to the decline reason); optional note for accept, rule, compromise, release, not_a_reversal, restore, reopen, withdraw, joint_settlement, or experiment actions."
+				},
+				"note": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Optional note or reason alias for question rulings, experiment actions, and move_commit."
+				},
+				"event_ids": {
+					"minItems": 1,
+					"type": "array",
+					"items": {
+						"type": "string",
+						"format": "uuid",
+						"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+					},
+					"description": "Optional for question actions: specific reversal_evidence event UUIDs to cover. Defaults to all reversal evidence on the question."
+				},
+				"ruling": {
+					"type": "string",
+					"enum": [
+						"ruled",
+						"not_a_reversal",
+						"restored",
+						"compromise",
+						"accepted",
+						"uphold_reversal",
+						"uphold_decline"
+					],
+					"description": "For action=\"rule\" or action=\"joint_settlement\": the ruling or agreed outcome (defaults to \"ruled\" for rule, and \"compromise\" for joint_settlement)."
+				},
+				"consequences": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"type": {
+								"type": "string",
+								"enum": [
+									"action_item",
+									"memory",
+									"artifact"
+								]
+							},
+							"id": {
+								"type": "string",
+								"format": "uuid",
+								"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+							}
+						},
+						"required": [
+							"type",
+							"id"
+						]
+					},
+					"description": "Optional consequence records (such as a restore follow-up action item when ruling=\"restored\" or action=\"restore\" after shipping)."
+				},
+				"instruction_message_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "The id of the message that instructed you: over a connection, the command DevSpec delivered to you (required there for a single-party ruling); in Dev, the message that started this turn. You act for the person who sent it. Any other message is refused, whoever wrote it. Casual agreement (\"fair point\", \"makes sense\") is not an instruction to rule."
+				},
+				"joint_settlement": {
+					"type": "object",
+					"properties": {
+						"session_id": {
+							"type": "string",
+							"format": "uuid",
+							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+							"description": "Optional: the conversation you were instructed in, where both people stated agreement. Any other conversation is refused."
+						},
+						"owner_message_id": {
+							"type": "string",
+							"format": "uuid",
+							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+							"description": "Authenticated session_messages UUID where the protected intent owner stated agreement to this outcome."
+						},
+						"owner_quote": {
+							"type": "string",
+							"minLength": 1,
+							"description": "Exact quote from the owner’s message stating agreement to the outcome."
+						},
+						"reverser_message_id": {
+							"type": "string",
+							"format": "uuid",
+							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+							"description": "Authenticated session_messages UUID where the reverser stated agreement to the same outcome."
+						},
+						"reverser_quote": {
+							"type": "string",
+							"minLength": 1,
+							"description": "Exact quote from the reverser’s message stating agreement to the same outcome."
+						}
+					},
+					"required": [
+						"owner_message_id",
+						"owner_quote",
+						"reverser_message_id",
+						"reverser_quote"
+					],
+					"description": "When two people each state agreement to the same outcome in their own messages in one session, quotes and message IDs for both. A compromise is stored as shared intent of both."
+				},
+				"owner_message_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "For joint_settlement: authenticated session_messages UUID from the protected intent owner."
+				},
+				"owner_quote": {
+					"type": "string",
+					"minLength": 1,
+					"description": "For joint_settlement: exact quote from the owner’s message."
+				},
+				"reverser_message_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "For joint_settlement: authenticated session_messages UUID from the reverser."
+				},
+				"reverser_quote": {
+					"type": "string",
+					"minLength": 1,
+					"description": "For joint_settlement: exact quote from the reverser’s message."
+				},
+				"session_id": {
+					"type": "string",
+					"description": "Optional: the room you were instructed in, as its UUID or 8-character short code. DevSpec takes the room from the command it delivered to you and refuses any other. Omitted: that room, or the room your connection is attached to when the action needs no instruction."
+				},
+				"intent": {
+					"type": "string",
+					"minLength": 1,
+					"description": "For take_ownership (or compromise): the confirmed intent text."
+				},
+				"auto_item_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "Required for move_commit: the auto-tracked untagged-commit action item UUID."
+				},
+				"target_item_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "Required for move_commit: the existing action item UUID to move the commit onto."
+				},
+				"resolution_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "Optional for move_commit: idempotency/resolution UUID."
+				},
+				"experiment_branch": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Optional branch name for build_as_experiment or record_experiment_merged_while_badged."
+				},
+				"target_branch": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Optional tracking branch name for record_experiment_merged_while_badged."
+				},
+				"commit_sha": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Commit SHA when recording an experiment merged while badged."
+				},
+				"commit_shas": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					},
+					"description": "Optional list of commit SHAs when recording an experiment merged while badged."
 				},
 				"connection_id": {
 					"type": "string",
@@ -8095,7 +9089,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "A specific, searchable single-line name for the fact or decision, the way a person would refer to it (at most 200 characters). Not a generic heading such as Notes, and not the first line of the body."
+					"description": "A concise, searchable single-line noun phrase naming the subject or decision so it reads naturally on cards and aloud (at most 200 characters). Keep rationale and detail in summary or body; not a generic heading such as Notes, and not the first line of the body."
 				},
 				"summary": {
 					"type": "string",
@@ -8192,7 +9186,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "A specific, searchable single-line name for the fact or decision, the way a person would refer to it (at most 200 characters). Not a generic heading such as Notes, and not the first line of the body."
+					"description": "A concise, searchable single-line noun phrase naming the subject or decision so it reads naturally on cards and aloud (at most 200 characters). Keep rationale and detail in summary or body; not a generic heading such as Notes, and not the first line of the body."
 				},
 				"summary": {
 					"type": "string",
@@ -8306,7 +9300,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "The new version's single-line name (at most 200 characters). Required even when it is unchanged."
+					"description": "The new version's concise single-line noun phrase naming the subject or decision so it reads naturally on cards and aloud (at most 200 characters). Required even when it is unchanged."
 				},
 				"summary": {
 					"type": "string",
@@ -8396,7 +9390,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "The new version's single-line name (at most 200 characters). Required even when it is unchanged."
+					"description": "The new version's concise single-line noun phrase naming the subject or decision so it reads naturally on cards and aloud (at most 200 characters). Required even when it is unchanged."
 				},
 				"summary": {
 					"type": "string",
@@ -8519,7 +9513,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "A corrected single-line name (at most 200 characters). Saves a new version. Omitted: unchanged."
+					"description": "A corrected concise single-line noun phrase naming the subject or decision so it reads naturally on cards and aloud (at most 200 characters). Saves a new version. Omitted: unchanged."
 				},
 				"summary": {
 					"anyOf": [
@@ -8624,7 +9618,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "A corrected single-line name (at most 200 characters). Saves a new version. Omitted: unchanged."
+					"description": "A corrected concise single-line noun phrase naming the subject or decision so it reads naturally on cards and aloud (at most 200 characters). Saves a new version. Omitted: unchanged."
 				},
 				"summary": {
 					"anyOf": [
@@ -14927,8 +15921,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 94,
-	model: 81,
+	total: 96,
+	model: 83,
 	pump: 12,
 	never_model: 1,
 } as const;

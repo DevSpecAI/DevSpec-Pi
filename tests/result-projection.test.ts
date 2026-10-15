@@ -670,7 +670,23 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// waiting_on and delivery. Verbs 81 model / 12 pump / 1 never-model,
 		// unchanged; families and hot set unchanged.
 		// Benchmark before/after: 46,281 -> 47,618 estimated tokens; every budget passes.
-		"6240e3ed4499323cb72825f33f3c03f1dee69951310a19378e48cb3f9b3f2ac1",
+		// Rebaselined 2026-10-15 for DevSpec item 23b7418a (an agent acts only for
+		// the person the server authenticated, DevSpecV2 #419), regenerated against
+		// server staging aefe6c824. manage_protected_intent: instruction_message_id
+		// must be the command delivered to the agent; session_id takes a room short
+		// code (#420, 1b005595); joint settlements are for one of the two people who
+		// agreed. Also carries server changes Pi had not picked up since 2026-10-12:
+		// manage_protected_intent's ruling, joint-settlement, move_commit and
+		// experiment inputs (23b7418a, 711bfb32, 969f6e08); get_review_queue's
+		// record_type/involvement/state/person filters (23b7418a); is_experiment and
+		// experiment_branch on create/update_action_item (969f6e08); title guidance on
+		// the action-item and memory writers (86e26355); and two new verbs,
+		// resolve_duplicate ("full": its preview is a decision input) and
+		// record_duplicate_nonmatch ("ack": a ruling receipt) (fce58a2f). Verbs 81 ->
+		// 83 model, 12 pump and 1 never-model unchanged; no other family moved; hot
+		// set unchanged. Benchmark before/after: 47,618 -> 52,090 estimated tokens;
+		// every budget passes.
+		"8caa5855140fdf200f8be78e18017afdde27741ebabc73d8eb2ac4b3449ad1e4",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

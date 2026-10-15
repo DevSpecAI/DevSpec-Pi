@@ -106,6 +106,10 @@ const FULL_READ_VERBS = new Set([
 	// Exact ownership receipts: keep who adopted, revision, scope and refusals.
 	// Already small; no generic acknowledgement projection (988ad64c).
 	"manage_protected_intent",
+	// A duplicate resolution either previews the exact snapshots, the planned
+	// closure and who decides, or returns its receipt. Projection cannot see which
+	// action was called, so both stay whole, as for preview_supersession (fce58a2f).
+	"resolve_duplicate",
 ]);
 
 const ACK_VERBS = new Set([
@@ -141,6 +145,8 @@ const ACK_VERBS = new Set([
 	"archive_resource",
 	"resolve_resource_flag",
 	"resolve_memory_flag",
+	// An explicit not-a-duplicate ruling returns a receipt, like the flag rulings (fce58a2f).
+	"record_duplicate_nonmatch",
 	"surface_session_action_items",
 	"reserve_work_items",
 	"write_project_instruction_rule",

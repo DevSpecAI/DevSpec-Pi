@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.6 - 2026-10-15
+
+- When you ask an agent to accept, decline or otherwise settle a question about a protected decision, it acts as you, with your authority, on the request you gave it. A message someone else wrote can no longer be used to act in their name, and a settlement two people agreed is recorded for one of them, from the conversation where they agreed.
+- Pi can now preview and resolve duplicate records, and record that two records are not duplicates.
+- Review can be filtered by what waits on you, what you raised, what involves you or others, what you can resolve, its state, a person and a record type.
+- Action items can be created as experiments on their own branch.
+- The catalogue is regenerated against DevSpec's current tools. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.6.4 - 2026-10-13
 
 - DevSpec sign-in now reads your name from the verification response's identity fields instead of mistaking a JSON fragment for your name. If no name is available, sign-in and status still clearly confirm the connection without one.

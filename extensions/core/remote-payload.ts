@@ -45,6 +45,7 @@ const SENDER_STYLE_POLICY_VERSION = "2026-09-18.1";
 const DELEGATED_PROJECT_POLICY_ID = "delegated_project_v1";
 const SYSTEM_NOTICE_VERSION = 1;
 const SYSTEM_NOTICE_KIND = "unlinked_commit_item_review";
+const SERVER_NOTICE_KIND = "server_notice";
 const SYSTEM_NOTICE_CONTRACT_URI = "devspec://product/remote-ingress-contract";
 const SYSTEM_NOTICE_ALLOWED_OUTCOMES = [
 	"correct_item",
@@ -65,6 +66,11 @@ const MAX_SENDER_STYLE_NOTES = 8;
 const MAX_CONTEXT_ENTRIES_PER_BUCKET = 500;
 const MAX_SYSTEM_NOTICES_PER_ENVELOPE = 25;
 const MAX_SYSTEM_NOTICE_TEXT_CHARS = 500;
+const MAX_SERVER_NOTICE_PROMPT_CHARS = 8_000;
+const MAX_SERVER_NOTICE_KEY_CHARS = 120;
+const MAX_SERVER_NOTICE_ID_CHARS = 200;
+const MAX_SERVER_NOTICE_RECORDS = 10;
+const MAX_SERVER_NOTICE_LIST_ITEMS = 16;
 const MAX_SYSTEM_NOTICE_CURSOR_CHARS = 2_048;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const FULL_LOWERCASE_SHA_RE = /^[0-9a-f]{40}$/;
@@ -199,7 +205,7 @@ export interface RemoteConnectionIdentity {
 	label: string;
 }
 
-export interface SystemNoticeV1 {
+export interface UnlinkedCommitItemReviewNoticeV1 {
 	version: 1;
 	kind: typeof SYSTEM_NOTICE_KIND;
 	notice_id: string;
@@ -211,6 +217,31 @@ export interface SystemNoticeV1 {
 	allowed_outcomes: [...typeof SYSTEM_NOTICE_ALLOWED_OUTCOMES];
 	allowed_tools: [...typeof SYSTEM_NOTICE_ALLOWED_TOOLS];
 }
+
+export interface ServerNoticeRecordV1 {
+	label: string;
+	record_type: string;
+	record_id: string;
+	title: string | null;
+	text: string;
+	url: string | null;
+}
+
+export interface ServerNoticeV1 {
+	version: 1;
+	kind: typeof SERVER_NOTICE_KIND;
+	notice_id: string;
+	topic: string;
+	notice_type: string;
+	summary: string;
+	prompt: string;
+	contract_uri: typeof SYSTEM_NOTICE_CONTRACT_URI;
+	records: ServerNoticeRecordV1[];
+	allowed_outcomes: string[];
+	allowed_tools: string[];
+}
+
+export type SystemNoticeV1 = UnlinkedCommitItemReviewNoticeV1 | ServerNoticeV1;
 
 export type RoomRecord = Pick<IngressContextEntry, "message_id" | "order" | "actor" | "source_type" | "content">;
 export interface RoomPage {
@@ -367,8 +398,74 @@ function exactTuple<T extends string>(value: unknown, expected: readonly T[], pa
 	return value.map((entry, index) => oneOf(entry, [expected[index]!] as const, `${path}[${index}]`));
 }
 
+function serverNoticeRecord(value: unknown, path: string): ServerNoticeRecordV1 {
+	const row = record(value, path);
+	exactKeys(row, ["label", "record_type", "record_id", "title", "text", "url"], path);
+	const label = string(row.label, `${path}.label`);
+	const recordType = string(row.record_type, `${path}.record_type`);
+	const recordId = string(row.record_id, `${path}.record_id`);
+	const title = nullableString(row.title, `${path}.title`);
+	const text = string(row.text, `${path}.text`);
+	const url = nullableString(row.url, `${path}.url`);
+	if (label.length > MAX_SERVER_NOTICE_ID_CHARS) fail(`${path}.label`, "label exceeds safe bound");
+	if (recordType.length > MAX_SERVER_NOTICE_KEY_CHARS) fail(`${path}.record_type`, "record_type exceeds safe bound");
+	if (recordId.length > MAX_SERVER_NOTICE_ID_CHARS) fail(`${path}.record_id`, "record_id exceeds safe bound");
+	if (title !== null && title.length > MAX_SYSTEM_NOTICE_TEXT_CHARS) fail(`${path}.title`, "title exceeds safe bound");
+	if (text.length > MAX_SERVER_NOTICE_PROMPT_CHARS) fail(`${path}.text`, "text exceeds safe bound");
+	if (url !== null && url.length > MAX_SYSTEM_NOTICE_TEXT_CHARS) fail(`${path}.url`, "url exceeds safe bound");
+	return {
+		label,
+		record_type: recordType,
+		record_id: recordId,
+		title,
+		text,
+		url,
+	};
+}
+
+function boundedStringArray(value: unknown, maxItems: number, maxChars: number, path: string): string[] {
+	if (!Array.isArray(value) || value.length > maxItems) fail(path, `expected array of at most ${maxItems} strings`);
+	return value.map((entry, index) => {
+		const item = string(entry, `${path}[${index}]`);
+		if (item.length > maxChars) fail(`${path}[${index}]`, "item exceeds safe bound");
+		return item;
+	});
+}
+
 function systemNotice(value: unknown, path: string): SystemNoticeV1 {
 	const row = record(value, path);
+	if (row.kind === SERVER_NOTICE_KIND) {
+		exactKeys(row, [
+			"version", "kind", "notice_id", "topic", "notice_type",
+			"summary", "prompt", "contract_uri", "records", "allowed_outcomes", "allowed_tools",
+		], path);
+		if (row.version !== SYSTEM_NOTICE_VERSION) fail(`${path}.version`, "unknown system notice version");
+		const topic = string(row.topic, `${path}.topic`);
+		const noticeType = string(row.notice_type, `${path}.notice_type`);
+		const summary = string(row.summary, `${path}.summary`);
+		const prompt = string(row.prompt, `${path}.prompt`);
+		if (topic.length > MAX_SERVER_NOTICE_KEY_CHARS) fail(`${path}.topic`, "topic exceeds safe bound");
+		if (noticeType.length > MAX_SERVER_NOTICE_KEY_CHARS) fail(`${path}.notice_type`, "notice_type exceeds safe bound");
+		if (summary.length > MAX_SYSTEM_NOTICE_TEXT_CHARS) fail(`${path}.summary`, "summary exceeds safe bound");
+		if (prompt.length > MAX_SERVER_NOTICE_PROMPT_CHARS) fail(`${path}.prompt`, "prompt exceeds safe bound");
+		if (row.contract_uri !== SYSTEM_NOTICE_CONTRACT_URI) fail(`${path}.contract_uri`, "unknown system notice contract URI");
+		if (!Array.isArray(row.records) || row.records.length < 1 || row.records.length > MAX_SERVER_NOTICE_RECORDS) {
+			fail(`${path}.records`, "expected 1..10 records");
+		}
+		return {
+			version: SYSTEM_NOTICE_VERSION,
+			kind: SERVER_NOTICE_KIND,
+			notice_id: uuid(row.notice_id, `${path}.notice_id`),
+			topic,
+			notice_type: noticeType,
+			summary,
+			prompt,
+			contract_uri: SYSTEM_NOTICE_CONTRACT_URI,
+			records: row.records.map((entry, index) => serverNoticeRecord(entry, `${path}.records[${index}]`)),
+			allowed_outcomes: boundedStringArray(row.allowed_outcomes, MAX_SERVER_NOTICE_LIST_ITEMS, MAX_SERVER_NOTICE_KEY_CHARS, `${path}.allowed_outcomes`),
+			allowed_tools: boundedStringArray(row.allowed_tools, MAX_SERVER_NOTICE_LIST_ITEMS, MAX_SERVER_NOTICE_KEY_CHARS, `${path}.allowed_tools`),
+		};
+	}
 	exactKeys(row, [
 		"version", "kind", "notice_id", "commit_sha", "action_item_id",
 		"action_item_title", "branch", "contract_uri", "allowed_outcomes", "allowed_tools",

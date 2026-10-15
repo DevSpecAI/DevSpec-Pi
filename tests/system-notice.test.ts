@@ -299,3 +299,54 @@ test("fixed model-visible harness copy frames dynamic fields as data and points 
 	assert.match(message, /devspec:\/\/product\/implementation-contract/);
 	assert.doesNotMatch(message, /owner_message|local_agent_dispatch|provenance_ref/);
 });
+
+test("general server_notice envelope parses, validates labelled records, and formats cleanly even when no session is open", () => {
+	const findingNotice = {
+		version: 1 as const,
+		kind: "server_notice" as const,
+		notice_id: IDS.notice,
+		topic: "coherence_finding",
+		notice_type: "reversal",
+		summary: "Recorded memory reverses protected decision",
+		prompt: "Review the protected record and the reversing record below. Tell your person in plain words unless they already know.",
+		contract_uri: "devspec://product/remote-ingress-contract" as const,
+		records: [
+			{
+				label: "Protected record (existing decision)",
+				record_type: "memory",
+				record_id: IDS.project,
+				title: "Keep token validation server-side",
+				text: "Token validation must remain strictly on the server.",
+				url: "/projects/24c4abaa-2cb9-496a-8492-cf1f1aa1090b/memory",
+			},
+			{
+				label: "Reversing record (conflicting change)",
+				record_type: "memory",
+				record_id: "33333333-3333-4333-8333-333333333333",
+				title: "Validate tokens in browser storage",
+				text: "Move token validation into the browser client.",
+				url: "/projects/24c4abaa-2cb9-496a-8492-cf1f1aa1090b/memory",
+			},
+		],
+		allowed_outcomes: ["retract_memory", "supersede_memory", "request_amendment"],
+		allowed_tools: ["get_memory", "retract_memory", "supersede_memory", "update_memory"],
+	};
+	const payload = canonicalPoll({ wakeKind: "system_notice", systemNotices: [findingNotice as never] });
+	(payload as Record<string, unknown>).session_id = null;
+	const parsed = parsePollPayload(payload, TEST_CONNECTION);
+	assert.equal(parsed.canonicalState, "valid");
+	assert.deepEqual(parsed.systemNotices, [findingNotice]);
+
+	const rendered = formatSystemNoticeMessage(parsed.systemNotices);
+	assert.ok(rendered.includes(JSON.stringify("server_notice")));
+	assert.ok(rendered.includes(JSON.stringify("coherence_finding")));
+	assert.ok(rendered.includes(JSON.stringify("Protected record (existing decision)")));
+	assert.ok(rendered.includes("Tell your person in plain words unless they already know."));
+
+	const badRecord = canonicalPoll({
+		wakeKind: "system_notice",
+		systemNotices: [{ ...findingNotice, records: [] } as never],
+	});
+	assert.equal(parsePollPayload(badRecord, TEST_CONNECTION).canonicalState, "invalid");
+});
+

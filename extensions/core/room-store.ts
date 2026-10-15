@@ -300,7 +300,7 @@ export class RoomStore {
 			}
 			if (pkg.sessionEvents !== undefined) this.mergeEvents(pkg.sessionEvents, now);
 			// This is a delivery observation, NOT the current pending-notice inventory.
-			if (kind === "live" && pkg.systemNotices.length) this.snapshot("notice_delivery", pkg.systemNotices.map(n => ({ notice_id: n.notice_id, action_item_id: n.action_item_id, kind: n.kind })), true, now);
+			if (kind === "live" && pkg.systemNotices.length) this.snapshot("notice_delivery", pkg.systemNotices.map(n => ({ notice_id: n.notice_id, action_item_id: n.kind === "unlinked_commit_item_review" ? n.action_item_id : null, kind: n.kind })), true, now);
 			this.assertCurrent(); this.crash?.("before_commit");
 			this.db.exec("COMMIT"); committed = true;
 			this.online = true; this.failure = false;

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.9 - 2026-10-16
+
+- Creating an action item now needs its intent: why the work matters, the problem it solves and the outcome wanted. DevSpec uses it to check later work against, so a create without one is refused and nothing is created.
+- The catalogue is regenerated against DevSpec's current tools. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.6.8 - 2026-10-16
 
 - Work that would undo someone else's decision now waits for an OK instead of being held. You can still claim it and build it on its own branch; it doesn't merge or finish until someone who can give the OK answers: go ahead, no (with a reason), or "this doesn't undo my decision". If it reached the tracking branch anyway, they choose to keep it or undo it.

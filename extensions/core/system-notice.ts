@@ -154,6 +154,7 @@ export function commitSystemNoticeDelivery(key: string, noticeIds: readonly stri
 const SERVER_NOTICE_TOPICS: Readonly<Record<string, string>> = {
 	coherence_finding: "DevSpec confirmed a finding about work this agent did. The records it concerns are below, whole and labelled.",
 	pending_edit_outcome: "The outcome of a change this agent made to a DevSpec record.",
+	confirmation_outcome: "How a request to confirm, which this agent saved for someone, was decided.",
 };
 
 /** Fixed harness copy: dynamic server fields are JSON data, never inferred instructions. */

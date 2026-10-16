@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 83a081fd93c72397a35b2499a90252eb4b907c5f3aa7ac04dba76acbf7b9a40b
- * Description fingerprint: c2cc0e9f1b95ca55886ffd9fd9367a7e3c5f0a0a583f05fa4843120526829fbd
- * Regenerated: 2026-10-16T19:39:04.505Z
+ * Schema fingerprint: 0c5d37ee1646f739acf69bc853ce1a810b5f9e04d829c3e943069dd22d535e98
+ * Description fingerprint: 578bd24cbf55fd4b73bd05ec90ff5d0332535b13891d4be90273e1c418ce0cc5
+ * Regenerated: 2026-10-16T20:36:08.522Z
  */
-export const MCP_CATALOG_FINGERPRINT = "83a081fd93c72397a35b2499a90252eb4b907c5f3aa7ac04dba76acbf7b9a40b";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "c2cc0e9f1b95ca55886ffd9fd9367a7e3c5f0a0a583f05fa4843120526829fbd";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-16T19:39:04.505Z";
-export const TOOL_CATALOG_VERSION = "670b60db97ad1cc1bfb9f1a2138011b9f4c602a1f0c06562f0c57a68cc17bf93";
+export const MCP_CATALOG_FINGERPRINT = "0c5d37ee1646f739acf69bc853ce1a810b5f9e04d829c3e943069dd22d535e98";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "578bd24cbf55fd4b73bd05ec90ff5d0332535b13891d4be90273e1c418ce0cc5";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-16T20:36:08.522Z";
+export const TOOL_CATALOG_VERSION = "71a52f5892a9a969640d4a163fb03753652952eb86106f8b73592496cfc90334";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -224,7 +224,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_review_queue",
 		"name": "get review queue",
-		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Work that would undo someone's decision waits for an OK; each question shows, per reversing record, where it stands and who it waits on, as DevSpec decides it. Filter questions by involvement (awaiting_me: waiting for your OK, which leaves out an experiment until it asks to land; raised_by_me; involving_me; involving_others; can_resolve: you can answer it now), state (waiting, declined, landed: reached the tracking branch without its OK, putting_back, settled), person, or record_type. Answers and experiments use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
+		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Work that would undo someone's decision waits for an OK; each question shows, per reversing record, where it stands and who it waits on, as DevSpec decides it. Filter questions by involvement (awaiting_me: waiting for your OK, which leaves out an experiment until it asks to land; raised_by_me; involving_me; involving_others; can_resolve: you can answer it now), state (waiting, declined, landed: reached the tracking branch without its OK, putting_back, settled), person, or record_type. Answers and experiments use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. A request to confirm (confirmation) waits on one named person: they, or the project lead, confirm or decline it in Review, or through manage_protected_intent confirm_request / decline_request on their own instruction. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
 		"intent": "review inbox out of date flags proposed changes waiting for a ruling or acceptance"
 	},
 	{
@@ -266,7 +266,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "manage_directed_question",
 		"name": "manage directed question",
-		"description": "Ask the person whose command you are working on (the connection's owner when no command is open) something only they can decide, then stop: a successful create ends your turn so the room stops showing Working, and their answer, or their dismissal of the question, reaches you later as a new event. Pass keep_turn only when you have independent work to finish first. For a choice the whole room should vote on, use manage_poll. It needs your connection's identity: if a direct call is refused for that, make the call through your host's DevSpec helper, which your DevSpec skills name.",
+		"description": "Ask the person whose command you are working on (the connection's owner when no command is open) something only they can decide, then stop: a successful create ends your turn so the room stops showing Working, and their answer, or their dismissal of the question, reaches you later as a new event. Pass keep_turn only when you have independent work to finish first. When you have several independent choices for the same person, ask them together rather than one per turn: create each with keep_turn true except the last, so they can answer in one sitting and in any order; each answer reaches you as its own event. Ask a question that depends on an earlier answer only once that answer has arrived. For a choice the whole room should vote on, use manage_poll. It needs your connection's identity: if a direct call is refused for that, make the call through your host's DevSpec helper, which your DevSpec skills name.",
 		"intent": "ask person driving session question clarification decision needed to continue"
 	},
 	{
@@ -296,8 +296,8 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "manage_protected_intent",
 		"name": "manage protected intent",
-		"description": "Answer for a person on work that would undo a decision, or act on ownership and experiments. Work that would undo someone else's protected decision waits for an OK: it can be claimed and built on its own branch, but it doesn't merge into the tracking branch or reach done until it has the OK. The answers, on a question (issue_id from Review, the record, or a waiting item's waiting_for_ok): go_ahead; decline, with a required reason (the work stays on its branch to change, drop, or take to whoever else can decide); not_a_reversal (\"this doesn't undo my decision\", which counts as go ahead); and, when waiting work reached the tracking branch anyway, keep (the same as an OK) or undo (creates a follow-up to put the decision back). Settled is settled: only a Maintainer can reopen. Who can give the OK is decided by DevSpec, not by you (devspec://product/implementation-contract, reversal_rule); a refusal names who can. Experiments: make_experiment tries an item on its own branch first (your own item, or any item if you are a Maintainer; otherwise start your own experiment); ask_to_land is when whoever can give the OK is asked; go_ahead or decline with the experiment's id (no issue_id) answers whether it may land. Also adopt (make active agent-initiated intent your decision), take_ownership and move_commit for untagged commits. Every answer is an act that belongs to one person: you give it only on that person's own instruction, and DevSpec takes who is asking from the command it delivered to you, never from a message you cite. Judge what they want from the conversation; when it is unclear, ask them (manage_directed_question) rather than answering. Read the record or the Review question first; results show the actual record texts, labelled Protected record and Reversing record. A stale result changes nothing: read again before retrying.",
-		"intent": "ok go ahead decline not a reversal waiting for ok undo keep landed anyway reopen experiment ask to land adopt agent initiated decision take ownership move commit protected intent"
+		"description": "Answer for a person on work that would undo a decision, or act on ownership and experiments. Work that would undo someone else's protected decision waits for an OK: it can be claimed and built on its own branch, but it doesn't merge into the tracking branch or reach done until it has the OK. The answers, on a question (issue_id from Review, the record, or a waiting item's waiting_for_ok): go_ahead; decline, with a required reason (the work stays on its branch to change, drop, or take to whoever else can decide); not_a_reversal (\"this doesn't undo my decision\", which counts as go ahead); and, when waiting work reached the tracking branch anyway, keep (the same as an OK) or undo (creates a follow-up to put the decision back). Settled is settled: only a Maintainer can reopen. Who can give the OK is decided by DevSpec, not by you (devspec://product/implementation-contract, reversal_rule); a refusal names who can. Experiments: make_experiment tries an item on its own branch first (your own item, or any item if you are a Maintainer; otherwise start your own experiment); ask_to_land is when whoever can give the OK is asked; go_ahead or decline with the experiment's id (no issue_id) answers whether it may land. Also adopt (make active agent-initiated intent your decision), take_ownership and move_commit for untagged commits. Every answer is an act that belongs to one person: you give it only for the person asking you, on their own instruction, and DevSpec takes who that is from the command it delivered to you, or the prompt your owner typed at your terminal, never from a message you cite. Judge from the conversation what they want and what has been agreed; when it is unclear, ask: manage_directed_question for one person, manage_poll when several must agree. Never record someone else's agreement for them: when you judge that someone other than the person asking you agrees, use request_confirmation (issue_id, or an experiment's id, and answer; confirmer_user_id defaults to the person the question waits on by name). It records nothing, and waits for them in Review and their notifications until they confirm or decline it, with no agent needed; you are told how it was decided while you are connected. A request waiting on the person asking you is decided with confirm_request or decline_request (request_id; a no needs a reason). When DevSpec can't tell who asked you, an answer or ownership choice is saved as a request for your owner to confirm (outcome awaiting_confirmation), never done for them. Read the record or the Review question first; results show the actual record texts, labelled Protected record and Reversing record. A stale result changes nothing: read again before retrying.",
+		"intent": "ok go ahead decline not a reversal waiting for ok undo keep landed anyway reopen experiment ask to land adopt agent initiated decision take ownership move commit protected intent request to confirm agreement confirm decline waiting on you"
 	},
 	{
 		"id": "preview_supersession",
@@ -1715,7 +1715,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_review_queue",
 		"label": "DevSpec: Get Review Queue",
-		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Work that would undo someone's decision waits for an OK; each question shows, per reversing record, where it stands and who it waits on, as DevSpec decides it. Filter questions by involvement (awaiting_me: waiting for your OK, which leaves out an experiment until it asks to land; raised_by_me; involving_me; involving_others; can_resolve: you can answer it now), state (waiting, declined, landed: reached the tracking branch without its OK, putting_back, settled), person, or record_type. Answers and experiments use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
+		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Work that would undo someone's decision waits for an OK; each question shows, per reversing record, where it stands and who it waits on, as DevSpec decides it. Filter questions by involvement (awaiting_me: waiting for your OK, which leaves out an experiment until it asks to land; raised_by_me; involving_me; involving_others; can_resolve: you can answer it now), state (waiting, declined, landed: reached the tracking branch without its OK, putting_back, settled), person, or record_type. Answers and experiments use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. A request to confirm (confirmation) waits on one named person: they, or the project lead, confirm or decline it in Review, or through manage_protected_intent confirm_request / decline_request on their own instruction. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
 		"searchIntent": "review inbox out of date flags proposed changes waiting for a ruling or acceptance",
 		"modelInputSchema": {
 			"type": "object",
@@ -8458,8 +8458,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "manage_protected_intent",
 		"label": "DevSpec: Manage Protected Intent",
-		"description": "Answer for a person on work that would undo a decision, or act on ownership and experiments. Work that would undo someone else's protected decision waits for an OK: it can be claimed and built on its own branch, but it doesn't merge into the tracking branch or reach done until it has the OK. The answers, on a question (issue_id from Review, the record, or a waiting item's waiting_for_ok): go_ahead; decline, with a required reason (the work stays on its branch to change, drop, or take to whoever else can decide); not_a_reversal (\"this doesn't undo my decision\", which counts as go ahead); and, when waiting work reached the tracking branch anyway, keep (the same as an OK) or undo (creates a follow-up to put the decision back). Settled is settled: only a Maintainer can reopen. Who can give the OK is decided by DevSpec, not by you (devspec://product/implementation-contract, reversal_rule); a refusal names who can. Experiments: make_experiment tries an item on its own branch first (your own item, or any item if you are a Maintainer; otherwise start your own experiment); ask_to_land is when whoever can give the OK is asked; go_ahead or decline with the experiment's id (no issue_id) answers whether it may land. Also adopt (make active agent-initiated intent your decision), take_ownership and move_commit for untagged commits. Every answer is an act that belongs to one person: you give it only on that person's own instruction, and DevSpec takes who is asking from the command it delivered to you, never from a message you cite. Judge what they want from the conversation; when it is unclear, ask them (manage_directed_question) rather than answering. Read the record or the Review question first; results show the actual record texts, labelled Protected record and Reversing record. A stale result changes nothing: read again before retrying.",
-		"searchIntent": "ok go ahead decline not a reversal waiting for ok undo keep landed anyway reopen experiment ask to land adopt agent initiated decision take ownership move commit protected intent",
+		"description": "Answer for a person on work that would undo a decision, or act on ownership and experiments. Work that would undo someone else's protected decision waits for an OK: it can be claimed and built on its own branch, but it doesn't merge into the tracking branch or reach done until it has the OK. The answers, on a question (issue_id from Review, the record, or a waiting item's waiting_for_ok): go_ahead; decline, with a required reason (the work stays on its branch to change, drop, or take to whoever else can decide); not_a_reversal (\"this doesn't undo my decision\", which counts as go ahead); and, when waiting work reached the tracking branch anyway, keep (the same as an OK) or undo (creates a follow-up to put the decision back). Settled is settled: only a Maintainer can reopen. Who can give the OK is decided by DevSpec, not by you (devspec://product/implementation-contract, reversal_rule); a refusal names who can. Experiments: make_experiment tries an item on its own branch first (your own item, or any item if you are a Maintainer; otherwise start your own experiment); ask_to_land is when whoever can give the OK is asked; go_ahead or decline with the experiment's id (no issue_id) answers whether it may land. Also adopt (make active agent-initiated intent your decision), take_ownership and move_commit for untagged commits. Every answer is an act that belongs to one person: you give it only for the person asking you, on their own instruction, and DevSpec takes who that is from the command it delivered to you, or the prompt your owner typed at your terminal, never from a message you cite. Judge from the conversation what they want and what has been agreed; when it is unclear, ask: manage_directed_question for one person, manage_poll when several must agree. Never record someone else's agreement for them: when you judge that someone other than the person asking you agrees, use request_confirmation (issue_id, or an experiment's id, and answer; confirmer_user_id defaults to the person the question waits on by name). It records nothing, and waits for them in Review and their notifications until they confirm or decline it, with no agent needed; you are told how it was decided while you are connected. A request waiting on the person asking you is decided with confirm_request or decline_request (request_id; a no needs a reason). When DevSpec can't tell who asked you, an answer or ownership choice is saved as a request for your owner to confirm (outcome awaiting_confirmation), never done for them. Read the record or the Review question first; results show the actual record texts, labelled Protected record and Reversing record. A stale result changes nothing: read again before retrying.",
+		"searchIntent": "ok go ahead decline not a reversal waiting for ok undo keep landed anyway reopen experiment ask to land adopt agent initiated decision take ownership move commit protected intent request to confirm agreement confirm decline waiting on you",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -8476,9 +8476,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"take_ownership",
 						"move_commit",
 						"make_experiment",
-						"ask_to_land"
+						"ask_to_land",
+						"request_confirmation",
+						"confirm_request",
+						"decline_request"
 					],
-					"description": "adopt: make active agent-initiated intent your decision. go_ahead: give the OK, on a question (issue_id) for work that would undo a decision, or on an experiment (id) to let it land. decline: say no, with a required reason; the work stays on its own branch. not_a_reversal: \"this doesn't undo my decision\"; counts as go ahead. keep / undo: after waiting work reached the tracking branch without its OK, keep it (the same as an OK) or undo it, which creates a follow-up to put the decision back. reopen: a Maintainer reopens a settled question. take_ownership: take ownership of an untagged commit item. move_commit: move an untagged commit onto an existing item. make_experiment: try an item on its own branch first (your own item, or any item if you are a Maintainer). ask_to_land: ask for an experiment to land, which is when whoever can give the OK is asked."
+					"description": "adopt: make active agent-initiated intent your decision. go_ahead: give the OK, on a question (issue_id) for work that would undo a decision, or on an experiment (id) to let it land. decline: say no, with a required reason; the work stays on its own branch. not_a_reversal: \"this doesn't undo my decision\"; counts as go ahead. keep / undo: after waiting work reached the tracking branch without its OK, keep it (the same as an OK) or undo it, which creates a follow-up to put the decision back. reopen: a Maintainer reopens a settled question. take_ownership: take ownership of an untagged commit item. move_commit: move an untagged commit onto an existing item. make_experiment: try an item on its own branch first (your own item, or any item if you are a Maintainer). ask_to_land: ask for an experiment to land, which is when whoever can give the OK is asked. request_confirmation: when you judge from the conversation that someone OTHER than the person asking you agrees (with issue_id, or an experiment's id, and answer), ask them to confirm it themselves; it records nothing until they do, and waits for them in Review with no agent needed. confirm_request / decline_request (request_id): the person a request to confirm waits on confirms it, or says no with a reason."
 				},
 				"record_type": {
 					"type": "string",
@@ -8574,6 +8577,29 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"minLength": 1,
 					"description": "Optional for make_experiment: its own branch. Never a tracking branch; omitted, its current branch or a new experiment/ branch."
+				},
+				"answer": {
+					"type": "string",
+					"enum": [
+						"go_ahead",
+						"decline",
+						"not_a_reversal",
+						"keep",
+						"undo"
+					],
+					"description": "Required for request_confirmation: the answer you propose they confirm (go_ahead, decline with a reason, not_a_reversal, keep or undo; go_ahead or decline on an experiment)."
+				},
+				"confirmer_user_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "For request_confirmation: who it waits on, someone who can give that answer themselves (the question lists them). Omitted: the person the question waits on by name, usually the decision's owner."
+				},
+				"request_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "Required for confirm_request and decline_request: the request to confirm, from Review or the result that saved it."
 				},
 				"connection_id": {
 					"type": "string",
@@ -8620,9 +8646,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"take_ownership",
 						"move_commit",
 						"make_experiment",
-						"ask_to_land"
+						"ask_to_land",
+						"request_confirmation",
+						"confirm_request",
+						"decline_request"
 					],
-					"description": "adopt: make active agent-initiated intent your decision. go_ahead: give the OK, on a question (issue_id) for work that would undo a decision, or on an experiment (id) to let it land. decline: say no, with a required reason; the work stays on its own branch. not_a_reversal: \"this doesn't undo my decision\"; counts as go ahead. keep / undo: after waiting work reached the tracking branch without its OK, keep it (the same as an OK) or undo it, which creates a follow-up to put the decision back. reopen: a Maintainer reopens a settled question. take_ownership: take ownership of an untagged commit item. move_commit: move an untagged commit onto an existing item. make_experiment: try an item on its own branch first (your own item, or any item if you are a Maintainer). ask_to_land: ask for an experiment to land, which is when whoever can give the OK is asked."
+					"description": "adopt: make active agent-initiated intent your decision. go_ahead: give the OK, on a question (issue_id) for work that would undo a decision, or on an experiment (id) to let it land. decline: say no, with a required reason; the work stays on its own branch. not_a_reversal: \"this doesn't undo my decision\"; counts as go ahead. keep / undo: after waiting work reached the tracking branch without its OK, keep it (the same as an OK) or undo it, which creates a follow-up to put the decision back. reopen: a Maintainer reopens a settled question. take_ownership: take ownership of an untagged commit item. move_commit: move an untagged commit onto an existing item. make_experiment: try an item on its own branch first (your own item, or any item if you are a Maintainer). ask_to_land: ask for an experiment to land, which is when whoever can give the OK is asked. request_confirmation: when you judge from the conversation that someone OTHER than the person asking you agrees (with issue_id, or an experiment's id, and answer), ask them to confirm it themselves; it records nothing until they do, and waits for them in Review with no agent needed. confirm_request / decline_request (request_id): the person a request to confirm waits on confirms it, or says no with a reason."
 				},
 				"record_type": {
 					"type": "string",
@@ -8718,6 +8747,29 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"minLength": 1,
 					"description": "Optional for make_experiment: its own branch. Never a tracking branch; omitted, its current branch or a new experiment/ branch."
+				},
+				"answer": {
+					"type": "string",
+					"enum": [
+						"go_ahead",
+						"decline",
+						"not_a_reversal",
+						"keep",
+						"undo"
+					],
+					"description": "Required for request_confirmation: the answer you propose they confirm (go_ahead, decline with a reason, not_a_reversal, keep or undo; go_ahead or decline on an experiment)."
+				},
+				"confirmer_user_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "For request_confirmation: who it waits on, someone who can give that answer themselves (the question lists them). Omitted: the person the question waits on by name, usually the decision's owner."
+				},
+				"request_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "Required for confirm_request and decline_request: the request to confirm, from Review or the result that saved it."
 				},
 				"connection_id": {
 					"type": "string",
@@ -10961,7 +11013,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "manage_directed_question",
 		"label": "DevSpec: Manage Directed Question",
-		"description": "Ask the person whose command you are working on (the connection's owner when no command is open) something only they can decide, then stop: a successful create ends your turn so the room stops showing Working, and their answer, or their dismissal of the question, reaches you later as a new event. Pass keep_turn only when you have independent work to finish first. For a choice the whole room should vote on, use manage_poll. It needs your connection's identity: if a direct call is refused for that, make the call through your host's DevSpec helper, which your DevSpec skills name.",
+		"description": "Ask the person whose command you are working on (the connection's owner when no command is open) something only they can decide, then stop: a successful create ends your turn so the room stops showing Working, and their answer, or their dismissal of the question, reaches you later as a new event. Pass keep_turn only when you have independent work to finish first. When you have several independent choices for the same person, ask them together rather than one per turn: create each with keep_turn true except the last, so they can answer in one sitting and in any order; each answer reaches you as its own event. Ask a question that depends on an earlier answer only once that answer has arrived. For a choice the whole room should vote on, use manage_poll. It needs your connection's identity: if a direct call is refused for that, make the call through your host's DevSpec helper, which your DevSpec skills name.",
 		"searchIntent": "ask person driving session question clarification decision needed to continue",
 		"modelInputSchema": {
 			"type": "object",

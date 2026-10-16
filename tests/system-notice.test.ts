@@ -316,6 +316,37 @@ test("fixed model-visible harness copy frames dynamic fields as data and points 
 	assert.doesNotMatch(message, /owner_message|local_agent_dispatch|provenance_ref/);
 });
 
+test("the outcome of a request to confirm is introduced as that, not as a finding", () => {
+	const outcome = {
+		version: 1 as const,
+		kind: "server_notice" as const,
+		notice_id: IDS.notice,
+		topic: "confirmation_outcome",
+		notice_type: "confirmation_confirmed",
+		summary: "Confirmed: Keep release notes in the repository",
+		prompt: "Confirmed: Keep release notes in the repository\nIt now applies, recorded as their own answer.",
+		contract_uri: "devspec://product/remote-ingress-contract" as const,
+		records: [
+			{
+				label: "Request to confirm",
+				record_type: "proposal",
+				record_id: IDS.project,
+				title: "Keep release notes in the repository",
+				text: "Confirmed: Keep release notes in the repository",
+				url: "/projects/24c4abaa-2cb9-496a-8492-cf1f1aa1090b/review?tab=proposals",
+			},
+		],
+		allowed_outcomes: ["acknowledge_outcome"],
+		allowed_tools: ["get_review_queue", "manage_protected_intent"],
+	};
+	const parsed = parsePollPayload(canonicalPoll({ wakeKind: "system_notice", systemNotices: [outcome as never] }), TEST_CONNECTION);
+	assert.equal(parsed.canonicalState, "valid");
+	const rendered = formatSystemNoticeMessage(parsed.systemNotices);
+	assert.match(rendered, /How a request to confirm, which this agent saved for someone, was decided\./);
+	assert.doesNotMatch(rendered, /confirmed a finding about work this agent did/);
+	assert.ok(rendered.includes(`record[0]=${JSON.stringify(outcome.records[0])}`));
+});
+
 test("general server_notice envelope parses, validates labelled records, and formats cleanly even when no session is open", () => {
 	const findingNotice = {
 		version: 1 as const,

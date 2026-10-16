@@ -8,6 +8,8 @@
  * unavailable (older server, proxy that buffers SSE, etc).
  */
 
+import { pluginHeaders } from "./client-versions.ts";
+
 export interface PushChannelHandlers {
 	/** A wake frame arrived — something moved; fetch now. */
 	onWake(): void;
@@ -231,6 +233,7 @@ export async function openPushChannel(opts: PushChannelOptions): Promise<void> {
 		headers: {
 			authorization: `Bearer ${opts.token}`,
 			accept: "text/event-stream",
+			...pluginHeaders(),
 			...(opts.connectionCapability ? { "x-devspec-connection-capability": opts.connectionCapability } : {}),
 		},
 		signal: opts.signal,

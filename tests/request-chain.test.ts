@@ -452,7 +452,8 @@ describe("stamping a DevSpec write", () => {
 			const stamped = await stampRequestRef({ params: { title: "x" }, inputSchema: declared, connectionId: CONN });
 			assert.ok("args" in stamped && typeof stamped.args.request_ref === "string");
 			assert.deepEqual(await stampRequestRef({ params: { title: "x" }, inputSchema: undeclared, connectionId: CONN }), { args: { title: "x" } });
-			assert.deepEqual(await stampRequestRef({ params: { title: "x" }, inputSchema: declared, connectionId: "other" }), { args: { title: "x" } });
+			// A connection this one replaced: the write goes, and says it went without its request.
+			assert.deepEqual(await stampRequestRef({ params: { title: "x" }, inputSchema: declared, connectionId: "other" }), { args: { title: "x" }, unstamped: "connection_changed" });
 			chain.endTurn();
 			chain.arriveUnknown();
 			assert.deepEqual(await stampRequestRef({ params: { title: "x" }, inputSchema: declared, connectionId: CONN }), { args: { title: "x" } });
@@ -469,7 +470,26 @@ describe("stamping a DevSpec write", () => {
 			chain.endTurn();
 			chain.arriveUnknown();
 			assert.deepEqual(await stampRequestRef({ params: { request_ref: "x", title: "t" }, inputSchema: declared, connectionId: CONN }), { args: { title: "t" } }, "removed even when nothing is stamped");
-			assert.deepEqual(await stampRequestRef({ params: { request_ref: "x" }, inputSchema: declared, connectionId: "other" }), { args: {} });
+			assert.deepEqual(await stampRequestRef({ params: { request_ref: "x" }, inputSchema: declared, connectionId: "other" }), { args: {}, unstamped: "connection_changed" });
+		} finally { installRequestChain(null); }
+	});
+
+	test("a request that never reached DevSpec is not dropped silently: the write still goes and says so (306fb64a)", async () => {
+		// The 15 Oct case: a typed prompt's work recorded as "couldn't tell who asked"
+		// with nothing telling the agent. The write is never refused for it (ADR §13).
+		const { chain, settle } = harness({ refuse: (args) => args.kind === "typed_prompt" });
+		installRequestChain(chain);
+		try {
+			chain.arrive([chain.openTyped()!]);
+			await settle();
+			const stamped = await stampRequestRef({ params: { title: "x" }, inputSchema: declared, connectionId: CONN });
+			assert.deepEqual(stamped, { args: { title: "x" }, unstamped: "not_recorded" });
+			// Citing the work it belongs to is enough for DevSpec, so nothing is noted.
+			assert.deepEqual(await stampRequestRef({ params: { title: "x", work_claim_ref: "ref" }, inputSchema: declared, connectionId: CONN }), { args: { title: "x", work_claim_ref: "ref" } });
+			// A wake that continues no known request is a fact, not a failure.
+			chain.endTurn();
+			chain.arriveUnknown();
+			assert.deepEqual(await stampRequestRef({ params: { title: "x" }, inputSchema: declared, connectionId: CONN }), { args: { title: "x" } });
 		} finally { installRequestChain(null); }
 	});
 

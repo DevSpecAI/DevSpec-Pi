@@ -5,8 +5,9 @@
  *
  * 1. AUTO-RECALL — every substantive prompt is searched against project
  *    memory before the turn starts; new hits are injected.
- * 2. CONFLICT NUDGE — while conflict-ish signals are open, a settle nudge
- *    injects (only when the open-set CHANGES, so it doesn't spam).
+ * 2. REVIEW NUDGE — while review questions seen on records are open (possibly
+ *    out of date, waiting for someone's OK), a nudge injects (only when the
+ *    open set CHANGES, so it doesn't spam).
  *
  * CACHE DISCIPLINE (learned from production stats): both inject as a TAIL
  * message via before_agent_start's message channel — NEVER as system-prompt
@@ -35,14 +36,14 @@ import {
 	shouldRecall,
 	unseenCards,
 } from "./core/recall.ts";
-import { formatConflictNudge, listFlags, observeReviewResult } from "./core/conflict-watch.ts";
+import { formatReviewNudge, listFlags, observeReviewResult } from "./core/review-watch.ts";
 import { reviewScope, snapshotHash } from "./core/review-context.ts";
 import { getBond } from "./core/bond-state.ts";
 
 export default function (pi: ExtensionAPI, deps = { resolveToken, callDevspec, getBond }) {
 	/** Immutable snapshots already injected, isolated by account/project/session. */
 	const injectedByScope = new Map<string, Set<string>>();
-	/** Last injected conflict-set signature — nudge re-injects only on change. */
+	/** Last injected review-set signature — nudge re-injects only on change. */
 	let lastNudgeSig = "";
 
 	pi.on("before_agent_start", async (event, ctx) => {
@@ -90,13 +91,13 @@ export default function (pi: ExtensionAPI, deps = { resolveToken, callDevspec, g
 			}
 		}
 
-		// 2. Conflict nudge — only when the open-set changed since last inject.
+		// 2. Review nudge — only when the open set changed since last inject.
 		const flags = listFlags(scope);
 		const sig = snapshotHash([scope, flags]);
 		if (!flags.length) lastNudgeSig = "";
 		if (flags.length > 0 && sig !== lastNudgeSig) {
 			lastNudgeSig = sig;
-			const nudge = formatConflictNudge(flags);
+			const nudge = formatReviewNudge(flags);
 			if (nudge) {
 				noteInjectedContext("conflictNudge", nudge.length);
 				parts.push(nudge);
@@ -113,18 +114,18 @@ export default function (pi: ExtensionAPI, deps = { resolveToken, callDevspec, g
 		};
 	});
 
-	pi.registerCommand("devspec.conflicts", {
-		description: "List observed issues and retrieval suggestions in this session's project.",
+	pi.registerCommand("devspec.review", {
+		description: "List the open review questions (possibly out of date, or waiting for someone's OK) seen on records in this session's project.",
 		handler: async (_args, ctx) => {
 			const token = await deps.resolveToken();
 			if (!token) return;
 			const flags = listFlags(reviewScope(ctx.sessionManager.getSessionId(), deps.getBond()?.projectId ?? ctx.cwd, token.token));
 			if (flags.length === 0) {
-				ctx.ui.notify("DevSpec: no open signals this session.", "info");
+				ctx.ui.notify("DevSpec: no open review questions seen this session.", "info");
 				return;
 			}
 			ctx.ui.notify(
-				formatConflictNudge(flags) ?? "No observed Review context.",
+				formatReviewNudge(flags) ?? "No observed Review context.",
 				"warning",
 			);
 		},

@@ -437,6 +437,12 @@ const LOCAL_SAFETY_RULES: readonly ImplementationRule[] = [
 		enforcement: "agent",
 	},
 	{
+		id: "pi-fallback.waiting-work-stays-on-its-branch",
+		phase: "delivery",
+		requirement: "When the claim or the item carries waiting_for_ok (\"Experiment\", or \"Waiting for <name>'s OK\"), build and push the work on its own branch and never merge it into the tracking branch until it has the OK; tell the person plainly.",
+		enforcement: "agent",
+	},
+	{
 		id: "pi-fallback.stop-at-implemented",
 		phase: "completion",
 		requirement: "Record implementation after pushing and stop at implemented; never mark the item done.",

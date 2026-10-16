@@ -4,9 +4,9 @@ import {
 	addFlags,
 	clearAllFlags,
 	extractFlags,
-	formatConflictNudge,
+	formatReviewNudge,
 	listFlags,
-} from "../extensions/core/conflict-watch.ts";
+} from "../extensions/core/review-watch.ts";
 
 test("extractFlags finds an out-of-date flag on a memory without caching its evidence", () => {
 	const flags = extractFlags("get_memory", {
@@ -18,7 +18,7 @@ test("extractFlags finds an out-of-date flag on a memory without caching its evi
 		}],
 	});
 	assert.equal(flags.length, 1);
-	assert.equal(flags[0].kind, "memory_conflict");
+	assert.equal(flags[0].kind, "review_issue");
 	assert.equal(flags[0].subject, "mem-12345678");
 	assert.equal(flags[0].counterpart, undefined);
 	assert.equal(flags[0].signal, "possibly_stale");
@@ -40,9 +40,9 @@ test("store dedupes by key; nudge formats and clears", () => {
 	addFlags(flags);
 	addFlags(flags); // again — no dupes
 	assert.equal(listFlags().length, 1);
-	const nudge = formatConflictNudge(listFlags());
+	const nudge = formatReviewNudge(listFlags());
 	assert.match(nudge ?? "", /1 unresolved issue observation\(s\)\. These are observations/);
 	assert.match(nudge ?? "", /served authority contract/);
 	clearAllFlags();
-	assert.equal(formatConflictNudge(listFlags()), null);
+	assert.equal(formatReviewNudge(listFlags()), null);
 });

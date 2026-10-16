@@ -3,13 +3,13 @@
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
  * Schema fingerprint: 0c5d37ee1646f739acf69bc853ce1a810b5f9e04d829c3e943069dd22d535e98
- * Description fingerprint: 66d8efd7a58e16c88c4f49ee30a6759f98f7e56bdc3786e10467eb3542f9a679
- * Regenerated: 2026-10-16T19:23:22.726Z
+ * Description fingerprint: 578bd24cbf55fd4b73bd05ec90ff5d0332535b13891d4be90273e1c418ce0cc5
+ * Regenerated: 2026-10-16T20:36:08.522Z
  */
 export const MCP_CATALOG_FINGERPRINT = "0c5d37ee1646f739acf69bc853ce1a810b5f9e04d829c3e943069dd22d535e98";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "66d8efd7a58e16c88c4f49ee30a6759f98f7e56bdc3786e10467eb3542f9a679";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-16T19:23:22.726Z";
-export const TOOL_CATALOG_VERSION = "04939cf4f742790ca72014953081deaca5703a8b871b9d4052926da2ea829007";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "578bd24cbf55fd4b73bd05ec90ff5d0332535b13891d4be90273e1c418ce0cc5";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-16T20:36:08.522Z";
+export const TOOL_CATALOG_VERSION = "71a52f5892a9a969640d4a163fb03753652952eb86106f8b73592496cfc90334";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -266,7 +266,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "manage_directed_question",
 		"name": "manage directed question",
-		"description": "Ask the person whose command you are working on (the connection's owner when no command is open) something only they can decide, then stop: a successful create ends your turn so the room stops showing Working, and their answer, or their dismissal of the question, reaches you later as a new event. Pass keep_turn only when you have independent work to finish first. For a choice the whole room should vote on, use manage_poll. It needs your connection's identity: if a direct call is refused for that, make the call through your host's DevSpec helper, which your DevSpec skills name.",
+		"description": "Ask the person whose command you are working on (the connection's owner when no command is open) something only they can decide, then stop: a successful create ends your turn so the room stops showing Working, and their answer, or their dismissal of the question, reaches you later as a new event. Pass keep_turn only when you have independent work to finish first. When you have several independent choices for the same person, ask them together rather than one per turn: create each with keep_turn true except the last, so they can answer in one sitting and in any order; each answer reaches you as its own event. Ask a question that depends on an earlier answer only once that answer has arrived. For a choice the whole room should vote on, use manage_poll. It needs your connection's identity: if a direct call is refused for that, make the call through your host's DevSpec helper, which your DevSpec skills name.",
 		"intent": "ask person driving session question clarification decision needed to continue"
 	},
 	{
@@ -11013,7 +11013,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "manage_directed_question",
 		"label": "DevSpec: Manage Directed Question",
-		"description": "Ask the person whose command you are working on (the connection's owner when no command is open) something only they can decide, then stop: a successful create ends your turn so the room stops showing Working, and their answer, or their dismissal of the question, reaches you later as a new event. Pass keep_turn only when you have independent work to finish first. For a choice the whole room should vote on, use manage_poll. It needs your connection's identity: if a direct call is refused for that, make the call through your host's DevSpec helper, which your DevSpec skills name.",
+		"description": "Ask the person whose command you are working on (the connection's owner when no command is open) something only they can decide, then stop: a successful create ends your turn so the room stops showing Working, and their answer, or their dismissal of the question, reaches you later as a new event. Pass keep_turn only when you have independent work to finish first. When you have several independent choices for the same person, ask them together rather than one per turn: create each with keep_turn true except the last, so they can answer in one sitting and in any order; each answer reaches you as its own event. Ask a question that depends on an earlier answer only once that answer has arrived. For a choice the whole room should vote on, use manage_poll. It needs your connection's identity: if a direct call is refused for that, make the call through your host's DevSpec helper, which your DevSpec skills name.",
 		"searchIntent": "ask person driving session question clarification decision needed to continue",
 		"modelInputSchema": {
 			"type": "object",

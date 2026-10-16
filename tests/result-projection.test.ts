@@ -5,7 +5,7 @@ import { stream as streamAnthropic } from "@earendil-works/pi-ai/api/anthropic-m
 import { convertMessages as convertGoogleMessages } from "@earendil-works/pi-ai/api/google-shared";
 import { convertMessages as convertOpenAICompletionsMessages } from "@earendil-works/pi-ai/api/openai-completions";
 import { convertResponsesMessages } from "@earendil-works/pi-ai/api/openai-responses-shared";
-import { clearAllFlags, extractFlags, listFlags } from "../extensions/core/conflict-watch.ts";
+import { clearAllFlags, extractFlags, listFlags } from "../extensions/core/review-watch.ts";
 import { PROJECTION_BUDGETS, projectModelText, projectionFamily } from "../extensions/core/result-projection.ts";
 import { projectedToolResult, unwrapMcpResult } from "../extensions/core/result.ts";
 import { extractItemRef, getStatusSnapshot, resetStatus } from "../extensions/core/status-line.ts";
@@ -939,9 +939,9 @@ test("pending proposals are bounded, and a row without a served line still names
 	assert.match(text, /proposal p2/);
 	// Third one is summarised rather than listed, and never silently dropped.
 	assert.doesNotMatch(text, /proposal p3/);
-	assert.match(text, /1 further proposed change\(s\) awaiting a maintainer/);
-	// Composed from the parts when the server sent no line.
-	assert.match(text, /proposed retraction by a contributor \(Contributor\), awaiting a maintainer \(proposal p7\)/);
+	assert.match(text, /1 further proposed change\(s\) awaiting review/);
+	// Composed from the parts when the server sent no line, without naming who decides.
+	assert.match(text, /proposed retraction by a contributor \(Contributor\), awaiting review \(proposal p7\)/);
 });
 
 test("suggested work says it is not agreed on its card, and agreed work gains no line (2ec0e288)", () => {
@@ -1500,7 +1500,7 @@ test("full details still drive review flags and work status", () => {
 	const extracted = extractFlags("get_memory", memory.details);
 	assert.equal(extracted.length, 1);
 	assert.equal(extracted[0].subject, memoryId);
-	assert.equal(extracted[0].kind, "memory_conflict");
+	assert.equal(extracted[0].kind, "review_issue");
 	assert.match(extracted[0].label, /get_review_queue/);
 	clearAllFlags();
 	resetStatus();

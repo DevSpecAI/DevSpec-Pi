@@ -664,6 +664,22 @@ export class RequestChain {
 		return request.state === "open" || request.state === "closing" || request.closedOnServer ? request.serverId : null;
 	}
 
+	/**
+	 * Why stamp() named nothing. "unstated": the turn continues no request this
+	 * host knows of, which is a fact DevSpec records as such and never guesses
+	 * past. "not_recorded": the request this turn serves never reached DevSpec
+	 * (its open failed or has not answered), so the write loses who asked (the
+	 * case found on 15 Oct, item 306fb64a note c9afcfce).
+	 */
+	unstampedReason(): "unstated" | "not_recorded" {
+		if (this.arrivalFailed()) return "not_recorded";
+		if (this.current === NO_REQUEST) return "unstated";
+		const id = this.currentRequestId();
+		const request = id ? this.requests.get(id) : undefined;
+		if (!request) return "unstated";
+		return request.failed || !request.serverId ? "not_recorded" : "unstated";
+	}
+
 	private arrivalFailed(): boolean {
 		return this.arrivals.some((batch) => batch.length > 0 && batch.every((id) => this.requests.get(id)?.failed === true));
 	}
@@ -1161,12 +1177,15 @@ export async function stampRequestRef(input: {
 	inputSchema: unknown;
 	connectionId: string | undefined;
 	timeoutMs?: number;
-}): Promise<{ args: Record<string, unknown> } | { deny: string }> {
+}): Promise<{ args: Record<string, unknown>; unstamped?: UnstampedReason } | { deny: string }> {
 	if (!declaresRequestRef(input.inputSchema)) return { args: input.params };
 	const { request_ref: _model, ...params } = input.params;
 	const shared = store();
 	const chain = shared.chain;
-	if (!chain || !input.connectionId || chain.connectionId !== input.connectionId) return { args: params };
+	// Not connected to DevSpec: no requests are carried, so there is nothing to name.
+	if (!chain || !input.connectionId) return { args: params };
+	// The chain belongs to a connection this one replaced; its requests are not this connection's.
+	if (chain.connectionId !== input.connectionId) return { args: params, unstamped: "connection_changed" };
 	try {
 		const cites = typeof params.work_claim_ref === "string" || typeof params.provenance_ref === "string";
 		const carried = cites ? null : await chain.ambiguity(input.timeoutMs);
@@ -1175,10 +1194,31 @@ export async function stampRequestRef(input: {
 			return { deny: ambiguityRefusal(carried) };
 		}
 		const ref = await chain.stamp(input.timeoutMs);
-		return { args: ref ? { ...params, request_ref: ref } : params };
+		if (ref) return { args: { ...params, request_ref: ref } };
+		// A citation names the work itself, which DevSpec reads first.
+		if (cites) return { args: params };
+		const why = chain.unstampedReason();
+		return why === "unstated" ? { args: params } : { args: params, unstamped: why };
 	} catch {
-		return { args: params };
+		return { args: params, unstamped: "error" };
 	}
+}
+
+/**
+ * Why a write that should have named its request went without one. The write
+ * still goes: when DevSpec can't tell who asked, a change is never refused or
+ * held for that (ADR "Protecting intent" §13). It is no longer silent: the
+ * agent is told, so it can tell the person whose work it was.
+ */
+export type UnstampedReason = "connection_changed" | "not_recorded" | "error";
+
+export function unstampedNote(reason: UnstampedReason): string {
+	const why = reason === "connection_changed"
+		? "this agent's DevSpec connection was replaced since the request reached it"
+		: reason === "not_recorded"
+			? "the request never reached DevSpec"
+			: "Pi could not work out which request it served";
+	return `Note: DevSpec was not told which request this write served (${why}), so it records that it couldn't tell who asked. If this was for someone, tell them it was done for them.`;
 }
 
 export const SERVE_REQUEST_DESCRIPTION =

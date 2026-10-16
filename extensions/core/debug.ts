@@ -80,6 +80,7 @@ const DEBUG_FIELDS = {
 	"push wake": [],
 	recall: ["queryChars", "newHits"],
 	"request chain failed": ["open", "close", "restore", "persist"],
+	"request write unstamped": ["connectionChanged", "notRecorded", "errorPresent"],
 	"request launches restored": ["restored"],
 	"request launches ended after restore": ["ended"],
 	"request launches restore failed": ["errorPresent"],

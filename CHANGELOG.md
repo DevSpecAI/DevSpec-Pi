@@ -1,9 +1,24 @@
 # Changelog
 
-## 0.6.10 - 2026-10-16
+## 0.7.1 - 2026-10-16
 
-- When you can tell from the conversation that someone else agrees to an answer on a decision, your agent can now ask them to confirm it themselves. Nothing is recorded until they do: the request waits for them in Review and their notifications, and they can confirm or decline it there with no agent running. Your agent is told how it was decided.
+- When your agent can tell from the conversation that someone else agrees to an answer on a decision, it can now ask them to confirm it themselves. Nothing is recorded until they do: the request waits for them in Review and their notifications, and they can confirm or decline it there with no agent running. If your agent is still connected, it is told how it was decided.
 - When DevSpec can't tell who asked for an answer or a sign-off, it is saved for you to confirm in Review instead of being refused.
+- The catalogue is regenerated against DevSpec's current tools. Update with `pi update --extensions`, then restart Pi.
+
+## 0.7.0 - 2026-10-16
+
+- Pi now tells DevSpec which plugin and version it is on every request. DevSpec uses this to know your agent has the plugin, which remote control, taking part in sessions and automations need.
+- When you connect in a project whose repositories are on GitHub and your GitHub account isn't linked yet, Pi shows you the link. Linking is one click through DevSpec's GitHub App: GitHub confirms who you are, and DevSpec keeps no access to your account.
+- Work that waits for someone's OK, and experiments, now say so wherever the agent sees them, including in the confirmation after an edit and in lists, so it keeps that work on its own branch.
+- A change that is waiting for review now says who it waits on, as DevSpec reports it, instead of always saying a maintainer.
+- The tags DevSpec adds to a new action item now reach the agent, so it can correct them.
+- Requirements are labelled as requirements in search results.
+- Findings and the outcome of an edit that DevSpec sends the agent are introduced for what they are, with each record shown whole. A notice this version can't read no longer stops the others arriving.
+- While a project is paused, the notice DevSpec adds to each result reaches the agent in full, and the result itself still shows normally.
+- If DevSpec couldn't be told whose request a change served, the agent is now told, so it can let that person know.
+- `/devspec.conflicts` is now `/devspec.review`.
+- The agent's guidance now follows how DevSpec records decisions: only when a real choice was made for a reason that matters beyond this change, and only once you've said it was deliberate.
 - The catalogue is regenerated against DevSpec's current tools. Update with `pi update --extensions`, then restart Pi.
 
 ## 0.6.9 - 2026-10-16

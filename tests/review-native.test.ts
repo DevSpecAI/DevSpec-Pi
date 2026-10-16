@@ -104,11 +104,13 @@ test("watch keeps records, scoped projects/accounts and changed evidence separat
 	assert.equal(listFlags(a).length, 2);
 });
 
-test("native result consumer does not call retrieval candidates project conflicts", () => {
+test("native result consumer observes issues, not writes, and completion does not clear them", () => {
 	clearAllFlags();
-	consumeResultMechanics("create_action_item", { details: { id: "new", related_candidates: [{ id: "other" }] } }, { title: "thing" }, "session", "project", "scope");
+	consumeResultMechanics("create_action_item", { details: { id: "new", outcome: "committed" } }, { title: "thing" }, "session", "project", "scope");
+	assert.equal(listFlags("scope").length, 0, "a create carries no candidate list to observe");
+	consumeResultMechanics("get_memory", { details: { id: "one", unresolved_disagreements: [stale("one")] } }, { id: "one" }, "session", "project", "scope");
 	const text = formatConflictNudge(listFlags("scope"))!;
-	assert.match(text, /0 unresolved issue/); assert.match(text, /1 retrieval suggestion/);
+	assert.match(text, /1 unresolved issue/);
 	assert.doesNotMatch(text, /open signals? to settle/);
 	consumeResultMechanics("record_implementation", { details: { outcome: "committed" } }, {}, "session", "project", "scope");
 	assert.equal(listFlags("scope").length, 1, "session/work completion does not bulk-clear observations");

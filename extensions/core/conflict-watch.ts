@@ -4,7 +4,7 @@ import { writeOutcomeFromResult } from "./trail-events.ts";
 
 export interface ConflictFlag {
 	key: string;
-	kind: "related_candidates" | "memory_conflict";
+	kind: "memory_conflict";
 	label: string;
 	scope?: string;
 	/** Complete pair identity and exact observed evidence, never counterpart alone. */
@@ -12,7 +12,6 @@ export interface ConflictFlag {
 	counterpart?: string;
 	signal?: string;
 	revision?: string;
-	operation?: string;
 }
 const GLOBAL_KEY = "__devspecPiReviewObservationsV2";
 function store(): Map<string, ConflictFlag> {
@@ -35,19 +34,12 @@ export function addFlags(flags: ConflictFlag[]): ConflictFlag[] {
 export function clearFlag(key: string): void { store().delete(key); }
 export function clearAllFlags(): void { store().clear(); }
 
-/** Exclude attribution, never semantic fields, from a write's identity. */
-function operationKey(tool: string, args: Record<string, unknown>): string {
-	const excluded = new Set(["provenance_ref", "work_claim_ref", "connection_id", "session_id", "local_session_id", "provider", "git_remote", "project_id", "pinned_project_id"]);
-	return snapshotHash([tool, Object.fromEntries(Object.entries(args).filter(([key]) => !excluded.has(key)))]);
-}
 const text = (value: unknown): string | undefined => typeof value === "string" && value ? value : undefined;
 
 export function extractFlags(toolName: string, details: unknown, scope = "legacy", args: Record<string, unknown> = {}): ConflictFlag[] {
 	const d = row(details);
 	if (!d) return [];
 	const flags: ConflictFlag[] = [];
-	const subject = text(d.id) ?? text(d.action_item_id) ?? text(args.action_item_id) ?? text(args.id);
-	const operation = operationKey(toolName, args);
 	for (const value of Array.isArray(d.unresolved_disagreements) ? d.unresolved_disagreements : []) {
 		const c = row(value);
 		if (!c || !text(c.key)) continue;
@@ -56,13 +48,6 @@ export function extractFlags(toolName: string, details: unknown, scope = "legacy
 			subject: text(row(c.subject)?.id), counterpart: text(row(c.counterpart)?.id), signal: text(c.claimType),
 			revision: snapshotHash(safe), label: reviewData({ key: c.key, status: c.status,
 				context: "Incomplete historical observation; use get_review_queue with this key for current permitted claims. A record that cannot be read is not expanded here." }) });
-	}
-	// Retrieval suggestions are not established conflicts, nor obligatory rulings.
-	const candidates = d.related_candidates;
-	if (toolName === "create_action_item" && Array.isArray(candidates) && candidates.length) {
-		flags.push({ key: snapshotHash([scope, "suggestions", operation, subject, "related_candidates"]), scope, kind: "related_candidates", operation,
-			revision: snapshotHash(candidates), label: reviewData({ tool: toolName, suggestions: candidates.length,
-				meaning: "Retrieval candidates only; not a project-conflict count. Read relevant records before judging." }) });
 	}
 	// Search/read list wrappers carry the same canonical disagreements as exact reads.
 	for (const key of ["memories", "results", "items", "resources", "artifacts"] as const) {
@@ -96,12 +81,11 @@ export function observeReviewResult(tool: string, details: unknown, args: Record
 export function formatConflictNudge(flags: ConflictFlag[]): string | null {
 	if (!flags.length) return null;
 	const issues = flags.filter((f) => f.kind === "memory_conflict");
-	const suggestions = flags.filter((f) => f.kind === "related_candidates");
 	const lines = ["### DevSpec — observed Review context",
-		`${issues.length} unresolved issue observation(s); ${suggestions.length} retrieval suggestion set(s). These are observations in this scope, not project totals.`,
-		"Use live records and the served authority contract. Candidates are not conflicts; finishing a session does not settle issues."];
+		`${issues.length} unresolved issue observation(s). These are observations in this scope, not project totals.`,
+		"Use live records and the served authority contract. Finishing a session does not settle issues."];
 	let shown = 0;
-	for (const flag of [...issues, ...suggestions]) {
+	for (const flag of issues) {
 		if (lines.join("\n").length + flag.label.length > 6_000) continue;
 		lines.push(flag.label); shown++;
 	}

@@ -26,20 +26,22 @@ test("extractFlags finds an out-of-date flag on a memory without caching its evi
 	assert.doesNotMatch(flags[0].label, /the code it describes changed/, "watches re-fetch prose instead of caching permission-sensitive evidence");
 });
 
-test("related_candidates only flag from create_action_item", () => {
-	const payload = { related_candidates: [{ id: "item-12345678" }] };
-	assert.equal(extractFlags("create_action_item", payload).length, 1);
-	assert.equal(extractFlags("search_action_items", payload).length, 0);
+// DevSpec finds duplicates with its own check after the write and returns no
+// candidate list (fce58a2f round 2), so a create is never an observation.
+test("a create result is never a review observation", () => {
+	assert.equal(extractFlags("create_action_item", { id: "item-1", title: "New item", outcome: "committed" }).length, 0);
 });
 
 test("store dedupes by key; nudge formats and clears", () => {
 	clearAllFlags();
-	const flags = extractFlags("create_action_item", { id: "item-1", related_candidates: [{ id: "item-2" }] }, "legacy", { title: "New item" });
+	const flags = extractFlags("get_memory", { id: "mem-1", unresolved_disagreements: [{ key: "possibly_stale|memory:mem-1", claimType: "possibly_stale",
+		status: "open", issueId: null, subject: { type: "memory", id: "mem-1", title: "Billing pools", readable: true }, counterpart: null,
+		evidence: { reason: "the code it describes changed" } }] }, "legacy");
 	addFlags(flags);
 	addFlags(flags); // again — no dupes
 	assert.equal(listFlags().length, 1);
 	const nudge = formatConflictNudge(listFlags());
-	assert.match(nudge ?? "", /0 unresolved issue observation\(s\); 1 retrieval suggestion set/);
+	assert.match(nudge ?? "", /1 unresolved issue observation\(s\)\. These are observations/);
 	assert.match(nudge ?? "", /served authority contract/);
 	clearAllFlags();
 	assert.equal(formatConflictNudge(listFlags()), null);

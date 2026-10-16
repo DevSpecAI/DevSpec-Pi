@@ -30,7 +30,6 @@ export const PROJECTION_BUDGETS = {
 
 const CARD_LIMIT = 7;
 const CARD_BUDGET = 560;
-const RELATED_LIMIT = 3;
 const MANUAL_FOLLOWUP_LIMIT = 3;
 const PENDING_PROPOSAL_LIMIT = 2;
 const LINE_LIMIT = 240;
@@ -158,8 +157,6 @@ const ROW_KEYS = [
 ] as const;
 const COUNT_KEYS = ["total_matching", "total", "count"] as const;
 const ACK_GATE_KEYS = [
-	"review_before_proceeding",
-	"related_candidates",
 	"human_actions_required",
 	"manual_followup_steps",
 	"own_criteria_follow_through",
@@ -655,16 +652,6 @@ function helpProjection(details: unknown): string | null {
 	return withinBudget(blocks, PROJECTION_BUDGETS.help, "help section");
 }
 
-function selectedScalars(source: Row | null, keys: readonly string[]): string[] {
-	if (!source) return [];
-	const lines: string[] = [];
-	for (const key of keys) {
-		const value = oneLine(source[key], 160);
-		if (value !== undefined) lines.push(`${key.replace(/_/g, " ")}: ${value}`);
-	}
-	return lines;
-}
-
 function completeProjectSummary(details: unknown): string | null {
 	const root = record(details);
 	if (!root) return null;
@@ -700,58 +687,6 @@ function conflictBlocks(root: Row): string[] {
 	if (root.claimed === false) blocks.push("Gate — claim rejected/not acquired.");
 	if (root.blocked === true || root.is_blocked === true) blocks.push("Gate — result is blocked.");
 	return blocks;
-}
-
-function gateValue(label: string, value: unknown): string {
-	if (Array.isArray(value)) return `${label}: ${value.length} item(s).`;
-	const row = record(value);
-	if (row) {
-		const facts = selectedScalars(row, ["required", "status", "action", "instruction", "reason", "message"]);
-		return `${label}:${facts.length ? ` ${facts.join(" · ")}` : " present; inspect the candidate summaries below and fetch exact entities before proceeding."}`;
-	}
-	return `${label}: ${oneLine(value, 260) ?? "present"}`;
-}
-
-function relatedBlock(label: string, values: unknown[], fetch: string): string {
-	const lines = [`${label}: ${values.length}; showing top ${Math.min(values.length, RELATED_LIMIT)}.`];
-	for (const [index, value] of values.slice(0, RELATED_LIMIT).entries()) lines.push(card(value, index));
-	if (values.length > RELATED_LIMIT) lines.push(`${values.length - RELATED_LIMIT} additional ${label.toLowerCase()} omitted; ${fetch}.`);
-	return lines.join("\n");
-}
-
-function mandatoryCategoryBlock(label: string, values: unknown[], category = "Gate category"): string {
-	const firstValue = record(values[0]);
-	const entity = firstValue ? nestedEntity(firstValue) : null;
-	const id = entity && firstValue ? boundedId(entity, firstValue) : undefined;
-	const reason = oneLine(
-		firstValue
-			? first(firstValue, ["why", "reason", "why_matched", "match_reason", "summary", "title"])
-				?? (entity ? first(entity, ["why", "reason", "summary", "title", "name"]) : undefined)
-			: values[0],
-		160,
-	) ?? "reason not returned";
-	return `${category} — ${label}: ${values.length}; first=${id ? `[${id}] ` : ""}${reason}${values.length > 1 ? `; ${values.length - 1} more omitted from this mandatory summary` : ""}.`;
-}
-
-function candidateRows(value: unknown, keys: readonly string[] = ["candidates", "items", "results"]): unknown[] {
-	if (Array.isArray(value)) return value;
-	const container = record(value);
-	if (!container) return [];
-	const rows: unknown[] = [];
-	for (const key of keys) if (Array.isArray(container[key])) rows.push(...container[key] as unknown[]);
-	return rows;
-}
-
-function uniqueRows(values: readonly unknown[]): unknown[] {
-	const seen = new Set<string>();
-	return values.filter((value) => {
-		const row = record(value);
-		const id = row ? boundedId(nestedEntity(row), row) : undefined;
-		if (!id) return true;
-		if (seen.has(id)) return false;
-		seen.add(id);
-		return true;
-	});
 }
 
 function criterionLines(value: unknown): string[] {
@@ -872,16 +807,6 @@ function ackProjection(toolName: string, details: unknown): string | null {
 	required.push(...conflictBlocks(root));
 	if (entity !== root) required.push(...conflictBlocks(entity));
 
-	if (hasOwn(root, "review_before_proceeding")) {
-		required.push(`Gate — ${gateValue("review_before_proceeding", root.review_before_proceeding)}`);
-		const rows = candidateRows(root.review_before_proceeding, ["candidates", "related_candidates", "items"]);
-		if (rows.length) {
-			const label = "Review-before-proceeding candidates";
-			required.push(mandatoryCategoryBlock(label, rows));
-			optional.push(relatedBlock(label, rows, "fetch the exact candidate before proceeding"));
-		}
-	}
-
 	if (hasOwn(root, "own_criteria_follow_through") && root.own_criteria_follow_through != null) {
 		required.push(followThroughBlock("own", root.own_criteria_follow_through));
 	}
@@ -890,12 +815,6 @@ function ackProjection(toolName: string, details: unknown): string | null {
 	}
 	const manual = manualFollowUpBlock(root);
 	if (manual) required.push(manual);
-
-	const relatedCandidates = uniqueRows(candidateRows(root.related_candidates, ["candidates", "items", "results", "action_items", "artifacts", "resources", "memories"]));
-	if (relatedCandidates.length) {
-		required.push(mandatoryCategoryBlock("Related candidates", relatedCandidates, "Related context (advisory)"));
-		optional.push(relatedBlock("Related candidates", relatedCandidates, "search/list then fetch the exact candidate by id"));
-	}
 
 	const budget = toolName === "record_implementation"
 		? PROJECTION_BUDGETS.recordImplementation

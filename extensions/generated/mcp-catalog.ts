@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: be65216592826e51f199674e892cfc9d3da3b3a855ddffcc589faa6463a999b0
+ * Schema fingerprint: 83a081fd93c72397a35b2499a90252eb4b907c5f3aa7ac04dba76acbf7b9a40b
  * Description fingerprint: c2cc0e9f1b95ca55886ffd9fd9367a7e3c5f0a0a583f05fa4843120526829fbd
- * Regenerated: 2026-10-16T17:17:42.630Z
+ * Regenerated: 2026-10-16T18:55:02.623Z
  */
-export const MCP_CATALOG_FINGERPRINT = "be65216592826e51f199674e892cfc9d3da3b3a855ddffcc589faa6463a999b0";
+export const MCP_CATALOG_FINGERPRINT = "83a081fd93c72397a35b2499a90252eb4b907c5f3aa7ac04dba76acbf7b9a40b";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "c2cc0e9f1b95ca55886ffd9fd9367a7e3c5f0a0a583f05fa4843120526829fbd";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-16T17:17:42.630Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-16T18:55:02.623Z";
 export const TOOL_CATALOG_VERSION = "670b60db97ad1cc1bfb9f1a2138011b9f4c602a1f0c06562f0c57a68cc17bf93";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -5066,7 +5066,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"intent": {
 					"type": "string",
-					"description": "Required when creating an item. Why: the problem being solved and the outcome wanted, so whoever picks the item up later understands the goal and intent checks have the reason behind the work."
+					"description": "Why: the problem being solved and the outcome wanted, so whoever picks the item up later understands the goal and intent checks have the reason behind the work. Required and must not be blank: a create without it is refused and nothing is created."
 				},
 				"acceptance_criteria": {
 					"anyOf": [
@@ -5219,7 +5219,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				}
 			},
 			"required": [
-				"title"
+				"title",
+				"intent"
 			]
 		},
 		"inputSchema": {
@@ -5235,7 +5236,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"intent": {
 					"type": "string",
-					"description": "Required when creating an item. Why: the problem being solved and the outcome wanted, so whoever picks the item up later understands the goal and intent checks have the reason behind the work."
+					"description": "Why: the problem being solved and the outcome wanted, so whoever picks the item up later understands the goal and intent checks have the reason behind the work. Required and must not be blank: a create without it is refused and nothing is created."
 				},
 				"acceptance_criteria": {
 					"anyOf": [
@@ -5393,7 +5394,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				}
 			},
 			"required": [
-				"title"
+				"title",
+				"intent"
 			]
 		},
 		"kind": "model"

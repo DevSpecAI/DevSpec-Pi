@@ -695,7 +695,13 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// filter is waiting/declined/landed/putting_back/settled. is_experiment and
 		// experiment_branch descriptions changed on create/update_action_item. Verbs
 		// 83 model / 12 pump / 1 never-model unchanged; families and hot set unchanged.
-		"e863cac8beddaf951deb19c4f942831f940868c7460f62702c57c125a4f367bb",
+		// Rebaselined 2026-10-16 for DevSpec item 55c7a30b (a new action item must
+		// state its intent; DevSpecV2 #446). create_action_item's intent is now a
+		// required input with a "must not be blank" description; no other input
+		// changed. Verbs 83 model / 12 pump / 1 never-model unchanged; families and
+		// hot set unchanged. Benchmark before/after: 50,738 -> 50,754 estimated
+		// tokens; every budget passes.
+		"924cab84885cb1db40dd2a62ee3848678ae02e92be6b2a028cdb144fa9e7bd0c",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

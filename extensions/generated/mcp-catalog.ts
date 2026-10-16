@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 6d555700323e61aa61075f69aee931efffc29f3acc6af1342353dfbc8da65781
- * Description fingerprint: 433d9ebf98cbe21a17e54724c88549dc9c2e7e3046ff9985e0bc844956d65e2f
- * Regenerated: 2026-10-16T11:29:00.407Z
+ * Schema fingerprint: be65216592826e51f199674e892cfc9d3da3b3a855ddffcc589faa6463a999b0
+ * Description fingerprint: c2cc0e9f1b95ca55886ffd9fd9367a7e3c5f0a0a583f05fa4843120526829fbd
+ * Regenerated: 2026-10-16T17:17:42.630Z
  */
-export const MCP_CATALOG_FINGERPRINT = "6d555700323e61aa61075f69aee931efffc29f3acc6af1342353dfbc8da65781";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "433d9ebf98cbe21a17e54724c88549dc9c2e7e3046ff9985e0bc844956d65e2f";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-16T11:29:00.407Z";
-export const TOOL_CATALOG_VERSION = "e58d70ceb925a73c181f13fc682bc677f6d78fa5a889d14d9079967cc9e3706e";
+export const MCP_CATALOG_FINGERPRINT = "be65216592826e51f199674e892cfc9d3da3b3a855ddffcc589faa6463a999b0";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "c2cc0e9f1b95ca55886ffd9fd9367a7e3c5f0a0a583f05fa4843120526829fbd";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-16T17:17:42.630Z";
+export const TOOL_CATALOG_VERSION = "670b60db97ad1cc1bfb9f1a2138011b9f4c602a1f0c06562f0c57a68cc17bf93";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -224,7 +224,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_review_queue",
 		"name": "get review queue",
-		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Filter intent disputes by involvement (awaiting_me, raised_by_me, involving_me, involving_others, can_resolve), state (held, escalated, challenged, disputed, settled), person, or record_type. Ownership and reversal actions use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
+		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Work that would undo someone's decision waits for an OK; each question shows, per reversing record, where it stands and who it waits on, as DevSpec decides it. Filter questions by involvement (awaiting_me: waiting for your OK, which leaves out an experiment until it asks to land; raised_by_me; involving_me; involving_others; can_resolve: you can answer it now), state (waiting, declined, landed: reached the tracking branch without its OK, putting_back, settled), person, or record_type. Answers and experiments use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
 		"intent": "review inbox out of date flags proposed changes waiting for a ruling or acceptance"
 	},
 	{
@@ -296,8 +296,8 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "manage_protected_intent",
 		"name": "manage protected intent",
-		"description": "Record a person’s explicit ownership or reversal action on protected intent: adopt active agent-initiated intent (adopt), name or answer a proposed co-owner (name_coowner, confirm_coowner), claim or move ownership on an action item (take_ownership, move_commit), or act on a reversal question (accept, decline, challenge, rule, compromise, release, not_a_reversal, restore, reopen, withdraw, joint_settlement). Read the record or Review question first; tool results show the actual record text with labels (Protected record / Reversing record) rather than generated summaries. The five dispute states are: held (a change reverses protected intent and is held pending the owner’s response), escalated (the owner declined or asked to reconsider and it awaits a maintainer), challenged (the reverser or a third party challenged the decision or ruling), disputed (active disagreement awaiting a ruling), and settled (resolved by acceptance, withdrawal, compromise, ruling, restoration or not-a-reversal). Never infer adoption or agreement: casual agreement (\"fair point\", \"makes sense\", \"I see\") is not an instruction to rule. You act for the person who sent the command DevSpec delivered to you, with their authority: every single-party ruling passes instruction_message_id, the id of that command, and any other message is refused, whoever wrote it. So when person A instructs person B’s agent, the recorded actor and authority are A’s, and the audit shows \"A, via their agent\". For joint_settlement, when the decision owner and the reverser each state agreement to the same outcome (accept, withdraw or compromise) in their own messages in the conversation you were instructed in, and you act for one of them, pass both message ids and exact quotes; a compromise is stored as shared intent of both. A stale result changes nothing: read again before retrying.",
-		"intent": "adopt agent initiated decision intent ownership proposed coowner confirm stand behind decision reversal ruling accept decline challenge compromise release withdraw restore reopen joint settlement"
+		"description": "Answer for a person on work that would undo a decision, or act on ownership and experiments. Work that would undo someone else's protected decision waits for an OK: it can be claimed and built on its own branch, but it doesn't merge into the tracking branch or reach done until it has the OK. The answers, on a question (issue_id from Review, the record, or a waiting item's waiting_for_ok): go_ahead; decline, with a required reason (the work stays on its branch to change, drop, or take to whoever else can decide); not_a_reversal (\"this doesn't undo my decision\", which counts as go ahead); and, when waiting work reached the tracking branch anyway, keep (the same as an OK) or undo (creates a follow-up to put the decision back). Settled is settled: only a Maintainer can reopen. Who can give the OK is decided by DevSpec, not by you (devspec://product/implementation-contract, reversal_rule); a refusal names who can. Experiments: make_experiment tries an item on its own branch first (your own item, or any item if you are a Maintainer; otherwise start your own experiment); ask_to_land is when whoever can give the OK is asked; go_ahead or decline with the experiment's id (no issue_id) answers whether it may land. Also adopt (make active agent-initiated intent your decision), take_ownership and move_commit for untagged commits. Every answer is an act that belongs to one person: you give it only on that person's own instruction, and DevSpec takes who is asking from the command it delivered to you, never from a message you cite. Judge what they want from the conversation; when it is unclear, ask them (manage_directed_question) rather than answering. Read the record or the Review question first; results show the actual record texts, labelled Protected record and Reversing record. A stale result changes nothing: read again before retrying.",
+		"intent": "ok go ahead decline not a reversal waiting for ok undo keep landed anyway reopen experiment ask to land adopt agent initiated decision take ownership move commit protected intent"
 	},
 	{
 		"id": "preview_supersession",
@@ -1715,7 +1715,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_review_queue",
 		"label": "DevSpec: Get Review Queue",
-		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Filter intent disputes by involvement (awaiting_me, raised_by_me, involving_me, involving_others, can_resolve), state (held, escalated, challenged, disputed, settled), person, or record_type. Ownership and reversal actions use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
+		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Work that would undo someone's decision waits for an OK; each question shows, per reversing record, where it stands and who it waits on, as DevSpec decides it. Filter questions by involvement (awaiting_me: waiting for your OK, which leaves out an experiment until it asks to land; raised_by_me; involving_me; involving_others; can_resolve: you can answer it now), state (waiting, declined, landed: reached the tracking branch without its OK, putting_back, settled), person, or record_type. Answers and experiments use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
 		"searchIntent": "review inbox out of date flags proposed changes waiting for a ruling or acceptance",
 		"modelInputSchema": {
 			"type": "object",
@@ -1771,25 +1771,25 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"can_resolve"
 						]
 					},
-					"description": "Filter intent disputes by involvement: awaiting_me, raised_by_me, involving_me, involving_others, or can_resolve. Omitted: all."
+					"description": "Filter questions by involvement: awaiting_me, raised_by_me, involving_me, involving_others, or can_resolve. Omitted: all."
 				},
 				"state": {
 					"type": "array",
 					"items": {
 						"type": "string",
 						"enum": [
-							"held",
-							"escalated",
-							"challenged",
-							"disputed",
+							"waiting",
+							"declined",
+							"landed",
+							"putting_back",
 							"settled"
 						]
 					},
-					"description": "Filter intent disputes by state: held, escalated, challenged, disputed, or settled. Omitted: all open disputes."
+					"description": "Filter questions by state: waiting (for an OK), declined (answered no; the work stays on its branch), landed (reached the tracking branch without its OK: keep it or undo it), putting_back (undo chosen; its follow-up hasn't landed), or settled. Omitted: every question that isn't settled."
 				},
 				"person": {
 					"type": "string",
-					"description": "Filter intent disputes to those involving this person (user UUID). Omitted: any person."
+					"description": "Filter questions to those involving this person (user UUID). Omitted: any person."
 				},
 				"search": {
 					"type": "string",
@@ -1879,25 +1879,25 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"can_resolve"
 						]
 					},
-					"description": "Filter intent disputes by involvement: awaiting_me, raised_by_me, involving_me, involving_others, or can_resolve. Omitted: all."
+					"description": "Filter questions by involvement: awaiting_me, raised_by_me, involving_me, involving_others, or can_resolve. Omitted: all."
 				},
 				"state": {
 					"type": "array",
 					"items": {
 						"type": "string",
 						"enum": [
-							"held",
-							"escalated",
-							"challenged",
-							"disputed",
+							"waiting",
+							"declined",
+							"landed",
+							"putting_back",
 							"settled"
 						]
 					},
-					"description": "Filter intent disputes by state: held, escalated, challenged, disputed, or settled. Omitted: all open disputes."
+					"description": "Filter questions by state: waiting (for an OK), declined (answered no; the work stays on its branch), landed (reached the tracking branch without its OK: keep it or undo it), putting_back (undo chosen; its follow-up hasn't landed), or settled. Omitted: every question that isn't settled."
 				},
 				"person": {
 					"type": "string",
-					"description": "Filter intent disputes to those involving this person (user UUID). Omitted: any person."
+					"description": "Filter questions to those involving this person (user UUID). Omitted: any person."
 				},
 				"search": {
 					"type": "string",
@@ -4633,11 +4633,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"is_experiment": {
 					"type": "boolean",
-					"description": "true marks the item as an experiment (built on its own branch, never held at claim, done blocked until agreed); taking the Experiment badge off (false) requires agreement from whoever can release what it clashes with. Omitted: unchanged."
+					"description": "true makes the item an experiment: built on its own branch first, it doesn't merge into the tracking branch or reach done until someone who can give the OK lets it land. Only the person who asked for the work, or a Maintainer, can; anyone else can start their own experiment instead. It stops being one only with that OK (manage_protected_intent ask_to_land, then go_ahead), never by setting false. Omitted: unchanged."
 				},
 				"experiment_branch": {
 					"type": "string",
-					"description": "Records the dedicated experiment branch (for example exp/my-experiment) when the item is an experiment. Omitted: unchanged."
+					"description": "With is_experiment: true, its own branch (never a tracking branch). Omitted: its current branch, or experiment/<short id>."
 				},
 				"expected_version": {
 					"type": "number",
@@ -4910,11 +4910,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"is_experiment": {
 					"type": "boolean",
-					"description": "true marks the item as an experiment (built on its own branch, never held at claim, done blocked until agreed); taking the Experiment badge off (false) requires agreement from whoever can release what it clashes with. Omitted: unchanged."
+					"description": "true makes the item an experiment: built on its own branch first, it doesn't merge into the tracking branch or reach done until someone who can give the OK lets it land. Only the person who asked for the work, or a Maintainer, can; anyone else can start their own experiment instead. It stops being one only with that OK (manage_protected_intent ask_to_land, then go_ahead), never by setting false. Omitted: unchanged."
 				},
 				"experiment_branch": {
 					"type": "string",
-					"description": "Records the dedicated experiment branch (for example exp/my-experiment) when the item is an experiment. Omitted: unchanged."
+					"description": "With is_experiment: true, its own branch (never a tracking branch). Omitted: its current branch, or experiment/<short id>."
 				},
 				"expected_version": {
 					"type": "number",
@@ -5066,7 +5066,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"intent": {
 					"type": "string",
-					"description": "Why: the problem being solved and the outcome wanted, so whoever picks the item up later understands the goal. Omitted: none."
+					"description": "Required when creating an item. Why: the problem being solved and the outcome wanted, so whoever picks the item up later understands the goal and intent checks have the reason behind the work."
 				},
 				"acceptance_criteria": {
 					"anyOf": [
@@ -5156,11 +5156,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"is_experiment": {
 					"type": "boolean",
-					"description": "true creates the item as an experiment (built on its own branch, never held at claim, done blocked until agreed). Default false."
+					"description": "true creates the item as an experiment: built on its own branch first, it can be claimed and built at once (a Reviewed Contributor's too), but it doesn't merge into the tracking branch or reach done until someone who can give the OK lets it land. Default false."
 				},
 				"experiment_branch": {
 					"type": "string",
-					"description": "Optional dedicated branch name for the experiment (defaults to exp/<short-id> when is_experiment is true)."
+					"description": "With is_experiment: its own branch (never a tracking branch). Omitted: experiment/<short id>."
 				},
 				"assigned_to": {
 					"type": "string",
@@ -5235,7 +5235,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"intent": {
 					"type": "string",
-					"description": "Why: the problem being solved and the outcome wanted, so whoever picks the item up later understands the goal. Omitted: none."
+					"description": "Required when creating an item. Why: the problem being solved and the outcome wanted, so whoever picks the item up later understands the goal and intent checks have the reason behind the work."
 				},
 				"acceptance_criteria": {
 					"anyOf": [
@@ -5325,11 +5325,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"is_experiment": {
 					"type": "boolean",
-					"description": "true creates the item as an experiment (built on its own branch, never held at claim, done blocked until agreed). Default false."
+					"description": "true creates the item as an experiment: built on its own branch first, it can be claimed and built at once (a Reviewed Contributor's too), but it doesn't merge into the tracking branch or reach done until someone who can give the OK lets it land. Default false."
 				},
 				"experiment_branch": {
 					"type": "string",
-					"description": "Optional dedicated branch name for the experiment (defaults to exp/<short-id> when is_experiment is true)."
+					"description": "With is_experiment: its own branch (never a tracking branch). Omitted: experiment/<short id>."
 				},
 				"assigned_to": {
 					"type": "string",
@@ -8456,8 +8456,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "manage_protected_intent",
 		"label": "DevSpec: Manage Protected Intent",
-		"description": "Record a person’s explicit ownership or reversal action on protected intent: adopt active agent-initiated intent (adopt), name or answer a proposed co-owner (name_coowner, confirm_coowner), claim or move ownership on an action item (take_ownership, move_commit), or act on a reversal question (accept, decline, challenge, rule, compromise, release, not_a_reversal, restore, reopen, withdraw, joint_settlement). Read the record or Review question first; tool results show the actual record text with labels (Protected record / Reversing record) rather than generated summaries. The five dispute states are: held (a change reverses protected intent and is held pending the owner’s response), escalated (the owner declined or asked to reconsider and it awaits a maintainer), challenged (the reverser or a third party challenged the decision or ruling), disputed (active disagreement awaiting a ruling), and settled (resolved by acceptance, withdrawal, compromise, ruling, restoration or not-a-reversal). Never infer adoption or agreement: casual agreement (\"fair point\", \"makes sense\", \"I see\") is not an instruction to rule. You act for the person who sent the command DevSpec delivered to you, with their authority: every single-party ruling passes instruction_message_id, the id of that command, and any other message is refused, whoever wrote it. So when person A instructs person B’s agent, the recorded actor and authority are A’s, and the audit shows \"A, via their agent\". For joint_settlement, when the decision owner and the reverser each state agreement to the same outcome (accept, withdraw or compromise) in their own messages in the conversation you were instructed in, and you act for one of them, pass both message ids and exact quotes; a compromise is stored as shared intent of both. A stale result changes nothing: read again before retrying.",
-		"searchIntent": "adopt agent initiated decision intent ownership proposed coowner confirm stand behind decision reversal ruling accept decline challenge compromise release withdraw restore reopen joint settlement",
+		"description": "Answer for a person on work that would undo a decision, or act on ownership and experiments. Work that would undo someone else's protected decision waits for an OK: it can be claimed and built on its own branch, but it doesn't merge into the tracking branch or reach done until it has the OK. The answers, on a question (issue_id from Review, the record, or a waiting item's waiting_for_ok): go_ahead; decline, with a required reason (the work stays on its branch to change, drop, or take to whoever else can decide); not_a_reversal (\"this doesn't undo my decision\", which counts as go ahead); and, when waiting work reached the tracking branch anyway, keep (the same as an OK) or undo (creates a follow-up to put the decision back). Settled is settled: only a Maintainer can reopen. Who can give the OK is decided by DevSpec, not by you (devspec://product/implementation-contract, reversal_rule); a refusal names who can. Experiments: make_experiment tries an item on its own branch first (your own item, or any item if you are a Maintainer; otherwise start your own experiment); ask_to_land is when whoever can give the OK is asked; go_ahead or decline with the experiment's id (no issue_id) answers whether it may land. Also adopt (make active agent-initiated intent your decision), take_ownership and move_commit for untagged commits. Every answer is an act that belongs to one person: you give it only on that person's own instruction, and DevSpec takes who is asking from the command it delivered to you, never from a message you cite. Judge what they want from the conversation; when it is unclear, ask them (manage_directed_question) rather than answering. Read the record or the Review question first; results show the actual record texts, labelled Protected record and Reversing record. A stale result changes nothing: read again before retrying.",
+		"searchIntent": "ok go ahead decline not a reversal waiting for ok undo keep landed anyway reopen experiment ask to land adopt agent initiated decision take ownership move commit protected intent",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -8465,28 +8465,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"enum": [
 						"adopt",
-						"name_coowner",
-						"confirm_coowner",
-						"accept",
+						"go_ahead",
 						"decline",
-						"challenge",
-						"rule",
-						"compromise",
-						"release",
 						"not_a_reversal",
-						"restore",
+						"keep",
+						"undo",
 						"reopen",
-						"withdraw",
-						"joint_settlement",
 						"take_ownership",
 						"move_commit",
-						"build_as_experiment",
-						"request_experiment_agreement",
-						"agree_experiment",
-						"decline_experiment",
-						"record_experiment_merged_while_badged"
+						"make_experiment",
+						"ask_to_land"
 					],
-					"description": "adopt: make active agent-initiated intent your decision; name_coowner: name a proposed co-owner before a question exists; confirm_coowner: answer for this question only; accept: accept the reversal on this question (including on a declined thread); decline: decline the reversal with a required reason; challenge: challenge a decline with a required response to the decline reason; rule: independent Maintainer ruling on a challenge; compromise: settle the question as a compromise; release: release a reversal hold; not_a_reversal: rule that the change is not a reversal; restore: require or complete restoration of the reversed decision; reopen: reopen a settled or declined question thread; withdraw: reverser withdraws their reversal; joint_settlement: record a joint settlement quoting both people when both stated agreement to the same outcome in one session (a compromise is stored as shared intent of both); take_ownership: take ownership of an untagged commit item; move_commit: move an untagged commit onto an existing action item; build_as_experiment: turn an item (or a held claim) into an experiment on its own branch; request_experiment_agreement: ask for agreement on an experiment and notify the decision owner(s); agree_experiment: agree to an experiment and remove the Experiment badge; decline_experiment: decline an experiment with a required reason and leave its branch in place; record_experiment_merged_while_badged: record that commits from a still-badged experiment reached the tracking branch."
+					"description": "adopt: make active agent-initiated intent your decision. go_ahead: give the OK, on a question (issue_id) for work that would undo a decision, or on an experiment (id) to let it land. decline: say no, with a required reason; the work stays on its own branch. not_a_reversal: \"this doesn't undo my decision\"; counts as go ahead. keep / undo: after waiting work reached the tracking branch without its OK, keep it (the same as an OK) or undo it, which creates a follow-up to put the decision back. reopen: a Maintainer reopens a settled question. take_ownership: take ownership of an untagged commit item. move_commit: move an untagged commit onto an existing item. make_experiment: try an item on its own branch first (your own item, or any item if you are a Maintainer). ask_to_land: ask for an experiment to land, which is when whoever can give the OK is asked."
 				},
 				"record_type": {
 					"type": "string",
@@ -8495,72 +8485,45 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"memory",
 						"artifact"
 					],
-					"description": "Required for adopt and name_coowner: the record corpus. Defaults to action_item for take_ownership and experiment actions."
+					"description": "Required for adopt: the record corpus."
 				},
 				"id": {
 					"type": "string",
 					"format": "uuid",
 					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Required for adopt, name_coowner, take_ownership, and experiment actions (when issue_id is omitted): the full record UUID."
+					"description": "The record UUID: required for adopt, take_ownership, make_experiment and ask_to_land, and for go_ahead or decline on an experiment."
 				},
 				"expected_version": {
 					"type": "integer",
 					"exclusiveMinimum": 0,
-					"description": "Required for adopt, name_coowner, and take_ownership (and optional version guard on move_commit or question actions): the version you read. If it changed, nothing is written."
-				},
-				"coowner_user_id": {
-					"type": "string",
-					"format": "uuid",
-					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Required for name_coowner: the proposed person’s project-member UUID. Naming is not approval or ownership."
-				},
-				"evidence": {
-					"type": "string",
-					"minLength": 1,
-					"description": "Required for name_coowner: the evidence for naming them. A citation alone never grants authority."
-				},
-				"confirmed_poll_id": {
-					"type": "string",
-					"format": "uuid",
-					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "For name_coowner only: an ended poll offered as the immediate confirmation shortcut. Requires confirmed_option_id; the server verifies the named person’s human vote and the poll’s own winning result. A citation alone is not confirmation."
-				},
-				"confirmed_option_id": {
-					"type": "string",
-					"format": "uuid",
-					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "For the poll shortcut: the winning option UUID. Required with confirmed_poll_id."
+					"description": "Required for adopt and take_ownership (and an optional version guard on move_commit): the version you read. If it changed, nothing is written."
 				},
 				"issue_id": {
 					"type": "string",
 					"format": "uuid",
 					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Required for confirm_coowner, accept, decline, challenge, rule, compromise, release, not_a_reversal, restore, reopen, withdraw, and joint_settlement (and optional for experiment actions): the question UUID returned by Review."
+					"description": "The question UUID from Review or the record, for go_ahead, decline, not_a_reversal, keep, undo and reopen. Omit it to answer an experiment by its id instead."
 				},
 				"expected_revision": {
 					"type": "integer",
 					"minimum": 0,
-					"description": "Required for question actions: the question revision you read. A changed question refuses this action as stale."
-				},
-				"yes": {
-					"type": "boolean",
-					"description": "Required for confirm_coowner: the named person’s explicit yes or no. Omitted is never an answer."
+					"description": "Optional for answers on a question: the question revision you read. A changed question returns stale and changes nothing."
 				},
 				"idempotency_key": {
 					"type": "string",
 					"format": "uuid",
 					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Required for question actions: one fresh UUID per intended action; reuse it for retries of that action."
+					"description": "Required for every answer: one fresh UUID per answer. Reusing it repeats only the same person's same answer; anything else is refused."
 				},
 				"reason": {
 					"type": "string",
 					"minLength": 1,
-					"description": "Required for decline and decline_experiment (why the owner declines) and challenge (response to the decline reason); optional note for accept, rule, compromise, release, not_a_reversal, restore, reopen, withdraw, joint_settlement, or experiment actions."
+					"description": "Required for decline (why not: the work had to engage with the decision's reasons, so the answer does too). Optional for the other answers."
 				},
 				"note": {
 					"type": "string",
 					"minLength": 1,
-					"description": "Optional note or reason alias for question rulings, experiment actions, and move_commit."
+					"description": "Optional note for make_experiment, ask_to_land or move_commit (and an alias for reason)."
 				},
 				"event_ids": {
 					"minItems": 1,
@@ -8570,114 +8533,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"format": "uuid",
 						"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
 					},
-					"description": "Optional for question actions: specific reversal_evidence event UUIDs to cover. Defaults to all reversal evidence on the question."
-				},
-				"ruling": {
-					"type": "string",
-					"enum": [
-						"ruled",
-						"not_a_reversal",
-						"restored",
-						"compromise",
-						"accepted",
-						"uphold_reversal",
-						"uphold_decline"
-					],
-					"description": "For action=\"rule\" or action=\"joint_settlement\": the ruling or agreed outcome (defaults to \"ruled\" for rule, and \"compromise\" for joint_settlement)."
-				},
-				"consequences": {
-					"type": "array",
-					"items": {
-						"type": "object",
-						"properties": {
-							"type": {
-								"type": "string",
-								"enum": [
-									"action_item",
-									"memory",
-									"artifact"
-								]
-							},
-							"id": {
-								"type": "string",
-								"format": "uuid",
-								"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-							}
-						},
-						"required": [
-							"type",
-							"id"
-						]
-					},
-					"description": "Optional consequence records (such as a restore follow-up action item when ruling=\"restored\" or action=\"restore\" after shipping)."
+					"description": "Optional for answers on a question: the comparisons to answer. Omitted, it answers every comparison on the question waiting for that answer."
 				},
 				"instruction_message_id": {
 					"type": "string",
 					"format": "uuid",
 					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "The id of the message that instructed you: over a connection, the command DevSpec delivered to you (required there for a single-party ruling); in Dev, the message that started this turn. You act for the person who sent it. Any other message is refused, whoever wrote it. Casual agreement (\"fair point\", \"makes sense\") is not an instruction to rule."
-				},
-				"joint_settlement": {
-					"type": "object",
-					"properties": {
-						"session_id": {
-							"type": "string",
-							"format": "uuid",
-							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-							"description": "Optional: the conversation you were instructed in, where both people stated agreement. Any other conversation is refused."
-						},
-						"owner_message_id": {
-							"type": "string",
-							"format": "uuid",
-							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-							"description": "Authenticated session_messages UUID where the protected intent owner stated agreement to this outcome."
-						},
-						"owner_quote": {
-							"type": "string",
-							"minLength": 1,
-							"description": "Exact quote from the owner’s message stating agreement to the outcome."
-						},
-						"reverser_message_id": {
-							"type": "string",
-							"format": "uuid",
-							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-							"description": "Authenticated session_messages UUID where the reverser stated agreement to the same outcome."
-						},
-						"reverser_quote": {
-							"type": "string",
-							"minLength": 1,
-							"description": "Exact quote from the reverser’s message stating agreement to the same outcome."
-						}
-					},
-					"required": [
-						"owner_message_id",
-						"owner_quote",
-						"reverser_message_id",
-						"reverser_quote"
-					],
-					"description": "When two people each state agreement to the same outcome in their own messages in one session, quotes and message IDs for both. A compromise is stored as shared intent of both."
-				},
-				"owner_message_id": {
-					"type": "string",
-					"format": "uuid",
-					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "For joint_settlement: authenticated session_messages UUID from the protected intent owner."
-				},
-				"owner_quote": {
-					"type": "string",
-					"minLength": 1,
-					"description": "For joint_settlement: exact quote from the owner’s message."
-				},
-				"reverser_message_id": {
-					"type": "string",
-					"format": "uuid",
-					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "For joint_settlement: authenticated session_messages UUID from the reverser."
-				},
-				"reverser_quote": {
-					"type": "string",
-					"minLength": 1,
-					"description": "For joint_settlement: exact quote from the reverser’s message."
+					"description": "Only from an agent: the instruction DevSpec gave you (the command delivered to you, or in Dev the message that started this turn). You act for the person who sent it; any other message is refused."
 				},
 				"session_id": {
 					"type": "string",
@@ -8686,7 +8548,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"intent": {
 					"type": "string",
 					"minLength": 1,
-					"description": "For take_ownership (or compromise): the confirmed intent text."
+					"description": "For take_ownership: the confirmed intent text."
 				},
 				"auto_item_id": {
 					"type": "string",
@@ -8709,25 +8571,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"experiment_branch": {
 					"type": "string",
 					"minLength": 1,
-					"description": "Optional branch name for build_as_experiment or record_experiment_merged_while_badged."
-				},
-				"target_branch": {
-					"type": "string",
-					"minLength": 1,
-					"description": "Optional tracking branch name for record_experiment_merged_while_badged."
-				},
-				"commit_sha": {
-					"type": "string",
-					"minLength": 1,
-					"description": "Commit SHA when recording an experiment merged while badged."
-				},
-				"commit_shas": {
-					"type": "array",
-					"items": {
-						"type": "string",
-						"minLength": 1
-					},
-					"description": "Optional list of commit SHAs when recording an experiment merged while badged."
+					"description": "Optional for make_experiment: its own branch. Never a tracking branch; omitted, its current branch or a new experiment/ branch."
 				},
 				"connection_id": {
 					"type": "string",
@@ -8765,28 +8609,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"enum": [
 						"adopt",
-						"name_coowner",
-						"confirm_coowner",
-						"accept",
+						"go_ahead",
 						"decline",
-						"challenge",
-						"rule",
-						"compromise",
-						"release",
 						"not_a_reversal",
-						"restore",
+						"keep",
+						"undo",
 						"reopen",
-						"withdraw",
-						"joint_settlement",
 						"take_ownership",
 						"move_commit",
-						"build_as_experiment",
-						"request_experiment_agreement",
-						"agree_experiment",
-						"decline_experiment",
-						"record_experiment_merged_while_badged"
+						"make_experiment",
+						"ask_to_land"
 					],
-					"description": "adopt: make active agent-initiated intent your decision; name_coowner: name a proposed co-owner before a question exists; confirm_coowner: answer for this question only; accept: accept the reversal on this question (including on a declined thread); decline: decline the reversal with a required reason; challenge: challenge a decline with a required response to the decline reason; rule: independent Maintainer ruling on a challenge; compromise: settle the question as a compromise; release: release a reversal hold; not_a_reversal: rule that the change is not a reversal; restore: require or complete restoration of the reversed decision; reopen: reopen a settled or declined question thread; withdraw: reverser withdraws their reversal; joint_settlement: record a joint settlement quoting both people when both stated agreement to the same outcome in one session (a compromise is stored as shared intent of both); take_ownership: take ownership of an untagged commit item; move_commit: move an untagged commit onto an existing action item; build_as_experiment: turn an item (or a held claim) into an experiment on its own branch; request_experiment_agreement: ask for agreement on an experiment and notify the decision owner(s); agree_experiment: agree to an experiment and remove the Experiment badge; decline_experiment: decline an experiment with a required reason and leave its branch in place; record_experiment_merged_while_badged: record that commits from a still-badged experiment reached the tracking branch."
+					"description": "adopt: make active agent-initiated intent your decision. go_ahead: give the OK, on a question (issue_id) for work that would undo a decision, or on an experiment (id) to let it land. decline: say no, with a required reason; the work stays on its own branch. not_a_reversal: \"this doesn't undo my decision\"; counts as go ahead. keep / undo: after waiting work reached the tracking branch without its OK, keep it (the same as an OK) or undo it, which creates a follow-up to put the decision back. reopen: a Maintainer reopens a settled question. take_ownership: take ownership of an untagged commit item. move_commit: move an untagged commit onto an existing item. make_experiment: try an item on its own branch first (your own item, or any item if you are a Maintainer). ask_to_land: ask for an experiment to land, which is when whoever can give the OK is asked."
 				},
 				"record_type": {
 					"type": "string",
@@ -8795,72 +8629,45 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"memory",
 						"artifact"
 					],
-					"description": "Required for adopt and name_coowner: the record corpus. Defaults to action_item for take_ownership and experiment actions."
+					"description": "Required for adopt: the record corpus."
 				},
 				"id": {
 					"type": "string",
 					"format": "uuid",
 					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Required for adopt, name_coowner, take_ownership, and experiment actions (when issue_id is omitted): the full record UUID."
+					"description": "The record UUID: required for adopt, take_ownership, make_experiment and ask_to_land, and for go_ahead or decline on an experiment."
 				},
 				"expected_version": {
 					"type": "integer",
 					"exclusiveMinimum": 0,
-					"description": "Required for adopt, name_coowner, and take_ownership (and optional version guard on move_commit or question actions): the version you read. If it changed, nothing is written."
-				},
-				"coowner_user_id": {
-					"type": "string",
-					"format": "uuid",
-					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Required for name_coowner: the proposed person’s project-member UUID. Naming is not approval or ownership."
-				},
-				"evidence": {
-					"type": "string",
-					"minLength": 1,
-					"description": "Required for name_coowner: the evidence for naming them. A citation alone never grants authority."
-				},
-				"confirmed_poll_id": {
-					"type": "string",
-					"format": "uuid",
-					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "For name_coowner only: an ended poll offered as the immediate confirmation shortcut. Requires confirmed_option_id; the server verifies the named person’s human vote and the poll’s own winning result. A citation alone is not confirmation."
-				},
-				"confirmed_option_id": {
-					"type": "string",
-					"format": "uuid",
-					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "For the poll shortcut: the winning option UUID. Required with confirmed_poll_id."
+					"description": "Required for adopt and take_ownership (and an optional version guard on move_commit): the version you read. If it changed, nothing is written."
 				},
 				"issue_id": {
 					"type": "string",
 					"format": "uuid",
 					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Required for confirm_coowner, accept, decline, challenge, rule, compromise, release, not_a_reversal, restore, reopen, withdraw, and joint_settlement (and optional for experiment actions): the question UUID returned by Review."
+					"description": "The question UUID from Review or the record, for go_ahead, decline, not_a_reversal, keep, undo and reopen. Omit it to answer an experiment by its id instead."
 				},
 				"expected_revision": {
 					"type": "integer",
 					"minimum": 0,
-					"description": "Required for question actions: the question revision you read. A changed question refuses this action as stale."
-				},
-				"yes": {
-					"type": "boolean",
-					"description": "Required for confirm_coowner: the named person’s explicit yes or no. Omitted is never an answer."
+					"description": "Optional for answers on a question: the question revision you read. A changed question returns stale and changes nothing."
 				},
 				"idempotency_key": {
 					"type": "string",
 					"format": "uuid",
 					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Required for question actions: one fresh UUID per intended action; reuse it for retries of that action."
+					"description": "Required for every answer: one fresh UUID per answer. Reusing it repeats only the same person's same answer; anything else is refused."
 				},
 				"reason": {
 					"type": "string",
 					"minLength": 1,
-					"description": "Required for decline and decline_experiment (why the owner declines) and challenge (response to the decline reason); optional note for accept, rule, compromise, release, not_a_reversal, restore, reopen, withdraw, joint_settlement, or experiment actions."
+					"description": "Required for decline (why not: the work had to engage with the decision's reasons, so the answer does too). Optional for the other answers."
 				},
 				"note": {
 					"type": "string",
 					"minLength": 1,
-					"description": "Optional note or reason alias for question rulings, experiment actions, and move_commit."
+					"description": "Optional note for make_experiment, ask_to_land or move_commit (and an alias for reason)."
 				},
 				"event_ids": {
 					"minItems": 1,
@@ -8870,114 +8677,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"format": "uuid",
 						"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
 					},
-					"description": "Optional for question actions: specific reversal_evidence event UUIDs to cover. Defaults to all reversal evidence on the question."
-				},
-				"ruling": {
-					"type": "string",
-					"enum": [
-						"ruled",
-						"not_a_reversal",
-						"restored",
-						"compromise",
-						"accepted",
-						"uphold_reversal",
-						"uphold_decline"
-					],
-					"description": "For action=\"rule\" or action=\"joint_settlement\": the ruling or agreed outcome (defaults to \"ruled\" for rule, and \"compromise\" for joint_settlement)."
-				},
-				"consequences": {
-					"type": "array",
-					"items": {
-						"type": "object",
-						"properties": {
-							"type": {
-								"type": "string",
-								"enum": [
-									"action_item",
-									"memory",
-									"artifact"
-								]
-							},
-							"id": {
-								"type": "string",
-								"format": "uuid",
-								"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-							}
-						},
-						"required": [
-							"type",
-							"id"
-						]
-					},
-					"description": "Optional consequence records (such as a restore follow-up action item when ruling=\"restored\" or action=\"restore\" after shipping)."
+					"description": "Optional for answers on a question: the comparisons to answer. Omitted, it answers every comparison on the question waiting for that answer."
 				},
 				"instruction_message_id": {
 					"type": "string",
 					"format": "uuid",
 					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "The id of the message that instructed you: over a connection, the command DevSpec delivered to you (required there for a single-party ruling); in Dev, the message that started this turn. You act for the person who sent it. Any other message is refused, whoever wrote it. Casual agreement (\"fair point\", \"makes sense\") is not an instruction to rule."
-				},
-				"joint_settlement": {
-					"type": "object",
-					"properties": {
-						"session_id": {
-							"type": "string",
-							"format": "uuid",
-							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-							"description": "Optional: the conversation you were instructed in, where both people stated agreement. Any other conversation is refused."
-						},
-						"owner_message_id": {
-							"type": "string",
-							"format": "uuid",
-							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-							"description": "Authenticated session_messages UUID where the protected intent owner stated agreement to this outcome."
-						},
-						"owner_quote": {
-							"type": "string",
-							"minLength": 1,
-							"description": "Exact quote from the owner’s message stating agreement to the outcome."
-						},
-						"reverser_message_id": {
-							"type": "string",
-							"format": "uuid",
-							"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-							"description": "Authenticated session_messages UUID where the reverser stated agreement to the same outcome."
-						},
-						"reverser_quote": {
-							"type": "string",
-							"minLength": 1,
-							"description": "Exact quote from the reverser’s message stating agreement to the same outcome."
-						}
-					},
-					"required": [
-						"owner_message_id",
-						"owner_quote",
-						"reverser_message_id",
-						"reverser_quote"
-					],
-					"description": "When two people each state agreement to the same outcome in their own messages in one session, quotes and message IDs for both. A compromise is stored as shared intent of both."
-				},
-				"owner_message_id": {
-					"type": "string",
-					"format": "uuid",
-					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "For joint_settlement: authenticated session_messages UUID from the protected intent owner."
-				},
-				"owner_quote": {
-					"type": "string",
-					"minLength": 1,
-					"description": "For joint_settlement: exact quote from the owner’s message."
-				},
-				"reverser_message_id": {
-					"type": "string",
-					"format": "uuid",
-					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "For joint_settlement: authenticated session_messages UUID from the reverser."
-				},
-				"reverser_quote": {
-					"type": "string",
-					"minLength": 1,
-					"description": "For joint_settlement: exact quote from the reverser’s message."
+					"description": "Only from an agent: the instruction DevSpec gave you (the command delivered to you, or in Dev the message that started this turn). You act for the person who sent it; any other message is refused."
 				},
 				"session_id": {
 					"type": "string",
@@ -8986,7 +8692,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"intent": {
 					"type": "string",
 					"minLength": 1,
-					"description": "For take_ownership (or compromise): the confirmed intent text."
+					"description": "For take_ownership: the confirmed intent text."
 				},
 				"auto_item_id": {
 					"type": "string",
@@ -9009,25 +8715,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"experiment_branch": {
 					"type": "string",
 					"minLength": 1,
-					"description": "Optional branch name for build_as_experiment or record_experiment_merged_while_badged."
-				},
-				"target_branch": {
-					"type": "string",
-					"minLength": 1,
-					"description": "Optional tracking branch name for record_experiment_merged_while_badged."
-				},
-				"commit_sha": {
-					"type": "string",
-					"minLength": 1,
-					"description": "Commit SHA when recording an experiment merged while badged."
-				},
-				"commit_shas": {
-					"type": "array",
-					"items": {
-						"type": "string",
-						"minLength": 1
-					},
-					"description": "Optional list of commit SHAs when recording an experiment merged while badged."
+					"description": "Optional for make_experiment: its own branch. Never a tracking branch; omitted, its current branch or a new experiment/ branch."
 				},
 				"connection_id": {
 					"type": "string",

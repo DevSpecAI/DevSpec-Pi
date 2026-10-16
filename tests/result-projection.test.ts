@@ -686,7 +686,16 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// 83 model, 12 pump and 1 never-model unchanged; no other family moved; hot
 		// set unchanged. Benchmark before/after: 47,618 -> 52,090 estimated tokens;
 		// every budget passes.
-		"8caa5855140fdf200f8be78e18017afdde27741ebabc73d8eb2ac4b3449ad1e4",
+		// Rebaselined 2026-10-16 for DevSpec item d2763652 (work that would undo
+		// someone's decision waits for an OK, built on its own branch; DevSpecV2
+		// #444). manage_protected_intent's actions are now adopt, go_ahead, decline,
+		// not_a_reversal, keep, undo, reopen, take_ownership, move_commit,
+		// make_experiment and ask_to_land; its ruling, co-owner, joint-settlement,
+		// target_branch and commit_sha(s) inputs are gone. get_review_queue's state
+		// filter is waiting/declined/landed/putting_back/settled. is_experiment and
+		// experiment_branch descriptions changed on create/update_action_item. Verbs
+		// 83 model / 12 pump / 1 never-model unchanged; families and hot set unchanged.
+		"e863cac8beddaf951deb19c4f942831f940868c7460f62702c57c125a4f367bb",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

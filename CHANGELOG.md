@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.2 - 2026-10-17
+
+- The catalogue is regenerated against DevSpec's current tools: the remote-control poll now describes the newer findings channel, and what DevSpec tells your person when an agent stops listening. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.7.1 - 2026-10-16
 
 - When your agent can tell from the conversation that someone else agrees to an answer on a decision, it can now ask them to confirm it themselves. Nothing is recorded until they do: the request waits for them in Review and their notifications, and they can confirm or decline it there with no agent running. If your agent is still connected, it is told how it was decided.

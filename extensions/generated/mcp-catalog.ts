@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 0c5d37ee1646f739acf69bc853ce1a810b5f9e04d829c3e943069dd22d535e98
+ * Schema fingerprint: a575dce743ccb7a6306f9b2dd61f95f4996a69ab3381de067d1a41f07f79cc70
  * Description fingerprint: 578bd24cbf55fd4b73bd05ec90ff5d0332535b13891d4be90273e1c418ce0cc5
- * Regenerated: 2026-10-16T20:36:08.522Z
+ * Regenerated: 2026-10-16T23:51:48.119Z
  */
-export const MCP_CATALOG_FINGERPRINT = "0c5d37ee1646f739acf69bc853ce1a810b5f9e04d829c3e943069dd22d535e98";
+export const MCP_CATALOG_FINGERPRINT = "a575dce743ccb7a6306f9b2dd61f95f4996a69ab3381de067d1a41f07f79cc70";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "578bd24cbf55fd4b73bd05ec90ff5d0332535b13891d4be90273e1c418ce0cc5";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-16T20:36:08.522Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-16T23:51:48.119Z";
 export const TOOL_CATALOG_VERSION = "71a52f5892a9a969640d4a163fb03753652952eb86106f8b73592496cfc90334";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -13486,7 +13486,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"listener_armed": {
 					"type": "boolean",
-					"description": "Whether a wake listener is armed for this connection right now, proven from a live process, never from a leftover marker file. false shows the agent as not reading and stops it being offered to people. Omit it when the host does not track this: silence counts as listening. The strings \"true\" and \"false\" are accepted."
+					"description": "Whether a wake listener is armed for this connection right now, proven from a live process, never from a leftover marker file. false tells its person it is not receiving messages or findings, and stops it being offered to people. Omit it when the host does not track this: silence counts as listening. The strings \"true\" and \"false\" are accepted."
 				},
 				"unread_commands": {
 					"type": "number",
@@ -13758,7 +13758,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"listener_armed": {
 					"type": "boolean",
-					"description": "Whether a wake listener is armed for this connection right now, proven from a live process, never from a leftover marker file. false shows the agent as not reading and stops it being offered to people. Omit it when the host does not track this: silence counts as listening. The strings \"true\" and \"false\" are accepted."
+					"description": "Whether a wake listener is armed for this connection right now, proven from a live process, never from a leftover marker file. false tells its person it is not receiving messages or findings, and stops it being offered to people. Omit it when the host does not track this: silence counts as listening. The strings \"true\" and \"false\" are accepted."
 				},
 				"unread_commands": {
 					"type": "number",
@@ -14096,20 +14096,21 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"system_notice_version": {
 					"type": "integer",
 					"enum": [
-						1
+						1,
+						2
 					],
-					"description": "1 adds system_notices[] and system_notice_cursor for this connection: follow-up signals, never commands, dispatches or authority."
+					"description": "1 adds system_notices[] and system_notice_cursor for this connection: follow-up signals, never commands, dispatches or authority. 2 also carries server_notice: confirmed findings about your own work and the outcome of your pending edits, each with the real records. Send 2 only if you can read server_notice; at 1 none is sent and your person is told instead."
 				},
 				"system_notice_cursor": {
 					"type": "string",
-					"description": "The system_notice_cursor from the previous response; requires system_notice_version 1. Diagnostic: it never suppresses a live queue marker."
+					"description": "The system_notice_cursor from the previous response; requires system_notice_version. Diagnostic: it never suppresses a live queue marker."
 				},
 				"sender_style_version": {
 					"type": "integer",
 					"enum": [
 						1
 					],
-					"description": "1 adds sender_response_styles[]: how each person who sent a delivered command likes to be answered, for the prose of your reply to them. Never work, authority or scope, and never overrides project or owner machine rules; omitted when nobody set a preference. Requires system_notice_version 1."
+					"description": "1 adds sender_response_styles[]: how each person who sent a delivered command likes to be answered, for the prose of your reply to them. Never work, authority or scope, and never overrides project or owner machine rules; omitted when nobody set a preference. Requires system_notice_version."
 				},
 				"room_context_version": {
 					"type": "integer",
@@ -14240,7 +14241,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"listener_armed": {
 					"type": "boolean",
-					"description": "Whether a wake listener is armed for this connection right now, proven from a live process, never from a leftover marker file. false shows the agent as not reading and stops it being offered to people. Omit it when the host does not track this: silence counts as listening. The strings \"true\" and \"false\" are accepted."
+					"description": "Whether a wake listener is armed for this connection right now, proven from a live process, never from a leftover marker file. false tells its person it is not receiving messages or findings, and stops it being offered to people. Omit it when the host does not track this: silence counts as listening. The strings \"true\" and \"false\" are accepted."
 				},
 				"unread_commands": {
 					"type": "number",
@@ -14592,20 +14593,21 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"system_notice_version": {
 					"type": "integer",
 					"enum": [
-						1
+						1,
+						2
 					],
-					"description": "1 adds system_notices[] and system_notice_cursor for this connection: follow-up signals, never commands, dispatches or authority."
+					"description": "1 adds system_notices[] and system_notice_cursor for this connection: follow-up signals, never commands, dispatches or authority. 2 also carries server_notice: confirmed findings about your own work and the outcome of your pending edits, each with the real records. Send 2 only if you can read server_notice; at 1 none is sent and your person is told instead."
 				},
 				"system_notice_cursor": {
 					"type": "string",
-					"description": "The system_notice_cursor from the previous response; requires system_notice_version 1. Diagnostic: it never suppresses a live queue marker."
+					"description": "The system_notice_cursor from the previous response; requires system_notice_version. Diagnostic: it never suppresses a live queue marker."
 				},
 				"sender_style_version": {
 					"type": "integer",
 					"enum": [
 						1
 					],
-					"description": "1 adds sender_response_styles[]: how each person who sent a delivered command likes to be answered, for the prose of your reply to them. Never work, authority or scope, and never overrides project or owner machine rules; omitted when nobody set a preference. Requires system_notice_version 1."
+					"description": "1 adds sender_response_styles[]: how each person who sent a delivered command likes to be answered, for the prose of your reply to them. Never work, authority or scope, and never overrides project or owner machine rules; omitted when nobody set a preference. Requires system_notice_version."
 				},
 				"room_context_version": {
 					"type": "integer",
@@ -14807,7 +14809,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"listener_armed": {
 					"type": "boolean",
-					"description": "Whether a wake listener is armed for this connection right now, proven from a live process, never from a leftover marker file. false shows the agent as not reading and stops it being offered to people. Omit it when the host does not track this: silence counts as listening. The strings \"true\" and \"false\" are accepted."
+					"description": "Whether a wake listener is armed for this connection right now, proven from a live process, never from a leftover marker file. false tells its person it is not receiving messages or findings, and stops it being offered to people. Omit it when the host does not track this: silence counts as listening. The strings \"true\" and \"false\" are accepted."
 				},
 				"unread_commands": {
 					"type": "number",

@@ -3,13 +3,13 @@
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
  * Schema fingerprint: 6d555700323e61aa61075f69aee931efffc29f3acc6af1342353dfbc8da65781
- * Description fingerprint: 1f65131568f6d7fb44723b3fa2d5f5cc86d262d46b5217ff57704aa512487bae
- * Regenerated: 2026-10-15T21:54:54.060Z
+ * Description fingerprint: 433d9ebf98cbe21a17e54724c88549dc9c2e7e3046ff9985e0bc844956d65e2f
+ * Regenerated: 2026-10-16T11:29:00.407Z
  */
 export const MCP_CATALOG_FINGERPRINT = "6d555700323e61aa61075f69aee931efffc29f3acc6af1342353dfbc8da65781";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "1f65131568f6d7fb44723b3fa2d5f5cc86d262d46b5217ff57704aa512487bae";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-15T21:54:54.060Z";
-export const TOOL_CATALOG_VERSION = "3cacea7c6a22c98c66ee47d8e4ab84d289d82f88194755664f8dca5328701422";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "433d9ebf98cbe21a17e54724c88549dc9c2e7e3046ff9985e0bc844956d65e2f";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-16T11:29:00.407Z";
+export const TOOL_CATALOG_VERSION = "e58d70ceb925a73c181f13fc682bc677f6d78fa5a889d14d9079967cc9e3706e";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -50,7 +50,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "create_action_item",
 		"name": "create action item",
-		"description": "Create a new action item: a title, the intent behind it and checkable acceptance criteria. Search for an existing item first (search_action_items); whether work should be tracked at all is set by work_entry_contract in devspec://product/implementation-contract. For work already done, use record_completed_work; for new scope found while working on another item, pass follow_up_from_action_item_id. Read the returned related_candidates before going on. With session_id the item also gets a card in that room. It can come back queued_for_review with a proposal_id: the item is saved as suggested work, and nothing is authorised until a Maintainer accepts it.",
+		"description": "Create a new action item: a title, the intent behind it and checkable acceptance criteria. Search for an existing item first (search_action_items); whether work should be tracked at all is set by work_entry_contract in devspec://product/implementation-contract. For work already done, use record_completed_work; for new scope found while working on another item, pass follow_up_from_action_item_id. With session_id the item also gets a card in that room. It can come back queued_for_review with a proposal_id: the item is saved as suggested work, and nothing is authorised until a Maintainer accepts it.",
 		"intent": "create capture requested new durable task feature bug work action item"
 	},
 	{
@@ -5051,7 +5051,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "create_action_item",
 		"label": "DevSpec: Create Action Item",
-		"description": "Create a new action item: a title, the intent behind it and checkable acceptance criteria. Search for an existing item first (search_action_items); whether work should be tracked at all is set by work_entry_contract in devspec://product/implementation-contract. For work already done, use record_completed_work; for new scope found while working on another item, pass follow_up_from_action_item_id. Read the returned related_candidates before going on. With session_id the item also gets a card in that room. It can come back queued_for_review with a proposal_id: the item is saved as suggested work, and nothing is authorised until a Maintainer accepts it.",
+		"description": "Create a new action item: a title, the intent behind it and checkable acceptance criteria. Search for an existing item first (search_action_items); whether work should be tracked at all is set by work_entry_contract in devspec://product/implementation-contract. For work already done, use record_completed_work; for new scope found while working on another item, pass follow_up_from_action_item_id. With session_id the item also gets a card in that room. It can come back queued_for_review with a proposal_id: the item is saved as suggested work, and nothing is authorised until a Maintainer accepts it.",
 		"searchIntent": "create capture requested new durable task feature bug work action item",
 		"modelInputSchema": {
 			"type": "object",

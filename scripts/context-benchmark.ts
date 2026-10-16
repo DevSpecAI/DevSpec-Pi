@@ -54,10 +54,17 @@ const projectSummary = {
 	goals: [{ id: "goal-1", title: "Ship reliable workflows", status: "current" }],
 };
 
+// A create acknowledgement is the record and its receipt: DevSpec no longer
+// returns a candidate list (fce58a2f round 2). The richest real one is a create
+// saved as suggested work, which carries its proposal and where it is reviewed.
 const acknowledgement = {
-	action_item: { id: "item-created", title: "Representative write", lifecycle: "open" },
-	review_before_proceeding: { required: true, instruction: repeat("Review before proceeding", 400) },
-	related_candidates: actionResults.slice(0, 16),
+	outcome: "queued_for_review",
+	proposal_id: "proposal-1",
+	effect: "suggested_work",
+	code: "approval_required",
+	fields: ["title", "intent", "acceptance_criteria"],
+	review_url: "https://app.example.test/review/proposal-1",
+	action_item: { id: "item-created", title: "Representative write", lifecycle: "suggested" },
 };
 
 const help = {
@@ -130,7 +137,7 @@ const rows: BenchmarkRow[] = [
 	projectionRow("action-item search", "search_action_items", { count: actionResults.length, results: actionResults }, 2_000, PROJECTION_BUDGETS.collection, ["Representative action-item result 1", "Intent 1", "get_action_item"]),
 	projectionRow("resource search", "search_resources", { documents: resourceResults.slice(0, 5), artifacts: resourceResults.slice(5) }, 1_500, PROJECTION_BUDGETS.collection, ["Representative resource 1", "Matching passage 1", "get_resource"]),
 	projectionRow("project summary", "get_project_summary", projectSummary, 9_000, PROJECTION_BUDGETS.project, ["Team principles", "Team agent rules", "Owner agent rules"]),
-	projectionRow("write acknowledgement", "create_action_item", acknowledgement, 1_500, PROJECTION_BUDGETS.ack, ["review_before_proceeding", "Related candidates"]),
+	projectionRow("write acknowledgement", "create_action_item", acknowledgement, 300, PROJECTION_BUDGETS.ack, ["Representative write", "proposal-1", "review_url"]),
 	projectionRow("implementation acknowledgement", "record_implementation", implementation, 1_500, PROJECTION_BUDGETS.recordImplementation, ["Criterion 1", "Brief criterion 1", "record_criterion_verdicts"]),
 	projectionRow("help search", "devspec_help_search", help, 1_500, PROJECTION_BUDGETS.help, ["Context documentation 1", "https://docs.example.test/context-1", "Citeable help content 1"]),
 	projectionRow("fallback text", "generate_commit_message", fallback, 1_000, PROJECTION_BUDGETS.fallback, ["Generated commit message", "fallback field"]),

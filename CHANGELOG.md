@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.7 - 2026-10-16
+
+- Creating or editing an action item no longer shows the agent a list of possibly related items to sort through before it can go on. DevSpec now checks for duplicates itself after the write and only tells anyone about a confirmed one.
+- The catalogue is regenerated against DevSpec's current tools. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.6.6 - 2026-10-15
 
 - When you ask an agent to accept, decline or otherwise settle a question about a protected decision, it acts as you, with your authority, on the request you gave it. A message someone else wrote can no longer be used to act in their name, and a settlement two people agreed is recorded for one of them, from the conversation where they agreed.

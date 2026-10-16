@@ -231,7 +231,8 @@ memories, action items, artifacts, hybrid search across all three, and
 review and supersession between them. What already lives server-side
 (build WITH it, never rebuild it):
 
-- `create_action_item` related_candidates
+- the independent intent check, which finds duplicates and reversals after a
+  write and delivers only confirmed findings
 - review signals (possibly stale), queue holds,
   `supersede_action_item` (one item replaces another; a Contributor's call
   queues for a Maintainer) and `preview_supersession` (what it WOULD do)

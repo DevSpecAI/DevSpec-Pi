@@ -1062,19 +1062,18 @@ test("resource search projects both corpora and their matching passages instead 
 	assert.doesNotMatch(text, /Unrecognized result shape|fallback field/);
 });
 
-test("create/update projections keep the review gate and related candidates", () => {
+// DevSpec returns no candidate list on create or update (fce58a2f round 2):
+// duplicates are its own check's to find after the write.
+test("create/update projections keep the written record, without a candidate gate", () => {
 	const payload = {
 		action_item: { id: "created-123", title: "Project structured results", lifecycle: "staged", parent_action_item_id: "brief-456", description: huge("REPEATED-INPUT") },
-		review_before_proceeding: { required: true, instruction: "Review candidates before creating." },
-		related_candidates: Array.from({ length: 5 }, (_, index) => ({ id: `candidate-${index + 1}`, title: `Candidate ${index + 1}`, lifecycle: "open" })),
+		outcome: "committed",
 	};
 	for (const verb of ["create_action_item", "update_action_item"]) {
 		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
 		assert.ok(text.length <= PROJECTION_BUDGETS.ack);
 		assert.match(text, /id=created-123 title=Project structured results state=staged/);
-		assert.match(text, /review_before_proceeding.*required: true.*Review candidates/);
-		assert.match(text, /Related candidates: 5; showing top 3/);
-		assert.doesNotMatch(text, /candidate-4|REPEATED-INPUT/);
+		assert.doesNotMatch(text, /REPEATED-INPUT|Gate —|candidates/i);
 	}
 });
 
@@ -1151,7 +1150,6 @@ test("record_implementation reserves every own and brief criterion under its exp
 			unsettled_criteria: brief,
 			instruction: huge("Act on every brief criterion before reporting", 4_000),
 		},
-		related_candidates: Array.from({ length: 20 }, (_, index) => ({ id: `optional-${index}`, title: huge("optional", 2_000) })),
 	};
 	const text = projectModelText({ toolName: "record_implementation", text: JSON.stringify(payload), details: payload });
 	assert.ok(text.length <= PROJECTION_BUDGETS.recordImplementation, `record_implementation projection was ${text.length}`);
@@ -1164,25 +1162,6 @@ test("record_implementation reserves every own and brief criterion under its exp
 	assert.match(text, /unsettled_criteria/);
 	assert.match(text, /instruction: Act on every own criterion/);
 	assert.match(text, /instruction: Act on every brief criterion/);
-});
-
-test("acknowledgements reserve both the review gate and related candidates under pressure", () => {
-	const candidates = (prefix: string) => Array.from({ length: 8 }, (_, index) => ({
-		id: `${prefix}-${index + 1}`,
-		title: huge(`${prefix} title ${index + 1}`, 2_000),
-		why: huge(`${prefix} reason ${index + 1}`, 2_000),
-	}));
-	const payload = {
-		action_item: { id: "created-gates", title: "All gates", lifecycle: "staged" },
-		review_before_proceeding: { required: true, instruction: huge("review first", 2_000), candidates: candidates("review") },
-		related_candidates: candidates("related"),
-	};
-	const text = projectModelText({ toolName: "create_action_item", text: JSON.stringify(payload), details: payload });
-	assert.ok(text.length <= PROJECTION_BUDGETS.ack, `ack projection was ${text.length}`);
-	assert.match(text, /Gate category — Review-before-proceeding candidates:[^\n]*\[review-1\]/);
-	assert.match(text, /Related context \(advisory\) — Related candidates:[^\n]*\[related-1\]/);
-	assert.match(text, /7 more omitted from this mandatory summary/);
-	assert.match(text, /Gate — review_before_proceeding/);
 });
 
 test("claim_work_item remains a realistic lossless implementation-context read", () => {
@@ -1456,12 +1435,11 @@ test("production family budgets hold on adversarial selected fields without arbi
 		text: "",
 		details: {
 			action_item: { id: huge("id", 2_000), title: huge("title", 3_000), lifecycle: huge("state", 2_000) },
-			review_before_proceeding: { required: true, instruction: huge("instruction", 5_000) },
-			related_candidates: noisyItems,
 		},
 	});
 	assert.ok(ack.length <= PROJECTION_BUDGETS.ack);
-	assert.match(ack, /omitted/i);
+	// Each oversized field is cut at its own bound and marked, never mid-JSON.
+	assert.match(ack, /^create_action_item: id=id: [^\n]*… title=title: [^\n]*… state=state: [^\n]*…\.$/);
 });
 
 test("unknown structured fallback omits whole fields and non-JSON fallback is truthful", () => {

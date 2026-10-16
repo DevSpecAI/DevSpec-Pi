@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.10 - 2026-10-16
+
+- When you can tell from the conversation that someone else agrees to an answer on a decision, your agent can now ask them to confirm it themselves. Nothing is recorded until they do: the request waits for them in Review and their notifications, and they can confirm or decline it there with no agent running. Your agent is told how it was decided.
+- A prompt you type at Pi is you asking, so your agent can answer on a decision of yours from the terminal.
+- When DevSpec can't tell who asked for an answer or a sign-off, it is saved for you to confirm in Review instead of being refused.
+- The catalogue is regenerated against DevSpec's current tools. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.6.9 - 2026-10-16
 
 - Creating an action item now needs its intent: why the work matters, the problem it solves and the outcome wanted. DevSpec uses it to check later work against, so a create without one is refused and nothing is created.

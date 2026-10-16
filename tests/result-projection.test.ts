@@ -701,7 +701,15 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// changed. Verbs 83 model / 12 pump / 1 never-model unchanged; families and
 		// hot set unchanged. Benchmark before/after: 50,738 -> 50,754 estimated
 		// tokens; every budget passes.
-		"924cab84885cb1db40dd2a62ee3848678ae02e92be6b2a028cdb144fa9e7bd0c",
+		// Rebaselined 2026-10-16 for DevSpec item dafc8155 (requests to confirm wait in
+		// Review; who is asking is a fact the server supplies; DevSpecV2 #448).
+		// manage_protected_intent gains request_confirmation, confirm_request and
+		// decline_request with the answer, confirmer_user_id and request_id inputs, and
+		// its description and get_review_queue's say how a request to confirm works.
+		// Verbs 83 model / 12 pump / 1 never-model unchanged; families and hot set
+		// unchanged. Benchmark before/after: 50,754 -> 51,411 estimated tokens; every
+		// budget passes.
+		"9b0f4b3445ee19d196a790dacd04ac4c4379664b8da42f3c7fc2d0ed5ecc0f0a",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

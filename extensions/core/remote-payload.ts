@@ -26,6 +26,7 @@ import {
 	type StillToDiscussProjectionV1,
 } from "./still-to-discuss.ts";
 
+import { createHash } from "node:crypto";
 import { ROOM_CONTEXT_LANE, parseRoomContext, parseActivityIndex, type RoomContext, type ActivityIndex } from "./room-context.ts";
 import { parseSessionEvents, type SessionEvents } from "./session-events.ts";
 
@@ -241,7 +242,21 @@ export interface ServerNoticeV1 {
 	allowed_tools: string[];
 }
 
-export type SystemNoticeV1 = UnlinkedCommitItemReviewNoticeV1 | ServerNoticeV1;
+/**
+ * A notice this plugin version could not read: an unknown kind, an unknown
+ * version, or a known kind that did not match its shape. Only the facts needed
+ * to say so travel on; none of its other fields reach the model. One unreadable
+ * notice never costs the rest of the poll (decision d732793c; item bb1e58c8).
+ */
+export interface UnreadableSystemNoticeV1 {
+	version: 1;
+	kind: "unreadable";
+	notice_id: string;
+	received_kind: string | null;
+	received_version: string | null;
+}
+
+export type SystemNoticeV1 = UnlinkedCommitItemReviewNoticeV1 | ServerNoticeV1 | UnreadableSystemNoticeV1;
 
 export type RoomRecord = Pick<IngressContextEntry, "message_id" | "order" | "actor" | "source_type" | "content">;
 export interface RoomPage {
@@ -493,10 +508,31 @@ function systemNotice(value: unknown, path: string): SystemNoticeV1 {
 	};
 }
 
+/** A stable id for a notice whose own id is unusable, so both copies of one envelope agree. */
+function derivedNoticeId(value: unknown): string {
+	const hex = createHash("sha256").update(JSON.stringify(value) ?? "null").digest("hex");
+	return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-8${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
+function boundedLabel(value: unknown): string | null {
+	if (typeof value === "number" && Number.isFinite(value)) return String(value);
+	return typeof value === "string" && value.length > 0 && value.length <= MAX_SERVER_NOTICE_KEY_CHARS ? value : null;
+}
+
+function readableOrUnreadableNotice(value: unknown, path: string): SystemNoticeV1 {
+	try {
+		return systemNotice(value, path);
+	} catch {
+		const row = value && typeof value === "object" && !Array.isArray(value) ? value as RecordValue : {};
+		const id = typeof row.notice_id === "string" && UUID_RE.test(row.notice_id) ? row.notice_id : derivedNoticeId(value);
+		return { version: SYSTEM_NOTICE_VERSION, kind: "unreadable", notice_id: id, received_kind: boundedLabel(row.kind), received_version: boundedLabel(row.version) };
+	}
+}
+
 function systemNoticeArray(value: unknown, path: string): SystemNoticeV1[] {
 	if (!Array.isArray(value)) fail(path, "expected array");
 	if (value.length > MAX_SYSTEM_NOTICES_PER_ENVELOPE) fail(path, "system notice set exceeds safe bound");
-	const notices = value.map((entry, index) => systemNotice(entry, `${path}[${index}]`));
+	const notices = value.map((entry, index) => readableOrUnreadableNotice(entry, `${path}[${index}]`));
 	if (new Set(notices.map((notice) => notice.notice_id)).size !== notices.length) fail(path, "notice ids must be deduplicated");
 	return notices;
 }

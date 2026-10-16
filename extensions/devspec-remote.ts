@@ -23,6 +23,7 @@
 
 import { AssistantSpeechSource, AssistantSpeechQueue, assistantSpeechWithinBudget } from "./core/assistant-speech.ts";
 import { startLocalActivity } from "./core/local-activity.ts";
+import { githubIdentityNotice } from "./core/github-identity.ts";
 import { CommandPreemptionBudget, commandOfferAction, parseCommandOfferPoll, type CommandOffer, type CommandOfferScope } from "./core/command-offer.ts";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
@@ -3484,6 +3485,10 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 	const choice = projectFromRegistration(d, await resolveEndpoint(), project ?? getProjectChoice()?.project);
 	if (!choice || (project && choice.project.id !== project.id)) return { ok: false, error: "DevSpec did not confirm the selected project. No local connection was adopted.", errorKind: "api" };
 	pi_persistProjectChoice(ctx, choice);
+	// GitHub identity link at connect (ADR §14, c45f75d4): DevSpec offers the
+	// link; the person opens it, so it is shown to them, not to the model.
+	const githubLink = githubIdentityNotice(d.github_identity);
+	if (githubLink) notify(ctx, githubLink, "info");
 
 	let bond: BondState = {
 		connectionId,

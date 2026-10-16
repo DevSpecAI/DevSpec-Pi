@@ -4,11 +4,11 @@
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
  * Schema fingerprint: 83a081fd93c72397a35b2499a90252eb4b907c5f3aa7ac04dba76acbf7b9a40b
  * Description fingerprint: c2cc0e9f1b95ca55886ffd9fd9367a7e3c5f0a0a583f05fa4843120526829fbd
- * Regenerated: 2026-10-16T18:55:02.623Z
+ * Regenerated: 2026-10-16T19:39:04.505Z
  */
 export const MCP_CATALOG_FINGERPRINT = "83a081fd93c72397a35b2499a90252eb4b907c5f3aa7ac04dba76acbf7b9a40b";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "c2cc0e9f1b95ca55886ffd9fd9367a7e3c5f0a0a583f05fa4843120526829fbd";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-16T18:55:02.623Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-16T19:39:04.505Z";
 export const TOOL_CATALOG_VERSION = "670b60db97ad1cc1bfb9f1a2138011b9f4c602a1f0c06562f0c57a68cc17bf93";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{

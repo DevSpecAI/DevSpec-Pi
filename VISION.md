@@ -244,9 +244,10 @@ What Pi opens up (mechanical, zero-token, no model compliance):
   searched against project memory BEFORE the turn starts; new hits inject
   into the system prompt with binding semantics marked; session-deduped.
   The model no longer has to remember to remember.
-- **Review surfacing** (shipped): payload review signals become structural
-  flags with a per-turn nudge while open + `/devspec.conflicts`. Never silent
-  settling — whether a supersession commits or queues is the server's call.
+- **Review surfacing** (shipped): review questions on records (possibly out of
+  date, waiting for someone's OK) become structural observations with a
+  per-turn nudge while open + `/devspec.review`. Never silent settling: what a
+  ruling does is the server's call.
 - **Structured settling UI** (next): pi's custom overlays can walk the human
   through a supersession (both items side by side, the preview_supersession
   consequence, confirm) — "user involvement when appropriate" with a

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.8 - 2026-10-16
+
+- Work that would undo someone else's decision now waits for an OK instead of being held. You can still claim it and build it on its own branch; it doesn't merge or finish until someone who can give the OK answers: go ahead, no (with a reason), or "this doesn't undo my decision". If it reached the tracking branch anyway, they choose to keep it or undo it.
+- Experiments are the same: try something on its own branch, then ask for it to land.
+- Review can be filtered by where a question stands: waiting for an OK, answered no, landed without its OK, being put back, or settled.
+- The catalogue is regenerated against DevSpec's current tools. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.6.7 - 2026-10-16
 
 - Creating or editing an action item no longer shows the agent a list of possibly related items to sort through before it can go on. DevSpec now checks for duplicates itself after the write and only tells anyone about a confirmed one.

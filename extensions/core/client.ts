@@ -21,11 +21,13 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { resolveEndpoint } from "./auth-store.ts";
 import { argsHaveProjectScope, folderScopeArgs, needsProjectScope } from "./project-scope.ts";
-import { withClientVersions } from "./client-versions.ts";
+import { LOADED_CLIENT_VERSIONS, pluginHeaders, withClientVersions } from "./client-versions.ts";
 import { conversationScope, hasConversationProjectScope, readProjectChoiceRequired, type ProjectChoiceRequired } from "./project-choice.ts";
 
 const CLIENT_NAME = "devspec-pi";
-const CLIENT_VERSION = "0.2.0";
+// The MCP handshake names the same loaded artifact the x-devspec-plugin header
+// does; a hand-kept literal here had drifted to a release long gone.
+const CLIENT_VERSION = LOADED_CLIENT_VERSIONS.plugin_version ?? "unknown";
 const DEFAULT_TIMEOUT_MS = 60_000;
 /** Hard cap for model-facing verbs. The SDK timeout alone did not fire on the
  *  live Streamable-HTTP parse hang (~90s, session d8883a49). */
@@ -273,6 +275,7 @@ async function openClient(
 		requestInit: {
 			headers: {
 				authorization: `Bearer ${token}`,
+				...pluginHeaders(),
 				...(connectionCapability ? { "x-devspec-connection-capability": connectionCapability } : {}),
 			},
 		},
@@ -618,7 +621,7 @@ export async function callDevspecAdvisoryOnce(
 	if (cooldown > 0) throw new DevspecRateLimitError("DevSpec advisory skipped during rate-limit cooldown.", cooldown);
 	const url = await resolveEndpoint();
 	const transport = new StreamableHTTPClientTransport(new URL(url), {
-		requestInit: { headers: { authorization: `Bearer ${token}` } },
+		requestInit: { headers: { authorization: `Bearer ${token}`, ...pluginHeaders() } },
 	});
 	const client = new Client({ name: `${CLIENT_NAME}-advisory`, version: CLIENT_VERSION }, { capabilities: {} });
 	try {

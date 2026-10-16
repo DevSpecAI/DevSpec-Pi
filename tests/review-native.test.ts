@@ -7,12 +7,14 @@ import { cardKey, unseenCards, formatRecallBlock } from "../extensions/core/reca
 import { projectModelText } from "../extensions/core/result-projection.ts";
 import { searchRareModelTools } from "../extensions/core/model-surface.ts";
 import { reviewScope, disagreementBlock } from "../extensions/core/review-context.ts";
-import { clearAllFlags, extractFlags, addFlags, listFlags, observeReviewResult, formatConflictNudge } from "../extensions/core/conflict-watch.ts";
+import { clearAllFlags, extractFlags, addFlags, listFlags, observeReviewResult, formatReviewNudge } from "../extensions/core/review-watch.ts";
 import { classifyDomainTool, writeOutcomeFromResult, domainAction } from "../extensions/core/trail-events.ts";
 import { consumeResultMechanics, unwrapOrThrow } from "../extensions/devspec-tools.ts";
 
 const side = (id: string) => ({ type: "memory", id, title: `Title ${id}`, claim: `CLAIM_${id}`, version: "v1", readable: true, provenance: "recorded by a person" });
-const issue = { key: "possibly_contradictory|memory:a|memory:b", claimType: "possibly_contradictory", status: "open", issueId: null,
+// A reversal question pairs the protected record with the one that would undo it;
+// pairwise "contradictory" flags no longer exist (ADR "Protecting intent" §16).
+const issue = { key: "intent_reversal|memory:a|memory:b", claimType: "intent_reversal", status: "open", issueId: null,
 	subject: side("a"), counterpart: side("b"), evidence: { reason: "These clauses differ", passage: "CLAIM_a", raisedAt: "2026-09-25" } };
 const card = { id: "a", title: "Memory A", type: "decision", summary: "A summary", version: 1, updated_at: "before", unresolved_disagreements: [issue] };
 const stale = (id: string, reason = "The code it describes changed") => ({ key: `possibly_stale|memory:${id}`, claimType: "possibly_stale", status: "open", issueId: null,
@@ -21,11 +23,13 @@ const project = (toolName: string, details: unknown) => projectModelText({ toolN
 
 test("native unwrap retains queued proposal, reason and relay AFTER compact projection", () => {
 	for (const name of ["record_memory", "resolve_memory_flag", "supersede_action_item", "update_memory"]) {
-		const details = { outcome: "queued_for_review", committed: false, id: "source", proposal_id: "proposal-123", reason: "Needs maintainer acceptance", flag_still_lit: true };
+		const details = { outcome: "queued_for_review", committed: false, id: "source", proposal_id: "proposal-123", reason: "Needs maintainer acceptance", waiting_on: "Waiting for Brandon's OK", flag_still_lit: true };
 		const result = unwrapOrThrow(name, { content: [{ type: "text", text: JSON.stringify(details) }] });
 		const text = result.content[0].text;
 		assert.match(text, /proposal-123/); assert.match(text, /Needs maintainer acceptance/);
-		assert.match(text, /Review page, under Proposed changes/); assert.match(text, /not in effect/);
+		assert.match(text, /Waiting for Brandon's OK/); assert.match(text, /not in effect/);
+		// Who it waits on is DevSpec's to say (4.31.0: not always a Maintainer).
+		assert.doesNotMatch(text, /QUEUED FOR A MAINTAINER|a maintainer has to accept/i);
 		assert.deepEqual(result.details, details);
 	}
 });
@@ -109,7 +113,7 @@ test("native result consumer observes issues, not writes, and completion does no
 	consumeResultMechanics("create_action_item", { details: { id: "new", outcome: "committed" } }, { title: "thing" }, "session", "project", "scope");
 	assert.equal(listFlags("scope").length, 0, "a create carries no candidate list to observe");
 	consumeResultMechanics("get_memory", { details: { id: "one", unresolved_disagreements: [stale("one")] } }, { id: "one" }, "session", "project", "scope");
-	const text = formatConflictNudge(listFlags("scope"))!;
+	const text = formatReviewNudge(listFlags("scope"))!;
 	assert.match(text, /1 unresolved issue/);
 	assert.doesNotMatch(text, /open signals? to settle/);
 	consumeResultMechanics("record_implementation", { details: { outcome: "committed" } }, {}, "session", "project", "scope");

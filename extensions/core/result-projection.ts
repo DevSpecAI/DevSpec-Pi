@@ -333,7 +333,7 @@ function signalLabels(row: Row): string[] {
 }
 
 /**
- * A change someone has PROPOSED against this record, awaiting a maintainer
+ * A change someone has PROPOSED against this record, awaiting review
  * (DevSpec item 38576d61). The card still shows the decided record; these lines
  * say a change is waiting on it, who proposed it and which proposal.
  *
@@ -364,12 +364,13 @@ function pendingProposalLines(row: Row, outer: Row): string[] {
 		const by = oneLine(entry.by, 80);
 		const id = oneLine(entry.proposal_id, 90);
 		lines.push(
-			`\u26a0 ${what}${by ? ` by ${by}` : ""}, awaiting a maintainer${id ? ` (proposal ${id})` : ""}`,
+			// Who it waits on is DevSpec's to say (contract 4.31.0: not always a Maintainer).
+			`\u26a0 ${what}${by ? ` by ${by}` : ""}, awaiting review${id ? ` (proposal ${id})` : ""}`,
 		);
 	}
 	const remaining = source.length - lines.length;
 	if (lines.length && remaining > 0) {
-		lines.push(`\u26a0 ${remaining} further proposed change(s) awaiting a maintainer.`);
+		lines.push(`\u26a0 ${remaining} further proposed change(s) awaiting review.`);
 	}
 	return lines;
 }
@@ -389,6 +390,28 @@ function agreementLine(row: Row, outer: Row): string | null {
 	return state ? `\u26a0 Not agreed work (${state}).` : null;
 }
 
+/**
+ * Work that waits for an OK, or is an experiment (contract 4.31.0,
+ * core.waiting-work-stays-on-its-branch; ADR "Protecting intent" §6.2, §6.9).
+ * DevSpec writes the label ("Experiment", or "Waiting for <name>'s OK") and the
+ * instruction; Pi shows them as sent. Required wherever it appears: dropping it
+ * would let an agent merge waiting work into the tracking branch.
+ */
+function waitingLines(row: Row, outer: Row = row): string[] {
+	const waiting = record(row.waiting_for_ok) ?? record(outer.waiting_for_ok);
+	const lines: string[] = [];
+	if (waiting) {
+		const label = oneLine(waiting.label, 120) ?? "Waiting for an OK";
+		const on = oneLine(waiting.waiting_on, 120);
+		const instruction = oneLine(waiting.instruction, LINE_LIMIT);
+		lines.push(`\u26a0 ${label}${on && on !== label ? ` (${on})` : ""}${instruction ? ` — ${instruction}` : ""}`);
+	} else if (row.is_experiment === true || outer.is_experiment === true || row.badge === "Experiment" || outer.badge === "Experiment") {
+		const branch = oneLine(first(row, ["experiment_branch"]) ?? first(outer, ["experiment_branch"]), 160);
+		lines.push(`\u26a0 Experiment${branch ? ` (branch ${branch})` : ""}: build and push it on its own branch; never merge it into the tracking branch until it has the OK.`);
+	}
+	return lines;
+}
+
 function card(raw: unknown, index: number): string {
 	const outer = record(raw) ?? { value: raw };
 	const row = nestedEntity(outer);
@@ -406,6 +429,9 @@ function card(raw: unknown, index: number): string {
 		const value = oneLine(first(row, keys), 70);
 		if (value && !metadata.includes(value)) metadata.push(value);
 	}
+	// A requirement binds work that would break it, so it is labelled apart from
+	// ordinary knowledge (ADR "Protecting intent" §10), never left to read as one.
+	if (first(row, ["kind", "memory_kind"]) === "requirement" && !metadata.includes("requirement")) metadata.unshift("requirement");
 	const matchCount = Number(first(row, ["match_count", "matchCount"]));
 	if (Number.isFinite(matchCount) && matchCount > 0) {
 		const label = `${matchCount} match${matchCount === 1 ? "" : "es"}`;
@@ -439,6 +465,7 @@ function card(raw: unknown, index: number): string {
 	if (why) required.push(`   ${why}`);
 	const agreement = agreementLine(row, outer);
 	if (agreement) required.push(`   ${agreement}`);
+	for (const line of waitingLines(row, outer)) required.push(`   ${line}`);
 	for (const line of pendingProposalLines(row, outer)) required.push(`   ${line}`);
 	const disagreements = disagreementBlock(row, 1_600);
 	if (disagreements) required.push(disagreements);
@@ -802,7 +829,22 @@ function ackProjection(toolName: string, details: unknown): string | null {
 		// (approval_required names the proposal). Dropping these left the model with
 		// "see skipped for why" and nothing to see (2026-10-04).
 		"assignment_id", "reserved", "reserved_count", "skipped",
+		// Who a queued change waits on, and why it was queued (contract 4.31.0).
+		"waiting_on", "because", "target_id",
+		// The tags DevSpec inferred for a new item, with its note on correcting them.
+		"auto_tagged",
+		// An item DevSpec opened for an untagged commit, with its ownership follow-up.
+		"ownership_followup",
 	]) if (hasOwn(root, key)) receipt[key] = root[key];
+	// Work that waits for an OK or is an experiment (also rendered as a line above).
+	// Every item row carries these fields; only a set one says anything.
+	for (const source of entity === root ? [root] : [entity, root]) {
+		for (const key of ["waiting_for_ok", "is_experiment", "experiment_branch", "badge", "agreement"]) {
+			const value = source[key];
+			if (value !== null && value !== undefined && value !== false && !hasOwn(receipt, key)) receipt[key] = value;
+		}
+	}
+	required.push(...waitingLines(entity, root));
 	if (Object.keys(receipt).length) required.push(`Operation details (server data):\n${reviewData(receipt)}`);
 	required.push(...conflictBlocks(root));
 	if (entity !== root) required.push(...conflictBlocks(entity));

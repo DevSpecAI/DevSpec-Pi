@@ -19,7 +19,7 @@ import { ROOM_READ_TOOL } from "./core/room-reader.ts";
 import { agentsSettingsUrl, TOKEN_ENV_VAR } from "./core/config.ts";
 import { callDevspec, MODEL_TIMEOUT_MS } from "./core/client.ts";
 import { repoResolver, validateCommitSha } from "./core/commit-ledger.ts";
-import { observeReviewResult, listFlags, type ConflictFlag } from "./core/conflict-watch.ts";
+import { observeReviewResult, listFlags, type ReviewObservation } from "./core/review-watch.ts";
 import { reviewScope, reviewData } from "./core/review-context.ts";
 import { jsonSchemaToTypebox } from "./core/json-schema.ts";
 import { consumeDeliveryLifecycle } from "./core/active-deliveries.ts";
@@ -31,6 +31,7 @@ import {
 	SERVE_REQUEST_SCHEMA,
 	SERVE_REQUEST_TOOL,
 	stampRequestRef,
+	unstampedNote,
 } from "./core/request-chain.ts";
 import { directedQuestionTranscriptReceiptId } from "./core/question-receipt-lifecycle.ts";
 import {
@@ -75,25 +76,30 @@ import { toolVersionMismatchNote } from "./core/version-mismatch.ts";
 
 /**
  * A write the server queued instead of committing (DevSpec item 06936ee9). The
- * served authority_contract decides who may commit; Pi's only job is to make the
- * outcome impossible to miss — the model must relay the proposal id and the reason
- * and never report the change as done.
+ * served authority_contract decides who may commit and who a queued change waits
+ * on; Pi's only job is to make the outcome impossible to miss. The model relays
+ * the proposal id, the reason and who it waits on exactly as DevSpec sent them,
+ * and never reports the change as done. Pi does not say who that is itself: a
+ * pending version waits on whoever can give the OK, which is not always a
+ * Maintainer (contract 4.31.0, reversal_rule).
  */
 export function queuedForReviewRelay(details: unknown): string | null {
 	if (details === null || typeof details !== "object" || Array.isArray(details)) return null;
 	const row = details as Record<string, unknown>;
 	if (row.outcome !== "queued_for_review") return null;
-	const proposalId = typeof row.proposal_id === "string" && row.proposal_id.trim() ? row.proposal_id.trim() : null;
-	const reason = typeof row.reason === "string" && row.reason.trim() ? row.reason.trim() : null;
+	const text = (value: unknown) => typeof value === "string" && value.trim() ? value.trim() : null;
 	return [
-		"QUEUED FOR A MAINTAINER — not in effect.",
-		reviewData({ proposal_id: proposalId, reason }),
-		"Relay the proposal id and the reason to the user and say a maintainer has to accept it on the project's Review page, under Proposed changes, before it applies; do not report this change as done.",
-	].filter(Boolean).join(" ");
+		"QUEUED — not in effect.",
+		reviewData({ proposal_id: text(row.proposal_id), reason: text(row.reason), waiting_on: text(row.waiting_on) }),
+		"Relay the proposal id, the reason and who it waits on to the person, and say it applies only once it is accepted; do not report this change as done. Who can accept it is the served contract's authority_contract.",
+	].join(" ");
 }
 
-/** Unwrap and project a DevSpec result, retaining complete data in details. */
-export function unwrapOrThrow(name: string, raw: unknown) {
+/**
+ * Unwrap and project a DevSpec result, retaining complete data in details.
+ * `hostNote` is Pi's own note about the call (never server data), appended last.
+ */
+export function unwrapOrThrow(name: string, raw: unknown, hostNote?: string) {
 	const unwrapped = unwrapMcpResult(raw);
 	const relay = unwrapped.isError ? null : queuedForReviewRelay(unwrapped.details);
 	const { details, isError } = unwrapped;
@@ -114,14 +120,15 @@ export function unwrapOrThrow(name: string, raw: unknown) {
 		const reason = text || structuredError || `DevSpec tool ${name} failed.`;
 		throw new Error(mismatch ? `${reason}\n\n${mismatch}` : reason);
 	}
-	const projected = projectedToolResult(name, { text: unwrapped.text, details, isError });
+	const projected = projectedToolResult(name, unwrapped);
 	// Append AFTER projection: ack/full projections intentionally read details,
 	// so putting the relay into input.text silently threw it away.
-	return relay ? toolTextResult(`${relay}\n\n${projected.content[0].text}`, details) : projected;
+	const body = relay ? `${relay}\n\n${projected.content[0].text}` : projected.content[0].text;
+	return relay || hostNote ? toolTextResult(hostNote ? `${body}\n\n${hostNote}` : body, details) : projected;
 }
 
 /** Feed the conflict watch: signals in results become structural flags. */
-function watchForSignals(name: string, result: unknown, args: Record<string, unknown>, scope: string, observed?: readonly ConflictFlag[]): void {
+function watchForSignals(name: string, result: unknown, args: Record<string, unknown>, scope: string, observed?: readonly ReviewObservation[]): void {
 	try {
 		const details = (result as { details?: unknown }).details;
 		observeReviewResult(name, details, args, scope, observed);
@@ -160,7 +167,7 @@ export function consumeResultMechanics(
 	sessionId?: string,
 	projectId?: string,
 	scope = reviewScope(sessionId, projectId),
-	observed?: readonly ConflictFlag[],
+	observed?: readonly ReviewObservation[],
 ): void {
 	watchForSignals(name, result, args, scope, observed);
 	// Claim refs are dealt through results, not deliveries — observe them so the
@@ -338,6 +345,8 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 		});
 		if ("deny" in stamped) return measuredToolResult(name, toolErrorResult(stamped.deny));
 		const args = stamped.args;
+		const unstamped = stamped.unstamped;
+		if (unstamped) debugRemote("request write unstamped", { connectionChanged: unstamped === "connection_changed", notRecorded: unstamped === "not_recorded", errorPresent: unstamped === "error" });
 		const localSessionId = ctx.sessionManager.getSessionId();
 		const scope = reviewScope(localSessionId, bond?.projectId ?? ctx.cwd, resolved.token);
 		const observed = listFlags(scope);
@@ -349,7 +358,7 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 				? { connectionCapability: bond.connectionCapability }
 				: {}),
 		});
-		const projected = unwrapOrThrow(name, raw);
+		const projected = unwrapOrThrow(name, raw, unstamped ? unstampedNote(unstamped) : undefined);
 		const result = shouldTerminateAfterDirectedQuestionCreate(name, args, projected)
 			? { ...projected, terminate: true as const }
 			: projected;

@@ -44,8 +44,15 @@ test("instructions carry the load-bearing rules", () => {
 	// The pointer is a full sentence plus the operational relay of a queued write (item 45588384); it does not name who may commit.
 	assert.match(text, /authority_contract/);
 	assert.match(text, /Who may commit a memory, artifact, rule, flag ruling or supersession/);
-	assert.match(text, /queued_for_review carries a proposal_id and a reason/);
-	assert.match(text, /relay both/);
+	assert.match(text, /queued_for_review carries a proposal_id, a reason and who it waits on/);
+	// Who a queued change waits on is DevSpec's to say: not always a Maintainer (contract 4.31.0).
+	assert.doesNotMatch(text, /a maintainer has to accept/i);
+	// Waiting work stays on its own branch; who gives the OK is pointed at, never restated.
+	assert.match(text, /waiting_for_ok/);
+	assert.match(text, /never merge it into the tracking branch/);
+	assert.match(text, /reversal_rule/);
+	// The capture bar (ADR "Protecting intent" §11): only the person's answer makes a decision.
+	assert.match(text, /only their answer makes it their decision/);
 	assert.match(text, /never report the change as done/i);
 	assert.match(text, /not a rule to remember here/);
 	// Knowledge writes no longer stop on a close match, and confirm_new is gone (df1e2277).

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.5 - 2026-10-17
+
+- Pi makes any decision you could make in DevSpec's Review for you as soon as your request is clear: accepting or declining a proposed change, answering on work that would undo a decision, saying a flagged record is still accurate, or settling a duplicate. It warns you once, up front, only if you seem unaware of a significant consequence, never asks you to confirm again, and tells you what happened and what you can do next. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.7.4 - 2026-10-17
 
 - Your agent can now accept or decline a change waiting in Review, under Proposed changes, when you ask it to and you could decide it yourself there. It applies exactly the version you saw, and tells you who can decide it when you can't.

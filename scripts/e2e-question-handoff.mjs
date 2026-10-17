@@ -29,7 +29,7 @@ const event = { kind: 'devspec.interaction_event', version: 1, event_id: uid(6),
 const calls = [], events = [], errors = [], streams = new Set();
 let enable = false, offered = false, ownerWaiting = false, ownerOffered = false, acked = false, phase = 'startup', child;
 const response = data => ({ content: [{ type: 'text', text: JSON.stringify(data) }] });
-const base = () => ({ connection_id: conn, session_id: room, attached_at: now, speech_attachment_id: attachment, changed: false, cursor_v2: null, dispatch_cursor: null, dispatches: [], system_notice_version: 1, system_notice_cursor: null, system_notices: [] });
+const base = () => ({ connection_id: conn, session_id: room, attached_at: now, speech_attachment_id: attachment, changed: false, cursor_v2: null, dispatch_cursor: null, dispatches: [], system_notice_version: 2, system_notice_cursor: null, system_notices: [] });
 const contract = { kind: 'devspec.product.remote_ingress_contract', schema_version: 1, contract_version: '1.5.0', policy: { policy_version: '2026-09-18.1' } };
 function poll(args) {
   const result = { ...base(), ...(args.interaction_event_version === 1 ? { interaction_event_version: 1, interaction_events: [], question_dismissal_event_version: 1, question_dismissal_events: [] } : {}) };

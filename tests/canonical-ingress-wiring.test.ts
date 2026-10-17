@@ -34,7 +34,7 @@ test("main Pi poll capacity-gates system notices while control ack cannot claim 
 	assert.match(recovery, /!pkg\.roomPage\?\.history[^]*pkg\.ownerBundle[^]*pkg\.control[^]*pkg\.systemNotices\.length/);
 	assert.doesNotMatch(recovery, /pi_send|sendUserMessage|sendMessage|interactionEventAckArgs/);
 	assert.match(calls[3]![1], /\.\.\.\(systemNoticeNegotiated \? \{/);
-	assert.match(calls[3]![1], /system_notice_version: 1/);
+	assert.match(calls[3]![1], /system_notice_version: SYSTEM_NOTICE_CHANNEL_VERSION/);
 	assert.match(calls[3]![1], /system_notice_cursor: active\.systemNoticeCursor/);
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
 	assert.match(pump, /const systemNoticeNegotiated = hasSystemNoticeBatchCapacity\(active\.systemNoticeKey\)/);
@@ -271,8 +271,8 @@ test("auto-bond surfaces a failed register instead of staying silent", () => {
 test("main Pi poll negotiates sender style with system notices and keeps styles in force per LLM call", () => {
 	const calls = [...source.matchAll(/callDevspec\([^]*?"poll_connection"[^]*?\{([^]*?)\}, \{/gu)];
 	// Sender style rides the same negotiated spread: the server requires
-	// system_notice_version: 1 as its prerequisite (item 6a511dab).
-	assert.match(calls[3]![1], /system_notice_version: 1[^]*sender_style_version: 1/);
+	// system_notice_version as its prerequisite (item 6a511dab).
+	assert.match(calls[3]![1], /system_notice_version: SYSTEM_NOTICE_CHANNEL_VERSION[^]*sender_style_version: 1/);
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
 	assert.match(pump, /const senderStyleNegotiated = systemNoticeNegotiated/);
 	assert.match(pump, /parsePollPayload\(payload, active\.connectionIdentity, \{ systemNoticeNegotiated, senderStyleNegotiated, roomContextNegotiated, sessionEventsNegotiated: roomContextNegotiated && roomWatch\.session_events_version === 1 \}\)/);

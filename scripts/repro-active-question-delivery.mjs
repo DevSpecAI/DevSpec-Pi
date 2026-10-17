@@ -65,7 +65,7 @@ const calls = [], failures = [], streams = new Set();
 let child, pgStarted = false, enabled = false, questionOffered = false, acked = false, ownerWaiting = false, ownerOffered = false;
 const response = value => ({ content: [{ type: 'text', text: JSON.stringify(value) }] });
 const base = () => ({ connection_id: conn, project_id: IDS.project, session_id: room, attached_at: now, speech_attachment_id: attachment,
-  changed: false, cursor_v2: null, dispatch_cursor: null, dispatches: [], system_notice_version: 1, system_notice_cursor: null, system_notices: [],
+  changed: false, cursor_v2: null, dispatch_cursor: null, dispatches: [], system_notice_version: 2, system_notice_cursor: null, system_notices: [],
 });
 const open = args => JSON.parse(sql(fixed && args.command_offer_version === 1
   ? `select public.open_agent_command_delivery_ready_v1('${IDS.project}','${conn}','${room}','${IDS.command}','${IDS.owner}','${token}','${capabilityHash}','${attachment}',${args.command_handoff_ready ? `'${JSON.stringify(args.command_handoff_ready)}'::jsonb` : 'null'})`

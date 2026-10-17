@@ -70,6 +70,7 @@ import {
 	parsePollPayload,
 	REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE,
 	senderStyleRepairNeeded,
+	SYSTEM_NOTICE_CHANNEL_VERSION,
 	type IngressAdvisoryContext,
 	type OwnerCommand,
 	type OwnerCommandBundle,
@@ -2292,7 +2293,7 @@ function startPushChannel(active: PumpState, token: string, endpoint: string): v
 		token,
 		connectionId: active.bond.connectionId,
 		connectionCapability: active.bond.connectionCapability,
-		systemNoticeVersion: 1,
+		systemNoticeVersion: SYSTEM_NOTICE_CHANNEL_VERSION,
 		...(active.pushInteractionAware ? { interactionEventVersion: 1 as const, questionDismissalEventVersion: 1 as const } : {}),
 		signal: controller.signal,
 		handlers: {
@@ -2660,7 +2661,7 @@ async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: s
 				try {
 					raw = await callDevspec(token, "poll_connection", {
 						connection_id: scope.connectionId, ingress_version: 1, delegated_scope_version: 1,
-						active_plan_projection_version: 1, system_notice_version: 1, sender_style_version: 1,
+						active_plan_projection_version: 1, system_notice_version: SYSTEM_NOTICE_CHANNEL_VERSION, sender_style_version: 1,
 						room_context_version: 1, session_polls_projection_version: 2, wait_ms: 0, ...args,
 					}, { timeoutMs: POLL_TIMEOUT_MS, cwd: ctx.cwd, lane: "pump", beforeSend: () => { if (!current()) throw new DevspecToolError("Room history attachment changed before send."); }, ...(capability ? { connectionCapability: capability } : {}) });
 				} catch (error) {
@@ -2816,10 +2817,10 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					...(commandOfferNegotiated ? { command_offer_version: 1,
 						...(commandHandoffReady ? { command_handoff_ready: commandHandoffReady } : {}) } : {}),
 					...(systemNoticeNegotiated ? {
-						system_notice_version: 1,
+						system_notice_version: SYSTEM_NOTICE_CHANNEL_VERSION,
 						system_notice_cursor: active.systemNoticeCursor,
 						// Sender style rides the same gate: the server requires
-						// system_notice_version: 1 as its prerequisite (item 6a511dab).
+						// system_notice_version as its prerequisite (item 6a511dab).
 						sender_style_version: 1,
 					} : {}),
 					...(interactionEventNegotiated ? {

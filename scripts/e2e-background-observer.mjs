@@ -38,7 +38,7 @@ let child, enabled = false, offered = false;
 const textResult = value => ({ content: [{ type: "text", text: JSON.stringify(value) }] });
 const base = () => ({ connection_id: IDS.connection, project_id: IDS.project, session_id: room, attached_at: attached, speech_attachment_id: attachment,
 	changed: false, cursor_v2: "probe-cursor", dispatch_cursor: null, dispatches: [], addressed_to: TEST_CONNECTION,
-	interaction_event_version: 1, interaction_events: [], question_dismissal_event_version: 1, question_dismissal_events: [], system_notice_version: 1, system_notice_cursor: null, system_notices: [] });
+	interaction_event_version: 1, interaction_events: [], question_dismissal_event_version: 1, question_dismissal_events: [], system_notice_version: 2, system_notice_cursor: null, system_notices: [] });
 function poll(args) {
 	if (!enabled || offered) return { ...base(), ...(!enabled ? canonicalPoll({ wakeKind: "history_reseed", deliveryState: "replay", senderStyleNegotiated: args.sender_style_version === 1 }) : {}) };
 	offered = true;

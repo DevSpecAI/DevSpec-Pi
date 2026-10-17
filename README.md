@@ -40,24 +40,21 @@ and binds all implementation decisions in this repo.
 
 ## Status
 
-**Phase 2 complete**: embedded MCP transport, `/devspec.login` / `/devspec.logout`
-/ `/devspec.status`. All safe, context-eligible DevSpec operations are available
-immediately as native tools with purpose-written guidance. `search_devspec_tools`
-is an optional selection aid, not an unlocking step: known tools work directly.
-Search combines keywords and embeddings when the server supports the matching
-catalogue, and falls back explicitly to local keyword search when unavailable.
-Compatibility uses the server's complete searchable catalogue independently of
-Pi's tool exposure; internal connection and posting tools stay private.
-The server refreshes catalogue embeddings automatically on worker startup, with
-read-repair requests and periodic reconciliation as backstops. It publishes only
-complete version/model-matched indexes and reuses unchanged vectors. A bundled
-snapshot is only a warm cache; forgetting a generator does not disable repair.
-It never executes a recommendation. The generated catalogue carries the wire
-contract and shared guidance; pump/delivery operations remain private. Shared session
-plans and session polls are native: qualifying bonded work activates `manage_plan` and `manage_poll`, and strict
-remote-ingress 1.4 adds capacity-gated exact-connection system notices through
-an activity-neutral, generation-scoped harness turn, with preserved 1.3 command
-intake under notice backpressure. See VISION.md.
+`/devspec.login`, `/devspec.logout` and `/devspec.status` manage the connection.
+Every DevSpec tool your connection may use is available to Pi straight away;
+`search_devspec_tools` only helps pick one. Shared session plans and polls work
+in rooms, and Pi hears what DevSpec finds about its own work. See VISION.md.
+
+**Decisions in Review.** Ask Pi to make any decision you could make on DevSpec's
+Review page and it makes it as soon as your request is clear, then tells you what
+happened and what you can do next: accept or decline a proposed change
+(`decide_proposal`), answer on work that would undo a decision
+(`manage_protected_intent`), say a flagged record is still accurate
+(`resolve_memory_flag`, `resolve_resource_flag`), or settle a duplicate
+(`resolve_duplicate`, `record_duplicate_nonmatch`); `get_review_queue` shows what
+is waiting. It warns you once, up front, only if you seem unaware of a significant
+consequence, and never asks you to confirm again. Who may decide what is
+DevSpec's rule; if you can't, Pi says who can.
 
 ### Choosing a project
 

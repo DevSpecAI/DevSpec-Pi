@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: a575dce743ccb7a6306f9b2dd61f95f4996a69ab3381de067d1a41f07f79cc70
- * Description fingerprint: 578bd24cbf55fd4b73bd05ec90ff5d0332535b13891d4be90273e1c418ce0cc5
- * Regenerated: 2026-10-16T23:51:48.119Z
+ * Schema fingerprint: e725c9658822664a85ed3cdf3289aad3130797c5dfa43b169a9be6e15ae4c5b1
+ * Description fingerprint: 8eab7cb4d36d88a5028f672f583ff801f23298f02fec3de753ad00eb39d0dffa
+ * Regenerated: 2026-10-17T08:54:18.218Z
  */
-export const MCP_CATALOG_FINGERPRINT = "a575dce743ccb7a6306f9b2dd61f95f4996a69ab3381de067d1a41f07f79cc70";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "578bd24cbf55fd4b73bd05ec90ff5d0332535b13891d4be90273e1c418ce0cc5";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-16T23:51:48.119Z";
-export const TOOL_CATALOG_VERSION = "71a52f5892a9a969640d4a163fb03753652952eb86106f8b73592496cfc90334";
+export const MCP_CATALOG_FINGERPRINT = "e725c9658822664a85ed3cdf3289aad3130797c5dfa43b169a9be6e15ae4c5b1";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "8eab7cb4d36d88a5028f672f583ff801f23298f02fec3de753ad00eb39d0dffa";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-17T08:54:18.218Z";
+export const TOOL_CATALOG_VERSION = "bfeca626ba29ec9b9c22f695519e560aa7d4ae5c08db503bb7a8fb738f911160";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -72,9 +72,15 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"intent": "start create open new conversation room session link"
 	},
 	{
+		"id": "decide_proposal",
+		"name": "decide proposal",
+		"description": "Accept or decline a change waiting in Review under Proposed changes, for the person asking you: a proposed memory, document or work item, an edit to one, a held change, or a request to confirm. DevSpec judges it as that person, exactly as on the Review page: whether they may decide this change (the owner of the decision it changes, or a Maintainer; never whoever asked for the change), and a refusal says who can. Pass proposal_id and revision exactly as get_review_queue listed them. Accepting applies exactly that version, once; if the change was edited or its record moved since, nothing is decided (code stale): read it again and tell them what changed. The decision is theirs, never yours: when they have told you which change and which way, and evidently know what it does, decide it straight away without asking them to confirm again. If they don't seem aware of a significant consequence (for example, that accepting undoes someone's decision), say so once, up front. When DevSpec can't tell who asked you, nothing is decided and the change stays waiting for whoever decides it (outcome not_decided). outcome is accepted, declined, refused (with code and error), not_decided, or unknown (sent, but the result could not be confirmed: read the queue again before deciding again). Never say a change took effect unless outcome is accepted.",
+		"intent": "accept decline approve reject proposed change waiting in review pending version proposal held change request to confirm"
+	},
+	{
 		"id": "delete_automation",
 		"name": "delete automation",
-		"description": "Archive an automation; nothing is deleted. Its creator or a Maintainer may; anyone else is refused. It stops running and leaves every list, everyone's queued and waiting runs of it are cancelled, a run already in progress can still be reported, and its run history is kept. It can be restored on the Automations page, not from here. Ask the person first: it is something the project relies on.",
+		"description": "Archive an automation; nothing is deleted. Its creator or a Maintainer may; anyone else is refused. It stops running and leaves every list, everyone's queued and waiting runs of it are cancelled, a run already in progress can still be reported, and its run history is kept. It can be restored on the Automations page, not from here. Archive it when the person asks; if they don't seem to know the project relies on it, say so once first.",
 		"intent": "archive retire delete stop a saved automation job"
 	},
 	{
@@ -224,7 +230,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_review_queue",
 		"name": "get review queue",
-		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Work that would undo someone's decision waits for an OK; each question shows, per reversing record, where it stands and who it waits on, as DevSpec decides it. Filter questions by involvement (awaiting_me: waiting for your OK, which leaves out an experiment until it asks to land; raised_by_me; involving_me; involving_others; can_resolve: you can answer it now), state (waiting, declined, landed: reached the tracking branch without its OK, putting_back, settled), person, or record_type. Answers and experiments use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. A request to confirm (confirmation) waits on one named person: they, or the project lead, confirm or decline it in Review, or through manage_protected_intent confirm_request / decline_request on their own instruction. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
+		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Work that would undo someone's decision waits for an OK; each question shows, per reversing record, where it stands and who it waits on, as DevSpec decides it. Filter questions by involvement (awaiting_me: waiting for your OK, which leaves out an experiment until it asks to land; raised_by_me; involving_me; involving_others; can_resolve: you can answer it now), state (waiting, declined, landed: reached the tracking branch without its OK, putting_back, settled), person, or record_type. Answers and experiments use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id is a change waiting to be accepted: decide_proposal accepts or declines it for the person asking you, with its proposal_id and proposal_revision. you_can is judged for you, the token's owner; decide_proposal judges the person asking you, and its refusal says who can. A request to confirm (confirmation) waits on one named person: they, or the project lead, confirm or decline it in Review, or through an agent on their own instruction (decide_proposal, or manage_protected_intent confirm_request / decline_request). If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
 		"intent": "review inbox out of date flags proposed changes waiting for a ruling or acceptance"
 	},
 	{
@@ -248,7 +254,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "import_instruction_rules",
 		"name": "import instruction rules",
-		"description": "Turn an existing agent-rules file (CLAUDE.md, AGENTS.md, .cursorrules or similar) into team rules. You sort each item into a destination and cite its source_line; do not file the whole file as agent rules. A call without confirm writes nothing and returns the plan: show it to the person, let them drop or move entries, then call again with confirm:true. If the rules would take a tier, or a rationale, past its length limit, the whole import is refused with the limit and length, with or without confirm, and nothing is written. Only project_agent_rules and project_principles items are written; personal_agent_rules and memory items come back for you to save with update_personal_instructions and record_memory, and leave_in_repo items are not written. Read the current rules first: where one already covers a subject, leave the item out and amend that rule with write_project_instruction_rule. Whether the import commits is decided under devspec://product/implementation-contract. Read outcome: committed means the rules are live; queued_for_review carries proposal_ids and changes nothing until a Maintainer accepts them.",
+		"description": "Turn an existing agent-rules file (CLAUDE.md, AGENTS.md, .cursorrules or similar) into team rules. You sort each item into a destination and cite its source_line; do not file the whole file as agent rules. A call without confirm writes nothing and returns the plan: show it to the person so they can drop or move entries, unless they told you to import it without reviewing it, then call again with confirm:true. If the rules would take a tier, or a rationale, past its length limit, the whole import is refused with the limit and length, with or without confirm, and nothing is written. Only project_agent_rules and project_principles items are written; personal_agent_rules and memory items come back for you to save with update_personal_instructions and record_memory, and leave_in_repo items are not written. Read the current rules first: where one already covers a subject, leave the item out and amend that rule with write_project_instruction_rule. Whether the import commits is decided under devspec://product/implementation-contract. Read outcome: committed means the rules are live; queued_for_review carries proposal_ids and changes nothing until a Maintainer accepts them.",
 		"intent": "import CLAUDE.md AGENTS.md cursorrules agent rules file into team instructions"
 	},
 	{
@@ -296,7 +302,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "manage_protected_intent",
 		"name": "manage protected intent",
-		"description": "Answer for a person on work that would undo a decision, or act on ownership and experiments. Work that would undo someone else's protected decision waits for an OK: it can be claimed and built on its own branch, but it doesn't merge into the tracking branch or reach done until it has the OK. The answers, on a question (issue_id from Review, the record, or a waiting item's waiting_for_ok): go_ahead; decline, with a required reason (the work stays on its branch to change, drop, or take to whoever else can decide); not_a_reversal (\"this doesn't undo my decision\", which counts as go ahead); and, when waiting work reached the tracking branch anyway, keep (the same as an OK) or undo (creates a follow-up to put the decision back). Settled is settled: only a Maintainer can reopen. Who can give the OK is decided by DevSpec, not by you (devspec://product/implementation-contract, reversal_rule); a refusal names who can. Experiments: make_experiment tries an item on its own branch first (your own item, or any item if you are a Maintainer; otherwise start your own experiment); ask_to_land is when whoever can give the OK is asked; go_ahead or decline with the experiment's id (no issue_id) answers whether it may land. Also adopt (make active agent-initiated intent your decision), take_ownership and move_commit for untagged commits. Every answer is an act that belongs to one person: you give it only for the person asking you, on their own instruction, and DevSpec takes who that is from the command it delivered to you, or the prompt your owner typed at your terminal, never from a message you cite. Judge from the conversation what they want and what has been agreed; when it is unclear, ask: manage_directed_question for one person, manage_poll when several must agree. Never record someone else's agreement for them: when you judge that someone other than the person asking you agrees, use request_confirmation (issue_id, or an experiment's id, and answer; confirmer_user_id defaults to the person the question waits on by name). It records nothing, and waits for them in Review and their notifications until they confirm or decline it, with no agent needed; you are told how it was decided while you are connected. A request waiting on the person asking you is decided with confirm_request or decline_request (request_id; a no needs a reason). When DevSpec can't tell who asked you, an answer or ownership choice is saved as a request for your owner to confirm (outcome awaiting_confirmation), never done for them. Read the record or the Review question first; results show the actual record texts, labelled Protected record and Reversing record. A stale result changes nothing: read again before retrying.",
+		"description": "Answer for the person asking you on work that would undo someone's decision, and act on experiments and ownership: the same answers they could give in Review or on the record. Work that would undo someone else's protected decision waits for an OK: it can be claimed and built on its own branch, but it doesn't merge into the tracking branch or reach done until it has one. Answers on a question (issue_id, from get_review_queue, the record, or a waiting item's waiting_for_ok): go_ahead; decline, with a reason (the work stays on its branch); not_a_reversal (\"this doesn't undo my decision\", which counts as go ahead); and, when waiting work reached the tracking branch anyway, keep (the same as an OK) or undo (a follow-up puts the decision back). Only a Maintainer reopens a settled question. Experiments: make_experiment, ask_to_land, then go_ahead or decline with the experiment's id (no issue_id). Also adopt (make agent-initiated intent their decision), take_ownership and move_commit for untagged commits. Who may give which answer is DevSpec's rule (devspec://product/implementation-contract, reversal_rule); a refusal names who can. You act only for the person asking you, on their own instruction: DevSpec takes who that is from the command it delivered to you, or the prompt your owner typed at your terminal, never from a message you cite. When their request is clear and they evidently know what it does, act straight away without asking them to confirm it; ask only when it is unclear (manage_directed_question for one person, manage_poll when several must agree), and if they seem unaware of a significant consequence, say so once, up front. Never record someone else's agreement: request_confirmation (issue_id or an experiment's id, and answer; confirmer_user_id defaults to the person the question waits on) asks them to confirm it themselves in Review, and records nothing until they do. confirm_request or decline_request (request_id; a no needs a reason) decides a request waiting on the person asking you. When DevSpec can't tell who asked you, an answer or ownership choice is saved as a request for your owner to confirm (outcome awaiting_confirmation), never done for them. Read the question first (get_review_queue with its key): results show the actual record texts, labelled Protected record and Reversing record. Each result says what happened (summary) and what the person can do next (next); a refused or stale result changed nothing.",
 		"intent": "ok go ahead decline not a reversal waiting for ok undo keep landed anyway reopen experiment ask to land adopt agent initiated decision take ownership move commit protected intent request to confirm agreement confirm decline waiting on you"
 	},
 	{
@@ -482,7 +488,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "update_personal_instructions",
 		"name": "update personal instructions",
-		"description": "Change your own personal agent rules (given only to your coding agents) or response style (also used by Dev, the in-app assistant) when the person asks. The text you pass is appended by default; every agent the person runs reads all of it, so add only what is new. To revise or remove existing text, read it with get_personal_instructions and send the complete revised tier with mode:\"replace\", which overwrites the whole tier. Show the person the exact result first: dry_run:true returns it without saving. A change that would leave a tier over its length limit, and longer than before, is refused with the limit and length; nothing is saved. It is refused from an unattended run. Team-wide rules belong in write_project_instruction_rule.",
+		"description": "Change your own personal agent rules (given only to your coding agents) or response style (also used by Dev, the in-app assistant) when the person asks. The text you pass is appended by default; every agent the person runs reads all of it, so add only what is new. To revise or remove existing text, read it with get_personal_instructions and send the complete revised tier with mode:\"replace\", which overwrites the whole tier. When you reword or rewrite their text yourself, show them the result first (dry_run:true returns it without saving), unless they told you to go ahead; when they gave you the words, save them. A change that would leave a tier over its length limit, and longer than before, is refused with the limit and length; nothing is saved. It is refused from an unattended run. Team-wide rules belong in write_project_instruction_rule.",
 		"intent": "change update own personal agent instructions response style preferences"
 	},
 	{
@@ -506,7 +512,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "write_project_instruction_rule",
 		"name": "write project instruction rule",
-		"description": "Add, amend or retract one team rule when the person asks; it reaches every coding agent on the project, and a principles rule also reaches Dev, the in-app assistant. Everyone who receives a tier reads all of it on every run, so read the current rules with get_project_instruction_rules first, amend the rule that already covers a subject instead of adding another, take out anything your change makes redundant, and keep body to the instruction plus a short reason, with longer evidence in rationale, which agents are not given. Show the person the exact text first. Authority is decided per call under devspec://product/implementation-contract; read outcome: committed is live, while queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. A write that would be queued is refused for amend and retract. Your own machine rules belong in update_personal_instructions, decisions in record_memory, and documents such as an ADR in create_resource.",
+		"description": "Add, amend or retract one team rule when the person asks; it reaches every coding agent on the project, and a principles rule also reaches Dev, the in-app assistant. Everyone who receives a tier reads all of it on every run, so read the current rules with get_project_instruction_rules first, amend the rule that already covers a subject instead of adding another, take out anything your change makes redundant, and keep body to the instruction plus a short reason, with longer evidence in rationale, which agents are not given. When the person gave you the words, or told you to go ahead, write it straight away; when you wrote the wording and they have not seen it, show it to them first. Authority is decided per call under devspec://product/implementation-contract; read outcome: committed is live, while queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. A write that would be queued is refused for amend and retract. Your own machine rules belong in update_personal_instructions, decisions in record_memory, and documents such as an ADR in create_resource.",
 		"intent": "change amend add retract team-wide project coding agent instruction rules policy"
 	}
 ];
@@ -603,6 +609,7 @@ export const MODEL_VERB_NAMES = [
 	"record_duplicate_nonmatch",
 	"resolve_duplicate",
 	"manage_protected_intent",
+	"decide_proposal",
 	"record_memory",
 	"supersede_memory",
 	"update_memory",
@@ -1715,7 +1722,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_review_queue",
 		"label": "DevSpec: Get Review Queue",
-		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Work that would undo someone's decision waits for an OK; each question shows, per reversing record, where it stands and who it waits on, as DevSpec decides it. Filter questions by involvement (awaiting_me: waiting for your OK, which leaves out an experiment until it asks to land; raised_by_me; involving_me; involving_others; can_resolve: you can answer it now), state (waiting, declined, landed: reached the tracking branch without its OK, putting_back, settled), person, or record_type. Answers and experiments use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id already has a ruling waiting; proposals are accepted or declined by a Maintainer on the project's Review page, not through these tools. A request to confirm (confirmation) waits on one named person: they, or the project lead, confirm or decline it in Review, or through manage_protected_intent confirm_request / decline_request on their own instruction. If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
+		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Work that would undo someone's decision waits for an OK; each question shows, per reversing record, where it stands and who it waits on, as DevSpec decides it. Filter questions by involvement (awaiting_me: waiting for your OK, which leaves out an experiment until it asks to land; raised_by_me; involving_me; involving_others; can_resolve: you can answer it now), state (waiting, declined, landed: reached the tracking branch without its OK, putting_back, settled), person, or record_type. Answers and experiments use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id is a change waiting to be accepted: decide_proposal accepts or declines it for the person asking you, with its proposal_id and proposal_revision. you_can is judged for you, the token's owner; decide_proposal judges the person asking you, and its refusal says who can. A request to confirm (confirmation) waits on one named person: they, or the project lead, confirm or decline it in Review, or through an agent on their own instruction (decide_proposal, or manage_protected_intent confirm_request / decline_request). If incomplete is true, part of the queue could not be read, so say the list is partial. To list action items by review signal (blocked, failed verification and the rest), use get_action_items with signal_type, signal_bucket or flagged.",
 		"searchIntent": "review inbox out of date flags proposed changes waiting for a ruling or acceptance",
 		"modelInputSchema": {
 			"type": "object",
@@ -1733,7 +1740,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"proposal"
 						]
 					},
-					"description": "question: a flag awaiting a ruling. proposal: a change awaiting a Maintainer. Omitted: both."
+					"description": "question: a flag awaiting a ruling. proposal: a change waiting to be accepted or declined. Omitted: both."
 				},
 				"subject": {
 					"type": "array",
@@ -1841,7 +1848,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"proposal"
 						]
 					},
-					"description": "question: a flag awaiting a ruling. proposal: a change awaiting a Maintainer. Omitted: both."
+					"description": "question: a flag awaiting a ruling. proposal: a change waiting to be accepted or declined. Omitted: both."
 				},
 				"subject": {
 					"type": "array",
@@ -4066,7 +4073,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "write_project_instruction_rule",
 		"label": "DevSpec: Write Project Instruction Rule",
-		"description": "Add, amend or retract one team rule when the person asks; it reaches every coding agent on the project, and a principles rule also reaches Dev, the in-app assistant. Everyone who receives a tier reads all of it on every run, so read the current rules with get_project_instruction_rules first, amend the rule that already covers a subject instead of adding another, take out anything your change makes redundant, and keep body to the instruction plus a short reason, with longer evidence in rationale, which agents are not given. Show the person the exact text first. Authority is decided per call under devspec://product/implementation-contract; read outcome: committed is live, while queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. A write that would be queued is refused for amend and retract. Your own machine rules belong in update_personal_instructions, decisions in record_memory, and documents such as an ADR in create_resource.",
+		"description": "Add, amend or retract one team rule when the person asks; it reaches every coding agent on the project, and a principles rule also reaches Dev, the in-app assistant. Everyone who receives a tier reads all of it on every run, so read the current rules with get_project_instruction_rules first, amend the rule that already covers a subject instead of adding another, take out anything your change makes redundant, and keep body to the instruction plus a short reason, with longer evidence in rationale, which agents are not given. When the person gave you the words, or told you to go ahead, write it straight away; when you wrote the wording and they have not seen it, show it to them first. Authority is decided per call under devspec://product/implementation-contract; read outcome: committed is live, while queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. A write that would be queued is refused for amend and retract. Your own machine rules belong in update_personal_instructions, decisions in record_memory, and documents such as an ADR in create_resource.",
 		"searchIntent": "change amend add retract team-wide project coding agent instruction rules policy",
 		"modelInputSchema": {
 			"type": "object",
@@ -4226,7 +4233,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "import_instruction_rules",
 		"label": "DevSpec: Import Instruction Rules",
-		"description": "Turn an existing agent-rules file (CLAUDE.md, AGENTS.md, .cursorrules or similar) into team rules. You sort each item into a destination and cite its source_line; do not file the whole file as agent rules. A call without confirm writes nothing and returns the plan: show it to the person, let them drop or move entries, then call again with confirm:true. If the rules would take a tier, or a rationale, past its length limit, the whole import is refused with the limit and length, with or without confirm, and nothing is written. Only project_agent_rules and project_principles items are written; personal_agent_rules and memory items come back for you to save with update_personal_instructions and record_memory, and leave_in_repo items are not written. Read the current rules first: where one already covers a subject, leave the item out and amend that rule with write_project_instruction_rule. Whether the import commits is decided under devspec://product/implementation-contract. Read outcome: committed means the rules are live; queued_for_review carries proposal_ids and changes nothing until a Maintainer accepts them.",
+		"description": "Turn an existing agent-rules file (CLAUDE.md, AGENTS.md, .cursorrules or similar) into team rules. You sort each item into a destination and cite its source_line; do not file the whole file as agent rules. A call without confirm writes nothing and returns the plan: show it to the person so they can drop or move entries, unless they told you to import it without reviewing it, then call again with confirm:true. If the rules would take a tier, or a rationale, past its length limit, the whole import is refused with the limit and length, with or without confirm, and nothing is written. Only project_agent_rules and project_principles items are written; personal_agent_rules and memory items come back for you to save with update_personal_instructions and record_memory, and leave_in_repo items are not written. Read the current rules first: where one already covers a subject, leave the item out and amend that rule with write_project_instruction_rule. Whether the import commits is decided under devspec://product/implementation-contract. Read outcome: committed means the rules are live; queued_for_review carries proposal_ids and changes nothing until a Maintainer accepts them.",
 		"searchIntent": "import CLAUDE.md AGENTS.md cursorrules agent rules file into team instructions",
 		"modelInputSchema": {
 			"type": "object",
@@ -4283,7 +4290,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"confirm": {
 					"type": "boolean",
-					"description": "Omit to get the plan back with nothing written. Pass true only after the person has seen and agreed the plan."
+					"description": "Omit to get the plan back with nothing written. Pass true once the person has agreed the plan, or told you to import it without reviewing it."
 				},
 				"confirm_safety_change": {
 					"type": "boolean",
@@ -4374,7 +4381,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"confirm": {
 					"type": "boolean",
-					"description": "Omit to get the plan back with nothing written. Pass true only after the person has seen and agreed the plan."
+					"description": "Omit to get the plan back with nothing written. Pass true once the person has agreed the plan, or told you to import it without reviewing it."
 				},
 				"confirm_safety_change": {
 					"type": "boolean",
@@ -4420,7 +4427,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_personal_instructions",
 		"label": "DevSpec: Update Personal Instructions",
-		"description": "Change your own personal agent rules (given only to your coding agents) or response style (also used by Dev, the in-app assistant) when the person asks. The text you pass is appended by default; every agent the person runs reads all of it, so add only what is new. To revise or remove existing text, read it with get_personal_instructions and send the complete revised tier with mode:\"replace\", which overwrites the whole tier. Show the person the exact result first: dry_run:true returns it without saving. A change that would leave a tier over its length limit, and longer than before, is refused with the limit and length; nothing is saved. It is refused from an unattended run. Team-wide rules belong in write_project_instruction_rule.",
+		"description": "Change your own personal agent rules (given only to your coding agents) or response style (also used by Dev, the in-app assistant) when the person asks. The text you pass is appended by default; every agent the person runs reads all of it, so add only what is new. To revise or remove existing text, read it with get_personal_instructions and send the complete revised tier with mode:\"replace\", which overwrites the whole tier. When you reword or rewrite their text yourself, show them the result first (dry_run:true returns it without saving), unless they told you to go ahead; when they gave you the words, save them. A change that would leave a tier over its length limit, and longer than before, is refused with the limit and length; nothing is saved. It is refused from an unattended run. Team-wide rules belong in write_project_instruction_rule.",
 		"searchIntent": "change update own personal agent instructions response style preferences",
 		"modelInputSchema": {
 			"type": "object",
@@ -8458,7 +8465,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "manage_protected_intent",
 		"label": "DevSpec: Manage Protected Intent",
-		"description": "Answer for a person on work that would undo a decision, or act on ownership and experiments. Work that would undo someone else's protected decision waits for an OK: it can be claimed and built on its own branch, but it doesn't merge into the tracking branch or reach done until it has the OK. The answers, on a question (issue_id from Review, the record, or a waiting item's waiting_for_ok): go_ahead; decline, with a required reason (the work stays on its branch to change, drop, or take to whoever else can decide); not_a_reversal (\"this doesn't undo my decision\", which counts as go ahead); and, when waiting work reached the tracking branch anyway, keep (the same as an OK) or undo (creates a follow-up to put the decision back). Settled is settled: only a Maintainer can reopen. Who can give the OK is decided by DevSpec, not by you (devspec://product/implementation-contract, reversal_rule); a refusal names who can. Experiments: make_experiment tries an item on its own branch first (your own item, or any item if you are a Maintainer; otherwise start your own experiment); ask_to_land is when whoever can give the OK is asked; go_ahead or decline with the experiment's id (no issue_id) answers whether it may land. Also adopt (make active agent-initiated intent your decision), take_ownership and move_commit for untagged commits. Every answer is an act that belongs to one person: you give it only for the person asking you, on their own instruction, and DevSpec takes who that is from the command it delivered to you, or the prompt your owner typed at your terminal, never from a message you cite. Judge from the conversation what they want and what has been agreed; when it is unclear, ask: manage_directed_question for one person, manage_poll when several must agree. Never record someone else's agreement for them: when you judge that someone other than the person asking you agrees, use request_confirmation (issue_id, or an experiment's id, and answer; confirmer_user_id defaults to the person the question waits on by name). It records nothing, and waits for them in Review and their notifications until they confirm or decline it, with no agent needed; you are told how it was decided while you are connected. A request waiting on the person asking you is decided with confirm_request or decline_request (request_id; a no needs a reason). When DevSpec can't tell who asked you, an answer or ownership choice is saved as a request for your owner to confirm (outcome awaiting_confirmation), never done for them. Read the record or the Review question first; results show the actual record texts, labelled Protected record and Reversing record. A stale result changes nothing: read again before retrying.",
+		"description": "Answer for the person asking you on work that would undo someone's decision, and act on experiments and ownership: the same answers they could give in Review or on the record. Work that would undo someone else's protected decision waits for an OK: it can be claimed and built on its own branch, but it doesn't merge into the tracking branch or reach done until it has one. Answers on a question (issue_id, from get_review_queue, the record, or a waiting item's waiting_for_ok): go_ahead; decline, with a reason (the work stays on its branch); not_a_reversal (\"this doesn't undo my decision\", which counts as go ahead); and, when waiting work reached the tracking branch anyway, keep (the same as an OK) or undo (a follow-up puts the decision back). Only a Maintainer reopens a settled question. Experiments: make_experiment, ask_to_land, then go_ahead or decline with the experiment's id (no issue_id). Also adopt (make agent-initiated intent their decision), take_ownership and move_commit for untagged commits. Who may give which answer is DevSpec's rule (devspec://product/implementation-contract, reversal_rule); a refusal names who can. You act only for the person asking you, on their own instruction: DevSpec takes who that is from the command it delivered to you, or the prompt your owner typed at your terminal, never from a message you cite. When their request is clear and they evidently know what it does, act straight away without asking them to confirm it; ask only when it is unclear (manage_directed_question for one person, manage_poll when several must agree), and if they seem unaware of a significant consequence, say so once, up front. Never record someone else's agreement: request_confirmation (issue_id or an experiment's id, and answer; confirmer_user_id defaults to the person the question waits on) asks them to confirm it themselves in Review, and records nothing until they do. confirm_request or decline_request (request_id; a no needs a reason) decides a request waiting on the person asking you. When DevSpec can't tell who asked you, an answer or ownership choice is saved as a request for your owner to confirm (outcome awaiting_confirmation), never done for them. Read the question first (get_review_queue with its key): results show the actual record texts, labelled Protected record and Reversing record. Each result says what happened (summary) and what the person can do next (next); a refused or stale result changed nothing.",
 		"searchIntent": "ok go ahead decline not a reversal waiting for ok undo keep landed anyway reopen experiment ask to land adopt agent initiated decision take ownership move commit protected intent request to confirm agreement confirm decline waiting on you",
 		"modelInputSchema": {
 			"type": "object",
@@ -8803,6 +8810,134 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			},
 			"required": [
 				"action"
+			]
+		},
+		"kind": "model"
+	},
+	{
+		"name": "decide_proposal",
+		"label": "DevSpec: Decide Proposal",
+		"description": "Accept or decline a change waiting in Review under Proposed changes, for the person asking you: a proposed memory, document or work item, an edit to one, a held change, or a request to confirm. DevSpec judges it as that person, exactly as on the Review page: whether they may decide this change (the owner of the decision it changes, or a Maintainer; never whoever asked for the change), and a refusal says who can. Pass proposal_id and revision exactly as get_review_queue listed them. Accepting applies exactly that version, once; if the change was edited or its record moved since, nothing is decided (code stale): read it again and tell them what changed. The decision is theirs, never yours: when they have told you which change and which way, and evidently know what it does, decide it straight away without asking them to confirm again. If they don't seem aware of a significant consequence (for example, that accepting undoes someone's decision), say so once, up front. When DevSpec can't tell who asked you, nothing is decided and the change stays waiting for whoever decides it (outcome not_decided). outcome is accepted, declined, refused (with code and error), not_decided, or unknown (sent, but the result could not be confirmed: read the queue again before deciding again). Never say a change took effect unless outcome is accepted.",
+		"searchIntent": "accept decline approve reject proposed change waiting in review pending version proposal held change request to confirm",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"proposal_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "The change's proposal_id, as get_review_queue listed it."
+				},
+				"revision": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "Its proposal_revision, as get_review_queue listed it: the version the person was shown."
+				},
+				"decision": {
+					"type": "string",
+					"enum": [
+						"accept",
+						"decline"
+					],
+					"description": "What the person asked for."
+				},
+				"note": {
+					"type": "string",
+					"maxLength": 2000,
+					"description": "Why, in the person's words, recorded with the decision. Declining a request to confirm needs one. Omitted: no note."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"proposal_id",
+				"revision",
+				"decision"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"proposal_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "The change's proposal_id, as get_review_queue listed it."
+				},
+				"revision": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "Its proposal_revision, as get_review_queue listed it: the version the person was shown."
+				},
+				"decision": {
+					"type": "string",
+					"enum": [
+						"accept",
+						"decline"
+					],
+					"description": "What the person asked for."
+				},
+				"note": {
+					"type": "string",
+					"maxLength": 2000,
+					"description": "Why, in the person's words, recorded with the decision. Declining a request to confirm needs one. Omitted: no note."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"request_ref": {
+					"type": "string",
+					"x-devspec-host-only": true,
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"proposal_id",
+				"revision",
+				"decision"
 			]
 		},
 		"kind": "model"
@@ -13033,7 +13168,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "delete_automation",
 		"label": "DevSpec: Delete Automation",
-		"description": "Archive an automation; nothing is deleted. Its creator or a Maintainer may; anyone else is refused. It stops running and leaves every list, everyone's queued and waiting runs of it are cancelled, a run already in progress can still be reported, and its run history is kept. It can be restored on the Automations page, not from here. Ask the person first: it is something the project relies on.",
+		"description": "Archive an automation; nothing is deleted. Its creator or a Maintainer may; anyone else is refused. It stops running and leaves every list, everyone's queued and waiting runs of it are cancelled, a run already in progress can still be reported, and its run history is kept. It can be restored on the Automations page, not from here. Archive it when the person asks; if they don't seem to know the project relies on it, say so once first.",
 		"searchIntent": "archive retire delete stop a saved automation job",
 		"modelInputSchema": {
 			"type": "object",
@@ -15665,8 +15800,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 96,
-	model: 83,
+	total: 97,
+	model: 84,
 	pump: 12,
 	never_model: 1,
 } as const;

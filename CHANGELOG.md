@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.4 - 2026-10-17
+
+- Your agent can now accept or decline a change waiting in Review, under Proposed changes, when you ask it to and you could decide it yourself there. It applies exactly the version you saw, and tells you who can decide it when you can't.
+- When your request is clear, your agent no longer asks you to confirm it again before changing team rules, your own instructions or an automation; it warns you once only when you don't seem aware of a significant consequence.
+- The catalogue is regenerated against DevSpec's current tools. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.7.3 - 2026-10-17
 
 - Fixed: what DevSpec finds about your agent's own work now reaches the agent again: that a change would undo someone's decision, duplicates other work or breaks a requirement, and what happened to a change that was waiting on someone. Until now Pi told DevSpec it couldn't read these, so they went only to your notifications and the Agents page showed the agent as "Not receiving findings". Update with `pi update --extensions`, then restart Pi.

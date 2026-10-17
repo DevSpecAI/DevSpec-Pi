@@ -105,6 +105,10 @@ const FULL_READ_VERBS = new Set([
 	// Exact ownership receipts: keep who adopted, revision, scope and refusals.
 	// Already small; no generic acknowledgement projection (988ad64c).
 	"manage_protected_intent",
+	// A decision receipt: accepted, declined, refused, not_decided or unknown, with
+	// what happened and what the person can do next. Already small, and a refusal
+	// or an unconfirmed outcome must never read as done, so it stays whole (60fb0935).
+	"decide_proposal",
 	// A duplicate resolution either previews the exact snapshots, the planned
 	// closure and who decides, or returns its receipt. Projection cannot see which
 	// action was called, so both stay whole, as for preview_supersession (fce58a2f).

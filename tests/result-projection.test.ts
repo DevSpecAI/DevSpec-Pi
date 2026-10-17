@@ -709,7 +709,20 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// Verbs 83 model / 12 pump / 1 never-model unchanged; families and hot set
 		// unchanged. Benchmark before/after: 50,754 -> 51,411 estimated tokens; every
 		// budget passes.
-		"9b0f4b3445ee19d196a790dacd04ac4c4379664b8da42f3c7fc2d0ed5ecc0f0a",
+		// Rebaselined 2026-10-17 for DevSpec item 60fb0935 (Dev and local agents make
+		// every Review decision for the person asking, without a redundant
+		// confirmation), regenerated against DevSpecV2 work/60fb0935-review-parity.
+		// One verb added: decide_proposal (proposal_id, revision, decision, note,
+		// connection_id) accepts or declines a waiting change for the person asking,
+		// projected "full" (a small decision receipt that must never read as done when
+		// refused or unconfirmed). Descriptions: manage_protected_intent and
+		// get_review_queue (which also says a proposal entry carries
+		// proposal_revision), and write_project_instruction_rule,
+		// import_instruction_rules, update_personal_instructions and delete_automation
+		// no longer force a confirmation when the person's request is clear. Verbs
+		// 83 -> 84 model / 12 pump / 1 never-model; hot set unchanged. Benchmark
+		// before/after: 51,569 -> 52,323 estimated tokens; every budget passes.
+		"1172849ba8375fc1de496a4a415130a90e97bfe4297d62b1b5736397a04dd3c3",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

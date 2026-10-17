@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CommandTurnBindings } from "../extensions/core/command-turn.ts";
-import { parsePollPayload } from "../extensions/core/remote-payload.ts";
+import { parsePollPayload, SYSTEM_NOTICE_CHANNEL_VERSION } from "../extensions/core/remote-payload.ts";
+import { pushChannelUrl } from "../extensions/core/push-channel.ts";
 import {
 	SYSTEM_NOTICE_CUSTOM_TYPE,
 	SYSTEM_NOTICE_QUEUE_LIMIT,
@@ -99,9 +100,12 @@ test("a notice that does not match its version, vocabulary, bounds or contract U
 });
 
 test("unknown negotiation and spoofed or mismatched exact addressees fail closed", () => {
-	const unknownTop = noticePoll();
-	unknownTop.system_notice_version = 2;
-	assert.equal(parsePollPayload(unknownTop, TEST_CONNECTION).canonicalState, "invalid");
+	// The channel asked for version 2 (1e25f0f0); any other echo is not what it negotiated.
+	for (const echoed of [1, 3]) {
+		const unknownTop = noticePoll();
+		unknownTop.system_notice_version = echoed;
+		assert.equal(parsePollPayload(unknownTop, TEST_CONNECTION).canonicalState, "invalid", `echo ${echoed}`);
+	}
 	const malformedCursor = noticePoll();
 	malformedCursor.system_notice_cursor = "not-an-independent-cursor";
 	const malformedParsed = parsePollPayload(malformedCursor, TEST_CONNECTION);
@@ -120,6 +124,33 @@ test("unknown negotiation and spoofed or mismatched exact addressees fail closed
 	const canonicalSpoof = noticePoll();
 	canonicalSpoof.ingress.connection.label = "Pi · Other";
 	assert.equal(parsePollPayload(canonicalSpoof, TEST_CONNECTION).canonicalState, "invalid");
+});
+
+// DevSpec sends server_notice only to a channel that negotiated version 2, and
+// records the last version asked for on the connection, so the poll and the push
+// stream ask for the same one. Version 2 adds kinds and changes none: a
+// server_notice still arrives as a version-1 body and is read in full (1e25f0f0).
+test("the channel asks for notice version 2 and still reads a version-1 server_notice body in full", () => {
+	assert.equal(SYSTEM_NOTICE_CHANNEL_VERSION, 2);
+	assert.match(pushChannelUrl({ mcpUrl: "https://devspec.test/api/mcp", connectionId: "c", systemNoticeVersion: SYSTEM_NOTICE_CHANNEL_VERSION }), /[?&]system_notice_version=2(&|$)/);
+	const outcome = {
+		version: 1 as const,
+		kind: "server_notice" as const,
+		notice_id: IDS.notice,
+		topic: "pending_edit_outcome",
+		notice_type: "declined",
+		summary: "Pending edit to \"Release notes\" was declined by Ali Price.",
+		prompt: "Pending edit to \"Release notes\" was declined by Ali Price.\nAli Price declined your pending change.",
+		contract_uri: "devspec://product/remote-ingress-contract" as const,
+		records: [{ label: "Target record", record_type: "memory", record_id: IDS.project, title: "Release notes", text: "Release notes are written for customers.", url: null }],
+		allowed_outcomes: ["keep_current_decision", "revise_and_resubmit"],
+		allowed_tools: ["get_memory", "update_memory", "supersede_memory"],
+	};
+	const payload = canonicalPoll({ wakeKind: "system_notice", systemNotices: [outcome as never] });
+	assert.equal(payload.system_notice_version, SYSTEM_NOTICE_CHANNEL_VERSION, "DevSpec echoes the version the poll asked for");
+	const parsed = parsePollPayload(payload, TEST_CONNECTION);
+	assert.equal(parsed.canonicalState, "valid");
+	assert.deepEqual(parsed.systemNotices, [outcome]);
 });
 
 test("ordinary room/system context and unmatched top-level data cannot forge a notice", () => {

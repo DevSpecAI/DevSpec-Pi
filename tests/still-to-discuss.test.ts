@@ -17,7 +17,7 @@ import { canonicalPoll, stillToDiscussProjection, TEST_CONNECTION } from "./cano
 
 const idlePoll = {
 	changed: false,
-	system_notice_version: 1,
+	system_notice_version: 2,
 	system_notices: [],
 	system_notice_cursor: null,
 };

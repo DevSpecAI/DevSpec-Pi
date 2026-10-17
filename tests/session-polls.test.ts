@@ -34,7 +34,7 @@ test("omitted session_polls is not an empty inventory and idle packages reject i
 
 	const idle = parsePollPayload({
 		changed: false,
-		system_notice_version: 1,
+		system_notice_version: 2,
 		system_notices: [],
 		system_notice_cursor: null,
 		session_polls: sessionPollsProjection(),

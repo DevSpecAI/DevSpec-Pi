@@ -44,7 +44,19 @@ const SENDER_STYLE_VERSION = 1;
 const SENDER_STYLE_CONTRACT_VERSION = "1.5.0";
 const SENDER_STYLE_POLICY_VERSION = "2026-09-18.1";
 const DELEGATED_PROJECT_POLICY_ID = "delegated_project_v1";
+/** The shape version each notice carries in its own `version` field (unchanged at channel version 2). */
 const SYSTEM_NOTICE_VERSION = 1;
+/**
+ * The notice CHANNEL version Pi negotiates on every poll and on the push stream:
+ * which kinds DevSpec may send, not the shape of a notice. 1 carries
+ * unlinked_commit_item_review; 2 also carries server_notice (confirmed findings and
+ * pending-edit outcomes about this agent's own work). DevSpec sends server_notice
+ * only to a channel that asked for 2 and records the last version asked for on the
+ * connection, so every place that negotiates must ask for the same one, or the
+ * Agents page flips to "Not receiving findings" (1fd34942, item 1e25f0f0). Version
+ * 2 adds kinds and changes none: each notice still arrives as a version-1 body.
+ */
+export const SYSTEM_NOTICE_CHANNEL_VERSION = 2;
 const SYSTEM_NOTICE_KIND = "unlinked_commit_item_review";
 const SERVER_NOTICE_KIND = "server_notice";
 const SYSTEM_NOTICE_CONTRACT_URI = "devspec://product/remote-ingress-contract";
@@ -1023,7 +1035,7 @@ export function parsePollPayload(
 		const systemNoticeNegotiated = options.systemNoticeNegotiated;
 		const senderStyleNegotiated = options.senderStyleNegotiated ?? false;
 		if (systemNoticeNegotiated) {
-			if (outer.system_notice_version !== SYSTEM_NOTICE_VERSION) fail("system_notice_version", "expected negotiated version 1");
+			if (outer.system_notice_version !== SYSTEM_NOTICE_CHANNEL_VERSION) fail("system_notice_version", `expected negotiated version ${SYSTEM_NOTICE_CHANNEL_VERSION}`);
 		} else if (outer.system_notice_version !== undefined || outer.system_notice_cursor !== undefined || outer.system_notices !== undefined) {
 			fail("system_notice_version", "notice fields require request negotiation");
 		}

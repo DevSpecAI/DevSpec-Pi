@@ -44,7 +44,8 @@ const eventRevision = () => `sha256:${String(generation).repeat(64)}`;
 const contract = { kind: "devspec.product.remote_ingress_contract", schema_version: 1, contract_version: "1.6.0", policy: { policy_version: "2026-09-24.1" }, activation: { session_events_negotiation_argument: "session_events_version", session_events_revision_argument: "session_events_revision", session_events_requires: { room_context_version: 1, session_events_version: 1 }, room_context_negotiation_argument: "room_context_version", room_context_contract_requires: { ingress_version: 1, delegated_scope_version: 1, active_plan_projection_version: 1, system_notice_version: 1, sender_style_version: 1, room_context_version: 1 } } };
 function poll(args) {
 	const room = args.room_context_version === 1;
-	const notices = args.system_notice_version === 1;
+	const noticeVersion = args.system_notice_version === 1 || args.system_notice_version === 2 ? args.system_notice_version : null;
+	const notices = noticeVersion !== null;
 	const style = args.sender_style_version === 1;
 	const version = room ? "1.6.0" : style ? "1.5.0" : notices ? "1.4.0" : "1.3.0";
 	const policy = room ? "2026-09-24.1" : style ? "2026-09-18.1" : notices ? "2026-08-22.1" : "2026-08-21.1";
@@ -55,7 +56,7 @@ function poll(args) {
 	if (!args.catch_up && matching) start = live.point.sequence - generation * 1000 + 1;
 	const changed = args.catch_up === true || !matching || start <= end;
 	const base = { connection_id: connectionId, session_id: roomId, attached_at: attached, speech_attachment_id: attachmentId, changed, cursor_v2: encode(count, "after"), dispatch_cursor: null, dispatches: [], addressed_to: identity,
-		...(notices ? { system_notice_version: 1, system_notice_cursor: null, system_notices: [] } : {}),
+		...(notices ? { system_notice_version: noticeVersion, system_notice_cursor: null, system_notices: [] } : {}),
 		...(args.interaction_event_version ? { interaction_event_version: 1, interaction_events: [] } : {}),
 		...(args.question_dismissal_event_version ? { question_dismissal_event_version: 1, question_dismissal_events: [] } : {}) };
 	if (!changed) return base;

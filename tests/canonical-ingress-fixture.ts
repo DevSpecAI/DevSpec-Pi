@@ -263,7 +263,7 @@ export function canonicalPoll(options: {
 		...(options.stillToDiscuss ? { still_to_discuss: options.stillToDiscuss } : {}),
 		cursor_v2: "canonical-cursor-1",
 		...(systemNoticeNegotiated ? {
-			system_notice_version: 1,
+			system_notice_version: 2,
 			system_notice_cursor: systemNotices.length > 0 ? `2026-08-22T12:00:00.000Z|${IDS.notice}` : null,
 			system_notices: systemNotices,
 		} : {}),

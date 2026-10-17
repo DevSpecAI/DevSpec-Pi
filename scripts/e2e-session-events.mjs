@@ -36,7 +36,7 @@ try {
 	connectionId = registered.connection_id; capability = connectionCapabilityFromResult(raw);
 	assert(connectionId && capability, "Disposable registration failed");
 	await call("attach_connection", { connection_id: connectionId, session_id: session });
-	const args = { connection_id: connectionId, ingress_version: 1, delegated_scope_version: 1, active_plan_projection_version: 1, system_notice_version: 1, sender_style_version: 1, room_context_version: 1, session_events_version: 1, wait_ms: 0 };
+	const args = { connection_id: connectionId, ingress_version: 1, delegated_scope_version: 1, active_plan_projection_version: 1, system_notice_version: 2, sender_style_version: 1, room_context_version: 1, session_events_version: 1, wait_ms: 0 };
 	const response = unwrapMcpResult(await call("poll_connection", args)).details;
 	const identity = response.ingress?.connection; assert(identity, "No initial history envelope");
 	const options = { systemNoticeNegotiated: true, senderStyleNegotiated: true, roomContextNegotiated: true, sessionEventsNegotiated: true };

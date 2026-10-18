@@ -29,7 +29,7 @@ test("needsProjectScope matches multi-project resolution failures", () => {
 
 test("needsProjectScope ignores auth and ordinary failures", () => {
 	assert.ok(!needsProjectScope("DevSpec rejected the token (invalid or revoked)"));
-	assert.ok(!needsProjectScope("Action item not found"));
+	assert.ok(!needsProjectScope("Task not found"));
 	assert.ok(!needsProjectScope("fetch failed"));
 });
 

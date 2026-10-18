@@ -36,7 +36,7 @@ const softGates: Array<[string, Record<string, unknown>]> = [
 	["record_implementation", { implementation_recorded: false }],
 	["retract_memory", { retracted: false }],
 	["archive_resource", { archived: false }],
-	["update_action_item", { applied: false }],
+	["update_task", { applied: false }],
 ];
 for (const [wrapperName, wrap] of Object.entries(wrappers)) {
 	for (const [name, receipt] of softGates) {
@@ -52,7 +52,7 @@ for (const [wrapperName, wrap] of Object.entries(wrappers)) {
 		});
 	}
 
-	for (const name of ["record_memory", "supersede_memory", "create_resource", "update_resource", "supersede_resource", "supersede_action_item"]) {
+	for (const name of ["record_memory", "supersede_memory", "create_resource", "update_resource", "supersede_resource", "supersede_task"]) {
 		test(`${name}: ${wrapperName} proposal is not an applied source record or a record with the proposal's ID`, () => {
 			const result = wrap({ outcome: "queued_for_review", recorded: false, committed: false,
 				proposal_id: PROPOSAL, id: SOURCE, payload: { body: PRIVATE } });
@@ -65,7 +65,7 @@ for (const [wrapperName, wrap] of Object.entries(wrappers)) {
 		});
 	}
 
-	for (const name of ["supersede_memory", "supersede_resource", "record_memory", "create_resource", "create_action_item", "record_implementation"]) {
+	for (const name of ["supersede_memory", "supersede_resource", "record_memory", "create_resource", "create_task", "record_implementation"]) {
 		test(`${name}: ${wrapperName} success uses the exact returned identity rather than the original`, () => {
 			const event = completed(name, wrap({ outcome: "committed", id: RETURNED, superseded: SOURCE, body: PRIVATE }));
 			assert.equal(event.status, "ok");
@@ -75,7 +75,7 @@ for (const [wrapperName, wrap] of Object.entries(wrappers)) {
 	}
 }
 
-for (const name of ["supersede_memory", "supersede_resource", "record_memory", "create_resource", "create_action_item"]) {
+for (const name of ["supersede_memory", "supersede_resource", "record_memory", "create_resource", "create_task"]) {
 	test(`${name}: a missing new identity does not reuse an input ID at toolEnd`, () => {
 		for (const result of [undefined, {}, { outcome: "committed" }, { id: "invalid" }]) {
 			assert.equal(completed(name, result).id, undefined);
@@ -85,33 +85,33 @@ for (const name of ["supersede_memory", "supersede_resource", "record_memory", "
 
 test("a supersession names the replacing item the server returned; a pending one says pending", () => {
 	const trail = new TrailBuilder();
-	trail.toolStart("call", "supersede_action_item", { action_item_id: "74000000", superseded_item_id: SOURCE });
-	trail.toolEnd("call", "supersede_action_item", true, { committed: true, superseding_item_id: RETURNED, superseded_item_id: SOURCE,
+	trail.toolStart("call", "supersede_task", { task_id: "74000000", superseded_item_id: SOURCE });
+	trail.toolEnd("call", "supersede_task", true, { committed: true, superseding_item_id: RETURNED, superseded_item_id: SOURCE,
 		closure: "dismissed", tense: "effective", note: PRIVATE });
 	const event = trail.events()[0];
 	assert.equal(event?.kind, "domain");
 	if (event?.kind !== "domain") throw new Error("Expected domain event");
-	assert.equal(event.domain, "action_item");
+	assert.equal(event.domain, "task");
 	assert.equal(event.action, "superseded");
 	assert.equal(event.id, RETURNED);
 	assert.ok(!JSON.stringify(trail.events()).includes(PRIVATE));
-	const pending = completed("supersede_action_item", { committed: true, superseding_item_id: RETURNED, superseded_item_id: SOURCE, closure: "pending", tense: "pending" });
+	const pending = completed("supersede_task", { committed: true, superseding_item_id: RETURNED, superseded_item_id: SOURCE, closure: "pending", tense: "pending" });
 	assert.equal(pending.action, "pending");
 	assert.equal(pending.id, undefined, "a supersession that has not taken effect does not name an applied record");
 });
 
 test("same-record mutations may retain an exact safe argument ID when the receipt omits it", () => {
-	for (const name of ["update_resource", "retract_memory", "archive_resource", "update_action_item", "claim_work_item"]) {
+	for (const name of ["update_resource", "retract_memory", "archive_resource", "update_task", "claim_work_item"]) {
 		assert.equal(completed(name, { outcome: "committed" }).id, SOURCE);
 	}
 });
 
-test("returned nested entities and implementation action-item wrappers preserve exact identity", () => {
+test("returned nested entities and implementation task wrappers preserve exact identity", () => {
 	for (const [name, result] of [
 		["record_memory", { memory: { id: RETURNED } }],
 		["supersede_memory", { item: { memory: { id: RETURNED } } }],
 		["update_resource", { resource: { id: RETURNED } }],
-		["record_implementation", { item: { action_item: { id: RETURNED } } }],
+		["record_implementation", { item: { task: { id: RETURNED } } }],
 	] as const) {
 		assert.equal(completed(name, { details: { outcome: "committed", ...result } }).id, RETURNED);
 		assert.equal(completed(name, { details: result }).id, undefined, "an entity alone is not proof a write applied");
@@ -134,7 +134,7 @@ test("explicit failed receipts clear an identity even if the transport reports s
 	}
 });
 
-for (const name of ["update_resource", "retract_memory", "archive_resource", "update_action_item", "claim_work_item", "record_implementation"]) {
+for (const name of ["update_resource", "retract_memory", "archive_resource", "update_task", "claim_work_item", "record_implementation"]) {
 	test(`${name}: native adapter errors fail without linking the source or exposing private error text`, () => {
 		const result = toolErrorResult(PRIVATE);
 		assert.equal(writeOutcomeFromResult(result), "failed");

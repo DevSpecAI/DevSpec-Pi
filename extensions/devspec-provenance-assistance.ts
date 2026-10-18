@@ -163,7 +163,7 @@ export async function unclaimedEditNudge(
 		content:
 			`DevSpec provenance note: this conversation is working with project ${projectId}, ` +
 			"but this Pi session has not observed an active claim. Continue this edit—editing is never blocked. " +
-			"Before committing, use search_action_items to find and claim the covering item; if none exists, " +
+			"Before committing, use search_tasks to find and claim the covering item; if none exists, " +
 			"create and claim a thin last-mile item. Pi cannot add the [devspec:<full-uuid>] commit reference for you, " +
 			"so include it in the commit message yourself.",
 		display: true,

@@ -39,7 +39,7 @@ function workEntrySection() {
 		tracking_basis: "Choose from durable outcome and material session progress only.",
 		tracking_decisions: [
 			{ outcome: "both", durable_outcome_required: true, material_session_progress_value: true, requirement: "Track durable work and useful session progress.", examples: ["Durable migration with handoff phases."] },
-			{ outcome: "action_item", durable_outcome_required: true, material_session_progress_value: false, requirement: "Track durable work without a session plan.", examples: ["One bounded product fix."] },
+			{ outcome: "task", durable_outcome_required: true, material_session_progress_value: false, requirement: "Track durable work without a session plan.", examples: ["One bounded product fix."] },
 			{ outcome: "session_plan", durable_outcome_required: false, material_session_progress_value: true, requirement: "Track material session-only progress.", examples: ["Administrative reconciliation phases."] },
 			{ outcome: "neither", durable_outcome_required: false, material_session_progress_value: false, requirement: "Do not track routine work.", examples: ["Read and answer."] },
 		],
@@ -61,7 +61,7 @@ function provenanceSection() {
 		early_claiming: "Claim early; absence may nudge but never deny.",
 		edit_behavior: "Never deny edits, execution, tests, worktrees, delegation, or follow-through for a missing claim.",
 		commit_reference: {
-			canonical_format: "[devspec:<action-item-uuid>]",
+			canonical_format: "[devspec:<task-uuid>]",
 			accepted_local_shapes: ["full_uuid", "eight_character_hex_short_code"],
 			multiplicity: "one_or_more",
 			validates_link_not_live_claim: true,
@@ -439,7 +439,7 @@ test("offline fallback is fail-open and still builds the immutable work kickoff"
 	assert.match(requirements, /server reconciliation/i);
 	assert.doesNotMatch(requirements, /Do not edit until|stop and retry/i);
 	const kickoff = buildImplementationKickoff({
-		actionItemIds: ["item-local"],
+		taskIds: ["item-local"],
 		context,
 		contractReference: REFERENCE,
 	});
@@ -479,15 +479,15 @@ test("kickoff validates canonical resource/version and carries no execution mode
 		rules: [],
 	};
 	assert.throws(() => buildImplementationKickoff({
-		actionItemIds: ["item-1"],
+		taskIds: ["item-1"],
 		context,
 		contractReference: { ...REFERENCE, contract_version: "4.2.1" },
 	}), /version did not match/);
 	const kickoff = buildImplementationKickoff({
-		actionItemIds: ["item-1", "item-1"],
+		taskIds: ["item-1", "item-1"],
 		context,
 	});
-	assert.deepEqual(kickoff.work, { action_item_ids: ["item-1"] });
+	assert.deepEqual(kickoff.work, { task_ids: ["item-1"] });
 	assert.equal(kickoff.implementation_contract.contract_version, CURRENT_CONTRACT_VERSION);
 	assert.doesNotMatch(JSON.stringify(kickoff), /assignment|attended|execution_mode/);
 });

@@ -134,16 +134,16 @@ test("validate: omitted SHA with no unique candidate sends nothing — the serve
 
 test("applyCommitLedgerVerdict: a null sha omits the key entirely so the server fill runs", () => {
 	const out = applyCommitLedgerVerdict(
-		{ commit_sha: "model-typed", action_item_id: "x" },
+		{ commit_sha: "model-typed", task_id: "x" },
 		{ ok: true, sha: null, autoFilled: false, unverified: true },
 	);
 	assert.equal("commit_sha" in out, false);
-	assert.equal(out.action_item_id, "x");
+	assert.equal(out.task_id, "x");
 });
 
 test("applyCommitLedgerVerdict: an unverified hint passes the model's value through unchanged", () => {
 	const out = applyCommitLedgerVerdict(
-		{ commit_sha: "model-typed", action_item_id: "x" },
+		{ commit_sha: "model-typed", task_id: "x" },
 		{ ok: true, sha: "deadbeef05c52551e70119e28fdf3d8cb6e47e3a", autoFilled: false, unverified: true },
 	);
 	assert.equal(out.commit_sha, "deadbeef05c52551e70119e28fdf3d8cb6e47e3a");

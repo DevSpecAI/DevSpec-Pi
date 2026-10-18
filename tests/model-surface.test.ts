@@ -129,7 +129,7 @@ test('runtime schemas retain validation and optional transcript target', () => {
 
 test('host scope stamping preserves only model-owned read targets', () => {
   setBond({ connectionId: 'conn', sessionId: 'room', codename: 'Test' });
-  const stamped = stampKnownScope({ title: 'test', project_id: 'injected', git_remote: 'injected', session_id: 'wrong', local_session_id: 'injected' }, 'create_action_item');
+  const stamped = stampKnownScope({ title: 'test', project_id: 'injected', git_remote: 'injected', session_id: 'wrong', local_session_id: 'injected' }, 'create_task');
   assert.deepEqual(stamped, { title: 'test', session_id: 'room', connection_id: 'conn' });
   assert.equal(stampKnownScope({ session_id: 'other' }, 'get_session_transcript').session_id, 'other');
   assert.equal(stampKnownScope({}, 'get_session_transcript').session_id, 'room');

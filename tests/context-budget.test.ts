@@ -11,7 +11,7 @@ import {
 
 test("context budget report contains numeric attribution and generated safe tool names only", () => {
 	resetContextBudgetState();
-	registerContextBudgetToolNames(["search_action_items", "get_memory", "BAD NAME", ""]);
+	registerContextBudgetToolNames(["search_tasks", "get_memory", "BAD NAME", ""]);
 	noteStaticContextBudget({
 		systemPromptChars: 24_000,
 		activeToolCount: 16,
@@ -24,8 +24,8 @@ test("context budget report contains numeric attribution and generated safe tool
 	noteInjectedContext("attach", 900);
 	noteInjectedContext("recall", 1_200);
 	noteInjectedContext("conflictNudge", 300);
-	noteModelToolResult("search_action_items", 4_170);
-	noteModelToolResult("search_action_items", 3_000);
+	noteModelToolResult("search_tasks", 4_170);
+	noteModelToolResult("search_tasks", 3_000);
 	noteModelToolResult("get_memory", 3_379);
 	noteModelToolResult("unknown_tool_WITH_PRIVATE_BODY", 99_999);
 
@@ -51,7 +51,7 @@ test("context budget report contains numeric attribution and generated safe tool
 		chars: 10_549,
 		maxChars: 4_170,
 		byVerb: [
-			{ verb: "search_action_items", calls: 2, chars: 7_170, maxChars: 4_170 },
+			{ verb: "search_tasks", calls: 2, chars: 7_170, maxChars: 4_170 },
 			{ verb: "get_memory", calls: 1, chars: 3_379, maxChars: 3_379 },
 		],
 	});

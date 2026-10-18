@@ -912,7 +912,7 @@ test("only typed automation-run envelopes have remote run identity", () => {
 	};
 	assert.equal(isAutomationRunEnvelope(automation), true);
 	assert.equal(automationRunId(automation), "run-1");
-	assert.equal(isAutomationRunEnvelope({ id: "legacy-envelope", members: [{ action_item_id: "item-1" }] }), false);
+	assert.equal(isAutomationRunEnvelope({ id: "legacy-envelope", members: [{ task_id: "item-1" }] }), false);
 	assert.equal(automationRunId({ kind: "assignment", id: "legacy-envelope" }), undefined);
 	assert.equal(automationRunId({ kind: "automation_run" }), undefined);
 	assert.equal(isAutomationRunEnvelope({ ...automation, instruction: "old payload" }), false);

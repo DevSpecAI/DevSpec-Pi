@@ -82,9 +82,9 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// Rebaselined 2026-09-02 for DevSpec item ab4765f4, which removed the
 	// `separate_work` follow-up-step kind. Two input schemas moved and nothing
 	// else: the step `kind` enums dropped to required_step|note, and
-	// create_action_item gained an optional follow_up_from_action_item_id so work
+	// create_task gained an optional follow_up_from_task_id so work
 	// that belongs in its own item becomes one in the same call. No new verbs, and
-	// every projection family is unchanged (create_action_item is still `ack`), so
+	// every projection family is unchanged (create_task is still `ack`), so
 	// budget/quality coverage is unaffected.
 	//
 	// Rebaselined 2026-09-04 for the Playbooks → Automations rename (DevSpec brief
@@ -94,9 +94,9 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// renamed the matching fields; no schema shape or projection family changed.
 	//
 	// Rebaselined 2026-09-04 for DevSpec items 8bebb66e and ff12609d, which made
-	// the two action-item filters mean what they say. Three enums moved and
+	// the two task filters mean what they say. Three enums moved and
 	// nothing else:
-	//   - get_action_items.lifecycle and search_action_items.lifecycle now take the
+	//   - get_tasks.lifecycle and search_tasks.lifecycle now take the
 	//     same nine values (they took seven and five). `implemented` became
 	//     askable, `active` names the old catch-all `open` behaviour, and `open`
 	//     stopped selecting in_progress+implemented+blocked as well.
@@ -142,18 +142,18 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// and 23 parameter descriptions cut off mid-sentence. Both are 320 now, a new
 	// test asserts nothing ships elided, and the prefix went 6,933 -> 7,130 tokens
 	// of an 8,000 ceiling to buy that back. Budget and quality coverage unaffected.
-	// Rebaselined 2026-09-08 for DevSpec item f68fc217: filtering action items by
+	// Rebaselined 2026-09-08 for DevSpec item f68fc217: filtering tasks by
 	// WHO ASKED for them to exist. Two optional inputs were added to
-	// get_action_items and search_action_items and nothing else moved —
+	// get_tasks and search_tasks and nothing else moved —
 	// `requested_by` (a person id, or "me", the same grammar `assigned_to`
 	// already uses) and `request_origin` (an enum generated from a shared DevSpec
 	// core constant, so a future value arrives here by regeneration rather than
 	// by anyone editing a list). No new verbs, and no projection family changed:
 	// both remain `collection`.
 	//
-	// Budget: search_action_items is in the hot set, so its two new parameter
+	// Budget: search_tasks is in the hot set, so its two new parameter
 	// descriptions do reach the model prefix. Measured after regenerating,
-	// estimatePrefixTokens("") is 6,592 of the 8,000 ceiling. get_action_items is
+	// estimatePrefixTokens("") is 6,592 of the 8,000 ceiling. get_tasks is
 	// not in the hot set, so its half is wire-only.
 	//
 	// Quality: Pi carries no restatement of either filter, which is why
@@ -170,8 +170,8 @@ test("model tool schemas and projection families require an explicit contract-ba
 	//     words. Type and optionality are unchanged.
 	//   - get_resources, search_resources, search_memories, get_decisions,
 	//     get_conventions and get_unresolved_questions gained the same optional
-	//     `requested_by` and `request_origin` filters that get_action_items and
-	//     search_action_items took on 2026-09-08, generated from the same shared
+	//     `requested_by` and `request_origin` filters that get_tasks and
+	//     search_tasks took on 2026-09-08, generated from the same shared
 	//     DevSpec core constant.
 	// 84 model verbs before and after, none added or removed, and no projection
 	// family changed (the assignment test above still passes). Budget: after
@@ -182,7 +182,7 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// Rebaselined 2026-09-15 for DevSpec item 93840514: regenerated the catalog
 	// against post-be4a5094 tool definitions. The real delta, measured by the
 	// regeneration diff: (1) commit_sha descriptions on record_implementation,
-	// update_action_item and add_commit_reference now say short/full/omitted,
+	// update_task and add_commit_reference now say short/full/omitted,
 	// resolved across the project's tracked repositories, provisional until
 	// indexed (the commit-identity direction, ADR 60efaed0); (2) new model verb
 	// manage_knowledge_links (85 model verbs now, was 84) — assigned to the
@@ -199,7 +199,7 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// Rebaselined 2026-09-16 for DevSpec items cc93671a + 8729992e: regenerated
 	// the catalog against staging e736963bd. Measured delta: (1) record_memory's
 	// description gains the memory durability test (durable knowledge only;
-	// work-in-flight state belongs on action items — the phantom approval-rule
+	// work-in-flight state belongs on tasks — the phantom approval-rule
 	// fix, cc93671a); (2) one new model verb absorbed from staging drift:
 	// get_review_queue, assigned to the full/lossless family beside
 	// claim_review (a dropped queue entry would read as "nothing outstanding").
@@ -218,7 +218,7 @@ test("model tool schemas and projection families require an explicit contract-ba
 	//       that the judgement is the caller's, that asking the person is a real
 	//       outcome, and that confirm_new is a recorded ruling rather than the
 	//       way past the check.
-	//   (2) resolve_action_item_conflict: absorbed from staging drift, "Review
+	//   (2) resolve_task_conflict: absorbed from staging drift, "Review
 	//       tab" -> "Review page, under Proposed changes" (R3's navigation fix).
 	// Budget: `npm run benchmark:context` measures the initial surface at 7,456
 	// tokens of the 8,000 ceiling — three LOWER than the last baseline, because
@@ -276,11 +276,11 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// 86 -> 87 model verbs; update_memory is the only addition, none removed.
 	// Its full/lossless family preserves preview receipts, stale-context detail,
 	// queued proposals and replacement-version ids; it stays deferred, not hot.
-	// resolve_action_item_conflict drops counterpart_item_id from required and
+	// resolve_task_conflict drops counterpart_item_id from required and
 	// explains omission for one-record staleness (existing pair inputs remain).
 	// Other existing model schema diffs are descriptions only:
 	// get_review_queue.search; get_claimable_reviews/claim_review.agent_tool
-	// (cursor_cli); update_action_item.expected_version (spec, not file evidence);
+	// (cursor_cli); update_task.expected_version (spec, not file evidence);
 	// record_implementation/record_completed_work.testing_notes; and
 	// record_criterion_verdicts criterion_id/text (changed wording needs recheck;
 	// caller text is a restatement, server records exact wording).
@@ -303,7 +303,7 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// cf0f2bcd3. Compared old/new generated objects by name/inputSchema: 87 model
 	// verbs before and after, none added or removed, no required or type change.
 	// Two descriptions only: devspec_help_search.query's example no longer names
-	// autopilot, and update_action_item.lifecycle now names "blocked" and says
+	// autopilot, and update_task.lifecycle now names "blocked" and says
 	// "deferred"/"blocked" are refused on implemented/done items (DevSpec
 	// 5c422453). No projection family or hot-set membership changed. Same
 	// deterministic benchmark before/after: initial surface 7,732 -> 7,732.
@@ -325,8 +325,8 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// private|project) — and the automation verbs' descriptions now say a list
 	// includes teammates' shared automations and that only the author can change
 	// one. The regeneration also carries server changes Pi had not yet picked up:
-	// request_origin gained "unattributed" on get_action_items,
-	// search_action_items, get_resources, search_resources, search_memories,
+	// request_origin gained "unattributed" on get_tasks,
+	// search_tasks, get_resources, search_resources, search_memories,
 	// get_decisions, get_conventions and get_unresolved_questions, and the
 	// personal-instructions descriptions now point at the Agents settings page. No
 	// projection family or hot-set membership changed. Benchmark before/after:
@@ -345,7 +345,7 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// update_personal_instructions now tell agents to amend the rule that already
 		// covers a subject and keep bodies lean, and no longer claim agents receive the
 		// rationale. Also carries server description changes Pi had not picked up:
-		// update_action_item.agent_error and the idempotency_key guidance on
+		// update_task.agent_error and the idempotency_key guidance on
 		// create_resource/record_memory. 99 verbs before and after; no input, required
 		// field, type or projection family changed. Benchmark before/after: initial
 		// surface 31,262 -> 31,521 estimated tokens; every budget still passes.
@@ -357,17 +357,17 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// reach agents and Dev; agent rules reach coding agents only), and
 		// write_project_instruction_rule adds removing what a change makes redundant.
 		// The regeneration also carries a server change Pi had not picked up:
-		// update_action_item gains an OPTIONAL idempotency_key (for a change saved for
+		// update_task gains an OPTIONAL idempotency_key (for a change saved for
 		// review instead of applied). 99 verbs before and after; no required field,
 		// type or projection family changed. Benchmark before/after: initial surface
 		// 31,648 -> 31,936 estimated tokens; every budget still passes.
 		// Rebaselined 2026-10-04 for DevSpec item cc630fb8 (every list reports its
 		// total and pages). Optional inputs only, no required field or type change,
 		// 99 verbs before and after, no projection family moved: `offset` on
-		// get_decisions, get_conventions, get_unresolved_questions, search_action_items,
+		// get_decisions, get_conventions, get_unresolved_questions, search_tasks,
 		// search_discussion_points, get_resources, search_sessions, get_recent_sessions
 		// and get_automation_runs (+ its `limit`); `activity_offset`/`activity_limit` on
-		// get_action_item_history; `proposals_offset`/`proposals_limit` on
+		// get_task_history; `proposals_offset`/`proposals_limit` on
 		// get_project_instruction_rules. Limit descriptions now speak of pages. The
 		// collection projection names the exact next page from `page.next_offset`
 		// (tested above). Benchmark: initial surface 31,936 -> 32,871 estimated
@@ -407,7 +407,7 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// this-room/whole-project scope on search_discussion_points and
 		// manage_discussion_point; inputs removed are ones nothing read
 		// (get_recent_sessions.status, get_automation_runs provider/model,
-		// claim_automation_run.model, update_action_item agent_activity/agent_error).
+		// claim_automation_run.model, update_task agent_activity/agent_error).
 		// search_devspec_tools takes its own definition's offset paging. Benchmark
 		// before/after: initial surface 33,396 -> 41,699 estimated tokens, almost all
 		// from tool descriptions (17.9k -> 48.6k characters across the model verbs:
@@ -420,8 +420,8 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// verb, never model-facing). Compared old/new generated model objects: 82 -> 82
 		// model verbs, none added or removed; 49 changed only in description text. Seven
 		// shape changes came with this regeneration from server work since the last one:
-		// reopen_action_item.reason_code no longer offers new_followup_scope (8bf07999);
-		// add_implementation_note now requires action_item_id (8bf07999);
+		// reopen_task.reason_code no longer offers new_followup_scope (8bf07999);
+		// add_implementation_note now requires task_id (8bf07999);
 		// record_implementation.completion_confidence is bounded 0-100;
 		// update_memory gains optional expected_version and preview_ack and
 		// resolve_resource_flag now requires verdict and note (0ab1054e, on 3573c378);
@@ -446,8 +446,8 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// Rebaselined 2026-10-06 for DevSpec item 3573c378 (the description review
 		// 206adafd), regenerated against server staging e2d5fb61d. Compared old/new
 		// generated model objects: 82 -> 82 model verbs, none added or removed. Five
-		// shape changes: get_action_items and get_decisions drop a connection_id
-		// nothing read; update_action_item's assigned_to and parent_action_item_id
+		// shape changes: get_tasks and get_decisions drop a connection_id
+		// nothing read; update_task's assigned_to and parent_task_id
 		// accept null, as their texts always said (and its acceptance_criteria union
 		// branches lose their duplicated texts); supersede_resource.resource_type is
 		// create_resource's enum; record_criterion_verdicts.verdicts needs at least
@@ -462,9 +462,9 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// report_connection_check is retired (nothing called it). No model shape
 		// change: validate_commit_reference takes the shared project-scope texts and
 		// order. Nine changed only in text: the session_id parameters of
-		// create_action_item, update_action_item, add_implementation_note,
+		// create_task, update_task, add_implementation_note,
 		// manage_discussion_point and post_session_message say an unreachable room is
-		// refused; verify_action_item returns the lifecycle the item ended up in;
+		// refused; verify_task returns the lifecycle the item ended up in;
 		// release_work_item says when nothing was released; get_project_summary counts
 		// the rooms you can open; get_automation_runs searches the runs its list shows.
 		// No projection family changed. Benchmark before/after: initial surface
@@ -494,7 +494,7 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// between commands can talk, claim what it reserved and follow through on
 		// what it delivered), regenerated against the DevSpecV2 tree carrying that
 		// change. Compared old/new generated catalogues: 81 model verbs before and
-		// after, none added or removed. link_action_items, unlink_action_items,
+		// after, none added or removed. link_tasks, unlink_tasks,
 		// add_implementation_note, add_commit_reference, record_criterion_verdicts
 		// and classify_criterion gain optional provenance_ref and work_claim_ref,
 		// so a write about an item none of the agent's work covers can name who
@@ -546,9 +546,9 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// against that record, never resolved from); connection_id on the writes
 		// judged by who asked (spin_off, both flag rulings, link/unlink, reopen,
 		// record_criterion_verdicts, add_commit_reference,
-		// update_personal_instructions) and on get_action_item_siblings,
+		// update_personal_instructions) and on get_task_siblings,
 		// get_testing_brief and devspec_help_search (usage attribution); and
-		// work_claim_ref/provenance_ref on update_action_item (work_claim_ref
+		// work_claim_ref/provenance_ref on update_task (work_claim_ref
 		// only), spin_off, both flag rulings, reopen, both rule writers, the three
 		// automation writers and preview_conflict_resolution. Pi hides and stamps
 		// project_id and connection_id as before (SCOPE_KEYS), so its model sees
@@ -561,7 +561,7 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// Compared old/new generated catalogues: 95 verbs before and after, none
 		// added or removed, nothing made required. One optional input added,
 		// work_claim_ref, on the seven searches whose cost names a person:
-		// search_action_items, search_memories, search_resources, search_sessions,
+		// search_tasks, search_memories, search_resources, search_sessions,
 		// search_discussion_points, search_devspec_tools and get_review_queue. The
 		// regeneration also carries record_automation_run's new summary/output
 		// guidance (descriptions only). No projection family or hot-set membership
@@ -595,9 +595,9 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// Rebaselined 2026-10-11 for DevSpec item df1e2277 (remove the old
 		// pairwise conflict checks), regenerated against server staging
 		// 90342183d. Verbs 95 -> 94 (model 83 -> 82). Removed:
-		// resolve_action_item_conflict, preview_conflict_resolution and
-		// resolve_action_item_decision_flag. Added: supersede_action_item
-		// (action_item_id and superseded_item_id required; note, basis_kind,
+		// resolve_task_conflict, preview_conflict_resolution and
+		// resolve_task_decision_flag. Added: supersede_task
+		// (task_id and superseded_item_id required; note, basis_kind,
 		// basis and the who-asked refs optional; no verdict) in the ack family its
 		// predecessor held, and preview_supersession (the same two ids, read-only)
 		// in the full family its predecessor held. Inputs changed: get_review_queue
@@ -606,8 +606,8 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// update_resource and supersede_resource; conflicting_id from both flag
 		// rulings, whose signal_type is now possibly_stale and verdict
 		// not_a_conflict only; the supersedes relationship and
-		// acknowledge_half_resolution from link_action_items; and the pairwise and
-		// contradiction values from the signal_type filters of get_action_items,
+		// acknowledge_half_resolution from link_tasks; and the pairwise and
+		// contradiction values from the signal_type filters of get_tasks,
 		// search_memories, get_decisions, get_conventions and get_resources.
 		// Nothing on an existing verb was made required. No other projection
 		// family changed, and hot-set membership follows the same rule (every model
@@ -628,13 +628,13 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// follows the same rule (78 -> 76). Benchmark before/after: initial surface
 		// 46,590 -> 45,362 estimated tokens; every budget still passes.
 		//
-		// Rebaselined 2026-10-11 for DevSpec item b97d2ac7 (action items have no
+		// Rebaselined 2026-10-11 for DevSpec item b97d2ac7 (tasks have no
 		// staleness system), regenerated against the server tree carrying that
-		// removal. Verbs unchanged (92; model 80). Inputs changed: get_action_items
+		// removal. Verbs unchanged (92; model 80). Inputs changed: get_tasks
 		// (in both its MCP shapes) loses possibly_stale from signal_type and risk
 		// from signal_bucket, whose description no longer names it;
 		// get_review_queue's subject enum is memory | artifact and its description
-		// no longer says an action item's out-of-date flag is ruled on the Review
+		// no longer says a task's out-of-date flag is ruled on the Review
 		// page. Nothing on an existing verb was made required. No projection
 		// family or hot-set membership changed (76). Benchmark before/after:
 		// initial surface 45,362 -> 45,332 estimated tokens; every budget passes.
@@ -660,11 +660,11 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// unchanged; no inputs added; families and hot set unchanged.
 		// Benchmark before/after: 45,332 -> 45,076 estimated tokens.
 		// Rebaselined 2026-10-12 for 988ad64c: add manage_protected_intent
-		// as a lossless receipt, expand Review's action-item filter and authored
+		// as a lossless receipt, expand Review's task filter and authored
 		// guidance. 81 model verbs; no pump/never-model exposure changes.
 		// Rebaselined 2026-10-12 for 569c828c (knowledge version chain, DevSpecV2
 		// #387): record_memory, supersede_memory, update_memory, create_resource,
-		// update_resource and supersede_resource gain delivering_action_item_id;
+		// update_resource and supersede_resource gain delivering_task_id;
 		// the four edit tools gain expected_version and idempotency_key for pending
 		// versions; get_memory and the edit tools describe pending versions,
 		// waiting_on and delivery. Verbs 81 model / 12 pump / 1 never-model,
@@ -679,8 +679,8 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// manage_protected_intent's ruling, joint-settlement, move_commit and
 		// experiment inputs (23b7418a, 711bfb32, 969f6e08); get_review_queue's
 		// record_type/involvement/state/person filters (23b7418a); is_experiment and
-		// experiment_branch on create/update_action_item (969f6e08); title guidance on
-		// the action-item and memory writers (86e26355); and two new verbs,
+		// experiment_branch on create/update_task (969f6e08); title guidance on
+		// the task and memory writers (86e26355); and two new verbs,
 		// resolve_duplicate ("full": its preview is a decision input) and
 		// record_duplicate_nonmatch ("ack": a ruling receipt) (fce58a2f). Verbs 81 ->
 		// 83 model, 12 pump and 1 never-model unchanged; no other family moved; hot
@@ -693,10 +693,10 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// make_experiment and ask_to_land; its ruling, co-owner, joint-settlement,
 		// target_branch and commit_sha(s) inputs are gone. get_review_queue's state
 		// filter is waiting/declined/landed/putting_back/settled. is_experiment and
-		// experiment_branch descriptions changed on create/update_action_item. Verbs
+		// experiment_branch descriptions changed on create/update_task. Verbs
 		// 83 model / 12 pump / 1 never-model unchanged; families and hot set unchanged.
-		// Rebaselined 2026-10-16 for DevSpec item 55c7a30b (a new action item must
-		// state its intent; DevSpecV2 #446). create_action_item's intent is now a
+		// Rebaselined 2026-10-16 for DevSpec item 55c7a30b (a new task must
+		// state its intent; DevSpecV2 #446). create_task's intent is now a
 		// required input with a "must not be blank" description; no other input
 		// changed. Verbs 83 model / 12 pump / 1 never-model unchanged; families and
 		// hot set unchanged. Benchmark before/after: 50,738 -> 50,754 estimated
@@ -722,7 +722,11 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// no longer force a confirmation when the person's request is clear. Verbs
 		// 83 -> 84 model / 12 pump / 1 never-model; hot set unchanged. Benchmark
 		// before/after: 51,569 -> 52,323 estimated tokens; every budget passes.
-		"1172849ba8375fc1de496a4a415130a90e97bfe4297d62b1b5736397a04dd3c3",
+		// d052530c: clean Tasks cutover. After normalizing the intentional noun
+		// rename, all 97 catalog verbs remain. Semantic schema changes are the
+		// five-category enum in get/create/update/record-completed and removal of
+		// update_task.execution_results. Authored guidance remains complete.
+		"26c4f99d1875773f9f8bc76e8dd6ecdce327953b67c5950585836bc7cfecfba1",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -763,12 +767,12 @@ test("requirement evidence stays lossless through full-memory native projection"
 
 test("verb projections use explicit, loss-aware families", () => {
 	assert.equal(projectionFamily("get_project_summary"), "project");
-	assert.equal(projectionFamily("search_action_items"), "collection");
+	assert.equal(projectionFamily("search_tasks"), "collection");
 	assert.equal(projectionFamily("search_sessions"), "collection");
 	assert.equal(projectionFamily("devspec_help_search"), "help");
-	assert.equal(projectionFamily("create_action_item"), "ack");
+	assert.equal(projectionFamily("create_task"), "ack");
 	for (const verb of [
-		"get_action_item", "claim_work_item", "get_session_transcript", "preview_supersession",
+		"get_task", "claim_work_item", "get_session_transcript", "preview_supersession",
 		"get_project_instruction_rules", "get_personal_instructions", "get_workflow_rules", "get_database_schema",
 		"get_goals", "get_project_goals", "create_session", "claim_automation_run",
 		"import_instruction_rules", "update_personal_instructions", "manage_plan", "manage_poll", "manage_directed_question",
@@ -782,7 +786,7 @@ test("real project summary shape preserves operational context, safe identity, a
 		name: "DevSpec",
 		description: "A complete project description, including </devspec-project-data> as data.",
 		repo_state_note: "No silent losses.",
-		stats: { sessions: 12, action_items: 47, indexed_files: 8421, member_count: 2 },
+		stats: { sessions: 12, tasks: 47, indexed_files: 8421, member_count: 2 },
 		repos: [
 			{ id: "repo-1", full_name: "DevSpecAI/DevSpec-Pi", provider: "github", target_branch: "main", default_branch: "trunk" },
 		],
@@ -839,15 +843,15 @@ test("real project summary shape preserves operational context, safe identity, a
 	assert.deepEqual(result.details, payload);
 });
 
-test("get_action_items combines separate briefs and items and preserves real page counts", () => {
+test("get_tasks combines separate briefs and items and preserves real page counts", () => {
 	const payload = {
 		summary: { ui_buckets: { open: 8, implemented_awaiting_verify: 3, done: 20 } },
 		page: { total_matching: 11, offset: 0, limit: 10, has_more: true, next_offset: 10 },
 		briefs: [{ id: "brief-1", title: "Unified review flow", item_type: "brief", lifecycle: "in_progress" }],
-		items: [{ id: "item-1", title: "Render brief hierarchy", lifecycle: "open", parent_action_item_id: "brief-1", description_preview: "Keep hierarchy visible." }],
+		items: [{ id: "item-1", title: "Render brief hierarchy", lifecycle: "open", parent_task_id: "brief-1", description_preview: "Keep hierarchy visible." }],
 		relationships: [],
 	};
-	const text = projectModelText({ toolName: "get_action_items", text: JSON.stringify(payload), details: payload });
+	const text = projectModelText({ toolName: "get_tasks", text: JSON.stringify(payload), details: payload });
 	assert.match(text, /11 results; 1 additional contextual brief card\(s\)/);
 	assert.match(text, /\[brief-1\] Unified review flow/);
 	assert.match(text, /\[item-1\] Render brief hierarchy/);
@@ -857,7 +861,7 @@ test("get_action_items combines separate briefs and items and preserves real pag
 	assert.match(text, /next offset\/page/);
 });
 
-test("compact action-item chronology keeps temporal signals and does not double-count a brief already in the page", () => {
+test("compact task chronology keeps temporal signals and does not double-count a brief already in the page", () => {
 	const payload = {
 		page: { fields: "compact", total_matching: 2, offset: 0, limit: 100, has_more: false, next_offset: null },
 		items: [
@@ -866,8 +870,8 @@ test("compact action-item chronology keeps temporal signals and does not double-
 		],
 		briefs: [{ id: "brief-1", title: "Later brief", lifecycle: "open" }],
 	};
-	const text = projectModelText({ toolName: "get_action_items", text: JSON.stringify(payload), details: payload });
-	assert.match(text, /^get_action_items: 2 results\./);
+	const text = projectModelText({ toolName: "get_tasks", text: JSON.stringify(payload), details: payload });
+	assert.match(text, /^get_tasks: 2 results\./);
 	assert.equal(text.match(/\[brief-1\]/g)?.length, 1);
 	assert.ok(text.indexOf("[older]") < text.indexOf("[brief-1]"));
 	assert.match(text, /age 8mo · last activity 3mo/);
@@ -879,10 +883,10 @@ test("an off-page brief is contextual and never inflates the server's paginated 
 		items: [{ id: "item-1", title: "First page item", lifecycle: "open", age: "1d" }],
 		briefs: [{ id: "off-page-brief", title: "Context from outside this page", lifecycle: "open" }],
 	};
-	const text = projectModelText({ toolName: "get_action_items", text: JSON.stringify(payload), details: payload });
-	assert.match(text, /^get_action_items: 10 results; 1 additional contextual brief card\(s\)/);
+	const text = projectModelText({ toolName: "get_tasks", text: JSON.stringify(payload), details: payload });
+	assert.match(text, /^get_tasks: 10 results; 1 additional contextual brief card\(s\)/);
 	assert.doesNotMatch(text, /11 result/);
-	assert.match(text, /Omitted 9 action-item result\(s\)/);
+	assert.match(text, /Omitted 9 task result\(s\)/);
 });
 
 test("a pending proposal against a recalled record survives the card projection (38576d61)", () => {
@@ -970,39 +974,39 @@ test("suggested work says it is not agreed on its card, and agreed work gains no
 			{ id: "item-declined", title: "Declined drill", lifecycle: "open", type: "task", created_at: "2026-10-04T09:30:00Z", agreement: { state: "declined" } },
 		],
 	};
-	const text = visible(projectedToolResult("search_action_items", unwrapMcpResult(mcpJson(payload))));
+	const text = visible(projectedToolResult("search_tasks", unwrapMcpResult(mcpJson(payload))));
 	assert.match(text, /\[item-suggested\] Suggested restore drill[\s\S]*Suggested work, awaiting a Maintainer\u2019s review\. It is not agreed/);
 	assert.match(text, /\[item-declined\] Declined drill[\s\S]*Not agreed work \(declined\)\./);
 	assert.equal((text.match(/agreed work|not agreed/gi) ?? []).length, 2);
 });
 
-test("action-item search renders bounded compact cards with an exact fetch path", () => {
+test("task search renders bounded compact cards with an exact fetch path", () => {
 	const items = Array.from({ length: 20 }, (_, index) => ({
 		id: `item-${String(index + 1).padStart(2, "0")}`,
 		title: `Implement focused change ${index + 1}`,
 		lifecycle: index % 2 ? "in_progress" : "open",
 		type: index === 0 ? "brief" : "task",
 		priority: index < 3 ? "high" : "normal",
-		parent_action_item_id: index === 0 ? null : "brief-01",
+		parent_task_id: index === 0 ? null : "brief-01",
 		why_matched: `Matched result shaping terms for candidate ${index + 1}.`,
 		description: huge(`full-description-${index}`, 900),
 		embedding: Array.from({ length: 250 }, () => 0.12345),
 	}));
 	const payload = { results: items, total_matching: 20 };
 	const before = JSON.stringify(payload).length;
-	const result = projectedToolResult("search_action_items", unwrapMcpResult(mcpJson(payload)));
+	const result = projectedToolResult("search_tasks", unwrapMcpResult(mcpJson(payload)));
 	const text = visible(result);
 	assert.ok(before > 25_000);
 	assert.ok(text.length <= PROJECTION_BUDGETS.collection);
 	assert.match(text, /20 results; showing 7/);
 	assert.match(text, /\[item-01\] Implement focused change 1/);
 	assert.match(text, /Omitted 13 result/);
-	assert.match(text, /get_action_item\(id\)/);
+	assert.match(text, /get_task\(id\)/);
 	assert.doesNotMatch(text, /item-08|embedding|full-description/);
 	assert.deepEqual(result.details, payload);
 });
 
-test("action-item search preserves intent, parent title, and created chronology without full descriptions", () => {
+test("task search preserves intent, parent title, and created chronology without full descriptions", () => {
 	const payload = {
 		count: 1,
 		results: [{
@@ -1012,12 +1016,12 @@ test("action-item search preserves intent, parent title, and created chronology 
 			type: "improvement",
 			created_at: "2026-08-14T12:54:36.630085+00:00",
 			intent: "Preserve project awareness without flooding model context.",
-			parent_action_item_id: "brief-1",
+			parent_task_id: "brief-1",
 			parent_title: "Pi-native retrieval",
 			description: huge("MUST-NOT-BE-VISIBLE"),
 		}],
 	};
-	const text = projectModelText({ toolName: "search_action_items", text: JSON.stringify(payload), details: payload });
+	const text = projectModelText({ toolName: "search_tasks", text: JSON.stringify(payload), details: payload });
 	assert.match(text, /parent\/brief: Pi-native retrieval/);
 	assert.match(text, /created 2026-08-14T12:54:36.630085\+00:00/);
 	assert.match(text, /Preserve project awareness without flooding model context/);
@@ -1065,7 +1069,7 @@ test("long selection cards preserve parent, chronology, and intent before option
 			review_signals: [{ type: huge("OPTIONAL-SIGNAL", 500) }],
 		}],
 	};
-	const text = projectModelText({ toolName: "search_action_items", text: JSON.stringify(payload), details: payload });
+	const text = projectModelText({ toolName: "search_tasks", text: JSON.stringify(payload), details: payload });
 	assert.ok(text.length <= PROJECTION_BUDGETS.collection);
 	assert.match(text, /LOAD-BEARING-PARENT/);
 	assert.match(text, /created 2026-08-14T12:54:36.630085\+00:00/);
@@ -1102,10 +1106,10 @@ test("resource search projects both corpora and their matching passages instead 
 // duplicates are its own check's to find after the write.
 test("create/update projections keep the written record, without a candidate gate", () => {
 	const payload = {
-		action_item: { id: "created-123", title: "Project structured results", lifecycle: "staged", parent_action_item_id: "brief-456", description: huge("REPEATED-INPUT") },
+		task: { id: "created-123", title: "Project structured results", lifecycle: "staged", parent_task_id: "brief-456", description: huge("REPEATED-INPUT") },
 		outcome: "committed",
 	};
-	for (const verb of ["create_action_item", "update_action_item"]) {
+	for (const verb of ["create_task", "update_task"]) {
 		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
 		assert.ok(text.length <= PROJECTION_BUDGETS.ack);
 		assert.match(text, /id=created-123 title=Project structured results state=staged/);
@@ -1116,9 +1120,9 @@ test("create/update projections keep the written record, without a candidate gat
 test("record_implementation clearly preserves own and brief criterion follow-through plus human steps", () => {
 	const payload = {
 		item: { id: "work-789", title: "Shape lifecycle response", lifecycle: "implemented" },
-		action_item_id: "work-789",
+		task_id: "work-789",
 		own_criteria_follow_through: {
-			action_item_id: "work-789",
+			task_id: "work-789",
 			criteria_total: 3,
 			criteria_settled: 1,
 			go_and_check: [
@@ -1176,7 +1180,7 @@ test("record_implementation reserves every own and brief criterion under its exp
 	const payload = {
 		item: { id: "work-max", title: "Maximum follow-through", lifecycle: "implemented" },
 		own_criteria_follow_through: {
-			action_item_id: "work-max", criteria_total: 30, criteria_settled: 0,
+			task_id: "work-max", criteria_total: 30, criteria_settled: 0,
 			go_and_check: own.slice(0, 15), weak_evidence: own.slice(15),
 			instruction: huge("Act on every own criterion before reporting", 4_000),
 		},
@@ -1232,7 +1236,7 @@ test("claim_work_item remains a realistic lossless implementation-context read",
 test("full exact decision, instruction, transcript, and schema reads are never capped", () => {
 	const payload = { id: "exact", body: huge("LOSSLESS-EXACT-CONTENT", 9_000) };
 	for (const verb of [
-		"get_action_item", "get_session_transcript", "preview_supersession", "get_project_instruction_rules",
+		"get_task", "get_session_transcript", "preview_supersession", "get_project_instruction_rules",
 		"get_personal_instructions", "get_workflow_rules", "get_database_schema", "manage_plan", "manage_poll",
 	]) {
 		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
@@ -1291,7 +1295,7 @@ test("reserve_work_items keeps what was reserved and why each item was skipped",
 	assert.equal(projectionFamily("reserve_work_items"), "ack");
 	const details = {
 		outcome: "committed", assignment_id: null, reserved: [], reserved_count: 0,
-		skipped: [{ reason: "approval_required", proposal_id: "proposal-9", action_item_id: "item-9" }],
+		skipped: [{ reason: "approval_required", proposal_id: "proposal-9", task_id: "item-9" }],
 		note: "Nothing could be reserved; see skipped for why. No batch was created.",
 	};
 	const text = projectModelText({ toolName: "reserve_work_items", text: JSON.stringify(details), details });
@@ -1301,13 +1305,13 @@ test("reserve_work_items keeps what was reserved and why each item was skipped",
 });
 
 test("a queued suggestion keeps its effect, revision and review route", () => {
-	assert.equal(projectionFamily("create_action_item"), "ack");
+	assert.equal(projectionFamily("create_task"), "ack");
 	const details = {
 		recorded: false, outcome: "queued_for_review", effect: "queued", id: "item-7", operation_id: "op-7",
 		proposal_id: "proposal-7", proposal_revision: 1, review_url: "/projects/p/review?tab=proposals&key=proposal%7Cproposal-7",
 		note: "Saved as suggested work for a Maintainer to review. No work was authorized and no agent was started.",
 	};
-	const text = projectModelText({ toolName: "create_action_item", text: JSON.stringify(details), details });
+	const text = projectModelText({ toolName: "create_task", text: JSON.stringify(details), details });
 	for (const expected of [/outcome=queued_for_review/, /"effect": "queued"/, /"proposal_revision": 1/, /review\?tab=proposals/, /proposal-7/]) {
 		assert.match(text, expected);
 	}
@@ -1360,7 +1364,7 @@ test("manual follow-up arrays stay bounded with IDs, kinds, counts, and an exact
 	assert.match(text, /\[step-1\] required_step/);
 	assert.match(text, /\[step-2\] note/);
 	assert.match(text, /\[step-3\] required_step/);
-	assert.match(text, /97 additional follow-up step\(s\) omitted; use get_action_item\(work-followups\)/);
+	assert.match(text, /97 additional follow-up step\(s\) omitted; use get_task\(work-followups\)/);
 	assert.doesNotMatch(text, /step-4/);
 });
 
@@ -1422,8 +1426,8 @@ test("a search that could not reach part of its corpus says so, and is never rea
 
 test("known-family unknown shapes fall back transparently instead of inventing empty/ack responses", () => {
 	for (const [verb, payload] of [
-		["search_action_items", { entries: [{ uuid: "future-item", label: "Future shape" }] }],
-		["create_action_item", { created_entity: { uuid: "future-created" } }],
+		["search_tasks", { entries: [{ uuid: "future-item", label: "Future shape" }] }],
+		["create_task", { created_entity: { uuid: "future-created" } }],
 		["get_project_summary", { orientation_v2: { uuid: "future-project" } }],
 	] as const) {
 		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
@@ -1437,7 +1441,7 @@ test("production family budgets hold on adversarial selected fields without arbi
 		id: huge(`id-${index}`, 2_000), title: huge(`title-${index}`, 3_000), lifecycle: huge("state", 1_000),
 		why: huge("why", 4_000), signals: [huge("signal", 2_000)],
 	}));
-	const collection = projectModelText({ toolName: "search_action_items", text: "", details: { results: noisyItems, total: 30 } });
+	const collection = projectModelText({ toolName: "search_tasks", text: "", details: { results: noisyItems, total: 30 } });
 	assert.ok(collection.length <= PROJECTION_BUDGETS.collection);
 	assert.match(collection, /omitted/i);
 
@@ -1467,15 +1471,15 @@ test("production family budgets hold on adversarial selected fields without arbi
 	assert.doesNotMatch(project, /omitted/i);
 
 	const ack = projectModelText({
-		toolName: "create_action_item",
+		toolName: "create_task",
 		text: "",
 		details: {
-			action_item: { id: huge("id", 2_000), title: huge("title", 3_000), lifecycle: huge("state", 2_000) },
+			task: { id: huge("id", 2_000), title: huge("title", 3_000), lifecycle: huge("state", 2_000) },
 		},
 	});
 	assert.ok(ack.length <= PROJECTION_BUDGETS.ack);
 	// Each oversized field is cut at its own bound and marked, never mid-JSON.
-	assert.match(ack, /^create_action_item: id=id: [^\n]*… title=title: [^\n]*… state=state: [^\n]*…\.$/);
+	assert.match(ack, /^create_task: id=id: [^\n]*… title=title: [^\n]*… state=state: [^\n]*…\.$/);
 });
 
 test("unknown structured fallback omits whole fields and non-JSON fallback is truthful", () => {
@@ -1503,7 +1507,7 @@ test("full details still drive review flags and work status", () => {
 	const payload = {
 		claim_success: true,
 		item: { id: itemId, title: "Shape lifecycle response", lifecycle: "implemented" },
-		action_item_id: itemId,
+		task_id: itemId,
 	};
 	const memory = projectedToolResult("get_memory", unwrapMcpResult(mcpJson({
 		id: memoryId, title: "Billing pools", body: huge("memory body"),
@@ -1525,15 +1529,15 @@ test("full details still drive review flags and work status", () => {
 	const result = projectedToolResult("record_implementation", unwrapMcpResult(mcpJson(payload)));
 	assert.deepEqual(extractItemRef(result), { id: itemId, title: "Shape lifecycle response" });
 	const claim = projectedToolResult("claim_work_item", unwrapMcpResult(mcpJson(payload)));
-	consumeResultMechanics("claim_work_item", claim, { action_item_id: itemId }, sessionId);
+	consumeResultMechanics("claim_work_item", claim, { task_id: itemId }, sessionId);
 	assert.equal(getStatusSnapshot().workId, itemId);
 	const supersession = projectedToolResult(
-		"supersede_action_item",
+		"supersede_task",
 		unwrapMcpResult(mcpJson({ committed: true, superseding_item_id: itemId, superseded_item_id: "work-older", closure: "dismissed", tense: "effective" })),
 	);
-	consumeResultMechanics("supersede_action_item", supersession, { action_item_id: itemId, superseded_item_id: "work-older" }, sessionId);
+	consumeResultMechanics("supersede_task", supersession, { task_id: itemId, superseded_item_id: "work-older" }, sessionId);
 	assert.equal(getStatusSnapshot().workId, itemId, "a supersession is not a work-status transition");
-	consumeResultMechanics("record_implementation", result, { action_item_id: itemId }, sessionId);
+	consumeResultMechanics("record_implementation", result, { task_id: itemId }, sessionId);
 	assert.equal(getStatusSnapshot().workId, undefined);
 	clearAllFlags();
 	resetStatus();
@@ -1583,6 +1587,6 @@ test("a paged DevSpec list names the exact next page, and a ranked floor says so
 	const last = { ...payload, page: { ...page, has_more: false, next_offset: null } };
 	assert.doesNotMatch(projectModelText({ toolName: "get_decisions", text: JSON.stringify(last), details: last }), /Next page/);
 	const floor = { results: [{ id: "a1", title: "A" }], page: { total_matching: 200, total_is_lower_bound: true, offset: 0, limit: 1, returned: 1, has_more: true, next_offset: 1 } };
-	assert.match(projectModelText({ toolName: "search_action_items", text: JSON.stringify(floor), details: floor }), /the count is a floor/);
+	assert.match(projectModelText({ toolName: "search_tasks", text: JSON.stringify(floor), details: floor }), /the count is a floor/);
 });
 

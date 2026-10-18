@@ -17,7 +17,7 @@ import {
 export interface WorkTarget {
 	id: string;
 	title?: string;
-	/** Full get_action_item payload. */
+	/** Full get_task payload. */
 	payload: unknown;
 }
 
@@ -26,13 +26,13 @@ export function buildWorkPrompt(
 	context: ImplementationContractContext,
 ): string {
 	const kickoff = buildImplementationKickoff({
-		actionItemIds: [item.id],
+		taskIds: [item.id],
 		context,
 	});
 	return [
 		formatImplementationKickoffHeader(kickoff),
 		"",
-		`Work DevSpec action item ${item.id}${item.title ? ` — “${item.title}”` : ""}. This item was explicitly selected here.`,
+		`Work DevSpec task ${item.id}${item.title ? ` — “${item.title}”` : ""}. This item was explicitly selected here.`,
 		"",
 		formatImplementationContext(context),
 		"",

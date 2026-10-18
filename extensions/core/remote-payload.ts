@@ -69,10 +69,10 @@ const SYSTEM_NOTICE_ALLOWED_OUTCOMES = [
 	"defer_follow_up",
 ] as const;
 const SYSTEM_NOTICE_ALLOWED_TOOLS = [
-	"get_action_item",
-	"update_action_item",
-	"link_action_items",
-	"supersede_action_item",
+	"get_task",
+	"update_task",
+	"link_tasks",
+	"supersede_task",
 ] as const;
 const MAX_COMMANDS_PER_ENVELOPE = 128;
 const MAX_SENDER_STYLE_NOTES = 8;
@@ -223,8 +223,8 @@ export interface UnlinkedCommitItemReviewNoticeV1 {
 	kind: typeof SYSTEM_NOTICE_KIND;
 	notice_id: string;
 	commit_sha: string;
-	action_item_id: string;
-	action_item_title: string;
+	task_id: string;
+	task_title: string;
 	branch: string;
 	contract_uri: typeof SYSTEM_NOTICE_CONTRACT_URI;
 	allowed_outcomes: [...typeof SYSTEM_NOTICE_ALLOWED_OUTCOMES];
@@ -494,16 +494,16 @@ function systemNotice(value: unknown, path: string): SystemNoticeV1 {
 		};
 	}
 	exactKeys(row, [
-		"version", "kind", "notice_id", "commit_sha", "action_item_id",
-		"action_item_title", "branch", "contract_uri", "allowed_outcomes", "allowed_tools",
+		"version", "kind", "notice_id", "commit_sha", "task_id",
+		"task_title", "branch", "contract_uri", "allowed_outcomes", "allowed_tools",
 	], path);
 	if (row.version !== SYSTEM_NOTICE_VERSION) fail(`${path}.version`, "unknown system notice version");
 	if (row.kind !== SYSTEM_NOTICE_KIND) fail(`${path}.kind`, "unknown system notice kind");
 	const commitSha = string(row.commit_sha, `${path}.commit_sha`);
 	if (!FULL_LOWERCASE_SHA_RE.test(commitSha)) fail(`${path}.commit_sha`, "expected lowercase full SHA");
-	const actionItemTitle = string(row.action_item_title, `${path}.action_item_title`);
+	const taskTitle = string(row.task_title, `${path}.task_title`);
 	const branch = string(row.branch, `${path}.branch`);
-	if (actionItemTitle.length > MAX_SYSTEM_NOTICE_TEXT_CHARS) fail(`${path}.action_item_title`, "title exceeds safe bound");
+	if (taskTitle.length > MAX_SYSTEM_NOTICE_TEXT_CHARS) fail(`${path}.task_title`, "title exceeds safe bound");
 	if (branch.length > MAX_SYSTEM_NOTICE_TEXT_CHARS) fail(`${path}.branch`, "branch exceeds safe bound");
 	if (row.contract_uri !== SYSTEM_NOTICE_CONTRACT_URI) fail(`${path}.contract_uri`, "unknown system notice contract URI");
 	return {
@@ -511,8 +511,8 @@ function systemNotice(value: unknown, path: string): SystemNoticeV1 {
 		kind: SYSTEM_NOTICE_KIND,
 		notice_id: uuid(row.notice_id, `${path}.notice_id`),
 		commit_sha: commitSha,
-		action_item_id: uuid(row.action_item_id, `${path}.action_item_id`),
-		action_item_title: actionItemTitle,
+		task_id: uuid(row.task_id, `${path}.task_id`),
+		task_title: taskTitle,
 		branch,
 		contract_uri: SYSTEM_NOTICE_CONTRACT_URI,
 		allowed_outcomes: exactTuple(row.allowed_outcomes, SYSTEM_NOTICE_ALLOWED_OUTCOMES, `${path}.allowed_outcomes`) as [...typeof SYSTEM_NOTICE_ALLOWED_OUTCOMES],

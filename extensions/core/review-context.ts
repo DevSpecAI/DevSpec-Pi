@@ -60,7 +60,7 @@ export function disagreementBlock(record: Row, budget = 4_000): string | null {
 	}
 	const subjectType = row(row(all[0])?.subject)?.type;
 	const reader = subjectType === "artifact" || record.source === "ai_generated" || record.source === "uploaded" ? "get_resource"
-		: subjectType === "action_item" || record.lifecycle ? "get_action_item" : "get_memory";
+		: subjectType === "task" || record.lifecycle ? "get_task" : "get_memory";
 	const fetch = typeof record.id === "string" ? `${reader}(${JSON.stringify(record.id)})` : "the exact record's read tool";
 	return [
 		"Unresolved disagreements — neither claim is selected by this finding.",

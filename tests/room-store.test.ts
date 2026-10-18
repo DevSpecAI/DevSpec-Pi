@@ -219,7 +219,7 @@ test("a quiet history-only start initializes the index, but older recovery canno
 	const root = temp(); const store = await openRoomStore(scope, { root });
 	try {
 		const p = page(1, 1, 1, true);
-		p.sessionActivity = { version: 1, status: "available", as_of: time, truncated: false, entries: [{ kind: "action_item", id: id(10), relation: "produced" }] };
+		p.sessionActivity = { version: 1, status: "available", as_of: time, truncated: false, entries: [{ kind: "task", id: id(10), relation: "produced" }] };
 		store.apply(p, "repair"); assert.equal(store.activity()?.value?.entries.length, 1);
 		const newer = page(1, 1);
 		newer.sessionActivity = { version: 1, status: "available", as_of: "2026-09-24T11:00:00Z", truncated: false, entries: [] };

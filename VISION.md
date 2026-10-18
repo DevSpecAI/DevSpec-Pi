@@ -65,7 +65,7 @@ Consequences:
   and MCP tool surface** in devspecv2, then are applied per-host by hand.
 - The MCP verbs (`register_connection`, `poll_connection`,
   `post_session_message`, `report_pickup/keepalive/complete`,
-  `report_progress`, action-item/memory/search/artifact tools) are the
+  `report_progress`, task/memory/search/artifact tools) are the
   interop surface of record **today**. We implement against them — and per
   principle 4, we may also prototype their successors here.
 
@@ -227,14 +227,14 @@ The model still needs instructions; the delivery is native now:
 
 DevSpec memory is the memory system — Pi just lets it breathe. But the
 framing is bigger than memory: **the intelligence layer is ONE system** —
-memories, action items, artifacts, hybrid search across all three, and
+memories, tasks, artifacts, hybrid search across all three, and
 review and supersession between them. What already lives server-side
 (build WITH it, never rebuild it):
 
 - the independent intent check, which finds duplicates and reversals after a
   write and delivers only confirmed findings
 - review signals (possibly stale), queue holds,
-  `supersede_action_item` (one item replaces another; a Contributor's call
+  `supersede_task` (one item replaces another; a Contributor's call
   queues for a Maintainer) and `preview_supersession` (what it WOULD do)
 - work items already carry `relevant_memories` + `relevant_artifacts`
 
@@ -445,7 +445,7 @@ current contract, adopted here first, migrated to other hosts only if proven.
 
 1. **Scaffold + this document.** ✅
 2. **Core transport + auth + native tools** — usable interactive sessions:
-   login, action items, search, memory tools with real renderers. ✅
+   login, tasks, search, memory tools with real renderers. ✅
    (embedded MCP client, `/devspec.login|logout|status`, staging/prod.
    Completeness of verbs shipped as a catalog dump in `523f1512`; the
    **product** now exposes all concise eligible tools with optional hybrid
@@ -498,7 +498,7 @@ current contract, adopted here first, migrated to other hosts only if proven.
    `manage_plan`; attached bonds activate only that cold schema; poll ingress 1.3
    validates and tail-injects plural active plans for resume/handoff/adoption.
    The canonical implementation contract owns the high plan threshold and the
-   action-item/session-plan tracking boundary.
+   task/session-plan tracking boundary.
 5. **Memory recall/capture engine + compaction survival.**
 6. **Onboarding polish, theme, embedded user-MCP support.**
 7. **Headless worker CLI** (cloud primitive, dogfooded locally first).

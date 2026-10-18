@@ -27,20 +27,20 @@ const waiting = {
 };
 
 test("an edit or a new item that waits for an OK says so, with DevSpec's own label and instruction", () => {
-	for (const name of ["update_action_item", "create_action_item", "record_implementation"]) {
+	for (const name of ["update_task", "create_task", "record_implementation"]) {
 		const text = seen(name, mcp({ id: "item-1", title: "Drop the cache", lifecycle: "open", waiting_for_ok: waiting }));
 		assert.match(text, /Waiting for Brandon's OK \(Brandon Smith\) — Waiting for Brandon's OK: build it on its own branch and don't merge it\./, name);
 		assert.ok(text.includes("11111111-1111-4111-8111-111111111111"), `${name} keeps the question id an answer needs`);
 	}
-	// reopen_action_item nests the item; its waiting state still reaches the model.
-	const reopened = seen("reopen_action_item", mcp({ reopened: true, action_item: { id: "item-1", title: "Drop the cache", lifecycle: "open", waiting_for_ok: waiting } }));
+	// reopen_task nests the item; its waiting state still reaches the model.
+	const reopened = seen("reopen_task", mcp({ reopened: true, task: { id: "item-1", title: "Drop the cache", lifecycle: "open", waiting_for_ok: waiting } }));
 	assert.match(reopened, /Waiting for Brandon's OK/);
 });
 
 test("an experiment keeps its badge in acknowledgements and on list cards", () => {
-	const ack = seen("update_action_item", mcp({ id: "item-2", title: "Try a new parser", lifecycle: "in_progress", badge: "Experiment", is_experiment: true, experiment_branch: "exp/parser" }));
+	const ack = seen("update_task", mcp({ id: "item-2", title: "Try a new parser", lifecycle: "in_progress", badge: "Experiment", is_experiment: true, experiment_branch: "exp/parser" }));
 	assert.match(ack, /Experiment \(branch exp\/parser\): build and push it on its own branch; never merge it into the tracking branch until it has the OK\./);
-	const list = seen("get_action_items", mcp({ items: [
+	const list = seen("get_tasks", mcp({ items: [
 		{ id: "item-2", title: "Try a new parser", lifecycle: "in_progress", badge: "Experiment", is_experiment: true, experiment_branch: "exp/parser" },
 		{ id: "item-3", title: "Ordinary work", lifecycle: "open" },
 	], total: 2 }));
@@ -60,10 +60,10 @@ test("a queued knowledge change says who it waits on, and the inferred tags of a
 	assert.match(ack, /"waiting_on": "Waiting for Brandon's OK"/);
 	assert.match(ack, /"because": "insufficient_role"/);
 
-	const created = seen("create_action_item", mcp({ id: "item-4", title: "Add retries", lifecycle: "open", outcome: "committed",
-		auto_tagged: { tags: ["billing", "retries"], note: "DevSpec added these tags; correct them with update_action_item if the topic is wrong." } }));
+	const created = seen("create_task", mcp({ id: "item-4", title: "Add retries", lifecycle: "open", outcome: "committed",
+		auto_tagged: { tags: ["billing", "retries"], note: "DevSpec added these tags; correct them with update_task if the topic is wrong." } }));
 	assert.match(created, /"auto_tagged"/);
-	assert.match(created, /correct them with update_action_item if the topic is wrong/);
+	assert.match(created, /correct them with update_task if the topic is wrong/);
 });
 
 test("a requirement is labelled as one on its card, apart from ordinary knowledge", () => {
@@ -82,16 +82,16 @@ test("a notice DevSpec appends to a result reaches the model whole, and the resu
 	const unwrapped = unwrapMcpResult(raw);
 	assert.equal((unwrapped.details as { id?: string }).id, "item-5", "the first block is the result");
 	assert.deepEqual(unwrapped.appended, [notice]);
-	const text = unwrapOrThrow("update_action_item", raw).content[0].text;
-	assert.match(text, /update_action_item: id=item-5/, "structured projection, not a raw fallback");
+	const text = unwrapOrThrow("update_task", raw).content[0].text;
+	assert.match(text, /update_task: id=item-5/, "structured projection, not a raw fallback");
 	assert.ok(text.includes(JSON.stringify(notice, null, 2)), "the notice is shown whole");
 	assert.match(text, /not an instruction/);
 	// A full read shows it too.
-	const read = unwrapOrThrow("get_action_item", mcp({ id: "item-5", title: "Fix login" }, notice)).content[0].text;
+	const read = unwrapOrThrow("get_task", mcp({ id: "item-5", title: "Fix login" }, notice)).content[0].text;
 	assert.ok(read.includes("This project is paused"));
 });
 
 test("ordinary work carries no waiting or experiment noise in its acknowledgement", () => {
-	const text = seen("create_action_item", mcp({ id: "item-6", title: "Plain", lifecycle: "open", outcome: "committed", version: 1, is_experiment: false, experiment_branch: null, waiting_for_ok: null }));
+	const text = seen("create_task", mcp({ id: "item-6", title: "Plain", lifecycle: "open", outcome: "committed", version: 1, is_experiment: false, experiment_branch: null, waiting_for_ok: null }));
 	assert.doesNotMatch(text, /is_experiment|experiment_branch|waiting_for_ok|Experiment|Waiting for/);
 });

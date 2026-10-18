@@ -26,7 +26,7 @@ async function harness(native?: string, mode = "tui", trusted = true) {
   if (native) await writeFile(join(cwd, ".pi/mcp.json"), native);
   const handlers = new Map<string, Handler>();
   const notices: Array<{ text: string; type: string }> = [];
-  let active = ["get_action_item", "mcp__devspec__get_action_item", "supabase_list_projects", "read"];
+  let active = ["get_task", "mcp__devspec__get_task", "supabase_list_projects", "read"];
   const pi = {
     on: (name: string, handler: Handler) => handlers.set(name, handler),
     getCommands: () => [{name:'mcp',sourceInfo:{path:'builtin:mcp'}}], getFlag: () => undefined, events: { on: () => () => {} },
@@ -45,7 +45,7 @@ test("native first change is announced once; fifty starts stay quiet; shared con
   const host = await harness(config);
   await host.start();
   assert.deepEqual(host.notices, [{ text: SUPPRESSION_NOTICE, type: "info" }]);
-  assert.deepEqual(host.active(), ["get_action_item", "supabase_list_projects", "read"]);
+  assert.deepEqual(host.active(), ["get_task", "supabase_list_projects", "read"]);
   const saved = await readFile(join(host.cwd, ".pi/mcp.json"), "utf8");
   assert.equal(JSON.parse(saved).mcpServers.devspec.enabled, false);
   assert.equal(JSON.parse(saved).mcpServers.devspec.headers.Authorization, "Bearer fixture-only");

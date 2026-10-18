@@ -19,7 +19,7 @@ const DATABASE_TOOLS = new Set(["supabase_execute_sql", "execute_sql", "query_da
 const DEVSPEC_TOOLS = new Set<string>([...MODEL_VERB_NAMES, "search_devspec_tools"]);
 
 const DEVSPEC_ID_KEYS = [
-	"action_item_id",
+	"task_id",
 	"brief_id",
 	"criterion_id",
 	"goal_id",
@@ -319,13 +319,13 @@ function parsedResult(result: unknown): Record<string, unknown> | null {
 
 function wrappedEntity(parsed: Record<string, unknown>): Record<string, unknown> {
 	const item = asRecord(parsed.item);
-	return asRecord(parsed.action_item)
+	return asRecord(parsed.task)
 		?? asRecord(parsed.resource)
 		?? asRecord(parsed.memory)
 		?? asRecord(parsed.plan)
 		?? asRecord(parsed.poll)
 		?? asRecord(parsed.question)
-		?? asRecord(item?.action_item)
+		?? asRecord(item?.task)
 		?? asRecord(item?.resource)
 		?? asRecord(item?.memory)
 		?? item

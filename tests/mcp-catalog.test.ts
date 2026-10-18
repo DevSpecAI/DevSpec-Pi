@@ -56,12 +56,12 @@ test("post_session_message is never a model-facing tool", () => {
 test("catalog remains the complete wire map", () => {
 	const required = [
 		"record_criterion_verdicts",
-		"supersede_action_item",
+		"supersede_task",
 		"get_session_transcript",
 		"search_sessions",
-		"get_action_item_history",
+		"get_task_history",
 		"classify_criterion",
-		"verify_action_item",
+		"verify_task",
 	];
 	for (const name of required) {
 		assert.ok(MODEL_VERB_NAMES.includes(name as (typeof MODEL_VERB_NAMES)[number]), `missing wire verb ${name}`);
@@ -70,7 +70,7 @@ test("catalog remains the complete wire map", () => {
 	assert.ok(modelFacingSurface().some((e) => e.name === "record_criterion_verdicts"));
 	assert.ok(modelFacingSurface().some((e) => e.name === "get_session_transcript"));
 	assert.ok(modelFacingSurface().some((e) => e.name === "search_sessions"));
-	assert.ok(modelFacingSurface().some((e) => e.name === "get_action_item_history"));
+	assert.ok(modelFacingSurface().some((e) => e.name === "get_task_history"));
 	assert.ok(modelFacingSurface().some((e) => e.name === "classify_criterion"));
 });
 

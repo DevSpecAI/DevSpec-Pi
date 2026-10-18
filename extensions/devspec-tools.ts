@@ -251,7 +251,7 @@ const AUGMENTS: Record<string, (params: Record<string, unknown>, ctx: CallCtx) =
 };
 
 const LOCAL_SESSION_STAMPED_VERBS: ReadonlySet<string> = new Set([
-	"update_action_item",
+	"update_task",
 	"record_automation_run",
 	"claim_work_item",
 	"record_implementation",
@@ -282,7 +282,7 @@ export function stampHostLocalSession(
 const HOST_PROVIDER = "pi";
 
 const PROVIDER_STAMPED_VERBS: ReadonlySet<string> = new Set([
-	// Attribution: persisted to action_items.provider.
+	// Attribution: persisted to tasks.provider.
 	"claim_work_item",
 	"record_implementation",
 	"record_completed_work",

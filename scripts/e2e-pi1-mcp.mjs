@@ -66,7 +66,7 @@ try {
   const errors=[];await session.bindExtensions({mode:'rpc',onError:e=>errors.push(e)});
   await session.prompt('/fixture-ready'); // commands do not call a model
   assert.deepEqual(errors,[]);
-  if(process.env.DEVSPEC_PI_TEST_ROOT) assert.ok(session.getAllTools().some(t=>t.name==='get_action_item'),'Packaged native DevSpec tools must load');
+  if(process.env.DEVSPEC_PI_TEST_ROOT) assert.ok(session.getAllTools().some(t=>t.name==='get_task'),'Packaged native DevSpec tools must load');
   assert.equal(readFileSync(join(cwd,'.mcp.json'),'utf8'),shared);
   if(scenario==='native'){
     const deadline=Date.now()+10000;

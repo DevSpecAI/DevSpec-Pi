@@ -16,8 +16,8 @@ import type { ImplementationContractContext, ImplementationKickoff } from "./imp
 
 export interface ActiveDelivery {
 	deliveryKey: string;
-	actionItemIds: string[];
-	terminalActionItemIds: string[];
+	taskIds: string[];
+	terminalTaskIds: string[];
 	contractVersion: string;
 	contractHash?: string;
 	recordedAt: number;
@@ -36,7 +36,7 @@ interface MutableDeliveryState {
 	nextGeneration: number;
 }
 
-const DELIVERIES_KEY = Symbol.for("devspec.pi.active-deliveries.v1");
+const DELIVERIES_KEY = Symbol.for("devspec.pi.active-deliveries.v2");
 
 function state(): MutableDeliveryState {
 	const root = globalThis as typeof globalThis & { [DELIVERIES_KEY]?: MutableDeliveryState };
@@ -50,14 +50,14 @@ function unique(values: readonly string[]): string[] {
 }
 
 function kickoffKey(kickoff: ImplementationKickoff): string {
-	return `items:${[...kickoff.work.action_item_ids].sort().join(",")}`;
+	return `items:${[...kickoff.work.task_ids].sort().join(",")}`;
 }
 
 function copy(active: ActiveDelivery): ActiveDelivery {
 	return {
 		...active,
-		actionItemIds: [...active.actionItemIds],
-		terminalActionItemIds: [...active.terminalActionItemIds],
+		taskIds: [...active.taskIds],
+		terminalTaskIds: [...active.terminalTaskIds],
 	};
 }
 
@@ -71,11 +71,11 @@ export function recordActiveDelivery(
 	const previousIndex = current.deliveries.findIndex((entry) => entry.deliveryKey === deliveryKey);
 	const previous = previousIndex >= 0 ? copy(current.deliveries[previousIndex]!) : undefined;
 	const generation = current.nextGeneration++;
-	const actionItemIds = unique(kickoff.work.action_item_ids);
+	const taskIds = unique(kickoff.work.task_ids);
 	const next: ActiveDelivery = {
 		deliveryKey,
-		actionItemIds,
-		terminalActionItemIds: previous?.terminalActionItemIds.filter((id) => actionItemIds.includes(id)) ?? [],
+		taskIds,
+		terminalTaskIds: previous?.terminalTaskIds.filter((id) => taskIds.includes(id)) ?? [],
 		contractVersion: context.contractVersion,
 		...(context.contractHash ? { contractHash: context.contractHash } : {}),
 		recordedAt: Date.now(),
@@ -128,10 +128,10 @@ export function rollbackActiveDelivery(record: DeliveryRecord): boolean {
 function itemIdFrom(value: unknown): string | undefined {
 	if (!value || typeof value !== "object") return undefined;
 	const root = value as Record<string, unknown>;
-	for (const key of ["action_item_id", "id"]) {
+	for (const key of ["task_id", "id"]) {
 		if (typeof root[key] === "string" && root[key]) return root[key] as string;
 	}
-	for (const key of ["item", "action_item", "details"]) {
+	for (const key of ["item", "task", "details"]) {
 		const nested = itemIdFrom(root[key]);
 		if (nested) return nested;
 	}
@@ -151,14 +151,14 @@ export function consumeDeliveryLifecycle(
 	if (current.deliveries.length === 0) return false;
 
 	if (!["record_implementation", "release_work_item", "fail_work_item"].includes(name)) return false;
-	const actionItemId =
-		(typeof args.action_item_id === "string" && args.action_item_id ? args.action_item_id : undefined) ??
+	const taskId =
+		(typeof args.task_id === "string" && args.task_id ? args.task_id : undefined) ??
 		itemIdFrom(result);
-	if (!actionItemId) return false;
-	const delivery = current.deliveries.find((entry) => entry.actionItemIds.includes(actionItemId));
+	if (!taskId) return false;
+	const delivery = current.deliveries.find((entry) => entry.taskIds.includes(taskId));
 	if (!delivery) return false;
-	delivery.terminalActionItemIds = unique([...delivery.terminalActionItemIds, actionItemId]);
-	if (delivery.actionItemIds.every((id) => delivery.terminalActionItemIds.includes(id))) {
+	delivery.terminalTaskIds = unique([...delivery.terminalTaskIds, taskId]);
+	if (delivery.taskIds.every((id) => delivery.terminalTaskIds.includes(id))) {
 		return clearActiveDelivery({ deliveryKey: delivery.deliveryKey });
 	}
 	return false;

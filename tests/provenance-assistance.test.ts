@@ -38,7 +38,7 @@ const waitFor = async (predicate: () => boolean, timeoutMs = 2_000): Promise<boo
 };
 
 function successfulClaim(id = ITEM, projectId = PROJECT) {
-	return { details: { claim_success: true, action_item: { id, project_id: projectId } } };
+	return { details: { claim_success: true, task: { id, project_id: projectId } } };
 }
 
 test("only reliable first-class edit events can emit the one advisory nudge", async () => {
@@ -52,7 +52,7 @@ test("only reliable first-class edit events can emit the one advisory nudge", as
 	assert.equal(first.customType, "devspec-provenance-nudge");
 	assert.equal(first.display, true, "custom message stays visible as well as model-visible");
 	assert.match(first.content, /Continue this edit—editing is never blocked/);
-	assert.match(first.content, /search_action_items/);
+	assert.match(first.content, /search_tasks/);
 	assert.match(first.content, /thin last-mile item/);
 	assert.match(first.content, /Pi cannot add the \[devspec:<full-uuid>\] commit reference for you/);
 	assert.doesNotMatch(first.content, /refus|analy[sz]er|reconcil|safety net/i);
@@ -79,7 +79,7 @@ test("uncertain jurisdiction and existing claims suppress the nudge without bloc
 	assert.equal(hasObservedClaim("session-a"), false);
 	assert.equal(observeSuccessfulWorkResult(
 		"claim_work_item",
-		{ action_item_id: ITEM },
+		{ task_id: ITEM },
 		successfulClaim(),
 		"session-a",
 		PROJECT,
@@ -90,7 +90,7 @@ test("uncertain jurisdiction and existing claims suppress the nudge without bloc
 
 test("a claim in one project does not suppress another project's one-shot nudge", async () => {
 	resetWorkStateForTests();
-	observeSuccessfulWorkResult("claim_work_item", { action_item_id: ITEM }, successfulClaim(), "session-a", PROJECT);
+	observeSuccessfulWorkResult("claim_work_item", { task_id: ITEM }, successfulClaim(), "session-a", PROJECT);
 	assert.equal(hasObservedClaim("session-a", PROJECT), true);
 	assert.equal(hasObservedClaim("session-a", PROJECT_B), false);
 	const other = await unclaimedEditNudge("edit", runtime(), async () => PROJECT_B);
@@ -100,18 +100,18 @@ test("a claim in one project does not suppress another project's one-shot nudge"
 
 test("an unbonded claim stores the server-resolved project from its result", () => {
 	resetWorkStateForTests();
-	observeSuccessfulWorkResult("claim_work_item", { action_item_id: ITEM }, successfulClaim(ITEM, PROJECT), "headless-session");
+	observeSuccessfulWorkResult("claim_work_item", { task_id: ITEM }, successfulClaim(ITEM, PROJECT), "headless-session");
 	assert.equal(hasObservedClaim("headless-session", PROJECT), true);
 	assert.equal(hasObservedClaim("headless-session", PROJECT_B), false);
 });
 
 test("post-record follow-through remains writable and may receive only the advisory nudge", async () => {
 	resetWorkStateForTests();
-	observeSuccessfulWorkResult("claim_work_item", { action_item_id: ITEM }, successfulClaim(), "session-a", PROJECT);
+	observeSuccessfulWorkResult("claim_work_item", { task_id: ITEM }, successfulClaim(), "session-a", PROJECT);
 	assert.equal(hasObservedClaim("session-a"), true);
 	observeSuccessfulWorkResult(
 		"record_implementation",
-		{ action_item_id: ITEM },
+		{ task_id: ITEM },
 		{ details: { id: ITEM, lifecycle: "implemented" } },
 		"session-a",
 		PROJECT,

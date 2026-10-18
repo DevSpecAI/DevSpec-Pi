@@ -6,7 +6,7 @@
  * still has a generated title, the locally selected/claimed item, a claimed
  * automation, and the DevSpec verb currently executing. paintStatus also
  * retitles the OS terminal tab (session → automation → untitled stand-in →
- * current action item → codename). Pure formatter + globalThis store — pi
+ * current task → codename). Pure formatter + globalThis store — pi
  * loads each extension
  * file with a fresh jiti graph, so module singletons are not shared.
  *
@@ -152,17 +152,17 @@ export function resolveExecutingVerb(toolName: string, _args: unknown): string |
 const VERB_LABELS: Record<string, string> = {
 	claim_work_item: "claiming",
 	record_implementation: "recording",
-	create_action_item: "creating item",
-	update_action_item: "updating item",
-	search_action_items: "searching items",
-	get_action_item: "reading item",
-	get_action_items: "listing items",
+	create_task: "creating item",
+	update_task: "updating item",
+	search_tasks: "searching items",
+	get_task: "reading item",
+	get_tasks: "listing items",
 	search_memories: "searching memories",
 	get_memory: "reading memory",
 	record_memory: "recording memory",
 	search_resources: "searching docs",
 	get_resource: "reading doc",
-	supersede_action_item: "superseding",
+	supersede_task: "superseding",
 	preview_supersession: "previewing supersession",
 	record_criterion_verdicts: "recording verdicts",
 	get_session_transcript: "reading transcript",
@@ -174,7 +174,7 @@ const VERB_LABELS: Record<string, string> = {
 	release_work_item: "releasing",
 	fail_work_item: "failing item",
 	report_progress: "reporting",
-	verify_action_item: "verifying",
+	verify_task: "verifying",
 	reserve_work_items: "reserving work",
 	claim_automation_run: "claiming automation",
 	record_automation_run: "recording automation",
@@ -195,7 +195,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 		: null;
 }
 
-/** Best-effort id/title from a claim or get_action_item payload. */
+/** Best-effort id/title from a claim or get_task payload. */
 export function extractItemRef(value: unknown): { id?: string; title?: string } {
 	const root = asRecord(value);
 	if (!root) return {};
@@ -203,10 +203,10 @@ export function extractItemRef(value: unknown): { id?: string; title?: string } 
 		const inner = extractItemRef(root.details);
 		if (inner.id || inner.title) return inner;
 	}
-	const nested = asRecord(root.item) ?? asRecord(root.action_item) ?? root;
+	const nested = asRecord(root.item) ?? asRecord(root.task) ?? root;
 	const id =
 		(typeof nested.id === "string" && nested.id) ||
-		(typeof root.action_item_id === "string" && root.action_item_id) ||
+		(typeof root.task_id === "string" && root.task_id) ||
 		undefined;
 	const title = typeof nested.title === "string" && nested.title.trim() ? nested.title.trim() : undefined;
 	return { id, title };

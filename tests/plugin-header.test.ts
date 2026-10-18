@@ -76,12 +76,12 @@ test("the header names this plugin and its loaded version, and is left off when 
 test("every request from the work lane, the pump lane, advisory calls, resource reads and the push channel carries it", async () => {
 	seen.length = 0;
 	resetClientCache();
-	await callDevspec("fixture-token", "get_action_item", { action_item_id: "a" }, { endpoint: base, lane: "work" });
+	await callDevspec("fixture-token", "get_task", { task_id: "a" }, { endpoint: base, lane: "work" });
 	await callDevspec("fixture-token", "poll_connection", { connection_id: "c" }, { endpoint: base, lane: "pump", connectionCapability: "capability" });
 	const previous = process.env[URL_ENV_VAR];
 	process.env[URL_ENV_VAR] = base;
 	try {
-		await callDevspecAdvisoryOnce("fixture-token", "search_action_items", { query: "x" }, 5_000);
+		await callDevspecAdvisoryOnce("fixture-token", "search_tasks", { query: "x" }, 5_000);
 		await readDevspecResource("fixture-token", "devspec://product/implementation-contract", { lane: "work" });
 	} finally {
 		if (previous === undefined) delete process.env[URL_ENV_VAR];

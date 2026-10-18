@@ -14,7 +14,7 @@ export const TRAIL_EVENT_STATUSES = ["running", "ok", "error"] as const;
 export type TrailEventStatus = (typeof TRAIL_EVENT_STATUSES)[number];
 
 export const TRAIL_DOMAINS = [
-	"action_item",
+	"task",
 	"memory",
 	"implementation",
 	"criterion",
@@ -103,13 +103,13 @@ interface DomainSpec {
 }
 
 const DOMAIN_BY_NAME: Record<string, DomainSpec> = {
-	create_action_item: { domain: "action_item", action: "created" },
-	update_action_item: { domain: "action_item", action: "updated" },
-	claim_work_item: { domain: "action_item", action: "claimed" },
+	create_task: { domain: "task", action: "created" },
+	update_task: { domain: "task", action: "updated" },
+	claim_work_item: { domain: "task", action: "claimed" },
 	record_implementation: { domain: "implementation", action: "recorded" },
 	record_criterion_verdicts: { domain: "criterion", action: "recorded" },
 	// The replacing item, like supersede_memory's successor: the one to read now.
-	supersede_action_item: { domain: "action_item", action: "superseded" },
+	supersede_task: { domain: "task", action: "superseded" },
 	record_memory: { domain: "memory", action: "recorded" },
 	update_memory: { domain: "memory", action: "updated" },
 	resolve_memory_flag: { domain: "memory", action: "reviewed" },
@@ -218,29 +218,29 @@ export function domainIdentity(name: string, args?: unknown, result?: unknown): 
 	const r = unwrapResult(result);
 	const item = asRecord(r?.item);
 	let nested: Record<string, unknown> | null = null;
-	if (spec.domain === "action_item") nested = asRecord(r?.action_item) ?? asRecord(item?.action_item) ?? item ?? r;
+	if (spec.domain === "task") nested = asRecord(r?.task) ?? asRecord(item?.task) ?? item ?? r;
 	if (spec.domain === "memory") nested = asRecord(r?.memory) ?? asRecord(item?.memory) ?? item ?? r;
 	if (spec.domain === "resource") nested = asRecord(r?.resource) ?? asRecord(item?.resource) ?? item ?? r;
 	if (["implementation", "criterion"].includes(spec.domain)) {
-		nested = asRecord(r?.action_item) ?? asRecord(item?.action_item) ?? item ?? r;
+		nested = asRecord(r?.task) ?? asRecord(item?.task) ?? item ?? r;
 	}
 
 	const resultIdKeys = spec.domain === "memory"
 		? ["id", "memory_id"]
 		: spec.domain === "resource"
 			? ["id", "resource_id"]
-			: ["id", "action_item_id", "superseding_item_id"];
+			: ["id", "task_id", "superseding_item_id"];
 	const argIdKeys = spec.domain === "memory"
 		? ["memory_id", "id"]
 		: spec.domain === "resource"
 			? ["resource_id", "id"]
-			: ["action_item_id", "id"];
+			: ["task_id", "id"];
 	const title = safeTrailLabel(pickString(nested, ["title"]) ?? pickString(a, ["title"]), 240);
 	const outcome = writeOutcomeFromResult(result);
 	if (result !== undefined && outcome !== "committed") return { title };
 	// Creates and supersedes mint a new identity. A missing replacement ID must
 	// never fall back to the old row merely because the host reported success.
-	const mintsIdentity = ["create_action_item", "record_memory", "create_resource", "supersede_memory", "supersede_resource"].includes(name);
+	const mintsIdentity = ["create_task", "record_memory", "create_resource", "supersede_memory", "supersede_resource"].includes(name);
 	const fallbackId = result !== undefined && mintsIdentity ? undefined : pickString(a, argIdKeys);
 	const id = safeTrailId(pickString(nested, resultIdKeys) ?? fallbackId);
 	return { id, title };

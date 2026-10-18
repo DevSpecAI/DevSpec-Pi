@@ -81,8 +81,8 @@ test("serversFromConfig reads mcpServers and mcp-servers", () => {
 });
 
 test("adapterToolName default prefix is server_verb", () => {
-	assert.equal(adapterToolName("get_action_item", "devspec", "server"), "devspec_get_action_item");
-	assert.equal(adapterToolName("get_action_item", "devspec", "none"), "get_action_item");
+	assert.equal(adapterToolName("get_task", "devspec", "server"), "devspec_get_task");
+	assert.equal(adapterToolName("get_task", "devspec", "none"), "get_task");
 	assert.equal(adapterToolName("post_session_message", "devspec", "server"), "devspec_post_session_message");
 });
 
@@ -90,34 +90,34 @@ test("adapterToolNamesFor includes pump and delivery verbs under every prefix", 
 	const names = adapterToolNamesFor("devspec");
 	assert.ok(names.includes("devspec_post_session_message"));
 	assert.ok(names.includes("devspec_poll_connection"));
-	assert.ok(names.includes("get_action_item")); // prefix none
+	assert.ok(names.includes("get_task")); // prefix none
 });
 
 test("toolsToDeactivate removes prefixed adapter names and leaves native verbs", () => {
 	const removed = toolsToDeactivate(
 		[
-			{ name: "get_action_item", sourceInfo: { source: "extension", path: "devspec-tools.ts" } },
-			{ name: "devspec_get_action_item", sourceInfo: { source: "pi-mcp-adapter" } },
+			{ name: "get_task", sourceInfo: { source: "extension", path: "devspec-tools.ts" } },
+			{ name: "devspec_get_task", sourceInfo: { source: "pi-mcp-adapter" } },
 			{ name: "devspec_post_session_message" },
 			{ name: "supabase_list_projects" },
 			{ name: "read" },
 		],
 		["devspec"],
 	);
-	assert.deepEqual(removed.sort(), ["devspec_get_action_item", "devspec_post_session_message"]);
+	assert.deepEqual(removed.sort(), ["devspec_get_task", "devspec_post_session_message"]);
 });
 
 test("toolsToDeactivate only strips a bare verb when sourceInfo is the adapter", () => {
 	assert.deepEqual(
-		toolsToDeactivate([{ name: "get_action_item" }], ["devspec"]),
+		toolsToDeactivate([{ name: "get_task" }], ["devspec"]),
 		[],
 	);
 	assert.deepEqual(
 		toolsToDeactivate(
-			[{ name: "get_action_item", sourceInfo: { path: "/x/pi-mcp-adapter/index.ts" } }],
+			[{ name: "get_task", sourceInfo: { path: "/x/pi-mcp-adapter/index.ts" } }],
 			["devspec"],
 		),
-		["get_action_item"],
+		["get_task"],
 	);
 	assert.equal(isAdapterSource({ path: "/home/n3o/.pi/agent/npm/node_modules/pi-mcp-adapter/index.ts" }), true);
 	assert.equal(isAdapterSource({ source: "builtin" }), false);

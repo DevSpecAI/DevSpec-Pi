@@ -19,7 +19,7 @@ const server = createServer(async (req, res) => {
     else if (rpc.method === 'tools/call') {
       const { name, arguments: args } = rpc.params;
       if (name === 'report_commit_provenance') { observations.push(args); result = { content: [{ type: 'text', text: '{"recorded":true}' }] }; }
-      else if (name === 'record_implementation') { records.push(args); result = { content: [{ type: 'text', text: JSON.stringify({ id: args.action_item_id, lifecycle: 'implemented', agent_activity: 'finished' }) }] }; }
+      else if (name === 'record_implementation') { records.push(args); result = { content: [{ type: 'text', text: JSON.stringify({ id: args.task_id, lifecycle: 'implemented', agent_activity: 'finished' }) }] }; }
       else throw new Error(`Unexpected fixture call: ${name}`);
     }
     res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: rpc.id, result }));

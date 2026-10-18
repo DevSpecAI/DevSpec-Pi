@@ -542,10 +542,10 @@ describe("stamping a DevSpec write", () => {
 		// action. The host request declaration itself is the wire contract.
 		const declared = MCP_CATALOG.filter(entry => Object.hasOwn((entry.inputSchema.properties ?? {}) as object, "request_ref")).map(entry => entry.name);
 		assert.deepEqual(takes, declared);
-		for (const name of ["post_session_message", "reserve_work_items", "claim_work_item", "report_request", "get_action_item"]) {
+		for (const name of ["post_session_message", "reserve_work_items", "claim_work_item", "report_request", "get_task"]) {
 			assert.ok(!takes.includes(name), name);
 		}
-		for (const name of ["record_implementation", "update_action_item", "create_action_item", "record_memory", "manage_protected_intent"]) assert.ok(takes.includes(name), name);
+		for (const name of ["record_implementation", "update_task", "create_task", "record_memory", "manage_protected_intent"]) assert.ok(takes.includes(name), name);
 		for (const entry of MCP_CATALOG) {
 			assert.ok(!("request_ref" in ((entry.modelInputSchema.properties ?? {}) as Record<string, unknown>)), `${entry.name} hides request_ref from the model`);
 		}

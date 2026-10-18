@@ -38,8 +38,8 @@ const LINE_LIMIT = 240;
 
 const COLLECTION_VERBS = new Set([
 	"list_projects",
-	"get_action_items",
-	"search_action_items",
+	"get_tasks",
+	"search_tasks",
 	"get_resources",
 	"search_resources",
 	"search_memories",
@@ -55,15 +55,15 @@ const COLLECTION_VERBS = new Set([
 const FULL_READ_VERBS = new Set([
 	// Exact implementation/decision inputs are intentionally exempt from compact
 	// family budgets. Arbitrary truncation would not have a lossless continuation.
-	"get_action_item",
+	"get_task",
 	// A pull request's provenance umbrella is one exact entity read; every list in it
 	// is already bounded by the joins, and its `absent` sentences must reach the model whole.
 	"get_pull_request",
 	"get_memory",
 	"get_resource",
 	"get_testing_brief",
-	"get_action_item_history",
-	"get_action_item_siblings",
+	"get_task_history",
+	"get_task_siblings",
 	"get_automation",
 	"get_goals",
 	"get_project_goals",
@@ -116,8 +116,8 @@ const FULL_READ_VERBS = new Set([
 ]);
 
 const ACK_VERBS = new Set([
-	"update_action_item",
-	"create_action_item",
+	"update_task",
+	"create_task",
 	"add_commit_reference",
 	"add_implementation_note",
 	"record_automation_run",
@@ -130,13 +130,13 @@ const ACK_VERBS = new Set([
 	"fail_work_item",
 	"report_progress",
 	"record_completed_work",
-	"reopen_action_item",
-	"spin_off_action_item",
+	"reopen_task",
+	"spin_off_task",
 	// A receipt: committed with the closure and tense, or queued with a proposal_id.
-	"supersede_action_item",
-	"link_action_items",
-	"unlink_action_items",
-	"verify_action_item",
+	"supersede_task",
+	"link_tasks",
+	"unlink_tasks",
+	"verify_task",
 	"record_criterion_verdicts",
 	"classify_criterion",
 	"record_memory",
@@ -150,13 +150,13 @@ const ACK_VERBS = new Set([
 	"resolve_memory_flag",
 	// An explicit not-a-duplicate ruling returns a receipt, like the flag rulings (fce58a2f).
 	"record_duplicate_nonmatch",
-	"surface_session_action_items",
+	"surface_session_tasks",
 	"reserve_work_items",
 	"write_project_instruction_rule",
 ]);
 
 const ROW_KEYS = [
-	"results", "items", "action_items", "memories", "resources", "projects", "goals", "sessions",
+	"results", "items", "tasks", "memories", "resources", "projects", "goals", "sessions",
 	"automations", "runs", "reviews", "matches", "data",
 ] as const;
 const COUNT_KEYS = ["total_matching", "total", "count"] as const;
@@ -302,7 +302,7 @@ export function projectionFamily(toolName: string): ProjectionFamily {
 }
 
 function nestedEntity(root: Row): Row {
-	for (const key of ["item", "action_item", "memory", "resource", "automation", "goal", "project", "session", "assignment", "run"]) {
+	for (const key of ["item", "task", "memory", "resource", "automation", "goal", "project", "session", "assignment", "run"]) {
 		const found = record(root[key]);
 		if (found) return found;
 	}
@@ -311,8 +311,8 @@ function nestedEntity(root: Row): Row {
 
 function boundedId(row: Row, outer: Row = row): string | undefined {
 	return oneLine(
-		first(row, ["id", "action_item_id", "memory_id", "resource_id", "project_id", "session_id", "run_id", "criterion_id"])
-			?? first(outer, ["id", "action_item_id", "memory_id", "resource_id", "project_id", "session_id", "run_id", "criterion_id"]),
+		first(row, ["id", "task_id", "memory_id", "resource_id", "project_id", "session_id", "run_id", "criterion_id"])
+			?? first(outer, ["id", "task_id", "memory_id", "resource_id", "project_id", "session_id", "run_id", "criterion_id"]),
 		90,
 	);
 }
@@ -443,7 +443,7 @@ function card(raw: unknown, index: number): string {
 	}
 	const parentRow = record(row.parent) ?? record(row.brief);
 	const parent = oneLine(
-		first(row, ["parent_title", "brief_title", "parent_action_item_id", "parent_id"])
+		first(row, ["parent_title", "brief_title", "parent_task_id", "parent_id"])
 			?? (parentRow ? first(parentRow, ["title", "name", "id"]) : undefined),
 		140,
 	);
@@ -523,7 +523,7 @@ function collectionRows(toolName: string, root: Row): FoundRows {
 		}
 		return { rows, recognized: true, briefCount: 0 };
 	}
-	if (toolName !== "get_action_items") return genericRows(root);
+	if (toolName !== "get_tasks") return genericRows(root);
 	const hasItems = Array.isArray(root.items);
 	const hasBriefs = Array.isArray(root.briefs);
 	if (!hasItems && !hasBriefs) return genericRows(root);
@@ -562,7 +562,7 @@ function totalRows(root: Row, found: number): number {
 }
 
 function fetchHint(toolName: string): string {
-	if (toolName.includes("action_item")) return "Fetch an exact item with get_action_item(id); rerun with a narrower filter or next offset/page for more.";
+	if (toolName.includes("task")) return "Fetch an exact item with get_task(id); rerun with a narrower filter or next offset/page for more.";
 	if (toolName.includes("memor") || ["get_decisions", "get_conventions"].includes(toolName)) {
 		return "Fetch an exact memory with get_memory(id); rerun the list/search with a narrower filter for more.";
 	}
@@ -580,13 +580,13 @@ function collectionProjection(toolName: string, details: unknown): string | null
 	const found = collectionRows(toolName, root);
 	if (!found.recognized) return null;
 	const shown = found.rows.slice(0, CARD_LIMIT);
-	const primaryCount = toolName === "get_action_items"
+	const primaryCount = toolName === "get_tasks"
 		? Math.max(0, found.rows.length - found.briefCount)
 		: found.rows.length;
 	const total = totalRows(root, primaryCount);
 	const summary = record(root.summary);
 	const counts = summary ? record(summary.ui_buckets) ?? record(summary.lifecycle_breakdown) : null;
-	const heading = toolName === "get_action_items" && found.briefCount > 0
+	const heading = toolName === "get_tasks" && found.briefCount > 0
 		? `${toolName}: ${total} result${total === 1 ? "" : "s"}; ${found.briefCount} additional contextual brief card(s); showing ${shown.length} combined card(s).`
 		: `${toolName}: ${total} result${total === 1 ? "" : "s"}${shown.length < total ? `; showing ${shown.length}` : ""}.`;
 	const blocks = [heading];
@@ -603,12 +603,12 @@ function collectionProjection(toolName: string, details: unknown): string | null
 	if (incomplete) blocks.push(`Incomplete: ${typeof root.unavailable_note === "string" ? oneLine(root.unavailable_note, 300) : "part of this search could not be run; do not report that nothing matched."}`);
 	for (const [index, row] of shown.entries()) blocks.push(card(row, index));
 	if (total === 0 && found.briefCount === 0 && !incomplete) blocks.push("No matching entities returned (recognized empty result set).");
-	if (toolName === "get_action_items") {
+	if (toolName === "get_tasks") {
 		const shownPrimary = Math.min(shown.length, primaryCount);
 		const shownBriefs = Math.max(0, shown.length - shownPrimary);
 		const omittedPrimary = Math.max(0, total - shownPrimary);
 		const omittedBriefs = Math.max(0, found.briefCount - shownBriefs);
-		if (omittedPrimary > 0) blocks.push(`Omitted ${omittedPrimary} action-item result(s) from model-visible content.`);
+		if (omittedPrimary > 0) blocks.push(`Omitted ${omittedPrimary} task result(s) from model-visible content.`);
 		if (omittedBriefs > 0) blocks.push(`Omitted ${omittedBriefs} contextual brief card(s) from model-visible content.`);
 	} else {
 		const omitted = Math.max(total - shown.length, found.rows.length - shown.length);
@@ -758,11 +758,11 @@ function followThroughBlock(kind: "own" | "brief", value: unknown): string {
 	if (row) {
 		const brief = record(row.brief);
 		if (kind === "brief") {
-			const id = oneLine(first(row, ["brief_action_item_id", "action_item_id", "brief_id", "id"]) ?? (brief ? first(brief, ["id", "action_item_id"]) : undefined), 90);
+			const id = oneLine(first(row, ["brief_task_id", "task_id", "brief_id", "id"]) ?? (brief ? first(brief, ["id", "task_id"]) : undefined), 90);
 			const title = oneLine(first(row, ["brief_title", "title", "name"]) ?? (brief ? first(brief, ["title", "name"]) : undefined), 160);
 			if (id || title) lines.push(`- brief: ${id ? `[${id}]` : ""}${id && title ? " " : ""}${title ?? ""}`);
 		} else {
-			const id = oneLine(first(row, ["action_item_id", "item_id", "id"]), 90);
+			const id = oneLine(first(row, ["task_id", "item_id", "id"]), 90);
 			if (id) lines.push(`- item: [${id}]`);
 		}
 		for (const key of [
@@ -794,7 +794,7 @@ function manualFollowUpBlock(root: Row): string | null {
 	}
 	if (human.length > MANUAL_FOLLOWUP_LIMIT) {
 		const itemId = boundedId(nestedEntity(root), root);
-		lines.push(`- ${human.length - MANUAL_FOLLOWUP_LIMIT} additional follow-up step(s) omitted; ${itemId ? `use get_action_item(${itemId})` : "fetch the exact action item"} to read every step before reporting.`);
+		lines.push(`- ${human.length - MANUAL_FOLLOWUP_LIMIT} additional follow-up step(s) omitted; ${itemId ? `use get_task(${itemId})` : "fetch the exact task"} to read every step before reporting.`);
 	}
 	return lines.join("\n");
 }
@@ -812,8 +812,8 @@ function ackProjection(toolName: string, details: unknown): string | null {
 
 	const required: string[] = [];
 	const optional: string[] = [];
-	const parent = oneLine(first(entity, ["parent_action_item_id", "parent_id", "parent_title", "brief_title"])
-		?? first(root, ["parent_action_item_id", "parent_id", "parent_title", "brief_title"]), 140);
+	const parent = oneLine(first(entity, ["parent_task_id", "parent_id", "parent_title", "brief_title"])
+		?? first(root, ["parent_task_id", "parent_id", "parent_title", "brief_title"]), 140);
 	const facts = [id && `id=${id}`, title && `title=${title}`, state && `state=${state}`, outcome && `outcome=${outcome}`].filter(Boolean);
 	required.push(`${toolName}: ${facts.length ? facts.join(" ") : "recognized response (see gates/follow-through below)"}.`);
 	if (parent) required.push(`Parent/brief: ${parent}`);

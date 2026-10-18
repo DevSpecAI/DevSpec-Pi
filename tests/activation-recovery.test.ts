@@ -48,9 +48,9 @@ function recoveryEntry(denied: string[]): SessionEntry {
 test("parseDuplicateToolNames reads single- and double-quoted name lists", () => {
 	assert.deepEqual(
 		parseDuplicateToolNames(
-			'400: {"object":"error","message":"duplicate tool names are not allowed: [\'get_action_items\']"}',
+			'400: {"object":"error","message":"duplicate tool names are not allowed: [\'get_tasks\']"}',
 		),
-		["get_action_items"],
+		["get_tasks"],
 	);
 	assert.deepEqual(
 		parseDuplicateToolNames('duplicate tool names are not allowed: ["a", \'b\']'),
@@ -60,22 +60,22 @@ test("parseDuplicateToolNames reads single- and double-quoted name lists", () =>
 });
 
 test("scanTranscriptToolState restores only rare verbs, once, in announcement order", () => {
-	const rare = new Set(["get_action_items", "create_automation"]);
+	const rare = new Set(["get_tasks", "create_automation"]);
 	const isRare = (name: string) => rare.has(name);
 	const entries = [
-		toolResultEntry(["get_action_items", "get_project_summary", "not_a_tool"]),
-		toolResultEntry(["create_automation", "get_action_items"]),
+		toolResultEntry(["get_tasks", "get_project_summary", "not_a_tool"]),
+		toolResultEntry(["create_automation", "get_tasks"]),
 	];
 	const state = scanTranscriptToolState(entries, isRare);
-	assert.deepEqual(state.restore, ["get_action_items", "create_automation"]);
+	assert.deepEqual(state.restore, ["get_tasks", "create_automation"]);
 	assert.deepEqual(state.denied, []);
 });
 
 test("scanTranscriptToolState honours recorded recoveries and ignores lookalikes", () => {
 	const isRare = () => true;
 	const entries = [
-		toolResultEntry(["get_action_items", "create_automation"]),
-		recoveryEntry(["get_action_items"]),
+		toolResultEntry(["get_tasks", "create_automation"]),
+		recoveryEntry(["get_tasks"]),
 		// A model-visible custom message is not a recovery record.
 		{
 			type: "custom_message",
@@ -90,7 +90,7 @@ test("scanTranscriptToolState honours recorded recoveries and ignores lookalikes
 	];
 	const state = scanTranscriptToolState(entries, isRare);
 	assert.deepEqual(state.restore, ["create_automation"]);
-	assert.deepEqual(state.denied, ["get_action_items", "not_an_array_test"]);
+	assert.deepEqual(state.denied, ["get_tasks", "not_an_array_test"]);
 });
 
 test("withRestoredTools appends only missing names and never duplicates", () => {
@@ -99,17 +99,17 @@ test("withRestoredTools appends only missing names and never duplicates", () => 
 });
 
 test("planDuplicateRecovery selects active catalog tools from the latest matching error", () => {
-	const error = "duplicate tool names are not allowed: ['get_action_items', 'foreign_tool']";
+	const error = "duplicate tool names are not allowed: ['get_tasks', 'foreign_tool']";
 	const plan = planDuplicateRecovery([{ role: "assistant", errorMessage: error }], {
 		isCatalogTool: (name) => name !== "foreign_tool",
 		isActive: () => true,
 		isDenied: () => false,
 	});
-	assert.deepEqual(plan?.names, ["get_action_items"]);
+	assert.deepEqual(plan?.names, ["get_tasks"]);
 });
 
 test("planDuplicateRecovery never loops: denied, inactive, or foreign names yield null", () => {
-	const error = "duplicate tool names are not allowed: ['get_action_items']";
+	const error = "duplicate tool names are not allowed: ['get_tasks']";
 	assert.equal(
 		planDuplicateRecovery([{ errorMessage: error }], {
 			isCatalogTool: () => true,
@@ -175,14 +175,14 @@ test("resume restores announced rare tools, the loader never re-announces, and a
 	registerDevspecTools(pi);
 
 	// Resume: the branch carries two pre-crash announcements (item dc8f52d4).
-	const branch = [toolResultEntry(["get_action_items", "create_automation"])];
+	const branch = [toolResultEntry(["get_tasks", "create_automation"])];
 	const ctx = { sessionManager: { getBranch: () => branch }, hasUI: false };
 	handlers.get("session_start")?.({}, ctx);
 
-	assert.ok(active.includes("get_action_items"), "announced rare tool restored on resume");
+	assert.ok(active.includes("get_tasks"), "announced rare tool restored on resume");
 	assert.ok(active.includes("create_automation"), "second announced rare tool restored");
 	assert.equal(
-		active.filter((name) => name === "get_action_items").length,
+		active.filter((name) => name === "get_tasks").length,
 		1,
 		"restore never duplicates",
 	);
@@ -191,21 +191,21 @@ test("resume restores announced rare tools, the loader never re-announces, and a
 	// second announcement, so no second Kimi injection, so no duplicate.
 	const loader = definitions.find((def) => def.name === "search_devspec_tools");
 	assert.ok(loader);
-	const reload = await loader.execute("call-1", { query: "get_action_items", limit: 5 });
-	assert.ok(reload.details?.matches?.some(hit => hit.name === "get_action_items"), "fixture query must find the tool");
+	const reload = await loader.execute("call-1", { query: "get_tasks", limit: 5 });
+	assert.ok(reload.details?.matches?.some(hit => hit.name === "get_tasks"), "fixture query must find the tool");
 	assert.ok(
-		!reload.details?.added?.includes("get_action_items"),
+		!reload.details?.added?.includes("get_tasks"),
 		"restored tool is never re-announced by the loader",
 	);
 
 	// A legacy double announcement still 400s once: the agent_end hook
 	// deactivates the tool, persists the denial, and nudges the turn to
 	// continue — instead of bricking the session.
-	const errorMessage = "400: duplicate tool names are not allowed: ['get_action_items']";
+	const errorMessage = "400: duplicate tool names are not allowed: ['get_tasks']";
 	await handlers.get("agent_end")?.({ messages: [{ role: "assistant", errorMessage }] }, ctx);
-	assert.ok(!active.includes("get_action_items"), "offending tool deactivated");
+	assert.ok(!active.includes("get_tasks"), "offending tool deactivated");
 	assert.deepEqual(appended, [
-		{ customType: RECOVERY_ENTRY_TYPE, data: { denied: ["get_action_items"], error: errorMessage } },
+		{ customType: RECOVERY_ENTRY_TYPE, data: { denied: ["get_tasks"], error: errorMessage } },
 	]);
 	assert.equal(userMessages.length, 1, "one continue nudge");
 
@@ -214,9 +214,9 @@ test("resume restores announced rare tools, the loader never re-announces, and a
 	assert.equal(userMessages.length, 1, "no repeated nudge for an already-handled error");
 
 	// And the loader explains the denial instead of re-loading the tool.
-	const after = await loader.execute("call-2", { query: "get_action_items", limit: 5 });
-	assert.ok(!after.details?.added?.includes("get_action_items"));
-	assert.deepEqual(after.details?.unavailable, ["get_action_items"]);
+	const after = await loader.execute("call-2", { query: "get_tasks", limit: 5 });
+	assert.ok(!after.details?.added?.includes("get_tasks"));
+	assert.deepEqual(after.details?.unavailable, ["get_tasks"]);
 	assert.match(after.content?.[0]?.text ?? "", /Unavailable here/);
 });
 
@@ -238,7 +238,7 @@ test("fresh sessions announce nothing, so session_start restores nothing", () =>
 	registerDevspecTools(pi);
 	const ctx = { sessionManager: { getBranch: () => [] }, hasUI: false };
 	handlers.get("session_start")?.({}, ctx);
-	assert.ok(active.includes("get_action_items"));
+	assert.ok(active.includes("get_tasks"));
 	assert.ok(active.includes("create_automation"));
-	assert.ok(active.includes("search_action_items"), "hot set untouched");
+	assert.ok(active.includes("search_tasks"), "hot set untouched");
 });

@@ -29,7 +29,7 @@ test("extractFlags finds an out-of-date flag on a memory without caching its evi
 // DevSpec finds duplicates with its own check after the write and returns no
 // candidate list (fce58a2f round 2), so a create is never an observation.
 test("a create result is never a review observation", () => {
-	assert.equal(extractFlags("create_action_item", { id: "item-1", title: "New item", outcome: "committed" }).length, 0);
+	assert.equal(extractFlags("create_task", { id: "item-1", title: "New item", outcome: "committed" }).length, 0);
 });
 
 test("store dedupes by key; nudge formats and clears", () => {

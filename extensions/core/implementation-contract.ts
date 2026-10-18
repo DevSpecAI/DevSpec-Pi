@@ -38,7 +38,7 @@ export interface ImplementationKickoff {
 	kind: "devspec.implementation_kickoff";
 	schema_version: 1;
 	work: {
-		action_item_ids: string[];
+		task_ids: string[];
 	};
 	implementation_contract: {
 		contract_version: string;
@@ -427,7 +427,7 @@ const LOCAL_SAFETY_RULES: readonly ImplementationRule[] = [
 	{
 		id: "pi-fallback.commit-link",
 		phase: "delivery",
-		requirement: "Prefer one full [devspec:<action-item-id>] commit reference and use record_implementation for authoritative post-commit linkage; unsupported Git surfaces rely on server reconciliation.",
+		requirement: "Prefer one full [devspec:<task-id>] commit reference and use record_implementation for authoritative post-commit linkage; unsupported Git surfaces rely on server reconciliation.",
 		enforcement: "agent",
 	},
 	{
@@ -644,12 +644,12 @@ export function createImplementationContractLoader(token: string): Implementatio
 }
 
 export function buildImplementationKickoff(input: {
-	actionItemIds: readonly string[];
+	taskIds: readonly string[];
 	context: ImplementationContractContext;
 	contractReference?: ImplementationContractReference;
 }): ImplementationKickoff {
-	const actionItemIds = [...new Set(input.actionItemIds.map((id) => id.trim()).filter(Boolean))];
-	if (actionItemIds.length === 0) throw new Error("implementation kickoff requires at least one action item id");
+	const taskIds = [...new Set(input.taskIds.map((id) => id.trim()).filter(Boolean))];
+	if (taskIds.length === 0) throw new Error("implementation kickoff requires at least one task id");
 	const suppliedVersion = nonEmptyString(input.contractReference?.contract_version);
 	if (
 		input.context.source !== "local_safety_fallback" && suppliedVersion &&
@@ -674,7 +674,7 @@ export function buildImplementationKickoff(input: {
 		kind: "devspec.implementation_kickoff",
 		schema_version: 1,
 		work: {
-			action_item_ids: actionItemIds,
+			task_ids: taskIds,
 		},
 		implementation_contract: {
 			contract_version: contractVersion,
@@ -697,7 +697,7 @@ export function formatImplementationContext(context: ImplementationContractConte
 		`${context.source === "local_safety_fallback" ? "Local fail-open fallback (the canonical product contract was not loaded; the notice below says why)" : "Product implementation contract"} (${identity})`,
 		...(context.warning ? [`Availability notice (tell the person you are working with): ${context.warning}`] : []),
 		...(context.workEntryContract ? [
-			"Canonical work entry contract (the only action-item/session-plan boundary):",
+			"Canonical work entry contract (the only task/session-plan boundary):",
 			JSON.stringify(context.workEntryContract),
 		] : []),
 		...(context.authorityContract ? formatAuthorityContract(context.authorityContract) : []),

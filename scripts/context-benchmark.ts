@@ -21,7 +21,7 @@ function projected(toolName: string, details: unknown): string {
 
 const actionResults = Array.from({ length: 20 }, (_, index) => ({
 	id: `item-${String(index + 1).padStart(2, "0")}`,
-	title: `Representative action-item result ${index + 1}`,
+	title: `Representative task result ${index + 1}`,
 	lifecycle: index % 3 === 0 ? "implemented" : "open",
 	type: index === 0 ? "brief" : "improvement",
 	priority: index < 3 ? "high" : "medium",
@@ -64,7 +64,7 @@ const acknowledgement = {
 	code: "approval_required",
 	fields: ["title", "intent", "acceptance_criteria"],
 	review_url: "https://app.example.test/review/proposal-1",
-	action_item: { id: "item-created", title: "Representative write", lifecycle: "suggested" },
+	task: { id: "item-created", title: "Representative write", lifecycle: "suggested" },
 };
 
 const help = {
@@ -80,7 +80,7 @@ const help = {
 const implementation = {
 	item: { id: "item-implemented", title: "Guard context quality", lifecycle: "implemented" },
 	own_criteria_follow_through: {
-		action_item_id: "item-implemented",
+		task_id: "item-implemented",
 		criteria_total: 8,
 		criteria_settled: 0,
 		go_and_check: Array.from({ length: 8 }, (_, index) => ({
@@ -134,10 +134,10 @@ function projectionRow(
 
 const initialSurfaceTokens = estimatePrefixTokens(buildDevspecInstructions());
 const rows: BenchmarkRow[] = [
-	projectionRow("action-item search", "search_action_items", { count: actionResults.length, results: actionResults }, 2_000, PROJECTION_BUDGETS.collection, ["Representative action-item result 1", "Intent 1", "get_action_item"]),
+	projectionRow("task search", "search_tasks", { count: actionResults.length, results: actionResults }, 2_000, PROJECTION_BUDGETS.collection, ["Representative task result 1", "Intent 1", "get_task"]),
 	projectionRow("resource search", "search_resources", { documents: resourceResults.slice(0, 5), artifacts: resourceResults.slice(5) }, 1_500, PROJECTION_BUDGETS.collection, ["Representative resource 1", "Matching passage 1", "get_resource"]),
 	projectionRow("project summary", "get_project_summary", projectSummary, 9_000, PROJECTION_BUDGETS.project, ["Team principles", "Team agent rules", "Owner agent rules"]),
-	projectionRow("write acknowledgement", "create_action_item", acknowledgement, 300, PROJECTION_BUDGETS.ack, ["Representative write", "proposal-1", "review_url"]),
+	projectionRow("write acknowledgement", "create_task", acknowledgement, 300, PROJECTION_BUDGETS.ack, ["Representative write", "proposal-1", "review_url"]),
 	projectionRow("implementation acknowledgement", "record_implementation", implementation, 1_500, PROJECTION_BUDGETS.recordImplementation, ["Criterion 1", "Brief criterion 1", "record_criterion_verdicts"]),
 	projectionRow("help search", "devspec_help_search", help, 1_500, PROJECTION_BUDGETS.help, ["Context documentation 1", "https://docs.example.test/context-1", "Citeable help content 1"]),
 	projectionRow("fallback text", "generate_commit_message", fallback, 1_000, PROJECTION_BUDGETS.fallback, ["Generated commit message", "fallback field"]),

@@ -26,7 +26,7 @@ export default function (pi: ExtensionAPI) {
           let args: Record<string, unknown> = { command: "git commit --allow-empty -q -m 'prior task [devspec:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa]'" };
           if (index > 0) {
             const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: process.env.COMMIT_HINT_PROBE_CWD, encoding: "utf8" }).trim();
-            args = { action_item_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", completion_note: index === 1 ? "Report-only next task; no implementing commit." : "Explicit fixture hint.",
+            args = { task_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", completion_note: index === 1 ? "Report-only next task; no implementing commit." : "Explicit fixture hint.",
               ...(index === 2 ? { commit_sha: sha.slice(0, 8) } : index === 3 ? { commit_sha: sha } : {}) };
           }
           const call = { type: "toolCall" as const, id: `hint-probe-${index}`, name: index === 0 ? "bash" : "record_implementation", arguments: args };

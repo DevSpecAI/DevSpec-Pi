@@ -276,7 +276,7 @@ test("isError project-scope retry does not re-init the client", async () => {
 		});
 	});
 
-	await callDevspec("tok", "search_action_items", { query: "x" });
+	await callDevspec("tok", "search_tasks", { query: "x" });
 	assert.deepEqual(seen, ["bare", "scoped"]);
 	assert.equal(connects, 1);
 });

@@ -21,7 +21,7 @@ Pi observes ordinary direct commits made through model Bash without model compli
 
 ## Caller hints are not work identity (P7)
 
-An omitted `record_implementation.commit_sha` stays omitted, even with exactly one recent local commit. The process-wide ledger cannot establish which action item or claim a commit belongs to. The server may still use its own claim-scoped mechanical observation; no model timing/format ritual or new gate is introduced.
+An omitted `record_implementation.commit_sha` stays omitted, even with exactly one recent local commit. The process-wide ledger cannot establish which task or claim a commit belongs to. The server may still use its own claim-scoped mechanical observation; no model timing/format ritual or new gate is introduced.
 
 Every short hint remains unchanged for authorized project-wide resolution. One cwd/ledger hit cannot establish uniqueness across all tracked repositories. Supported whitespace/case-normalized hexadecimal shapes are accepted while original hint bytes are retained; revision syntax and malformed lengths still fail shape validation. A supplied full object may carry its actual message, never inferred authorship or round identity.
 

@@ -120,5 +120,5 @@ test("buildAttachBlock lists the room agenda with short ids", () => {
 test("buildAttachBlock with no history says so honestly", () => {
 	const block = buildAttachBlock({ sessionId: SESSION, title: null, tail: [], agenda: [] }, "Jolly Toucan");
 	assert.match(block, /No recent room activity/);
-	assert.match(block, /no linked action items/);
+	assert.match(block, /no linked tasks/);
 });

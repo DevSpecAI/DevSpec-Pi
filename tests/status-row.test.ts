@@ -40,7 +40,7 @@ test("display labels are terminal-safe, grapheme-aware and column-bounded", () =
 
 test("only identity and named work use normal foreground, including after truncation", () => {
  const calls: Array<{ role: string; text: string }> = [];
- const named = { ...snap, automationName: "Daily review", verb: "get_action_item" };
+ const named = { ...snap, automationName: "Daily review", verb: "get_task" };
  formatStatusLine(named, 220, (role, text) => { calls.push({ role, text }); return text; });
  for (const text of ["DevSpec: ", snap.codename, snap.sessionTitle, snap.workTitle, "Daily review"]) {
   assert.ok(calls.some(call => call.role === "text" && call.text === text), `foreground: ${text}`);

@@ -40,8 +40,8 @@ export function systemNotice(overrides: Record<string, unknown> = {}) {
 		kind: "unlinked_commit_item_review",
 		notice_id: IDS.notice,
 		commit_sha: "abcdef0123456789abcdef0123456789abcdef01",
-		action_item_id: IDS.project,
-		action_item_title: "Review generated item",
+		task_id: IDS.project,
+		task_title: "Review generated item",
 		branch: "main",
 		contract_uri: "devspec://product/remote-ingress-contract",
 		allowed_outcomes: [
@@ -49,8 +49,8 @@ export function systemNotice(overrides: Record<string, unknown> = {}) {
 			"confirm_item_correct", "defer_follow_up",
 		],
 		allowed_tools: [
-			"get_action_item", "update_action_item", "link_action_items",
-			"supersede_action_item",
+			"get_task", "update_task", "link_tasks",
+			"supersede_task",
 		],
 		...overrides,
 	};

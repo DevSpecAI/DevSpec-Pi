@@ -10,7 +10,7 @@ test("a report-only next item cannot inherit the preceding item's sole recent co
   const verdict = validateCommitSha(undefined, () => A);
   assert.equal(verdict.ok, true);
   if (!verdict.ok) return;
-  const args = applyCommitLedgerVerdict({ action_item_id: "b87ef5f0-b87d-41a7-83af-1bcc3705cd83", completion_note: "Read-only assessment; no implementing commit." }, verdict);
+  const args = applyCommitLedgerVerdict({ task_id: "b87ef5f0-b87d-41a7-83af-1bcc3705cd83", completion_note: "Read-only assessment; no implementing commit." }, verdict);
   assert.equal(Object.hasOwn(args, "commit_sha"), false);
   assert.equal(Object.hasOwn(args, "commit_message"), false);
 });

@@ -190,11 +190,11 @@ export function formatSystemNoticeMessage(notices: readonly SystemNoticeV1[]): s
 			continue;
 		}
 		lines.push(
-			"— Review the server-stamped commit/action-item association.",
+			"— Review the server-stamped commit/task association.",
 			`notice_id=${JSON.stringify(notice.notice_id)}`,
 			`commit_sha=${JSON.stringify(notice.commit_sha)}`,
-			`action_item_id=${JSON.stringify(notice.action_item_id)}`,
-			`action_item_title=${JSON.stringify(notice.action_item_title)}`,
+			`task_id=${JSON.stringify(notice.task_id)}`,
+			`task_title=${JSON.stringify(notice.task_title)}`,
 			`branch=${JSON.stringify(notice.branch)}`,
 			`correction_outcomes=${JSON.stringify(notice.allowed_outcomes)}`,
 			`correction_tools=${JSON.stringify(notice.allowed_tools)}`,

@@ -22,7 +22,7 @@ export interface ActivityIndex {
 	status: "available" | "unavailable";
 	as_of: string;
 	truncated: boolean;
-	entries: Array<{ kind: "action_item" | "memory" | "artifact"; id: string; relation: "produced" | "referenced" }>;
+	entries: Array<{ kind: "task" | "memory" | "artifact"; id: string; relation: "produced" | "referenced" }>;
 }
 export interface RoomValidators {
 	order(value: unknown, path: string): IngressOrderPoint;
@@ -149,7 +149,7 @@ export function parseActivityIndex(value: unknown): ActivityIndex {
 	const seen = new Set<string>();
 	const entries = list(row.entries, 1000).map(value => {
 		const e = object(value);
-		if (e.kind !== "action_item" && e.kind !== "memory" && e.kind !== "artifact") bad();
+		if (e.kind !== "task" && e.kind !== "memory" && e.kind !== "artifact") bad();
 		if (e.relation !== "produced" && e.relation !== "referenced") bad();
 		const id = uuid(e.id); const key = `${e.kind}:${id}`;
 		if (seen.has(key)) bad(); seen.add(key);

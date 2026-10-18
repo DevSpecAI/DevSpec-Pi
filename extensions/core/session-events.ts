@@ -2,7 +2,7 @@
 import { advertisesRoomContext } from "./room-context.ts";
 
 type Actor = { kind: "agent" | "person" | "platform"; label: string };
-type Base = { id: string; at: string; kind: "action_item" | "memory" | "artifact"; record_id: string };
+type Base = { id: string; at: string; kind: "task" | "memory" | "artifact"; record_id: string };
 export type SessionEvent = Base & (
 	| { event: "produced" | "retracted" | "archived"; actor: Actor | null }
 	| { event: "referenced"; message_id: string }
@@ -46,13 +46,13 @@ export function parseSessionEvents(value: unknown): SessionEvents {
 	const events = s.events.map((value): SessionEvent => {
 		const e = object(value); const id = text(e.id);
 		if (id.length > 200 || seen.has(id)) bad(); seen.add(id);
-		if (e.kind !== "action_item" && e.kind !== "memory" && e.kind !== "artifact") bad();
+		if (e.kind !== "task" && e.kind !== "memory" && e.kind !== "artifact") bad();
 		const base: Base = { id, at: date(e.at), kind: e.kind, record_id: uuid(e.record_id) };
 		switch (e.event) {
 			case "produced": case "retracted": case "archived": return { ...base, event: e.event, actor: actor(e.actor) };
 			case "referenced": return { ...base, event: e.event, message_id: uuid(e.message_id) };
 			case "lifecycle_changed":
-				if (e.kind !== "action_item") bad();
+				if (e.kind !== "task") bad();
 				return { ...base, event: e.event, from: text(e.from), to: text(e.to) };
 			case "superseded": return { ...base, event: e.event, by: e.by === null ? null : uuid(e.by), actor: actor(e.actor) };
 			default: return bad();

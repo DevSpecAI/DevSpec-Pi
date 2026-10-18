@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0 — Tasks cutover candidate (activation held)
+
+- Native tools, argument/result readers and work projections use Tasks, with Feature, Improvement, Bug, Investigation and General categories. No old tool aliases are installed.
+- Regenerated the complete native catalogue from the matching server candidate; guidance and exact-target authority checks are preserved.
+- Versioned process-local advisory work/delivery caches for the changed field names. Durable room history, speech delivery state and credentials are not erased.
+- Activate only with the matching server during the coordinated pause. For local-source installations, update the configured source checkout; updating an npm package alone does not update a separately configured checkout. Restart the exact Pi session after updating that checkout, then verify the room binding and new native tools before resuming work.
+
 ## 0.7.5 - 2026-10-17
 
 - Pi makes any decision you could make in DevSpec's Review for you as soon as your request is clear: accepting or declining a proposed change, answering on work that would undo a decision, saying a flagged record is still accurate, or settling a duplicate. It warns you once, up front, only if you seem unaware of a significant consequence, never asks you to confirm again, and tells you what happened and what you can do next. Update with `pi update --extensions`, then restart Pi.

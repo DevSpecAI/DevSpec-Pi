@@ -51,7 +51,7 @@ async function main() {
           let details: unknown = { results: [], items: [], memories: [], artifacts: [] };
           if (entry.name === 'get_resource') details = { id: RESOURCE, title: 'Operations runbook', body: 'Keep logs for 30 days.\nNever store credentials in logs.\nRestrict log access to the operations team.' };
           if (entry.name === 'get_memory') details = { id: MEMORY, title: 'Storage decision', body: 'Use SQLite for the shared service. This decision assumed only one writer.', state: 'decided' };
-          if (entry.name === 'get_action_item') details = { id: ITEM, title: 'Update package documentation', intent: 'Keep distributed documentation current', agent_activity: 'implementing', acceptance_criteria: [] };
+          if (entry.name === 'get_task') details = { id: ITEM, title: 'Update package documentation', intent: 'Keep distributed documentation current', agent_activity: 'implementing', acceptance_criteria: [] };
           if (entry.name === 'get_workflow_rules') details = { note: 'This fixture is an authorized documentation/record request. No repository implementation is requested except the explicitly claimed README change. Observation is not human sign-off.' };
           if (entry.name === 'search_devspec_tools') details = { mode: 'lexical', degraded: true, reason: 'Offline fixture: all eligible tools remain callable.', matches: searchRareModelTools(String((args as { query?: string }).query ?? ''), 3).map(tool => ({ name: tool.name, description: tool.description })) };
           const readOperation = /^(get_|search_|list_|preview_|generate_|validate_)/.test(entry.name) ||

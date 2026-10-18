@@ -85,9 +85,9 @@ test("instructions do not dump search-first or the 76-verb map", () => {
 	assert.doesNotMatch(text, /Check DevSpec first/);
 	assert.doesNotMatch(text, /When X, call Y/);
 	assert.doesNotMatch(text, /never describe→call/);
-	assert.doesNotMatch(text, /search_action_items/);
+	assert.doesNotMatch(text, /search_tasks/);
 	assert.doesNotMatch(text, /search_resources/);
-	assert.doesNotMatch(text, /get_action_items/);
+	assert.doesNotMatch(text, /get_tasks/);
 	assert.doesNotMatch(text, /record_criterion_verdicts/);
 	assert.doesNotMatch(text, /get_session_transcript/);
 	for (const pump of PUMP_VERBS) {

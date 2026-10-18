@@ -483,7 +483,7 @@ current contract, adopted here first, migrated to other hosts only if proven.
      `turn_kind:'local_prompt'` first — two-sided transcript.
    - **Automation runs:** `dispatches[]` is a transport field for owner-scoped,
      typed automation runs only. Pi rejects every other shape before queueing or
-     model injection. Action-item work never enters this channel: the agent
+     model injection. Task work never enters this channel: the agent
      reserves already-selected items with `reserve_work_items`, then claims
      them one at a time.
    - Verified: `scripts/e2e-lifecycle.mjs` — model told NOT to post, answer

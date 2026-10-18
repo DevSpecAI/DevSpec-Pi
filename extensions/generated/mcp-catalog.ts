@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 648891c87ff1819d6138833593348ff90e4511536a7f6b1fd5060c67046d01ae
+ * Schema fingerprint: 8c76251295a92a30d7494fb49a0f8c62b047ddbce9e90494d07f252132bfa08c
  * Description fingerprint: 94970b75f4e0e90dfdd2bdbb1a15ba0e122af565d7dab8ceead1e9dd76132565
- * Regenerated: 2026-10-18T15:53:01.464Z
+ * Regenerated: 2026-10-18T23:16:30.156Z
  */
-export const MCP_CATALOG_FINGERPRINT = "648891c87ff1819d6138833593348ff90e4511536a7f6b1fd5060c67046d01ae";
+export const MCP_CATALOG_FINGERPRINT = "8c76251295a92a30d7494fb49a0f8c62b047ddbce9e90494d07f252132bfa08c";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "94970b75f4e0e90dfdd2bdbb1a15ba0e122af565d7dab8ceead1e9dd76132565";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-18T15:53:01.464Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-18T23:16:30.157Z";
 export const TOOL_CATALOG_VERSION = "88cbc2fa2e14173b611ab31bc969c7ac4e52f09a3f58cb8b59bc4cd560a0fc99";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -4507,7 +4507,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "New title: a concise, scannable imperative requirement phrase stating what to build, fix, or change; keep symptoms and rationale in intent or description (at most 1,000 characters). A blank value is ignored."
+					"description": "New title (at most 115 characters): a concise, scannable imperative requirement phrase stating what is changing and on what surface; move comma-separated extra details, symptoms and rationale into intent or description rather than making the title generic. A blank value is ignored."
 				},
 				"description": {
 					"type": "string",
@@ -4554,7 +4554,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"intent": {
 					"type": "string",
-					"description": "Why: the problem and the outcome wanted. An empty string clears it. Omitted: unchanged."
+					"description": "Why: the underlying problem and rationale for wanting the outcome, whose rationale it was and what they said (attribute the speaker and quote their key words from the conversation when a person asked for it), and the desired outcome itself — never a thin one-sentence restatement of the title, because reversal and conflict reviews judge later work against this recorded reasoning. An empty string clears it. Omitted: unchanged."
 				},
 				"acceptance_criteria": {
 					"anyOf": [
@@ -4741,7 +4741,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "New title: a concise, scannable imperative requirement phrase stating what to build, fix, or change; keep symptoms and rationale in intent or description (at most 1,000 characters). A blank value is ignored."
+					"description": "New title (at most 115 characters): a concise, scannable imperative requirement phrase stating what is changing and on what surface; move comma-separated extra details, symptoms and rationale into intent or description rather than making the title generic. A blank value is ignored."
 				},
 				"description": {
 					"type": "string",
@@ -4788,7 +4788,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"intent": {
 					"type": "string",
-					"description": "Why: the problem and the outcome wanted. An empty string clears it. Omitted: unchanged."
+					"description": "Why: the underlying problem and rationale for wanting the outcome, whose rationale it was and what they said (attribute the speaker and quote their key words from the conversation when a person asked for it), and the desired outcome itself — never a thin one-sentence restatement of the title, because reversal and conflict reviews judge later work against this recorded reasoning. An empty string clears it. Omitted: unchanged."
 				},
 				"acceptance_criteria": {
 					"anyOf": [
@@ -4979,7 +4979,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"title": {
 					"type": "string",
-					"description": "A concise, scannable imperative requirement phrase stating what to build, fix, or change — write a headline that reads cleanly on a card or aloud, and keep symptoms and rationale in intent or description (at most 1,000 characters)."
+					"description": "A concise, scannable imperative requirement phrase stating what is changing and on what surface (at most 115 characters, one line on detail panels) — write a headline that reads cleanly on a card or aloud, and move comma-separated extra details, symptoms and rationale into intent or description rather than making the title generic."
 				},
 				"description": {
 					"type": "string",
@@ -4987,7 +4987,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"intent": {
 					"type": "string",
-					"description": "Why: the problem being solved and the outcome wanted, so whoever picks the item up later understands the goal and intent checks have the reason behind the work. Required and must not be blank: a create without it is refused and nothing is created."
+					"description": "Why: the underlying problem and rationale for wanting the outcome, whose rationale it was and what they said (attribute the speaker and quote their key words from the conversation when a person asked for it), and the desired outcome itself — never a thin one-sentence restatement of the title, because whoever picks the item up later and future reversal/conflict reviews rely on this recorded reasoning. Required and must not be blank: a create without it is refused and nothing is created."
 				},
 				"acceptance_criteria": {
 					"anyOf": [
@@ -5149,7 +5149,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"title": {
 					"type": "string",
-					"description": "A concise, scannable imperative requirement phrase stating what to build, fix, or change — write a headline that reads cleanly on a card or aloud, and keep symptoms and rationale in intent or description (at most 1,000 characters)."
+					"description": "A concise, scannable imperative requirement phrase stating what is changing and on what surface (at most 115 characters, one line on detail panels) — write a headline that reads cleanly on a card or aloud, and move comma-separated extra details, symptoms and rationale into intent or description rather than making the title generic."
 				},
 				"description": {
 					"type": "string",
@@ -5157,7 +5157,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"intent": {
 					"type": "string",
-					"description": "Why: the problem being solved and the outcome wanted, so whoever picks the item up later understands the goal and intent checks have the reason behind the work. Required and must not be blank: a create without it is refused and nothing is created."
+					"description": "Why: the underlying problem and rationale for wanting the outcome, whose rationale it was and what they said (attribute the speaker and quote their key words from the conversation when a person asked for it), and the desired outcome itself — never a thin one-sentence restatement of the title, because whoever picks the item up later and future reversal/conflict reviews rely on this recorded reasoning. Required and must not be blank: a create without it is refused and nothing is created."
 				},
 				"acceptance_criteria": {
 					"anyOf": [
@@ -8882,7 +8882,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "A concise, searchable single-line noun phrase naming the subject or decision so it reads naturally on cards and aloud (at most 200 characters). Keep rationale and detail in summary or body; not a generic heading such as Notes, and not the first line of the body."
+					"description": "A concise, searchable single-line noun phrase naming the subject or surface and the core decision or rule so it reads naturally on cards and aloud (at most 115 characters). Move comma-separated extra details, conditions and rationale into summary or body rather than making the title generic; not a generic heading such as Notes, and not the first line of the body."
 				},
 				"summary": {
 					"type": "string",
@@ -8979,7 +8979,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "A concise, searchable single-line noun phrase naming the subject or decision so it reads naturally on cards and aloud (at most 200 characters). Keep rationale and detail in summary or body; not a generic heading such as Notes, and not the first line of the body."
+					"description": "A concise, searchable single-line noun phrase naming the subject or surface and the core decision or rule so it reads naturally on cards and aloud (at most 115 characters). Move comma-separated extra details, conditions and rationale into summary or body rather than making the title generic; not a generic heading such as Notes, and not the first line of the body."
 				},
 				"summary": {
 					"type": "string",
@@ -9093,7 +9093,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "The new version's concise single-line noun phrase naming the subject or decision so it reads naturally on cards and aloud (at most 200 characters). Required even when it is unchanged."
+					"description": "The new version's concise single-line noun phrase naming the subject or surface and the core decision or rule so it reads naturally on cards and aloud (at most 115 characters); move comma-separated extra details and conditions into summary or body. Required even when it is unchanged."
 				},
 				"summary": {
 					"type": "string",
@@ -9183,7 +9183,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "The new version's concise single-line noun phrase naming the subject or decision so it reads naturally on cards and aloud (at most 200 characters). Required even when it is unchanged."
+					"description": "The new version's concise single-line noun phrase naming the subject or surface and the core decision or rule so it reads naturally on cards and aloud (at most 115 characters); move comma-separated extra details and conditions into summary or body. Required even when it is unchanged."
 				},
 				"summary": {
 					"type": "string",
@@ -9306,7 +9306,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "A corrected concise single-line noun phrase naming the subject or decision so it reads naturally on cards and aloud (at most 200 characters). Saves a new version. Omitted: unchanged."
+					"description": "A corrected concise single-line noun phrase naming the subject or surface and the core decision or rule so it reads naturally on cards and aloud (at most 115 characters); move comma-separated extra details and conditions into summary or body. Saves a new version. Omitted: unchanged."
 				},
 				"summary": {
 					"anyOf": [
@@ -9411,7 +9411,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "A corrected concise single-line noun phrase naming the subject or decision so it reads naturally on cards and aloud (at most 200 characters). Saves a new version. Omitted: unchanged."
+					"description": "A corrected concise single-line noun phrase naming the subject or surface and the core decision or rule so it reads naturally on cards and aloud (at most 115 characters); move comma-separated extra details and conditions into summary or body. Saves a new version. Omitted: unchanged."
 				},
 				"summary": {
 					"anyOf": [

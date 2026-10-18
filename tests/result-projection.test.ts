@@ -726,7 +726,13 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// rename, all 97 catalog verbs remain. Semantic schema changes are the
 		// five-category enum in get/create/update/record-completed and removal of
 		// update_task.execution_results. Authored guidance remains complete.
-		"26c4f99d1875773f9f8bc76e8dd6ecdce327953b67c5950585836bc7cfecfba1",
+		// Rebaselined 2026-10-19 for DevSpec items 313e112e and 5ca9c974: only
+		// parameter descriptions changed on create_task (title, intent),
+		// update_task (title, intent), record_memory (title), supersede_memory (title)
+		// and update_memory (title) to enforce the 115-character cap, surface-plus-change
+		// title guidance, and rich intent with rationale, speaker attribution, and quotes.
+		// Verbs 84 model / 12 pump / 1 never-model unchanged; families and hot set unchanged.
+		"be89055cbd47037afffed3ce185b1e59675229b5705bb529444eeb4254ff1c7d",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

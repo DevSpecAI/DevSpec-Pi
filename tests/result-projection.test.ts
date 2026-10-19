@@ -732,7 +732,11 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// and update_memory (title) to enforce the 115-character cap, surface-plus-change
 		// title guidance, and rich intent with rationale, speaker attribution, and quotes.
 		// Verbs 84 model / 12 pump / 1 never-model unchanged; families and hot set unchanged.
-		"be89055cbd47037afffed3ce185b1e59675229b5705bb529444eeb4254ff1c7d",
+		// Rebaselined 2026-10-19 for DevSpec item b058d185: get_review_queue adds optional
+		// view filter (waiting_on_you, raised_by_you, all_waiting, possibly_outdated) and
+		// documents project-wide counts and active-decisions-first default ordering.
+		// Verbs 84 model / 12 pump / 1 never-model unchanged; families and hot set unchanged.
+		"492dad27fd4098f3c91dc9c6115c55b2f44904390fe7211c5e69f6b02df37c22",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

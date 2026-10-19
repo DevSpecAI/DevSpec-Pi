@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 8c76251295a92a30d7494fb49a0f8c62b047ddbce9e90494d07f252132bfa08c
- * Description fingerprint: 94970b75f4e0e90dfdd2bdbb1a15ba0e122af565d7dab8ceead1e9dd76132565
- * Regenerated: 2026-10-18T23:16:30.156Z
+ * Schema fingerprint: a85667780e7c570656c0fc66d56e65c67962a3490c2c0a48f3b361412cf796ef
+ * Description fingerprint: 7c7b7da0936b297457bb85c20696a940929ec42fc0dd3f59a916a16215a9c125
+ * Regenerated: 2026-10-19T20:28:37.503Z
  */
-export const MCP_CATALOG_FINGERPRINT = "8c76251295a92a30d7494fb49a0f8c62b047ddbce9e90494d07f252132bfa08c";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "94970b75f4e0e90dfdd2bdbb1a15ba0e122af565d7dab8ceead1e9dd76132565";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-18T23:16:30.157Z";
-export const TOOL_CATALOG_VERSION = "88cbc2fa2e14173b611ab31bc969c7ac4e52f09a3f58cb8b59bc4cd560a0fc99";
+export const MCP_CATALOG_FINGERPRINT = "a85667780e7c570656c0fc66d56e65c67962a3490c2c0a48f3b361412cf796ef";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "7c7b7da0936b297457bb85c20696a940929ec42fc0dd3f59a916a16215a9c125";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-19T20:28:37.504Z";
+export const TOOL_CATALOG_VERSION = "d60faf4bd3f0b7a7692229c7186af01a98bea1868d73ec7d89ffcc1232b75af5";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -206,7 +206,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_review_queue",
 		"name": "get review queue",
-		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Work that would undo someone's decision waits for an OK; each question shows, per reversing record, where it stands and who it waits on, as DevSpec decides it. Filter questions by involvement (awaiting_me: waiting for your OK, which leaves out an experiment until it asks to land; raised_by_me; involving_me; involving_others; can_resolve: you can answer it now), state (waiting, declined, landed: reached the tracking branch without its OK, putting_back, settled), person, or record_type. Answers and experiments use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id is a change waiting to be accepted: decide_proposal accepts or declines it for the person asking you, with its proposal_id and proposal_revision. you_can is judged for you, the token's owner; decide_proposal judges the person asking you, and its refusal says who can. A request to confirm (confirmation) waits on one named person: they, or the project lead, confirm or decline it in Review, or through an agent on their own instruction (decide_proposal, or manage_protected_intent confirm_request / decline_request). If incomplete is true, part of the queue could not be read, so say the list is partial. To list tasks by review signal (blocked, failed verification and the rest), use get_tasks with signal_type, signal_bucket or flagged.",
+		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. counts gives the project-wide totals for each Review view (waitingOnYou, raisedByYou, allWaiting, possiblyOutdated, questions, proposals) whatever filters you pass, and active waiting decisions sort ahead of possibly_stale flags by default so real decisions appear at the top of the first page. Pass view (waiting_on_you, raised_by_you, all_waiting, possibly_outdated) to match a specific Review tab. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Work that would undo someone's decision waits for an OK; each question shows, per reversing record, where it stands and who it waits on, as DevSpec decides it. Filter questions by involvement (awaiting_me: waiting for your OK, which leaves out an experiment until it asks to land; raised_by_me; involving_me; involving_others; can_resolve: you can answer it now), state (waiting, declined, landed: reached the tracking branch without its OK, putting_back, settled), person, or record_type. Answers and experiments use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id is a change waiting to be accepted: decide_proposal accepts or declines it for the person asking you, with its proposal_id and proposal_revision. you_can is judged for you, the token's owner; decide_proposal judges the person asking you, and its refusal says who can. A request to confirm (confirmation) waits on one named person: they, or the project lead, confirm or decline it in Review, or through an agent on their own instruction (decide_proposal, or manage_protected_intent confirm_request / decline_request). If incomplete is true, part of the queue could not be read, so say the list is partial. To list tasks by review signal (blocked, failed verification and the rest), use get_tasks with signal_type, signal_bucket or flagged.",
 		"intent": "review inbox out of date flags proposed changes waiting for a ruling or acceptance"
 	},
 	{
@@ -1722,7 +1722,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_review_queue",
 		"label": "DevSpec: Get Review Queue",
-		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Work that would undo someone's decision waits for an OK; each question shows, per reversing record, where it stands and who it waits on, as DevSpec decides it. Filter questions by involvement (awaiting_me: waiting for your OK, which leaves out an experiment until it asks to land; raised_by_me; involving_me; involving_others; can_resolve: you can answer it now), state (waiting, declined, landed: reached the tracking branch without its OK, putting_back, settled), person, or record_type. Answers and experiments use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id is a change waiting to be accepted: decide_proposal accepts or declines it for the person asking you, with its proposal_id and proposal_revision. you_can is judged for you, the token's owner; decide_proposal judges the person asking you, and its refusal says who can. A request to confirm (confirmation) waits on one named person: they, or the project lead, confirm or decline it in Review, or through an agent on their own instruction (decide_proposal, or manage_protected_intent confirm_request / decline_request). If incomplete is true, part of the queue could not be read, so say the list is partial. To list tasks by review signal (blocked, failed verification and the rest), use get_tasks with signal_type, signal_bucket or flagged.",
+		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. counts gives the project-wide totals for each Review view (waitingOnYou, raisedByYou, allWaiting, possiblyOutdated, questions, proposals) whatever filters you pass, and active waiting decisions sort ahead of possibly_stale flags by default so real decisions appear at the top of the first page. Pass view (waiting_on_you, raised_by_you, all_waiting, possibly_outdated) to match a specific Review tab. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Work that would undo someone's decision waits for an OK; each question shows, per reversing record, where it stands and who it waits on, as DevSpec decides it. Filter questions by involvement (awaiting_me: waiting for your OK, which leaves out an experiment until it asks to land; raised_by_me; involving_me; involving_others; can_resolve: you can answer it now), state (waiting, declined, landed: reached the tracking branch without its OK, putting_back, settled), person, or record_type. Answers and experiments use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id is a change waiting to be accepted: decide_proposal accepts or declines it for the person asking you, with its proposal_id and proposal_revision. you_can is judged for you, the token's owner; decide_proposal judges the person asking you, and its refusal says who can. A request to confirm (confirmation) waits on one named person: they, or the project lead, confirm or decline it in Review, or through an agent on their own instruction (decide_proposal, or manage_protected_intent confirm_request / decline_request). If incomplete is true, part of the queue could not be read, so say the list is partial. To list tasks by review signal (blocked, failed verification and the rest), use get_tasks with signal_type, signal_bucket or flagged.",
 		"searchIntent": "review inbox out of date flags proposed changes waiting for a ruling or acceptance",
 		"modelInputSchema": {
 			"type": "object",
@@ -1730,6 +1730,16 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"key": {
 					"type": "string",
 					"description": "One entry's key from a previous call: returns that entry in full with its history (what raised it, who has ruled and on what). Every other parameter is ignored."
+				},
+				"view": {
+					"type": "string",
+					"enum": [
+						"waiting_on_you",
+						"raised_by_you",
+						"all_waiting",
+						"possibly_outdated"
+					],
+					"description": "Narrow to one of the Review page's tab views: waiting_on_you (awaiting your OK or decision), raised_by_you (your work or proposals), all_waiting (every open decision question, confirmation request and proposal, without possibly_stale flags), or possibly_outdated (only possibly_stale flags). Omitted: all open entries, with active decisions sorted ahead of possibly_stale flags."
 				},
 				"kind": {
 					"type": "array",
@@ -1838,6 +1848,16 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"key": {
 					"type": "string",
 					"description": "One entry's key from a previous call: returns that entry in full with its history (what raised it, who has ruled and on what). Every other parameter is ignored."
+				},
+				"view": {
+					"type": "string",
+					"enum": [
+						"waiting_on_you",
+						"raised_by_you",
+						"all_waiting",
+						"possibly_outdated"
+					],
+					"description": "Narrow to one of the Review page's tab views: waiting_on_you (awaiting your OK or decision), raised_by_you (your work or proposals), all_waiting (every open decision question, confirmation request and proposal, without possibly_stale flags), or possibly_outdated (only possibly_stale flags). Omitted: all open entries, with active decisions sorted ahead of possibly_stale flags."
 				},
 				"kind": {
 					"type": "array",

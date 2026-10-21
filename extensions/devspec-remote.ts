@@ -788,7 +788,11 @@ function noteCommandTurnClosed(turnId: string | undefined): void {
 
 function ensureTurn(): void {
 	if (turn) return;
-	if (!getBond()?.sessionId) { debug("ensureTurn: not attached"); return; }
+	const bond = getBond();
+	if (!bond?.connectionId || (!bond.sessionId && segmentInputKind !== "automation")) {
+		debug("ensureTurn: not attached");
+		return;
+	}
 	const revision = nextTurnRevision++;
 	const receiptBatch = new DirectedQuestionReceiptBatch();
 	receiptBatch.reset(revision);
@@ -1066,8 +1070,12 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 		else console.error(warning);
 		return false;
 	};
-	if (!active || !bond?.sessionId) return failure("skipped");
-	const authority = { connectionId: bond.connectionId, sessionId: bond.sessionId };
+	const sessionlessAutomationTrail =
+		!bond?.sessionId &&
+		opts.phase === "trail" &&
+		(turn?.requestKind === "automation" || segmentInputKind === "automation");
+	if (!active || (!bond?.sessionId && !sessionlessAutomationTrail)) return failure("skipped");
+	const authority = { connectionId: bond.connectionId, sessionId: bond.sessionId ?? null };
 	const parkedIdentity = activeCommandTurnIdentity;
 	const isCurrent = () => current() && (opts.isCurrent?.() ?? true);
 	let resolved;
@@ -1113,7 +1121,7 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 		}
 		opts.onReceipt?.(receipt.status);
 		debug("post stored", { idempotent: receipt.status === "idempotently_stored" });
-		noteOwnRoomMessage(receipt.messageId);
+		if (authority.sessionId) noteOwnRoomMessage(receipt.messageId);
 		if (isCurrent() && activeCommandTurnIdentity === parkedIdentity) {
 			if (opts.completeTurn === true) noteCommandTurnClosed(opts.commandTurnId);
 		}
@@ -1400,7 +1408,7 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 	const finalTrail = t.trail.render(FINAL_TRAIL_CHARS, false);
 	const finalEvents = t.trail.events();
 	const activityTrail = finalEvents.length > 0 ? finalTrail : undefined;
-	const plan = t.speechManaged ? { kind: "none" as const } : planSettle(t.tracker, true);
+	const plan = t.speechManaged || !getBond()?.sessionId ? { kind: "none" as const } : planSettle(t.tracker, true);
 	debug("settle segment", { completeTurn, planFinal: plan.kind === "final", planMirror: plan.kind === "local_mirror", trailChars: finalTrail.length, answerChars: t.tracker.lastAssistantText.length, pendingBg: t.tracker.pendingBackgroundTasks().length, harness: t.tracker.userKind === "harness", bound: Boolean(t.commandTurnId || t.commandMessageId) });
 	// Context-injection / leftover harness segments never leave room content
 	// (60cf5f00). A background-completion wake MAY speak (its own bubble) and
@@ -4472,6 +4480,7 @@ export default function (pi: ExtensionAPI) {
 		const segmentKind = isInput
 			? bindSegmentForMessage({ text, customType, details: msg?.details, isRealUserMessage, incomingCommand })
 			: null;
+		if (!turn && segmentKind === "automation") ensureTurn();
 		if (!turn) return;
 		if (isInput) {
 			const previousInteraction = isRealUserMessage ? turn.interaction : undefined;

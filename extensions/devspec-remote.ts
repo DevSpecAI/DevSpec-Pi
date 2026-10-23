@@ -1074,7 +1074,9 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 		!bond?.sessionId &&
 		opts.phase === "trail" &&
 		(turn?.requestKind === "automation" || segmentInputKind === "automation");
-	if (!active || (!bond?.sessionId && !sessionlessAutomationTrail)) return failure("skipped");
+	// A post needs a connection to go through: a sessionless automation trail may
+	// post without a room, never without a bond (a54ff6ba).
+	if (!active || !bond || (!bond.sessionId && !sessionlessAutomationTrail)) return failure("skipped");
 	const authority = { connectionId: bond.connectionId, sessionId: bond.sessionId ?? null };
 	const parkedIdentity = activeCommandTurnIdentity;
 	const isCurrent = () => current() && (opts.isCurrent?.() ?? true);

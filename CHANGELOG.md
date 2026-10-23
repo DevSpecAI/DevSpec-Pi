@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.1 - 2026-10-23
+
+- Your agent no longer writes plans, handoffs, status summaries or single decisions as DevSpec documents. A document is a standing guide, reference or runbook; a plan becomes a brief with tasks, a handoff or status goes on the task, and a decision is a memory. The tool catalogue is regenerated to match. Update with `pi update --extensions`, then restart Pi.
+- Fixed: posting the live work trail of an automation run could fail with an error when the run had no connection to post through. It is now skipped, as any post without a connection is.
+
 ## 0.8.0 — Tasks cutover candidate (activation held)
 
 - Native tools, argument/result readers and work projections use Tasks, with Feature, Improvement, Bug, Investigation and General categories. No old tool aliases are installed.

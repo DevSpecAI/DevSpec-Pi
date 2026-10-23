@@ -744,7 +744,15 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// manage_plan and write_project_instruction_rule. No verb added or removed, no required
 		// field or type change; families and hot set unchanged. Benchmark before/after: initial
 		// surface 52,449 -> 52,772 estimated tokens; every budget still passes.
-		"5a3fc3b5bf5f3287b14427c674530b432eaa3e5d0790a492e31b58471f3fe981",
+		// Rebaselined 2026-10-23 for DevSpec item 9b922069 (work reaches done only once merged
+		// into its repo's Tracking branch), for the catalogue regenerated against DevSpecV2 #548.
+		// record_implementation and verify_task descriptions now say done waits for the merge.
+		// The same regen picks up item 353cea43 (zod 4.6.7, DevSpecV2 #617): 20 nullable inputs
+		// are emitted as `type: [T, "null"]` instead of `anyOf: [{type: T}, {type: "null"}]`,
+		// with the same meaning. No verb added or removed, no required field change; families
+		// and hot set unchanged. Benchmark before/after: initial surface 52,772 -> 52,790
+		// estimated tokens; every budget still passes.
+		"e46dd3b9681abcbf4aa431e084caf42be3d46ef1e500ffbbb3adba7fe28c6add",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

@@ -736,7 +736,15 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// view filter (waiting_on_you, raised_by_you, all_waiting, possibly_outdated) and
 		// documents project-wide counts and active-decisions-first default ordering.
 		// Verbs 84 model / 12 pump / 1 never-model unchanged; families and hot set unchanged.
-		"492dad27fd4098f3c91dc9c6115c55b2f44904390fe7211c5e69f6b02df37c22",
+		// Rebaselined 2026-10-23 for DevSpec item 54bd97a1 (standing document types), for the
+		// catalogue regenerated in 21f2b6f against DevSpecV2 #607 (now on staging 535ae2360).
+		// create_resource and supersede_resource.resource_type narrow to guide|reference|runbook,
+		// get_resources.resource_type to those plus other; descriptions change on
+		// create_resource, update_resource, supersede_resource, get_resources, record_memory,
+		// manage_plan and write_project_instruction_rule. No verb added or removed, no required
+		// field or type change; families and hot set unchanged. Benchmark before/after: initial
+		// surface 52,449 -> 52,772 estimated tokens; every budget still passes.
+		"5a3fc3b5bf5f3287b14427c674530b432eaa3e5d0790a492e31b58471f3fe981",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

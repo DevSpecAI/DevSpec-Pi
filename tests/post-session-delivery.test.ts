@@ -262,3 +262,23 @@ test("lifecycle-only noop_error is successful MCP work but never a content-stora
 	assert.equal(h.requests.length, 1);
 	assert.equal(parsePostSessionReceipt(result, { sessionId: "session", connectionId: "connection", phase: "error" }).status, "skipped");
 });
+
+test("a sessionless automation trail posts through its connection, and with no bond is skipped rather than thrown (a54ff6ba)", async () => {
+	// A sessionless post is stored against the connection with no room.
+	const roomless = envelope({ session_id: null, connection_id: "connection", phase: "trail", message_id: "row", delivery: { status: "stored", message_id: "row" } });
+	const h = harness(async () => roomless);
+	h.setTurn({ requestKind: "automation" });
+	h.active.bond = { connectionId: "connection", sessionId: undefined as never, connectionCapability: "secret-capability" };
+	assert.equal(await h.postToSession("trail text", { phase: "trail", workTrail: "trail text" }), true);
+	assert.equal(h.requests.length, 1);
+	assert.equal(h.requests[0]!.connection_id, "connection");
+	assert.equal(h.requests[0]!.phase, "trail");
+	assert.equal(h.requests[0]!.session_id, undefined);
+
+	const unbonded = harness(async () => roomless);
+	unbonded.setTurn({ requestKind: "automation" });
+	unbonded.context.getBond = () => null as never;
+	assert.equal(await unbonded.postToSession("trail text", { phase: "trail", workTrail: "trail text" }), false);
+	assert.equal(unbonded.requests.length, 0);
+	assert.equal(unbonded.warnings.length, 1);
+});

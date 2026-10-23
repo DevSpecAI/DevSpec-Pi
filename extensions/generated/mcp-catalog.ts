@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: a85667780e7c570656c0fc66d56e65c67962a3490c2c0a48f3b361412cf796ef
- * Description fingerprint: 7c7b7da0936b297457bb85c20696a940929ec42fc0dd3f59a916a16215a9c125
- * Regenerated: 2026-10-19T20:28:37.503Z
+ * Schema fingerprint: 0b1e3e788fdfb32f7bc546e50af22b3f62e308768d280ad8868d2d45ea69ca5f
+ * Description fingerprint: 4003378b2d770dcbe0136b7391bf8f4f892ea3e1ab520e3fa9d23d1682270662
+ * Regenerated: 2026-10-23T15:13:14.312Z
  */
-export const MCP_CATALOG_FINGERPRINT = "a85667780e7c570656c0fc66d56e65c67962a3490c2c0a48f3b361412cf796ef";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "7c7b7da0936b297457bb85c20696a940929ec42fc0dd3f59a916a16215a9c125";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-19T20:28:37.504Z";
-export const TOOL_CATALOG_VERSION = "d60faf4bd3f0b7a7692229c7186af01a98bea1868d73ec7d89ffcc1232b75af5";
+export const MCP_CATALOG_FINGERPRINT = "0b1e3e788fdfb32f7bc546e50af22b3f62e308768d280ad8868d2d45ea69ca5f";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "4003378b2d770dcbe0136b7391bf8f4f892ea3e1ab520e3fa9d23d1682270662";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-23T15:13:14.312Z";
+export const TOOL_CATALOG_VERSION = "5f04c3542b05615cd26f3055426402593011509f84addd013d17b3ad43c9d4ca";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -56,8 +56,8 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "create_resource",
 		"name": "create resource",
-		"description": "Create a shared project document: an ADR, plan, guide, runbook, checklist, summary, convention, reference or other (investigations and handoffs fit summary or other). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for; a single decision, convention or fact is a memory (record_memory). Updating or superseding someone else's settled document overrules them, so ask first unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
-		"intent": "write save create shared document artifact ADR plan guide runbook checklist reference handoff investigation for teammates next agent"
+		"description": "Create a standing shared project document: a guide (how-to or developer guide), reference (architecture or API reference), or runbook (operational procedure). Documents are strictly for durable, long-form reference material that outlives a single task or session: never create a document for an implementation plan (use a Brief/Task via create_task or a shared room milestone plan via manage_plan), a session handoff, status summary or verification dump (use add_implementation_note or record_implementation), an individual decision or coding convention (use record_memory), or an agent operating rule (use write_project_instruction_rule). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for. Updating or superseding someone else's settled document overrules them, so ask first unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"intent": "write save create standing shared document artifact guide reference runbook architecture API docs operational procedure"
 	},
 	{
 		"id": "create_session",
@@ -200,7 +200,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_resources",
 		"name": "get resources",
-		"description": "List the project's current documents, newest first: uploaded files and AI-written artifacts (ADRs, plans, guides, runbooks and so on), as summaries without bodies; each artifact carries its review flags. Filter by source, type, review flag or who asked. Archived artifacts and documents a person excluded from AI context are never listed, and a session's uploads appear only for the session your connection is attached to. Use search_resources to find documents by topic and get_resource to read one. page.total_matching counts everything that matches; pass page.next_offset as offset for the next page.",
+		"description": "List the project's current documents, newest first: uploaded files and AI-written standing documents (guide, reference and runbook), as summaries without bodies; each artifact carries its review flags. Filter by source, type, review flag or who asked. Archived artifacts and documents a person excluded from AI context are never listed, and a session's uploads appear only for the session your connection is attached to. Use search_resources to find documents by topic and get_resource to read one. page.total_matching counts everything that matches; pass page.next_offset as offset for the next page.",
 		"intent": "list browse documents artifacts uploads inventory"
 	},
 	{
@@ -290,7 +290,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "manage_plan",
 		"name": "manage plan",
-		"description": "Keep a shared milestone plan in your connection's room so the people there can follow multi-phase work; a connection has one active plan at a time. Whether a plan is warranted is set by work_entry_contract in devspec://product/implementation-contract; a durable plan document is an artifact (create_resource). advance completes the current milestone and starts the next in one call; complete is refused until every step is completed or skipped; complete and abandon post a receipt in the room. Every change to an existing plan needs expected_revision from your last snapshot. It needs your connection's identity and an attached room: if a direct call is refused for that, make the call through your host's DevSpec helper, which your DevSpec skills name.",
+		"description": "Keep a shared milestone plan in your connection's room so the people there can follow multi-phase work; a connection has one active plan at a time. Whether a plan is warranted is set by work_entry_contract in devspec://product/implementation-contract; durable multi-task work belongs in a Brief and child Tasks (create_task), never in create_resource. advance completes the current milestone and starts the next in one call; complete is refused until every step is completed or skipped; complete and abandon post a receipt in the room. Every change to an existing plan needs expected_revision from your last snapshot. It needs your connection's identity and an attached room: if a direct call is refused for that, make the call through your host's DevSpec helper, which your DevSpec skills name.",
 		"intent": "start advance complete shared session execution milestones plan progress"
 	},
 	{
@@ -344,7 +344,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_memory",
 		"name": "record memory",
-		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Work in progress and delivery evidence belong on the task (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a long document or reference material is an artifact (create_resource). Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Individual architecture decisions and team conventions belong here—never in create_resource. Work in progress and delivery evidence belong on the task (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a standing long-form guide, reference document or runbook is an artifact (create_resource). Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "record save capture remember new decision convention architecture insight risk"
 	},
 	{
@@ -446,7 +446,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "supersede_resource",
 		"name": "supersede resource",
-		"description": "Replace an AI-written artifact with a rewritten successor. The new version becomes current; the old one is archived, pointing to it. Read the current document first and carry over what still holds. Use update_resource for refinements and archive_resource when nothing replaces it; uploaded documents cannot be superseded. Replacing someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Replace a standing AI-written document (guide, reference or runbook) with a rewritten successor. The new version becomes current; the old one is archived, pointing to it. Read the current document first and carry over what still holds. Use update_resource for refinements and archive_resource when nothing replaces it; uploaded documents cannot be superseded. Replacing someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "replace rewrite document artifact successor supersede"
 	},
 	{
@@ -488,8 +488,8 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "update_resource",
 		"name": "update resource",
-		"description": "Edit an AI-written artifact to keep it current: its title, summary, tags or body. Prefer body_edits (targeted replace or append) to a full body, so detail others added is not lost. A title, summary or body change saves a new version with a new id and retires the old one: use the returned id from then on, because edits to the old id are refused. Tags alone change in place. Use supersede_resource for a material rewrite and archive_resource to retire a document; uploaded documents cannot be edited. Rewriting someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
-		"intent": "update edit refine existing document artifact plan runbook keep current"
+		"description": "Edit a standing AI-written document (guide, reference or runbook) to keep it current: its title, summary, tags or body. Prefer body_edits (targeted replace or append) to a full body, so detail others added is not lost. A title, summary or body change saves a new version with a new id and retires the old one: use the returned id from then on, because edits to the old id are refused. Tags alone change in place. Use supersede_resource for a material rewrite and archive_resource to retire a document; uploaded documents cannot be edited. Rewriting someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"intent": "update edit refine existing standing document artifact guide reference runbook keep current"
 	},
 	{
 		"id": "update_task",
@@ -512,7 +512,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "write_project_instruction_rule",
 		"name": "write project instruction rule",
-		"description": "Add, amend or retract one team rule when the person asks; it reaches every coding agent on the project, and a principles rule also reaches Dev, the in-app assistant. Everyone who receives a tier reads all of it on every run, so read the current rules with get_project_instruction_rules first, amend the rule that already covers a subject instead of adding another, take out anything your change makes redundant, and keep body to the instruction plus a short reason, with longer evidence in rationale, which agents are not given. When the person gave you the words, or told you to go ahead, write it straight away; when you wrote the wording and they have not seen it, show it to them first. Authority is decided per call under devspec://product/implementation-contract; read outcome: committed is live, while queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. A write that would be queued is refused for amend and retract. Your own machine rules belong in update_personal_instructions, decisions in record_memory, and documents such as an ADR in create_resource.",
+		"description": "Add, amend or retract one team rule when the person asks; it reaches every coding agent on the project, and a principles rule also reaches Dev, the in-app assistant. Everyone who receives a tier reads all of it on every run, so read the current rules with get_project_instruction_rules first, amend the rule that already covers a subject instead of adding another, take out anything your change makes redundant, and keep body to the instruction plus a short reason, with longer evidence in rationale, which agents are not given. When the person gave you the words, or told you to go ahead, write it straight away; when you wrote the wording and they have not seen it, show it to them first. Authority is decided per call under devspec://product/implementation-contract; read outcome: committed is live, while queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. A write that would be queued is refused for amend and retract. Your own machine rules belong in update_personal_instructions, individual decisions and conventions in record_memory, and standing guides, reference documents and runbooks in create_resource.",
 		"intent": "change amend add retract team-wide project coding agent instruction rules policy"
 	}
 ];
@@ -2928,7 +2928,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_resources",
 		"label": "DevSpec: Get Resources",
-		"description": "List the project's current documents, newest first: uploaded files and AI-written artifacts (ADRs, plans, guides, runbooks and so on), as summaries without bodies; each artifact carries its review flags. Filter by source, type, review flag or who asked. Archived artifacts and documents a person excluded from AI context are never listed, and a session's uploads appear only for the session your connection is attached to. Use search_resources to find documents by topic and get_resource to read one. page.total_matching counts everything that matches; pass page.next_offset as offset for the next page.",
+		"description": "List the project's current documents, newest first: uploaded files and AI-written standing documents (guide, reference and runbook), as summaries without bodies; each artifact carries its review flags. Filter by source, type, review flag or who asked. Archived artifacts and documents a person excluded from AI context are never listed, and a session's uploads appear only for the session your connection is attached to. Use search_resources to find documents by topic and get_resource to read one. page.total_matching counts everything that matches; pass page.next_offset as offset for the next page.",
 		"searchIntent": "list browse documents artifacts uploads inventory",
 		"modelInputSchema": {
 			"type": "object",
@@ -2953,17 +2953,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"resource_type": {
 					"type": "string",
 					"enum": [
-						"adr",
 						"guide",
-						"checklist",
-						"plan",
-						"summary",
-						"convention",
-						"runbook",
 						"reference",
+						"runbook",
 						"other"
 					],
-					"description": "Only this type. Omitted: every type."
+					"description": "Only this type (AI-written documents are guide, reference or runbook; uploaded files may also be other). Omitted: every type."
 				},
 				"flagged": {
 					"type": "boolean",
@@ -3035,17 +3030,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"resource_type": {
 					"type": "string",
 					"enum": [
-						"adr",
 						"guide",
-						"checklist",
-						"plan",
-						"summary",
-						"convention",
-						"runbook",
 						"reference",
+						"runbook",
 						"other"
 					],
-					"description": "Only this type. Omitted: every type."
+					"description": "Only this type (AI-written documents are guide, reference or runbook; uploaded files may also be other). Omitted: every type."
 				},
 				"flagged": {
 					"type": "boolean",
@@ -4093,7 +4083,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "write_project_instruction_rule",
 		"label": "DevSpec: Write Project Instruction Rule",
-		"description": "Add, amend or retract one team rule when the person asks; it reaches every coding agent on the project, and a principles rule also reaches Dev, the in-app assistant. Everyone who receives a tier reads all of it on every run, so read the current rules with get_project_instruction_rules first, amend the rule that already covers a subject instead of adding another, take out anything your change makes redundant, and keep body to the instruction plus a short reason, with longer evidence in rationale, which agents are not given. When the person gave you the words, or told you to go ahead, write it straight away; when you wrote the wording and they have not seen it, show it to them first. Authority is decided per call under devspec://product/implementation-contract; read outcome: committed is live, while queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. A write that would be queued is refused for amend and retract. Your own machine rules belong in update_personal_instructions, decisions in record_memory, and documents such as an ADR in create_resource.",
+		"description": "Add, amend or retract one team rule when the person asks; it reaches every coding agent on the project, and a principles rule also reaches Dev, the in-app assistant. Everyone who receives a tier reads all of it on every run, so read the current rules with get_project_instruction_rules first, amend the rule that already covers a subject instead of adding another, take out anything your change makes redundant, and keep body to the instruction plus a short reason, with longer evidence in rationale, which agents are not given. When the person gave you the words, or told you to go ahead, write it straight away; when you wrote the wording and they have not seen it, show it to them first. Authority is decided per call under devspec://product/implementation-contract; read outcome: committed is live, while queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. A write that would be queued is refused for amend and retract. Your own machine rules belong in update_personal_instructions, individual decisions and conventions in record_memory, and standing guides, reference documents and runbooks in create_resource.",
 		"searchIntent": "change amend add retract team-wide project coding agent instruction rules policy",
 		"modelInputSchema": {
 			"type": "object",
@@ -8424,7 +8414,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"confirm_request",
 						"decline_request"
 					],
-					"description": "adopt: make active agent-initiated intent your decision. go_ahead: give the OK, on a question (issue_id) for work that would undo a decision, or on an experiment (id) to let it land. decline: say no, with a required reason; the work stays on its own branch. not_a_reversal: \"this doesn't undo my decision\"; counts as go ahead. keep / undo: after waiting work reached the tracking branch without its OK, keep it (the same as an OK) or undo it, which creates a follow-up to put the decision back. reopen: a Maintainer reopens a settled question. take_ownership: take ownership of an untagged commit item. move_commit: move an untagged commit onto an existing item. make_experiment: try an item on its own branch first (your own item, or any item if you are a Maintainer). ask_to_land: ask for an experiment to land, which is when whoever can give the OK is asked. request_confirmation: when you judge from the conversation that someone OTHER than the person asking you agrees (with issue_id, or an experiment's id, and answer), ask them to confirm it themselves; it records nothing until they do, and waits for them in Review with no agent needed. confirm_request / decline_request (request_id): the person a request to confirm waits on confirms it, or says no with a reason."
+					"description": "adopt: make active agent-initiated intent your decision. go_ahead: give the OK, on a question (issue_id) for work that would undo a decision, or on an experiment (id) to let it land. decline: say no, with a required reason; the work stays on its own branch. not_a_reversal: \"this doesn't undo my decision\"; counts as go ahead. keep / undo: after waiting work reached the tracking branch without its OK, keep it (the same as an OK) or undo it, which marks the question Being put back and triggers any bound undo automation (or returns undo_brief to revert it directly, without creating a Task). reopen: a Maintainer reopens a settled question. take_ownership: take ownership of an untagged commit item. move_commit: move an untagged commit onto an existing item. make_experiment: try an item on its own branch first (your own item, or any item if you are a Maintainer). ask_to_land: ask for an experiment to land, which is when whoever can give the OK is asked. request_confirmation: when you judge from the conversation that someone OTHER than the person asking you agrees (with issue_id, or an experiment's id, and answer), ask them to confirm it themselves; it records nothing until they do, and waits for them in Review with no agent needed. confirm_request / decline_request (request_id): the person a request to confirm waits on confirms it, or says no with a reason."
 				},
 				"record_type": {
 					"type": "string",
@@ -8594,7 +8584,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"confirm_request",
 						"decline_request"
 					],
-					"description": "adopt: make active agent-initiated intent your decision. go_ahead: give the OK, on a question (issue_id) for work that would undo a decision, or on an experiment (id) to let it land. decline: say no, with a required reason; the work stays on its own branch. not_a_reversal: \"this doesn't undo my decision\"; counts as go ahead. keep / undo: after waiting work reached the tracking branch without its OK, keep it (the same as an OK) or undo it, which creates a follow-up to put the decision back. reopen: a Maintainer reopens a settled question. take_ownership: take ownership of an untagged commit item. move_commit: move an untagged commit onto an existing item. make_experiment: try an item on its own branch first (your own item, or any item if you are a Maintainer). ask_to_land: ask for an experiment to land, which is when whoever can give the OK is asked. request_confirmation: when you judge from the conversation that someone OTHER than the person asking you agrees (with issue_id, or an experiment's id, and answer), ask them to confirm it themselves; it records nothing until they do, and waits for them in Review with no agent needed. confirm_request / decline_request (request_id): the person a request to confirm waits on confirms it, or says no with a reason."
+					"description": "adopt: make active agent-initiated intent your decision. go_ahead: give the OK, on a question (issue_id) for work that would undo a decision, or on an experiment (id) to let it land. decline: say no, with a required reason; the work stays on its own branch. not_a_reversal: \"this doesn't undo my decision\"; counts as go ahead. keep / undo: after waiting work reached the tracking branch without its OK, keep it (the same as an OK) or undo it, which marks the question Being put back and triggers any bound undo automation (or returns undo_brief to revert it directly, without creating a Task). reopen: a Maintainer reopens a settled question. take_ownership: take ownership of an untagged commit item. move_commit: move an untagged commit onto an existing item. make_experiment: try an item on its own branch first (your own item, or any item if you are a Maintainer). ask_to_land: ask for an experiment to land, which is when whoever can give the OK is asked. request_confirmation: when you judge from the conversation that someone OTHER than the person asking you agrees (with issue_id, or an experiment's id, and answer), ask them to confirm it themselves; it records nothing until they do, and waits for them in Review with no agent needed. confirm_request / decline_request (request_id): the person a request to confirm waits on confirms it, or says no with a reason."
 				},
 				"record_type": {
 					"type": "string",
@@ -8881,7 +8871,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_memory",
 		"label": "DevSpec: Record Memory",
-		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Work in progress and delivery evidence belong on the task (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a long document or reference material is an artifact (create_resource). Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Individual architecture decisions and team conventions belong here—never in create_resource. Work in progress and delivery evidence belong on the task (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a standing long-form guide, reference document or runbook is an artifact (create_resource). Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "record save capture remember new decision convention architecture insight risk",
 		"modelInputSchema": {
 			"type": "object",
@@ -9819,8 +9809,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "create_resource",
 		"label": "DevSpec: Create Resource",
-		"description": "Create a shared project document: an ADR, plan, guide, runbook, checklist, summary, convention, reference or other (investigations and handoffs fit summary or other). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for; a single decision, convention or fact is a memory (record_memory). Updating or superseding someone else's settled document overrules them, so ask first unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
-		"searchIntent": "write save create shared document artifact ADR plan guide runbook checklist reference handoff investigation for teammates next agent",
+		"description": "Create a standing shared project document: a guide (how-to or developer guide), reference (architecture or API reference), or runbook (operational procedure). Documents are strictly for durable, long-form reference material that outlives a single task or session: never create a document for an implementation plan (use a Brief/Task via create_task or a shared room milestone plan via manage_plan), a session handoff, status summary or verification dump (use add_implementation_note or record_implementation), an individual decision or coding convention (use record_memory), or an agent operating rule (use write_project_instruction_rule). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for. Updating or superseding someone else's settled document overrules them, so ask first unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"searchIntent": "write save create standing shared document artifact guide reference runbook architecture API docs operational procedure",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -9835,17 +9825,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"resource_type": {
 					"type": "string",
 					"enum": [
-						"adr",
 						"guide",
-						"checklist",
-						"plan",
-						"summary",
-						"convention",
-						"runbook",
 						"reference",
-						"other"
+						"runbook"
 					],
-					"description": "The kind of document."
+					"description": "The kind of standing document: guide (how-to or developer guide), reference (architecture or API reference), or runbook (operational procedure)."
 				},
 				"summary": {
 					"type": "string",
@@ -9917,17 +9901,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"resource_type": {
 					"type": "string",
 					"enum": [
-						"adr",
 						"guide",
-						"checklist",
-						"plan",
-						"summary",
-						"convention",
-						"runbook",
 						"reference",
-						"other"
+						"runbook"
 					],
-					"description": "The kind of document."
+					"description": "The kind of standing document: guide (how-to or developer guide), reference (architecture or API reference), or runbook (operational procedure)."
 				},
 				"summary": {
 					"type": "string",
@@ -9995,8 +9973,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_resource",
 		"label": "DevSpec: Update Resource",
-		"description": "Edit an AI-written artifact to keep it current: its title, summary, tags or body. Prefer body_edits (targeted replace or append) to a full body, so detail others added is not lost. A title, summary or body change saves a new version with a new id and retires the old one: use the returned id from then on, because edits to the old id are refused. Tags alone change in place. Use supersede_resource for a material rewrite and archive_resource to retire a document; uploaded documents cannot be edited. Rewriting someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
-		"searchIntent": "update edit refine existing document artifact plan runbook keep current",
+		"description": "Edit a standing AI-written document (guide, reference or runbook) to keep it current: its title, summary, tags or body. Prefer body_edits (targeted replace or append) to a full body, so detail others added is not lost. A title, summary or body change saves a new version with a new id and retires the old one: use the returned id from then on, because edits to the old id are refused. Tags alone change in place. Use supersede_resource for a material rewrite and archive_resource to retire a document; uploaded documents cannot be edited. Rewriting someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"searchIntent": "update edit refine existing standing document artifact guide reference runbook keep current",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -10203,7 +10181,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "supersede_resource",
 		"label": "DevSpec: Supersede Resource",
-		"description": "Replace an AI-written artifact with a rewritten successor. The new version becomes current; the old one is archived, pointing to it. Read the current document first and carry over what still holds. Use update_resource for refinements and archive_resource when nothing replaces it; uploaded documents cannot be superseded. Replacing someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Replace a standing AI-written document (guide, reference or runbook) with a rewritten successor. The new version becomes current; the old one is archived, pointing to it. Read the current document first and carry over what still holds. Use update_resource for refinements and archive_resource when nothing replaces it; uploaded documents cannot be superseded. Replacing someone else's settled document overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "replace rewrite document artifact successor supersede",
 		"modelInputSchema": {
 			"type": "object",
@@ -10242,17 +10220,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"resource_type": {
 					"type": "string",
 					"enum": [
-						"adr",
 						"guide",
-						"checklist",
-						"plan",
-						"summary",
-						"convention",
-						"runbook",
 						"reference",
-						"other"
+						"runbook"
 					],
-					"description": "The replacement's type. Omitted: the current document's type."
+					"description": "The replacement's standing document type (guide, reference or runbook). Omitted: the current document's type."
 				},
 				"tags": {
 					"type": "array",
@@ -10328,17 +10300,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"resource_type": {
 					"type": "string",
 					"enum": [
-						"adr",
 						"guide",
-						"checklist",
-						"plan",
-						"summary",
-						"convention",
-						"runbook",
 						"reference",
-						"other"
+						"runbook"
 					],
-					"description": "The replacement's type. Omitted: the current document's type."
+					"description": "The replacement's standing document type (guide, reference or runbook). Omitted: the current document's type."
 				},
 				"tags": {
 					"type": "array",
@@ -10698,7 +10664,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "manage_plan",
 		"label": "DevSpec: Manage Plan",
-		"description": "Keep a shared milestone plan in your connection's room so the people there can follow multi-phase work; a connection has one active plan at a time. Whether a plan is warranted is set by work_entry_contract in devspec://product/implementation-contract; a durable plan document is an artifact (create_resource). advance completes the current milestone and starts the next in one call; complete is refused until every step is completed or skipped; complete and abandon post a receipt in the room. Every change to an existing plan needs expected_revision from your last snapshot. It needs your connection's identity and an attached room: if a direct call is refused for that, make the call through your host's DevSpec helper, which your DevSpec skills name.",
+		"description": "Keep a shared milestone plan in your connection's room so the people there can follow multi-phase work; a connection has one active plan at a time. Whether a plan is warranted is set by work_entry_contract in devspec://product/implementation-contract; durable multi-task work belongs in a Brief and child Tasks (create_task), never in create_resource. advance completes the current milestone and starts the next in one call; complete is refused until every step is completed or skipped; complete and abandon post a receipt in the room. Every change to an existing plan needs expected_revision from your last snapshot. It needs your connection's identity and an attached room: if a direct call is refused for that, make the call through your host's DevSpec helper, which your DevSpec skills name.",
 		"searchIntent": "start advance complete shared session execution milestones plan progress",
 		"modelInputSchema": {
 			"type": "object",
@@ -12653,6 +12619,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "What the job is, in plain words, written as intent (\"find my plugin repos and pull them\") rather than paths that only work on one machine."
 				},
+				"summary": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 240,
+					"description": "A short 1–2 sentence plain-English summary (at most 240 characters) shown on the Automations list card so people can scan what the job does without opening its full instruction."
+				},
 				"name": {
 					"type": "string",
 					"description": "A short name, used exactly as given. Omitted: one is generated from the instruction and criteria (a short model call billed to the project's organisation)."
@@ -12751,7 +12723,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				}
 			},
 			"required": [
-				"instruction"
+				"instruction",
+				"summary"
 			]
 		},
 		"inputSchema": {
@@ -12760,6 +12733,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"instruction": {
 					"type": "string",
 					"description": "What the job is, in plain words, written as intent (\"find my plugin repos and pull them\") rather than paths that only work on one machine."
+				},
+				"summary": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 240,
+					"description": "A short 1–2 sentence plain-English summary (at most 240 characters) shown on the Automations list card so people can scan what the job does without opening its full instruction."
 				},
 				"name": {
 					"type": "string",
@@ -12864,7 +12843,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				}
 			},
 			"required": [
-				"instruction"
+				"instruction",
+				"summary"
 			]
 		},
 		"kind": "model"
@@ -12884,6 +12864,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"instruction": {
 					"type": "string",
 					"description": "Replaces the instruction; blank is refused. Omitted: unchanged."
+				},
+				"summary": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 240,
+					"description": "Replaces the short 1–2 sentence card summary (at most 240 characters); blank is refused. Omitted: unchanged."
 				},
 				"name": {
 					"type": "string",
@@ -12994,6 +12980,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"instruction": {
 					"type": "string",
 					"description": "Replaces the instruction; blank is refused. Omitted: unchanged."
+				},
+				"summary": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 240,
+					"description": "Replaces the short 1–2 sentence card summary (at most 240 characters); blank is refused. Omitted: unchanged."
 				},
 				"name": {
 					"type": "string",

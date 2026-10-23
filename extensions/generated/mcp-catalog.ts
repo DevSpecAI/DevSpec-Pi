@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 0b1e3e788fdfb32f7bc546e50af22b3f62e308768d280ad8868d2d45ea69ca5f
- * Description fingerprint: 4003378b2d770dcbe0136b7391bf8f4f892ea3e1ab520e3fa9d23d1682270662
- * Regenerated: 2026-10-23T15:13:14.312Z
+ * Schema fingerprint: e6131ae0df995131e9a3e4c5c9613da2d67a8a78902d6f2d4662fc01d86cc660
+ * Description fingerprint: 5dfad3357c317151b8311343e8d1a345c929fa3d5b64b4f4e19a92d0efd64a29
+ * Regenerated: 2026-10-23T22:02:31.136Z
  */
-export const MCP_CATALOG_FINGERPRINT = "0b1e3e788fdfb32f7bc546e50af22b3f62e308768d280ad8868d2d45ea69ca5f";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "4003378b2d770dcbe0136b7391bf8f4f892ea3e1ab520e3fa9d23d1682270662";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-23T15:13:14.312Z";
-export const TOOL_CATALOG_VERSION = "5f04c3542b05615cd26f3055426402593011509f84addd013d17b3ad43c9d4ca";
+export const MCP_CATALOG_FINGERPRINT = "e6131ae0df995131e9a3e4c5c9613da2d67a8a78902d6f2d4662fc01d86cc660";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "5dfad3357c317151b8311343e8d1a345c929fa3d5b64b4f4e19a92d0efd64a29";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-23T22:02:31.137Z";
+export const TOOL_CATALOG_VERSION = "1b66191792cc7ff02d1469d2f4069d7d982f64ad9e65033eabfbff2730168f4f";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -338,7 +338,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_implementation",
 		"name": "record implementation",
-		"description": "Record delivered work on an existing task, claimed or not: the commit, changed files, checks and an honest summary. If the item is claimed, only the claim's holder can record it, and the claim and its reservation close. The item moves to implemented, or straight to done if its recorded evidence already settles it; lifecycle in the response says where it landed. Each call opens a new implementation round, so call it once per delivery; add later context with add_implementation_note or add_commit_reference. For work that has no item, use record_completed_work. Act on any returned own_criteria_follow_through or brief_follow_through before you report. Then report the commit, lifecycle and verification status exactly as returned. This is not human sign-off. Lifecycle and completion follow devspec://product/implementation-contract.",
+		"description": "Record delivered work on an existing task, claimed or not: the commit, changed files, checks and an honest summary. If the item is claimed, only the claim's holder can record it, and the claim and its reservation close. The item moves to implemented, or to done once its recorded evidence settles it and any commits are merged into every touched repository's Tracking branch; lifecycle and done_blocker in the response say where it landed. Each call opens a new implementation round, so call it once per delivery; add later context with add_implementation_note or add_commit_reference. For work that has no item, use record_completed_work. Act on any returned own_criteria_follow_through or brief_follow_through before you report. Then report the commit, lifecycle and verification status exactly as returned. This is not human sign-off. Lifecycle and completion follow devspec://product/implementation-contract.",
 		"intent": "record report delivered implementation on an existing task claimed or unclaimed commit changed files checks completion"
 	},
 	{
@@ -506,7 +506,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "verify_task",
 		"name": "verify task",
-		"description": "Record a person's decision on one implemented task: passed: true signs it off, passed: false requests changes and flags it for attention. Who may decide, and when you may relay a decision, is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, callers who are not allowed verifiers, and passed: true while a required follow-up step is open. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. With passed: true the response gives the lifecycle the item ended up in, and says so if the sign-off landed on an older round of work and does not count.",
+		"description": "Record a person's decision on one implemented task: passed: true signs it off, passed: false requests changes and flags it for attention. Who may decide, and when you may relay a decision, is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, callers who are not allowed verifiers, and passed: true while a required follow-up step is open or an OK is still waiting. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. With passed: true the response gives the lifecycle the item ended up in (an item whose commits have not yet merged into its repository's Tracking branch records verification and stays implemented until it merges), and says so if the sign-off landed on an older round of work and does not count.",
 		"intent": "person signs off verifies implemented item request changes"
 	},
 	{
@@ -4685,15 +4685,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "The DevSpec room this edit is made for, when you are working on a room's behalf (UUID or short code): the change is recorded as made in that room and shows in its This session panel. It must be a room in this project that you can open; any other id refuses the call and nothing changes. Omitted: no room."
 				},
 				"assigned_to": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "Adds this user (UUID) as an assignee; existing assignees stay. null removes every assignee, so to hand the item to someone else, clear with null and then add them. Once assigned, only an assignee can claim the item without forcing. An assignment that cannot be stored is listed under not_stored. Omitted: unchanged."
+					"description": "Adds this user (UUID) as an assignee; existing assignees stay. null removes every assignee, so to hand the item to someone else, clear with null and then add them. Once assigned, only an assignee can claim the item without forcing. An assignment that cannot be stored is listed under not_stored. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"commit_sha": {
 					"type": "string",
@@ -4704,15 +4700,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replaces the item's completion note, the delivery summary shown on the item, rather than adding to it. To add a remark, use add_implementation_note. Omitted: unchanged."
 				},
 				"parent_task_id": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "Moves the item under this brief (UUID or short code). The brief must itself be top-level and in this project, and a brief that is already implemented or done is reopened for a new round. null takes the item out of its brief, and the brief can then roll up to done without it; unlike spin_off_task, it records no derived_from link back to the brief. Omitted: unchanged."
+					"description": "Moves the item under this brief (UUID or short code). The brief must itself be top-level and in this project, and a brief that is already implemented or done is reopened for a new round. null takes the item out of its brief, and the brief can then roll up to done without it; unlike spin_off_task, it records no derived_from link back to the brief. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"goal_ids": {
 					"type": "array",
@@ -4919,15 +4911,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "The DevSpec room this edit is made for, when you are working on a room's behalf (UUID or short code): the change is recorded as made in that room and shows in its This session panel. It must be a room in this project that you can open; any other id refuses the call and nothing changes. Omitted: no room."
 				},
 				"assigned_to": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "Adds this user (UUID) as an assignee; existing assignees stay. null removes every assignee, so to hand the item to someone else, clear with null and then add them. Once assigned, only an assignee can claim the item without forcing. An assignment that cannot be stored is listed under not_stored. Omitted: unchanged."
+					"description": "Adds this user (UUID) as an assignee; existing assignees stay. null removes every assignee, so to hand the item to someone else, clear with null and then add them. Once assigned, only an assignee can claim the item without forcing. An assignment that cannot be stored is listed under not_stored. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"commit_sha": {
 					"type": "string",
@@ -4938,15 +4926,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replaces the item's completion note, the delivery summary shown on the item, rather than adding to it. To add a remark, use add_implementation_note. Omitted: unchanged."
 				},
 				"parent_task_id": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "Moves the item under this brief (UUID or short code). The brief must itself be top-level and in this project, and a brief that is already implemented or done is reopened for a new round. null takes the item out of its brief, and the brief can then roll up to done without it; unlike spin_off_task, it records no derived_from link back to the brief. Omitted: unchanged."
+					"description": "Moves the item under this brief (UUID or short code). The brief must itself be top-level and in this project, and a brief that is already implemented or done is reopened for a new round. null takes the item out of its brief, and the brief can then roll up to done without it; unlike spin_off_task, it records no derived_from link back to the brief. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"goal_ids": {
 					"type": "array",
@@ -6533,7 +6517,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_implementation",
 		"label": "DevSpec: Record Implementation",
-		"description": "Record delivered work on an existing task, claimed or not: the commit, changed files, checks and an honest summary. If the item is claimed, only the claim's holder can record it, and the claim and its reservation close. The item moves to implemented, or straight to done if its recorded evidence already settles it; lifecycle in the response says where it landed. Each call opens a new implementation round, so call it once per delivery; add later context with add_implementation_note or add_commit_reference. For work that has no item, use record_completed_work. Act on any returned own_criteria_follow_through or brief_follow_through before you report. Then report the commit, lifecycle and verification status exactly as returned. This is not human sign-off. Lifecycle and completion follow devspec://product/implementation-contract.",
+		"description": "Record delivered work on an existing task, claimed or not: the commit, changed files, checks and an honest summary. If the item is claimed, only the claim's holder can record it, and the claim and its reservation close. The item moves to implemented, or to done once its recorded evidence settles it and any commits are merged into every touched repository's Tracking branch; lifecycle and done_blocker in the response say where it landed. Each call opens a new implementation round, so call it once per delivery; add later context with add_implementation_note or add_commit_reference. For work that has no item, use record_completed_work. Act on any returned own_criteria_follow_through or brief_follow_through before you report. Then report the commit, lifecycle and verification status exactly as returned. This is not human sign-off. Lifecycle and completion follow devspec://product/implementation-contract.",
 		"searchIntent": "record report delivered implementation on an existing task claimed or unclaimed commit changed files checks completion",
 		"modelInputSchema": {
 			"type": "object",
@@ -7386,7 +7370,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "verify_task",
 		"label": "DevSpec: Verify Task",
-		"description": "Record a person's decision on one implemented task: passed: true signs it off, passed: false requests changes and flags it for attention. Who may decide, and when you may relay a decision, is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, callers who are not allowed verifiers, and passed: true while a required follow-up step is open. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. With passed: true the response gives the lifecycle the item ended up in, and says so if the sign-off landed on an older round of work and does not count.",
+		"description": "Record a person's decision on one implemented task: passed: true signs it off, passed: false requests changes and flags it for attention. Who may decide, and when you may relay a decision, is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, callers who are not allowed verifiers, and passed: true while a required follow-up step is open or an OK is still waiting. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. With passed: true the response gives the lifecycle the item ended up in (an item whose commits have not yet merged into its repository's Tracking branch records verification and stays implemented until it merges), and says so if the sign-off landed on an older round of work and does not count.",
 		"searchIntent": "person signs off verifies implemented item request changes",
 		"modelInputSchema": {
 			"type": "object",
@@ -8933,15 +8917,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "A fresh UUID for each intended memory. Required when the write is queued for review, which you cannot always know in advance, so send one every time. Resending a key saves nothing new: with the same fields you get the first result back; with different fields a direct write still answers with the first memory's id and a queued one is refused. Never reuse a key for a different memory. Omitted: a write queued for review is refused, and a direct one counts as a resend only when your connection is attached to a session and the same type and body are sent again from it."
 				},
 				"delivering_task_id": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -9030,15 +9010,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "A fresh UUID for each intended memory. Required when the write is queued for review, which you cannot always know in advance, so send one every time. Resending a key saves nothing new: with the same fields you get the first result back; with different fields a direct write still answers with the first memory's id and a queued one is refused. Never reuse a key for a different memory. Omitted: a write queued for review is refused, and a direct one counts as a resend only when your connection is attached to a session and the same type and body are sent again from it."
 				},
 				"delivering_task_id": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -9140,15 +9116,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replaces the affected-files list. Omitted: the current list is kept."
 				},
 				"delivering_task_id": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -9230,15 +9202,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replaces the affected-files list. Omitted: the current list is kept."
 				},
 				"delivering_task_id": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -9319,15 +9287,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "A corrected concise single-line noun phrase naming the subject or surface and the core decision or rule so it reads naturally on cards and aloud (at most 115 characters); move comma-separated extra details and conditions into summary or body. Saves a new version. Omitted: unchanged."
 				},
 				"summary": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "A corrected one-sentence restatement (at most 400 characters), or null to clear it. Saves a new version. Omitted: unchanged."
+					"description": "A corrected one-sentence restatement (at most 400 characters), or null to clear it. Saves a new version. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"body": {
 					"type": "string",
@@ -9349,15 +9313,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "The receipt_id of a preview_required answer, confirming that exact previewed edit. Send the same edit again with it before expires_at; any change to the edit needs a new preview. Omitted: an edit that needs a preview answers preview_required and changes nothing."
 				},
 				"delivering_task_id": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -9424,15 +9384,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "A corrected concise single-line noun phrase naming the subject or surface and the core decision or rule so it reads naturally on cards and aloud (at most 115 characters); move comma-separated extra details and conditions into summary or body. Saves a new version. Omitted: unchanged."
 				},
 				"summary": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "A corrected one-sentence restatement (at most 400 characters), or null to clear it. Saves a new version. Omitted: unchanged."
+					"description": "A corrected one-sentence restatement (at most 400 characters), or null to clear it. Saves a new version. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"body": {
 					"type": "string",
@@ -9454,15 +9410,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "The receipt_id of a preview_required answer, confirming that exact previewed edit. Send the same edit again with it before expires_at; any change to the edit needs a new preview. Omitted: an edit that needs a preview answers preview_required and changes nothing."
 				},
 				"delivering_task_id": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -9851,15 +9803,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "A fresh UUID for each intended document. Required when the creation is queued for review, which you cannot always know in advance, so send one every time. Resending a key saves nothing new: with the same fields you get the first result back; with different fields a direct creation still answers with the first document's id and a queued one is refused. Never reuse a key for a different document. Omitted: a creation queued for review is refused, and a direct one counts as a resend only when your connection is attached to a session and the same type, title, summary and body are sent again from it."
 				},
 				"delivering_task_id": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -9927,15 +9875,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "A fresh UUID for each intended document. Required when the creation is queued for review, which you cannot always know in advance, so send one every time. Resending a key saves nothing new: with the same fields you get the first result back; with different fields a direct creation still answers with the first document's id and a queued one is refused. Never reuse a key for a different document. Omitted: a creation queued for review is refused, and a direct one counts as a resend only when your connection is attached to a session and the same type, title, summary and body are sent again from it."
 				},
 				"delivering_task_id": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -10046,15 +9990,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replaces the tag list (at most 10). Tags alone change in place. Omitted: the current tags are kept."
 				},
 				"delivering_task_id": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -10144,15 +10084,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replaces the tag list (at most 10). Tags alone change in place. Omitted: the current tags are kept."
 				},
 				"delivering_task_id": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -10234,15 +10170,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replaces the tag list (at most 10). Omitted: the current tags are kept."
 				},
 				"delivering_task_id": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -10314,15 +10246,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replaces the tag list (at most 10). Omitted: the current tags are kept."
 				},
 				"delivering_task_id": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -14190,15 +14118,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "With room_context_version 1: also send session_events, the dated history of what happened to the room's records (produced, first mentioned, lifecycle moves, supersessions, retractions, archives). Add the events you lack and never rewrite one you hold; status unavailable means it could not be read completely, not that nothing happened."
 				},
 				"session_events_revision": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "The session_events revision you hold (null the first time); requires session_events_version 1. While it is current the section resends no events."
+					"description": "The session_events revision you hold (null the first time); requires session_events_version 1. While it is current the section resends no events.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"room_open_message_ids": {
 					"maxItems": 500,
@@ -14687,15 +14611,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "With room_context_version 1: also send session_events, the dated history of what happened to the room's records (produced, first mentioned, lifecycle moves, supersessions, retractions, archives). Add the events you lack and never rewrite one you hold; status unavailable means it could not be read completely, not that nothing happened."
 				},
 				"session_events_revision": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"description": "The session_events revision you hold (null the first time); requires session_events_version 1. While it is current the section resends no events."
+					"description": "The session_events revision you hold (null the first time); requires session_events_version 1. While it is current the section resends no events.",
+					"type": [
+						"string",
+						"null"
+					]
 				},
 				"room_open_message_ids": {
 					"maxItems": 500,

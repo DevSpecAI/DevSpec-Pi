@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.2 - 2026-10-23
+
+- Your agent is told that a task with commits only counts as done once those commits are merged into the repository's tracking branch. Until then it stays implemented, and DevSpec says it is waiting to merge. Signing off a task whose work hasn't merged yet records the sign-off, and the task finishes by itself when the merge lands. The tool catalogue is regenerated to match. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.8.1 - 2026-10-23
 
 - Your agent no longer writes plans, handoffs, status summaries or single decisions as DevSpec documents. A document is a standing guide, reference or runbook; a plan becomes a brief with tasks, a handoff or status goes on the task, and a decision is a memory. The tool catalogue is regenerated to match. Update with `pi update --extensions`, then restart Pi.

@@ -785,7 +785,10 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// recall, 'substance and rationale' / 'core substance' wording, and anti-bundling
 		// guidance across task and memory tools). Verbs 84 model / 12 pump / 1 never-model
 		// unchanged; families and hot set unchanged; every budget passes.
-		"6bce9c105c40e30d74581ae41b82ef9f575055e0196a5b6821fe61a76a1c15d4",
+		// Rebaselined 2026-10-25 for DevSpec item ab6a3960 (description required on create_task,
+		// empty-string clearing wording removed from update_task description/intent, and
+		// write-time gate rejection guidance added across task and memory write tools).
+		"a2eddf62c453505fcd116ec74a3573c6bc718ce0e4010e5187356ef8bfe7f44d",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

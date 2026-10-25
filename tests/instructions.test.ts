@@ -70,6 +70,8 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /search_devspec_tools/);
 	assert.match(text, /concise user-facing sentence/);
 	assert.match(text, /never narrate individual tools/);
+	assert.match(text, /architectural or technical mechanism in natural English/);
+	assert.match(text, /never ai_instructions/);
 });
 
 test("bonded remote prose distinguishes delegated scope and points to served policy", () => {

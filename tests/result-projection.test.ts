@@ -752,7 +752,16 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// with the same meaning. No verb added or removed, no required field change; families
 		// and hot set unchanged. Benchmark before/after: initial surface 52,772 -> 52,790
 		// estimated tokens; every budget still passes.
-		"e46dd3b9681abcbf4aa431e084caf42be3d46ef1e500ffbbb3adba7fe28c6add",
+		// Rebaselined 2026-10-25 for DevSpec item 4805494c: parameter descriptions on
+		// create_task and update_task (description, acceptance_criteria, ai_instructions)
+		// enforce clean substantive field partitioning (keep the architectural/technical
+		// mechanism in natural English in description because duplicate/reversal screening
+		// does not read ai_instructions; keep criteria in plain prose; put raw file paths,
+		// line numbers, symbols, code snippets and CSS classes in ai_instructions), plus
+		// server staging description updates on get_task/get_memory/get_resource screening
+		// progress. Verbs 84 model / 12 pump / 1 never-model unchanged; families and hot set
+		// unchanged; every budget passes.
+		"026f43d28570970c336bf10007529660ade318a4aeb16ae9e9d62b67b6bf9adf",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

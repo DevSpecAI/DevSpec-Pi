@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: e6131ae0df995131e9a3e4c5c9613da2d67a8a78902d6f2d4662fc01d86cc660
- * Description fingerprint: 5dfad3357c317151b8311343e8d1a345c929fa3d5b64b4f4e19a92d0efd64a29
- * Regenerated: 2026-10-23T22:02:31.136Z
+ * Schema fingerprint: 597b80087a9c81254bcadca27d3101d6fc63f738a59d38b836b4e30e715f4f53
+ * Description fingerprint: fd793ada96d07630fb21b914390f88809444049e0f32cdeb75f277e46334f8a8
+ * Regenerated: 2026-10-25T03:02:55.477Z
  */
-export const MCP_CATALOG_FINGERPRINT = "e6131ae0df995131e9a3e4c5c9613da2d67a8a78902d6f2d4662fc01d86cc660";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "5dfad3357c317151b8311343e8d1a345c929fa3d5b64b4f4e19a92d0efd64a29";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-23T22:02:31.137Z";
-export const TOOL_CATALOG_VERSION = "1b66191792cc7ff02d1469d2f4069d7d982f64ad9e65033eabfbff2730168f4f";
+export const MCP_CATALOG_FINGERPRINT = "597b80087a9c81254bcadca27d3101d6fc63f738a59d38b836b4e30e715f4f53";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "fd793ada96d07630fb21b914390f88809444049e0f32cdeb75f277e46334f8a8";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-25T03:02:55.477Z";
+export const TOOL_CATALOG_VERSION = "793cf81c9b2bba59ff56951571659d899f74c02dbf8dbbbff27a9aab48fadc39";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -218,7 +218,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_task",
 		"name": "get task",
-		"description": "Read one task in full: description, intent, acceptance criteria with each line's promotion state, implementation notes, the commits currently linked, goals, and review signals. Search and list results are previews; read this before working on, editing or judging an item, and use get_task_history for its timeline. version is the value to pass as update_task's expected_version. Suggested work that has not been accepted says so in agreement. To test or verify the item, get_testing_brief also gathers its deployments, test runs and comments.",
+		"description": "Read one task in full: description, intent, acceptance criteria with each line's promotion state, implementation notes, the commits currently linked, goals, review signals, and screening progress by stage and source version. Screening lists only applicable checks, their completion times and any pending finding delivery. A handled delivery was queued or became irrelevant; it does not confirm the agent read it. A waiting check is not an all-clear. Follow any returned waiting_for_ok instruction separately. Search and list results are previews; read this before working on, editing or judging an item, and use get_task_history for its timeline. version is the value to pass as update_task's expected_version. Suggested work that has not been accepted says so in agreement. To test or verify the item, get_testing_brief also gathers its deployments, test runs and comments.",
 		"intent": "read full task intent acceptance criteria current specification"
 	},
 	{
@@ -1453,7 +1453,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_task",
 		"label": "DevSpec: Get Task",
-		"description": "Read one task in full: description, intent, acceptance criteria with each line's promotion state, implementation notes, the commits currently linked, goals, and review signals. Search and list results are previews; read this before working on, editing or judging an item, and use get_task_history for its timeline. version is the value to pass as update_task's expected_version. Suggested work that has not been accepted says so in agreement. To test or verify the item, get_testing_brief also gathers its deployments, test runs and comments.",
+		"description": "Read one task in full: description, intent, acceptance criteria with each line's promotion state, implementation notes, the commits currently linked, goals, review signals, and screening progress by stage and source version. Screening lists only applicable checks, their completion times and any pending finding delivery. A handled delivery was queued or became irrelevant; it does not confirm the agent read it. A waiting check is not an all-clear. Follow any returned waiting_for_ok instruction separately. Search and list results are previews; read this before working on, editing or judging an item, and use get_task_history for its timeline. version is the value to pass as update_task's expected_version. Suggested work that has not been accepted says so in agreement. To test or verify the item, get_testing_brief also gathers its deployments, test runs and comments.",
 		"searchIntent": "read full task intent acceptance criteria current specification",
 		"modelInputSchema": {
 			"type": "object",
@@ -4521,7 +4521,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"description": {
 					"type": "string",
-					"description": "Replaces the whole description (what to do and how). For smaller changes use description_edits; the two cannot be combined. An empty string clears it. Omitted: unchanged."
+					"description": "Replaces the whole description (what to do and how: the complete product behaviour, rules, numbers, edge cases, and the architectural or technical mechanism in natural English — duplicate and reversal screening reads title, intent, description, and acceptance_criteria, never ai_instructions, so never strip the technical mechanism out of description; do not dump raw file paths, line numbers, function names, code snippets, CSS class lists, or file-by-file edit recipes into description — put code-level details in ai_instructions). For smaller changes use description_edits; the two cannot be combined. An empty string clears it. Omitted: unchanged."
 				},
 				"description_edits": {
 					"type": "array",
@@ -4598,11 +4598,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							}
 						}
 					],
-					"description": "The complete criteria list; it replaces the stored one. Send an unchanged line as {id, text}, or with the same text, to keep its id and verdicts; lines you leave out are deleted, and an empty list clears them. Also accepts one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: unchanged."
+					"description": "The complete criteria list in plain prose (no raw code blocks, file paths, or CSS class lists); it replaces the stored one. Send an unchanged line as {id, text}, or with the same text, to keep its id and verdicts; lines you leave out are deleted, and an empty list clears them. Also accepts one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: unchanged."
 				},
 				"ai_instructions": {
 					"type": "string",
-					"description": "Approach guidance and constraints for whoever implements the item. An empty string clears it. Omitted: unchanged."
+					"description": "Code-level implementation guidance and constraints for the coding agent: exact file paths, line numbers, function or symbol names, code snippets, CSS classes, migration steps, and boundaries not obvious from the code. An empty string clears it. Omitted: unchanged."
 				},
 				"type": {
 					"type": "string",
@@ -4747,7 +4747,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"description": {
 					"type": "string",
-					"description": "Replaces the whole description (what to do and how). For smaller changes use description_edits; the two cannot be combined. An empty string clears it. Omitted: unchanged."
+					"description": "Replaces the whole description (what to do and how: the complete product behaviour, rules, numbers, edge cases, and the architectural or technical mechanism in natural English — duplicate and reversal screening reads title, intent, description, and acceptance_criteria, never ai_instructions, so never strip the technical mechanism out of description; do not dump raw file paths, line numbers, function names, code snippets, CSS class lists, or file-by-file edit recipes into description — put code-level details in ai_instructions). For smaller changes use description_edits; the two cannot be combined. An empty string clears it. Omitted: unchanged."
 				},
 				"description_edits": {
 					"type": "array",
@@ -4824,11 +4824,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							}
 						}
 					],
-					"description": "The complete criteria list; it replaces the stored one. Send an unchanged line as {id, text}, or with the same text, to keep its id and verdicts; lines you leave out are deleted, and an empty list clears them. Also accepts one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: unchanged."
+					"description": "The complete criteria list in plain prose (no raw code blocks, file paths, or CSS class lists); it replaces the stored one. Send an unchanged line as {id, text}, or with the same text, to keep its id and verdicts; lines you leave out are deleted, and an empty list clears them. Also accepts one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: unchanged."
 				},
 				"ai_instructions": {
 					"type": "string",
-					"description": "Approach guidance and constraints for whoever implements the item. An empty string clears it. Omitted: unchanged."
+					"description": "Code-level implementation guidance and constraints for the coding agent: exact file paths, line numbers, function or symbol names, code snippets, CSS classes, migration steps, and boundaries not obvious from the code. An empty string clears it. Omitted: unchanged."
 				},
 				"type": {
 					"type": "string",
@@ -4977,7 +4977,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"description": {
 					"type": "string",
-					"description": "What to do and how: the concrete change. Keep the reason in intent and the definition of done in acceptance_criteria. Omitted: none."
+					"description": "What to do and how: the complete product behaviour, rules, numbers, edge cases, and the architectural or technical mechanism in natural English. Duplicate and reversal screening reads title, intent, description, and acceptance_criteria — never ai_instructions — so never strip the technical mechanism out of description. Do not dump raw file paths, line numbers, function names, code snippets, CSS class lists, or file-by-file edit recipes into description: put code-level details in ai_instructions, the reason in intent, and the definition of done in acceptance_criteria. Omitted: none."
 				},
 				"intent": {
 					"type": "string",
@@ -5015,11 +5015,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							}
 						}
 					],
-					"description": "Checkable conditions that define done, distinct from intent and approach; three to six is typical. A list of strings, or one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: none."
+					"description": "Checkable conditions that define done in plain prose (no raw code blocks, file paths, or CSS class lists), distinct from intent and approach; three to six is typical. A list of strings, or one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: none."
 				},
 				"ai_instructions": {
 					"type": "string",
-					"description": "Approach guidance and constraints for whoever implements it: decisions, trade-offs or boundaries not obvious from the code. Omitted: none."
+					"description": "Code-level implementation guidance and constraints for the coding agent: exact file paths, line numbers, function or symbol names, code snippets, CSS classes, migration steps, and decisions or boundaries not obvious from the code. Omitted: none."
 				},
 				"type": {
 					"type": "string",
@@ -5147,7 +5147,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"description": {
 					"type": "string",
-					"description": "What to do and how: the concrete change. Keep the reason in intent and the definition of done in acceptance_criteria. Omitted: none."
+					"description": "What to do and how: the complete product behaviour, rules, numbers, edge cases, and the architectural or technical mechanism in natural English. Duplicate and reversal screening reads title, intent, description, and acceptance_criteria — never ai_instructions — so never strip the technical mechanism out of description. Do not dump raw file paths, line numbers, function names, code snippets, CSS class lists, or file-by-file edit recipes into description: put code-level details in ai_instructions, the reason in intent, and the definition of done in acceptance_criteria. Omitted: none."
 				},
 				"intent": {
 					"type": "string",
@@ -5185,11 +5185,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							}
 						}
 					],
-					"description": "Checkable conditions that define done, distinct from intent and approach; three to six is typical. A list of strings, or one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: none."
+					"description": "Checkable conditions that define done in plain prose (no raw code blocks, file paths, or CSS class lists), distinct from intent and approach; three to six is typical. A list of strings, or one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: none."
 				},
 				"ai_instructions": {
 					"type": "string",
-					"description": "Approach guidance and constraints for whoever implements it: decisions, trade-offs or boundaries not obvious from the code. Omitted: none."
+					"description": "Code-level implementation guidance and constraints for the coding agent: exact file paths, line numbers, function or symbol names, code snippets, CSS classes, migration steps, and decisions or boundaries not obvious from the code. Omitted: none."
 				},
 				"type": {
 					"type": "string",

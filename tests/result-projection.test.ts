@@ -767,7 +767,20 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// get_memory's) tell agents to keep the human-readable rule and rationale in body
 		// and code-level implementation pointers in ai_instructions. Verbs 84 model /
 		// 12 pump / 1 never-model unchanged; families and hot set unchanged.
-		"c24ecc1dcc78dbd99c0e22b1394ae783f6dc127c5064ab62fac6fa367d920d00",
+		// Rebaselined 2026-10-25 for item dc268eb0 (done also waits for a task's database
+		// changes and a tracked deployment), for the catalogue regenerated against DevSpecV2
+		// f0b785457 (staging 27915da0f plus items 6a708e51 and dc268eb0). record_implementation
+		// and verify_task tool descriptions now point at the implementation contract for what
+		// done requires (outside this fingerprint). Inside it, the regen restores what the
+		// 9f248b08 regen reverted from a stale tree: 4805494c's create_task/update_task
+		// parameter wording (description, acceptance_criteria, ai_instructions), and 353cea43's
+		// `type: [T, "null"]` nullable form (zod 4.6.7, same meaning) on create_task,
+		// update_task, record_memory, supersede_memory, update_memory, create_resource,
+		// update_resource and supersede_resource. No verb added or removed, no input added, no
+		// required field or type change; verbs 84 model / 12 pump / 1 never-model, families and
+		// hot set unchanged. Benchmark before/after: initial surface 53,684 -> 53,957 estimated
+		// tokens; every budget still passes.
+		"38ccb7fa70c9f81caf10d00d673708f47357a0ce78c41de7341939d16ceba70f",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -1019,6 +1032,106 @@ test("suggested work says it is not agreed on its card, and agreed work gains no
 	assert.match(text, /\[item-suggested\] Suggested restore drill[\s\S]*Suggested work, awaiting a Maintainer\u2019s review\. It is not agreed/);
 	assert.match(text, /\[item-declined\] Declined drill[\s\S]*Not agreed work \(declined\)\./);
 	assert.equal((text.match(/agreed work|not agreed/gi) ?? []).length, 2);
+});
+
+// What still holds merged or signed-off work short of done, as DevSpecV2's
+// `doneBlockerToolFields` sends it. Names are deliberately not DevSpec's own, so
+// nothing here can pass on a hardcoded branch, target or provider.
+const awaitingDelivery = {
+	layer: "awaiting_delivery",
+	label: "Waiting to deploy to Acme Preview",
+	merged: true,
+	tracking_branch: "trunk",
+	merged_repos: [{ repo_id: "repo-1", repo_name: "acme/web", tracking_branch: "trunk" }],
+	outstanding: [
+		{ kind: "database_change", status: "not_applied", filename: "0042_add_index.sql", database_connection_id: "db-1", database_name: "Preview database", repo_id: "repo-1", repo_name: "acme/web", tracking_branch: "trunk" },
+		{ kind: "deployment", status: "awaiting", target_names: ["Acme Preview"], repo_id: "repo-1", repo_name: "acme/web", tracking_branch: "trunk" },
+	],
+};
+const notLanded = {
+	layer: "not_landed",
+	label: "Waiting to merge into trunk",
+	merged: false,
+	tracking_branch: "trunk",
+	own_branch: "work/add-index",
+	unmerged_repos: [{ repo_id: "repo-1", repo_name: "acme/web", tracking_branch: "trunk" }],
+};
+const deliveryLine = /⚠ done_blocker \(awaiting_delivery\): Waiting to deploy to Acme Preview — outstanding in acme\/web: database change 0042_add_index\.sql on Preview database \(not applied\); deployment to Acme Preview \(awaiting\)/;
+const landingLine = /⚠ done_blocker \(not_landed\): Waiting to merge into trunk — unmerged: acme\/web → trunk/;
+
+test("a task card keeps what holds the work short of done, even under card budget pressure", () => {
+	const crowded = {
+		id: "item-wait", title: "Add the lookup index", lifecycle: "implemented", type: "task", priority: "high",
+		created_at: "2026-10-20T09:00:00Z", last_activity_at: "2026-10-25T09:00:00Z",
+		intent: huge("Keep lookups fast under load", 400),
+		repos: [{ full_name: `acme/${"w".repeat(110)}` }, { full_name: `acme/${"x".repeat(110)}` }],
+		review_signals: ["possibly_stale", "contradiction"],
+		done_blocker: awaitingDelivery,
+	};
+	for (const name of ["get_tasks", "search_tasks"]) {
+		const text = visible(projectedToolResult(name, unwrapMcpResult(mcpJson({ results: [crowded, { id: "item-landing", title: "Rename the index", lifecycle: "implemented", done_blocker: notLanded }], total: 2 }))));
+		assert.match(text, /\[item-wait\] Add the lookup index[\s\S]*done_blocker/, name);
+		assert.match(text, deliveryLine, name);
+		assert.match(text, /\[item-landing\] Rename the index[\s\S]*Waiting to merge into trunk/, name);
+		assert.match(text, landingLine, name);
+		assert.match(text, /optional card field block\(s\) omitted/, `${name} sheds optional detail, not the blocker`);
+	}
+});
+
+test("an acknowledgement keeps the done blocker as a line and as receipt data", () => {
+	for (const name of ["record_implementation", "verify_task", "update_task"]) {
+		const text = visible(projectedToolResult(name, unwrapMcpResult(mcpJson({
+			outcome: "committed", id: "item-wait", title: "Add the lookup index", lifecycle: "implemented", done_blocker: awaitingDelivery,
+		}))));
+		assert.match(text, deliveryLine, name);
+		assert.match(text, /"done_blocker": \{\n\s+"layer": "awaiting_delivery"/, `${name} keeps the field in its receipt`);
+		assert.match(text, /"filename": "0042_add_index\.sql"/, name);
+		const landing = visible(projectedToolResult(name, unwrapMcpResult(mcpJson({
+			outcome: "committed", id: "item-landing", title: "Rename the index", lifecycle: "implemented", done_blocker: notLanded,
+		}))));
+		assert.match(landing, landingLine, name);
+		assert.match(landing, /"own_branch": "work\/add-index"/, name);
+	}
+	// verify_task's own sentence about where the sign-off left the item survives too.
+	const verified = visible(projectedToolResult("verify_task", unwrapMcpResult(mcpJson({
+		verified: true, task_id: "item-wait", title: "Add the lookup index", lifecycle: "implemented", done_blocker: awaitingDelivery,
+		lifecycle_note: "Waiting to deploy to Acme Preview: verification is recorded.",
+	}))));
+	assert.match(verified, /verify_task: id=item-wait/);
+	assert.match(verified, deliveryLine);
+	assert.match(verified, /"lifecycle_note": "Waiting to deploy to Acme Preview: verification is recorded\."/);
+});
+
+test("a delivery wait across repositories names each, shows failures and checks, and bounds the list", () => {
+	const spread = {
+		layer: "awaiting_delivery",
+		label: "Last deploy to Acme Preview failed",
+		merged: true,
+		outstanding: [
+			{ kind: "deployment", status: "failed", target_names: ["Acme Preview"], repo_id: "repo-1", repo_name: "acme/web", tracking_branch: "trunk" },
+			{ kind: "database_change", status: "checking", filename: "0007_seed.sql", database_name: null, repo_id: "repo-2", repo_name: "acme/api", tracking_branch: "main-line" },
+			{ kind: "deployment", status: "awaiting", target_names: ["API Edge", "API Core"], repo_id: "repo-2", repo_name: "acme/api", tracking_branch: "main-line" },
+			{ kind: "deployment", status: "awaiting", target_names: ["Docs"], repo_id: "repo-3", repo_name: "acme/docs", tracking_branch: "trunk" },
+		],
+	};
+	const text = visible(projectedToolResult("get_tasks", unwrapMcpResult(mcpJson({ items: [{ id: "item-spread", title: "Ship the seed", lifecycle: "implemented", done_blocker: spread }], total: 1 }))));
+	assert.match(text, /done_blocker \(awaiting_delivery\): Last deploy to Acme Preview failed — outstanding: acme\/web deployment to Acme Preview \(failed\); acme\/api database change 0007_seed\.sql \(checking\); acme\/api deployment to API Edge, API Core \(awaiting\); \+1 more \(get_task lists every repository's delivery\)/);
+	assert.doesNotMatch(text, /Docs/);
+});
+
+test("a blocker that only repeats the waiting-for-OK line is not shown twice", () => {
+	const waits = { label: "Waiting for Dana's OK", waiting_on: "Dana Lee", instruction: "Waiting for Dana's OK: build it on its own branch and don't merge it." };
+	const quiet = visible(projectedToolResult("update_task", unwrapMcpResult(mcpJson({
+		id: "item-ok", title: "Undo the cache", lifecycle: "implemented", waiting_for_ok: waits,
+		done_blocker: { layer: "waiting_for_ok", label: "Waiting for Dana's OK", merged: false },
+	}))));
+	assert.equal((quiet.match(/^⚠ /gm) ?? []).length, 1);
+	// Merged before the OK is news the waiting line does not carry.
+	const merged = visible(projectedToolResult("update_task", unwrapMcpResult(mcpJson({
+		id: "item-ok", title: "Undo the cache", lifecycle: "implemented", waiting_for_ok: waits,
+		done_blocker: { layer: "waiting_for_ok", label: "Waiting for Dana's OK", merged: true, tracking_branch: "trunk" },
+	}))));
+	assert.match(merged, /⚠ done_blocker \(waiting_for_ok\): Waiting for Dana's OK — merged into trunk/);
 });
 
 test("task search renders bounded compact cards with an exact fetch path", () => {

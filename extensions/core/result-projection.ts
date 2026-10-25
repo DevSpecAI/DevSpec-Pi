@@ -32,6 +32,7 @@ const CARD_LIMIT = 7;
 const CARD_BUDGET = 560;
 const MANUAL_FOLLOWUP_LIMIT = 3;
 const PENDING_PROPOSAL_LIMIT = 2;
+const OUTSTANDING_LIMIT = 3;
 const LINE_LIMIT = 240;
 // High on purpose: these are binding inputs, not repeated metadata. The cap is
 // only a pathological-payload guard and carries an exact recovery instruction.
@@ -399,7 +400,8 @@ function agreementLine(row: Row, outer: Row): string | null {
  * core.waiting-work-stays-on-its-branch; ADR "Protecting intent" §6.2, §6.9).
  * DevSpec writes the label ("Experiment", or "Waiting for <name>'s OK") and the
  * instruction; Pi shows them as sent. Required wherever it appears: dropping it
- * would let an agent merge waiting work into the tracking branch.
+ * would let an agent merge waiting work into the tracking branch. The done
+ * blocker follows in the same required lines (see doneBlockerLine).
  */
 function waitingLines(row: Row, outer: Row = row): string[] {
 	const waiting = record(row.waiting_for_ok) ?? record(outer.waiting_for_ok);
@@ -413,7 +415,71 @@ function waitingLines(row: Row, outer: Row = row): string[] {
 		const branch = oneLine(first(row, ["experiment_branch"]) ?? first(outer, ["experiment_branch"]), 160);
 		lines.push(`\u26a0 Experiment${branch ? ` (branch ${branch})` : ""}: build and push it on its own branch; never merge it into the tracking branch until it has the OK.`);
 	}
+	const blocker = doneBlockerLine(row, outer, lines.length > 0);
+	if (blocker) lines.push(blocker);
 	return lines;
+}
+
+/**
+ * What still stands between the work and done: an OK, a merge into a Tracking
+ * branch (`not_landed`), or, once merged, a database change or a tracked
+ * deployment (`awaiting_delivery`, with what is `outstanding`). DevSpec writes the
+ * label ("Waiting to deploy to <target>"); Pi shows it as sent, plus the parts.
+ * When done follows is devspec://product/implementation-contract's to say, not
+ * Pi's. Required wherever it appears: dropping it let an agent report waiting
+ * work as done.
+ */
+function doneBlockerLine(row: Row, outer: Row, waitingShown: boolean): string | null {
+	const blocker = record(row.done_blocker) ?? record(outer.done_blocker);
+	if (!blocker) return null;
+	const layer = oneLine(blocker.layer, 40);
+	const label = oneLine(blocker.label, 120) ?? "Not done yet";
+	const parts: string[] = [];
+	if (layer === "waiting_for_ok") {
+		// The waiting line above already says this, unless it merged before the OK.
+		if (blocker.merged !== true && waitingShown) return null;
+		if (blocker.merged === true) parts.push(`merged into ${oneLine(blocker.tracking_branch, 80) ?? "the tracking branch"}`);
+	} else if (layer === "not_landed") {
+		const repos = Array.isArray(blocker.unmerged_repos) ? blocker.unmerged_repos : [];
+		const names = repos.slice(0, OUTSTANDING_LIMIT).map((raw) => {
+			const repo = record(raw) ?? {};
+			const name = oneLine(repo.repo_name, 80);
+			const branch = oneLine(repo.tracking_branch, 80);
+			return name ? `${name}${branch ? ` \u2192 ${branch}` : ""}` : undefined;
+		}).filter((entry): entry is string => Boolean(entry));
+		if (names.length) parts.push(`unmerged: ${names.join(", ")}${repos.length > names.length ? ` (+${repos.length - names.length} more)` : ""}`);
+	} else if (layer === "awaiting_delivery") {
+		const outstanding = (Array.isArray(blocker.outstanding) ? blocker.outstanding : [])
+			.map((raw) => record(raw))
+			.filter((entry): entry is Row => entry !== null);
+		// Name the repository per entry only when the wait spans more than one.
+		const repoNames = new Set(outstanding.map((entry) => oneLine(entry.repo_name, 80)).filter(Boolean));
+		const perRepo = repoNames.size > 1;
+		const entries = outstanding.slice(0, OUTSTANDING_LIMIT).map((entry) => {
+			const status = oneLine(entry.status, 40)?.replace(/_/g, " ") ?? "pending";
+			const repo = perRepo ? oneLine(entry.repo_name, 80) : undefined;
+			let what: string;
+			if (entry.kind === "deployment") {
+				const targets = Array.isArray(entry.target_names)
+					? oneLine(entry.target_names.filter((name) => typeof name === "string").join(", "), 120)
+					: undefined;
+				what = `deployment${targets ? ` to ${targets}` : ""}`;
+			} else if (entry.kind === "database_change") {
+				const file = oneLine(entry.filename, 100);
+				const database = oneLine(entry.database_name, 80);
+				what = `database change${file ? ` ${file}` : ""}${database ? ` on ${database}` : ""}`;
+			} else {
+				what = oneLine(entry.kind, 40)?.replace(/_/g, " ") ?? "delivery";
+			}
+			return `${repo ? `${repo} ` : ""}${what} (${status})`;
+		});
+		if (entries.length) {
+			const only = repoNames.size === 1 ? [...repoNames][0] : undefined;
+			const more = outstanding.length - entries.length;
+			parts.push(`outstanding${only ? ` in ${only}` : ""}: ${entries.join("; ")}${more > 0 ? `; +${more} more (get_task lists every repository's delivery)` : ""}`);
+		}
+	}
+	return `\u26a0 done_blocker${layer ? ` (${layer})` : ""}: ${label}${parts.length ? ` \u2014 ${parts.join("; ")}` : ""}`;
 }
 
 function card(raw: unknown, index: number): string {
@@ -839,11 +905,13 @@ function ackProjection(toolName: string, details: unknown): string | null {
 		"auto_tagged",
 		// An item DevSpec opened for an untagged commit, with its ownership follow-up.
 		"ownership_followup",
+		// verify_task: DevSpec's sentence for where a sign-off left the item.
+		"lifecycle_note",
 	]) if (hasOwn(root, key)) receipt[key] = root[key];
-	// Work that waits for an OK or is an experiment (also rendered as a line above).
-	// Every item row carries these fields; only a set one says anything.
+	// Work that waits for an OK, is an experiment, or is not done yet (also rendered
+	// as a line above). Every item row carries these fields; only a set one says anything.
 	for (const source of entity === root ? [root] : [entity, root]) {
-		for (const key of ["waiting_for_ok", "is_experiment", "experiment_branch", "badge", "agreement"]) {
+		for (const key of ["waiting_for_ok", "is_experiment", "experiment_branch", "badge", "agreement", "done_blocker"]) {
 			const value = source[key];
 			if (value !== null && value !== undefined && value !== false && !hasOwn(receipt, key)) receipt[key] = value;
 		}

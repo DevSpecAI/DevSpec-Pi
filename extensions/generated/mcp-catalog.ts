@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 597b80087a9c81254bcadca27d3101d6fc63f738a59d38b836b4e30e715f4f53
- * Description fingerprint: fd793ada96d07630fb21b914390f88809444049e0f32cdeb75f277e46334f8a8
- * Regenerated: 2026-10-25T03:02:55.477Z
+ * Schema fingerprint: 63050ebeaf9289657bbe2fa0f2e3bb6026a6b1fa9a1ccad9dadbaeb58e738cca
+ * Description fingerprint: 15f0d731160435956c8e20724bd2b407b5fc2acef0310fdb71ac2ee04389ed9c
+ * Regenerated: 2026-10-25T10:34:45.084Z
  */
-export const MCP_CATALOG_FINGERPRINT = "597b80087a9c81254bcadca27d3101d6fc63f738a59d38b836b4e30e715f4f53";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "fd793ada96d07630fb21b914390f88809444049e0f32cdeb75f277e46334f8a8";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-25T03:02:55.477Z";
-export const TOOL_CATALOG_VERSION = "793cf81c9b2bba59ff56951571659d899f74c02dbf8dbbbff27a9aab48fadc39";
+export const MCP_CATALOG_FINGERPRINT = "63050ebeaf9289657bbe2fa0f2e3bb6026a6b1fa9a1ccad9dadbaeb58e738cca";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "15f0d731160435956c8e20724bd2b407b5fc2acef0310fdb71ac2ee04389ed9c";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-25T10:34:45.084Z";
+export const TOOL_CATALOG_VERSION = "4b06d0a646897ddd86928c543961597e545dca7b6fecd6c68a7a0e8c90ce1510";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -152,7 +152,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_memory",
 		"name": "get memory",
-		"description": "Read one memory in full: its body, state, lineage and change history. Search and list tools return cards; read the body here before relying on a memory, superseding it or contradicting it. If superseded_by is set, a newer version is current: read that one. Every earlier version stays readable in full: each history entry's resultRowId is that version's id, to pass here. Changes proposed and not yet agreed are in pending_versions, beside the agreed text and never part of it; delivery, when present, says the decision is not implemented yet and which item delivers it. Accepts the 8-character short code. For older history, pass history_next_before as history_before. If the response carries evidence, follow its evidence_guidance. A read that fails says unavailable, never not found: try again rather than concluding the memory does not exist.",
+		"description": "Read one memory in full: its body, optional ai_instructions (implementation guidance), state, lineage and change history. Search and list tools return cards; read the body here before relying on a memory, superseding it or contradicting it. If superseded_by is set, a newer version is current: read that one. Every earlier version stays readable in full: each history entry's resultRowId is that version's id, to pass here. Changes proposed and not yet agreed are in pending_versions, beside the agreed text and never part of it; delivery, when present, says the decision is not implemented yet and which item delivers it. Accepts the 8-character short code. For older history, pass history_next_before as history_before. If the response carries evidence, follow its evidence_guidance. A read that fails says unavailable, never not found: try again rather than concluding the memory does not exist.",
 		"intent": "read full memory decision convention rationale history lineage"
 	},
 	{
@@ -344,7 +344,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_memory",
 		"name": "record memory",
-		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Individual architecture decisions and team conventions belong here—never in create_resource. Work in progress and delivery evidence belong on the task (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a standing long-form guide, reference document or runbook is an artifact (create_resource). Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Individual architecture decisions and team conventions belong here—never in create_resource. Put the human-readable rule and rationale (what the decision or rule is and why) in body, and put code-level mechanics (file paths, function/symbol names, database columns, CSS classes, code snippets) in ai_instructions. Work in progress and delivery evidence belong on the task (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a standing long-form guide, reference document or runbook is an artifact (create_resource). Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "record save capture remember new decision convention architecture insight risk"
 	},
 	{
@@ -440,7 +440,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "supersede_memory",
 		"name": "supersede memory",
-		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. Put the human-readable rule and rationale in body and code-level pointers in ai_instructions. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "replace changed decision memory new agreed version supersede"
 	},
 	{
@@ -476,7 +476,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "update_memory",
 		"name": "update memory",
-		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence or affected files, or correct its title, summary or body. State, tags, confidence and affected files change in place. A wording change saves a new version with a new id, returned in the response: cite that id from then on. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
+		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence, affected files or ai_instructions, or correct its title, summary or body. State, tags, confidence, affected files and ai_instructions change in place. A wording change (title, summary or body) saves a new version with a new id, returned in the response: cite that id from then on. Put the human-readable rule and rationale in body and code-level pointers in ai_instructions. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
 		"intent": "mark memory decided agreed promote correct edit wording tags existing memory"
 	},
 	{
@@ -2619,7 +2619,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_memory",
 		"label": "DevSpec: Get Memory",
-		"description": "Read one memory in full: its body, state, lineage and change history. Search and list tools return cards; read the body here before relying on a memory, superseding it or contradicting it. If superseded_by is set, a newer version is current: read that one. Every earlier version stays readable in full: each history entry's resultRowId is that version's id, to pass here. Changes proposed and not yet agreed are in pending_versions, beside the agreed text and never part of it; delivery, when present, says the decision is not implemented yet and which item delivers it. Accepts the 8-character short code. For older history, pass history_next_before as history_before. If the response carries evidence, follow its evidence_guidance. A read that fails says unavailable, never not found: try again rather than concluding the memory does not exist.",
+		"description": "Read one memory in full: its body, optional ai_instructions (implementation guidance), state, lineage and change history. Search and list tools return cards; read the body here before relying on a memory, superseding it or contradicting it. If superseded_by is set, a newer version is current: read that one. Every earlier version stays readable in full: each history entry's resultRowId is that version's id, to pass here. Changes proposed and not yet agreed are in pending_versions, beside the agreed text and never part of it; delivery, when present, says the decision is not implemented yet and which item delivers it. Accepts the 8-character short code. For older history, pass history_next_before as history_before. If the response carries evidence, follow its evidence_guidance. A read that fails says unavailable, never not found: try again rather than concluding the memory does not exist.",
 		"searchIntent": "read full memory decision convention rationale history lineage",
 		"modelInputSchema": {
 			"type": "object",
@@ -4521,7 +4521,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"description": {
 					"type": "string",
-					"description": "Replaces the whole description (what to do and how: the complete product behaviour, rules, numbers, edge cases, and the architectural or technical mechanism in natural English — duplicate and reversal screening reads title, intent, description, and acceptance_criteria, never ai_instructions, so never strip the technical mechanism out of description; do not dump raw file paths, line numbers, function names, code snippets, CSS class lists, or file-by-file edit recipes into description — put code-level details in ai_instructions). For smaller changes use description_edits; the two cannot be combined. An empty string clears it. Omitted: unchanged."
+					"description": "Replaces the whole description (what to do and how). For smaller changes use description_edits; the two cannot be combined. An empty string clears it. Omitted: unchanged."
 				},
 				"description_edits": {
 					"type": "array",
@@ -4598,11 +4598,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							}
 						}
 					],
-					"description": "The complete criteria list in plain prose (no raw code blocks, file paths, or CSS class lists); it replaces the stored one. Send an unchanged line as {id, text}, or with the same text, to keep its id and verdicts; lines you leave out are deleted, and an empty list clears them. Also accepts one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: unchanged."
+					"description": "The complete criteria list; it replaces the stored one. Send an unchanged line as {id, text}, or with the same text, to keep its id and verdicts; lines you leave out are deleted, and an empty list clears them. Also accepts one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: unchanged."
 				},
 				"ai_instructions": {
 					"type": "string",
-					"description": "Code-level implementation guidance and constraints for the coding agent: exact file paths, line numbers, function or symbol names, code snippets, CSS classes, migration steps, and boundaries not obvious from the code. An empty string clears it. Omitted: unchanged."
+					"description": "Approach guidance and constraints for whoever implements the item. An empty string clears it. Omitted: unchanged."
 				},
 				"type": {
 					"type": "string",
@@ -4685,11 +4685,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "The DevSpec room this edit is made for, when you are working on a room's behalf (UUID or short code): the change is recorded as made in that room and shows in its This session panel. It must be a room in this project that you can open; any other id refuses the call and nothing changes. Omitted: no room."
 				},
 				"assigned_to": {
-					"description": "Adds this user (UUID) as an assignee; existing assignees stay. null removes every assignee, so to hand the item to someone else, clear with null and then add them. Once assigned, only an assignee can claim the item without forcing. An assignment that cannot be stored is listed under not_stored. Omitted: unchanged.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Adds this user (UUID) as an assignee; existing assignees stay. null removes every assignee, so to hand the item to someone else, clear with null and then add them. Once assigned, only an assignee can claim the item without forcing. An assignment that cannot be stored is listed under not_stored. Omitted: unchanged."
 				},
 				"commit_sha": {
 					"type": "string",
@@ -4700,11 +4704,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replaces the item's completion note, the delivery summary shown on the item, rather than adding to it. To add a remark, use add_implementation_note. Omitted: unchanged."
 				},
 				"parent_task_id": {
-					"description": "Moves the item under this brief (UUID or short code). The brief must itself be top-level and in this project, and a brief that is already implemented or done is reopened for a new round. null takes the item out of its brief, and the brief can then roll up to done without it; unlike spin_off_task, it records no derived_from link back to the brief. Omitted: unchanged.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Moves the item under this brief (UUID or short code). The brief must itself be top-level and in this project, and a brief that is already implemented or done is reopened for a new round. null takes the item out of its brief, and the brief can then roll up to done without it; unlike spin_off_task, it records no derived_from link back to the brief. Omitted: unchanged."
 				},
 				"goal_ids": {
 					"type": "array",
@@ -4747,7 +4755,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"description": {
 					"type": "string",
-					"description": "Replaces the whole description (what to do and how: the complete product behaviour, rules, numbers, edge cases, and the architectural or technical mechanism in natural English — duplicate and reversal screening reads title, intent, description, and acceptance_criteria, never ai_instructions, so never strip the technical mechanism out of description; do not dump raw file paths, line numbers, function names, code snippets, CSS class lists, or file-by-file edit recipes into description — put code-level details in ai_instructions). For smaller changes use description_edits; the two cannot be combined. An empty string clears it. Omitted: unchanged."
+					"description": "Replaces the whole description (what to do and how). For smaller changes use description_edits; the two cannot be combined. An empty string clears it. Omitted: unchanged."
 				},
 				"description_edits": {
 					"type": "array",
@@ -4824,11 +4832,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							}
 						}
 					],
-					"description": "The complete criteria list in plain prose (no raw code blocks, file paths, or CSS class lists); it replaces the stored one. Send an unchanged line as {id, text}, or with the same text, to keep its id and verdicts; lines you leave out are deleted, and an empty list clears them. Also accepts one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: unchanged."
+					"description": "The complete criteria list; it replaces the stored one. Send an unchanged line as {id, text}, or with the same text, to keep its id and verdicts; lines you leave out are deleted, and an empty list clears them. Also accepts one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: unchanged."
 				},
 				"ai_instructions": {
 					"type": "string",
-					"description": "Code-level implementation guidance and constraints for the coding agent: exact file paths, line numbers, function or symbol names, code snippets, CSS classes, migration steps, and boundaries not obvious from the code. An empty string clears it. Omitted: unchanged."
+					"description": "Approach guidance and constraints for whoever implements the item. An empty string clears it. Omitted: unchanged."
 				},
 				"type": {
 					"type": "string",
@@ -4911,11 +4919,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "The DevSpec room this edit is made for, when you are working on a room's behalf (UUID or short code): the change is recorded as made in that room and shows in its This session panel. It must be a room in this project that you can open; any other id refuses the call and nothing changes. Omitted: no room."
 				},
 				"assigned_to": {
-					"description": "Adds this user (UUID) as an assignee; existing assignees stay. null removes every assignee, so to hand the item to someone else, clear with null and then add them. Once assigned, only an assignee can claim the item without forcing. An assignment that cannot be stored is listed under not_stored. Omitted: unchanged.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Adds this user (UUID) as an assignee; existing assignees stay. null removes every assignee, so to hand the item to someone else, clear with null and then add them. Once assigned, only an assignee can claim the item without forcing. An assignment that cannot be stored is listed under not_stored. Omitted: unchanged."
 				},
 				"commit_sha": {
 					"type": "string",
@@ -4926,11 +4938,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replaces the item's completion note, the delivery summary shown on the item, rather than adding to it. To add a remark, use add_implementation_note. Omitted: unchanged."
 				},
 				"parent_task_id": {
-					"description": "Moves the item under this brief (UUID or short code). The brief must itself be top-level and in this project, and a brief that is already implemented or done is reopened for a new round. null takes the item out of its brief, and the brief can then roll up to done without it; unlike spin_off_task, it records no derived_from link back to the brief. Omitted: unchanged.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Moves the item under this brief (UUID or short code). The brief must itself be top-level and in this project, and a brief that is already implemented or done is reopened for a new round. null takes the item out of its brief, and the brief can then roll up to done without it; unlike spin_off_task, it records no derived_from link back to the brief. Omitted: unchanged."
 				},
 				"goal_ids": {
 					"type": "array",
@@ -4977,7 +4993,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"description": {
 					"type": "string",
-					"description": "What to do and how: the complete product behaviour, rules, numbers, edge cases, and the architectural or technical mechanism in natural English. Duplicate and reversal screening reads title, intent, description, and acceptance_criteria — never ai_instructions — so never strip the technical mechanism out of description. Do not dump raw file paths, line numbers, function names, code snippets, CSS class lists, or file-by-file edit recipes into description: put code-level details in ai_instructions, the reason in intent, and the definition of done in acceptance_criteria. Omitted: none."
+					"description": "What to do and how: the concrete change. Keep the reason in intent and the definition of done in acceptance_criteria. Omitted: none."
 				},
 				"intent": {
 					"type": "string",
@@ -5015,11 +5031,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							}
 						}
 					],
-					"description": "Checkable conditions that define done in plain prose (no raw code blocks, file paths, or CSS class lists), distinct from intent and approach; three to six is typical. A list of strings, or one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: none."
+					"description": "Checkable conditions that define done, distinct from intent and approach; three to six is typical. A list of strings, or one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: none."
 				},
 				"ai_instructions": {
 					"type": "string",
-					"description": "Code-level implementation guidance and constraints for the coding agent: exact file paths, line numbers, function or symbol names, code snippets, CSS classes, migration steps, and decisions or boundaries not obvious from the code. Omitted: none."
+					"description": "Approach guidance and constraints for whoever implements it: decisions, trade-offs or boundaries not obvious from the code. Omitted: none."
 				},
 				"type": {
 					"type": "string",
@@ -5147,7 +5163,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"description": {
 					"type": "string",
-					"description": "What to do and how: the complete product behaviour, rules, numbers, edge cases, and the architectural or technical mechanism in natural English. Duplicate and reversal screening reads title, intent, description, and acceptance_criteria — never ai_instructions — so never strip the technical mechanism out of description. Do not dump raw file paths, line numbers, function names, code snippets, CSS class lists, or file-by-file edit recipes into description: put code-level details in ai_instructions, the reason in intent, and the definition of done in acceptance_criteria. Omitted: none."
+					"description": "What to do and how: the concrete change. Keep the reason in intent and the definition of done in acceptance_criteria. Omitted: none."
 				},
 				"intent": {
 					"type": "string",
@@ -5185,11 +5201,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							}
 						}
 					],
-					"description": "Checkable conditions that define done in plain prose (no raw code blocks, file paths, or CSS class lists), distinct from intent and approach; three to six is typical. A list of strings, or one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: none."
+					"description": "Checkable conditions that define done, distinct from intent and approach; three to six is typical. A list of strings, or one block of text with a criterion per line. At most 30 entries of 1,000 characters each. Omitted: none."
 				},
 				"ai_instructions": {
 					"type": "string",
-					"description": "Code-level implementation guidance and constraints for the coding agent: exact file paths, line numbers, function or symbol names, code snippets, CSS classes, migration steps, and decisions or boundaries not obvious from the code. Omitted: none."
+					"description": "Approach guidance and constraints for whoever implements it: decisions, trade-offs or boundaries not obvious from the code. Omitted: none."
 				},
 				"type": {
 					"type": "string",
@@ -8855,7 +8871,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_memory",
 		"label": "DevSpec: Record Memory",
-		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Individual architecture decisions and team conventions belong here—never in create_resource. Work in progress and delivery evidence belong on the task (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a standing long-form guide, reference document or runbook is an artifact (create_resource). Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Individual architecture decisions and team conventions belong here—never in create_resource. Put the human-readable rule and rationale (what the decision or rule is and why) in body, and put code-level mechanics (file paths, function/symbol names, database columns, CSS classes, code snippets) in ai_instructions. Work in progress and delivery evidence belong on the task (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a standing long-form guide, reference document or runbook is an artifact (create_resource). Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "record save capture remember new decision convention architecture insight risk",
 		"modelInputSchema": {
 			"type": "object",
@@ -8884,7 +8900,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"body": {
 					"type": "string",
-					"description": "The full text, in Markdown."
+					"description": "The human-readable rule and rationale, in Markdown: state the decision, convention, insight or risk and why it exists in clear prose. Keep code-level mechanics (file paths, function/symbol names, database columns, CSS classes, code snippets) out of body and in ai_instructions so the prose stays scannable and embeds cleanly."
+				},
+				"ai_instructions": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Optional code-level implementation guidance in Markdown: file paths, function/symbol names, database tables/columns, CSS classes, and code snippets for coding agents. Excluded from embeddings and intent screening, and collapsed by default in the web UI. Omitted: none."
 				},
 				"tags": {
 					"type": "array",
@@ -8917,11 +8944,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "A fresh UUID for each intended memory. Required when the write is queued for review, which you cannot always know in advance, so send one every time. Resending a key saves nothing new: with the same fields you get the first result back; with different fields a direct write still answers with the first memory's id and a queued one is refused. Never reuse a key for a different memory. Omitted: a write queued for review is refused, and a direct one counts as a resend only when your connection is attached to a session and the same type and body are sent again from it."
 				},
 				"delivering_task_id": {
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -8977,7 +9008,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"body": {
 					"type": "string",
-					"description": "The full text, in Markdown."
+					"description": "The human-readable rule and rationale, in Markdown: state the decision, convention, insight or risk and why it exists in clear prose. Keep code-level mechanics (file paths, function/symbol names, database columns, CSS classes, code snippets) out of body and in ai_instructions so the prose stays scannable and embeds cleanly."
+				},
+				"ai_instructions": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Optional code-level implementation guidance in Markdown: file paths, function/symbol names, database tables/columns, CSS classes, and code snippets for coding agents. Excluded from embeddings and intent screening, and collapsed by default in the web UI. Omitted: none."
 				},
 				"tags": {
 					"type": "array",
@@ -9010,11 +9052,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "A fresh UUID for each intended memory. Required when the write is queued for review, which you cannot always know in advance, so send one every time. Resending a key saves nothing new: with the same fields you get the first result back; with different fields a direct write still answers with the first memory's id and a queued one is refused. Never reuse a key for a different memory. Omitted: a write queued for review is refused, and a direct one counts as a resend only when your connection is attached to a session and the same type and body are sent again from it."
 				},
 				"delivering_task_id": {
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -9053,7 +9099,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "supersede_memory",
 		"label": "DevSpec: Supersede Memory",
-		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. Put the human-readable rule and rationale in body and code-level pointers in ai_instructions. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "replace changed decision memory new agreed version supersede",
 		"modelInputSchema": {
 			"type": "object",
@@ -9087,7 +9133,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"body": {
 					"type": "string",
-					"description": "The new version's full text, in Markdown."
+					"description": "The new version's human-readable rule and rationale, in Markdown. Keep code-level pointers (file paths, function/symbol names, database columns, CSS classes, code snippets) in ai_instructions."
+				},
+				"ai_instructions": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Optional code-level implementation guidance for the new version in Markdown (file paths, symbol names, database columns, code snippets), or null to clear it. Omitted: the current ai_instructions are kept."
 				},
 				"tags": {
 					"type": "array",
@@ -9116,11 +9173,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replaces the affected-files list. Omitted: the current list is kept."
 				},
 				"delivering_task_id": {
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -9173,7 +9234,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"body": {
 					"type": "string",
-					"description": "The new version's full text, in Markdown."
+					"description": "The new version's human-readable rule and rationale, in Markdown. Keep code-level pointers (file paths, function/symbol names, database columns, CSS classes, code snippets) in ai_instructions."
+				},
+				"ai_instructions": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Optional code-level implementation guidance for the new version in Markdown (file paths, symbol names, database columns, code snippets), or null to clear it. Omitted: the current ai_instructions are kept."
 				},
 				"tags": {
 					"type": "array",
@@ -9202,11 +9274,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replaces the affected-files list. Omitted: the current list is kept."
 				},
 				"delivering_task_id": {
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -9237,7 +9313,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_memory",
 		"label": "DevSpec: Update Memory",
-		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence or affected files, or correct its title, summary or body. State, tags, confidence and affected files change in place. A wording change saves a new version with a new id, returned in the response: cite that id from then on. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
+		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence, affected files or ai_instructions, or correct its title, summary or body. State, tags, confidence, affected files and ai_instructions change in place. A wording change (title, summary or body) saves a new version with a new id, returned in the response: cite that id from then on. Put the human-readable rule and rationale in body and code-level pointers in ai_instructions. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
 		"searchIntent": "mark memory decided agreed promote correct edit wording tags existing memory",
 		"modelInputSchema": {
 			"type": "object",
@@ -9282,20 +9358,35 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Replaces the affected-files list. Changed in place; with a wording change it goes on the new version instead. Omitted: unchanged."
 				},
+				"ai_instructions": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Optional code-level implementation guidance in Markdown (file paths, function/symbol names, database columns, CSS classes, code snippets), or null to clear it. Changed in place without minting a new version; with a wording change it goes on the new version instead. Omitted: unchanged."
+				},
 				"title": {
 					"type": "string",
 					"description": "A corrected concise single-line noun phrase naming the subject or surface and the core decision or rule so it reads naturally on cards and aloud (at most 115 characters); move comma-separated extra details and conditions into summary or body. Saves a new version. Omitted: unchanged."
 				},
 				"summary": {
-					"description": "A corrected one-sentence restatement (at most 400 characters), or null to clear it. Saves a new version. Omitted: unchanged.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "A corrected one-sentence restatement (at most 400 characters), or null to clear it. Saves a new version. Omitted: unchanged."
 				},
 				"body": {
 					"type": "string",
-					"description": "The corrected full text, in Markdown. Saves a new version and is compared with existing memories. Omitted: unchanged."
+					"description": "The corrected human-readable rule and rationale, in Markdown. Keep code-level pointers (file paths, symbol names, database columns, code snippets) in ai_instructions. Saves a new version and is compared with existing memories. Omitted: unchanged."
 				},
 				"note": {
 					"type": "string",
@@ -9313,11 +9404,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "The receipt_id of a preview_required answer, confirming that exact previewed edit. Send the same edit again with it before expires_at; any change to the edit needs a new preview. Omitted: an edit that needs a preview answers preview_required and changes nothing."
 				},
 				"delivering_task_id": {
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -9379,20 +9474,35 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Replaces the affected-files list. Changed in place; with a wording change it goes on the new version instead. Omitted: unchanged."
 				},
+				"ai_instructions": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Optional code-level implementation guidance in Markdown (file paths, function/symbol names, database columns, CSS classes, code snippets), or null to clear it. Changed in place without minting a new version; with a wording change it goes on the new version instead. Omitted: unchanged."
+				},
 				"title": {
 					"type": "string",
 					"description": "A corrected concise single-line noun phrase naming the subject or surface and the core decision or rule so it reads naturally on cards and aloud (at most 115 characters); move comma-separated extra details and conditions into summary or body. Saves a new version. Omitted: unchanged."
 				},
 				"summary": {
-					"description": "A corrected one-sentence restatement (at most 400 characters), or null to clear it. Saves a new version. Omitted: unchanged.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "A corrected one-sentence restatement (at most 400 characters), or null to clear it. Saves a new version. Omitted: unchanged."
 				},
 				"body": {
 					"type": "string",
-					"description": "The corrected full text, in Markdown. Saves a new version and is compared with existing memories. Omitted: unchanged."
+					"description": "The corrected human-readable rule and rationale, in Markdown. Keep code-level pointers (file paths, symbol names, database columns, code snippets) in ai_instructions. Saves a new version and is compared with existing memories. Omitted: unchanged."
 				},
 				"note": {
 					"type": "string",
@@ -9410,11 +9520,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "The receipt_id of a preview_required answer, confirming that exact previewed edit. Send the same edit again with it before expires_at; any change to the edit needs a new preview. Omitted: an edit that needs a preview answers preview_required and changes nothing."
 				},
 				"delivering_task_id": {
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -9803,11 +9917,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "A fresh UUID for each intended document. Required when the creation is queued for review, which you cannot always know in advance, so send one every time. Resending a key saves nothing new: with the same fields you get the first result back; with different fields a direct creation still answers with the first document's id and a queued one is refused. Never reuse a key for a different document. Omitted: a creation queued for review is refused, and a direct one counts as a resend only when your connection is attached to a session and the same type, title, summary and body are sent again from it."
 				},
 				"delivering_task_id": {
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -9875,11 +9993,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "A fresh UUID for each intended document. Required when the creation is queued for review, which you cannot always know in advance, so send one every time. Resending a key saves nothing new: with the same fields you get the first result back; with different fields a direct creation still answers with the first document's id and a queued one is refused. Never reuse a key for a different document. Omitted: a creation queued for review is refused, and a direct one counts as a resend only when your connection is attached to a session and the same type, title, summary and body are sent again from it."
 				},
 				"delivering_task_id": {
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -9990,11 +10112,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replaces the tag list (at most 10). Tags alone change in place. Omitted: the current tags are kept."
 				},
 				"delivering_task_id": {
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -10084,11 +10210,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replaces the tag list (at most 10). Tags alone change in place. Omitted: the current tags are kept."
 				},
 				"delivering_task_id": {
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -10170,11 +10300,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replaces the tag list (at most 10). Omitted: the current tags are kept."
 				},
 				"delivering_task_id": {
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -10246,11 +10380,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replaces the tag list (at most 10). Omitted: the current tags are kept."
 				},
 				"delivering_task_id": {
-					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The task that will deliver this decision while its code does not do it yet: its id or 8-character short code. The record then reads \"Decided, not yet implemented\", linked to that item, until the item is implemented. null removes the link. Omitted: unchanged, or none on a new record."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -14118,11 +14256,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "With room_context_version 1: also send session_events, the dated history of what happened to the room's records (produced, first mentioned, lifecycle moves, supersessions, retractions, archives). Add the events you lack and never rewrite one you hold; status unavailable means it could not be read completely, not that nothing happened."
 				},
 				"session_events_revision": {
-					"description": "The session_events revision you hold (null the first time); requires session_events_version 1. While it is current the section resends no events.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The session_events revision you hold (null the first time); requires session_events_version 1. While it is current the section resends no events."
 				},
 				"room_open_message_ids": {
 					"maxItems": 500,
@@ -14611,11 +14753,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "With room_context_version 1: also send session_events, the dated history of what happened to the room's records (produced, first mentioned, lifecycle moves, supersessions, retractions, archives). Add the events you lack and never rewrite one you hold; status unavailable means it could not be read completely, not that nothing happened."
 				},
 				"session_events_revision": {
-					"description": "The session_events revision you hold (null the first time); requires session_events_version 1. While it is current the section resends no events.",
-					"type": [
-						"string",
-						"null"
-					]
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "The session_events revision you hold (null the first time); requires session_events_version 1. While it is current the section resends no events."
 				},
 				"room_open_message_ids": {
 					"maxItems": 500,

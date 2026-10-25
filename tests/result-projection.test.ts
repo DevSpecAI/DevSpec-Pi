@@ -761,7 +761,13 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// server staging description updates on get_task/get_memory/get_resource screening
 		// progress. Verbs 84 model / 12 pump / 1 never-model unchanged; families and hot set
 		// unchanged; every budget passes.
-		"026f43d28570970c336bf10007529660ade318a4aeb16ae9e9d62b67b6bf9adf",
+		// Rebaselined 2026-10-25 for DevSpec item 9f248b08 (memory ai_instructions and
+		// field-partitioning rules, DevSpecV2 #693): record_memory, supersede_memory and
+		// update_memory gain optional ai_instructions, and their descriptions (plus
+		// get_memory's) tell agents to keep the human-readable rule and rationale in body
+		// and code-level implementation pointers in ai_instructions. Verbs 84 model /
+		// 12 pump / 1 never-model unchanged; families and hot set unchanged.
+		"c24ecc1dcc78dbd99c0e22b1394ae783f6dc127c5064ab62fac6fa367d920d00",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

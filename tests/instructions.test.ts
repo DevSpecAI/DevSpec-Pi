@@ -72,6 +72,12 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /never narrate individual tools/);
 	assert.match(text, /architectural or technical mechanism in natural English/);
 	assert.match(text, /never ai_instructions/);
+	assert.match(text, /keep each task atomic around one primary subject/i);
+	assert.match(text, /link_tasks/);
+	assert.match(text, /Keep each memory atomic around one primary decision, convention, insight, or risk/);
+	assert.match(text, /companion_links/);
+	assert.match(text, /substance and rationale/);
+	assert.doesNotMatch(text, /rule and rationale/);
 });
 
 test("bonded remote prose distinguishes delegated scope and points to served policy", () => {

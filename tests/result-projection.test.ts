@@ -764,7 +764,7 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// Rebaselined 2026-10-25 for DevSpec item 9f248b08 (memory ai_instructions and
 		// field-partitioning rules, DevSpecV2 #693): record_memory, supersede_memory and
 		// update_memory gain optional ai_instructions, and their descriptions (plus
-		// get_memory's) tell agents to keep the human-readable rule and rationale in body
+		// get_memory's) tell agents to keep the human-readable substance and rationale in body
 		// and code-level implementation pointers in ai_instructions. Verbs 84 model /
 		// 12 pump / 1 never-model unchanged; families and hot set unchanged.
 		// Rebaselined 2026-10-25 for item dc268eb0 (done also waits for a task's database
@@ -780,7 +780,12 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// required field or type change; verbs 84 model / 12 pump / 1 never-model, families and
 		// hot set unchanged. Benchmark before/after: initial surface 53,684 -> 53,957 estimated
 		// tokens; every budget still passes.
-		"38ccb7fa70c9f81caf10d00d673708f47357a0ce78c41de7341939d16ceba70f",
+		// Rebaselined 2026-10-25 for DevSpec items d91cac62 and d65f4039 (inline companion_links
+		// on record_memory and supersede_memory, companions surfaced on memory reads and task
+		// recall, 'substance and rationale' / 'core substance' wording, and anti-bundling
+		// guidance across task and memory tools). Verbs 84 model / 12 pump / 1 never-model
+		// unchanged; families and hot set unchanged; every budget passes.
+		"6bce9c105c40e30d74581ae41b82ef9f575055e0196a5b6821fe61a76a1c15d4",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

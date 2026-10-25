@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: b3aa99ed2522aeaf9ea93d71d675699885a4944ccba6871f9b3d4e13078da2c7
- * Description fingerprint: 94aa98a47de63f9165e4e27d3d4e99239fe6fed7b235732f17872b881a5c6dc9
- * Regenerated: 2026-10-25T14:30:15.390Z
+ * Schema fingerprint: c48c06f7bb4539e319b4893988ca693acab7c2273697895cd6f4d8e756d98da9
+ * Description fingerprint: b4453e0a4f923c4ba1bf13f05005973feaab6166e5d7b8ba89a76e8787befa8c
+ * Regenerated: 2026-10-25T15:40:10.090Z
  */
-export const MCP_CATALOG_FINGERPRINT = "b3aa99ed2522aeaf9ea93d71d675699885a4944ccba6871f9b3d4e13078da2c7";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "94aa98a47de63f9165e4e27d3d4e99239fe6fed7b235732f17872b881a5c6dc9";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-25T14:30:15.390Z";
-export const TOOL_CATALOG_VERSION = "01270986b15925a7e595a7c76cc460cd92117bfc12dce7acba532033ad410e1e";
+export const MCP_CATALOG_FINGERPRINT = "c48c06f7bb4539e319b4893988ca693acab7c2273697895cd6f4d8e756d98da9";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "b4453e0a4f923c4ba1bf13f05005973feaab6166e5d7b8ba89a76e8787befa8c";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-25T15:40:10.090Z";
+export const TOOL_CATALOG_VERSION = "963b5f8165a768a92a6d01c5e0b956f859831d42c0389d1707f3d8e9aee8d24b";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -68,7 +68,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "create_task",
 		"name": "create task",
-		"description": "Create a new task: a title, the intent behind it and checkable acceptance criteria. Search for an existing item first (search_tasks); whether work should be tracked at all is set by work_entry_contract in devspec://product/implementation-contract. For work already done, use record_completed_work; for new scope found while working on another item, pass follow_up_from_task_id. With session_id the item also gets a card in that room. It can come back queued_for_review with a proposal_id: the item is saved as suggested work, and nothing is authorised until a Maintainer accepts it.",
+		"description": "Create a new task: a title, the intent behind it and checkable acceptance criteria. Keep each task atomic around one primary subject or cohesive deliverable; when work spans independent deliverables, unrelated subjects, or separate carve-outs, create separate tasks (or child tasks under a parent brief) and connect them with parent_task_id, follow_up_from_task_id, or link_tasks instead of bundling them into one task. Search for an existing item first (search_tasks); whether work should be tracked at all is set by work_entry_contract in devspec://product/implementation-contract. For work already done, use record_completed_work; for new scope found while working on another item, pass follow_up_from_task_id. With session_id the item also gets a card in that room. It can come back queued_for_review with a proposal_id: the item is saved as suggested work, and nothing is authorised until a Maintainer accepts it.",
 		"intent": "create capture requested new durable task feature bug work task"
 	},
 	{
@@ -152,7 +152,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_memory",
 		"name": "get memory",
-		"description": "Read one memory in full: its body, optional ai_instructions (implementation guidance), state, lineage and change history. Search and list tools return cards; read the body here before relying on a memory, superseding it or contradicting it. If superseded_by is set, a newer version is current: read that one. Every earlier version stays readable in full: each history entry's resultRowId is that version's id, to pass here. Changes proposed and not yet agreed are in pending_versions, beside the agreed text and never part of it; delivery, when present, says the decision is not implemented yet and which item delivers it. Accepts the 8-character short code. For older history, pass history_next_before as history_before. If the response carries evidence, follow its evidence_guidance. A read that fails says unavailable, never not found: try again rather than concluding the memory does not exist.",
+		"description": "Read one memory in full: its body, optional ai_instructions (implementation guidance), companions (linked companion memories and documents), state, lineage and change history. Search and list tools return cards; read the body here before relying on a memory, superseding it or contradicting it. If superseded_by is set, a newer version is current: read that one. Every earlier version stays readable in full: each history entry's resultRowId is that version's id, to pass here. Changes proposed and not yet agreed are in pending_versions, beside the agreed text and never part of it; delivery, when present, says the decision is not implemented yet and which item delivers it. Accepts the 8-character short code. For older history, pass history_next_before as history_before. If the response carries evidence, follow its evidence_guidance. A read that fails says unavailable, never not found: try again rather than concluding the memory does not exist.",
 		"intent": "read full memory decision convention rationale history lineage"
 	},
 	{
@@ -344,7 +344,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_memory",
 		"name": "record memory",
-		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Individual architecture decisions and team conventions belong here—never in create_resource. Put the human-readable rule and rationale (what the decision or rule is and why) in body, and put code-level mechanics (file paths, function/symbol names, database columns, CSS classes, code snippets) in ai_instructions. Work in progress and delivery evidence belong on the task (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a standing long-form guide, reference document or runbook is an artifact (create_resource). Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Individual architecture decisions and team conventions belong here—never in create_resource. Keep each memory atomic around one primary decision, convention, insight or risk: never bundle distinct subjects, unrelated decisions, or a primary decision together with a separate operational carve-out or companion convention into a single memory — record separate memories and connect them with companion_links (or manage_knowledge_links). Put the human-readable substance and rationale (what the decision, convention, insight or risk is and why) in body, and put code-level mechanics (file paths, function/symbol names, database columns, CSS classes, code snippets) in ai_instructions. Work in progress and delivery evidence belong on the task (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a standing long-form guide, reference document or runbook is an artifact (create_resource). Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "record save capture remember new decision convention architecture insight risk"
 	},
 	{
@@ -440,7 +440,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "supersede_memory",
 		"name": "supersede memory",
-		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. Put the human-readable rule and rationale in body and code-level pointers in ai_instructions. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. Keep each memory atomic around one primary decision, convention, insight or risk: never bundle distinct subjects, unrelated decisions, or a primary decision together with a separate operational carve-out or companion convention into a single memory — record separate memories and connect them with companion_links (or manage_knowledge_links). Put the human-readable substance and rationale in body and code-level pointers in ai_instructions. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "replace changed decision memory new agreed version supersede"
 	},
 	{
@@ -476,7 +476,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "update_memory",
 		"name": "update memory",
-		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence, affected files or ai_instructions, or correct its title, summary or body. State, tags, confidence, affected files and ai_instructions change in place. A wording change (title, summary or body) saves a new version with a new id, returned in the response: cite that id from then on. Put the human-readable rule and rationale in body and code-level pointers in ai_instructions. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
+		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence, affected files or ai_instructions, or correct its title, summary or body. State, tags, confidence, affected files and ai_instructions change in place. A wording change (title, summary or body) saves a new version with a new id, returned in the response: cite that id from then on. Keep each memory atomic around one primary decision, convention, insight or risk: never bundle distinct subjects, unrelated decisions, or a separate operational carve-out or companion convention into an existing memory — record a separate memory and link them with companion_links (or manage_knowledge_links). Put the human-readable substance and rationale in body and code-level pointers in ai_instructions. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
 		"intent": "mark memory decided agreed promote correct edit wording tags existing memory"
 	},
 	{
@@ -494,7 +494,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "update_task",
 		"name": "update task",
-		"description": "Edit an existing task's details (title, description, intent, criteria, guidance, notes, type, priority, tags, due date, assignee, brief, goals) or park, block, dismiss or resume it. Prefer description_edits for local changes, keep criterion ids, and pass expected_version from your last read so a stale edit is refused instead of overwriting someone else's. Before changing lifecycle, tell the person which change you are making and why. Claiming, delivering, failing and releasing work, and reopening finished work, have their own tools: claim_work_item, record_implementation, fail_work_item, release_work_item and reopen_task. A change to the title, description, intent or criteria can come back queued_for_review with a proposal_id; it changes nothing until a Maintainer accepts it.",
+		"description": "Edit an existing task's details (title, description, intent, criteria, guidance, notes, type, priority, tags, due date, assignee, brief, goals) or park, block, dismiss or resume it. Keep each task atomic around one primary subject or cohesive deliverable; when work spans independent deliverables, unrelated subjects, or separate carve-outs, create separate tasks (or child tasks under a parent brief) and connect them with parent_task_id, follow_up_from_task_id, or link_tasks instead of bundling them into one task. Prefer description_edits for local changes, keep criterion ids, and pass expected_version from your last read so a stale edit is refused instead of overwriting someone else's. Before changing lifecycle, tell the person which change you are making and why. Claiming, delivering, failing and releasing work, and reopening finished work, have their own tools: claim_work_item, record_implementation, fail_work_item, release_work_item and reopen_task. A change to the title, description, intent or criteria can come back queued_for_review with a proposal_id; it changes nothing until a Maintainer accepts it.",
 		"intent": "edit update existing task task specification criteria priority tags assignee park defer dismiss block resume"
 	},
 	{
@@ -2619,7 +2619,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_memory",
 		"label": "DevSpec: Get Memory",
-		"description": "Read one memory in full: its body, optional ai_instructions (implementation guidance), state, lineage and change history. Search and list tools return cards; read the body here before relying on a memory, superseding it or contradicting it. If superseded_by is set, a newer version is current: read that one. Every earlier version stays readable in full: each history entry's resultRowId is that version's id, to pass here. Changes proposed and not yet agreed are in pending_versions, beside the agreed text and never part of it; delivery, when present, says the decision is not implemented yet and which item delivers it. Accepts the 8-character short code. For older history, pass history_next_before as history_before. If the response carries evidence, follow its evidence_guidance. A read that fails says unavailable, never not found: try again rather than concluding the memory does not exist.",
+		"description": "Read one memory in full: its body, optional ai_instructions (implementation guidance), companions (linked companion memories and documents), state, lineage and change history. Search and list tools return cards; read the body here before relying on a memory, superseding it or contradicting it. If superseded_by is set, a newer version is current: read that one. Every earlier version stays readable in full: each history entry's resultRowId is that version's id, to pass here. Changes proposed and not yet agreed are in pending_versions, beside the agreed text and never part of it; delivery, when present, says the decision is not implemented yet and which item delivers it. Accepts the 8-character short code. For older history, pass history_next_before as history_before. If the response carries evidence, follow its evidence_guidance. A read that fails says unavailable, never not found: try again rather than concluding the memory does not exist.",
 		"searchIntent": "read full memory decision convention rationale history lineage",
 		"modelInputSchema": {
 			"type": "object",
@@ -4502,7 +4502,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_task",
 		"label": "DevSpec: Update Task",
-		"description": "Edit an existing task's details (title, description, intent, criteria, guidance, notes, type, priority, tags, due date, assignee, brief, goals) or park, block, dismiss or resume it. Prefer description_edits for local changes, keep criterion ids, and pass expected_version from your last read so a stale edit is refused instead of overwriting someone else's. Before changing lifecycle, tell the person which change you are making and why. Claiming, delivering, failing and releasing work, and reopening finished work, have their own tools: claim_work_item, record_implementation, fail_work_item, release_work_item and reopen_task. A change to the title, description, intent or criteria can come back queued_for_review with a proposal_id; it changes nothing until a Maintainer accepts it.",
+		"description": "Edit an existing task's details (title, description, intent, criteria, guidance, notes, type, priority, tags, due date, assignee, brief, goals) or park, block, dismiss or resume it. Keep each task atomic around one primary subject or cohesive deliverable; when work spans independent deliverables, unrelated subjects, or separate carve-outs, create separate tasks (or child tasks under a parent brief) and connect them with parent_task_id, follow_up_from_task_id, or link_tasks instead of bundling them into one task. Prefer description_edits for local changes, keep criterion ids, and pass expected_version from your last read so a stale edit is refused instead of overwriting someone else's. Before changing lifecycle, tell the person which change you are making and why. Claiming, delivering, failing and releasing work, and reopening finished work, have their own tools: claim_work_item, record_implementation, fail_work_item, release_work_item and reopen_task. A change to the title, description, intent or criteria can come back queued_for_review with a proposal_id; it changes nothing until a Maintainer accepts it.",
 		"searchIntent": "edit update existing task task specification criteria priority tags assignee park defer dismiss block resume",
 		"modelInputSchema": {
 			"type": "object",
@@ -4966,7 +4966,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "create_task",
 		"label": "DevSpec: Create Task",
-		"description": "Create a new task: a title, the intent behind it and checkable acceptance criteria. Search for an existing item first (search_tasks); whether work should be tracked at all is set by work_entry_contract in devspec://product/implementation-contract. For work already done, use record_completed_work; for new scope found while working on another item, pass follow_up_from_task_id. With session_id the item also gets a card in that room. It can come back queued_for_review with a proposal_id: the item is saved as suggested work, and nothing is authorised until a Maintainer accepts it.",
+		"description": "Create a new task: a title, the intent behind it and checkable acceptance criteria. Keep each task atomic around one primary subject or cohesive deliverable; when work spans independent deliverables, unrelated subjects, or separate carve-outs, create separate tasks (or child tasks under a parent brief) and connect them with parent_task_id, follow_up_from_task_id, or link_tasks instead of bundling them into one task. Search for an existing item first (search_tasks); whether work should be tracked at all is set by work_entry_contract in devspec://product/implementation-contract. For work already done, use record_completed_work; for new scope found while working on another item, pass follow_up_from_task_id. With session_id the item also gets a card in that room. It can come back queued_for_review with a proposal_id: the item is saved as suggested work, and nothing is authorised until a Maintainer accepts it.",
 		"searchIntent": "create capture requested new durable task feature bug work task",
 		"modelInputSchema": {
 			"type": "object",
@@ -8855,7 +8855,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_memory",
 		"label": "DevSpec: Record Memory",
-		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Individual architecture decisions and team conventions belong here—never in create_resource. Put the human-readable rule and rationale (what the decision or rule is and why) in body, and put code-level mechanics (file paths, function/symbol names, database columns, CSS classes, code snippets) in ai_instructions. Work in progress and delivery evidence belong on the task (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a standing long-form guide, reference document or runbook is an artifact (create_resource). Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Individual architecture decisions and team conventions belong here—never in create_resource. Keep each memory atomic around one primary decision, convention, insight or risk: never bundle distinct subjects, unrelated decisions, or a primary decision together with a separate operational carve-out or companion convention into a single memory — record separate memories and connect them with companion_links (or manage_knowledge_links). Put the human-readable substance and rationale (what the decision, convention, insight or risk is and why) in body, and put code-level mechanics (file paths, function/symbol names, database columns, CSS classes, code snippets) in ai_instructions. Work in progress and delivery evidence belong on the task (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a standing long-form guide, reference document or runbook is an artifact (create_resource). Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is live; outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "record save capture remember new decision convention architecture insight risk",
 		"modelInputSchema": {
 			"type": "object",
@@ -8876,15 +8876,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "A concise, searchable single-line noun phrase naming the subject or surface and the core decision or rule so it reads naturally on cards and aloud (at most 115 characters). Move comma-separated extra details, conditions and rationale into summary or body rather than making the title generic; not a generic heading such as Notes, and not the first line of the body."
+					"description": "A concise, searchable single-line noun phrase naming the subject or surface and the core substance so it reads naturally on cards and aloud (at most 115 characters). Move comma-separated extra details, conditions and rationale into summary or body rather than making the title generic; not a generic heading such as Notes, and not the first line of the body."
 				},
 				"summary": {
 					"type": "string",
-					"description": "Optional one-sentence restatement that stands on its own (single line, at most 400 characters). Omitted: no summary."
+					"description": "Optional one-sentence plain-language summary of the core substance that stands on its own (single line, at most 400 characters). Omitted: no summary."
 				},
 				"body": {
 					"type": "string",
-					"description": "The human-readable rule and rationale, in Markdown: state the decision, convention, insight or risk and why it exists in clear prose. Keep code-level mechanics (file paths, function/symbol names, database columns, CSS classes, code snippets) out of body and in ai_instructions so the prose stays scannable and embeds cleanly."
+					"description": "The human-readable substance and rationale, in Markdown: state the decision, convention, insight or risk and why it exists in clear prose. Keep code-level mechanics (file paths, function/symbol names, database columns, CSS classes, code snippets) out of body and in ai_instructions so the prose stays scannable and embeds cleanly."
 				},
 				"ai_instructions": {
 					"description": "Optional code-level implementation guidance in Markdown: file paths, function/symbol names, database tables/columns, CSS classes, and code snippets for coding agents. Excluded from embeddings and intent screening, and collapsed by default in the web UI. Omitted: none.",
@@ -8929,6 +8929,29 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"string",
 						"null"
 					]
+				},
+				"companion_links": {
+					"maxItems": 10,
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string",
+								"description": "Full id or 8-character short code of the current companion memory or AI-written document."
+							},
+							"note": {
+								"type": "string",
+								"maxLength": 1000,
+								"description": "Why the two records belong together, in a sentence or two, for a reader who was not there."
+							}
+						},
+						"required": [
+							"id",
+							"note"
+						]
+					},
+					"description": "Optional companion memories or AI-written documents to link to this memory when it commits ('read these together'), each with a note saying why. Omitted: no new companion links."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -8976,15 +8999,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "A concise, searchable single-line noun phrase naming the subject or surface and the core decision or rule so it reads naturally on cards and aloud (at most 115 characters). Move comma-separated extra details, conditions and rationale into summary or body rather than making the title generic; not a generic heading such as Notes, and not the first line of the body."
+					"description": "A concise, searchable single-line noun phrase naming the subject or surface and the core substance so it reads naturally on cards and aloud (at most 115 characters). Move comma-separated extra details, conditions and rationale into summary or body rather than making the title generic; not a generic heading such as Notes, and not the first line of the body."
 				},
 				"summary": {
 					"type": "string",
-					"description": "Optional one-sentence restatement that stands on its own (single line, at most 400 characters). Omitted: no summary."
+					"description": "Optional one-sentence plain-language summary of the core substance that stands on its own (single line, at most 400 characters). Omitted: no summary."
 				},
 				"body": {
 					"type": "string",
-					"description": "The human-readable rule and rationale, in Markdown: state the decision, convention, insight or risk and why it exists in clear prose. Keep code-level mechanics (file paths, function/symbol names, database columns, CSS classes, code snippets) out of body and in ai_instructions so the prose stays scannable and embeds cleanly."
+					"description": "The human-readable substance and rationale, in Markdown: state the decision, convention, insight or risk and why it exists in clear prose. Keep code-level mechanics (file paths, function/symbol names, database columns, CSS classes, code snippets) out of body and in ai_instructions so the prose stays scannable and embeds cleanly."
 				},
 				"ai_instructions": {
 					"description": "Optional code-level implementation guidance in Markdown: file paths, function/symbol names, database tables/columns, CSS classes, and code snippets for coding agents. Excluded from embeddings and intent screening, and collapsed by default in the web UI. Omitted: none.",
@@ -9029,6 +9052,29 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"string",
 						"null"
 					]
+				},
+				"companion_links": {
+					"maxItems": 10,
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string",
+								"description": "Full id or 8-character short code of the current companion memory or AI-written document."
+							},
+							"note": {
+								"type": "string",
+								"maxLength": 1000,
+								"description": "Why the two records belong together, in a sentence or two, for a reader who was not there."
+							}
+						},
+						"required": [
+							"id",
+							"note"
+						]
+					},
+					"description": "Optional companion memories or AI-written documents to link to this memory when it commits ('read these together'), each with a note saying why. Omitted: no new companion links."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -9067,7 +9113,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "supersede_memory",
 		"label": "DevSpec: Supersede Memory",
-		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. Put the human-readable rule and rationale in body and code-level pointers in ai_instructions. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current; the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. Keep each memory atomic around one primary decision, convention, insight or risk: never bundle distinct subjects, unrelated decisions, or a primary decision together with a separate operational carve-out or companion convention into a single memory — record separate memories and connect them with companion_links (or manage_knowledge_links). Put the human-readable substance and rationale in body and code-level pointers in ai_instructions. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "replace changed decision memory new agreed version supersede",
 		"modelInputSchema": {
 			"type": "object",
@@ -9093,15 +9139,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "The new version's concise single-line noun phrase naming the subject or surface and the core decision or rule so it reads naturally on cards and aloud (at most 115 characters); move comma-separated extra details and conditions into summary or body. Required even when it is unchanged."
+					"description": "The new version's concise single-line noun phrase naming the subject or surface and the core substance so it reads naturally on cards and aloud (at most 115 characters); move comma-separated extra details and conditions into summary or body. Required even when it is unchanged."
 				},
 				"summary": {
 					"type": "string",
-					"description": "One-sentence restatement of the new version (single line, at most 400 characters). Omitted: the current summary is kept."
+					"description": "One-sentence plain-language summary of the new version's core substance (single line, at most 400 characters). Omitted: the current summary is kept."
 				},
 				"body": {
 					"type": "string",
-					"description": "The new version's human-readable rule and rationale, in Markdown. Keep code-level pointers (file paths, function/symbol names, database columns, CSS classes, code snippets) in ai_instructions."
+					"description": "The new version's human-readable substance and rationale, in Markdown. Keep code-level pointers (file paths, function/symbol names, database columns, CSS classes, code snippets) in ai_instructions."
 				},
 				"ai_instructions": {
 					"description": "Optional code-level implementation guidance for the new version in Markdown (file paths, symbol names, database columns, code snippets), or null to clear it. Omitted: the current ai_instructions are kept.",
@@ -9142,6 +9188,29 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"string",
 						"null"
 					]
+				},
+				"companion_links": {
+					"maxItems": 10,
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string",
+								"description": "Full id or 8-character short code of the current companion memory or AI-written document."
+							},
+							"note": {
+								"type": "string",
+								"maxLength": 1000,
+								"description": "Why the two records belong together, in a sentence or two, for a reader who was not there."
+							}
+						},
+						"required": [
+							"id",
+							"note"
+						]
+					},
+					"description": "Optional additional companion memories or AI-written documents to link to this memory when the new version commits ('read these together'), each with a note saying why. Existing thread companion links automatically carry forward to the new version. Omitted: no new companion links."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -9186,15 +9255,15 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "The new version's concise single-line noun phrase naming the subject or surface and the core decision or rule so it reads naturally on cards and aloud (at most 115 characters); move comma-separated extra details and conditions into summary or body. Required even when it is unchanged."
+					"description": "The new version's concise single-line noun phrase naming the subject or surface and the core substance so it reads naturally on cards and aloud (at most 115 characters); move comma-separated extra details and conditions into summary or body. Required even when it is unchanged."
 				},
 				"summary": {
 					"type": "string",
-					"description": "One-sentence restatement of the new version (single line, at most 400 characters). Omitted: the current summary is kept."
+					"description": "One-sentence plain-language summary of the new version's core substance (single line, at most 400 characters). Omitted: the current summary is kept."
 				},
 				"body": {
 					"type": "string",
-					"description": "The new version's human-readable rule and rationale, in Markdown. Keep code-level pointers (file paths, function/symbol names, database columns, CSS classes, code snippets) in ai_instructions."
+					"description": "The new version's human-readable substance and rationale, in Markdown. Keep code-level pointers (file paths, function/symbol names, database columns, CSS classes, code snippets) in ai_instructions."
 				},
 				"ai_instructions": {
 					"description": "Optional code-level implementation guidance for the new version in Markdown (file paths, symbol names, database columns, code snippets), or null to clear it. Omitted: the current ai_instructions are kept.",
@@ -9236,6 +9305,29 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"null"
 					]
 				},
+				"companion_links": {
+					"maxItems": 10,
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string",
+								"description": "Full id or 8-character short code of the current companion memory or AI-written document."
+							},
+							"note": {
+								"type": "string",
+								"maxLength": 1000,
+								"description": "Why the two records belong together, in a sentence or two, for a reader who was not there."
+							}
+						},
+						"required": [
+							"id",
+							"note"
+						]
+					},
+					"description": "Optional additional companion memories or AI-written documents to link to this memory when the new version commits ('read these together'), each with a note saying why. Existing thread companion links automatically carry forward to the new version. Omitted: no new companion links."
+				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
 					"type": "string"
@@ -9265,7 +9357,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_memory",
 		"label": "DevSpec: Update Memory",
-		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence, affected files or ai_instructions, or correct its title, summary or body. State, tags, confidence, affected files and ai_instructions change in place. A wording change (title, summary or body) saves a new version with a new id, returned in the response: cite that id from then on. Put the human-readable rule and rationale in body and code-level pointers in ai_instructions. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
+		"description": "Change an existing memory without replacing the decision: mark it decided once the person has agreed, adjust its tags, confidence, affected files or ai_instructions, or correct its title, summary or body. State, tags, confidence, affected files and ai_instructions change in place. A wording change (title, summary or body) saves a new version with a new id, returned in the response: cite that id from then on. Keep each memory atomic around one primary decision, convention, insight or risk: never bundle distinct subjects, unrelated decisions, or a separate operational carve-out or companion convention into an existing memory — record a separate memory and link them with companion_links (or manage_knowledge_links). Put the human-readable substance and rationale in body and code-level pointers in ai_instructions. Use supersede_memory when the decision itself has changed and retract_memory when it no longer stands. Rewording someone else's settled decision overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. preview_required and stale_context change nothing either; answer them as the response's guidance says, with preview_ack or expected_version.",
 		"searchIntent": "mark memory decided agreed promote correct edit wording tags existing memory",
 		"modelInputSchema": {
 			"type": "object",
@@ -9319,10 +9411,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "A corrected concise single-line noun phrase naming the subject or surface and the core decision or rule so it reads naturally on cards and aloud (at most 115 characters); move comma-separated extra details and conditions into summary or body. Saves a new version. Omitted: unchanged."
+					"description": "A corrected concise single-line noun phrase naming the subject or surface and the core substance so it reads naturally on cards and aloud (at most 115 characters); move comma-separated extra details and conditions into summary or body. Saves a new version. Omitted: unchanged."
 				},
 				"summary": {
-					"description": "A corrected one-sentence restatement (at most 400 characters), or null to clear it. Saves a new version. Omitted: unchanged.",
+					"description": "A corrected one-sentence plain-language summary of the core substance (at most 400 characters), or null to clear it. Saves a new version. Omitted: unchanged.",
 					"type": [
 						"string",
 						"null"
@@ -9330,7 +9422,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"body": {
 					"type": "string",
-					"description": "The corrected human-readable rule and rationale, in Markdown. Keep code-level pointers (file paths, symbol names, database columns, code snippets) in ai_instructions. Saves a new version and is compared with existing memories. Omitted: unchanged."
+					"description": "The corrected human-readable substance and rationale, in Markdown. Keep code-level pointers (file paths, symbol names, database columns, code snippets) in ai_instructions. Saves a new version and is compared with existing memories. Omitted: unchanged."
 				},
 				"note": {
 					"type": "string",
@@ -9423,10 +9515,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"title": {
 					"type": "string",
-					"description": "A corrected concise single-line noun phrase naming the subject or surface and the core decision or rule so it reads naturally on cards and aloud (at most 115 characters); move comma-separated extra details and conditions into summary or body. Saves a new version. Omitted: unchanged."
+					"description": "A corrected concise single-line noun phrase naming the subject or surface and the core substance so it reads naturally on cards and aloud (at most 115 characters); move comma-separated extra details and conditions into summary or body. Saves a new version. Omitted: unchanged."
 				},
 				"summary": {
-					"description": "A corrected one-sentence restatement (at most 400 characters), or null to clear it. Saves a new version. Omitted: unchanged.",
+					"description": "A corrected one-sentence plain-language summary of the core substance (at most 400 characters), or null to clear it. Saves a new version. Omitted: unchanged.",
 					"type": [
 						"string",
 						"null"
@@ -9434,7 +9526,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"body": {
 					"type": "string",
-					"description": "The corrected human-readable rule and rationale, in Markdown. Keep code-level pointers (file paths, symbol names, database columns, code snippets) in ai_instructions. Saves a new version and is compared with existing memories. Omitted: unchanged."
+					"description": "The corrected human-readable substance and rationale, in Markdown. Keep code-level pointers (file paths, symbol names, database columns, code snippets) in ai_instructions. Saves a new version and is compared with existing memories. Omitted: unchanged."
 				},
 				"note": {
 					"type": "string",

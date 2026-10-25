@@ -10,13 +10,14 @@
  */
 
 /** Bump when the block changes materially; handy for debugging drift reports. */
-export const INSTRUCTIONS_VERSION = 19;
+export const INSTRUCTIONS_VERSION = 20;
 
 export function buildDevspecInstructions(): string {
 	return `## DevSpec
 This project is connected to DevSpec, and every DevSpec tool this connection may use is available natively. Call a fitting tool directly; \`search_devspec_tools\` only helps pick one when unsure. Search is optional. Do not connect a duplicate DevSpec MCP server.
 
 - The loaded implementation contract alone chooses task/session-plan tracking and the plan threshold. If it selects a task, search/reuse/create one and claim via claim_work_item. A missing claim never blocks edits, execution, tests, worktrees, delegation, or follow-through.
+- When creating or updating a task (create_task, update_task), partition fields cleanly: intent records the underlying problem, speaker attribution and quoted rationale, and desired outcome; description states the complete product behaviour, rules, edge cases, and the architectural or technical mechanism in natural English (duplicate and reversal screening reads title, intent, description, and acceptance_criteria — never ai_instructions — so never strip the technical mechanism out of description, and never dump raw file paths, line numbers, code snippets, CSS class lists, or file-by-file edit recipes into description); acceptance_criteria lists plain-prose checkable conditions; ai_instructions holds exact file paths, function/symbol names, code snippets, CSS classes, and implementation constraints for the coding agent.
 - Read the canonical product contract when needed via get_workflow_rules with include_implementation_contract:true; work entry loads it for you. Nothing is ever sent work — reserve the items you were asked to work (reserve_work_items), then claim them in order when available.
 - Put one full [devspec:<id>] reference in every implementing commit; commits you cannot tag are linked by record_implementation and server reconciliation (the served contract's commit_provenance_contract).
 - After pushing, call record_implementation with the final commit SHA, affected_files, testing_notes, and completion_summary. Then report "implemented" and stop — never mark items done yourself. Who may, and on what evidence, is the served contract's boundary, not a rule to remember here. Vocabulary: implemented → verified → done.

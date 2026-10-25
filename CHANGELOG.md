@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.5 - 2026-10-25
+
+- Your agent now sees when a task it worked on is not done yet because it is still on its way: waiting to merge, waiting for a deploy to carry it, or waiting for a database change to be applied. Task lists, and the replies after recording work, signing off or editing a task, show what DevSpec says the task waits for, such as which deployment has not carried it yet, a deploy that failed, or which database change has not been applied, so the agent no longer reports such a task as done. The tool catalogue is regenerated to match, and it puts back the guidance on what belongs in a task's description, acceptance criteria and instructions for the agent, which an earlier update had lost. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.8.3 - 2026-10-23
 
 - Security: updated two libraries the plugin depends on (zod and body-parser) to versions that fix newly published high-severity advisories. Nothing changes in how the plugin behaves. Update with `pi update --extensions`, then restart Pi.

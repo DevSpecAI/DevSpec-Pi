@@ -23,7 +23,6 @@ test("npm package contains fail-open provenance runtime and no obsolete gate", (
 		"extensions/core/work-state.ts",
 		"extensions/core/git-observer.ts",
 		"runtime/git-observer-shim.mjs",
-		"docs/commit-provenance-capabilities.md",
 		"extensions/generated/mcp-catalog.ts",
 	]) assert.equal(files.has(required), true, `${required} missing from packed npm package`);
 	assert.equal(files.has("extensions/devspec-mutation-gate.ts"), false);

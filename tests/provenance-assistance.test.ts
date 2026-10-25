@@ -303,16 +303,3 @@ test("obsolete mutation parser and trusted-child authority files are removed", (
 	const tools = readFileSync(new URL("../extensions/devspec-tools.ts", import.meta.url), "utf8");
 	assert.doesNotMatch(tools, /claimAuthority|mutation authority|trusted subprocess/i);
 });
-
-test("checked-in capability table names every required fail-open surface", () => {
-	const table = readFileSync(new URL("../docs/commit-provenance-capabilities.md", import.meta.url), "utf8");
-	for (const phrase of [
-		"First-class file edits", "Arbitrary Bash/shell", "Direct Git commit", "Git rewrite/ref operations", "Git push/outgoing history",
-		"Project association", "DevSpec unavailable", "Post-implementation tools", "Subagents/unattended work",
-	]) assert.match(table, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
-	assert.match(table, /instructions plus DevSpec's universal commit ingestion\/analyzer/i);
-	assert.match(table, /private session Git argv shim/i);
-	assert.match(table, /`plugin_observed` measurement/i);
-	assert.match(table, /does \*\*not\*\* claim universal process coverage/i);
-	assert.match(table, /merge.*cherry-pick.*revert.*rebase.*am.*update-ref.*commit-tree/s);
-});

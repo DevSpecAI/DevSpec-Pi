@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.7 - 2026-10-25
+
+- Updated the README with step-by-step installation, sign-in, project selection, and command reference matching the in-app setup flow, and removed internal engineering notes from the published repository tree.
+
+## 0.8.6 - 2026-10-25
+
+- Updated task creation and editing guidance so task `intent` records synthesized rationale rather than conversational go-ahead quotes.
+
 ## 0.8.5 - 2026-10-25
 
 - Your agent now sees when a task it worked on is not done yet because it is still on its way: waiting to merge, waiting for a deploy to carry it, or waiting for a database change to be applied. Task lists, and the replies after recording work, signing off or editing a task, show what DevSpec says the task waits for, such as which deployment has not carried it yet, a deploy that failed, or which database change has not been applied, so the agent no longer reports such a task as done. The tool catalogue is regenerated to match, and it puts back the guidance on what belongs in a task's description, acceptance criteria and instructions for the agent, which an earlier update had lost. Update with `pi update --extensions`, then restart Pi.
@@ -17,12 +25,11 @@
 - Your agent no longer writes plans, handoffs, status summaries or single decisions as DevSpec documents. A document is a standing guide, reference or runbook; a plan becomes a brief with tasks, a handoff or status goes on the task, and a decision is a memory. The tool catalogue is regenerated to match. Update with `pi update --extensions`, then restart Pi.
 - Fixed: posting the live work trail of an automation run could fail with an error when the run had no connection to post through. It is now skipped, as any post without a connection is.
 
-## 0.8.0 — Tasks cutover candidate (activation held)
+## 0.8.0 - 2026-10-22
 
-- Native tools, argument/result readers and work projections use Tasks, with Feature, Improvement, Bug, Investigation and General categories. No old tool aliases are installed.
-- Regenerated the complete native catalogue from the matching server candidate; guidance and exact-target authority checks are preserved.
-- Versioned process-local advisory work/delivery caches for the changed field names. Durable room history, speech delivery state and credentials are not erased.
-- Activate only with the matching server during the coordinated pause. For local-source installations, update the configured source checkout; updating an npm package alone does not update a separately configured checkout. Restart the exact Pi session after updating that checkout, then verify the room binding and new native tools before resuming work.
+- Native tools, argument/result readers and work projections use Tasks, with Feature, Improvement, Bug, Investigation and General categories.
+- Regenerated the native tool catalogue to match DevSpec's Tasks tools and guidance.
+- Versioned process-local advisory work and delivery caches for the updated task fields while preserving durable room history, speech delivery state and credentials. Update with `pi update --extensions`, then restart Pi.
 
 ## 0.7.5 - 2026-10-17
 
@@ -622,8 +629,7 @@ the turn tracker, or the speech/trail paths, run this.
 
 ### Speech posts can no longer wedge on a stale scope
 
-Ordinary assistant speech now posts on the server's append-only v2 lane
-(DevSpecV2 migration 953, staging `c766ab75b`): the extension sends your
+Ordinary assistant speech now posts on the server's append-only v2 lane: the extension sends your
 connection, the text and its idempotency key — and nothing about where the text
 "belongs". The server lands it in the room you're attached to right now and
 annotates the open attempt and turn afterwards, when they exist.
@@ -646,10 +652,7 @@ been the safe path: leave it out and the server attributes the write to your
 connection's single current open turn — one server-owned pointer, not a choice
 the model has to make — and send an explicit ref only for work caused by
 another command in that same turn. A wrong ref fails closed, so when unsure,
-omit. This is the lesson of the 2026-09-20 transcription incident (a model
-copied a 36-char delivery UUID with a fabricated tail and was rightly refused);
-the default path makes that failure impossible rather than unlikely. Catalog
-regenerated for the new wording.
+omit. Catalog regenerated for the new wording.
 
 
 ### Working stops lying when the tracker wedges
@@ -657,10 +660,9 @@ regenerated for the new wording.
 Pi now sends an opaque progress marker with every working-lease beat (the poll
 tick and the heartbeat): a plain count of the session events this process has
 seen — turns, messages, tool calls, their streaming updates. Paired with the
-DevSpec server change (migration 952, DevSpecV2 staging `a914cad1b`), a lease
+DevSpec server change, a lease
 renews only while that marker keeps changing. If the extension ever wedges
-again the way it did on 2026-09-20 — a killed background task froze the turn
-tracker and Working showed for five hours of idle — the marker freezes with it,
+and the turn tracker freezes while idle, the marker freezes with it,
 the server declines renewal after its staleness bound, and the attempt expires
 through the ordinary lease path instead of lying.
 
@@ -673,10 +675,8 @@ builds that never send a marker get the legacy behaviour untouched.
 ### The write check tells you which document it matched, on either corpus
 
 DevSpec stops a knowledge write when something close already exists, and the
-reply names the record it matched so you can go and read it. Pi described that
-as a memory-only thing, because when it was written it was: the artifact write
-corridors could not answer the check at all (fixed server-side in DevSpec
-134f4454, staging `f5c89d8b3`).
+reply names the record it matched so you can go and read it. Pi previously described that
+as a memory-only check; the server now returns matches across both memories and documents.
 
 Three things were saying something untrue, and one was actively misleading:
 

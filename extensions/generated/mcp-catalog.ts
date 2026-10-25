@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 4fefd7ec67edc88bc77af5a0757f903ba6d17cad13bac39a5a7520ed66434f13
+ * Schema fingerprint: 43a9799136bcda2c4a08e86df557d807175d6d0c1bf7497a219d00f75eaf555b
  * Description fingerprint: 3280a91b88727cb84dcac2e0632f9c475456fd221262c06afae91cb2862c65f4
- * Regenerated: 2026-10-25T19:56:08.456Z
+ * Regenerated: 2026-10-25T20:52:02.383Z
  */
-export const MCP_CATALOG_FINGERPRINT = "4fefd7ec67edc88bc77af5a0757f903ba6d17cad13bac39a5a7520ed66434f13";
+export const MCP_CATALOG_FINGERPRINT = "43a9799136bcda2c4a08e86df557d807175d6d0c1bf7497a219d00f75eaf555b";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "3280a91b88727cb84dcac2e0632f9c475456fd221262c06afae91cb2862c65f4";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-25T19:56:08.456Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-25T20:52:02.384Z";
 export const TOOL_CATALOG_VERSION = "72b20c7d52b3ef4d61f51437ebadcdcefdb0a987d7467cdcd35ed42792f04111";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -4564,7 +4564,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"intent": {
 					"type": "string",
-					"description": "Why: the underlying problem and rationale for wanting the outcome, whose rationale it was and what they said (attribute the speaker and quote their key words from the conversation when a person asked for it), and the desired outcome itself — never a thin one-sentence restatement of the title, because reversal and conflict reviews judge later work against this recorded reasoning. Must not be blank. Omitted: unchanged."
+					"description": "Why: the underlying problem and rationale for wanting the outcome, who raised it and their reasoning (attribute the speaker and synthesize their rationale in clear prose when a person asked for it — never paste conversational go-aheads like 'yes please let's do option B' or procedural prompts), and the desired outcome itself — never a thin restatement of the title or a mere list of what files/surfaces to change without why, because reversal and conflict reviews judge later work against this recorded reasoning. Must not be blank. Omitted: unchanged."
 				},
 				"acceptance_criteria": {
 					"anyOf": [
@@ -4790,7 +4790,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"intent": {
 					"type": "string",
-					"description": "Why: the underlying problem and rationale for wanting the outcome, whose rationale it was and what they said (attribute the speaker and quote their key words from the conversation when a person asked for it), and the desired outcome itself — never a thin one-sentence restatement of the title, because reversal and conflict reviews judge later work against this recorded reasoning. Must not be blank. Omitted: unchanged."
+					"description": "Why: the underlying problem and rationale for wanting the outcome, who raised it and their reasoning (attribute the speaker and synthesize their rationale in clear prose when a person asked for it — never paste conversational go-aheads like 'yes please let's do option B' or procedural prompts), and the desired outcome itself — never a thin restatement of the title or a mere list of what files/surfaces to change without why, because reversal and conflict reviews judge later work against this recorded reasoning. Must not be blank. Omitted: unchanged."
 				},
 				"acceptance_criteria": {
 					"anyOf": [
@@ -4981,7 +4981,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"intent": {
 					"type": "string",
-					"description": "Why: the underlying problem and rationale for wanting the outcome, whose rationale it was and what they said (attribute the speaker and quote their key words from the conversation when a person asked for it), and the desired outcome itself — never a thin one-sentence restatement of the title, because whoever picks the item up later and future reversal/conflict reviews rely on this recorded reasoning. Required and must not be blank: a create without it is refused and nothing is created."
+					"description": "Why: the underlying problem and rationale for wanting the outcome, who raised it and their reasoning (attribute the speaker and synthesize their rationale in clear prose when a person asked for it — never paste conversational go-aheads like 'yes please let's do option B' or procedural prompts), and the desired outcome itself — never a thin restatement of the title or a mere list of what files/surfaces to change without why, because whoever picks the item up later and future reversal/conflict reviews rely on this recorded reasoning. Required and must not be blank: a create without it is refused and nothing is created."
 				},
 				"acceptance_criteria": {
 					"anyOf": [
@@ -5152,7 +5152,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"intent": {
 					"type": "string",
-					"description": "Why: the underlying problem and rationale for wanting the outcome, whose rationale it was and what they said (attribute the speaker and quote their key words from the conversation when a person asked for it), and the desired outcome itself — never a thin one-sentence restatement of the title, because whoever picks the item up later and future reversal/conflict reviews rely on this recorded reasoning. Required and must not be blank: a create without it is refused and nothing is created."
+					"description": "Why: the underlying problem and rationale for wanting the outcome, who raised it and their reasoning (attribute the speaker and synthesize their rationale in clear prose when a person asked for it — never paste conversational go-aheads like 'yes please let's do option B' or procedural prompts), and the desired outcome itself — never a thin restatement of the title or a mere list of what files/surfaces to change without why, because whoever picks the item up later and future reversal/conflict reviews rely on this recorded reasoning. Required and must not be blank: a create without it is refused and nothing is created."
 				},
 				"acceptance_criteria": {
 					"anyOf": [

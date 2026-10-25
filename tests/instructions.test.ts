@@ -79,6 +79,7 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /substance and rationale/);
 	assert.doesNotMatch(text, /rule and rationale/);
 	assert.match(text, /create_task requires title, intent, and description/);
+	assert.match(text, /synthesized rationale \(never conversational go-ahead quotes\)/);
 	assert.match(text, /rejected at write time/);
 });
 

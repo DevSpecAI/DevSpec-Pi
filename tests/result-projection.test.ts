@@ -786,9 +786,10 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// guidance across task and memory tools). Verbs 84 model / 12 pump / 1 never-model
 		// unchanged; families and hot set unchanged; every budget passes.
 		// Rebaselined 2026-10-25 for DevSpec item ab6a3960 (description required on create_task,
-		// empty-string clearing wording removed from update_task description/intent, and
-		// write-time gate rejection guidance added across task and memory write tools).
-		"a2eddf62c453505fcd116ec74a3573c6bc718ce0e4010e5187356ef8bfe7f44d",
+		// empty-string clearing wording removed from update_task description/intent, synthesized
+		// rationale / no conversational go-ahead quotes guidance on intent, and write-time gate
+		// rejection guidance added across task and memory write tools).
+		"b633e76e21183aaadd126fa9bf9c62044e5ba5e84e305e4c3167d631386a0f4e",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

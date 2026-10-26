@@ -3,7 +3,7 @@
  *
  * Commands:
  *   /devspec.login [token]   — verify + store a token (paste from DevSpec's
- *                              Agents settings page), or use DEVSPEC_MCP_TOKEN
+ *                              Agent setup page), or use DEVSPEC_MCP_TOKEN
  *   /devspec.logout          — remove the stored token
  *   /devspec.status          — show connection state
  *

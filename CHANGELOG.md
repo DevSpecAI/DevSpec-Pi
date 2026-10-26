@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The README and code comments use DevSpec's new settings page names: the personal settings page where you create or reveal your token is now **Agent setup**, and the project settings page for agent execution rules is now **Agent rules**. Pi's login messages link that page by URL and are unchanged.
+
 ## 0.8.7 - 2026-10-25
 
 - Updated the README with step-by-step installation, sign-in, project selection, and command reference matching the in-app setup flow, and removed internal engineering notes from the published repository tree.

@@ -79,8 +79,8 @@ export function appendedBlocksText(appended: readonly unknown[] | undefined): st
 }
 
 /** Build a projected Pi success result while retaining the complete payload. */
-export function projectedToolResult(toolName: string, result: UnwrappedResult) {
-	const projected = projectModelText({ toolName, text: result.text, details: result.details });
+export function projectedToolResult(toolName: string, result: UnwrappedResult, args?: Record<string, unknown>) {
+	const projected = projectModelText({ toolName, text: result.text, details: result.details, args });
 	// A projection that read the structured result never saw the appended blocks;
 	// one that fell back to the text already shows them.
 	const appended = result.details == null ? "" : appendedBlocksText(result.appended);

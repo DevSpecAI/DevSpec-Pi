@@ -53,7 +53,9 @@ test("only reliable first-class edit events can emit the one advisory nudge", as
 	assert.equal(first.display, true, "custom message stays visible as well as model-visible");
 	assert.match(first.content, /Continue this edit—editing is never blocked/);
 	assert.match(first.content, /search_tasks/);
-	assert.match(first.content, /thin last-mile item/);
+	// create_task requires a substantive description and intent: never advise a thin item (5a9eaa57).
+	assert.match(first.content, /substantive description and the reason for the work/);
+	assert.doesNotMatch(first.content, /thin|last-mile/);
 	assert.match(first.content, /Pi cannot add the \[devspec:<full-uuid>\] commit reference for you/);
 	assert.doesNotMatch(first.content, /refus|analy[sz]er|reconcil|safety net/i);
 	assert.equal(first.details.projectId, PROJECT);

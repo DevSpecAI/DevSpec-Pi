@@ -49,7 +49,9 @@ test("instructions carry the load-bearing rules", () => {
 	assert.doesNotMatch(text, /a maintainer has to accept/i);
 	// Waiting work stays on its own branch; who gives the OK is pointed at, never restated.
 	assert.match(text, /waiting_for_ok/);
-	assert.match(text, /never merge it into the tracking branch/);
+	// "until it has the OK" is the rule, not a softening: dropping it once a task's done
+	// waited on a merge would strand approved work on its branch (5a9eaa57).
+	assert.match(text, /never merge it into the tracking branch until it has the OK/);
 	assert.match(text, /reversal_rule/);
 	// The capture bar (ADR "Protecting intent" §11): only the person's answer makes a decision.
 	assert.match(text, /only their answer makes it their decision/);

@@ -142,10 +142,10 @@ export function noteModelToolResult(verb: string, chars: number): void {
  */
 export function takeContextBudgetReport(): ContextBudgetReport {
 	const current = state();
+	// Every verb this run used: one numeric row each, so the report adds up to its totals.
 	const byVerb = [...current.toolResults.entries()]
 		.map(([verb, value]) => ({ verb, ...value }))
-		.sort((a, b) => b.chars - a.chars || a.verb.localeCompare(b.verb))
-		.slice(0, 20);
+		.sort((a, b) => b.chars - a.chars || a.verb.localeCompare(b.verb));
 	const injectedBase = { ...current.injected };
 	const injected: InjectedContextBudget = {
 		...injectedBase,

@@ -77,13 +77,33 @@ const SYSTEM_NOTICE_ALLOWED_TOOLS = [
 const MAX_COMMANDS_PER_ENVELOPE = 128;
 const MAX_SENDER_STYLE_NOTES = 8;
 const MAX_CONTEXT_ENTRIES_PER_BUCKET = 500;
-const MAX_SYSTEM_NOTICES_PER_ENVELOPE = 25;
-const MAX_SYSTEM_NOTICE_TEXT_CHARS = 500;
-const MAX_SERVER_NOTICE_PROMPT_CHARS = 8_000;
-const MAX_SERVER_NOTICE_KEY_CHARS = 120;
-const MAX_SERVER_NOTICE_ID_CHARS = 200;
-const MAX_SERVER_NOTICE_RECORDS = 10;
-const MAX_SERVER_NOTICE_LIST_ITEMS = 16;
+/**
+ * A system notice's field bounds, exactly as the served wire schema states them
+ * (devspec://product/remote-ingress-contract → system_notice_envelope_v1). They
+ * validate untrusted wire input. A notice past one is never shortened: it becomes
+ * an unreadable notice, which the person is told about (5a9eaa57). They must
+ * match the schema — one stricter than it (url was 500 against the schema's 1,000)
+ * turns a valid notice from DevSpec into "could not be read".
+ */
+export const SYSTEM_NOTICE_WIRE_BOUNDS = {
+	noticesPerEnvelope: 25,
+	commitTaskTitle: 500,
+	commitBranch: 500,
+	topic: 120,
+	noticeType: 120,
+	summary: 500,
+	prompt: 8_000,
+	records: 10,
+	recordLabel: 120,
+	recordType: 60,
+	recordId: 120,
+	recordTitle: 500,
+	recordText: 8_000,
+	recordUrl: 1_000,
+	listItems: 16,
+	listItemChars: 120,
+} as const;
+/** A cursor is our own echo of `created_at|id`; anything longer is not one of ours. */
 const MAX_SYSTEM_NOTICE_CURSOR_CHARS = 2_048;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const FULL_LOWERCASE_SHA_RE = /^[0-9a-f]{40}$/;
@@ -434,12 +454,15 @@ function serverNoticeRecord(value: unknown, path: string): ServerNoticeRecordV1 
 	const title = nullableString(row.title, `${path}.title`);
 	const text = string(row.text, `${path}.text`);
 	const url = nullableString(row.url, `${path}.url`);
-	if (label.length > MAX_SERVER_NOTICE_ID_CHARS) fail(`${path}.label`, "label exceeds safe bound");
-	if (recordType.length > MAX_SERVER_NOTICE_KEY_CHARS) fail(`${path}.record_type`, "record_type exceeds safe bound");
-	if (recordId.length > MAX_SERVER_NOTICE_ID_CHARS) fail(`${path}.record_id`, "record_id exceeds safe bound");
-	if (title !== null && title.length > MAX_SYSTEM_NOTICE_TEXT_CHARS) fail(`${path}.title`, "title exceeds safe bound");
-	if (text.length > MAX_SERVER_NOTICE_PROMPT_CHARS) fail(`${path}.text`, "text exceeds safe bound");
-	if (url !== null && url.length > MAX_SYSTEM_NOTICE_TEXT_CHARS) fail(`${path}.url`, "url exceeds safe bound");
+	const bound = (field: string, value: string | null, limit: number) => {
+		if (value !== null && value.length > limit) fail(`${path}.${field}`, `${field} is ${value.length} characters; the wire schema allows ${limit}`);
+	};
+	bound("label", label, SYSTEM_NOTICE_WIRE_BOUNDS.recordLabel);
+	bound("record_type", recordType, SYSTEM_NOTICE_WIRE_BOUNDS.recordType);
+	bound("record_id", recordId, SYSTEM_NOTICE_WIRE_BOUNDS.recordId);
+	bound("title", title, SYSTEM_NOTICE_WIRE_BOUNDS.recordTitle);
+	bound("text", text, SYSTEM_NOTICE_WIRE_BOUNDS.recordText);
+	bound("url", url, SYSTEM_NOTICE_WIRE_BOUNDS.recordUrl);
 	return {
 		label,
 		record_type: recordType,
@@ -454,7 +477,7 @@ function boundedStringArray(value: unknown, maxItems: number, maxChars: number, 
 	if (!Array.isArray(value) || value.length > maxItems) fail(path, `expected array of at most ${maxItems} strings`);
 	return value.map((entry, index) => {
 		const item = string(entry, `${path}[${index}]`);
-		if (item.length > maxChars) fail(`${path}[${index}]`, "item exceeds safe bound");
+		if (item.length > maxChars) fail(`${path}[${index}]`, `item is ${item.length} characters; the wire schema allows ${maxChars}`);
 		return item;
 	});
 }
@@ -471,12 +494,16 @@ function systemNotice(value: unknown, path: string): SystemNoticeV1 {
 		const noticeType = string(row.notice_type, `${path}.notice_type`);
 		const summary = string(row.summary, `${path}.summary`);
 		const prompt = string(row.prompt, `${path}.prompt`);
-		if (topic.length > MAX_SERVER_NOTICE_KEY_CHARS) fail(`${path}.topic`, "topic exceeds safe bound");
-		if (noticeType.length > MAX_SERVER_NOTICE_KEY_CHARS) fail(`${path}.notice_type`, "notice_type exceeds safe bound");
-		if (summary.length > MAX_SYSTEM_NOTICE_TEXT_CHARS) fail(`${path}.summary`, "summary exceeds safe bound");
-		if (prompt.length > MAX_SERVER_NOTICE_PROMPT_CHARS) fail(`${path}.prompt`, "prompt exceeds safe bound");
+		for (const [field, value, limit] of [
+			["topic", topic, SYSTEM_NOTICE_WIRE_BOUNDS.topic],
+			["notice_type", noticeType, SYSTEM_NOTICE_WIRE_BOUNDS.noticeType],
+			["summary", summary, SYSTEM_NOTICE_WIRE_BOUNDS.summary],
+			["prompt", prompt, SYSTEM_NOTICE_WIRE_BOUNDS.prompt],
+		] as const) {
+			if (value.length > limit) fail(`${path}.${field}`, `${field} is ${value.length} characters; the wire schema allows ${limit}`);
+		}
 		if (row.contract_uri !== SYSTEM_NOTICE_CONTRACT_URI) fail(`${path}.contract_uri`, "unknown system notice contract URI");
-		if (!Array.isArray(row.records) || row.records.length < 1 || row.records.length > MAX_SERVER_NOTICE_RECORDS) {
+		if (!Array.isArray(row.records) || row.records.length < 1 || row.records.length > SYSTEM_NOTICE_WIRE_BOUNDS.records) {
 			fail(`${path}.records`, "expected 1..10 records");
 		}
 		return {
@@ -489,8 +516,8 @@ function systemNotice(value: unknown, path: string): SystemNoticeV1 {
 			prompt,
 			contract_uri: SYSTEM_NOTICE_CONTRACT_URI,
 			records: row.records.map((entry, index) => serverNoticeRecord(entry, `${path}.records[${index}]`)),
-			allowed_outcomes: boundedStringArray(row.allowed_outcomes, MAX_SERVER_NOTICE_LIST_ITEMS, MAX_SERVER_NOTICE_KEY_CHARS, `${path}.allowed_outcomes`),
-			allowed_tools: boundedStringArray(row.allowed_tools, MAX_SERVER_NOTICE_LIST_ITEMS, MAX_SERVER_NOTICE_KEY_CHARS, `${path}.allowed_tools`),
+			allowed_outcomes: boundedStringArray(row.allowed_outcomes, SYSTEM_NOTICE_WIRE_BOUNDS.listItems, SYSTEM_NOTICE_WIRE_BOUNDS.listItemChars, `${path}.allowed_outcomes`),
+			allowed_tools: boundedStringArray(row.allowed_tools, SYSTEM_NOTICE_WIRE_BOUNDS.listItems, SYSTEM_NOTICE_WIRE_BOUNDS.listItemChars, `${path}.allowed_tools`),
 		};
 	}
 	exactKeys(row, [
@@ -503,8 +530,8 @@ function systemNotice(value: unknown, path: string): SystemNoticeV1 {
 	if (!FULL_LOWERCASE_SHA_RE.test(commitSha)) fail(`${path}.commit_sha`, "expected lowercase full SHA");
 	const taskTitle = string(row.task_title, `${path}.task_title`);
 	const branch = string(row.branch, `${path}.branch`);
-	if (taskTitle.length > MAX_SYSTEM_NOTICE_TEXT_CHARS) fail(`${path}.task_title`, "title exceeds safe bound");
-	if (branch.length > MAX_SYSTEM_NOTICE_TEXT_CHARS) fail(`${path}.branch`, "branch exceeds safe bound");
+	if (taskTitle.length > SYSTEM_NOTICE_WIRE_BOUNDS.commitTaskTitle) fail(`${path}.task_title`, `task_title is ${taskTitle.length} characters; the wire schema allows ${SYSTEM_NOTICE_WIRE_BOUNDS.commitTaskTitle}`);
+	if (branch.length > SYSTEM_NOTICE_WIRE_BOUNDS.commitBranch) fail(`${path}.branch`, `branch is ${branch.length} characters; the wire schema allows ${SYSTEM_NOTICE_WIRE_BOUNDS.commitBranch}`);
 	if (row.contract_uri !== SYSTEM_NOTICE_CONTRACT_URI) fail(`${path}.contract_uri`, "unknown system notice contract URI");
 	return {
 		version: SYSTEM_NOTICE_VERSION,
@@ -528,7 +555,7 @@ function derivedNoticeId(value: unknown): string {
 
 function boundedLabel(value: unknown): string | null {
 	if (typeof value === "number" && Number.isFinite(value)) return String(value);
-	return typeof value === "string" && value.length > 0 && value.length <= MAX_SERVER_NOTICE_KEY_CHARS ? value : null;
+	return typeof value === "string" && value.length > 0 && value.length <= SYSTEM_NOTICE_WIRE_BOUNDS.topic ? value : null;
 }
 
 function readableOrUnreadableNotice(value: unknown, path: string): SystemNoticeV1 {
@@ -543,7 +570,7 @@ function readableOrUnreadableNotice(value: unknown, path: string): SystemNoticeV
 
 function systemNoticeArray(value: unknown, path: string): SystemNoticeV1[] {
 	if (!Array.isArray(value)) fail(path, "expected array");
-	if (value.length > MAX_SYSTEM_NOTICES_PER_ENVELOPE) fail(path, "system notice set exceeds safe bound");
+	if (value.length > SYSTEM_NOTICE_WIRE_BOUNDS.noticesPerEnvelope) fail(path, `${value.length} system notices; the wire schema allows ${SYSTEM_NOTICE_WIRE_BOUNDS.noticesPerEnvelope}`);
 	const notices = value.map((entry, index) => readableOrUnreadableNotice(entry, `${path}[${index}]`));
 	if (new Set(notices.map((notice) => notice.notice_id)).size !== notices.length) fail(path, "notice ids must be deduplicated");
 	return notices;

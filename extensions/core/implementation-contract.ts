@@ -96,8 +96,10 @@ export interface ImplementationContractContext {
 	rules: ImplementationRule[];
 	/** Shown to the model exactly as served: Pi only carries it. */
 	workEntryContract?: ServedSection;
-	/** Carried as served; Pi does not interpret it. */
+	/** Carried and shown as served; Pi does not interpret it. */
 	commitProvenanceContract?: ServedSection;
+	/** Which instruction tier wins, shown as served; Pi does not interpret it. */
+	instructionBoundary?: ServedSection;
 	authorityContract?: AuthorityContract;
 	/** Known sections Pi could not read in full; shown as served. */
 	unreadSections?: UnreadSection[];
@@ -378,6 +380,7 @@ function parseContractBundle(root: Record<string, unknown>, resourceUri: string)
 	const workEntryContract = asRecord(root.work_entry_contract) ?? undefined;
 	if (!workEntryContract) unread("work_entry_contract");
 	const commitProvenanceContract = asRecord(root.commit_provenance_contract) ?? undefined;
+	const instructionBoundary = asRecord(root.instruction_boundary) ?? undefined;
 	const authorityContract = readAuthorityContract(root.authority_contract) ?? undefined;
 	if (!authorityContract) unread("authority_contract");
 	const unknownSections = extraKeys(root, KNOWN_ROOT_KEYS);
@@ -390,6 +393,7 @@ function parseContractBundle(root: Record<string, unknown>, resourceUri: string)
 		rules: core?.rules ?? [...LOCAL_SAFETY_RULES],
 		...(workEntryContract ? { workEntryContract } : {}),
 		...(commitProvenanceContract ? { commitProvenanceContract } : {}),
+		...(instructionBoundary ? { instructionBoundary } : {}),
 		...(authorityContract ? { authorityContract } : {}),
 		...(unreadSections.length > 0 ? { unreadSections } : {}),
 		...(core && core.skipped > 0 ? { skippedRules: core.skipped } : {}),
@@ -699,6 +703,15 @@ export function formatImplementationContext(context: ImplementationContractConte
 		...(context.workEntryContract ? [
 			"Canonical work entry contract (the only task/session-plan boundary):",
 			JSON.stringify(context.workEntryContract),
+		] : []),
+		// The rules point at both of these by name, so the model reads them as served (5a9eaa57).
+		...(context.commitProvenanceContract ? [
+			"Commit provenance contract (commit_provenance_contract — how implementing commits are linked):",
+			JSON.stringify(context.commitProvenanceContract),
+		] : []),
+		...(context.instructionBoundary ? [
+			"Instruction boundary (instruction_boundary — which instruction tier wins, and what no tier may override):",
+			JSON.stringify(context.instructionBoundary),
 		] : []),
 		...(context.authorityContract ? formatAuthorityContract(context.authorityContract) : []),
 		// A section this Pi could not read in full still reaches the model in

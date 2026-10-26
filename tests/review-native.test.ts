@@ -16,7 +16,7 @@ const side = (id: string) => ({ type: "memory", id, title: `Title ${id}`, claim:
 // pairwise "contradictory" flags no longer exist (ADR "Protecting intent" §16).
 const issue = { key: "intent_reversal|memory:a|memory:b", claimType: "intent_reversal", status: "open", issueId: null,
 	subject: side("a"), counterpart: side("b"), evidence: { reason: "These clauses differ", passage: "CLAIM_a", raisedAt: "2026-09-25" } };
-const card = { id: "a", title: "Memory A", type: "decision", summary: "A summary", version: 1, updated_at: "before", unresolved_disagreements: [issue] };
+const card = { id: "a", title: "Memory A", type: "decision", state: "decided", summary: "A summary", version: 1, updated_at: "before", unresolved_disagreements: [issue] };
 const stale = (id: string, reason = "The code it describes changed") => ({ key: `possibly_stale|memory:${id}`, claimType: "possibly_stale", status: "open", issueId: null,
 	subject: side(id), counterpart: null, evidence: { reason, raisedAt: "2026-10-11" } });
 const project = (toolName: string, details: unknown) => projectModelText({ toolName, details, text: "" });
@@ -49,10 +49,13 @@ test("mutation receipts keep exact preview and read handles, even above the opti
 	for (const pattern of [/outcome=queued_for_review/, /proposal-9/, /Older item/, /A Contributor's supersession is reviewed/, /QUEUED, NOT RECORDED/]) assert.match(queued, pattern);
 });
 
-test("unknown write presentation never asks for another write", () => {
+test("unknown write presentation never asks for another write, and arrives whole", () => {
 	for (const details of [{ opaque: "x".repeat(7000), success: true }, null]) {
 		const text = projectModelText({ toolName: "manage_discussion_point", details, text: "x".repeat(7000) });
-		assert.doesNotMatch(text, /Rerun manage_discussion_point/); assert.match(text, /Do not repeat this mutation/);
+		assert.doesNotMatch(text, /Rerun manage_discussion_point/);
+		// Nothing is cut, so there is no partial presentation to warn about (5a9eaa57).
+		if (details) assert.deepEqual(JSON.parse(text), details);
+		else assert.equal(text, "x".repeat(7000));
 	}
 });
 

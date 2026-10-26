@@ -32,6 +32,7 @@ import {
 	cardKey,
 	extractCards,
 	formatRecallBlock,
+	isAgreed,
 	recallQuery,
 	shouldRecall,
 	unseenCards,
@@ -72,14 +73,16 @@ export default function (pi: ExtensionAPI, deps = { resolveToken, callDevspec, g
 				if (!currentToken || scope !== reviewScope(ctx.sessionManager.getSessionId(), deps.getBond()?.projectId ?? ctx.cwd, currentToken.token)) return undefined;
 				if (!isError) {
 					observeReviewResult("search_memories", details, { query }, scope);
-					const fresh = unseenCards(extractCards(details), injected);
+					const cards = extractCards(details);
+					const agreed = cards.filter(isAgreed);
+					const fresh = unseenCards(agreed, injected);
 					for (const c of fresh) {
 						const k = cardKey(c);
 						if (k) injected.add(k);
 					}
 					if (fresh.length > 0) {
 						debugRemote("recall", { queryChars: query.length, newHits: fresh.length });
-						const recall = formatRecallBlock(fresh);
+						const recall = formatRecallBlock(fresh, cards.length - agreed.length);
 						noteInjectedContext("recall", recall.length);
 						parts.push(recall);
 					} else {

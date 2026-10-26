@@ -4,12 +4,13 @@
  *
  * This complements assertions in the unit suite with a human-readable baseline
  * that can be compared while refining tool schemas and projections. It contains
- * synthetic data only and exits non-zero when a production budget is exceeded.
+ * synthetic data only. Sizes are diagnostic, never a quota (convention 8958f7b1):
+ * a projection fails here only when content it must carry is missing.
  */
 
 import { buildDevspecInstructions } from "../extensions/core/instructions.ts";
 import { estimatePrefixTokens } from "../extensions/core/model-surface.ts";
-import { PROJECTION_BUDGETS, projectModelText } from "../extensions/core/result-projection.ts";
+import { projectModelText } from "../extensions/core/result-projection.ts";
 
 function repeat(label: string, chars: number): string {
 	return `${label}: ${"representative content ".repeat(Math.ceil(chars / 23))}`.slice(0, chars);
@@ -115,8 +116,6 @@ type BenchmarkRow = {
 	name: string;
 	value: number;
 	unit: "tokens" | "chars";
-	min: number;
-	limit: number;
 	missing: string[];
 };
 
@@ -124,39 +123,36 @@ function projectionRow(
 	name: string,
 	toolName: string,
 	details: unknown,
-	min: number,
-	limit: number,
 	required: string[],
 ): BenchmarkRow {
 	const text = projected(toolName, details);
-	return { name, value: text.length, unit: "chars", min, limit, missing: required.filter((marker) => !text.includes(marker)) };
+	return { name, value: text.length, unit: "chars", missing: required.filter((marker) => !text.includes(marker)) };
 }
 
 const initialSurfaceTokens = estimatePrefixTokens(buildDevspecInstructions());
 const rows: BenchmarkRow[] = [
-	projectionRow("task search", "search_tasks", { count: actionResults.length, results: actionResults }, 2_000, PROJECTION_BUDGETS.collection, ["Representative task result 1", "Intent 1", "get_task"]),
-	projectionRow("resource search", "search_resources", { documents: resourceResults.slice(0, 5), artifacts: resourceResults.slice(5) }, 1_500, PROJECTION_BUDGETS.collection, ["Representative resource 1", "Matching passage 1", "get_resource"]),
-	projectionRow("project summary", "get_project_summary", projectSummary, 9_000, PROJECTION_BUDGETS.project, ["Team principles", "Team agent rules", "Owner agent rules"]),
-	projectionRow("write acknowledgement", "create_task", acknowledgement, 300, PROJECTION_BUDGETS.ack, ["Representative write", "proposal-1", "review_url"]),
-	projectionRow("implementation acknowledgement", "record_implementation", implementation, 1_500, PROJECTION_BUDGETS.recordImplementation, ["Criterion 1", "Brief criterion 1", "record_criterion_verdicts"]),
-	projectionRow("help search", "devspec_help_search", help, 1_500, PROJECTION_BUDGETS.help, ["Context documentation 1", "https://docs.example.test/context-1", "Citeable help content 1"]),
-	projectionRow("fallback text", "generate_commit_message", fallback, 1_000, PROJECTION_BUDGETS.fallback, ["Generated commit message", "fallback field"]),
+	projectionRow("task search", "search_tasks", { count: actionResults.length, results: actionResults }, ["Representative task result 1", "Intent 1", "get_task"]),
+	projectionRow("resource search", "search_resources", { documents: resourceResults.slice(0, 5), artifacts: resourceResults.slice(5) }, ["Representative resource 1", "Matching passage 1", "get_resource"]),
+	projectionRow("project summary", "get_project_summary", projectSummary, ["Team principles", "Team agent rules", "Owner agent rules"]),
+	projectionRow("write acknowledgement", "create_task", acknowledgement, ["Representative write", "proposal-1", "review_url"]),
+	projectionRow("implementation acknowledgement", "record_implementation", implementation, ["Criterion 1", "Brief criterion 1", "record_criterion_verdicts"]),
+	projectionRow("help search", "devspec_help_search", help, ["Context documentation 1", "https://docs.example.test/context-1", "Citeable help content 1"]),
+	projectionRow("fallback text", "generate_commit_message", fallback, ["Generated commit message", "Optional metadata"]),
 ];
 
 function rowFailed(row: BenchmarkRow): boolean {
-	return row.value < row.min || row.value > row.limit || row.missing.length > 0;
+	return row.missing.length > 0;
 }
 
 const failed = rows.filter(rowFailed);
 if (process.argv.includes("--json")) {
-	process.stdout.write(`${JSON.stringify({ version: 3, initialSurfaceTokens, rows, passed: failed.length === 0 }, null, 2)}\n`);
+	process.stdout.write(`${JSON.stringify({ version: 4, initialSurfaceTokens, rows, passed: failed.length === 0 }, null, 2)}\n`);
 } else {
 	console.log("DevSpec-Pi context benchmark (deterministic synthetic fixtures)");
 	console.log(`INFO  initial DevSpec surface: ${initialSurfaceTokens} estimated tokens (diagnostic, not a prose quota)`);
 	for (const row of rows) {
-		const percent = Math.round((row.value / row.limit) * 1_000) / 10;
 		const details = row.missing.length > 0 ? `; missing ${row.missing.join(", ")}` : "";
-		console.log(`${rowFailed(row) ? "FAIL" : "PASS"}  ${row.name}: ${row.value} ${row.unit} / ${row.min}–${row.limit} (${percent}%)${details}`);
+		console.log(`${rowFailed(row) ? "FAIL" : "PASS"}  ${row.name}: ${row.value} ${row.unit} (diagnostic)${details}`);
 	}
 }
 if (failed.length > 0) process.exitCode = 1;

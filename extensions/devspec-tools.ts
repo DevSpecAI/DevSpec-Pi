@@ -98,8 +98,10 @@ export function queuedForReviewRelay(details: unknown): string | null {
 /**
  * Unwrap and project a DevSpec result, retaining complete data in details.
  * `hostNote` is Pi's own note about the call (never server data), appended last.
+ * `modelArgs` are the arguments the model sent, so a receipt can name the fields
+ * that merely repeat them instead of printing them again.
  */
-export function unwrapOrThrow(name: string, raw: unknown, hostNote?: string) {
+export function unwrapOrThrow(name: string, raw: unknown, hostNote?: string, modelArgs?: Record<string, unknown>) {
 	const unwrapped = unwrapMcpResult(raw);
 	const relay = unwrapped.isError ? null : queuedForReviewRelay(unwrapped.details);
 	const { details, isError } = unwrapped;
@@ -120,7 +122,7 @@ export function unwrapOrThrow(name: string, raw: unknown, hostNote?: string) {
 		const reason = text || structuredError || `DevSpec tool ${name} failed.`;
 		throw new Error(mismatch ? `${reason}\n\n${mismatch}` : reason);
 	}
-	const projected = projectedToolResult(name, unwrapped);
+	const projected = projectedToolResult(name, unwrapped, modelArgs);
 	// Append AFTER projection: ack/full projections intentionally read details,
 	// so putting the relay into input.text silently threw it away.
 	const body = relay ? `${relay}\n\n${projected.content[0].text}` : projected.content[0].text;
@@ -358,7 +360,7 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 				? { connectionCapability: bond.connectionCapability }
 				: {}),
 		});
-		const projected = unwrapOrThrow(name, raw, unstamped ? unstampedNote(unstamped) : undefined);
+		const projected = unwrapOrThrow(name, raw, unstamped ? unstampedNote(unstamped) : undefined, params);
 		const result = shouldTerminateAfterDirectedQuestionCreate(name, args, projected)
 			? { ...projected, terminate: true as const }
 			: projected;

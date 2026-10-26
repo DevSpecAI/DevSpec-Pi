@@ -202,6 +202,10 @@ test("mechanically reads, validates, formats, and caches the current v4.3 tracki
 	assert.match(formatImplementationContext(first), /core\.claim-early/);
 	assert.match(formatImplementationContext(first), /material_session_progress_value/);
 	assert.match(formatImplementationContext(first), /plan_threshold/);
+	// The rules send the model to these two sections by name, so it reads them as served (5a9eaa57).
+	assert.deepEqual(first.instructionBoundary, INSTRUCTION_BOUNDARY);
+	assert.ok(formatImplementationContext(first).includes(JSON.stringify(provenanceSection())));
+	assert.ok(formatImplementationContext(first).includes(JSON.stringify(INSTRUCTION_BOUNDARY)));
 	assert.equal(counts.compatibility, 0, "the self-hashing resource needs no compatibility read");
 
 	const second = await loadImplementationContext({

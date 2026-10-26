@@ -2,9 +2,14 @@
  * Pure, model-visible projections for structured DevSpec MCP results.
  *
  * Pi persists `details` for extension/session consumers, while provider adapters
- * send tool-result `content` to the model. These projections therefore remove
- * repeated/storage-only data only where the verb contract permits it. Exact
- * reads stay lossless, and every compact family has a production output budget.
+ * send tool-result `content` to the model. What the server returns reaches the
+ * model: exact reads stay lossless, a write's receipt passes every field through,
+ * an unrecognised result is shown whole, and a list shows every row the server
+ * returned. The only condensing is lossless or visibly declared — a list row is a
+ * card that names the exact read for its full record, and a receipt leaves out
+ * empty fields and values identical to the call's own arguments, and says which.
+ * There is no output budget: a field the server wants read is never dropped to
+ * save tokens (DevSpec item 5a9eaa57, convention 8958f7b1).
  */
 
 import { disagreementBlock, reviewData } from "./review-context.ts";
@@ -13,29 +18,19 @@ export interface ProjectionInput {
 	toolName: string;
 	text: string;
 	details: unknown;
+	/** The arguments the call was sent with, when known: a receipt names fields equal to them instead of repeating them. */
+	args?: Record<string, unknown>;
 }
 
 export type ProjectionFamily = "project" | "collection" | "help" | "ack" | "full" | "fallback";
 
-export const PROJECTION_BUDGETS = {
-	project: 28_000,
-	collection: 4_500,
-	help: 12_000,
-	ack: 5_000,
-	// record_implementation can carry up to 30 own and 30 brief criteria.
-	// Their actionable follow-through is load-bearing, not acknowledgement noise.
-	recordImplementation: 28_000,
-	fallback: 6_000,
-} as const;
-
-const CARD_LIMIT = 7;
+/**
+ * A list card is a preview whose purpose is choosing which exact read to pay for.
+ * Its optional metadata (repositories, signals) yields to its required lines at
+ * this size and says so; the full record is always one exact read away.
+ */
 const CARD_BUDGET = 560;
-const MANUAL_FOLLOWUP_LIMIT = 3;
-const PENDING_PROPOSAL_LIMIT = 2;
-const OUTSTANDING_LIMIT = 3;
 const LINE_LIMIT = 240;
-// High on purpose: these are binding inputs, not repeated metadata. The cap is
-// only a pathological-payload guard and carries an exact recovery instruction.
 
 const COLLECTION_VERBS = new Set([
 	"list_projects",
@@ -202,6 +197,12 @@ function oneLine(value: unknown, max = LINE_LIMIT): string | undefined {
 	return flat.length > max ? `${flat.slice(0, Math.max(0, max - 1))}…` : flat;
 }
 
+/** A sentence DevSpec wrote to be read (a label, an instruction): flattened to one line, never clipped. */
+function whole(value: unknown): string | undefined {
+	const raw = scalar(value);
+	return raw ? raw.replace(/\s+/g, " ").trim() : undefined;
+}
+
 function json(value: unknown): string | null {
 	try {
 		const encoded = JSON.stringify(value, null, 2);
@@ -235,32 +236,10 @@ function safeCiteUrl(value: unknown): string | undefined {
 		if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return undefined;
 		parsed.username = "";
 		parsed.password = "";
-		return oneLine(parsed.toString(), 500);
+		return parsed.toString();
 	} catch {
 		return undefined;
 	}
-}
-
-/** Join whole blocks only. Known projections are never sliced mid-JSON/card. */
-function withinBudget(blocks: readonly string[], budget: number, family: string): string {
-	const nonempty = blocks.filter((block) => block.trim().length > 0);
-	const complete = nonempty.join("\n");
-	if (complete.length <= budget) return complete;
-
-	const included: string[] = [];
-	let omitted = 0;
-	for (let index = 0; index < nonempty.length; index += 1) {
-		const block = nonempty[index];
-		const prospectiveOmitted = omitted + 1;
-		const remaining = nonempty.length - index - 1;
-		const note = `[${prospectiveOmitted + remaining} ${family} block(s) omitted from model-visible content to stay within the ${budget}-character budget; complete data is host-retained in details, which is not a model-visible continuation.]`;
-		const candidate = [...included, block, note].join("\n");
-		if (candidate.length <= budget) included.push(block);
-		else omitted += 1;
-	}
-	const note = `[${omitted} ${family} block(s) omitted from model-visible content to stay within the ${budget}-character budget; complete data is host-retained in details, which is not a model-visible continuation.]`;
-	while (included.length > 0 && [...included, note].join("\n").length > budget) included.pop();
-	return [...included, note].join("\n");
 }
 
 /** Required blocks are reserved before optional detail and are never dropped. */
@@ -302,8 +281,11 @@ export function projectionFamily(toolName: string): ProjectionFamily {
 	return "fallback";
 }
 
+/** Where a response carries the record it is about. */
+const NESTED_ENTITY_KEYS: readonly string[] = ["item", "task", "memory", "resource", "automation", "goal", "project", "session", "assignment", "run"];
+
 function nestedEntity(root: Row): Row {
-	for (const key of ["item", "task", "memory", "resource", "automation", "goal", "project", "session", "assignment", "run"]) {
+	for (const key of NESTED_ENTITY_KEYS) {
 		const found = record(root[key]);
 		if (found) return found;
 	}
@@ -357,10 +339,10 @@ function pendingProposalLines(row: Row, outer: Row): string[] {
 			? outer.pending_proposals
 			: [];
 	const lines: string[] = [];
-	for (const raw of source.slice(0, PENDING_PROPOSAL_LIMIT)) {
+	for (const raw of source) {
 		const entry = record(raw);
 		if (!entry) continue;
-		const served = oneLine(entry.line, LINE_LIMIT);
+		const served = whole(entry.line);
 		if (served) {
 			lines.push(served);
 			continue;
@@ -372,10 +354,6 @@ function pendingProposalLines(row: Row, outer: Row): string[] {
 			// Who it waits on is DevSpec's to say (contract 4.31.0: not always a Maintainer).
 			`\u26a0 ${what}${by ? ` by ${by}` : ""}, awaiting review${id ? ` (proposal ${id})` : ""}`,
 		);
-	}
-	const remaining = source.length - lines.length;
-	if (lines.length && remaining > 0) {
-		lines.push(`\u26a0 ${remaining} further proposed change(s) awaiting review.`);
 	}
 	return lines;
 }
@@ -389,7 +367,7 @@ function pendingProposalLines(row: Row, outer: Row): string[] {
 function agreementLine(row: Row, outer: Row): string | null {
 	const entry = record(row.agreement) ?? record(outer.agreement);
 	if (!entry) return null;
-	const served = oneLine(entry.line, LINE_LIMIT);
+	const served = whole(entry.line);
 	if (served) return `\u26a0 ${served}`;
 	const state = oneLine(entry.state, 40);
 	return state ? `\u26a0 Not agreed work (${state}).` : null;
@@ -407,9 +385,9 @@ function waitingLines(row: Row, outer: Row = row): string[] {
 	const waiting = record(row.waiting_for_ok) ?? record(outer.waiting_for_ok);
 	const lines: string[] = [];
 	if (waiting) {
-		const label = oneLine(waiting.label, 120) ?? "Waiting for an OK";
-		const on = oneLine(waiting.waiting_on, 120);
-		const instruction = oneLine(waiting.instruction, LINE_LIMIT);
+		const label = whole(waiting.label) ?? "Waiting for an OK";
+		const on = whole(waiting.waiting_on);
+		const instruction = whole(waiting.instruction);
 		lines.push(`\u26a0 ${label}${on && on !== label ? ` (${on})` : ""}${instruction ? ` — ${instruction}` : ""}`);
 	} else if (row.is_experiment === true || outer.is_experiment === true || row.badge === "Experiment" || outer.badge === "Experiment") {
 		const branch = oneLine(first(row, ["experiment_branch"]) ?? first(outer, ["experiment_branch"]), 160);
@@ -433,7 +411,7 @@ function doneBlockerLine(row: Row, outer: Row, waitingShown: boolean): string | 
 	const blocker = record(row.done_blocker) ?? record(outer.done_blocker);
 	if (!blocker) return null;
 	const layer = oneLine(blocker.layer, 40);
-	const label = oneLine(blocker.label, 120) ?? "Not done yet";
+	const label = whole(blocker.label) ?? "Not done yet";
 	const parts: string[] = [];
 	if (layer === "waiting_for_ok") {
 		// The waiting line above already says this, unless it merged before the OK.
@@ -441,13 +419,13 @@ function doneBlockerLine(row: Row, outer: Row, waitingShown: boolean): string | 
 		if (blocker.merged === true) parts.push(`merged into ${oneLine(blocker.tracking_branch, 80) ?? "the tracking branch"}`);
 	} else if (layer === "not_landed") {
 		const repos = Array.isArray(blocker.unmerged_repos) ? blocker.unmerged_repos : [];
-		const names = repos.slice(0, OUTSTANDING_LIMIT).map((raw) => {
+		const names = repos.map((raw) => {
 			const repo = record(raw) ?? {};
-			const name = oneLine(repo.repo_name, 80);
-			const branch = oneLine(repo.tracking_branch, 80);
+			const name = whole(repo.repo_name);
+			const branch = whole(repo.tracking_branch);
 			return name ? `${name}${branch ? ` \u2192 ${branch}` : ""}` : undefined;
 		}).filter((entry): entry is string => Boolean(entry));
-		if (names.length) parts.push(`unmerged: ${names.join(", ")}${repos.length > names.length ? ` (+${repos.length - names.length} more)` : ""}`);
+		if (names.length) parts.push(`unmerged: ${names.join(", ")}`);
 	} else if (layer === "awaiting_delivery") {
 		const outstanding = (Array.isArray(blocker.outstanding) ? blocker.outstanding : [])
 			.map((raw) => record(raw))
@@ -455,7 +433,7 @@ function doneBlockerLine(row: Row, outer: Row, waitingShown: boolean): string | 
 		// Name the repository per entry only when the wait spans more than one.
 		const repoNames = new Set(outstanding.map((entry) => oneLine(entry.repo_name, 80)).filter(Boolean));
 		const perRepo = repoNames.size > 1;
-		const entries = outstanding.slice(0, OUTSTANDING_LIMIT).map((entry) => {
+		const entries = outstanding.map((entry) => {
 			const status = oneLine(entry.status, 40)?.replace(/_/g, " ") ?? "pending";
 			const repo = perRepo ? oneLine(entry.repo_name, 80) : undefined;
 			let what: string;
@@ -475,8 +453,7 @@ function doneBlockerLine(row: Row, outer: Row, waitingShown: boolean): string | 
 		});
 		if (entries.length) {
 			const only = repoNames.size === 1 ? [...repoNames][0] : undefined;
-			const more = outstanding.length - entries.length;
-			parts.push(`outstanding${only ? ` in ${only}` : ""}: ${entries.join("; ")}${more > 0 ? `; +${more} more (get_task lists every repository's delivery)` : ""}`);
+			parts.push(`outstanding${only ? ` in ${only}` : ""}: ${entries.join("; ")}`);
 		}
 	}
 	return `\u26a0 done_blocker${layer ? ` (${layer})` : ""}: ${label}${parts.length ? ` \u2014 ${parts.join("; ")}` : ""}`;
@@ -555,22 +532,24 @@ interface FoundRows {
 	rows: unknown[];
 	recognized: boolean;
 	briefCount: number;
+	/** The response's own top-level keys the rows came from; every other key is shown as a response note. */
+	keys: string[];
 }
 
 function genericRows(root: Row): FoundRows {
 	for (const key of ROW_KEYS) {
-		if (Array.isArray(root[key])) return { rows: root[key] as unknown[], recognized: true, briefCount: 0 };
+		if (Array.isArray(root[key])) return { rows: root[key] as unknown[], recognized: true, briefCount: 0, keys: [key] };
 	}
 	for (const key of ["page", "result"] as const) {
 		const nested = record(root[key]);
 		if (!nested) continue;
 		const found = genericRows(nested);
-		if (found.recognized) return found;
+		if (found.recognized) return { ...found, keys: [key] };
 	}
 	const hasCount = [root, record(root.page)].some((container) =>
 		container && COUNT_KEYS.some((key) => typeof container[key] === "number" && Number.isFinite(container[key])),
 	);
-	return { rows: [], recognized: hasCount, briefCount: 0 };
+	return { rows: [], recognized: hasCount, briefCount: 0, keys: [] };
 }
 
 function collectionRows(toolName: string, root: Row): FoundRows {
@@ -581,13 +560,13 @@ function collectionRows(toolName: string, root: Row): FoundRows {
 		const documents = hasDocuments ? root.documents as unknown[] : [];
 		const artifacts = hasArtifacts ? root.artifacts as unknown[] : [];
 		const rows: unknown[] = [];
-		// The server searches these as two independent corpora. Interleave them so
-		// one full corpus cannot hide every hit from the other at the card budget.
+		// The server searches these as two independent corpora; interleaving keeps
+		// both visible near the top of the list.
 		for (let index = 0; index < Math.max(documents.length, artifacts.length); index += 1) {
 			if (index < documents.length) rows.push(documents[index]);
 			if (index < artifacts.length) rows.push(artifacts[index]);
 		}
-		return { rows, recognized: true, briefCount: 0 };
+		return { rows, recognized: true, briefCount: 0, keys: ["documents", "artifacts"] };
 	}
 	if (toolName !== "get_tasks") return genericRows(root);
 	const hasItems = Array.isArray(root.items);
@@ -613,7 +592,7 @@ function collectionRows(toolName: string, root: Row): FoundRows {
 		combined.push(raw);
 		briefCount += 1;
 	}
-	return { rows: combined, recognized: true, briefCount };
+	return { rows: combined, recognized: true, briefCount, keys: ["items", "briefs"] };
 }
 
 function totalRows(root: Row, found: number): number {
@@ -640,46 +619,65 @@ function fetchHint(toolName: string): string {
 	return `Rerun ${toolName} with a narrower filter or pagination to fetch more; use the entity's exact get tool when available.`;
 }
 
+/** Keys a collection projection renders itself: the page, its counts and its completeness. */
+const COLLECTION_RENDERED_KEYS = new Set(["page", "pages", "count", "total", "total_matching", "incomplete", "unavailable_note", "query"]);
+
+/**
+ * Everything else the server put beside the rows — how to treat a disagreement,
+ * that a search ran on keywords alone, that bodies are left out, that an offset is
+ * past the end — reaches the model whole, in DevSpec's words.
+ */
+function collectionNotes(root: Row, found: FoundRows, countsKey: string | null): Row {
+	const notes: Row = {};
+	for (const [key, value] of Object.entries(root)) {
+		if (COLLECTION_RENDERED_KEYS.has(key) || found.keys.includes(key)) continue;
+		if (key === "summary" && countsKey) {
+			const summary = record(value);
+			if (summary) {
+				const { [countsKey]: _rendered, ...rest } = summary;
+				if (Object.keys(rest).length) notes.summary = rest;
+				continue;
+			}
+		}
+		notes[key] = value;
+	}
+	return notes;
+}
+
 function collectionProjection(toolName: string, details: unknown): string | null {
 	const root = record(details) ?? (Array.isArray(details) ? { results: details } : null);
 	if (!root) return null;
 	const found = collectionRows(toolName, root);
 	if (!found.recognized) return null;
-	const shown = found.rows.slice(0, CARD_LIMIT);
+	// Every row the server returned is shown. The page size is the caller's own
+	// `limit`, so a second, smaller page here would hide rows that the server's
+	// next offset then skips past.
+	const shown = found.rows;
 	const primaryCount = toolName === "get_tasks"
 		? Math.max(0, found.rows.length - found.briefCount)
 		: found.rows.length;
 	const total = totalRows(root, primaryCount);
 	const summary = record(root.summary);
-	const counts = summary ? record(summary.ui_buckets) ?? record(summary.lifecycle_breakdown) : null;
+	const countsKey = summary ? (record(summary.ui_buckets) ? "ui_buckets" : record(summary.lifecycle_breakdown) ? "lifecycle_breakdown" : null) : null;
+	const counts = summary && countsKey ? record(summary[countsKey]) : null;
 	const heading = toolName === "get_tasks" && found.briefCount > 0
-		? `${toolName}: ${total} result${total === 1 ? "" : "s"}; ${found.briefCount} additional contextual brief card(s); showing ${shown.length} combined card(s).`
-		: `${toolName}: ${total} result${total === 1 ? "" : "s"}${shown.length < total ? `; showing ${shown.length}` : ""}.`;
+		? `${toolName}: ${total} result${total === 1 ? "" : "s"}; ${primaryCount} on this page plus ${found.briefCount} contextual brief card(s).`
+		: `${toolName}: ${total} result${total === 1 ? "" : "s"}${primaryCount < total ? `; ${primaryCount} on this page` : ""}.`;
 	const blocks = [heading];
 	if (counts) {
-		const compactCounts = Object.entries(counts)
+		const allCounts = Object.entries(counts)
 			.filter(([, value]) => typeof value === "number")
-			.slice(0, 8)
-			.map(([key, value]) => `${oneLine(key.replace(/_/g, " "), 60)}=${value}`);
-		if (compactCounts.length) blocks.push(`Counts: ${compactCounts.join(", ")}`);
+			.map(([key, value]) => `${key.replace(/_/g, " ")}=${value}`);
+		if (allCounts.length) blocks.push(`Counts: ${allCounts.join(", ")}`);
 	}
 	// A search that could not reach part of its corpus says so (DevSpec item 0ab1054e):
 	// relay it, so a partial answer is never read as a complete one.
 	const incomplete = root.incomplete === true;
-	if (incomplete) blocks.push(`Incomplete: ${typeof root.unavailable_note === "string" ? oneLine(root.unavailable_note, 300) : "part of this search could not be run; do not report that nothing matched."}`);
+	if (incomplete) blocks.push(`Incomplete: ${typeof root.unavailable_note === "string" ? whole(root.unavailable_note) : "part of this search could not be run; do not report that nothing matched."}`);
+	const notes = collectionNotes(root, found, countsKey);
+	if (Object.keys(notes).length) blocks.push(`Response notes (server data):\n${reviewData(notes)}`);
 	for (const [index, row] of shown.entries()) blocks.push(card(row, index));
 	if (total === 0 && found.briefCount === 0 && !incomplete) blocks.push("No matching entities returned (recognized empty result set).");
-	if (toolName === "get_tasks") {
-		const shownPrimary = Math.min(shown.length, primaryCount);
-		const shownBriefs = Math.max(0, shown.length - shownPrimary);
-		const omittedPrimary = Math.max(0, total - shownPrimary);
-		const omittedBriefs = Math.max(0, found.briefCount - shownBriefs);
-		if (omittedPrimary > 0) blocks.push(`Omitted ${omittedPrimary} task result(s) from model-visible content.`);
-		if (omittedBriefs > 0) blocks.push(`Omitted ${omittedBriefs} contextual brief card(s) from model-visible content.`);
-	} else {
-		const omitted = Math.max(total - shown.length, found.rows.length - shown.length);
-		if (omitted > 0) blocks.push(`Omitted ${omitted} result(s) from model-visible content.`);
-	}
 	// DevSpec lists page with an exact continuation (item cc630fb8). Name it, so the
 	// model can fetch the rest rather than read one page as the whole list.
 	const page = record(root.page);
@@ -702,18 +700,7 @@ function collectionProjection(toolName: string, details: unknown): string | null
 		if (floor) blocks.push("A count marked + is a floor: the ranking stopped at its bound. Narrow the query, or browse with get_resources, to reach beyond it.");
 	}
 	blocks.push(fetchHint(toolName));
-	return withinBudget(blocks, PROJECTION_BUDGETS.collection, "collection");
-}
-
-function sectionExcerpt(value: unknown, max = 1_100): string | undefined {
-	const source = scalar(value);
-	if (!source) return undefined;
-	if (source.length <= max) return source;
-	let boundary = source.lastIndexOf("\n\n", max);
-	if (boundary < max / 2) boundary = source.lastIndexOf(". ", max);
-	if (boundary < max / 2) boundary = source.lastIndexOf(" ", max);
-	if (boundary < max / 2) boundary = max;
-	return `${source.slice(0, boundary).trimEnd()}…\n[${source.length - boundary} section character(s) omitted; rerun devspec_help_search with a narrower query and cite the returned URL.]`;
+	return blocks.join("\n");
 }
 
 function helpProjection(details: unknown): string | null {
@@ -725,28 +712,28 @@ function helpProjection(details: unknown): string | null {
 	const pageTotal = page && typeof page.total_matching === "number" ? page.total_matching : undefined;
 	const total = pageTotal ?? (typeof root.count === "number" ? Math.max(root.count, root.results.length) : root.results.length);
 	const floor = page?.total_is_lower_bound === true;
-	const shown = (root.results as unknown[]).slice(0, 8);
-	const blocks = [`DevSpec help${query ? ` for “${query}”` : ""}: ${floor ? "at least " : ""}${total} section${total === 1 ? "" : "s"}; showing ${shown.length}${offset > 0 ? ` from ${offset + 1}` : ""}.`];
+	// Every section the server returned, each whole: its page size is the caller's.
+	const shown = root.results as unknown[];
+	const blocks = [`DevSpec help${query ? ` for “${query}”` : ""}: ${floor ? "at least " : ""}${total} section${total === 1 ? "" : "s"}; ${shown.length} on this page${offset > 0 ? ` from ${offset + 1}` : ""}.`];
 	for (const [index, raw] of shown.entries()) {
 		const hit = record(raw);
 		if (!hit) continue;
-		const doc = oneLine(first(hit, ["doc", "document", "title"]), 160) ?? "DevSpec help";
-		const section = oneLine(first(hit, ["section", "section_title", "heading"]), 180);
-		const category = oneLine(hit.category, 80);
+		const doc = whole(first(hit, ["doc", "document", "title"])) ?? "DevSpec help";
+		const section = whole(first(hit, ["section", "section_title", "heading"]));
+		const category = whole(hit.category);
 		const url = safeCiteUrl(hit.url);
-		const content = sectionExcerpt(first(hit, ["content", "text", "body"]));
+		const content = scalar(first(hit, ["content", "text", "body"]));
 		const lines = [`${index + 1}. ${doc}${section ? ` — ${section}` : ""}${category ? ` [${category}]` : ""}`];
 		if (url) lines.push(`   URL: ${url}`);
 		if (content) lines.push(content);
 		blocks.push(lines.join("\n"));
 	}
 	// Pages continue from the last section shown (DevSpec item 02526f46).
-	const nextOffset = offset + shown.length;
-	if (shown.length < root.results.length || (page && typeof page.next_offset === "number")) {
-		blocks.push(`More sections: call devspec_help_search again with offset ${nextOffset}.`);
+	if (page && typeof page.next_offset === "number") {
+		blocks.push(`More sections: call devspec_help_search again with offset ${page.next_offset}.`);
 	}
-	blocks.push("For fuller text, rerun devspec_help_search with a narrower query; cite the returned URL in the answer.");
-	return withinBudget(blocks, PROJECTION_BUDGETS.help, "help section");
+	blocks.push("Cite the returned URL in the answer.");
+	return blocks.join("\n");
 }
 
 function completeProjectSummary(details: unknown): string | null {
@@ -786,86 +773,109 @@ function conflictBlocks(root: Row): string[] {
 	return blocks;
 }
 
-function criterionLines(value: unknown): string[] {
-	const container = record(value);
-	const groups: Array<[string, unknown[]]> = [];
-	if (Array.isArray(value)) groups.push(["criteria", value]);
-	if (container) {
-		for (const key of [
-			"criteria", "unchecked_criteria", "criteria_to_check", "criterion_ids",
-			"go_and_check", "weak_evidence", "failed", "leave_for_a_person", "unsettled_criteria",
-		] as const) {
-			if (Array.isArray(container[key])) groups.push([key, container[key] as unknown[]]);
-		}
+/** Response fields a receipt renders in their own block, whole, instead of in the field dump. */
+const ACK_OWN_BLOCK_KEYS = new Set(["own_criteria_follow_through", "brief_follow_through", "manual_followup_steps", "human_actions_required"]);
+
+/** null, a blank string, an empty list or an empty object: a field that says nothing. */
+function isEmptyValue(value: unknown): boolean {
+	if (value === null || value === undefined) return true;
+	if (typeof value === "string") return value.trim() === "";
+	if (Array.isArray(value)) return value.length === 0;
+	const row = record(value);
+	return row !== null && Object.keys(row).length === 0;
+}
+
+function sameValue(a: unknown, b: unknown): boolean {
+	if (a === b) return true;
+	if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
+	if (Array.isArray(a) || Array.isArray(b)) {
+		if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+		return a.every((value, index) => sameValue(value, b[index]));
 	}
-	if (!groups.length) return [];
-	const lines: string[] = [];
-	for (const [group, candidates] of groups) {
-		for (const raw of candidates) {
-			const criterion = record(raw);
-			if (!criterion) {
-				lines.push(`- ${group}: [${oneLine(raw, 100) ?? "unknown"}] check and record an observed verdict.`);
-				continue;
-			}
-			const id = oneLine(first(criterion, ["criterion_id", "id", "acceptance_criterion_id"]), 90) ?? "unknown";
-			const instruction = oneLine(first(criterion, ["instruction", "prompt", "action", "text", "description", "criterion"]), 180) ?? "check this criterion and record an observed verdict";
-			const reason = oneLine(first(criterion, ["reason", "status"]), 100);
-			lines.push(`- ${group}: [${id}] ${instruction}${reason ? ` (reason: ${reason})` : ""}`);
+	const left = a as Row;
+	const right = b as Row;
+	const keys = Object.keys(left);
+	return keys.length === Object.keys(right).length && keys.every((key) => hasOwn(right, key) && sameValue(left[key], right[key]));
+}
+
+/** A value the server returned that is exactly what the call sent (a description, an intent): known to the model already. */
+function isEcho(args: Row | undefined, key: string, value: unknown): boolean {
+	if (!args || !hasOwn(args, key) || typeof value === "boolean" || typeof value === "number") return false;
+	return sameValue(args[key], value);
+}
+
+/** The read that shows the stored record a receipt is about. */
+function readToolFor(toolName: string): string {
+	if (toolName.includes("memory")) return "get_memory";
+	if (toolName.includes("resource")) return "get_resource";
+	if (toolName.includes("automation")) return "get_automation";
+	if (toolName.includes("discussion_point")) return "get_discussion_point";
+	if (toolName.includes("instruction_rule")) return "get_project_instruction_rules";
+	return "get_task";
+}
+
+interface ReceiptFields {
+	shown: Row;
+	empty: string[];
+	echoed: string[];
+}
+
+/**
+ * Every top-level field of a write's response, so a field the server adds later
+ * reaches the model with no Pi change. Two kinds of field are left out, and the
+ * receipt names how many and which: an empty one (null, blank, [] or {}) and one
+ * identical to the argument the call sent. The record's own read shows both.
+ */
+function receiptFields(root: Row, args: Row | undefined): ReceiptFields {
+	const shown: Row = {};
+	const empty: string[] = [];
+	const echoed: string[] = [];
+	for (const [key, value] of Object.entries(root)) {
+		if (ACK_OWN_BLOCK_KEYS.has(key)) continue;
+		if (isEmptyValue(value)) {
+			empty.push(key);
+			continue;
 		}
+		if (isEcho(args, key, value)) {
+			echoed.push(key);
+			continue;
+		}
+		const nested = NESTED_ENTITY_KEYS.includes(key) ? record(value) : null;
+		if (!nested) {
+			shown[key] = value;
+			continue;
+		}
+		const kept: Row = {};
+		for (const [inner, innerValue] of Object.entries(nested)) {
+			if (isEmptyValue(innerValue)) empty.push(`${key}.${inner}`);
+			else if (isEcho(args, inner, innerValue)) echoed.push(`${key}.${inner}`);
+			else kept[inner] = innerValue;
+		}
+		shown[key] = kept;
 	}
-	return lines;
+	return { shown, empty, echoed };
 }
 
 function followThroughBlock(kind: "own" | "brief", value: unknown): string {
 	const label = kind === "own" ? "Own-criteria follow-through" : "Brief follow-through";
 	if (value === false) return `${label}: none requested.`;
-	const row = record(value);
-	const lines = [`${label} (act before reporting):`];
-	if (row) {
-		const brief = record(row.brief);
-		if (kind === "brief") {
-			const id = oneLine(first(row, ["brief_task_id", "task_id", "brief_id", "id"]) ?? (brief ? first(brief, ["id", "task_id"]) : undefined), 90);
-			const title = oneLine(first(row, ["brief_title", "title", "name"]) ?? (brief ? first(brief, ["title", "name"]) : undefined), 160);
-			if (id || title) lines.push(`- brief: ${id ? `[${id}]` : ""}${id && title ? " " : ""}${title ?? ""}`);
-		} else {
-			const id = oneLine(first(row, ["task_id", "item_id", "id"]), 90);
-			if (id) lines.push(`- item: [${id}]`);
-		}
-		for (const key of [
-			"band", "children_total", "children_resolved", "percent_complete", "criteria_total", "criteria_settled",
-			"action", "instruction", "prompt", "message", "status",
-		] as const) {
-			const text = oneLine(row[key], 360);
-			if (text) lines.push(`- ${key}: ${text}`);
-		}
-	}
-	lines.push(...criterionLines(value));
-	if (lines.length === 1) lines.push(`- ${oneLine(value, 400) ?? "follow-through required; fetch the exact item and inspect its acceptance criteria before reporting"}`);
-	return lines.join("\n");
+	return `${label} (act on it before you report):\n${reviewData(value)}`;
 }
 
 function manualFollowUpBlock(root: Row): string | null {
-	const human = [
-		...(Array.isArray(root.human_actions_required) ? root.human_actions_required : []),
-		...(Array.isArray(root.manual_followup_steps) ? root.manual_followup_steps : []),
-	];
-	if (!human.length) return null;
-	const lines = [`Manual/human follow-up: ${human.length}; showing ${Math.min(human.length, MANUAL_FOLLOWUP_LIMIT)}.`];
-	for (const raw of human.slice(0, MANUAL_FOLLOWUP_LIMIT)) {
-		const row = record(raw);
-		const id = row ? oneLine(first(row, ["id", "step_id"]), 90) : undefined;
-		const kind = row ? oneLine(first(row, ["kind", "type"]), 60) : undefined;
-		const description = oneLine(row ? first(row, ["description", "text", "title", "instruction"]) : raw, 180) ?? "unspecified action";
-		lines.push(`- ${id ? `[${id}] ` : ""}${kind ? `${kind}: ` : ""}${description}`);
+	const steps: Row = {};
+	let count = 0;
+	for (const key of ["human_actions_required", "manual_followup_steps"] as const) {
+		if (Array.isArray(root[key]) && (root[key] as unknown[]).length > 0) {
+			steps[key] = root[key];
+			count += (root[key] as unknown[]).length;
+		}
 	}
-	if (human.length > MANUAL_FOLLOWUP_LIMIT) {
-		const itemId = boundedId(nestedEntity(root), root);
-		lines.push(`- ${human.length - MANUAL_FOLLOWUP_LIMIT} additional follow-up step(s) omitted; ${itemId ? `use get_task(${itemId})` : "fetch the exact task"} to read every step before reporting.`);
-	}
-	return lines.join("\n");
+	if (!count) return null;
+	return `Manual/human follow-up (${count}):\n${reviewData(steps)}`;
 }
 
-function ackProjection(toolName: string, details: unknown): string | null {
+function ackProjection(toolName: string, details: unknown, args?: Row): string | null {
 	const root = record(details);
 	if (!root) return null;
 	const entity = nestedEntity(root);
@@ -876,100 +886,41 @@ function ackProjection(toolName: string, details: unknown): string | null {
 	const recognizedGate = ACK_GATE_KEYS.some((key) => hasOwn(root, key) || hasOwn(entity, key));
 	if (!id && !title && !state && !outcome && !recognizedGate) return null;
 
-	const required: string[] = [];
-	const optional: string[] = [];
+	const blocks: string[] = [];
 	const parent = oneLine(first(entity, ["parent_task_id", "parent_id", "parent_title", "brief_title"])
 		?? first(root, ["parent_task_id", "parent_id", "parent_title", "brief_title"]), 140);
 	const facts = [id && `id=${id}`, title && `title=${title}`, state && `state=${state}`, outcome && `outcome=${outcome}`].filter(Boolean);
-	required.push(`${toolName}: ${facts.length ? facts.join(" ") : "recognized response (see gates/follow-through below)"}.`);
-	if (parent) required.push(`Parent/brief: ${parent}`);
-	// R7: these are operation receipts, not optional card metadata. In particular,
-	// never lose the proposal/reason or an exact preview to the ack budget.
-	const receipt: Row = {};
-	for (const key of [
-		"committed", "applied", "success", "created", "updated", "recorded", "superseded",
-		"proposal_id", "reason", "note", "authority_note", "authority", "warnings", "flag_still_lit", "marks_cleared",
-		"closure", "tense", "verdict", "signal_type", "basis", "basis_warning", "superseding_item_id", "superseded_item_id", "would_close",
-		"receipt", "receipt_id", "operation_id", "draft_id", "read_status", "status_url", "preview",
-		"expires_at", "current_head", "expected_version", "version", "previous_id", "lineage",
-		"assessment", "assessment_receipt", "comparison_pending", "needs_clarification",
-		// A queued suggestion or edit: what happened and where a Maintainer reviews it.
-		"effect", "code", "fields", "proposal_revision", "review_url",
-		// reserve_work_items: what was reserved, and each item skipped with its reason
-		// (approval_required names the proposal). Dropping these left the model with
-		// "see skipped for why" and nothing to see (2026-10-04).
-		"assignment_id", "reserved", "reserved_count", "skipped",
-		// Who a queued change waits on, and why it was queued (contract 4.31.0).
-		"waiting_on", "because", "target_id",
-		// The tags DevSpec inferred for a new item, with its note on correcting them.
-		"auto_tagged",
-		// An item DevSpec opened for an untagged commit, with its ownership follow-up.
-		"ownership_followup",
-		// verify_task: DevSpec's sentence for where a sign-off left the item.
-		"lifecycle_note",
-	]) if (hasOwn(root, key)) receipt[key] = root[key];
-	// Work that waits for an OK, is an experiment, or is not done yet (also rendered
-	// as a line above). Every item row carries these fields; only a set one says anything.
-	for (const source of entity === root ? [root] : [entity, root]) {
-		for (const key of ["waiting_for_ok", "is_experiment", "experiment_branch", "badge", "agreement", "done_blocker"]) {
-			const value = source[key];
-			if (value !== null && value !== undefined && value !== false && !hasOwn(receipt, key)) receipt[key] = value;
-		}
-	}
-	required.push(...waitingLines(entity, root));
-	if (Object.keys(receipt).length) required.push(`Operation details (server data):\n${reviewData(receipt)}`);
-	required.push(...conflictBlocks(root));
-	if (entity !== root) required.push(...conflictBlocks(entity));
-
+	blocks.push(`${toolName}: ${facts.length ? facts.join(" ") : "recognized response (see the fields below)"}.`);
+	if (parent) blocks.push(`Parent/brief: ${parent}`);
+	// Work that waits for an OK, is an experiment, or is not done yet: said in a
+	// line first, and its fields are in the response below as well.
+	blocks.push(...waitingLines(entity, root));
+	blocks.push(...conflictBlocks(root));
+	if (entity !== root) blocks.push(...conflictBlocks(entity));
 	if (hasOwn(root, "own_criteria_follow_through") && root.own_criteria_follow_through != null) {
-		required.push(followThroughBlock("own", root.own_criteria_follow_through));
+		blocks.push(followThroughBlock("own", root.own_criteria_follow_through));
 	}
 	if (hasOwn(root, "brief_follow_through") && root.brief_follow_through != null) {
-		required.push(followThroughBlock("brief", root.brief_follow_through));
+		blocks.push(followThroughBlock("brief", root.brief_follow_through));
 	}
 	const manual = manualFollowUpBlock(root);
-	if (manual) required.push(manual);
-
-	const budget = toolName === "record_implementation"
-		? PROJECTION_BUDGETS.recordImplementation
-		: PROJECTION_BUDGETS.ack;
-	return withinBudgetRequired(required, optional, budget, "acknowledgement");
+	if (manual) blocks.push(manual);
+	const fields = receiptFields(root, args);
+	const leftOut = [
+		fields.empty.length ? `${fields.empty.length} empty field(s) left out` : null,
+		fields.echoed.length ? `left out as identical to what you sent: ${fields.echoed.join(", ")}` : null,
+	].filter((part): part is string => part !== null);
+	const heading = leftOut.length
+		? `DevSpec's response (every other field; ${leftOut.join("; ")} — ${readToolFor(toolName)} shows the stored record):`
+		: "DevSpec's response (every field):";
+	blocks.push(`${heading}\n${reviewData(fields.shown)}`);
+	return blocks.join("\n");
 }
 
-/** Structured fallbacks omit only complete top-level fields/array elements. */
-function structuredFallback(toolName: string, details: unknown): string {
-	const encoded = json(details) ?? "(unserializable structured payload)";
-	if (encoded.length <= PROJECTION_BUDGETS.fallback) return encoded;
-	const header = `Unrecognized result shape for ${toolName}; showing complete top-level fields/elements that fit the fallback budget.`;
-	const blocks = [header];
-	if (Array.isArray(details)) {
-		for (const [index, value] of details.entries()) {
-			const block = json({ index, value });
-			if (block) blocks.push(block);
-		}
-	} else {
-		const root = record(details);
-		if (root) for (const [key, value] of Object.entries(root)) {
-			const block = json({ [key]: value });
-			if (block) blocks.push(block);
-		}
-	}
-	blocks.push(fallbackRecovery(toolName));
-	return withinBudget(blocks, PROJECTION_BUDGETS.fallback, "fallback field/element");
-}
-
-function fallbackRecovery(toolName: string): string {
-	if (ACK_VERBS.has(toolName)) return "Presentation is incomplete, not evidence that the operation failed. Do not repeat this mutation. Verify with the exact record's read tool or get_review_queue; if no record/status handle was returned, report the outcome as unknown.";
-	return `Rerun ${toolName} with narrower parameters if available. The complete payload is host-retained in details, which is not a model-visible continuation.`;
-}
-
-function boundedFallback(toolName: string, text: string, details: unknown): string {
-	if (details != null) return structuredFallback(toolName, details);
-	const source = text || "(empty response)";
-	if (source.length <= PROJECTION_BUDGETS.fallback) return source;
-	const note = `\n\n[Non-JSON source truncated; no structured details are available. ${fallbackRecovery(toolName)}]`;
-	const available = Math.max(0, PROJECTION_BUDGETS.fallback - note.length);
-	return `${source.slice(0, available)}${note}`;
+/** A result no family recognises reaches the model whole: a field DevSpec adds is never cut off here. */
+function wholeFallback(text: string, details: unknown): string {
+	if (details != null) return json(details) ?? (text || "(unserializable structured payload)");
+	return text || "(empty response)";
 }
 
 /** Project a successful result. The caller must retain `details` unchanged. */
@@ -981,8 +932,8 @@ export function projectModelText(input: ProjectionInput): string {
 			: (json(input.details) ?? input.text) || "(empty response)";
 	}
 	if (family === "project") return completeProjectSummary(input.details) ?? input.text;
-	if (family === "collection") return collectionProjection(input.toolName, input.details) ?? boundedFallback(input.toolName, input.text, input.details);
-	if (family === "help") return helpProjection(input.details) ?? boundedFallback(input.toolName, input.text, input.details);
-	if (family === "ack") return ackProjection(input.toolName, input.details) ?? boundedFallback(input.toolName, input.text, input.details);
-	return boundedFallback(input.toolName, input.text, input.details);
+	if (family === "collection") return collectionProjection(input.toolName, input.details) ?? wholeFallback(input.text, input.details);
+	if (family === "help") return helpProjection(input.details) ?? wholeFallback(input.text, input.details);
+	if (family === "ack") return ackProjection(input.toolName, input.details, input.args) ?? wholeFallback(input.text, input.details);
+	return wholeFallback(input.text, input.details);
 }

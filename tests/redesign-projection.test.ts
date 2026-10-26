@@ -91,7 +91,11 @@ test("a notice DevSpec appends to a result reaches the model whole, and the resu
 	assert.ok(read.includes("This project is paused"));
 });
 
-test("ordinary work carries no waiting or experiment noise in its acknowledgement", () => {
+test("ordinary work carries no waiting or experiment line in its acknowledgement", () => {
 	const text = seen("create_task", mcp({ id: "item-6", title: "Plain", lifecycle: "open", outcome: "committed", version: 1, is_experiment: false, experiment_branch: null, waiting_for_ok: null }));
-	assert.doesNotMatch(text, /is_experiment|experiment_branch|waiting_for_ok|Experiment|Waiting for/);
+	assert.doesNotMatch(text, /⚠|Experiment|Waiting for/);
+	// The server's own fields still arrive as sent: false stays false, and the empty ones are counted, not printed.
+	assert.match(text, /"is_experiment": false/);
+	assert.doesNotMatch(text, /experiment_branch|waiting_for_ok/);
+	assert.match(text, /2 empty field\(s\) left out/);
 });

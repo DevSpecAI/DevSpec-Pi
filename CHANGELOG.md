@@ -4,6 +4,15 @@
 
 - The README and code comments use DevSpec's new settings page names: the personal settings page where you create or reveal your token is now **Agent setup**, and the project settings page for agent execution rules is now **Agent rules**. Pi's login messages link that page by URL and are unchanged.
 
+## 0.8.8 - 2026-10-26
+
+- Pi now shows its model everything DevSpec says back after a change: fields that were dropped before — what was not saved, warnings, what to do next, why a task is not done yet, companion-link errors, whether a sign-off counted — now arrive, and any field DevSpec adds later arrives without a Pi update. Only empty fields and values identical to what was just sent are left out, and the reply says which.
+- Lists show every result DevSpec returned, help results arrive whole, and a result Pi does not recognise is shown in full instead of cut to a fixed size.
+- Notices about the agent's own work (findings, outcomes of changes, rulings and requests to confirm, and write-quality corrections) are now handled the way each notice says, within what it allows, rather than only passed on.
+- Guidance now matches the current rules: work waiting for an OK stays off the tracking branch until it has the OK, the agent reports where a task landed instead of always saying "implemented", and the edit reminder no longer suggests a thin task that DevSpec would refuse.
+- Automatic memory recall brings in only agreed memories, says that the ranking is not a judgement of relevance, keeps each memory's state, delivery status and companions, and searches with the whole prompt.
+- A notice from DevSpec with a long link or label is no longer rejected as unreadable.
+
 ## 0.8.7 - 2026-10-25
 
 - Updated the README with step-by-step installation, sign-in, project selection, and command reference matching the in-app setup flow, and removed internal engineering notes from the published repository tree.

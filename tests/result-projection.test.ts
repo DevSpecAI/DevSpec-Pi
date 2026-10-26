@@ -6,7 +6,7 @@ import { convertMessages as convertGoogleMessages } from "@earendil-works/pi-ai/
 import { convertMessages as convertOpenAICompletionsMessages } from "@earendil-works/pi-ai/api/openai-completions";
 import { convertResponsesMessages } from "@earendil-works/pi-ai/api/openai-responses-shared";
 import { clearAllFlags, extractFlags, listFlags } from "../extensions/core/review-watch.ts";
-import { PROJECTION_BUDGETS, projectModelText, projectionFamily } from "../extensions/core/result-projection.ts";
+import { projectModelText, projectionFamily } from "../extensions/core/result-projection.ts";
 import { projectedToolResult, unwrapMcpResult } from "../extensions/core/result.ts";
 import { extractItemRef, getStatusSnapshot, resetStatus } from "../extensions/core/status-line.ts";
 import { resetWorkStateForTests } from "../extensions/core/work-state.ts";
@@ -915,7 +915,7 @@ test("get_tasks combines separate briefs and items and preserves real page count
 		relationships: [],
 	};
 	const text = projectModelText({ toolName: "get_tasks", text: JSON.stringify(payload), details: payload });
-	assert.match(text, /11 results; 1 additional contextual brief card\(s\)/);
+	assert.match(text, /11 results; 1 on this page plus 1 contextual brief card\(s\)/);
 	assert.match(text, /\[brief-1\] Unified review flow/);
 	assert.match(text, /\[item-1\] Render brief hierarchy/);
 	assert.match(text, /parent\/brief: brief-1/);
@@ -947,9 +947,9 @@ test("an off-page brief is contextual and never inflates the server's paginated 
 		briefs: [{ id: "off-page-brief", title: "Context from outside this page", lifecycle: "open" }],
 	};
 	const text = projectModelText({ toolName: "get_tasks", text: JSON.stringify(payload), details: payload });
-	assert.match(text, /^get_tasks: 10 results; 1 additional contextual brief card\(s\)/);
+	assert.match(text, /^get_tasks: 10 results; 1 on this page plus 1 contextual brief card\(s\)/);
 	assert.doesNotMatch(text, /11 result/);
-	assert.match(text, /Omitted 9 task result\(s\)/);
+	assert.match(text, /Next page: call get_tasks again with offset 1\./);
 });
 
 test("a pending proposal against a recalled record survives the card projection (38576d61)", () => {
@@ -988,7 +988,7 @@ test("a pending proposal against a recalled record survives the card projection 
 	assert.equal((text.match(/awaiting a maintainer/g) ?? []).length, 1);
 });
 
-test("pending proposals are bounded, and a row without a served line still names its proposal", () => {
+test("every pending proposal is listed, and a row without a served line still names its proposal", () => {
 	const payload = {
 		memories: [
 			{
@@ -1017,9 +1017,9 @@ test("pending proposals are bounded, and a row without a served line still names
 	const text = visible(projectedToolResult("search_memories", unwrapMcpResult(mcpJson(payload))));
 	assert.match(text, /proposal p1/);
 	assert.match(text, /proposal p2/);
-	// Third one is summarised rather than listed, and never silently dropped.
-	assert.doesNotMatch(text, /proposal p3/);
-	assert.match(text, /1 further proposed change\(s\) awaiting review/);
+	// Every proposal is its own line: a third is never summarised away.
+	assert.match(text, /proposed replacement by a contributor, awaiting review \(proposal p3\)/);
+	assert.doesNotMatch(text, /further proposed change/);
 	// Composed from the parts when the server sent no line, without naming who decides.
 	assert.match(text, /proposed retraction by a contributor \(Contributor\), awaiting review \(proposal p7\)/);
 });
@@ -1111,7 +1111,7 @@ test("an acknowledgement keeps the done blocker as a line and as receipt data", 
 	assert.match(verified, /"lifecycle_note": "Waiting to deploy to Acme Preview: verification is recorded\."/);
 });
 
-test("a delivery wait across repositories names each, shows failures and checks, and bounds the list", () => {
+test("a delivery wait across repositories names each, shows failures and checks, and lists every one", () => {
 	const spread = {
 		layer: "awaiting_delivery",
 		label: "Last deploy to Acme Preview failed",
@@ -1124,8 +1124,8 @@ test("a delivery wait across repositories names each, shows failures and checks,
 		],
 	};
 	const text = visible(projectedToolResult("get_tasks", unwrapMcpResult(mcpJson({ items: [{ id: "item-spread", title: "Ship the seed", lifecycle: "implemented", done_blocker: spread }], total: 1 }))));
-	assert.match(text, /done_blocker \(awaiting_delivery\): Last deploy to Acme Preview failed — outstanding: acme\/web deployment to Acme Preview \(failed\); acme\/api database change 0007_seed\.sql \(checking\); acme\/api deployment to API Edge, API Core \(awaiting\); \+1 more \(get_task lists every repository's delivery\)/);
-	assert.doesNotMatch(text, /Docs/);
+	assert.match(text, /done_blocker \(awaiting_delivery\): Last deploy to Acme Preview failed — outstanding: acme\/web deployment to Acme Preview \(failed\); acme\/api database change 0007_seed\.sql \(checking\); acme\/api deployment to API Edge, API Core \(awaiting\); acme\/docs deployment to Docs \(awaiting\)/);
+	assert.doesNotMatch(text, /more \(get_task lists/);
 });
 
 test("a blocker that only repeats the waiting-for-OK line is not shown twice", () => {
@@ -1143,7 +1143,7 @@ test("a blocker that only repeats the waiting-for-OK line is not shown twice", (
 	assert.match(merged, /⚠ done_blocker \(waiting_for_ok\): Waiting for Dana's OK — merged into trunk/);
 });
 
-test("task search renders bounded compact cards with an exact fetch path", () => {
+test("task search renders a compact card for every returned row, with an exact fetch path", () => {
 	const items = Array.from({ length: 20 }, (_, index) => ({
 		id: `item-${String(index + 1).padStart(2, "0")}`,
 		title: `Implement focused change ${index + 1}`,
@@ -1160,12 +1160,14 @@ test("task search renders bounded compact cards with an exact fetch path", () =>
 	const result = projectedToolResult("search_tasks", unwrapMcpResult(mcpJson(payload)));
 	const text = visible(result);
 	assert.ok(before > 25_000);
-	assert.ok(text.length <= PROJECTION_BUDGETS.collection);
-	assert.match(text, /20 results; showing 7/);
-	assert.match(text, /\[item-01\] Implement focused change 1/);
-	assert.match(text, /Omitted 13 result/);
+	// Every row the server returned is a card: a second, smaller page here would
+	// hide rows that the server's next offset then skips past.
+	assert.match(text, /^search_tasks: 20 results\./);
+	for (let index = 1; index <= 20; index += 1) assert.match(text, new RegExp(`\\[item-${String(index).padStart(2, "0")}\\] Implement focused change ${index}\\b`));
+	assert.doesNotMatch(text, /Omitted|showing/);
 	assert.match(text, /get_task\(id\)/);
-	assert.doesNotMatch(text, /item-08|embedding|full-description/);
+	// A card is a preview: the full description and storage-only data stay one exact read away.
+	assert.doesNotMatch(text, /embedding|full-description/);
 	assert.deepEqual(result.details, payload);
 });
 
@@ -1206,8 +1208,8 @@ test("session search projects compact cards with excerpts and a transcript follo
 		transcript_omitted: "Cards only — call get_session_transcript with a session_id to read a room.",
 	};
 	const text = projectModelText({ toolName: "search_sessions", text: JSON.stringify(payload), details: payload });
-	assert.ok(text.length <= PROJECTION_BUDGETS.collection);
 	assert.match(text, /search_sessions: 1 result/);
+	assert.match(text, /"transcript_omitted": "Cards only — call get_session_transcript/);
 	assert.match(text, /\[841dbaba-3774-4bbc-b88a-0454a8f5006b\] Enable local agents to search session transcripts/);
 	assert.match(text, /active · keyword · 3 matches/);
 	assert.match(text, /started 2026-08-27T19:20:06\.731\+00:00/);
@@ -1233,7 +1235,6 @@ test("long selection cards preserve parent, chronology, and intent before option
 		}],
 	};
 	const text = projectModelText({ toolName: "search_tasks", text: JSON.stringify(payload), details: payload });
-	assert.ok(text.length <= PROJECTION_BUDGETS.collection);
 	assert.match(text, /LOAD-BEARING-PARENT/);
 	assert.match(text, /created 2026-08-14T12:54:36.630085\+00:00/);
 	assert.match(text, /last activity 2026-08-14T19:54:36.630085\+00:00/);
@@ -1255,8 +1256,9 @@ test("resource search projects both corpora and their matching passages instead 
 		],
 	};
 	const text = projectModelText({ toolName: "search_resources", text: JSON.stringify(payload), details: payload });
-	assert.ok(text.length <= PROJECTION_BUDGETS.collection);
 	assert.match(text, /^search_resources: 4 results\./);
+	// What the server said beside the rows reaches the model too.
+	assert.match(text, /"mode": "search"/);
 	assert.match(text, /\[doc-1\] Context study — reference · uploaded/);
 	assert.match(text, /Measured passage about result costs/);
 	assert.match(text, /\[artifact-1\] Projection ADR — adr · ai_generated/);
@@ -1268,15 +1270,19 @@ test("resource search projects both corpora and their matching passages instead 
 // DevSpec returns no candidate list on create or update (fce58a2f round 2):
 // duplicates are its own check's to find after the write.
 test("create/update projections keep the written record, without a candidate gate", () => {
+	const description = huge("REPEATED-INPUT");
 	const payload = {
-		task: { id: "created-123", title: "Project structured results", lifecycle: "staged", parent_task_id: "brief-456", description: huge("REPEATED-INPUT") },
+		task: { id: "created-123", title: "Project structured results", lifecycle: "staged", parent_task_id: "brief-456", description },
 		outcome: "committed",
 	};
 	for (const verb of ["create_task", "update_task"]) {
-		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
-		assert.ok(text.length <= PROJECTION_BUDGETS.ack);
+		// A value identical to what the call sent is named, not printed again.
+		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload, args: { description } });
 		assert.match(text, /id=created-123 title=Project structured results state=staged/);
+		assert.match(text, /left out as identical to what you sent: task\.description — get_task shows the stored record/);
 		assert.doesNotMatch(text, /REPEATED-INPUT|Gate —|candidates/i);
+		// Without the arguments nothing is assumed to be an echo: the field is shown.
+		assert.match(projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload }), /REPEATED-INPUT/);
 	}
 });
 
@@ -1312,24 +1318,20 @@ test("record_implementation clearly preserves own and brief criterion follow-thr
 		manual_followup_steps: [{ kind: "note", description: "This alternate key must not replace human_actions_required." }],
 		completion_summary: huge("ECHOED-COMPLETION"),
 	};
-	const result = projectedToolResult("record_implementation", unwrapMcpResult(mcpJson(payload)));
+	const result = projectedToolResult("record_implementation", unwrapMcpResult(mcpJson(payload)), { completion_summary: payload.completion_summary });
 	const text = visible(result);
-	assert.ok(text.length <= PROJECTION_BUDGETS.ack);
-	assert.match(text, /Own-criteria follow-through \(act before reporting\)/);
-	assert.match(text, /item: \[work-789\]/);
-	assert.match(text, /go_and_check: \[criterion-1\] Run npm test and record its exit code.*not_yet_checked/);
-	assert.match(text, /weak_evidence: \[criterion-2\] Query the projection.*inference_only/);
-	assert.match(text, /Brief follow-through \(act before reporting\)/);
-	assert.match(text, /brief: \[brief-456\] Compact common outputs/);
-	assert.match(text, /last open child/);
-	assert.match(text, /unsettled_criteria: \[brief-criterion-1\] Compare representative before\/after/);
-	assert.match(text, /Manual\/human follow-up:[\s\S]*required_step: Enable the production flag/);
-	assert.match(text, /note: This alternate key must not replace human_actions_required/);
+	// Each follow-through block is the server's object, whole, under its heading.
+	const own = text.split("Own-criteria follow-through (act on it before you report):\n")[1]!;
+	assert.deepEqual(JSON.parse(own.split("<devspec-review-data>\n")[1]!.split("\n</devspec-review-data>")[0]!), payload.own_criteria_follow_through);
+	const brief = text.split("Brief follow-through (act on it before you report):\n")[1]!;
+	assert.deepEqual(JSON.parse(brief.split("<devspec-review-data>\n")[1]!.split("\n</devspec-review-data>")[0]!), payload.brief_follow_through);
+	assert.match(text, /Manual\/human follow-up \(2\):[\s\S]*Enable the production flag after deployment[\s\S]*This alternate key must not replace human_actions_required/);
+	assert.match(text, /identical to what you sent: completion_summary/);
 	assert.doesNotMatch(text, /ECHOED-COMPLETION/);
 	assert.deepEqual(result.details, payload);
 });
 
-test("record_implementation reserves every own and brief criterion under its explicit safety budget", () => {
+test("record_implementation carries every own and brief criterion and each instruction whole", () => {
 	const own = Array.from({ length: 30 }, (_, index) => ({
 		criterion_id: `own-${String(index + 1).padStart(2, "0")}`,
 		text: huge(`own criterion ${index + 1}`, 2_000),
@@ -1355,16 +1357,13 @@ test("record_implementation reserves every own and brief criterion under its exp
 		},
 	};
 	const text = projectModelText({ toolName: "record_implementation", text: JSON.stringify(payload), details: payload });
-	assert.ok(text.length <= PROJECTION_BUDGETS.recordImplementation, `record_implementation projection was ${text.length}`);
-	assert.match(text, /item: \[work-max\]/);
-	assert.match(text, /brief: \[brief-max\] Maximum brief/);
-	for (const entry of own) assert.match(text, new RegExp(`\\[${entry.criterion_id}\\]`), entry.criterion_id);
-	for (const entry of brief) assert.match(text, new RegExp(`\\[${entry.criterion_id}\\]`), entry.criterion_id);
-	assert.match(text, /go_and_check/);
-	assert.match(text, /weak_evidence/);
-	assert.match(text, /unsettled_criteria/);
-	assert.match(text, /instruction: Act on every own criterion/);
-	assert.match(text, /instruction: Act on every brief criterion/);
+	assert.match(text, /^record_implementation: id=work-max title=Maximum follow-through state=implemented\./);
+	for (const entry of [...own, ...brief]) {
+		assert.ok(text.includes(JSON.stringify(entry.criterion_id)), entry.criterion_id);
+		assert.ok(text.includes(JSON.stringify(entry.text)), `${entry.criterion_id} text is whole`);
+	}
+	assert.ok(text.includes(JSON.stringify(payload.own_criteria_follow_through.instruction)), "own instruction is whole");
+	assert.ok(text.includes(JSON.stringify(payload.brief_follow_through.instruction)), "brief instruction is whole");
 });
 
 test("claim_work_item remains a realistic lossless implementation-context read", () => {
@@ -1403,7 +1402,6 @@ test("full exact decision, instruction, transcript, and schema reads are never c
 		"get_personal_instructions", "get_workflow_rules", "get_database_schema", "manage_plan", "manage_poll",
 	]) {
 		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
-		assert.ok(text.length > PROJECTION_BUDGETS.fallback, verb);
 		assert.deepEqual(JSON.parse(text), payload, verb);
 	}
 });
@@ -1485,7 +1483,7 @@ test("write_project_instruction_rule acknowledgement preserves committed versus 
 		const payload = { id: `rule-${outcome}`, title: "Run typecheck before push", outcome };
 		const text = projectModelText({ toolName: "write_project_instruction_rule", text: JSON.stringify(payload), details: payload });
 		assert.match(text, new RegExp(`outcome=${outcome}`));
-		assert.ok(text.length <= PROJECTION_BUDGETS.ack);
+		assert.match(text, new RegExp(`"outcome": "${outcome}"`));
 	}
 });
 
@@ -1511,7 +1509,7 @@ test("goal reads preserve authoritative exact items, project vision, and every c
 	assert.match(projectText, /goal-12/);
 });
 
-test("manual follow-up arrays stay bounded with IDs, kinds, counts, and an exact recovery path", () => {
+test("every manual follow-up step reaches the model whole, with its id and kind", () => {
 	const steps = Array.from({ length: 100 }, (_, index) => ({
 		id: `step-${index + 1}`,
 		kind: index % 2 === 0 ? "required_step" : "note",
@@ -1522,16 +1520,12 @@ test("manual follow-up arrays stay bounded with IDs, kinds, counts, and an exact
 		manual_followup_steps: steps,
 	};
 	const text = projectModelText({ toolName: "record_implementation", text: JSON.stringify(payload), details: payload });
-	assert.ok(text.length <= PROJECTION_BUDGETS.recordImplementation);
-	assert.match(text, /Manual\/human follow-up: 100; showing 3/);
-	assert.match(text, /\[step-1\] required_step/);
-	assert.match(text, /\[step-2\] note/);
-	assert.match(text, /\[step-3\] required_step/);
-	assert.match(text, /97 additional follow-up step\(s\) omitted; use get_task\(work-followups\)/);
-	assert.doesNotMatch(text, /step-4/);
+	const block = text.split("Manual/human follow-up (100):\n")[1]!;
+	assert.deepEqual(JSON.parse(block.split("<devspec-review-data>\n")[1]!.split("\n</devspec-review-data>")[0]!), { manual_followup_steps: steps });
+	assert.doesNotMatch(text, /omitted/);
 });
 
-test("DevSpec help projection keeps citeable URLs and bounded section content", () => {
+test("DevSpec help projection keeps citeable URLs and every returned section whole", () => {
 	const results = Array.from({ length: 12 }, (_, index) => ({
 		doc: `Guide ${index + 1}`,
 		section: `Configure workflow ${index + 1}`,
@@ -1541,20 +1535,20 @@ test("DevSpec help projection keeps citeable URLs and bounded section content", 
 	}));
 	const payload = { query: "how does work complete", count: results.length, results };
 	const text = projectModelText({ toolName: "devspec_help_search", text: JSON.stringify(payload), details: payload });
-	assert.ok(text.length <= PROJECTION_BUDGETS.help);
 	assert.match(text, /Guide 1 — Configure workflow 1 \[workflows\]/);
 	assert.match(text, /URL: https:\/\/docs\.devspec\.ai\/guides\/workflows#section-1/);
-	assert.match(text, /Authoritative answer: reserve the work and record implementation/);
-	assert.match(text, /section character\(s\) omitted/);
-	assert.match(text, /narrower query/);
-	assert.match(text, /More sections: call devspec_help_search again with offset 8\./);
+	for (const hit of results) assert.ok(text.includes(hit.content), `${hit.doc} is whole`);
+	assert.match(text, /Guide 12 — Configure workflow 12/);
+	assert.doesNotMatch(text, /omitted/);
+	// No server page continues this one, so no next offset is invented.
+	assert.doesNotMatch(text, /More sections/);
 });
 
 test("a later help page says where it starts, that its count is a floor, and the next offset (02526f46)", () => {
 	const results = [{ doc: "Guide 9", section: "Ninth", url: "https://docs.devspec.ai/guides/nine", category: "workflows", content: "Nine." }];
 	const payload = { query: "workflows", count: 1, page: { total_matching: 10, total_is_lower_bound: true, offset: 8, limit: 1, returned: 1, has_more: true, next_offset: 9 }, results };
 	const text = projectModelText({ toolName: "devspec_help_search", text: JSON.stringify(payload), details: payload });
-	assert.match(text, /at least 10 sections; showing 1 from 9\./);
+	assert.match(text, /at least 10 sections; 1 on this page from 9\./);
 	assert.match(text, /call devspec_help_search again with offset 9\./);
 });
 
@@ -1599,14 +1593,16 @@ test("known-family unknown shapes fall back transparently instead of inventing e
 	}
 });
 
-test("production family budgets hold on adversarial selected fields without arbitrary JSON cuts", () => {
+test("adversarial fields are carried whole, and only list-card previews are clipped, visibly", () => {
 	const noisyItems = Array.from({ length: 30 }, (_, index) => ({
 		id: huge(`id-${index}`, 2_000), title: huge(`title-${index}`, 3_000), lifecycle: huge("state", 1_000),
 		why: huge("why", 4_000), signals: [huge("signal", 2_000)],
 	}));
 	const collection = projectModelText({ toolName: "search_tasks", text: "", details: { results: noisyItems, total: 30 } });
-	assert.ok(collection.length <= PROJECTION_BUDGETS.collection);
-	assert.match(collection, /omitted/i);
+	// Every row is a card; a card is a preview, and what it clips it marks.
+	assert.equal(collection.match(/^\d+\. \[/gm)?.length, 30);
+	assert.match(collection, /…/);
+	assert.match(collection, /get_task\(id\)/);
 
 	const project = projectModelText({
 		toolName: "get_project_summary",
@@ -1640,28 +1636,18 @@ test("production family budgets hold on adversarial selected fields without arbi
 			task: { id: huge("id", 2_000), title: huge("title", 3_000), lifecycle: huge("state", 2_000) },
 		},
 	});
-	assert.ok(ack.length <= PROJECTION_BUDGETS.ack);
-	// Each oversized field is cut at its own bound and marked, never mid-JSON.
-	assert.match(ack, /^create_task: id=id: [^\n]*… title=title: [^\n]*… state=state: [^\n]*…\.$/);
+	// The heading line shortens oversized values, visibly; the response below carries them whole.
+	assert.match(ack, /^create_task: id=id: [^\n]*… title=title: [^\n]*… state=state: [^\n]*…\.$/m);
+	assert.ok(ack.includes(JSON.stringify(huge("title", 3_000))));
 });
 
-test("unknown structured fallback omits whole fields and non-JSON fallback is truthful", () => {
-	const structured = projectModelText({
-		toolName: "future_server_verb",
-		text: "",
-		details: { small: "kept", huge_field: huge("large", 10_000), tail: "also-kept" },
-	});
-	assert.ok(structured.length <= PROJECTION_BUDGETS.fallback);
-	assert.match(structured, /"small": "kept"/);
-	assert.match(structured, /"tail": "also-kept"/);
-	assert.match(structured, /complete payload is host-retained in details, which is not a model-visible continuation/);
-	assert.doesNotMatch(structured, /large: internal payload internal paylo$/);
+test("an unknown verb's result reaches the model whole, structured or plain", () => {
+	const details = { small: "kept", huge_field: huge("large", 10_000), tail: "also-kept" };
+	const structured = projectModelText({ toolName: "future_server_verb", text: "", details });
+	assert.deepEqual(JSON.parse(structured), details);
 
 	const plain = projectModelText({ toolName: "future_server_verb", text: "x".repeat(9_000), details: null });
-	assert.ok(plain.length <= PROJECTION_BUDGETS.fallback);
-	assert.match(plain, /Non-JSON source truncated; no structured details are available/);
-	assert.match(plain, /narrower parameters/);
-	assert.doesNotMatch(plain, /remains in tool result details/i);
+	assert.equal(plain, "x".repeat(9_000));
 });
 
 test("full details still drive review flags and work status", () => {
@@ -1745,7 +1731,7 @@ test("a paged DevSpec list names the exact next page, and a ranked floor says so
 	const page = { total_matching: 327, offset: 0, limit: 20, returned: 2, has_more: true, next_offset: 20 };
 	const payload = { memories: [{ id: "m1", title: "One" }, { id: "m2", title: "Two" }], page };
 	const text = projectModelText({ toolName: "get_decisions", text: JSON.stringify(payload), details: payload });
-	assert.match(text, /get_decisions: 327 results; showing 2\./);
+	assert.match(text, /get_decisions: 327 results; 2 on this page\./);
 	assert.match(text, /Next page: call get_decisions again with offset 20\./);
 	const last = { ...payload, page: { ...page, has_more: false, next_offset: null } };
 	assert.doesNotMatch(projectModelText({ toolName: "get_decisions", text: JSON.stringify(last), details: last }), /Next page/);
@@ -1753,3 +1739,88 @@ test("a paged DevSpec list names the exact next page, and a ranked floor says so
 	assert.match(projectModelText({ toolName: "search_tasks", text: JSON.stringify(floor), details: floor }), /the count is a floor/);
 });
 
+
+/** The whole field dump a receipt ends with, parsed back. */
+function receiptResponse(text: string): Record<string, unknown> {
+	const dump = text.split(/DevSpec's response \([^\n]*\):\n/)[1];
+	assert.ok(dump, `no response block in:\n${text}`);
+	return JSON.parse(dump.split("<devspec-review-data>\n")[1]!.split("\n</devspec-review-data>")[0]!);
+}
+
+// DevSpec item 5a9eaa57: the receipt used to be built from a fixed list of field
+// names, so every field the server added after that list was written was dropped
+// — including ones the tool descriptions tell the model to read.
+test("a write receipt passes every field the server returns through to the model", () => {
+	const cases: Array<[string, Record<string, unknown>]> = [
+		["update_task", {
+			id: "item-1", title: "Rename the settings pages", lifecycle: "open",
+			not_stored: [{ field: "goal_ids", reason: "goal_link_failed" }],
+			not_stored_note: "The item was updated, but these requested fields were not stored.",
+			stakeholder_context: { stakeholders: ["Dana Lee"], suggestion: "Offer a dissent comment." },
+		}],
+		["create_task", {
+			id: "item-2", title: "New work", lifecycle: "open", outcome: "committed",
+			warning: "The follow-up link could not be stored.",
+			not_stored: [{ field: "assigned_to" }],
+			not_stored_note: "The item was created, but these requested fields were not stored. Retry them with update_task.",
+		}],
+		["fail_work_item", {
+			id: "item-3", title: "Broken run", lifecycle: "open",
+			reservation: { member_state: "failed", assignment_id: "a-1", assignment_state: "closed" },
+			next: "The item is flagged as a failed agent run and will not be reserved or claimed as it stands.",
+		}],
+		["record_memory", {
+			id: "mem-1", title: "A decision", state: "decided", outcome: "committed",
+			companion_links_recorded: [{ id: "mem-2", kind: "memory" }],
+			companion_link_errors: [{ id: "doc-9", error: "not found in this project" }],
+		}],
+		["record_implementation", {
+			item: { id: "item-4", title: "Shipped", lifecycle: "implemented" },
+			descriptive_staleness_follow_through: { records: [{ id: "doc-1", title: "Setup guide" }], instruction: "Update the guide now." },
+			verification_required: ["browser_test"],
+			criterion_promotion: { explanation: "Waiting to deploy to Acme Preview.", done_blocker: { layer: "awaiting_delivery", label: "Waiting to deploy" }, outstanding: [{ criterion_id: "c-1" }] },
+		}],
+		["verify_task", {
+			verified: true, task_id: "item-5", title: "Signed", lifecycle: "implemented",
+			superseded_round_note: "This sign-off is for an earlier round and does not count.",
+		}],
+	];
+	for (const [verb, payload] of cases) {
+		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
+		assert.deepEqual(receiptResponse(text), payload, verb);
+	}
+});
+
+test("a field DevSpec adds later reaches the model with no Pi change", () => {
+	const payload = { id: "item-9", title: "Future", lifecycle: "open", outcome: "committed", a_field_from_the_future: { says: "read me" } };
+	for (const verb of ["create_task", "record_implementation", "resolve_memory_flag", "some_verb_pi_has_never_heard_of"]) {
+		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
+		assert.match(text, /a_field_from_the_future[\s\S]*read me/, verb);
+	}
+});
+
+test("a receipt leaves out only empty fields and values identical to what was sent, and says which", () => {
+	const intent = "Brandon asked for distinct page names because three pages shared one.";
+	const payload = { id: "item-7", title: "Rename", lifecycle: "open", intent, agent_commit_sha: null, tags: [], ai_instructions: "", outcome: "committed" };
+	const text = projectModelText({ toolName: "create_task", text: JSON.stringify(payload), details: payload, args: { title: "Rename", intent } });
+	assert.match(text, /3 empty field\(s\) left out; left out as identical to what you sent: title, intent — get_task shows the stored record/);
+	assert.deepEqual(receiptResponse(text), { id: "item-7", lifecycle: "open", outcome: "committed" });
+	// A boolean or number that happens to match an argument is still shown: it is the outcome, not an echo.
+	const flag = projectModelText({ toolName: "update_task", text: "", details: { id: "item-8", title: "T", lifecycle: "open", human_only: true }, args: { human_only: true } });
+	assert.equal(receiptResponse(flag).human_only, true);
+});
+
+test("a list relays everything the server said beside its rows", () => {
+	const payload = {
+		memories: [{ id: "m1", title: "One", type: "decision", state: "decided" }],
+		page: { total_matching: 1, offset: 0, limit: 20, returned: 1, has_more: false, next_offset: null },
+		word_matches: 0,
+		keyword_only: { reason: "project_paused", note: "Found by keywords alone while the project is paused." },
+		body_omitted: "Cards only for the record text — call get_memory with an id for its full body.",
+		how_to_treat_disagreements: "A disagreement is not a ruling.",
+	};
+	const text = projectModelText({ toolName: "search_memories", text: JSON.stringify(payload), details: payload });
+	for (const phrase of ["Found by keywords alone while the project is paused.", "call get_memory with an id for its full body", "A disagreement is not a ruling.", "\"word_matches\": 0"]) {
+		assert.ok(text.includes(phrase), phrase);
+	}
+});

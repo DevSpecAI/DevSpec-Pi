@@ -42,7 +42,7 @@ pi install npm:pi-exa
 
 ### 3. Sign in with your DevSpec token
 
-Create an access token with **Read & write** access on your [Agents settings](https://app.devspec.ai/settings/agents) page, then start `pi` and run:
+Create an access token with **Read & write** access on your [Agent setup](https://app.devspec.ai/settings/agents) page, then start `pi` and run:
 
 ```text
 /devspec.login dvs_your_token_here

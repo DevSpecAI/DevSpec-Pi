@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The README and code comments use DevSpec's new settings page names: the personal settings page where you create or reveal your token is now **Agent setup**, and the project settings page for agent execution rules is now **Agent rules**. Pi's login messages link that page by URL and are unchanged.
+
 ## 0.8.8 - 2026-10-26
 
 - Pi now shows its model everything DevSpec says back after a change: fields that were dropped before — what was not saved, warnings, what to do next, why a task is not done yet, companion-link errors, whether a sign-off counted — now arrive, and any field DevSpec adds later arrives without a Pi update. Only empty fields and values identical to what was just sent are left out, and the reply says which.

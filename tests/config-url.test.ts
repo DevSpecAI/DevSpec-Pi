@@ -30,7 +30,7 @@ test("mcpUrl defaults to the production API host with nothing set", () => {
 	assert.equal(agentsSettingsUrl(), "https://app.devspec.ai/settings/agents");
 });
 
-test("DEVSPEC_ENV=staging selects the staging API host and its Agents settings page", () => {
+test("DEVSPEC_ENV=staging selects the staging API host and its Agent setup page", () => {
 	process.env.DEVSPEC_ENV = "staging";
 	try {
 		assert.equal(mcpUrl(), "https://api.devspecstaging.com/api/mcp");

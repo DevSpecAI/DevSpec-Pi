@@ -128,7 +128,10 @@ test("no attached room and structural notice never fall back or acquire generic 
 		await h.hooks.message_end({ message: message("actual but unsupported") }, h.ctx);
 		await h.drain();
 		assert.equal(h.requests.length, 0);
-		assert.equal(h.warnings.length, 1);
+		// A notice run is not room speech: its final message reaches the room as the
+		// reply to its notices (6aad2b46), so nothing here is unconfirmed speech.
+		assert.equal(h.warnings.length, notice ? 0 : 1);
+		if (notice) assert.deepEqual(h.journal, []);
 	}
 });
 

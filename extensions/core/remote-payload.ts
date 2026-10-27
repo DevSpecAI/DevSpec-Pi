@@ -29,6 +29,7 @@ import {
 import { createHash } from "node:crypto";
 import { ROOM_CONTEXT_LANE, parseRoomContext, parseActivityIndex, type RoomContext, type ActivityIndex } from "./room-context.ts";
 import { parseSessionEvents, type SessionEvents } from "./session-events.ts";
+import { parseNoticeReplySnapshot } from "./notice-reply.ts";
 
 const ROOM_CONTRACT_VERSION = ROOM_CONTEXT_LANE.contractVersion;
 const ROOM_POLICY_VERSION = ROOM_CONTEXT_LANE.policyVersion;
@@ -326,7 +327,7 @@ export interface PollPackage {
 	/** Server history only; null marks missing/unavailable advisory data. */
 	sessionEvents?: SessionEvents | null;
 	/** Closed section names only; never raw payloads or parser error text. */
-	advisoryRejections?: Array<"session_polls" | "still_to_discuss" | "session_activity" | "session_events">;
+	advisoryRejections?: Array<"session_polls" | "still_to_discuss" | "session_activity" | "session_events" | "notice_reply">;
 	/** Sections this Pi skipped because it does not implement them; delivery still succeeded. */
 	unknownEnvelopeSections?: string[];
 	canonicalState: "idle" | "valid" | "invalid";
@@ -850,6 +851,7 @@ function control(value: unknown, path: string): unknown {
 
 interface ParsedEnvelope {
 	eventsRejected?: boolean;
+	noticeReplyRejected?: boolean;
 	sessionEvents?: SessionEvents | null;
 	activityRejected?: boolean;
 	roomPage?: RoomPage;
@@ -877,6 +879,7 @@ function parseEnvelope(
 	senderStyleNegotiated: boolean,
 	roomContextNegotiated: boolean,
 	sessionEventsNegotiated: boolean,
+	noticeReplyNegotiated = false,
 ): ParsedEnvelope {
 	const row = record(value, "ingress");
 	if (senderStyleNegotiated && !systemNoticeNegotiated) fail("ingress", "sender style requires negotiated system notices");
@@ -1002,8 +1005,11 @@ function parseEnvelope(
 	let roomPage: RoomPage | undefined;
 	let sessionActivity: ActivityIndex | null | undefined;
 	let activityRejected = false;
+	let noticeReplyRejected = false;
 	if (roomContextNegotiated) {
 		const room = parseRoomContext(row.room_context, allRows, commandIdSet, end, {
+			// The snapshot of a reply to a DevSpec notice (8885423d), only when asked for.
+			...(noticeReplyNegotiated ? { noticeReply: parseNoticeReplySnapshot, noticeReplyRejected: () => { noticeReplyRejected = true; } } : {}),
 			order: orderPoint,
 			// History keeps references, not bytes; hydration limits still apply
 			// unchanged to the current command and any deliberate file fetch.
@@ -1032,7 +1038,7 @@ function parseEnvelope(
 		try { sessionEvents = row.session_events === undefined ? null : parseSessionEvents(row.session_events); }
 		catch { sessionEvents = null; eventsRejected = true; }
 	}
-	return { envelopeId, connection, wakeKind, wakeActive, deliveryState, commands, control: parsedControl, systemNotices, activeSessionPlans, unboundSenderStyleIds, ...(unknownSections.length > 0 ? { unknownSections } : {}), advisoryContext, ...(roomPage ? { roomPage, sessionActivity, activityRejected, sessionEvents, eventsRejected } : {}) };
+	return { envelopeId, connection, wakeKind, wakeActive, deliveryState, commands, control: parsedControl, systemNotices, activeSessionPlans, unboundSenderStyleIds, ...(unknownSections.length > 0 ? { unknownSections } : {}), advisoryContext, ...(roomPage ? { roomPage, sessionActivity, activityRejected, sessionEvents, eventsRejected, noticeReplyRejected } : {}) };
 }
 
 function contextEntryCount(context: IngressTypedContext): number {
@@ -1046,6 +1052,8 @@ export interface PollParseOptions {
 	senderStyleNegotiated?: boolean;
 	roomContextNegotiated?: boolean;
 	sessionEventsNegotiated?: boolean;
+	/** notice_reply_version 1 rode the room lane request (8885423d). */
+	noticeReplyNegotiated?: boolean;
 }
 
 /** Parse a negotiated poll payload. Canonical ingress failures never wake or advance either live cursor. */
@@ -1088,7 +1096,7 @@ export function parsePollPayload(
 
 		const topLevelAddressee = addressee(outer.addressed_to, "addressed_to");
 		if (!sameAddressee(topLevelAddressee, expectedConnection)) fail("addressed_to", "top-level addressee does not equal the frozen bonded connection");
-		const envelope = parseEnvelope(outer.ingress, expectedConnection, systemNoticeNegotiated, senderStyleNegotiated, options.roomContextNegotiated ?? false, options.sessionEventsNegotiated ?? false);
+		const envelope = parseEnvelope(outer.ingress, expectedConnection, systemNoticeNegotiated, senderStyleNegotiated, options.roomContextNegotiated ?? false, options.sessionEventsNegotiated ?? false, options.noticeReplyNegotiated ?? false);
 		if (!sameAddressee(topLevelAddressee, envelope.connection)) fail("addressed_to", "top-level and canonical addressees differ");
 		if (JSON.stringify(topLevelNotices) !== JSON.stringify(envelope.systemNotices)) fail("system_notices", "top-level and canonical notice sets differ");
 		const cursorV2 = typeof outer.cursor_v2 === "string" && outer.cursor_v2.length > 0 ? outer.cursor_v2 : undefined;
@@ -1118,6 +1126,7 @@ export function parsePollPayload(
 		const advisoryRejections: NonNullable<PollPackage["advisoryRejections"]> = [];
 		if (envelope.activityRejected) advisoryRejections.push("session_activity");
 		if (envelope.eventsRejected) advisoryRejections.push("session_events");
+		if (envelope.noticeReplyRejected) advisoryRejections.push("notice_reply");
 		const sessionPolls = outer.session_polls === undefined
 			? undefined
 			: tryParseAdvisory(outer.session_polls, parseSessionPollsProjection, () => advisoryRejections.push("session_polls"));

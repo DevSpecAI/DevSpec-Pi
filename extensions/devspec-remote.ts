@@ -230,6 +230,14 @@ import {
 	shouldDeliverSystemNotices,
 	transitionToRealUserActivity,
 } from "./core/system-notice.ts";
+import {
+	advertisesNoticeReply,
+	noticeIdsFromDelivery,
+	noticeReplyFinalText,
+	noticeReplyTerminalMessage,
+	postNoticeReply,
+	type NoticeReplyCapture,
+} from "./core/notice-reply.ts";
 
 class StaleCommandHandoffError extends DevspecToolError {}
 
@@ -430,6 +438,11 @@ interface TurnState {
 	commandMessageId?: string;
 	/** Harness notice runs never post/complete owner command activity. */
 	completionNeutral: boolean;
+	/**
+	 * The notices this neutral segment was woken by and its final message, posted
+	 * as their reply when the segment closes (6aad2b46). Never carried to the next segment.
+	 */
+	noticeReply?: NoticeReplyCapture;
 	/**
 	 * Terminal provider failure reason for this run (item e99d158b): a
 	 * stopReason "error" assistant message is never speech and never settles
@@ -915,6 +928,10 @@ function prepareAssistantSpeech(t: TurnState): Promise<void> {
 
 /** Actual assistant messages only; journals contain no cap/claim/token and are not a replay outbox. */
 function deliverAssistantSpeech(t: TurnState, message: unknown, append: (type: string, data: unknown) => void): void {
+	// A notice-woken run is not room speech: it has no speech scope, so every text
+	// used to end in a false "storage not confirmed". Its final message reaches the
+	// room through the notice reply instead (6aad2b46).
+	if (t.completionNeutral) return;
 	const captured = t.assistantSpeech;
 	const record = captured?.source.finalize(message);
 	if (!record) return;
@@ -1399,6 +1416,13 @@ async function releaseInteractionBeforePersistence(run: ExactInteractionRun, rea
  * mid-run close (f0df6c3e) passes false: the bubble is finished, work is not.
  */
 async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | null, why: string, completeTurn = true): Promise<boolean> {
+	// A notice-woken segment answers its notices, never a command. Its final
+	// message goes to the room as their reply and it reports no transcript,
+	// trail or completion, so it never closes a turn (6aad2b46).
+	if (t.completionNeutral) {
+		if (t.noticeReply) await deliverNoticeReply(t.noticeReply, agentStats);
+		return false;
+	}
 	if (!remoteRunActivityPolicy(t.completionNeutral).reportTranscript) return false;
 	// The final render rides the answer post (item 9b7455df): the server
 	// REPLACES the fold-merged accumulation with this canonical final render —
@@ -1432,6 +1456,49 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 		t.trailDelivery.finish(snapshot, stored);
 	}
 	return false;
+}
+
+/**
+ * Post a notice-woken segment's final message as its reply to the notices that
+ * woke it (6aad2b46). What that post is lives in the served remote ingress
+ * contract (semantics.notice_reply): here it carries only connection_id, the
+ * text and the notice ids, so it binds to no command turn, attempt or dispatch
+ * and changes no Working, Pending or idle. It never goes through the speech,
+ * local-turn or background-completion writers. Anything that keeps it out of the
+ * room is said in the terminal, with DevSpec's own reason when DevSpec refused it.
+ */
+async function deliverNoticeReply(capture: NoticeReplyCapture, agentStats: AgentStatsReport | null): Promise<void> {
+	const ctx = lastCtx;
+	const current = () => {
+		const active = pump;
+		const bond = getBond();
+		if (!active || (active.stop && !active.closing) || !bond || active.bond.connectionId !== bond.connectionId) return null;
+		return { connectionId: bond.connectionId, sessionId: bond.sessionId ?? null };
+	};
+	const outcome = await postNoticeReply({
+		capture,
+		current,
+		call: async (args) => {
+			const resolved = await resolveToken();
+			if (!resolved) throw new Error("no DevSpec login is available");
+			try {
+				// The server stores the same notices and text once, so the client's
+				// ordinary transport retry cannot post it twice.
+				return { raw: await callDevspec(resolved.token, "post_session_message", args, { lane: "pump",
+					beforeSend: () => { if (current()?.connectionId !== capture.connectionId) throw new Error("this Pi's DevSpec connection changed before sending"); } }) };
+			} catch (error) {
+				if (error instanceof DevspecToolError) return { refusal: error.message };
+				throw error;
+			}
+		},
+		extraArgs: { agent_name: AGENT_NAME, ...(agentStats ? { agent_stats: agentStats } : {}), ...replyModelArgs(agentStats ?? undefined) },
+	});
+	debug("notice reply", { notices: capture.noticeIds.length, posted: outcome.kind === "posted", idempotent: outcome.kind === "posted" && outcome.idempotent, refused: outcome.kind === "refused", unconfirmed: outcome.kind === "unconfirmed", skipped: outcome.kind === "no_final_text" || outcome.kind === "not_attached" || outcome.kind === "connection_changed" });
+	if (outcome.kind === "posted") { noteOwnRoomMessage(outcome.messageId); return; }
+	const message = noticeReplyTerminalMessage(outcome, capture);
+	if (!message) return;
+	if (safeHasUI(ctx)) notify(ctx, message, "warning");
+	else console.error(message);
 }
 
 /**
@@ -1565,7 +1632,9 @@ function deliverQueuedSystemNotices(active: PumpState, ctx: ExtensionContext): b
 	const notices = queuedSystemNotices(active.systemNoticeKey);
 	if (notices.length === 0) return false;
 	const ids = notices.map((notice) => notice.notice_id);
-	pi_systemNoticeSend(formatSystemNoticeMessage(notices), { notices });
+	// Attached, the run's final message becomes the room reply to these notices (6aad2b46).
+	const roomAttached = Boolean(active.bond.sessionId);
+	pi_systemNoticeSend(formatSystemNoticeMessage(notices, { roomAttached }), { notices, roomAttached });
 	if (!commitSystemNoticeDelivery(active.systemNoticeKey, ids)) {
 		throw new Error("System notice generation changed during Pi delivery.");
 	}
@@ -2661,8 +2730,9 @@ async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: s
 		const store = await openRoomStore(scope, { current, principalFingerprint: roomPrincipalFingerprint(token), selfLabel: identity.connection_id === scope.connectionId && identity.codename ? identity.label : null });
 		if (!current()) { store.close(true); return; }
 		const sessionEventsNegotiated = advertisesSessionEvents(advertised);
+		const noticeReplyNegotiated = advertisesNoticeReply(advertised);
 		active.roomSync = new RoomSync({
-			store, sessionEventsNegotiated, current, liveCursor: () => active.cursor,
+			store, sessionEventsNegotiated, noticeReplyNegotiated, current, liveCursor: () => active.cursor,
 			wake: () => { if (current()) signalWake(active); },
 			onError: () => debug("room storage unavailable", { errorPresent: true }),
 			fetchHistory: async (args) => {
@@ -2697,7 +2767,7 @@ async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: s
 					signalWake(active); // only the main pump adopts the new attachment
 					throw new Error("room history attachment mismatch");
 				}
-				return parsePollPayload(response.details, active.connectionIdentity, { systemNoticeNegotiated: true, senderStyleNegotiated: true, roomContextNegotiated: true, sessionEventsNegotiated });
+				return parsePollPayload(response.details, active.connectionIdentity, { systemNoticeNegotiated: true, senderStyleNegotiated: true, roomContextNegotiated: true, sessionEventsNegotiated, noticeReplyNegotiated });
 			},
 		});
 		if (current()) { pi_appendRoomScope(scope); active.roomSync.schedule(); signalWake(active); }
@@ -2785,7 +2855,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		let roomContextNegotiated = senderStyleNegotiated && Boolean(active.roomSync);
 		let roomWatch: Record<string, unknown> = {};
 		if (roomContextNegotiated) {
-			try { roomWatch = { ...active.roomSync!.store.watch(), ...active.roomSync!.eventsWatch() }; }
+			try { roomWatch = { ...active.roomSync!.store.watch(), ...active.roomSync!.negotiationWatch() }; }
 			catch {
 				active.roomSync?.close(); active.roomSync = undefined;
 				active.roomSyncAttemptAt = Date.now(); roomContextNegotiated = false;
@@ -3085,7 +3155,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			}
 		}
 
-		const pkg = parsePollPayload(payload, active.connectionIdentity, { systemNoticeNegotiated, senderStyleNegotiated, roomContextNegotiated, sessionEventsNegotiated: roomContextNegotiated && roomWatch.session_events_version === 1 });
+		const pkg = parsePollPayload(payload, active.connectionIdentity, { systemNoticeNegotiated, senderStyleNegotiated, roomContextNegotiated, sessionEventsNegotiated: roomContextNegotiated && roomWatch.session_events_version === 1, noticeReplyNegotiated: roomContextNegotiated && roomWatch.notice_reply_version === 1 });
 		if (pkg.canonicalState === "invalid") {
 			if (roomContextNegotiated) {
 				// Re-request the preserved lane; never reinterpret a malformed1.6
@@ -3137,6 +3207,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				stillToDiscuss: pkg.advisoryRejections.includes("still_to_discuss"),
 				...(pkg.advisoryRejections.includes("session_activity") ? { sessionActivity: true } : {}),
 				...(pkg.advisoryRejections.includes("session_events") ? { sessionEvents: true } : {}),
+				...(pkg.advisoryRejections.includes("notice_reply") ? { noticeReply: true } : {}),
 			});
 		}
 
@@ -3607,7 +3678,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 
 // Late-bound so the loop can reference the ExtensionAPI closure.
 let pi_appendControlResult: (entry: ControlResultEntry) => void = () => { throw new Error("CONTROL journal unavailable"); };
-let pi_systemNoticeSend: (message: string, details: { notices: unknown[] }) => void = () => {};
+let pi_systemNoticeSend: (message: string, details: { notices: unknown[]; roomAttached: boolean }) => void = () => {};
 let pi_appendInteractionEntry: (
 	state: "observed" | "applied" | "acknowledged",
 	details: InteractionEventApplicationDetails,
@@ -4486,7 +4557,22 @@ export default function (pi: ExtensionAPI) {
 		if (!turn) return;
 		if (isInput) {
 			const previousInteraction = isRealUserMessage ? turn.interaction : undefined;
-			if (customType === SYSTEM_NOTICE_CUSTOM_TYPE) turn.completionNeutral = true;
+			if (customType === SYSTEM_NOTICE_CUSTOM_TYPE) {
+				turn.completionNeutral = true;
+				// The notices this run answers, for the reply its final message becomes
+				// (6aad2b46): only the connection they were delivered to may name them.
+				const noticeIds = noticeIdsFromDelivery(msg?.details);
+				const connectionId = getBond()?.connectionId;
+				if (noticeIds.length > 0 && connectionId) {
+					const held = turn.noticeReply?.connectionId === connectionId ? turn.noticeReply.noticeIds : [];
+					turn.noticeReply = {
+						connectionId,
+						noticeIds: [...new Set([...held, ...noticeIds])],
+						roomPromised: (msg?.details as { roomAttached?: unknown } | undefined)?.roomAttached === true,
+						finalText: null,
+					};
+				}
+			}
 			const activityTransition = isRealUserMessage
 				? transitionToRealUserActivity({
 					systemNoticeRunActive,
@@ -4625,6 +4711,8 @@ export default function (pi: ExtensionAPI) {
 			if (stopReason === "error") {
 				turn.terminalError = errorMessage?.trim() || "The model provider returned an error.";
 			}
+			// The last assistant message decides a notice run's reply (6aad2b46).
+			if (turn.noticeReply) turn.noticeReply.finalText = noticeReplyFinalText({ text, stopReason });
 			turn.receiptBatch.noteAssistantText(text, turn.revision);
 			turn.trail.setThinking(thinking);
 			turn.trail.setText(text);

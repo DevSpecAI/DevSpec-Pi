@@ -1,7 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.8.9 - 2026-10-27
 
+- When DevSpec sends Pi a notice about its own work while you are driving it from a DevSpec room, such as a confirmed finding or the outcome of a change, Pi's answer now appears in that room, marked as a reply to the DevSpec notice rather than to a person. It is your agent's final message from handling the notice, written to you briefly. It does not start, finish or interrupt any request you sent, and it does not change whether the agent shows as Working. When Pi is not in a room, the answer stays in the terminal as before.
+- If DevSpec does not accept that reply, Pi says so in the terminal with DevSpec's reason instead of dropping it.
+- Handling a notice no longer shows a false "assistant speech storage not confirmed" warning in the terminal.
+- Pi's local copy of the room keeps which DevSpec notice a reply answers, with the notice's summary and records.
+- The tool catalogue is regenerated against DevSpec's current tools. Update with `pi update --extensions`, then restart Pi.
 - The README and code comments use DevSpec's new settings page names: the personal settings page where you create or reveal your token is now **Agent setup**, and the project settings page for agent execution rules is now **Agent rules**. Pi's login messages link that page by URL and are unchanged.
 
 ## 0.8.8 - 2026-10-26

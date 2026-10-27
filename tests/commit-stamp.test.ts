@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import {
 	drainGitObservations,
+	windowsShellHasCygpath,
 	initializeGitObserver,
 	prepareGitObservation,
 	resetGitObserverForTests,
@@ -13,6 +14,7 @@ import {
 } from "../extensions/core/git-observer.ts";
 import { commitStampNote, commitStampScope, commitTaggingAvailable, originFingerprint } from "../extensions/core/commit-stamp.ts";
 import { setBond } from "../extensions/core/bond-state.ts";
+import { BASH } from "./bash-fixture.ts";
 // @ts-expect-error plain ESM runtime module without types
 import { planCommitStamp, readCommitMessageSource, readStampScope, stampMessage } from "../runtime/commit-stamp.mjs";
 
@@ -52,7 +54,7 @@ function bash(command: string, stamp: CommitStampScope | null, env: Record<strin
 		connectionCapability: "fixture-host-only-capability", transport: { tokenHash: "fixture-hash", endpoint: "https://original.invalid/api/mcp" }, stamp,
 	});
 	assert.ok(prepared);
-	execFileSync("/bin/bash", ["-c", `${prepared.prefix}${command}`], { env: { ...process.env, PI_SESSION_ID: SESSION, ...env }, stdio: ["ignore", "pipe", "pipe"] });
+	execFileSync(BASH, ["-c", `${prepared.prefix}${command}`], { env: { ...process.env, PI_SESSION_ID: SESSION, ...env }, stdio: ["ignore", "pipe", "pipe"] });
 	const observerDir = /DEVSPEC_PI_GIT_OBSERVER_DIR='([^']+)'/u.exec(prepared.prefix)?.[1] ?? "";
 	return Object.assign(drainGitObservations(), { observerDir });
 }
@@ -247,8 +249,55 @@ test("Pi says it tags commits only where a working stand-in and a bonded connect
 	setBond(null as never);
 	assert.equal(commitTaggingAvailable(), false, "no bond: nothing arms the stand-in");
 	setBond({ projectId: PROJECT, connectionId: CONNECTION, connectionCapability: "fixture-capability" } as never);
-	assert.equal(commitTaggingAvailable(), process.platform !== "win32", "the stand-in runs on POSIX only today");
+	assert.equal(commitTaggingAvailable(), true, "a working stand-in, on POSIX and native Windows alike");
 	resetGitObserverForTests();
 	assert.equal(commitTaggingAvailable(), false, "no stand-in: the model writes the tag itself");
 	setBond(null as never);
+});
+
+test("the stand-in, the repository and the message file may all sit under paths with spaces, named in either path style (c4b14794)", (t) => {
+	// The stand-in's own directory comes from the temp directory: put a space in it,
+	// and make it deep enough that a Trace2 socket path could not fit (git then
+	// writes its events to files instead, as it always does on Windows).
+	const spaced = realpathSync.native(mkdtempSync(join(tmpdir(), "devspec pi spaced ")));
+	const temp = join(spaced, `temp dir ${"deep".repeat(15)}`);
+	mkdirSync(temp);
+	const saved = { TMPDIR: process.env.TMPDIR, TMP: process.env.TMP, TEMP: process.env.TEMP };
+	process.env.TMPDIR = temp; process.env.TMP = temp; process.env.TEMP = temp;
+	resetGitObserverForTests();
+	t.after(() => {
+		for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+		resetGitObserverForTests();
+		rmSync(spaced, { recursive: true, force: true });
+	});
+	assert.equal(initializeGitObserver(SESSION), true);
+	const cwd = repo(spaced, "my project repo");
+	mkdirSync(join(cwd, ".devspec"));
+	writeFileSync(join(cwd, ".devspec", "project.json"), JSON.stringify({ project_id: PROJECT }));
+	writeFileSync(join(cwd, "my message.txt"), "Message from a spaced file\n");
+	// Native style everywhere, and on Windows also the POSIX form Git Bash prints.
+	const posix = process.platform === "win32" ? `"$(/usr/bin/cygpath -u '${cwd}')"` : `'${cwd}'`;
+	const pinned = scope({ remoteSha256: null });
+	let rows = bash(`cd '${cwd}' && git commit -q --allow-empty -m 'Native style'`, pinned);
+	assert.equal(message(cwd), `Native style ${TAG}\n`);
+	assert.equal(rows[0]?.stamp?.outcome, "stamped");
+	assert.ok(rows.observerDir.includes(" "), "the stand-in itself ran from a path with spaces");
+	rows = bash(`cd ${posix} && git commit -q --allow-empty -F 'my message.txt'`, pinned);
+	assert.equal(message(cwd), `Message from a spaced file ${TAG}\n`);
+	assert.equal(readFileSync(join(cwd, "my message.txt"), "utf8"), "Message from a spaced file\n");
+	rows = bash(`git -C ${posix} commit -q --allow-empty -F - <<'EOF'\nPOSIX style through -C\nEOF`, pinned);
+	assert.equal(message(cwd), `POSIX style through -C ${TAG}\n`);
+	assert.equal(rows[0]?.worktree, cwd);
+});
+
+test("on Windows the stand-in runs only where Pi's bash has cygpath (Git Bash, MSYS2, Cygwin), never the legacy WSL bash", { skip: process.platform !== "win32" }, (t) => {
+	assert.equal(windowsShellHasCygpath(), true, "the runner's Git Bash");
+	const empty = mkdtempSync(join(tmpdir(), "devspec-pi-no-bash-"));
+	t.after(() => rmSync(empty, { recursive: true, force: true }));
+	const wslOnly = { ProgramFiles: empty, "ProgramFiles(x86)": empty, PATH: join(process.env.SystemRoot ?? "C:\\Windows", "System32") } as NodeJS.ProcessEnv;
+	const saved = { ...process.env };
+	for (const key of Object.keys(process.env)) if (key.toLowerCase() === "path") delete process.env[key];
+	process.env.PATH = wslOnly.PATH;
+	try { assert.equal(windowsShellHasCygpath(wslOnly), false); }
+	finally { for (const key of Object.keys(process.env)) delete process.env[key]; Object.assign(process.env, saved); }
 });

@@ -5,13 +5,15 @@
  * `-F -`, `-m "$(cat <<'EOF' …)"`, a message file) and a commit in a fixture repository
  * outside the project. A second run claims two tasks. Loopback MCP only: no paid model,
  * live DevSpec records or real credentials. Not a deployed-server E2E.
+ * STAMP_E2E_PI_CLI=<path to pi's cli.js> runs that Pi with this Node instead of `pi`
+ * on PATH (how the Windows CI job runs it under Git Bash; c4b14794).
  */
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { spawn, execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -21,6 +23,7 @@ const OTHER_TASK = "6aad2b46-27a1-4aad-a60a-ec8ed7203d65";
 const REMOTE = "https://example.invalid/devspec/stamp-fixture.git";
 const TAG = `[devspec:${TASK}]`;
 const git = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+const PI = process.env.STAMP_E2E_PI_CLI ? [process.execPath, [resolve(process.env.STAMP_E2E_PI_CLI)]] : ["pi", []];
 const message = (cwd, rev = "HEAD") => execFileSync("git", ["cat-file", "commit", rev], { cwd }).toString("utf8").split("\n\n").slice(1).join("\n\n");
 
 function makeRepo(path, remote) {
@@ -63,7 +66,7 @@ async function run(name, calls, temp, project) {
 			STAMP_PROBE_CALLS: JSON.stringify(calls), STAMP_PROBE_PROJECT: PROJECT, NODE_OPTIONS: "" };
 		delete env.DEVSPEC_PI_STAMP_PROJECT; delete env.DEVSPEC_PI_STAMP_TASK; delete env.DEVSPEC_PI_STAMP_CLAIMS; delete env.DEVSPEC_PI_STAMP_REMOTE_SHA256;
 		const out = await new Promise((resolve, reject) => {
-			const child = spawn("pi", ["--mode", "json", "--offline", "--no-session", "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-context-files",
+			const child = spawn(PI[0], [...PI[1], "--mode", "json", "--offline", "--no-session", "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-context-files",
 				"-e", join(root, "scripts/commit-stamp-runtime-fixture.ts"), "-e", join(root, "extensions/devspec-tools.ts"), "-e", join(root, "extensions/devspec-commit-ledger.ts"),
 				"--provider", "commit-stamp-probe", "--model", "scripted", "-p", "Run the commit stamp fixture."], { cwd: project, env, stdio: ["ignore", "pipe", "pipe"] });
 			let stdout = "", stderr = "";
@@ -126,7 +129,7 @@ try {
 	const twoNote = two.toolResults.find((result) => result.id === "stamp-probe-2")?.text ?? "";
 	assert.match(twoNote, new RegExp(`DevSpec: Pi did not add a task tag to commit ${git(project2, "rev-parse", "--short=7", "HEAD")}: 2 tasks are claimed in this conversation, so it cannot tell which one this commit is for\\. Write the right task's \\[devspec:<full-uuid>\\] into the message yourself\\.`));
 
-	console.log(JSON.stringify({ result: "PASS", host: execFileSync("pi", ["--version"], { encoding: "utf8" }).trim(),
+	console.log(JSON.stringify({ result: "PASS", host: execFileSync(PI[0], [...PI[1], "--version"], { encoding: "utf8" }).trim(), platform: process.platform,
 		pluginVersion: JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version,
 		stamped: ["-F - heredoc with trailer", "-m \"$(cat <<'EOF' …)\"", "-F msg.txt (file untouched)"], untouched: ["fixture repository outside the project", "two claims"],
 		notes: [...one.toolResults, ...two.toolResults].map((result) => result.text.split("\n").filter((line) => line.startsWith("DevSpec: Pi")).join(" ")).filter(Boolean),

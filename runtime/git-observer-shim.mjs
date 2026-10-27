@@ -15,7 +15,7 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
-import { appendFileSync, mkdirSync, realpathSync, rmSync } from "node:fs";
+import { appendFileSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { planCommitStamp, readStampScope, repositoryInProject, unplannedReport } from "./commit-stamp.mjs";
 import { randomUUID } from "node:crypto";
 import { basename, dirname, join } from "node:path";
@@ -70,8 +70,41 @@ async function delegate(realGit, args, childEnv, stdin = null) {
 	return result;
 }
 
+/**
+ * Git for Windows has no Unix domain sockets, so there Trace2 writes one file per
+ * git process into a private directory instead (c4b14794). The events are the same.
+ */
+function startDirectoryTraceCapture(observerDir) {
+	const dir = join(observerDir, `trace-${randomUUID()}`);
+	mkdirSync(dir, { mode: 0o700 });
+	return {
+		target: dir,
+		async finish() {
+			try {
+				let bytes = 0;
+				const parts = [];
+				for (const name of readdirSync(dir).sort()) {
+					const part = readFileSync(join(dir, name), "utf8");
+					bytes += Buffer.byteLength(part);
+					if (bytes > MAX_TRACE_BYTES) return null;
+					parts.push(part.endsWith("\n") ? part : `${part}\n`);
+				}
+				return parts.join("");
+			} catch {
+				return null;
+			} finally {
+				try { rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }
+			}
+		},
+	};
+}
+
 async function startTraceCapture(observerDir) {
+	if (process.platform === "win32") return startDirectoryTraceCapture(observerDir);
 	const socketPath = join(observerDir, `trace-${randomUUID()}.sock`);
+	// Git connects only to a socket path that fits sun_path with its NUL; a longer
+	// one (a deep temp directory) can bind in node yet receive nothing from git.
+	if (Buffer.byteLength(socketPath) > 100) return startDirectoryTraceCapture(observerDir);
 	const chunks = [];
 	const sockets = new Set();
 	let bytes = 0;
@@ -92,13 +125,20 @@ async function startTraceCapture(observerDir) {
 			}
 		});
 	});
-	await new Promise((resolve, reject) => {
-		server.once("error", reject);
-		server.listen(socketPath, () => {
-			server.off("error", reject);
-			resolve();
+	try {
+		await new Promise((resolve, reject) => {
+			server.once("error", reject);
+			server.listen(socketPath, () => {
+				server.off("error", reject);
+				resolve();
+			});
 		});
-	});
+	} catch {
+		// A socket path past the platform limit (a deep temp directory, or one
+		// with spaces) cannot be bound: the same events go to files instead.
+		try { server.close(); } catch { /* never listening */ }
+		return startDirectoryTraceCapture(observerDir);
+	}
 	return {
 		target: `af_unix:stream:${socketPath}`,
 		async finish() {
@@ -177,7 +217,11 @@ function preflightRepository(realGit, args) {
 }
 
 function directCommit(rows) {
-	const rootSid = rows.find((row) => row.event === "start" && typeof row.sid === "string")?.sid;
+	// The outermost process: first on a socket stream, and the shortest SID when
+	// Trace2 wrote one file per process (Windows), whatever order they are read in.
+	const rootSid = rows
+		.filter((row) => row.event === "start" && typeof row.sid === "string")
+		.reduce((best, row) => (!best || row.sid.split("/").length < best.split("/").length ? row.sid : best), null);
 	if (!rootSid) return null;
 	const commit = rows.find((row) => {
 		if (row.event !== "cmd_name" || row.name !== "commit" || typeof row.sid !== "string") return false;

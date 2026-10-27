@@ -115,6 +115,46 @@ function shellQuote(value: string): string {
 	return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
 
+/**
+ * Native Windows (c4b14794): Pi's bash tool runs Git Bash, or another bash on PATH
+ * such as MSYS2 or Cygwin. Those shells read PATH in POSIX form, so the stand-in's
+ * directory is converted with the shell's own cygpath when the call starts; a shell
+ * without it (the legacy WSL bash.exe, which runs Linux git anyway) keeps its PATH
+ * and git runs unobserved, exactly as before. Windows paths handed to node keep
+ * their drive letters, with forward slashes so sh never reads a backslash escape.
+ */
+function windowsPathForShell(path: string): string {
+	return path.replaceAll("\\", "/");
+}
+
+/**
+ * Whether the bash Pi will run on Windows can reach the stand-in: Pi takes Git
+ * Bash from Program Files first, then the first bash.exe on PATH. Git Bash,
+ * MSYS2 and Cygwin ship cygpath beside their bash; the legacy WSL bash.exe does
+ * not (and runs Linux git), so there Pi stays unobserved and says so (c4b14794).
+ * A shell set by hand in Pi's settings is not consulted.
+ */
+export function windowsShellHasCygpath(env: NodeJS.ProcessEnv = process.env): boolean {
+	const gitBash = [env.ProgramFiles, env["ProgramFiles(x86)"]]
+		.filter((base): base is string => Boolean(base))
+		.map((base) => join(base, "Git", "bin", "bash.exe"))
+		.find((path) => existsSync(path));
+	let shell = gitBash ?? null;
+	if (!shell) {
+		try {
+			shell = execFileSync("where", ["bash.exe"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000, windowsHide: true })
+				.trim().split(/\r?\n/u).find((path) => path && existsSync(path)) ?? null;
+		} catch { shell = null; }
+	}
+	if (!shell) return false;
+	return [dirname(shell), join(dirname(dirname(shell)), "usr", "bin")].some((dir) => existsSync(join(dir, "cygpath.exe")));
+}
+
+function pathAssignment(dir: string): string {
+	if (process.platform !== "win32") return `export PATH=${shellQuote(dir)}:"$PATH"`;
+	return `__devspec_pi_git_dir="$(/usr/bin/cygpath -u ${shellQuote(windowsPathForShell(dir))} 2>/dev/null)" && [ -n "$__devspec_pi_git_dir" ] && export PATH="$__devspec_pi_git_dir:$PATH"; unset __devspec_pi_git_dir`;
+}
+
 function cleanupGeneration(generation: GitObserverGeneration | null): void {
 	if (!generation) return;
 	generation.active = false;
@@ -124,9 +164,7 @@ function cleanupGeneration(generation: GitObserverGeneration | null): void {
 
 export function initializeGitObserver(piSessionId: string, preserveReload = false): boolean {
 	const state = store();
-	// The current shim is POSIX/Git-Bash shaped. Windows remains explicit fail-open
-	// until path conversion/signal behavior has its own verified implementation.
-	if ((process.platform as string) === "win32") {
+	if (process.platform === "win32" && !windowsShellHasCygpath()) {
 		state.current = null;
 		return false;
 	}
@@ -150,7 +188,10 @@ export function initializeGitObserver(piSessionId: string, preserveReload = fals
 		copyFileSync(fileURLToPath(new URL("../../runtime/commit-stamp.mjs", import.meta.url)), stampModulePath);
 		chmodSync(stampModulePath, 0o600);
 		// Use the exact host runtime, never /usr/bin/env node or the mutated PATH.
-		writeFileSync(shimPath, `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(modulePath)} "$@"\n`, { mode: 0o700 });
+		// On Windows the same sh script is what Git Bash runs for `git`.
+		const runtime = process.platform === "win32" ? windowsPathForShell(process.execPath) : process.execPath;
+		const shimModule = process.platform === "win32" ? windowsPathForShell(modulePath) : modulePath;
+		writeFileSync(shimPath, `#!/bin/sh\nexec ${shellQuote(runtime)} ${shellQuote(shimModule)} "$@"\n`, { mode: 0o700 });
 		chmodSync(shimPath, 0o700);
 		const journalPath = join(dir, "observations.jsonl");
 		writeFileSync(journalPath, "", { mode: 0o600 });
@@ -174,7 +215,7 @@ export function initializeGitObserver(piSessionId: string, preserveReload = fals
 	}
 }
 
-/** Whether this Pi process has a working git stand-in (never on native Windows yet: c4b14794). */
+/** Whether this Pi process has a working git stand-in. */
 export function gitObserverActive(): boolean {
 	return store().current?.active === true;
 }
@@ -219,7 +260,7 @@ export function prepareGitObservation(params: {
 	}
 
 	const assignments = [
-		`export PATH=${shellQuote(generation.dir)}:"$PATH"`,
+		pathAssignment(generation.dir),
 		`export DEVSPEC_PI_REAL_GIT=${shellQuote(generation.realGit)}`,
 		`export DEVSPEC_PI_GIT_OBSERVER_DIR=${shellQuote(generation.dir)}`,
 		`export DEVSPEC_PI_GIT_OBSERVER_JOURNAL=${shellQuote(generation.journalPath)}`,

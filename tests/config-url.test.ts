@@ -6,35 +6,35 @@ delete process.env.DEVSPEC_MCP_URL;
 delete process.env.DEVSPEC_ENV;
 
 const {
-	CONNECTIONS_URL,
+	AGENTS_SETTINGS_URL,
 	DEFAULT_MCP_URL,
 	ENV_ENV_VAR,
-	STAGING_CONNECTIONS_URL,
+	STAGING_AGENTS_SETTINGS_URL,
 	STAGING_MCP_URL,
 	URL_ENV_VAR,
-	connectionsUrl,
+	agentsSettingsUrl,
 	mcpUrl,
 } = await import("../extensions/core/config.ts");
 
 test("the baked-in constants sit on the api and app hosts, not the marketing apex", () => {
 	assert.equal(DEFAULT_MCP_URL, "https://api.devspec.ai/api/mcp");
 	assert.equal(STAGING_MCP_URL, "https://api.devspecstaging.com/api/mcp");
-	assert.equal(CONNECTIONS_URL, "https://app.devspec.ai/settings/connections");
-	assert.equal(STAGING_CONNECTIONS_URL, "https://app.devspecstaging.com/settings/connections");
+	assert.equal(AGENTS_SETTINGS_URL, "https://app.devspec.ai/settings/agents");
+	assert.equal(STAGING_AGENTS_SETTINGS_URL, "https://app.devspecstaging.com/settings/agents");
 	assert.equal(URL_ENV_VAR, "DEVSPEC_MCP_URL");
 	assert.equal(ENV_ENV_VAR, "DEVSPEC_ENV");
 });
 
 test("mcpUrl defaults to the production API host with nothing set", () => {
 	assert.equal(mcpUrl(), "https://api.devspec.ai/api/mcp");
-	assert.equal(connectionsUrl(), "https://app.devspec.ai/settings/connections");
+	assert.equal(agentsSettingsUrl(), "https://app.devspec.ai/settings/agents");
 });
 
-test("DEVSPEC_ENV=staging selects the staging API host and its Connections page", () => {
+test("DEVSPEC_ENV=staging selects the staging API host and its Agent setup page", () => {
 	process.env.DEVSPEC_ENV = "staging";
 	try {
 		assert.equal(mcpUrl(), "https://api.devspecstaging.com/api/mcp");
-		assert.equal(connectionsUrl(), "https://app.devspecstaging.com/settings/connections");
+		assert.equal(agentsSettingsUrl(), "https://app.devspecstaging.com/settings/agents");
 	} finally {
 		delete process.env.DEVSPEC_ENV;
 	}

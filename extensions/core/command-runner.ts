@@ -1,23 +1,31 @@
 /**
- * In-process access to Pi's command-context reload (item e82a690a).
+ * In-process access to Pi's command context (items e82a690a, 6beb89c6).
  *
- * ctx.reload() exists only on ExtensionCommandContext. The pump/event ctx
- * is ExtensionContext and does not have it. sendUserMessage("/devspec.reload")
+ * ctx.reload() and ctx.navigateTree() exist only on ExtensionCommandContext.
+ * The pump/event ctx is ExtensionContext and does not have them. sendUserMessage("/devspec.reload")
  * is not a substitute: it calls prompt({ expandPromptTemplates: false }) and
  * skips _tryExecuteExtensionCommand, so the slash becomes a user prompt.
  *
  * ExtensionRunner.createCommandContext() is the official factory the TUI
  * uses. We remember the live runner via the public bindCommandContext hook
  * (called on session_start and after every reload) and then call
- * createCommandContext().reload() — the same handleReloadCommand path.
+ * createCommandContext().reload() — the same handleReloadCommand path — or
+ * createCommandContext().navigateTree(), the same path as /tree.
  */
 
 import { ExtensionRunner } from "@earendil-works/pi-coding-agent";
 
 const GLOBAL_KEY = "__devspecPiExtensionRunner";
 
+/** The part of Pi's command context the owner's controls use. */
+export type CommandContextLike = {
+	reload?: () => Promise<void>;
+	navigateTree?: (targetId: string, options?: { summarize?: boolean }) => Promise<{ cancelled: boolean }>;
+	waitForIdle?: () => Promise<void>;
+};
+
 type RunnerLike = {
-	createCommandContext?: () => { reload?: () => Promise<void> };
+	createCommandContext?: () => CommandContextLike;
 };
 
 function store(): { current: RunnerLike | null } {
@@ -43,7 +51,7 @@ export function rememberExtensionRunner(): void {
 	};
 }
 
-export function commandReloadContext(): { reload?: () => Promise<void> } | null {
+export function extensionCommandContext(): CommandContextLike | null {
 	const runner = store().current;
 	if (!runner || typeof runner.createCommandContext !== "function") return null;
 	try {

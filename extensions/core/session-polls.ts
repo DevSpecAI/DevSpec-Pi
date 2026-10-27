@@ -4,6 +4,14 @@
  */
 
 export const SESSION_POLL_PROJECTION_VERSION = 1 as const;
+/**
+ * Version 2 (item bba35976) is never missing while the session has polls: the newest
+ * that fit the text budget, the totals, and a continuation naming where the rest
+ * are. Version 1 refused outright past 16 active polls, so a busy room arrived as
+ * no polls at all.
+ */
+export const SESSION_POLL_PROJECTION_VERSION_2 = 2 as const;
+export const SESSION_POLL_CONTINUATION = "Call manage_poll list to read every poll in this session." as const;
 export const SESSION_POLL_MAX_ACTIVE = 16;
 export const SESSION_POLL_MAX_ENDED = 5;
 export const SESSION_POLL_MAX_OPTIONS = 30;
@@ -47,6 +55,24 @@ export interface SessionPollsProjectionV1 {
 	};
 	polls: SessionPollProjection[];
 }
+
+export interface SessionPollsProjectionV2 {
+	version: typeof SESSION_POLL_PROJECTION_VERSION_2;
+	advisory: true;
+	authority_note: typeof SESSION_POLL_AUTHORITY_NOTE;
+	inventory: {
+		active_total: number;
+		active_returned: number;
+		truncated_active: boolean;
+		ended_total: number;
+		ended_returned: number;
+		truncated_ended: boolean;
+		continuation: typeof SESSION_POLL_CONTINUATION | null;
+	};
+	polls: SessionPollProjection[];
+}
+
+export type SessionPollsProjection = SessionPollsProjectionV1 | SessionPollsProjectionV2;
 
 type Row = Record<string, unknown>;
 
@@ -135,13 +161,24 @@ function poll(value: unknown, path: string): SessionPollProjection {
 	};
 }
 
-/** Parse the complete strict v1 inventory or throw without producing a partial projection. */
-export function parseSessionPollsProjection(value: unknown, path = "session_polls"): SessionPollsProjectionV1 {
+function pollTextChars(polls: readonly SessionPollProjection[]): number {
+	return polls.reduce((sum, item) => sum +
+		item.question.length +
+		(item.recommendation?.length ?? 0) +
+		item.winning_labels.reduce((n, label) => n + label.length, 0) +
+		item.options.reduce((n, option) => n + option.label.length + option.voters.reduce((v, name) => v + name.length, 0), 0), 0);
+}
+
+/** Parse a complete strict v1 or v2 inventory or throw without producing a partial projection. */
+export function parseSessionPollsProjection(value: unknown, path = "session_polls"): SessionPollsProjection {
 	const row = record(value, path);
 	exactKeys(row, ["version", "advisory", "authority_note", "inventory", "polls"], path);
-	if (row.version !== SESSION_POLL_PROJECTION_VERSION) fail(`${path}.version`, "unknown projection version");
+	if (row.version !== SESSION_POLL_PROJECTION_VERSION && row.version !== SESSION_POLL_PROJECTION_VERSION_2) {
+		fail(`${path}.version`, "unknown projection version");
+	}
 	if (row.advisory !== true) fail(`${path}.advisory`, "projection must be advisory");
 	if (row.authority_note !== SESSION_POLL_AUTHORITY_NOTE) fail(`${path}.authority_note`, "unknown authority note");
+	if (row.version === SESSION_POLL_PROJECTION_VERSION_2) return parseV2(row, path);
 	const inventory = record(row.inventory, `${path}.inventory`);
 	exactKeys(inventory, ["active_returned", "ended_returned", "truncated_ended"], `${path}.inventory`);
 	const maxPolls = SESSION_POLL_MAX_ACTIVE + SESSION_POLL_MAX_ENDED;
@@ -155,12 +192,7 @@ export function parseSessionPollsProjection(value: unknown, path = "session_poll
 	const active = polls.filter((item) => item.status === "active").length;
 	const ended = polls.filter((item) => item.status === "ended").length;
 	if (active !== activeReturned || ended !== endedReturned) fail(`${path}.inventory`, "inventory must match compact polls");
-	const totalText = polls.reduce((sum, item) => sum +
-		item.question.length +
-		(item.recommendation?.length ?? 0) +
-		item.winning_labels.reduce((n, label) => n + label.length, 0) +
-		item.options.reduce((n, option) => n + option.label.length + option.voters.reduce((v, name) => v + name.length, 0), 0), 0);
-	if (totalText > SESSION_POLL_MAX_TOTAL_TEXT_CHARS) fail(`${path}.polls`, "poll projection text exceeds safe bound");
+	if (pollTextChars(polls) > SESSION_POLL_MAX_TOTAL_TEXT_CHARS) fail(`${path}.polls`, "poll projection text exceeds safe bound");
 	return {
 		version: SESSION_POLL_PROJECTION_VERSION,
 		advisory: true,
@@ -174,25 +206,87 @@ export function parseSessionPollsProjection(value: unknown, path = "session_poll
 	};
 }
 
-/** Compact deterministic delivery-tail serialization. Votes are never commands. */
-export function serializeSessionPollsProjection(projection: SessionPollsProjectionV1 | null): string {
-	if (!projection || projection.polls.length === 0) return "";
-	const lines = ["== SESSION POLLS ==", projection.authority_note];
-	for (const item of projection.polls) {
-		const optionText = item.options
-			.map((option) => `${option.label}: ${option.human_vote_count}${option.voters.length ? ` (${option.voters.join(", ")})` : ""}`)
-			.join("; ");
-		const rec = item.recommendation ? ` | recommendation=${item.recommendation}` : "";
-		const winners = item.status === "ended" && item.winning_labels.length > 0
-			? ` | ${item.winning_labels.length > 1 ? "tied" : "winner"}=${item.winning_labels.join(", ")}`
-			: "";
-		lines.push(
-			`- "${item.question}" | poll_id=${item.id} | revision=${item.revision} | ${item.status}${item.multi_select ? " | multi-select" : ""}${item.allow_write_in ? " | write-in" : ""} | voters=${item.human_voter_count}${rec}${winners}`,
-			`  ${optionText}`,
-		);
+/**
+ * v2's counts must tell the truth about what was left out: truncated exactly when
+ * fewer were returned than exist, and the continuation exactly when anything was,
+ * so a partial list can never pass for a complete one.
+ */
+function parseV2(row: Row, path: string): SessionPollsProjectionV2 {
+	const inventory = record(row.inventory, `${path}.inventory`);
+	exactKeys(inventory, [
+		"active_total", "active_returned", "truncated_active",
+		"ended_total", "ended_returned", "truncated_ended", "continuation",
+	], `${path}.inventory`);
+	if (!Array.isArray(row.polls)) fail(`${path}.polls`, "expected an array");
+	const polls = row.polls.map((entry, index) => poll(entry, `${path}.polls[${index}]`));
+	if (new Set(polls.map((item) => item.id)).size !== polls.length) fail(`${path}.polls`, "duplicate poll id");
+	const activeTotal = integer(inventory.active_total, `${path}.inventory.active_total`);
+	const activeReturned = integer(inventory.active_returned, `${path}.inventory.active_returned`, 0, activeTotal);
+	const endedTotal = integer(inventory.ended_total, `${path}.inventory.ended_total`);
+	const endedReturned = integer(inventory.ended_returned, `${path}.inventory.ended_returned`, 0, Math.min(endedTotal, SESSION_POLL_MAX_ENDED));
+	const truncatedActive = boolean(inventory.truncated_active, `${path}.inventory.truncated_active`);
+	const truncatedEnded = boolean(inventory.truncated_ended, `${path}.inventory.truncated_ended`);
+	if (activeTotal + endedTotal === 0) fail(`${path}.inventory`, "an inventory with no polls is omitted, not sent");
+	if (truncatedActive !== activeReturned < activeTotal || truncatedEnded !== endedReturned < endedTotal) {
+		fail(`${path}.inventory`, "truncation flags must match the totals");
 	}
+	const continuation = (truncatedActive || truncatedEnded) ? SESSION_POLL_CONTINUATION : null;
+	if (inventory.continuation !== continuation) fail(`${path}.inventory.continuation`, "continuation must be present exactly when polls were left out");
+	const active = polls.filter((item) => item.status === "active").length;
+	const ended = polls.filter((item) => item.status === "ended").length;
+	if (active !== activeReturned || ended !== endedReturned) fail(`${path}.inventory`, "inventory must match compact polls");
+	if (pollTextChars(polls) > SESSION_POLL_MAX_TOTAL_TEXT_CHARS) fail(`${path}.polls`, "poll projection text exceeds safe bound");
+	return {
+		version: SESSION_POLL_PROJECTION_VERSION_2,
+		advisory: true,
+		authority_note: SESSION_POLL_AUTHORITY_NOTE,
+		inventory: {
+			active_total: activeTotal,
+			active_returned: activeReturned,
+			truncated_active: truncatedActive,
+			ended_total: endedTotal,
+			ended_returned: endedReturned,
+			truncated_ended: truncatedEnded,
+			continuation,
+		},
+		polls,
+	};
+}
+
+/** Compact deterministic delivery-tail serialization. Votes are never commands. */
+export function serializeSessionPollsProjection(projection: SessionPollsProjection | null): string {
+	if (!projection) return "";
+	if (projection.version === SESSION_POLL_PROJECTION_VERSION_2) return serializeV2(projection);
+	if (projection.polls.length === 0) return "";
+	const lines = ["== SESSION POLLS ==", projection.authority_note];
+	for (const item of projection.polls) lines.push(...pollLines(item));
 	if (projection.inventory.truncated_ended) {
 		lines.push("Ended history is newest-first and bounded; call manage_poll list for the rest.");
 	}
 	return lines.join("\n");
+}
+
+/** The same text the server gives its own model for v2 (item 66bd18f6: one reducer). */
+function serializeV2(projection: SessionPollsProjectionV2): string {
+	const inv = projection.inventory;
+	const lines = ["== SESSION POLLS ==", projection.authority_note];
+	for (const item of projection.polls) lines.push(...pollLines(item));
+	if (inv.truncated_active) lines.push(`Showing the ${inv.active_returned} newest of ${inv.active_total} active polls.`);
+	if (inv.truncated_ended) lines.push(`Showing the ${inv.ended_returned} most recently ended of ${inv.ended_total} ended polls.`);
+	if (inv.continuation) lines.push(inv.continuation);
+	return lines.join("\n");
+}
+
+function pollLines(item: SessionPollProjection): string[] {
+	const optionText = item.options
+		.map((option) => `${option.label}: ${option.human_vote_count}${option.voters.length ? ` (${option.voters.join(", ")})` : ""}`)
+		.join("; ");
+	const rec = item.recommendation ? ` | recommendation=${item.recommendation}` : "";
+	const winners = item.status === "ended" && item.winning_labels.length > 0
+		? ` | ${item.winning_labels.length > 1 ? "tied" : "winner"}=${item.winning_labels.join(", ")}`
+		: "";
+	return [
+		`- "${item.question}" | poll_id=${item.id} | revision=${item.revision} | ${item.status}${item.multi_select ? " | multi-select" : ""}${item.allow_write_in ? " | write-in" : ""} | voters=${item.human_voter_count}${rec}${winners}`,
+		`  ${optionText}`,
+	];
 }

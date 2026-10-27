@@ -4,6 +4,9 @@
  * The model Bash command is not parsed. A private PATH prefix routes ordinary `git`
  * argv through the package shim for that one tool execution. Connection/project
  * identity stays host-side in this frozen envelope and never reaches child processes.
+ * When the host arms stamping (df71ab6c), the shim also receives the project id,
+ * the claim count, the one claimed task id and a fingerprint of the verified origin
+ * remote — never a credential — and tags plain commits by runtime/commit-stamp.mjs.
  */
 
 import { execFileSync } from "node:child_process";
@@ -27,7 +30,29 @@ export interface FrozenGitObservationEnvelope {
 	toolCallId: string;
 	connectionId: string;
 	projectId: string;
+	/** Host-only binding, never included in the shim environment or journal. */
+	connectionCapability?: string;
+	transport?: { tokenHash: string; endpoint: string };
 	createdAt: number;
+}
+
+/** What the host armed the shim with for one tool call (df71ab6c). */
+export interface CommitStampScope {
+	projectId: string;
+	/** Claimed tasks of this conversation in that project; 1 is the only count that stamps. */
+	claimCount: number;
+	/** The one claimed task, exactly when claimCount is 1. */
+	taskId: string | null;
+	/** sha256 of the verified origin URL (`git remote get-url origin`, trimmed), or null. */
+	remoteSha256: string | null;
+}
+
+/** What the shim did about the task tag of one observed commit. */
+export interface CommitStampReport {
+	outcome: "stamped" | "skipped";
+	reason: string | null;
+	task: string | null;
+	claims: number;
 }
 
 export interface ObservedGitCommit {
@@ -38,6 +63,8 @@ export interface ObservedGitCommit {
 	previousHead: string | null;
 	amend: boolean;
 	observedAt: string;
+	/** Present when stamping was armed for the call that made this commit. */
+	stamp?: CommitStampReport;
 }
 
 interface GitObserverGeneration {
@@ -88,6 +115,46 @@ function shellQuote(value: string): string {
 	return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
 
+/**
+ * Native Windows (c4b14794): Pi's bash tool runs Git Bash, or another bash on PATH
+ * such as MSYS2 or Cygwin. Those shells read PATH in POSIX form, so the stand-in's
+ * directory is converted with the shell's own cygpath when the call starts; a shell
+ * without it (the legacy WSL bash.exe, which runs Linux git anyway) keeps its PATH
+ * and git runs unobserved, exactly as before. Windows paths handed to node keep
+ * their drive letters, with forward slashes so sh never reads a backslash escape.
+ */
+function windowsPathForShell(path: string): string {
+	return path.replaceAll("\\", "/");
+}
+
+/**
+ * Whether the bash Pi will run on Windows can reach the stand-in: Pi takes Git
+ * Bash from Program Files first, then the first bash.exe on PATH. Git Bash,
+ * MSYS2 and Cygwin ship cygpath beside their bash; the legacy WSL bash.exe does
+ * not (and runs Linux git), so there Pi stays unobserved and says so (c4b14794).
+ * A shell set by hand in Pi's settings is not consulted.
+ */
+export function windowsShellHasCygpath(env: NodeJS.ProcessEnv = process.env): boolean {
+	const gitBash = [env.ProgramFiles, env["ProgramFiles(x86)"]]
+		.filter((base): base is string => Boolean(base))
+		.map((base) => join(base, "Git", "bin", "bash.exe"))
+		.find((path) => existsSync(path));
+	let shell = gitBash ?? null;
+	if (!shell) {
+		try {
+			shell = execFileSync("where", ["bash.exe"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000, windowsHide: true })
+				.trim().split(/\r?\n/u).find((path) => path && existsSync(path)) ?? null;
+		} catch { shell = null; }
+	}
+	if (!shell) return false;
+	return [dirname(shell), join(dirname(dirname(shell)), "usr", "bin")].some((dir) => existsSync(join(dir, "cygpath.exe")));
+}
+
+function pathAssignment(dir: string): string {
+	if (process.platform !== "win32") return `export PATH=${shellQuote(dir)}:"$PATH"`;
+	return `__devspec_pi_git_dir="$(/usr/bin/cygpath -u ${shellQuote(windowsPathForShell(dir))} 2>/dev/null)" && [ -n "$__devspec_pi_git_dir" ] && export PATH="$__devspec_pi_git_dir:$PATH"; unset __devspec_pi_git_dir`;
+}
+
 function cleanupGeneration(generation: GitObserverGeneration | null): void {
 	if (!generation) return;
 	generation.active = false;
@@ -97,9 +164,7 @@ function cleanupGeneration(generation: GitObserverGeneration | null): void {
 
 export function initializeGitObserver(piSessionId: string, preserveReload = false): boolean {
 	const state = store();
-	// The current shim is POSIX/Git-Bash shaped. Windows remains explicit fail-open
-	// until path conversion/signal behavior has its own verified implementation.
-	if ((process.platform as string) === "win32") {
+	if (process.platform === "win32" && !windowsShellHasCygpath()) {
 		state.current = null;
 		return false;
 	}
@@ -118,8 +183,15 @@ export function initializeGitObserver(piSessionId: string, preserveReload = fals
 		const source = fileURLToPath(new URL("../../runtime/git-observer-shim.mjs", import.meta.url));
 		copyFileSync(source, modulePath);
 		chmodSync(modulePath, 0o600);
+		// The shim imports its stamping rules from beside itself (df71ab6c).
+		const stampModulePath = join(dir, "commit-stamp.mjs");
+		copyFileSync(fileURLToPath(new URL("../../runtime/commit-stamp.mjs", import.meta.url)), stampModulePath);
+		chmodSync(stampModulePath, 0o600);
 		// Use the exact host runtime, never /usr/bin/env node or the mutated PATH.
-		writeFileSync(shimPath, `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(modulePath)} "$@"\n`, { mode: 0o700 });
+		// On Windows the same sh script is what Git Bash runs for `git`.
+		const runtime = process.platform === "win32" ? windowsPathForShell(process.execPath) : process.execPath;
+		const shimModule = process.platform === "win32" ? windowsPathForShell(modulePath) : modulePath;
+		writeFileSync(shimPath, `#!/bin/sh\nexec ${shellQuote(runtime)} ${shellQuote(shimModule)} "$@"\n`, { mode: 0o700 });
 		chmodSync(shimPath, 0o700);
 		const journalPath = join(dir, "observations.jsonl");
 		writeFileSync(journalPath, "", { mode: 0o600 });
@@ -143,6 +215,11 @@ export function initializeGitObserver(piSessionId: string, preserveReload = fals
 	}
 }
 
+/** Whether this Pi process has a working git stand-in. */
+export function gitObserverActive(): boolean {
+	return store().current?.active === true;
+}
+
 export function shutdownGitObserver(reason: "quit" | "reload" | "new" | "resume" | "fork"): void {
 	if (reason === "reload") return;
 	const state = store();
@@ -156,6 +233,9 @@ export function prepareGitObservation(params: {
 	piSessionId: string;
 	connectionId: string;
 	projectId: string;
+	connectionCapability?: string;
+	transport?: { tokenHash: string; endpoint: string };
+	stamp?: CommitStampScope | null;
 }): { observationId: string; prefix: string } | null {
 	const generation = store().current;
 	if (!generation?.active || generation.piSessionId !== params.piSessionId) return null;
@@ -169,6 +249,8 @@ export function prepareGitObservation(params: {
 		toolCallId: params.toolCallId,
 		connectionId: params.connectionId,
 		projectId: params.projectId,
+		...(params.connectionCapability ? { connectionCapability: params.connectionCapability } : {}),
+		...(params.transport ? { transport: Object.freeze({ ...params.transport }) } : {}),
 		createdAt: Date.now(),
 	}));
 	while (generation.envelopes.size > MAX_ENVELOPES) {
@@ -178,15 +260,45 @@ export function prepareGitObservation(params: {
 	}
 
 	const assignments = [
-		`export PATH=${shellQuote(generation.dir)}:"$PATH"`,
+		pathAssignment(generation.dir),
 		`export DEVSPEC_PI_REAL_GIT=${shellQuote(generation.realGit)}`,
 		`export DEVSPEC_PI_GIT_OBSERVER_DIR=${shellQuote(generation.dir)}`,
 		`export DEVSPEC_PI_GIT_OBSERVER_JOURNAL=${shellQuote(generation.journalPath)}`,
 		`export DEVSPEC_PI_GIT_OBSERVER_GENERATION=${shellQuote(generation.id)}`,
 		`export DEVSPEC_PI_GIT_OBSERVATION_ID=${shellQuote(observationId)}`,
 		`export DEVSPEC_PI_GIT_OBSERVER_SESSION=${shellQuote(params.piSessionId)}`,
+		// Always set or cleared, so a value exported by an enclosing session can
+		// never arm stamping for this one.
+		...stampAssignments(params.stamp ?? null),
 	];
 	return { observationId, prefix: `${assignments.join("; ")}\n` };
+}
+
+const STAMP_ENV_NAMES = ["DEVSPEC_PI_STAMP_PROJECT", "DEVSPEC_PI_STAMP_CLAIMS", "DEVSPEC_PI_STAMP_TASK", "DEVSPEC_PI_STAMP_REMOTE_SHA256"] as const;
+const SHA256 = /^[0-9a-f]{64}$/u;
+
+function stampAssignments(stamp: CommitStampScope | null): string[] {
+	const valid = stamp && UUID.test(stamp.projectId) && Number.isSafeInteger(stamp.claimCount) && stamp.claimCount >= 1 &&
+		(stamp.claimCount === 1 ? Boolean(stamp.taskId && UUID.test(stamp.taskId)) : stamp.taskId === null) &&
+		(stamp.remoteSha256 === null || SHA256.test(stamp.remoteSha256));
+	if (!stamp || !valid) return [`unset ${STAMP_ENV_NAMES.join(" ")}`];
+	return [
+		`export DEVSPEC_PI_STAMP_PROJECT=${shellQuote(stamp.projectId.toLowerCase())}`,
+		`export DEVSPEC_PI_STAMP_CLAIMS=${shellQuote(String(stamp.claimCount))}`,
+		stamp.taskId ? `export DEVSPEC_PI_STAMP_TASK=${shellQuote(stamp.taskId.toLowerCase())}` : "unset DEVSPEC_PI_STAMP_TASK",
+		stamp.remoteSha256 ? `export DEVSPEC_PI_STAMP_REMOTE_SHA256=${shellQuote(stamp.remoteSha256)}` : "unset DEVSPEC_PI_STAMP_REMOTE_SHA256",
+	];
+}
+
+function stampReport(value: unknown): CommitStampReport | undefined {
+	if (!value || typeof value !== "object") return undefined;
+	const row = value as Record<string, unknown>;
+	if (row.v !== 1 || (row.outcome !== "stamped" && row.outcome !== "skipped")) return undefined;
+	if (row.reason !== null && (typeof row.reason !== "string" || !/^[a-z_]{1,40}$/u.test(row.reason))) return undefined;
+	if (row.task !== null && (typeof row.task !== "string" || !UUID.test(row.task))) return undefined;
+	if (!Number.isSafeInteger(row.claims) || (row.claims as number) < 1) return undefined;
+	if (row.outcome === "stamped" && (row.task === null || row.reason !== null)) return undefined;
+	return { outcome: row.outcome, reason: row.reason as string | null, task: row.task as string | null, claims: row.claims as number };
 }
 
 function validJournalRow(value: unknown): value is {
@@ -254,6 +366,7 @@ export function drainGitObservations(now = Date.now()): ObservedGitCommit[] {
 				previousHead: parsed.previousHead,
 				amend: parsed.amend,
 				observedAt: parsed.observedAt,
+				...(() => { const stamp = stampReport((parsed as { stamp?: unknown }).stamp); return stamp ? { stamp } : {}; })(),
 			});
 		}
 		return observed;

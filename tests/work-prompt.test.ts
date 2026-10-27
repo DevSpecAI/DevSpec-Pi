@@ -26,7 +26,7 @@ const contract: ImplementationContractContext = {
 test("buildWorkPrompt carries thin work/contract identity and mechanically loaded rules", () => {
 	const prompt = buildWorkPrompt(item, contract);
 	assert.match(prompt, /^DevSpec work kickoff: /);
-	assert.match(prompt, /"action_item_ids":\["e10f3ad1-c2ce-4d56-a87f-8f00d6c6384d"\]/);
+	assert.match(prompt, /"task_ids":\["e10f3ad1-c2ce-4d56-a87f-8f00d6c6384d"\]/);
 	assert.match(prompt, /"contract_version":"4.2.0"/);
 	assert.doesNotMatch(prompt, /assignment_id|assignmentId/);
 	assert.match(prompt, /devspec:\/\/product\/implementation-contract"/);

@@ -17,9 +17,10 @@ import {
 import { applyCommitLedgerVerdict } from "../extensions/devspec-tools.ts";
 
 const FULL = "fbe44cdd05c52551e70119e28fdf3d8cb6e47e3a";
-const FULL_A = "aaa111105c52551e70119e28fdf3d8cb6e47e3a";
-const FULL_B = "bbb222205c52551e70119e28fdf3d8cb6e47e3a";
-const FULL_C = "ccc333305c52551e70119e28fdf3d8cb6e47e3a";
+// Synthetic full-object fixtures (the former literals were only 39 chars).
+const FULL_A = "aaa1111" + "a".repeat(33);
+const FULL_B = "bbb2222" + "b".repeat(33);
+const FULL_C = "ccc3333" + "c".repeat(33);
 const resolverReturning = (sha: string | null): GitResolver => () => sha;
 
 test("parseCommitOutput reads the [branch shortsha] summary line", () => {
@@ -74,12 +75,12 @@ test("recognized commit output attaches the actual object message without claimi
 	});
 });
 
-test("validate: an exact ledger SHA passes; a prefix resolves to the full SHA", () => {
+test("validate: an explicit full ledger SHA is corroborated; a prefix stays a project-scoped hint", () => {
 	captureGitCommit("git commit -m x", "[feat/a aaa1111] x", resolverReturning(FULL_A));
 	const exact = validateCommitSha(FULL_A, resolverReturning(null));
 	assert.deepEqual(exact, { ok: true, sha: FULL_A, autoFilled: false });
 	const prefix = validateCommitSha("aaa1111", resolverReturning(null));
-	assert.deepEqual(prefix, { ok: true, sha: FULL_A, autoFilled: false });
+	assert.deepEqual(prefix, { ok: true, sha: "aaa1111", autoFilled: false, unverified: true });
 });
 
 test("validate: a SHA that resolves nowhere LOCALLY passes through as an unverified hint (item b07a518f)", () => {
@@ -103,8 +104,8 @@ test("validate: shape garbage is still refused — that check is about shape, ne
 	}
 });
 
-test("validate: a SHA unknown to the ledger but real in the repo passes (resolved full)", () => {
-	const verdict = validateCommitSha("bbb2222", resolverReturning(FULL_B));
+test("validate: an explicit full SHA unknown to the ledger but real in the repo passes", () => {
+	const verdict = validateCommitSha(FULL_B, resolverReturning(FULL_B));
 	assert.deepEqual(verdict, { ok: true, sha: FULL_B, autoFilled: false });
 });
 
@@ -112,11 +113,11 @@ function resetLedger(): void {
 	(globalThis as unknown as Record<string, unknown>).__devspecPiCommitLedger = { commits: [] };
 }
 
-test("validate: omitted SHA auto-fills when exactly one recent commit exists", () => {
+test("validate: omitted SHA remains omitted even with one recent commit from earlier work", () => {
 	resetLedger();
 	captureGitCommit("git commit -m y", "[feat/b ccc3333] y", resolverReturning(FULL_C));
 	const verdict = validateCommitSha(undefined, resolverReturning(null));
-	assert.deepEqual(verdict, { ok: true, sha: FULL_C, autoFilled: true });
+	assert.deepEqual(verdict, { ok: true, sha: null, autoFilled: false, unverified: true });
 });
 
 test("validate: omitted SHA with no unique candidate sends nothing — the server fill owns that call (item b07a518f)", () => {
@@ -133,16 +134,16 @@ test("validate: omitted SHA with no unique candidate sends nothing — the serve
 
 test("applyCommitLedgerVerdict: a null sha omits the key entirely so the server fill runs", () => {
 	const out = applyCommitLedgerVerdict(
-		{ commit_sha: "model-typed", action_item_id: "x" },
+		{ commit_sha: "model-typed", task_id: "x" },
 		{ ok: true, sha: null, autoFilled: false, unverified: true },
 	);
 	assert.equal("commit_sha" in out, false);
-	assert.equal(out.action_item_id, "x");
+	assert.equal(out.task_id, "x");
 });
 
 test("applyCommitLedgerVerdict: an unverified hint passes the model's value through unchanged", () => {
 	const out = applyCommitLedgerVerdict(
-		{ commit_sha: "model-typed", action_item_id: "x" },
+		{ commit_sha: "model-typed", task_id: "x" },
 		{ ok: true, sha: "deadbeef05c52551e70119e28fdf3d8cb6e47e3a", autoFilled: false, unverified: true },
 	);
 	assert.equal(out.commit_sha, "deadbeef05c52551e70119e28fdf3d8cb6e47e3a");
@@ -169,10 +170,10 @@ test("repo resolver rejects revision-shell injection before spawning git", (t) =
 	assert.equal(existsSync(marker), false);
 	const verdict = validateCommitSha(malicious, repoResolver(cwd));
 	assert.equal(verdict.ok, false);
-	if (!verdict.ok) assert.match(verdict.error, /lowercase hexadecimal/);
+	if (!verdict.ok) assert.match(verdict.error, /hexadecimal/);
 	assert.equal(existsSync(marker), false);
-	assert.equal(validateCommitSha(` ${FULL}`, repoResolver(cwd)).ok, false, "padded revisions are invalid");
-	assert.equal(validateCommitSha(`${FULL} `, repoResolver(cwd)).ok, false, "padded revisions are invalid");
+	assert.equal(validateCommitSha(` ${FULL}`, repoResolver(cwd)).ok, true, "surrounding whitespace on a literal hex hint is supported by server normalization");
+	assert.equal(validateCommitSha(`${FULL} `, repoResolver(cwd)).ok, true, "surrounding whitespace does not grant revision syntax");
 });
 
 test("repo resolver accepts only HEAD or strict hexadecimal commit revisions", (t) => {

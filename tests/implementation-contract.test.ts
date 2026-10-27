@@ -39,7 +39,7 @@ function workEntrySection() {
 		tracking_basis: "Choose from durable outcome and material session progress only.",
 		tracking_decisions: [
 			{ outcome: "both", durable_outcome_required: true, material_session_progress_value: true, requirement: "Track durable work and useful session progress.", examples: ["Durable migration with handoff phases."] },
-			{ outcome: "action_item", durable_outcome_required: true, material_session_progress_value: false, requirement: "Track durable work without a session plan.", examples: ["One bounded product fix."] },
+			{ outcome: "task", durable_outcome_required: true, material_session_progress_value: false, requirement: "Track durable work without a session plan.", examples: ["One bounded product fix."] },
 			{ outcome: "session_plan", durable_outcome_required: false, material_session_progress_value: true, requirement: "Track material session-only progress.", examples: ["Administrative reconciliation phases."] },
 			{ outcome: "neither", durable_outcome_required: false, material_session_progress_value: false, requirement: "Do not track routine work.", examples: ["Read and answer."] },
 		],
@@ -61,13 +61,13 @@ function provenanceSection() {
 		early_claiming: "Claim early; absence may nudge but never deny.",
 		edit_behavior: "Never deny edits, execution, tests, worktrees, delegation, or follow-through for a missing claim.",
 		commit_reference: {
-			canonical_format: "[devspec:<action-item-uuid>]",
+			canonical_format: "[devspec:<task-uuid>]",
 			accepted_local_shapes: ["full_uuid", "eight_character_hex_short_code"],
-			multiplicity: "exactly_one",
+			multiplicity: "one_or_more",
 			validates_link_not_live_claim: true,
 		},
 		validation: {
-			local_outcomes: ["absent", "malformed", "ambiguous", "well_formed"],
+			local_outcomes: ["absent", "malformed", "well_formed", "multi_reference"],
 			online_outcomes: ["valid", "not_found", "unavailable", "indeterminate"],
 			unavailable_result: "allow_and_reconcile",
 			indeterminate_result: "allow_and_reconcile",
@@ -83,21 +83,22 @@ function provenanceSection() {
 }
 
 function authoritySection() {
-	const outcomes = (viewer: string, contributor: string, maintainer: string, unattended: string) =>
-		({ viewer, contributor, maintainer, unattended });
+	const outcomes = (viewer: string, reviewed_contributor: string, contributor: string, maintainer: string, unattended: string) =>
+		({ viewer, reviewed_contributor, contributor, maintainer, unattended });
 	return {
 		schema_version: 1,
 		decision: "One function judges every write from the verb, the role and whether the run is unattended.",
 		roles: [
 			{ role: "viewer", label: "Viewer", meaning: "Sees everything and takes part in the conversation." },
+			{ role: "reviewed_contributor", label: "Reviewed Contributor", meaning: "Proposes new shared work and knowledge; a Maintainer reviews it." },
 			{ role: "contributor", label: "Contributor", meaning: "Adds to the record; changes to what is settled are proposed." },
 			{ role: "maintainer", label: "Maintainer", meaning: "Can overrule the record and accepts proposals." },
 		],
 		role_source_rule: "The effective project role is judged; an organization Owner or Admin is a Maintainer everywhere.",
 		classes: [
-			{ class: "talk", meaning: "Takes part in the conversation.", outcomes: outcomes("commit", "commit", "commit", "commit") },
-			{ class: "add", meaning: "Adds to the record.", outcomes: outcomes("deny", "commit", "commit", "commit") },
-			{ class: "overrule", meaning: "Changes what the project has settled.", outcomes: outcomes("deny", "propose", "commit", "propose") },
+			{ class: "talk", meaning: "Takes part in the conversation.", outcomes: outcomes("commit", "commit", "commit", "commit", "commit") },
+			{ class: "add", meaning: "Adds to the record.", outcomes: outcomes("deny", "propose", "commit", "commit", "commit") },
+			{ class: "overrule", meaning: "Changes what the project has settled.", outcomes: outcomes("deny", "propose", "propose", "commit", "propose") },
 		],
 		ownership_rule: "A verb may be an overrule only against someone else's row.",
 		requester_rule: "A delegated command is judged by the REQUESTER's effective role.",
@@ -108,7 +109,7 @@ function authoritySection() {
 			because: ["unattended_run", "insufficient_role"],
 			ledgers: { proposals: "A real queue.", pending: "No queue yet.", none: "Refused." },
 		},
-		contested_rule: "A queued pair ruling is a pair_judgement proposal and the pair is CONTESTED.",
+		flag_ruling_rule: "A queued review-flag ruling is a real proposal and the flag stays lit until a Maintainer accepts it.",
 		preview_rule: "A direct overrule shows the exact text first.",
 		verbs: [
 			{ id: "memory.record", class: "add", scope: "project", unattended: "propose", ledger: "proposals", description: "Record a memory" },
@@ -133,6 +134,26 @@ function bundle(version = CURRENT_CONTRACT_VERSION) {
 	};
 	return { ...input, contract_hash: hashContractValue(input) };
 }
+
+/**
+ * A served document changed the way DevSpec would change it: the mutation is made
+ * and the hash recomputed, so what is tested is the reader, not a hash mismatch.
+ */
+function served(mutate: (root: Record<string, unknown>) => void, version = CURRENT_CONTRACT_VERSION) {
+	const { contract_hash: _hash, ...input } = JSON.parse(JSON.stringify(bundle(version))) as Record<string, unknown>;
+	mutate(input);
+	return { ...input, contract_hash: hashContractValue(input) };
+}
+
+async function load(payload: unknown) {
+	resetImplementationContractCache();
+	return loadImplementationContext({
+		reference: REFERENCE,
+		loader: loader({ resource: resource(payload), compatibilityError: new Error("unavailable") }),
+	});
+}
+
+const UPDATE = /pi update --extensions/;
 
 function resource(payload: unknown = bundle()) {
 	return { contents: [{ uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI, text: JSON.stringify(payload) }] };
@@ -181,6 +202,10 @@ test("mechanically reads, validates, formats, and caches the current v4.3 tracki
 	assert.match(formatImplementationContext(first), /core\.claim-early/);
 	assert.match(formatImplementationContext(first), /material_session_progress_value/);
 	assert.match(formatImplementationContext(first), /plan_threshold/);
+	// The rules send the model to these two sections by name, so it reads them as served (5a9eaa57).
+	assert.deepEqual(first.instructionBoundary, INSTRUCTION_BOUNDARY);
+	assert.ok(formatImplementationContext(first).includes(JSON.stringify(provenanceSection())));
+	assert.ok(formatImplementationContext(first).includes(JSON.stringify(INSTRUCTION_BOUNDARY)));
 	assert.equal(counts.compatibility, 0, "the self-hashing resource needs no compatibility read");
 
 	const second = await loadImplementationContext({
@@ -191,10 +216,10 @@ test("mechanically reads, validates, formats, and caches the current v4.3 tracki
 	assert.equal(counts.resource, 1);
 });
 
-test("cache v8 ignores every pre-cutover parser generation", async () => {
+test("cache v12 ignores every earlier parser generation", async () => {
 	resetImplementationContractCache();
 	const root = globalThis as typeof globalThis & Record<symbol, unknown>;
-	for (const version of ["v1", "v2", "v3", "v4", "v5", "v6", "v7"]) {
+	for (const version of ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11"]) {
 		root[Symbol.for(`devspec.pi.implementation-contract.${version}`)] = {
 			byIdentity: new Map([["poison", { contractVersion: "3.0.0", rules: [{ id: "poison" }] }]]),
 			latestByResource: new Map(),
@@ -234,91 +259,137 @@ test("older compatible v4 contract versions remain dynamically consumable", asyn
 	assert.equal(context.contractVersion, version);
 });
 
-test("non-v4 and malformed versions are rejected by the schema-v1 compatibility boundary", async (t) => {
-	for (const version of ["2.0.0", "3.0.0", "5.0.0", "4.2", " 4.2.0"]) {
-		await t.test(version, async () => {
+test("the product's contract version is not a compatibility gate; a non-version is refused", async (t) => {
+	for (const version of ["3.0.0", "5.0.0", "12.4.1"]) {
+		await t.test(`${version} loads`, async () => {
 			resetImplementationContractCache();
 			const context = await loadImplementationContext({
 				reference: { ...REFERENCE, contract_version: version },
-				loader: loader({
-					resource: resource(bundle(version)),
-					compatibilityError: new Error("unavailable"),
-				}),
+				loader: loader({ resource: resource(bundle(version)), compatibilityError: new Error("unavailable") }),
 			});
-			assert.equal(context.source, "local_safety_fallback");
+			assert.equal(context.source, "resource");
+			assert.equal(context.contractVersion, version);
 		});
 	}
-});
-
-test("malformed, reordered, or extra provenance fields fail exact parsing", async (t) => {
-	const cases: Array<[string, (section: Record<string, unknown>, root: Record<string, unknown>) => void]> = [
-		["missing section", (_section, root) => { delete root.commit_provenance_contract; }],
-		["wrong schema", (section) => { section.schema_version = 2; }],
-		["extra field", (section) => { section.mutable_policy = true; }],
-		["reordered local outcomes", (section) => {
-			const validation = section.validation as { local_outcomes: string[] };
-			validation.local_outcomes.reverse();
-		}],
-		["network dependency", (section) => {
-			(section.validation as Record<string, unknown>).network_dependency = "required";
-		}],
-		["claim validation", (section) => {
-			(section.commit_reference as Record<string, unknown>).validates_link_not_live_claim = false;
-		}],
-	];
-	for (const [name, mutate] of cases) {
-		await t.test(name, async () => {
+	for (const version of ["4.2", " 4.2.0"]) {
+		await t.test(`${JSON.stringify(version)} is refused`, async () => {
 			resetImplementationContractCache();
-			const malformed = JSON.parse(JSON.stringify(bundle())) as Record<string, unknown>;
-			mutate(malformed.commit_provenance_contract as Record<string, unknown>, malformed);
 			const context = await loadImplementationContext({
-				reference: REFERENCE,
-				loader: loader({
-					resource: resource(malformed),
-					compatibilityError: new Error("unavailable"),
-				}),
+				reference: { ...REFERENCE, contract_version: version },
+				loader: loader({ resource: resource(bundle(version)), compatibilityError: new Error("unavailable") }),
 			});
 			assert.equal(context.source, "local_safety_fallback");
 		});
 	}
 });
 
-test("work-entry v2 tracking axes, plan threshold, and lifecycle fail exact parsing when altered", async (t) => {
+// Item 39c05c1f. From 2026-09-14 to 2026-10-06 every contract DevSpec served
+// carried a field inside a section this parser checked exactly, and /devspec.work
+// ran on five generic rules the whole time. A change inside one section must cost
+// at most that section.
+test("changes inside the commit-provenance section never take the contract down", async (t) => {
 	const cases: Array<[string, (section: Record<string, unknown>) => void]> = [
-		["missing plan threshold", (section) => { delete section.plan_threshold; }],
-		["extra tracking outcome", (section) => { (section.tracking_decisions as unknown[]).push({}); }],
-		["reordered outcomes", (section) => { (section.tracking_decisions as unknown[]).reverse(); }],
-		["contradictory axis", (section) => { ((section.tracking_decisions as Record<string, unknown>[])[0]!).durable_outcome_required = false; }],
-		["empty example", (section) => { ((section.tracking_decisions as Record<string, unknown>[])[0]!).examples = [""]; }],
+		["an extra field", (section) => { section.mutable_policy = true; }],
+		["a new schema_version", (section) => { section.schema_version = 2; }],
+		["reordered outcomes", (section) => { ((section.validation as { local_outcomes: string[] }).local_outcomes).reverse(); }],
+		["a changed value", (section) => { (section.validation as Record<string, unknown>).network_dependency = "required"; }],
+		// What DevSpec staging serves until server PR #182 lands, and what it says after.
+		// DevSpec item df71ab6c: the server adds an observation clause (how a host's
+		// own observation of a commit counts) as an additive change.
+		["an added observation clause", (section) => {
+			section.observation = { host_observed: "A commit the host observed is linked by record_implementation without a commit id.", requires: ["exact_connection"] };
+		}],
+		["exactly one reference, with the ambiguous outcome", (section) => {
+			(section.commit_reference as Record<string, unknown>).multiplicity = "exactly_one";
+			(section.validation as Record<string, unknown>).local_outcomes = ["absent", "malformed", "ambiguous", "well_formed"];
+		}],
 	];
 	for (const [name, mutate] of cases) {
 		await t.test(name, async () => {
-			resetImplementationContractCache();
-			const malformed = JSON.parse(JSON.stringify(bundle())) as Record<string, unknown>;
-			mutate(malformed.work_entry_contract as Record<string, unknown>);
-			const context = await loadImplementationContext({
-				reference: REFERENCE,
-				loader: loader({ resource: resource(malformed), compatibilityError: new Error("unavailable") }),
-			});
-			assert.equal(context.source, "local_safety_fallback");
+			const context = await load(served((root) => mutate(root.commit_provenance_contract as Record<string, unknown>)));
+			assert.equal(context.source, "resource");
+			assert.equal(context.rules.length, coreSection().rules.length);
+			assert.ok(context.workEntryContract);
+			assert.ok(context.authorityContract);
+			assert.equal(context.warning, undefined, "Pi carries this section without interpreting it");
 		});
 	}
+	await t.test("the section is absent", async () => {
+		const context = await load(served((root) => { delete root.commit_provenance_contract; }));
+		assert.equal(context.source, "resource");
+		assert.equal(context.commitProvenanceContract, undefined);
+		assert.ok(context.authorityContract);
+	});
+});
+
+test("an added commit observation clause and a newer contract version reach the model exactly as served (df71ab6c)", async () => {
+	const clause = { host_observed: "A commit the host observed is linked by record_implementation without a commit id.", model_fallback: "Name a commit only when the response says none was found." };
+	resetImplementationContractCache();
+	const context = await loadImplementationContext({
+		reference: { contract_version: "4.6.0", resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI },
+		loader: loader({ resource: resource(served((root) => { (root.commit_provenance_contract as Record<string, unknown>).observation = clause; }, "4.6.0")), compatibilityError: new Error("unavailable") }),
+	});
+	assert.equal(context.source, "resource");
+	assert.equal(context.warning, undefined);
+	assert.equal(context.contractVersion, "4.6.0");
+	assert.deepEqual((context.commitProvenanceContract as Record<string, unknown>).observation, clause);
+	assert.ok(formatImplementationContext(context).includes(JSON.stringify(context.commitProvenanceContract)));
+	assert.ok(formatImplementationContext(context).includes(clause.host_observed));
+});
+
+test("the work-entry section is shown exactly as served, at any schema_version", async (t) => {
+	const cases: Array<[string, (section: Record<string, unknown>) => void]> = [
+		["a new field", (section) => { section.handoff_rule = "Hand over through the plan."; }],
+		["a fifth tracking outcome", (section) => { (section.tracking_decisions as unknown[]).push({ outcome: "watch" }); }],
+		["schema_version 3", (section) => { section.schema_version = 3; }],
+	];
+	for (const [name, mutate] of cases) {
+		await t.test(name, async () => {
+			const payload = served((root) => mutate(root.work_entry_contract as Record<string, unknown>));
+			const context = await load(payload);
+			assert.equal(context.source, "resource");
+			assert.deepEqual(context.workEntryContract, (payload as Record<string, unknown>).work_entry_contract);
+			assert.ok(formatImplementationContext(context).includes(JSON.stringify((payload as Record<string, unknown>).work_entry_contract)));
+			assert.ok(context.authorityContract);
+			assert.equal(context.warning, undefined);
+		});
+	}
+});
+
+test("core rules: an unfamiliar phase is shown, an unreadable rule is skipped and counted", async () => {
+	const context = await load(served((root) => {
+		const rules = (root.core_implementation_contract as { rules: Array<Record<string, unknown>> }).rules;
+		rules[0]!.phase = "review";
+		rules[0]!.owner = "agent";
+		rules.push({ id: "core.no-text" });
+	}));
+	assert.equal(context.source, "resource");
+	assert.deepEqual(context.rules.map((rule) => rule.id), ["core.claim-early", "core.truthful-handoff"]);
+	assert.equal(context.rules[0]!.phase, "review");
+	assert.equal(context.skippedRules, 1);
+	assert.match(context.warning ?? "", /1 of DevSpec's core rules could not be read/);
+	assert.match(context.warning ?? "", UPDATE);
+});
+
+test("unreadable core rules: Pi's built-in rules beside the section as served, the rest in force", async () => {
+	const context = await load(served((root) => { root.core_implementation_contract = { schema_version: 2, steps: [{ id: "x" }] }; }));
+	assert.equal(context.source, "resource");
+	assert.ok(context.rules.every((rule) => rule.id.startsWith("pi-fallback.")));
+	assert.deepEqual(context.unreadSections?.map((entry) => entry.section), ["core_implementation_contract"]);
+	assert.ok(context.authorityContract);
+	const text = formatImplementationContext(context);
+	assert.match(text, /core_implementation_contract, exactly as DevSpec sent it/);
+	assert.ok(text.includes(JSON.stringify({ schema_version: 2, steps: [{ id: "x" }] })));
+	assert.match(context.warning ?? "", /could not fully read the core rules/);
+	assert.match(context.warning ?? "", /next to Pi's built-in rules/);
+	assert.match(context.warning ?? "", UPDATE);
 });
 
 test("a section this Pi does not implement is carried as a notice, not a rejection (689d44cb)", async () => {
 	// Adding a section to the served contract used to invalidate the whole document
-	// and drop Pi to five generic local rules — twice. The document still has to
-	// carry every section Pi verifies, exactly, and the served hash still has to
+	// and drop Pi to five generic local rules — twice. The served hash still has to
 	// cover the part Pi cannot read.
-	resetImplementationContractCache();
-	const input = { ...bundle() } as Record<string, unknown>;
-	delete input.contract_hash;
-	input.future_section = { schema_version: 1, note: "a section from a newer DevSpec" };
-	const future = { ...input, contract_hash: hashContractValue(input) };
-	const context = await loadImplementationContext({
-		reference: REFERENCE,
-		loader: loader({ resource: resource(future), compatibilityError: new Error("must not be needed") }),
-	});
+	const context = await load(served((root) => { root.future_section = { schema_version: 1, note: "a section from a newer DevSpec" }; }));
 	assert.equal(context.source, "resource");
 	assert.equal(context.rules.length, coreSection().rules.length);
 	assert.ok(context.workEntryContract);
@@ -326,7 +397,8 @@ test("a section this Pi does not implement is carried as a notice, not a rejecti
 	assert.ok(context.authorityContract);
 	assert.deepEqual(context.unknownSections, ["future_section"]);
 	assert.match(context.warning ?? "", /future_section/);
-	assert.match(context.warning ?? "", /Update the DevSpec Pi plugin/);
+	assert.match(context.warning ?? "", /get_workflow_rules/);
+	assert.match(context.warning ?? "", UPDATE);
 	assert.match(formatImplementationContext(context), /future_section/);
 });
 
@@ -340,30 +412,40 @@ test("an unknown section outside the served hash is still refused", async () => 
 	assert.equal(context.source, "local_safety_fallback");
 });
 
-test("a served document Pi cannot verify says so, and an absent one says it is unavailable", async () => {
-	resetImplementationContractCache();
-	const malformed = JSON.parse(JSON.stringify(bundle())) as Record<string, unknown>;
-	((malformed.authority_contract as Record<string, unknown>).proposal_outcome as Record<string, unknown>).token = "pending";
-	delete malformed.contract_hash;
-	const rejected = await loadImplementationContext({
-		reference: REFERENCE,
-		loader: loader({
-			resource: resource({ ...malformed, contract_hash: hashContractValue(malformed) }),
-			compatibilityError: new Error("unavailable"),
-		}),
+test("only a document Pi cannot read at all falls back, and it says what to do; an absent one says unavailable", async (t) => {
+	const cases: Array<[string, unknown]> = [
+		["a new document format", served((root) => { root.schema_version = 2; })],
+		["not DevSpec's product contract", served((root) => { root.source = { authority: "someone_else", tier: "product_implementation_contract" }; })],
+		["a hash that does not cover what was served", { ...bundle(), contract_version: "4.9.9" }],
+	];
+	for (const [name, payload] of cases) {
+		await t.test(name, async () => {
+			const rejected = await load(payload);
+			assert.equal(rejected.source, "local_safety_fallback");
+			assert.match(rejected.warning ?? "", /cannot read/);
+			assert.match(rejected.warning ?? "", UPDATE);
+			assert.doesNotMatch(rejected.warning ?? "", /could not be fetched/);
+		});
+	}
+	await t.test("nothing served", async () => {
+		resetImplementationContractCache();
+		const offline = await loadImplementationContext({
+			reference: REFERENCE,
+			loader: loader({ resourceError: new Error("offline"), compatibilityError: new Error("offline") }),
+		});
+		assert.equal(offline.source, "local_safety_fallback");
+		assert.match(offline.warning ?? "", /could not be fetched/);
+		assert.doesNotMatch(offline.warning ?? "", UPDATE);
 	});
-	assert.equal(rejected.source, "local_safety_fallback");
-	assert.match(rejected.warning ?? "", /could not verify/);
-	assert.doesNotMatch(rejected.warning ?? "", /contract unavailable/);
+});
 
-	resetImplementationContractCache();
-	const offline = await loadImplementationContext({
-		reference: REFERENCE,
-		loader: loader({ resourceError: new Error("offline"), compatibilityError: new Error("offline") }),
-	});
-	assert.equal(offline.source, "local_safety_fallback");
-	assert.match(offline.warning ?? "", /contract unavailable/);
-	assert.doesNotMatch(offline.warning ?? "", /could not verify/);
+test("source metadata and the instruction boundary may grow without refusal", async () => {
+	const context = await load(served((root) => {
+		(root.source as Record<string, unknown>).served_by = "api";
+		((root.instruction_boundary as Record<string, unknown>).customer_tiers_excluded as string[]).push("team_playbooks");
+	}));
+	assert.equal(context.source, "resource");
+	assert.equal(context.warning, undefined);
 });
 
 test("offline fallback is fail-open and still builds the immutable work kickoff", async () => {
@@ -381,7 +463,7 @@ test("offline fallback is fail-open and still builds the immutable work kickoff"
 	assert.match(requirements, /server reconciliation/i);
 	assert.doesNotMatch(requirements, /Do not edit until|stop and retry/i);
 	const kickoff = buildImplementationKickoff({
-		actionItemIds: ["item-local"],
+		taskIds: ["item-local"],
 		context,
 		contractReference: REFERENCE,
 	});
@@ -389,7 +471,7 @@ test("offline fallback is fail-open and still builds the immutable work kickoff"
 	assert.match(formatImplementationContext(context), /Local fail-open fallback/);
 });
 
-test("an unversioned local delivery retains the latest compatible v4 contract during an outage", async () => {
+test("an unversioned local delivery retains the latest compatible contract during an outage", async () => {
 	resetImplementationContractCache();
 	await loadImplementationContext({ reference: REFERENCE, loader: loader({ resource: resource() }) });
 	const retained = await loadImplementationContext({
@@ -421,31 +503,27 @@ test("kickoff validates canonical resource/version and carries no execution mode
 		rules: [],
 	};
 	assert.throws(() => buildImplementationKickoff({
-		actionItemIds: ["item-1"],
+		taskIds: ["item-1"],
 		context,
 		contractReference: { ...REFERENCE, contract_version: "4.2.1" },
 	}), /version did not match/);
 	const kickoff = buildImplementationKickoff({
-		actionItemIds: ["item-1", "item-1"],
+		taskIds: ["item-1", "item-1"],
 		context,
 	});
-	assert.deepEqual(kickoff.work, { action_item_ids: ["item-1"] });
+	assert.deepEqual(kickoff.work, { task_ids: ["item-1"] });
 	assert.equal(kickoff.implementation_contract.contract_version, CURRENT_CONTRACT_VERSION);
 	assert.doesNotMatch(JSON.stringify(kickoff), /assignment|attended|execution_mode/);
 });
 
-test("the authority section is required, exactly shaped, and carried to the model", async (t) => {
-	resetImplementationContractCache();
-	const context = await loadImplementationContext({
-		reference: REFERENCE,
-		loader: loader({ resource: resource(), compatibilityError: new Error("unavailable") }),
-	});
+test("the authority section is carried to the model", async () => {
+	const context = await load(bundle());
 	assert.equal(context.source, "resource");
 	assert.equal(context.authorityContract?.classes.map((c) => c.class).join(","), "talk,add,overrule");
-	assert.equal(context.authorityContract?.proposal_outcome.token, "queued_for_review");
+	assert.equal(context.authorityContract?.proposal_outcome?.token, "queued_for_review");
 	const text = formatImplementationContext(context);
 	assert.match(text, /Write authority \(authority_contract/);
-	assert.match(text, /overrule: .* viewer deny, contributor propose, maintainer commit, unattended propose/);
+	assert.match(text, /overrule: .* viewer deny, reviewed contributor propose, contributor propose, maintainer commit, unattended propose/);
 	// The class table alone says an `add` commits unattended; the served unattended
 	// rule is what makes memory.record a proposal. Both must reach the model, or the
 	// summary misstates the write an agent makes most (item 689d44cb).
@@ -453,28 +531,74 @@ test("the authority section is required, exactly shaped, and carried to the mode
 	assert.match(text, /Unattended rule: An unattended run proposes every overrule/);
 	assert.match(text, /Requester rule: A delegated command is judged by the REQUESTER/);
 	assert.match(text, /queued_for_review: A propose outcome/);
-	assert.match(text, /Contested rulings:/);
+	assert.doesNotMatch(text, /Contested rulings/);
+	assert.match(text, /Queued review-flag rulings: A queued review-flag ruling/);
+	assert.doesNotMatch(text, /preview_rule|Preview rule|role_source_rule/);
+});
 
-	const cases: Array<[string, (section: Record<string, unknown>, root: Record<string, unknown>) => void]> = [
-		["missing section", (_section, root) => { delete root.authority_contract; }],
-		["wrong schema", (section) => { section.schema_version = 2; }],
-		["extra field", (section) => { section.mutable_policy = true; }],
-		["missing class", (section) => { (section.classes as unknown[]).pop(); }],
-		["reordered classes", (section) => { (section.classes as unknown[]).reverse(); }],
-		["unknown outcome", (section) => { ((section.classes as Array<{ outcomes: Record<string, string> }>)[0]!).outcomes.viewer = "maybe"; }],
-		["wrong proposal token", (section) => { (section.proposal_outcome as Record<string, unknown>).token = "pending"; }],
-		["no verbs", (section) => { section.verbs = []; }],
+test("the authority section grows without a Pi release", async (t) => {
+	await t.test("a role DevSpec adds is shown with its outcome", async () => {
+		const context = await load(served((root) => {
+			for (const cls of (root.authority_contract as { classes: Array<{ outcomes: Record<string, string> }> }).classes) cls.outcomes.guest = "deny";
+		}));
+		assert.equal(context.source, "resource");
+		assert.match(formatImplementationContext(context), /talk: .* unattended commit, guest deny\./);
+		assert.equal(context.warning, undefined);
+	});
+	await t.test("a rule DevSpec adds is quoted under its own name", async () => {
+		const context = await load(served((root) => {
+			(root.authority_contract as Record<string, unknown>).handover_rule = "A run hands its claims back when it stops.";
+		}));
+		assert.match(formatImplementationContext(context), /- Handover rule: A run hands its claims back when it stops\./);
+	});
+	await t.test("fields Pi does not show, unfamiliar outcomes and an empty verb list are carried", async () => {
+		const context = await load(served((root) => {
+			const section = root.authority_contract as Record<string, unknown>;
+			section.mutable_policy = true;
+			section.verbs = [];
+			((section.classes as Array<{ outcomes: Record<string, string> }>)[0]!).outcomes.viewer = "ask";
+			(section.proposal_outcome as Record<string, unknown>).token = "pending_review";
+		}));
+		assert.equal(context.source, "resource");
+		const text = formatImplementationContext(context);
+		assert.match(text, /talk: .* viewer ask,/);
+		assert.match(text, /- pending_review: A propose outcome/);
+	});
+	await t.test("a rule DevSpec stops serving is simply not shown", async () => {
+		const context = await load(served((root) => { delete (root.authority_contract as Record<string, unknown>).flag_ruling_rule; }));
+		assert.equal(context.source, "resource");
+		assert.doesNotMatch(formatImplementationContext(context), /Queued review-flag rulings/);
+		assert.equal(context.warning, undefined);
+	});
+});
+
+test("an authority section Pi cannot read is shown as served; every other section stays in force", async (t) => {
+	const cases: Array<[string, (section: Record<string, unknown>) => void]> = [
+		["schema_version 2", (section) => { section.schema_version = 2; }],
+		["a class without its meaning", (section) => { delete ((section.classes as Array<Record<string, unknown>>)[1]!).meaning; }],
+		["classes in a new shape", (section) => { section.classes = { talk: "commit" }; }],
 	];
 	for (const [name, mutate] of cases) {
 		await t.test(name, async () => {
-			resetImplementationContractCache();
-			const malformed = JSON.parse(JSON.stringify(bundle())) as Record<string, unknown>;
-			mutate(malformed.authority_contract as Record<string, unknown>, malformed);
-			const outcome = await loadImplementationContext({
-				reference: REFERENCE,
-				loader: loader({ resource: resource(malformed), compatibilityError: new Error("unavailable") }),
-			});
-			assert.equal(outcome.source, "local_safety_fallback");
+			const payload = served((root) => mutate(root.authority_contract as Record<string, unknown>)) as Record<string, unknown>;
+			const context = await load(payload);
+			assert.equal(context.source, "resource");
+			assert.equal(context.authorityContract, undefined);
+			assert.equal(context.rules.length, coreSection().rules.length);
+			assert.ok(context.workEntryContract);
+			assert.deepEqual(context.unreadSections, [{ section: "authority_contract", value: payload.authority_contract }]);
+			const text = formatImplementationContext(context);
+			assert.match(text, /authority_contract, exactly as DevSpec sent it/);
+			assert.ok(text.includes(JSON.stringify(payload.authority_contract)));
+			assert.match(context.warning ?? "", /could not fully read the rules for who may change the project's record/);
+			assert.match(context.warning ?? "", /Everything else is loaded and in force/);
+			assert.match(context.warning ?? "", UPDATE);
 		});
 	}
+	await t.test("a section DevSpec stops serving is not a notice", async () => {
+		const context = await load(served((root) => { delete root.authority_contract; }));
+		assert.equal(context.source, "resource");
+		assert.equal(context.authorityContract, undefined);
+		assert.equal(context.warning, undefined);
+	});
 });

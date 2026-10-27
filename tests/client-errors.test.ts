@@ -5,6 +5,7 @@ import {
 	DevspecAuthError,
 	DevspecAuthUnavailableError,
 	isPermanentServerEnd,
+	personEndClosesPi,
 	isRecoverableTransportError,
 	mapClientError,
 	parseRateLimitRetryMs,
@@ -151,6 +152,21 @@ test("only deliberate human ends are sticky; owner_gone and auth revive", () => 
 	assert.equal(isPermanentServerEnd("not_found", null), false);
 	assert.equal(isPermanentServerEnd("ended", "idle_timeout"), false);
 	assert.equal(isPermanentServerEnd("live", "ui"), false);
+});
+
+test("only a person's End from DevSpec closes Pi (item 7813bcd9)", () => {
+	// End on the Agents page or in a session: the server's 'ui', owner-only.
+	assert.equal(personEndClosesPi("ended", "ui"), true);
+	assert.equal(personEndClosesPi("not_found", "ui"), true);
+	// A local stop means the person is at this terminal: Pi stays open.
+	assert.equal(personEndClosesPi("ended", "local_stop"), false);
+	// Recoverable ends (redeploy blip, sweep, auth) never close Pi.
+	for (const reason of ["owner_gone", "auth", "idle_timeout", null, undefined]) {
+		assert.equal(personEndClosesPi("ended", reason), false, String(reason));
+	}
+	// Anything that is not an end at all (a detach leaves the connection live).
+	assert.equal(personEndClosesPi("live", "ui"), false);
+	assert.equal(personEndClosesPi(null, "ui"), false);
 });
 
 test("withHardTimeout rejects a hung call without waiting for it", async () => {

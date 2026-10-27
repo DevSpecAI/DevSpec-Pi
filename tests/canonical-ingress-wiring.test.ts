@@ -13,25 +13,33 @@ function bodyBetween(start: string, end: string): string {
 
 test("main Pi poll capacity-gates system notices while control ack cannot claim them", () => {
 	const calls = [...source.matchAll(/callDevspec\([^]*?"poll_connection"[^]*?\{([^]*?)\}, \{/gu)];
-	assert.equal(calls.length, 3, "expected control ACK, exact interaction ACK, and main pump poll only");
-	for (const call of [calls[0]!, calls[2]!]) {
+	assert.equal(calls.length, 4, "expected control ACK, exact interaction ACK, read-only room recovery and main pump poll");
+	for (const call of [calls[2]!, calls[3]!]) {
 		assert.match(call[1], /ingress_version: 1/);
 		assert.match(call[1], /delegated_scope_version: 1/);
 		assert.match(call[1], /active_plan_projection_version: 1/);
 	}
-	assert.doesNotMatch(calls[0]![1], /system_notice_version|system_notice_cursor/, "ackControl must never lease/ack at-most-once notices");
+	assert.match(calls[0]![1], /control_ack_only: true/);
+	assert.doesNotMatch(calls[0]![1], /system_notice_version|system_notice_cursor|cursor_v2/, "ackControl must never consume intake");
 	// The exact-event ACK is built by interactionEventAckArgs, which emits
 	// `interaction_event_ack` for an answer and `question_dismissal_event_ack` for a
 	// responder dismissal (debec963). The pin follows the helper call, not one key.
 	assert.match(calls[1]![1], /\.\.\.interactionEventAckArgs\(interactionEventAck\(run\.details\.event\)\)/);
 	assert.match(calls[1]![1], /catch_up: true/);
-	assert.match(calls[2]![1], /\.\.\.\(systemNoticeNegotiated \? \{/);
-	assert.match(calls[2]![1], /system_notice_version: 1/);
-	assert.match(calls[2]![1], /system_notice_cursor: active\.systemNoticeCursor/);
+	//1.6 requires notice negotiation even on inactive history reads. Recovery
+	// obtains its cursor/catch_up pair from the tested read-only coordinator.
+	assert.match(calls[2]![1], /room_context_version: 1[^]*\.\.\.args/);
+	const recovery = readFileSync(new URL("../extensions/core/room-sync.ts", import.meta.url), "utf8");
+	assert.match(recovery, /if \(!cursor\) return[^]*cursor_v2: cursor, catch_up: true/);
+	assert.match(recovery, /!pkg\.roomPage\?\.history[^]*pkg\.ownerBundle[^]*pkg\.control[^]*pkg\.systemNotices\.length/);
+	assert.doesNotMatch(recovery, /pi_send|sendUserMessage|sendMessage|interactionEventAckArgs/);
+	assert.match(calls[3]![1], /\.\.\.\(systemNoticeNegotiated \? \{/);
+	assert.match(calls[3]![1], /system_notice_version: SYSTEM_NOTICE_CHANNEL_VERSION/);
+	assert.match(calls[3]![1], /system_notice_cursor: active\.systemNoticeCursor/);
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
 	assert.match(pump, /const systemNoticeNegotiated = hasSystemNoticeBatchCapacity\(active\.systemNoticeKey\)/);
 	assert.match(pump, /cursor_v2: active\.cursor/);
-	assert.match(pump, /if \(!commandDeliveryFailed\)[^]*active\.cursor = pkg\.cursorV2/);
+	assert.match(pump, /if \(!commandDeliveryFailed && !commandOfferHoldsCursor\)[^]*active\.cursor = pkg\.cursorV2/);
 	assert.match(pump, /acceptSystemNotices\(active\.systemNoticeKey, pkg\.systemNotices\)[^]*active\.systemNoticeCursor = pkg\.systemNoticeCursor/);
 	assert.doesNotMatch(pump, /active\.cursor\s*=\s*[^;]*next_cursor|\bcursor: active\.cursor/);
 });
@@ -54,7 +62,7 @@ test("system notices use a fresh harness custom turn and never user/followUp/ste
 	// shouldPauseSettle speech gate.
 	assert.match(settled, /const activityPolicy = remoteRunActivityPolicy\(completionNeutral\)[^]*if \(pump && activityPolicy\.reportPresence\)[^]*pump\.busy = keepWorking[^]*beatBusy\(keepWorking/);
 	assert.match(settled, /pump && !pump\.busy && ctx\.isIdle\(\)[^]*deliverQueuedSystemNotices/);
-	assert.match(settled, /!posted && activityPolicy\.reportCompletion[^]*reportComplete\("turn_end"/);
+	assert.match(settled, /!posted && activityPolicy\.reportCompletion[^]*completeTurnActivity\(settlingTurn, "turn_end"/);
 	const runtimeStamp = bodyBetween("function scheduleRuntimeStamp", "/** Settle the turn's usage");
 	assert.match(runtimeStamp, /const completionNeutralAtSchedule = systemNoticeRunActive \|\| systemNoticeTurnPending/);
 	assert.match(runtimeStamp, /if \(!completionNeutralAtSchedule && !systemNoticeRunActive\) void beatBusy/);
@@ -69,7 +77,7 @@ test("system notices use a fresh harness custom turn and never user/followUp/ste
 	assert.match(trail, /if \(!turn \|\| !remoteRunActivityPolicy\(turn\.completionNeutral\)\.reportTranscript\) return/);
 	const shutdown = bodyBetween('pi.on("session_shutdown"', 'pi.on("session_start"');
 	assert.match(shutdown, /revokeSystemNoticeState\(active\.systemNoticeKey\)/);
-	assert.match(shutdown, /if \(openTurn && remoteRunActivityPolicy\(openTurn\.completionNeutral\)\.reportCompletion\)[^]*reportComplete\("process_exit"/);
+	assert.match(shutdown, /if \(openTurn && remoteRunActivityPolicy\(openTurn\.completionNeutral\)\.reportCompletion\)[^]*completeTurnActivity\(openTurn, "process_exit"/);
 });
 
 test("same-run real user boundary ends notice neutrality before normal presence and settle", () => {
@@ -82,12 +90,12 @@ test("same-run real user boundary ends notice neutrality before normal presence 
 	const beginBusy = messageStart.indexOf("pump.busy = true", trackUser);
 	const beat = messageStart.indexOf("beatBusy(true)", beginBusy);
 	assert.ok(endNeutral >= 0 && endNeutral < bindTurn && bindTurn < trackUser && trackUser < beginBusy && beginBusy < beat);
-	assert.match(messageStart, /const previousPolicy = activityTransition\?\.previousPolicy[^]*if \(previousPolicy\.reportCompletion\)[^]*reportComplete/);
+	assert.match(messageStart, /const previousPolicy = activityTransition\?\.previousPolicy[^]*if \(previousPolicy\.reportCompletion\)[^]*completeTurnActivity/);
 	assert.match(messageStart, /turn\.occupancy\?\.kind === "system_notice"[^]*runtimeOccupancy\.promote\(turn\.occupancy, "owner"\)[^]*turn\.occupancy = promoted/);
 
 	const split = bodyBetween("function splitTurnAtBoundary", "/**\n * Assert busy presence");
 	assert.match(split, /const previousPolicy = remoteRunActivityPolicy\(t\.completionNeutral\)/);
-	assert.match(split, /!posted && previousPolicy\.reportCompletion[^]*reportComplete/);
+	assert.match(split, /!posted && previousPolicy\.reportCompletion[^]*completeTurnActivity/);
 	const settled = bodyBetween('pi.on("agent_settled"', "// ---- Turn lifecycle events");
 	assert.match(settled, /const completionNeutral = occupancyAtSettle\?\.kind === "system_notice" \|\| settlingTurn\?\.completionNeutral === true/);
 });
@@ -105,7 +113,8 @@ test("recoverable server ends revive the same bond instead of spinning on an end
 		"same-row revival must retain exactly-once command memory");
 
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
-	assert.equal((pump.match(/await reviveRecoverableBond\(active, token, ctx\)/g) ?? []).length, 2,
+	// Both say the server ended the connection, so the revive also rebuilds the request chain (7a4d04fd).
+	assert.equal((pump.match(/await reviveRecoverableBond\(active, token, ctx, undefined, true\)/g) ?? []).length, 2,
 		"push and long-poll ended paths both revive mechanically");
 	assert.match(pump, /push ended recoverable[^]*await reviveRecoverableBond/);
 	assert.match(pump, /poll recoverable server response[^]*await reviveRecoverableBond/);
@@ -113,7 +122,13 @@ test("recoverable server ends revive the same bond instead of spinning on an end
 
 test("awaited transcript writes revalidate immutable pump authority before posting", () => {
 	const post = bodyBetween("async function postToSession", "function trackTerminalPost");
-	assert.match(post, /capturePumpAuthority\([^]*await resolveToken\(\)[^]*isPumpAuthorityCurrent/);
+	// Baseline28b0983 already delegates this guard to capturePostAuthority;
+	// pin the real fence, not the obsolete inlined implementation (829394e9).
+	const capture = bodyBetween("function capturePostAuthority", "async function postToSession");
+	assert.match(capture, /pump === active[^]*active\.generation === generation/);
+	assert.match(capture, /getBond\(\)\?\.connectionId === connectionId[^]*getBond\(\)\?\.sessionId === sessionId/);
+	assert.match(post, /capturePostAuthority\(\)[^]*await resolveToken\(\)[^]*!isCurrent\(\)/);
+	assert.match(post, /beforeSend: \(\) => \{ if \(!isCurrent\(\)\) throw/);
 	assert.match(post, /connection_id: authority\.connectionId/);
 	const complete = bodyBetween("async function reportComplete", "/**\n * Post a captured segment's answer");
 	assert.match(complete, /capturePumpAuthority\([^]*await resolveToken\(\)[^]*isPumpAuthorityCurrent/);
@@ -129,11 +144,14 @@ test("automation retry revalidation cannot cross recovered connection authority"
 
 test("canonical parser output stays independent from automation dispatch and control paths", () => {
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
-	assert.match(pump, /parsePollPayload\(payload, active\.connectionIdentity, \{ systemNoticeNegotiated, senderStyleNegotiated \}\)/);
+	assert.match(pump, /parsePollPayload\(payload, active\.connectionIdentity, \{ systemNoticeNegotiated, senderStyleNegotiated, roomContextNegotiated, sessionEventsNegotiated: roomContextNegotiated && roomWatch\.session_events_version === 1, noticeReplyNegotiated: roomContextNegotiated && roomWatch\.notice_reply_version === 1 \}\)/);
 	assert.match(pump, /pkg\.ownerBundle/);
 	assert.match(pump, /pkg\.control/);
 	assert.match(pump, /for \(const dispatch of dispatches\) enqueueAutomationRun/);
-	assert.doesNotMatch(pump, /payload[^\n]*commands|buildRoomDigest|owner_ambient|room_context/);
+	// The offer controller receives the raw availability sidecar PLUS already-
+	// validated pkg commands; it must never read legacy payload.commands itself.
+	assert.doesNotMatch(pump, /\bpayload\s*(?:\??\.|\[)\s*["']?commands\b|\(\s*payload\s+as[^)\n]*\)\s*\??\.commands\b|buildRoomDigest|owner_ambient|\.room_context\b/);
+	assert.match(pump, /pi_receiveCommandOffer\(payload, active, ctx, pkg\.ownerBundle\?\.commands \?\? \[\]\)/);
 });
 
 test("multi-command hydration, send, seen state, and rollback are atomic for the unseen subset", () => {
@@ -184,10 +202,12 @@ test("all send modes use the same visible bundle binding and idle retains hidden
 	const delivery = bodyBetween("if (pkg.ownerBundle)", "const dispatches =");
 	assert.equal((delivery.match(/formatInboundBundleMessage\(/g) ?? []).length, 1);
 	assert.match(delivery, /const formatted = formatInboundBundleMessage\(hydrated\)/);
-	assert.match(delivery, /pi_send\(formatted, sendMode, hydrated\.commandTurnId, primary\.id, queueItem\)/);
+	// Each delivered command's own provenance_ref rides the binding, so the
+	// command's request opens when its message starts (item 7a4d04fd).
+	assert.match(delivery, /pi_send\(formatted, sendMode, hydrated\.commandTurnId, primary\.id, queueItem,\s*hydrated\.commands\.map\(\(command\) => \(\{ provenanceRef: command\.delivery\.provenance_ref, messageId: command\.id, fromOwner: command\.authority\.kind === "owner" \}\)\)\)/);
 
 	const sender = bodyBetween("pi_send =", "pi_abort =");
-	assert.match(sender, /commandTurnBindings\.remember\(message, commandTurnId, commandMessageId, canonicalQueueItem\)/);
+	assert.match(sender, /commandTurnBindings\.remember\(message, commandTurnId, commandMessageId, canonicalQueueItem, requests\)/);
 	assert.match(sender, /if \(mode === "steer"\) pi\.sendUserMessage\(message, \{ deliverAs: "steer" \}\)/);
 	assert.match(sender, /else if \(mode === "followUp"\) pi\.sendUserMessage\(message, \{ deliverAs: "followUp" \}\)/);
 	assert.match(sender, /else pi\.sendUserMessage\(message\)/);
@@ -242,7 +262,7 @@ test("validated plan projection appends at the canonical delivery tail without r
 
 test("auto-bond surfaces a failed register instead of staying silent", () => {
 	const start = bodyBetween('pi.on("session_start"', 'pi.on("session_tree"');
-	assert.match(start, /const outcome = await bondNow\(ctx\)/);
+	assert.match(start, /const outcome = await projectSelection\.connect\(ctx\)/);
 	assert.match(start, /auto-bonded as \$\{outcome\.codename/);
 	assert.match(start, /auto-bond failed: \$\{outcome\.error\}/);
 	assert.match(start, /outcome\.errorKind === "auth" \? "warning" : "error"/);
@@ -251,11 +271,11 @@ test("auto-bond surfaces a failed register instead of staying silent", () => {
 test("main Pi poll negotiates sender style with system notices and keeps styles in force per LLM call", () => {
 	const calls = [...source.matchAll(/callDevspec\([^]*?"poll_connection"[^]*?\{([^]*?)\}, \{/gu)];
 	// Sender style rides the same negotiated spread: the server requires
-	// system_notice_version: 1 as its prerequisite (item 6a511dab).
-	assert.match(calls[2]![1], /system_notice_version: 1[^]*sender_style_version: 1/);
+	// system_notice_version as its prerequisite (item 6a511dab).
+	assert.match(calls[3]![1], /system_notice_version: SYSTEM_NOTICE_CHANNEL_VERSION[^]*sender_style_version: 1/);
 	const pump = bodyBetween("async function pumpLoop", "interface BondOutcome");
 	assert.match(pump, /const senderStyleNegotiated = systemNoticeNegotiated/);
-	assert.match(pump, /parsePollPayload\(payload, active\.connectionIdentity, \{ systemNoticeNegotiated, senderStyleNegotiated \}\)/);
+	assert.match(pump, /parsePollPayload\(payload, active\.connectionIdentity, \{ systemNoticeNegotiated, senderStyleNegotiated, roomContextNegotiated, sessionEventsNegotiated: roomContextNegotiated && roomWatch\.session_events_version === 1, noticeReplyNegotiated: roomContextNegotiated && roomWatch\.notice_reply_version === 1 \}\)/);
 	assert.match(pump, /activeCommandStyles\.set\(hydrated\.commandTurnId, deliveredStyles\)/);
 	const context = bodyBetween('pi.on("context"', 'pi.on("turn_start"');
 	assert.match(context, /senderStyleRepairNeeded\(event\.messages, true\)/);

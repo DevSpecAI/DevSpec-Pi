@@ -102,7 +102,7 @@ function deliveryHarness() {
 	};
 }
 
-test("strict v1 parser accepts each answer kind and Unicode code-point bounds", () => {
+test("strict v1 parser accepts each answer kind", () => {
 	assert.deepEqual(parseInteractionEventV1(event), event);
 	const single = parseInteractionEventV1({
 		...event,
@@ -116,6 +116,22 @@ test("strict v1 parser accepts each answer kind and Unicode code-point bounds", 
 		answer: ["First", "Second"],
 	});
 	assert.deepEqual(multi.answer, ["First", "Second"]);
+});
+
+test("answer length is the server's policy: long typed-in answers parse", () => {
+	// The server allows 1000 characters typed into a multiple-choice question; Pi must
+	// not keep a smaller copy of that number (items 11c7f2cd, 2cf896e5). Lengths well
+	// past any bound the server has ever had parse too, so the next change to a server
+	// limit needs no change here.
+	for (const candidate of [
+		{ ...event, response_kind: "single_select", answer: "😀".repeat(1000) },
+		{ ...event, response_kind: "single_select", answer: "x".repeat(20_000) },
+		{ ...event, response_kind: "multi_select", answer: ["a", "y".repeat(1000)] },
+		{ ...event, response_kind: "multi_select", answer: Array.from({ length: 40 }, (_, i) => `choice ${i}`) },
+		{ ...event, response_kind: "text", answer: "z".repeat(20_000) },
+	]) {
+		assert.deepEqual(parseInteractionEventV1(candidate).answer, candidate.answer);
+	}
 });
 
 test("exact continuation start outcomes permit only current started authority to inject", () => {
@@ -259,7 +275,8 @@ test("strict parser rejects unknown versions, malformed fields, extras, and inva
 	]) {
 		assert.throws(() => parseInteractionEventV1(invalid));
 	}
-	assert.throws(() => parseInteractionEventV1({ ...event, answer: "😀".repeat(4001) }));
+	assert.throws(() => parseInteractionEventV1({ ...event, answer: 42 }));
+	assert.throws(() => parseInteractionEventV1({ ...event, response_kind: "multi_select", answer: ["a", " "] }));
 	for (const impossible of [
 		"2026-02-29T12:00:00Z",
 		"2024-02-30T12:00:00Z",

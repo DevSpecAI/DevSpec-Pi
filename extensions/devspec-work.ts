@@ -4,7 +4,7 @@
  * /devspec.work [id-or-prefix]
  *   Arg: resolve one explicit item.
  *   No arg: present an item selector when UI is available. It never drains a
- *   queue; action-item work is selected directly and reserved by the agent.
+ *   queue; task work is selected directly and reserved by the agent.
  *
  * The command mechanically loads/caches the product implementation contract,
  * records the delivery for the selected item, and sends one real user kickoff
@@ -16,8 +16,10 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
 import { createHash } from "node:crypto";
 import { getAdapterGuardState, SUPPRESSION_NOTICE } from "./core/adapter-overlap.ts";
+import { markTypedSend, unmarkTypedSend } from "./core/request-chain.ts";
 import { resolveToken } from "./core/auth-store.ts";
 import { callDevspec, MODEL_TIMEOUT_MS } from "./core/client.ts";
+import { agentsSettingsUrl } from "./core/config.ts";
 import {
 	buildImplementationKickoff,
 	createImplementationContractLoader,
@@ -52,7 +54,7 @@ async function refreshItemCache(cwd = cacheCwd): Promise<boolean> {
 	try {
 		const raw = await callDevspec(
 			resolved.token,
-			"get_action_items",
+			"get_tasks",
 			{ fields: "compact", limit: 100 },
 			{ lane: "work", timeoutMs: MODEL_TIMEOUT_MS },
 		);
@@ -95,7 +97,7 @@ async function resolveItemArg(arg: string): Promise<{ id: string } | { error: st
 		return { id: arg };
 	}
 	if (!await refreshItemCache()) {
-		return { error: "Could not refresh DevSpec action items. No work was started." };
+		return { error: "Could not refresh DevSpec tasks. No work was started." };
 	}
 	const normalized = arg.toLowerCase();
 	const matches = itemCache.items.filter(
@@ -106,24 +108,24 @@ async function resolveItemArg(arg: string): Promise<{ id: string } | { error: st
 		const listing = matches.slice(0, 5).map((item) => `  ${item.id.slice(0, 8)}… ${item.title}`).join("\n");
 		return { error: `Ambiguous item “${arg}” — matches:\n${listing}\nPass a fuller id.` };
 	}
-	return { error: `No open action item matches “${arg}”. Pass an id/title or run /devspec.work to choose explicitly.` };
+	return { error: `No open task matches “${arg}”. Pass an id/title or run /devspec.work to choose explicitly.` };
 }
 
 async function selectExplicitItem(ctx: ExtensionContext): Promise<string | null> {
 	if (!await refreshItemCache(ctx.cwd)) {
-		ctx.ui.notify("Could not refresh DevSpec action items — no work was started.", "warning");
+		ctx.ui.notify("Could not refresh DevSpec tasks — no work was started.", "warning");
 		return null;
 	}
 	if (itemCache.items.length === 0) {
-		ctx.ui.notify("No open DevSpec action items are available to select.", "info");
+		ctx.ui.notify("No open DevSpec tasks are available to select.", "info");
 		return null;
 	}
 	if (!ctx.hasUI) {
-		ctx.ui.notify("Pass an explicit action-item id to /devspec.work in this mode.", "warning");
+		ctx.ui.notify("Pass an explicit task id to /devspec.work in this mode.", "warning");
 		return null;
 	}
 	const labels = itemCache.items.map((item) => `${item.id.slice(0, 8)}… ${item.title}`.trim());
-	const chosen = await ctx.ui.select("Choose one action item to work on:", labels);
+	const chosen = await ctx.ui.select("Choose one task to work on:", labels);
 	if (!chosen) return null;
 	const index = labels.indexOf(chosen);
 	return index >= 0 ? itemCache.items[index]!.id : null;
@@ -134,12 +136,12 @@ async function fetchItemById(id: string): Promise<WorkTarget> {
 	if (!resolved) throw new Error("not connected");
 	const raw = await callDevspec(
 		resolved.token,
-		"get_action_item",
-		{ action_item_id: id },
+		"get_task",
+		{ task_id: id },
 		{ lane: "work", timeoutMs: MODEL_TIMEOUT_MS },
 	);
 	const { details, text, isError } = unwrapMcpResult(raw);
-	if (isError) throw new Error(text || "get_action_item failed");
+	if (isError) throw new Error(text || "get_task failed");
 	const root = details as { id?: string; title?: string; item?: { id?: string; title?: string } } | null;
 	const item = (root?.item ?? root) as { id?: string; title?: string } | null;
 	return { id: item?.id ?? id, title: item?.title, payload: details ?? text };
@@ -153,7 +155,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("devspec.work", {
-		description: "Select one explicit DevSpec action item to work on.",
+		description: "Select one explicit DevSpec task to work on.",
 		getArgumentCompletions: completeItemArg,
 		handler: async (args, ctx: ExtensionContext) => {
 			const resolved = await resolveToken();
@@ -188,13 +190,18 @@ export default function (pi: ExtensionAPI) {
 					}),
 				]);
 				const kickoff = buildImplementationKickoff({
-					actionItemIds: [target.id],
+					taskIds: [target.id],
 					context: implementationContext,
 				});
 				const delivery = recordActiveDelivery(kickoff, implementationContext);
+				const prompt = buildWorkPrompt(target, implementationContext);
+				// The owner typed /devspec.work here: the prompt it sends is their
+				// request, admitted like anything they type (item 7a4d04fd).
+				markTypedSend(prompt);
 				try {
-					pi.sendUserMessage(buildWorkPrompt(target, implementationContext));
+					pi.sendUserMessage(prompt);
 				} catch (error) {
+					unmarkTypedSend(prompt);
 					rollbackActiveDelivery(delivery);
 					throw error;
 				}
@@ -214,10 +221,12 @@ export default function (pi: ExtensionAPI) {
 			const resolved = await resolveToken();
 			const lines = [
 				"DevSpec commands:",
-				"  /devspec.work [item]  — select one action item to work (id/title, or picker)",
-				"  /devspec.remote       — bond as remote capacity (auto on launch; stop | auto on|off)",
+				"  /devspec.work [item]  — select one task to work (id/title, or picker)",
+				"  /devspec.remote       — connect (optional --project <name-or-id>; stop | auto on|off)",
+				"  /devspec.project      — show project; choose | remember | forget",
+				"  pi --devspec-project <name-or-id> — choose for a new local conversation",
 				"  /devspec.reload       — reload this extension (same as /reload)",
-				"  /devspec.login        — connect (token from the DevSpec Connections page)",
+				`  /devspec.login        — connect (token from ${agentsSettingsUrl()})`,
 				"  /devspec.pin <id>     — explicitly associate this folder with a DevSpec project",
 				"  /devspec.status       — connection state",
 				"  /devspec.logout       — remove the stored token",

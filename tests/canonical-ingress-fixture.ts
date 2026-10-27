@@ -40,8 +40,8 @@ export function systemNotice(overrides: Record<string, unknown> = {}) {
 		kind: "unlinked_commit_item_review",
 		notice_id: IDS.notice,
 		commit_sha: "abcdef0123456789abcdef0123456789abcdef01",
-		action_item_id: IDS.project,
-		action_item_title: "Review generated item",
+		task_id: IDS.project,
+		task_title: "Review generated item",
 		branch: "main",
 		contract_uri: "devspec://product/remote-ingress-contract",
 		allowed_outcomes: [
@@ -49,8 +49,8 @@ export function systemNotice(overrides: Record<string, unknown> = {}) {
 			"confirm_item_correct", "defer_follow_up",
 		],
 		allowed_tools: [
-			"get_action_item", "update_action_item", "link_action_items",
-			"resolve_action_item_conflict",
+			"get_task", "update_task", "link_tasks",
+			"supersede_task",
 		],
 		...overrides,
 	};
@@ -263,7 +263,7 @@ export function canonicalPoll(options: {
 		...(options.stillToDiscuss ? { still_to_discuss: options.stillToDiscuss } : {}),
 		cursor_v2: "canonical-cursor-1",
 		...(systemNoticeNegotiated ? {
-			system_notice_version: 1,
+			system_notice_version: 2,
 			system_notice_cursor: systemNotices.length > 0 ? `2026-08-22T12:00:00.000Z|${IDS.notice}` : null,
 			system_notices: systemNotices,
 		} : {}),

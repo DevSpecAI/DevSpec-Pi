@@ -2,10 +2,11 @@
 /**
  * Generate extensions/generated/mcp-catalog.ts from the DevSpec MCP tool
  * surface (item 523f1512). This is the WIRE map, not the model surface.
- * The model sees the hot set in extensions/core/model-surface.ts (7de79db6).
+ * The model sees all eligible concise tools via extensions/core/model-surface.ts.
  *
- * Source of truth: apps/web/lib/mcp/tool-definitions.ts in a DevSpecV2
- * checkout. This script dumps that contract (or reads a pre-dumped JSON)
+ * Source of truth: each tool's one definition in a DevSpecV2 checkout
+ * (packages/core/src/mcp/tools, exposed as MCP tools by
+ * apps/web/lib/mcp/tool-definitions.ts). This script dumps that contract (or reads a pre-dumped JSON)
  * and writes a checked-in catalog the embedded client speaks. A drift
  * test fails when the sibling checkout's verb list no longer matches.
  *
@@ -18,7 +19,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
@@ -30,15 +31,16 @@ export const PUMP_VERBS = [
 	"register_connection",
 	"poll_connection",
 	"heartbeat_connection",
-	"send_heartbeat",
 	"report_keepalive",
 	"report_pickup",
+	// Host-only request registry (item 7a4d04fd): opened and closed by the
+	// extension with the connection capability, never by the model.
+	"report_request",
 	"report_complete",
 	"get_connection_dispatch",
 	"attach_connection",
 	"detach_connection",
 	"verify_agent_connection",
-	"report_connection_check",
 	"report_commit_provenance",
 ];
 
@@ -61,12 +63,17 @@ function parseArgs(argv) {
 function dumpFromV2(v2Root) {
 	const script = `
 import { getMcpAllTools } from ${JSON.stringify(`${v2Root.replace(/\\/g, "/")}/apps/web/lib/mcp/tool-definitions.ts`)};
+import { toDiscoveryTool } from ${JSON.stringify(`${v2Root.replace(/\\/g, "/")}/apps/web/lib/mcp/tool-discovery.ts`)};
+import { getMcpTool } from ${JSON.stringify(`${v2Root.replace(/\\/g, "/")}/packages/core/src/mcp/tools/index.ts`)};
+import { TOOL_CATALOG_VERSION, TOOL_SEARCH_DOCUMENTS } from ${JSON.stringify(`${v2Root.replace(/\\/g, "/")}/packages/core/src/mcp/tool-search-index.ts`)};
 const tools = getMcpAllTools();
-process.stdout.write(JSON.stringify(tools.map((t) => ({
+process.stdout.write(JSON.stringify({ toolSearch: { version: TOOL_CATALOG_VERSION, documents: TOOL_SEARCH_DOCUMENTS }, tools: tools.map((t) => ({
   name: t.name,
   description: t.description ?? "",
+  searchIntent: getMcpTool(t.name)?.searchIntent ?? '',
+  modelInputSchema: toDiscoveryTool(t).inputSchema,
   inputSchema: t.inputSchema ?? { type: "object", properties: {} },
-}))));
+})) }));
 `;
 	// The --tsconfig flag is not optional: apps/web owns the `@/*` path alias, and
 	// without it tsx resolves `@/lib/...` against the monorepo root and dies on the
@@ -84,21 +91,6 @@ function titleCase(name) {
 		.split("_")
 		.map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
 		.join(" ");
-}
-
-/** Kept in step with SNIPPET_MAX in extensions/core/model-surface.ts. */
-const SNIPPET_MAX = 320;
-
-function firstSentence(text) {
-	const trimmed = String(text ?? "").trim().replace(/\s+/g, " ");
-	const cut = trimmed.search(/[.!?](?:\s|$)/);
-	const sentence = cut >= 0 ? trimmed.slice(0, cut + 1) : trimmed;
-	// Backstop for one runaway sentence, NOT a ration — kept in step with
-	// SNIPPET_MAX in extensions/core/model-surface.ts. At 160 this was silently
-	// lossy: 9 catalog snippets shipped cut off mid-sentence, so a model read half
-	// an instruction and guessed the rest. If a sentence does not fit, shorten it
-	// in DevSpecV2's apps/web/lib/mcp/tool-definitions.ts, which is the source.
-	return sentence.length > SNIPPET_MAX ? `${sentence.slice(0, SNIPPET_MAX - 3)}…` : sentence;
 }
 
 function classify(name) {
@@ -129,25 +121,55 @@ function descriptionFingerprint(tools) {
 	return h.digest("hex");
 }
 
-function emitTs(tools) {
+export function emitTs(source) {
+	const { tools, toolSearch } = source;
+	if (!Array.isArray(tools) || tools.length === 0) {
+		throw new Error("catalog source produced no tools");
+	}
+	// The server owns searchable-corpus identity; Pi owns exposure. These differ:
+	// verify_agent_connection and post_session_message are searchable on the server
+	// but intentionally not model-facing here (item 454c24ff).
+	if (!toolSearch || !Array.isArray(toolSearch.documents) || !toolSearch.documents.length) {
+		throw new Error("catalog source must include the server's toolSearch version and documents; regenerate the dump from DevSpecV2");
+	}
+	const canonical = [...toolSearch.documents].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+		.map(({ id, name, description, intent }) => ({ id, name, description, intent }));
+	const canonicalVersion = createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
+	if (toolSearch.version !== canonicalVersion) {
+		throw new Error("server tool-search version does not cover the supplied documents");
+	}
+	for (const doc of canonical) {
+		const tool = tools.find(tool => tool.name === doc.id);
+		if (!tool || doc.name !== doc.id.replaceAll('_', ' ') || doc.description !== tool.description || doc.intent !== tool.searchIntent) {
+			throw new Error(`server tool-search document differs from the wire tool: ${doc.id}`);
+		}
+	}
+	for (const tool of tools) {
+		if (classify(tool.name) === 'model' && (!tool.description || !tool.modelInputSchema || !tool.searchIntent)) {
+			throw new Error(`Missing authored model guidance for ${tool.name}; regenerate from the current shared discovery contract`);
+		}
+	}
 	const fp = fingerprint(tools);
 	const descriptionFp = descriptionFingerprint(tools);
 	const entries = tools.map((t) => ({
 		name: t.name,
 		label: `DevSpec: ${titleCase(t.name)}`,
 		description: t.description ?? "",
-		promptSnippet: firstSentence(t.description),
+		searchIntent: t.searchIntent ?? '',
+		modelInputSchema: t.modelInputSchema ?? t.inputSchema ?? { type: "object", properties: {} },
 		inputSchema: t.inputSchema ?? { type: "object", properties: {} },
 		kind: classify(t.name),
 	}));
 	const model = entries.filter((e) => e.kind === "model").map((e) => e.name);
+	const searchDocuments = entries.filter(e => e.kind === "model").map(e => ({ id: e.name, name: e.name.replaceAll('_', ' '), description: e.description, intent: e.searchIntent })).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+	const searchVersion = toolSearch.version;
 	const pump = entries.filter((e) => e.kind === "pump").map((e) => e.name);
 	const never = entries.filter((e) => e.kind === "never_model").map((e) => e.name);
 
 	return `/* eslint-disable */
 /**
  * GENERATED — do not edit by hand.
- * Source: DevSpecV2 apps/web/lib/mcp/tool-definitions.ts via scripts/generate-mcp-catalog.mjs
+ * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
  * Schema fingerprint: ${fp}
  * Description fingerprint: ${descriptionFp}
  * Regenerated: ${new Date().toISOString()}
@@ -155,6 +177,8 @@ function emitTs(tools) {
 export const MCP_CATALOG_FINGERPRINT = ${JSON.stringify(fp)};
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = ${JSON.stringify(descriptionFp)};
 export const MCP_CATALOG_GENERATED_AT = ${JSON.stringify(new Date().toISOString())};
+export const TOOL_CATALOG_VERSION = ${JSON.stringify(searchVersion)};
+export const TOOL_SEARCH_DOCUMENTS = ${JSON.stringify(searchDocuments, null, '\t')};
 
 export type CatalogKind = "model" | "pump" | "never_model";
 
@@ -162,8 +186,9 @@ export interface CatalogEntry {
 	name: string;
 	label: string;
 	description: string;
-	promptSnippet: string;
+	searchIntent: string;
 	inputSchema: Record<string, unknown>;
+	modelInputSchema: Record<string, unknown>;
 	kind: CatalogKind;
 }
 
@@ -204,12 +229,11 @@ function main() {
 		}
 		raw = dumpFromV2(v2);
 	}
-	const tools = JSON.parse(raw);
-	if (!Array.isArray(tools) || tools.length === 0) {
-		throw new Error("catalog source produced no tools");
-	}
+	const source = JSON.parse(raw);
+	const output = emitTs(source);
+	const { tools } = source;
 	mkdirSync(OUT_DIR, { recursive: true });
-	writeFileSync(OUT_TS, emitTs(tools));
+	writeFileSync(OUT_TS, output);
 	const kinds = { model: 0, pump: 0, never_model: 0 };
 	for (const t of tools) kinds[classify(t.name)] += 1;
 	process.stdout.write(
@@ -217,4 +241,4 @@ function main() {
 	);
 }
 
-main();
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) main();

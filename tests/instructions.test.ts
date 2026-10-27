@@ -25,6 +25,11 @@ test("instructions carry the load-bearing rules", () => {
 	const text = buildDevspecInstructions();
 	assert.match(text, /\[devspec:<id>\]/);
 	assert.match(text, /record_implementation/);
+	// The commit id is mechanical: DevSpec takes the commit Pi observed, and the model
+	// names one only when the response says none was found, copied from git (df71ab6c).
+	assert.doesNotMatch(text, /final commit SHA/i);
+	assert.match(text, /record_implementation with affected_files, testing_notes, and completion_summary and no commit id/);
+	assert.match(text, /Name a commit only when the response says none was found, and then copy its full id from git \(git rev-parse HEAD\), never from memory/);
 	assert.match(text, /never mark items done/i);
 	// It must NOT restate who may verify. "a human verifies" was true until
 	// evidence promotion shipped, and then quietly became a lie in six of seven
@@ -36,20 +41,44 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /reserve_work_items/);
 	assert.doesNotMatch(text, /arrives by assignment/i);
 	assert.match(text, /claim_work_item/);
-	assert.match(text, /possible_conflict/);
+	// No claim waits on a pairwise conflict check any more (DevSpec item df1e2277).
+	assert.doesNotMatch(text, /possible_conflict/);
 	assert.match(text, /missing claim never blocks edits, execution, tests, worktrees, delegation, or follow-through/i);
 	assert.match(text, /commit_provenance_contract/);
 	// Who may commit, and what a queued write means, is the served authority section — pointed at, never restated (item 06936ee9).
 	// The pointer is a full sentence plus the operational relay of a queued write (item 45588384); it does not name who may commit.
 	assert.match(text, /authority_contract/);
-	assert.match(text, /Who may commit a memory, artifact, rule or conflict ruling/);
-	assert.match(text, /queued_for_review carries a proposal_id and a reason/);
-	assert.match(text, /relay both/);
+	assert.match(text, /Who may commit a memory, artifact, rule, flag ruling or supersession/);
+	assert.match(text, /queued_for_review carries a proposal_id, a reason and who it waits on/);
+	// Who a queued change waits on is DevSpec's to say: not always a Maintainer (contract 4.31.0).
+	assert.doesNotMatch(text, /a maintainer has to accept/i);
+	// Waiting work stays on its own branch; who gives the OK is pointed at, never restated.
+	assert.match(text, /waiting_for_ok/);
+	// "until it has the OK" is the rule, not a softening: dropping it once a task's done
+	// waited on a merge would strand approved work on its branch (5a9eaa57).
+	assert.match(text, /never merge it into the tracking branch until it has the OK/);
+	assert.match(text, /reversal_rule/);
+	// The capture bar (ADR "Protecting intent" §11): only the person's answer makes a decision.
+	assert.match(text, /only their answer makes it their decision/);
 	assert.match(text, /never report the change as done/i);
 	assert.match(text, /not a rule to remember here/);
-	assert.match(text, /recall-gates near-duplicates/);
+	// Knowledge writes no longer stop on a close match, and confirm_new is gone (df1e2277).
+	assert.doesNotMatch(text, /close match|confirm_new/);
+	assert.match(text, /create_resource/);
+	assert.match(text, /Search is optional/);
+	assert.match(text, /include_implementation_contract:true/);
 	assert.doesNotMatch(text, /interactive authority|maintainer-only|always queues/i);
-	assert.match(text, /server reconciliation/);
+	// Pi tags commits itself (df71ab6c): the model writes a tag only when Pi says it
+	// did not, and is not offered reconciliation as a safety net (5f9fd5dc).
+	assert.match(text, /When exactly one task is claimed, Pi adds its full \[devspec:<id>\] tag to your commit messages itself/);
+	assert.match(text, /Write the tag yourself only when Pi says it did not add it/);
+	assert.doesNotMatch(text, /server reconciliation/);
+	// Without a working git stand-in (native Windows, no bonded connection) the model
+	// is told to write the tag itself, never that Pi adds it (c4b14794).
+	const untagged = buildDevspecInstructions({ commitTagging: false });
+	assert.match(untagged, /Pi cannot add task tags to commits in this setup, so put the claimed task's full \[devspec:<id>\] reference in every implementing commit message yourself/);
+	assert.doesNotMatch(untagged, /Pi adds its full/);
+	assert.match(untagged, /commit_provenance_contract/);
 	assert.doesNotMatch(text, /trusted subprocess|trusted child/i);
 	assert.match(text, /record_memory/);
 	assert.match(text, /git_remote/);
@@ -58,6 +87,17 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /search_devspec_tools/);
 	assert.match(text, /concise user-facing sentence/);
 	assert.match(text, /never narrate individual tools/);
+	assert.match(text, /architectural or technical mechanism in natural English/);
+	assert.match(text, /never ai_instructions/);
+	assert.match(text, /keep each task atomic around one primary subject/i);
+	assert.match(text, /link_tasks/);
+	assert.match(text, /Keep each memory atomic around one primary decision, convention, insight, or risk/);
+	assert.match(text, /companion_links/);
+	assert.match(text, /substance and rationale/);
+	assert.doesNotMatch(text, /rule and rationale/);
+	assert.match(text, /create_task requires title, intent, and description/);
+	assert.match(text, /synthesized rationale \(never conversational go-ahead quotes\)/);
+	assert.match(text, /rejected at write time/);
 });
 
 test("bonded remote prose distinguishes delegated scope and points to served policy", () => {
@@ -73,9 +113,9 @@ test("instructions do not dump search-first or the 76-verb map", () => {
 	assert.doesNotMatch(text, /Check DevSpec first/);
 	assert.doesNotMatch(text, /When X, call Y/);
 	assert.doesNotMatch(text, /never describe→call/);
-	assert.doesNotMatch(text, /search_action_items/);
+	assert.doesNotMatch(text, /search_tasks/);
 	assert.doesNotMatch(text, /search_resources/);
-	assert.doesNotMatch(text, /get_action_items/);
+	assert.doesNotMatch(text, /get_tasks/);
 	assert.doesNotMatch(text, /record_criterion_verdicts/);
 	assert.doesNotMatch(text, /get_session_transcript/);
 	for (const pump of PUMP_VERBS) {

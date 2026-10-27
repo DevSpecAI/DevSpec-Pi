@@ -5,8 +5,8 @@ import { stream as streamAnthropic } from "@earendil-works/pi-ai/api/anthropic-m
 import { convertMessages as convertGoogleMessages } from "@earendil-works/pi-ai/api/google-shared";
 import { convertMessages as convertOpenAICompletionsMessages } from "@earendil-works/pi-ai/api/openai-completions";
 import { convertResponsesMessages } from "@earendil-works/pi-ai/api/openai-responses-shared";
-import { clearAllFlags, extractFlags, listFlags } from "../extensions/core/conflict-watch.ts";
-import { PROJECTION_BUDGETS, projectModelText, projectionFamily } from "../extensions/core/result-projection.ts";
+import { clearAllFlags, extractFlags, listFlags } from "../extensions/core/review-watch.ts";
+import { projectModelText, projectionFamily } from "../extensions/core/result-projection.ts";
 import { projectedToolResult, unwrapMcpResult } from "../extensions/core/result.ts";
 import { extractItemRef, getStatusSnapshot, resetStatus } from "../extensions/core/status-line.ts";
 import { resetWorkStateForTests } from "../extensions/core/work-state.ts";
@@ -82,9 +82,9 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// Rebaselined 2026-09-02 for DevSpec item ab4765f4, which removed the
 	// `separate_work` follow-up-step kind. Two input schemas moved and nothing
 	// else: the step `kind` enums dropped to required_step|note, and
-	// create_action_item gained an optional follow_up_from_action_item_id so work
+	// create_task gained an optional follow_up_from_task_id so work
 	// that belongs in its own item becomes one in the same call. No new verbs, and
-	// every projection family is unchanged (create_action_item is still `ack`), so
+	// every projection family is unchanged (create_task is still `ack`), so
 	// budget/quality coverage is unaffected.
 	//
 	// Rebaselined 2026-09-04 for the Playbooks → Automations rename (DevSpec brief
@@ -94,9 +94,9 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// renamed the matching fields; no schema shape or projection family changed.
 	//
 	// Rebaselined 2026-09-04 for DevSpec items 8bebb66e and ff12609d, which made
-	// the two action-item filters mean what they say. Three enums moved and
+	// the two task filters mean what they say. Three enums moved and
 	// nothing else:
-	//   - get_action_items.lifecycle and search_action_items.lifecycle now take the
+	//   - get_tasks.lifecycle and search_tasks.lifecycle now take the
 	//     same nine values (they took seven and five). `implemented` became
 	//     askable, `active` names the old catch-all `open` behaviour, and `open`
 	//     stopped selecting in_progress+implemented+blocked as well.
@@ -142,18 +142,18 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// and 23 parameter descriptions cut off mid-sentence. Both are 320 now, a new
 	// test asserts nothing ships elided, and the prefix went 6,933 -> 7,130 tokens
 	// of an 8,000 ceiling to buy that back. Budget and quality coverage unaffected.
-	// Rebaselined 2026-09-08 for DevSpec item f68fc217: filtering action items by
+	// Rebaselined 2026-09-08 for DevSpec item f68fc217: filtering tasks by
 	// WHO ASKED for them to exist. Two optional inputs were added to
-	// get_action_items and search_action_items and nothing else moved —
+	// get_tasks and search_tasks and nothing else moved —
 	// `requested_by` (a person id, or "me", the same grammar `assigned_to`
 	// already uses) and `request_origin` (an enum generated from a shared DevSpec
 	// core constant, so a future value arrives here by regeneration rather than
 	// by anyone editing a list). No new verbs, and no projection family changed:
 	// both remain `collection`.
 	//
-	// Budget: search_action_items is in the hot set, so its two new parameter
+	// Budget: search_tasks is in the hot set, so its two new parameter
 	// descriptions do reach the model prefix. Measured after regenerating,
-	// estimatePrefixTokens("") is 6,592 of the 8,000 ceiling. get_action_items is
+	// estimatePrefixTokens("") is 6,592 of the 8,000 ceiling. get_tasks is
 	// not in the hot set, so its half is wire-only.
 	//
 	// Quality: Pi carries no restatement of either filter, which is why
@@ -170,8 +170,8 @@ test("model tool schemas and projection families require an explicit contract-ba
 	//     words. Type and optionality are unchanged.
 	//   - get_resources, search_resources, search_memories, get_decisions,
 	//     get_conventions and get_unresolved_questions gained the same optional
-	//     `requested_by` and `request_origin` filters that get_action_items and
-	//     search_action_items took on 2026-09-08, generated from the same shared
+	//     `requested_by` and `request_origin` filters that get_tasks and
+	//     search_tasks took on 2026-09-08, generated from the same shared
 	//     DevSpec core constant.
 	// 84 model verbs before and after, none added or removed, and no projection
 	// family changed (the assignment test above still passes). Budget: after
@@ -182,7 +182,7 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// Rebaselined 2026-09-15 for DevSpec item 93840514: regenerated the catalog
 	// against post-be4a5094 tool definitions. The real delta, measured by the
 	// regeneration diff: (1) commit_sha descriptions on record_implementation,
-	// update_action_item and add_commit_reference now say short/full/omitted,
+	// update_task and add_commit_reference now say short/full/omitted,
 	// resolved across the project's tracked repositories, provisional until
 	// indexed (the commit-identity direction, ADR 60efaed0); (2) new model verb
 	// manage_knowledge_links (85 model verbs now, was 84) — assigned to the
@@ -199,7 +199,7 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// Rebaselined 2026-09-16 for DevSpec items cc93671a + 8729992e: regenerated
 	// the catalog against staging e736963bd. Measured delta: (1) record_memory's
 	// description gains the memory durability test (durable knowledge only;
-	// work-in-flight state belongs on action items — the phantom approval-rule
+	// work-in-flight state belongs on tasks — the phantom approval-rule
 	// fix, cc93671a); (2) one new model verb absorbed from staging drift:
 	// get_review_queue, assigned to the full/lossless family beside
 	// claim_review (a dropped queue entry would read as "nothing outstanding").
@@ -218,7 +218,7 @@ test("model tool schemas and projection families require an explicit contract-ba
 	//       that the judgement is the caller's, that asking the person is a real
 	//       outcome, and that confirm_new is a recorded ruling rather than the
 	//       way past the check.
-	//   (2) resolve_action_item_conflict: absorbed from staging drift, "Review
+	//   (2) resolve_task_conflict: absorbed from staging drift, "Review
 	//       tab" -> "Review page, under Proposed changes" (R3's navigation fix).
 	// Budget: `npm run benchmark:context` measures the initial surface at 7,456
 	// tokens of the 8,000 ceiling — three LOWER than the last baseline, because
@@ -252,23 +252,602 @@ test("model tool schemas and projection families require an explicit contract-ba
 	// Budget: `npm run benchmark:context` measures the initial surface at 7,456
 	// tokens of the 8,000 ceiling — UNCHANGED, because the memory write verbs
 	// are wire-only and not in the model hot set.
+	// Rebaselined 2026-09-20 for DevSpec item 134f4454, which gave every write-gate
+	// corridor the affordances the repository always returned. Regenerated against
+	// staging f5c89d8b3. The fingerprinted contract moved in exactly ONE place,
+	// verified by diffing the old-vs-new contract object: 86 model verbs both
+	// sides, no additions or removals, and the only diff is create_resource
+	// gaining an optional `confirm_new` boolean (2,420 → 2,881 chars). No enum, no
+	// required field and no projection family changed — create_resource is still
+	// `ack`, and it is not in the hot set, so the surface pays only its first
+	// sentence, which is unchanged.
+	//
+	// Outside this fingerprint the same regen absorbed create_resource's tool
+	// description (it now says the check exists, which it never did) and a
+	// register_connection bond-key description that had drifted since 2026-09-19
+	// (pump-only, not model-facing).
+	//
+	// Budget: `npm run benchmark:context` measures the initial surface at 7,480
+	// tokens of the 8,000 ceiling, up 24 from 7,456. The catalog contributed none
+	// of that — every token is the instructions bullet, which stopped claiming
+	// only memories are gated and now says what to do when a write is stopped.
+	// Rebaselined 2026-09-24 for e2f895ac against server staging 524495b9d.
+	// Compared old/new generated objects by name/inputSchema, not commit prose:
+	// 86 -> 87 model verbs; update_memory is the only addition, none removed.
+	// Its full/lossless family preserves preview receipts, stale-context detail,
+	// queued proposals and replacement-version ids; it stays deferred, not hot.
+	// resolve_task_conflict drops counterpart_item_id from required and
+	// explains omission for one-record staleness (existing pair inputs remain).
+	// Other existing model schema diffs are descriptions only:
+	// get_review_queue.search; get_claimable_reviews/claim_review.agent_tool
+	// (cursor_cli); update_task.expected_version (spec, not file evidence);
+	// record_implementation/record_completed_work.testing_notes; and
+	// record_criterion_verdicts criterion_id/text (changed wording needs recheck;
+	// caller text is a restatement, server records exact wording).
+	// Tool-level descriptions changed on get_review_queue and conflict ruling.
+	// Outside this model fingerprint: register_connection.folder_scope_only is
+	// pump-only. No existing projection family or hot-set membership changed.
+	// Same deterministic benchmark before/after: initial surface 7,480 -> 7,477
+	// estimated tokens (ceiling 8,000); all projection fixture budgets unchanged.
+	// Rebaselined 2026-09-25 for DevSpec item b69a7b53 (R7) against server staging
+	// d39cd98aa. Compared old/new generated objects by name/inputSchema: 87 model
+	// verbs before and after, none added or removed. The only model schema change
+	// is preview_conflict_resolution: counterpart_item_id is no longer required,
+	// and its description says to omit it for a staleness flag that names no
+	// other item (DevSpec e599545f — previewing a one-record staleness ruling was
+	// refused). Outside this model fingerprint: poll_connection gained the pump-only
+	// session_events_version / session_events_revision. Projection family is still
+	// "full". Same deterministic benchmark before/after: initial surface 7,732 ->
+	// 7,732 estimated tokens, because the verb is not in the hot set.
+	// Rebaselined 2026-09-26 for DevSpec item d8cac873 against server staging
+	// cf0f2bcd3. Compared old/new generated objects by name/inputSchema: 87 model
+	// verbs before and after, none added or removed, no required or type change.
+	// Two descriptions only: devspec_help_search.query's example no longer names
+	// autopilot, and update_task.lifecycle now names "blocked" and says
+	// "deferred"/"blocked" are refused on implemented/done items (DevSpec
+	// 5c422453). No projection family or hot-set membership changed. Same
+	// deterministic benchmark before/after: initial surface 7,732 -> 7,732.
+	// Rebaselined 2026-09-27 for DevSpec item 2b2b025e: the orphaned review
+	// claim loop is deleted server-side, so get_claimable_reviews, claim_review
+	// and record_review leave the catalog (87 -> 84 model verbs) and their
+	// model-surface intent entry and projection-family memberships go with them.
+	// Nothing an agent could reach changes: evidence recording is
+	// record_criterion_verdicts (untouched) and asking for a review is the
+	// picker's attach + owner message (ask-review), which never used these.
+	// Rebaselined 2026-09-30 for 50eb6a61: get_memory adds only optional
+	// history_before/history_limit. It stays a full exact read, and the test
+	// below pins lossless body plus actionable continuation. No verbs/families changed.
+	// Rebaselined 2026-10-01 for DevSpec item 1b7592bd (sharing an automation with
+	// the project), regenerated against server staging plus that change. Compared
+	// old/new generated objects by name/inputSchema: 85 model verbs before and
+	// after, none added or removed, no required or type change. Two inputs are new
+	// — create_automation.visibility and update_automation.visibility (optional
+	// private|project) — and the automation verbs' descriptions now say a list
+	// includes teammates' shared automations and that only the author can change
+	// one. The regeneration also carries server changes Pi had not yet picked up:
+	// request_origin gained "unattributed" on get_tasks,
+	// search_tasks, get_resources, search_resources, search_memories,
+	// get_decisions, get_conventions and get_unresolved_questions, and the
+	// personal-instructions descriptions now point at the Agents settings page. No
+	// projection family or hot-set membership changed. Benchmark before/after:
+	// initial surface 30,722 -> 31,061 estimated tokens; every budget still passes.
+	// Rebaselined 2026-10-02 for d4495280: only get_memory gains optional
+	// evidence_before/evidence_limit. No verb, required field or projection family
+	// changes. Full-memory evidence/wording and independent continuation are
+	// pinned losslessly below; generated guidance preserves cautions and failures.
 	assert.equal(
 		fingerprint,
-		"c68847bc8e1f06c9feb87413ac7c57a827bd60dc7483c99a659e8b6914c37c64",
+		// b0507ae2: only the two optional evidence parameter descriptions changed;
+		// no inputs, required fields, verb inventory or result projections changed.
+		// Rebaselined 2026-10-04 for DevSpec item 54d442b0, regenerated against server
+		// staging 13a0c86e1. Descriptions only: write_project_instruction_rule (and its
+		// operation/body/rationale), import_instruction_rules (and items.rationale) and
+		// update_personal_instructions now tell agents to amend the rule that already
+		// covers a subject and keep bodies lean, and no longer claim agents receive the
+		// rationale. Also carries server description changes Pi had not picked up:
+		// update_task.agent_error and the idempotency_key guidance on
+		// create_resource/record_memory. 99 verbs before and after; no input, required
+		// field, type or projection family changed. Benchmark before/after: initial
+		// surface 31,262 -> 31,521 estimated tokens; every budget still passes.
+		// Rebaselined 2026-10-04 for DevSpec item d40101aa, regenerated against server
+		// work/dev-principles-tools-d40101aa (on staging d13a08ef8). Descriptions:
+		// the guidance and parameter text for get_project_instruction_rules,
+		// get_personal_instructions, write_project_instruction_rule and
+		// update_personal_instructions now say who receives each tier (principles
+		// reach agents and Dev; agent rules reach coding agents only), and
+		// write_project_instruction_rule adds removing what a change makes redundant.
+		// The regeneration also carries a server change Pi had not picked up:
+		// update_task gains an OPTIONAL idempotency_key (for a change saved for
+		// review instead of applied). 99 verbs before and after; no required field,
+		// type or projection family changed. Benchmark before/after: initial surface
+		// 31,648 -> 31,936 estimated tokens; every budget still passes.
+		// Rebaselined 2026-10-04 for DevSpec item cc630fb8 (every list reports its
+		// total and pages). Optional inputs only, no required field or type change,
+		// 99 verbs before and after, no projection family moved: `offset` on
+		// get_decisions, get_conventions, get_unresolved_questions, search_tasks,
+		// search_discussion_points, get_resources, search_sessions, get_recent_sessions
+		// and get_automation_runs (+ its `limit`); `activity_offset`/`activity_limit` on
+		// get_task_history; `proposals_offset`/`proposals_limit` on
+		// get_project_instruction_rules. Limit descriptions now speak of pages. The
+		// collection projection names the exact next page from `page.next_offset`
+		// (tested above). Benchmark: initial surface 31,936 -> 32,871 estimated
+		// tokens; every budget still passes.
+		// Rebaselined 2026-10-04 for DevSpec item 85a0a1a5: manage_discussion_point's
+		// title and body now declare maxLength 200 / 8000 and say a longer one is
+		// refused, not cut (the server stopped slicing them silently). No verb,
+		// required field, type or projection family changed. Benchmark before/after:
+		// initial surface 32,871 -> 32,908 estimated tokens; every budget passes.
+		// Rebaselined 2026-10-04 for DevSpec item a43f8510 (the server now enforces every
+		// declared limit). Declared limits only: post_session_message.message maxLength
+		// 100,000 and create_session.title 500 (both new), manage_knowledge_links.note
+		// 4,000 -> 1,000 (what the database always enforced), and the reopen note no
+		// longer claims a 20-character minimum. No verb, required field, type or
+		// projection family changed.
+		// Rebaselined 2026-10-04 for DevSpec item 02526f46 (every list tool lets the
+		// caller reach the rest): search_memories, search_resources, devspec_help_search
+		// and search_devspec_tools gained \`offset\` and say so in their limit and
+		// guidance text. No verb, required field or projection family changed; the help
+		// and resource projections now name the next offset.
+		// Rebaselined 2026-10-05 for DevSpec item 52012b05, regenerated against server
+		// work/goal-pages-52012b05 (on staging f7ab17266). get_goals gains OPTIONAL
+		// items_offset/items_limit (a goal's item list now pages past 500 instead of
+		// stopping there), and its description and guidance say so and that unreadable
+		// progress is null, not zero; get_testing_brief's guidance says deployments and
+		// test runs are complete. 99 verbs before and after; no required field, type or
+		// projection family changed (both stay full exact reads). Benchmark before/after:
+		// initial surface 33,286 -> 33,396 estimated tokens; every budget still passes.
+		// Rebaselined 2026-10-05 for DevSpec items 3573c378 / 275c625b / 516737fd
+		// (item eaa8083c), regenerated against server staging 6504bd589. Each tool now
+		// has ONE description, the server's single definition; the catalogue's separate
+		// promptSnippet is gone. Compared old/new generated model objects: 85 -> 82
+		// model verbs (send_agent_message, control_connection and submit_plan_review
+		// removed; none added); no required field changed. Inputs added are those the
+		// server's executors already read (e.g. get_database_schema database/offset/
+		// limit, archive_resource.reason, update_memory.note) plus the explicit
+		// this-room/whole-project scope on search_discussion_points and
+		// manage_discussion_point; inputs removed are ones nothing read
+		// (get_recent_sessions.status, get_automation_runs provider/model,
+		// claim_automation_run.model, update_task agent_activity/agent_error).
+		// search_devspec_tools takes its own definition's offset paging. Benchmark
+		// before/after: initial surface 33,396 -> 41,699 estimated tokens, almost all
+		// from tool descriptions (17.9k -> 48.6k characters across the model verbs:
+		// the rewrite restores the boundaries and caveats the 30 Sep cut removed);
+		// every budget still passes.
+		// Rebaselined 2026-10-06 for DevSpec item 2319586a, regenerated against server
+		// staging efe38fb88. The server now works out for itself whether a write was
+		// unattended (decision 8a157943), so runner_session_id leaves all 45 model write
+		// tools that carried it, and send_heartbeat leaves the catalogue (it was a pump
+		// verb, never model-facing). Compared old/new generated model objects: 82 -> 82
+		// model verbs, none added or removed; 49 changed only in description text. Seven
+		// shape changes came with this regeneration from server work since the last one:
+		// reopen_task.reason_code no longer offers new_followup_scope (8bf07999);
+		// add_implementation_note now requires task_id (8bf07999);
+		// record_implementation.completion_confidence is bounded 0-100;
+		// update_memory gains optional expected_version and preview_ack and
+		// resolve_resource_flag now requires verdict and note (0ab1054e, on 3573c378);
+		// create_automation/update_automation preferred_provider no longer offers codex
+		// (3573c378). No projection family changed. Benchmark before/after: initial
+		// surface 41,699 -> 43,836 estimated tokens, from the rewritten description
+		// text; every budget still passes.
+		// Rebaselined 2026-10-06 for DevSpec items 3573c378 and 92cd98be, regenerated
+		// against server staging d11acda5b. Compared old/new generated model objects:
+		// 82 -> 82 model verbs, none added or removed. One shape change:
+		// get_recent_sessions gains optional status (active | archived), which the
+		// server now filters and counts (92cd98be). Four changed only in text:
+		// search_discussion_points says points from rooms you can't open are left out
+		// and that a session_id it is sent is checked, not ignored (3573c378); the
+		// markdown guidance on add_implementation_note.content,
+		// record_implementation.completion_note and
+		// record_completed_work.implementation_summary came with this regeneration
+		// from server work since the last one. Host-only parameters marked since the
+		// last one stay in the wire schemas and leave only the model schemas of pump
+		// verbs. No projection family changed. Benchmark before/after: initial surface
+		// 43,836 -> 44,086 estimated tokens; every budget still passes.
+		// Rebaselined 2026-10-06 for DevSpec item 3573c378 (the description review
+		// 206adafd), regenerated against server staging e2d5fb61d. Compared old/new
+		// generated model objects: 82 -> 82 model verbs, none added or removed. Five
+		// shape changes: get_tasks and get_decisions drop a connection_id
+		// nothing read; update_task's assigned_to and parent_task_id
+		// accept null, as their texts always said (and its acceptance_criteria union
+		// branches lose their duplicated texts); supersede_resource.resource_type is
+		// create_resource's enum; record_criterion_verdicts.verdicts needs at least
+		// one entry (8450edd6, server work since the last regeneration). 63 more
+		// changed only in text: untrue or incomplete parameter and description text
+		// corrected, missing defaults stated, and who-may rules pointed at the served
+		// contract. No projection family changed. Benchmark before/after: initial
+		// surface 45,446 -> 44,123 estimated tokens; every budget still passes.
+		// Rebaselined 2026-10-06 for DevSpec items 90adea7e, c4da50cd, a11a6cd5 and
+		// 92cd98be, regenerated against server staging e81670d01. Compared old/new
+		// generated catalogues: 82 -> 82 model verbs; the pump verb
+		// report_connection_check is retired (nothing called it). No model shape
+		// change: validate_commit_reference takes the shared project-scope texts and
+		// order. Nine changed only in text: the session_id parameters of
+		// create_task, update_task, add_implementation_note,
+		// manage_discussion_point and post_session_message say an unreachable room is
+		// refused; verify_task returns the lifecycle the item ended up in;
+		// release_work_item says when nothing was released; get_project_summary counts
+		// the rooms you can open; get_automation_runs searches the runs its list shows.
+		// No projection family changed. Benchmark before/after: initial surface
+		// 45,446 -> 45,507 estimated tokens; every budget still passes.
+		// Rebaselined 2026-10-07 for DevSpec item 589a7b30 (decision 1d9f3a95),
+		// regenerated against server staging 24d9f3d0c. Compared old/new generated
+		// catalogues: 82 -> 81 model verbs; get_unresolved_questions is retired
+		// (open questions are Still to Discuss points), so it also leaves the
+		// list-projection and fetch-hint families. Model shape change: the type
+		// enums of record_memory and search_memories are the four knowledge types
+		// (decision, convention, insight, risk; search adds "all"), and their texts
+		// say so. get_decisions changed only in text (a design decision is a
+		// decision). Benchmark before/after: initial surface 45,507 -> 44,922
+		// estimated tokens; every budget still passes.
+		// Rebaselined 2026-10-07 for DevSpec item 838672a6 (a note records which agent
+		// wrote it), regenerated against server staging with that change. Compared
+		// old/new generated catalogues: 81 model verbs before and after, none added
+		// or removed. The only schema change is add_implementation_note gaining an
+		// optional connection_id; Pi already stamps the bonded connection on that
+		// verb (stampKnownScope) and slimSchema keeps it off the model surface, so
+		// the server can now record which Pi wrote a note. Outside this fingerprint,
+		// claim_work_item's description now mentions relevant_memories /
+		// relevant_artifacts (DevSpec 7593fe5b). No projection family or hot-set
+		// membership changed. Benchmark before/after: initial surface 44,922 ->
+		// 44,975 estimated tokens; every budget still passes.
+		// Rebaselined 2026-10-07 for DevSpec items 0cd03a68 and 82ecd7dd (an agent
+		// between commands can talk, claim what it reserved and follow through on
+		// what it delivered), regenerated against the DevSpecV2 tree carrying that
+		// change. Compared old/new generated catalogues: 81 model verbs before and
+		// after, none added or removed. link_tasks, unlink_tasks,
+		// add_implementation_note, add_commit_reference, record_criterion_verdicts
+		// and classify_criterion gain optional provenance_ref and work_claim_ref,
+		// so a write about an item none of the agent's work covers can name who
+		// asked; the two refs' shared descriptions now point at how DevSpec works
+		// out who asked. No projection family or hot-set membership changed.
+		// Benchmark before/after: initial surface 44,975 -> 46,061 estimated
+		// tokens; every budget still passes.
+		// Rebaselined 2026-10-07 for DevSpec item a00ce1d8 (get_database_schema's
+		// query honours database), regenerated against the DevSpecV2 tree carrying
+		// that change. Compared old/new generated catalogues: 81 model verbs before
+		// and after, none added or removed, no input added, removed or made
+		// required. Descriptions only: get_database_schema and its query and
+		// database parameters now say database narrows a query too (an unknown one
+		// is refused, naming the project's databases), that results name their
+		// database when there are several, and that each result's source says
+		// observed on the database or declared in code. get_database_schema stays
+		// in the lossless family, so the new result fields reach the model whole.
+		// No projection family or hot-set membership changed. Benchmark
+		// before/after: initial surface 46,061 -> 46,155 estimated tokens;
+		// every budget still passes.
+		//
+		// Rebaselined 2026-10-08 for DevSpec item 81f79916 (the shadow impact
+		// assessment), regenerated against the DevSpecV2 tree carrying it. Compared
+		// old/new generated catalogues: two verbs added, assess_change_impact and
+		// record_change_impact, both in the ack family with required blocks for
+		// their candidates and refusal problems. Descriptions only on
+		// record_implementation, record_memory and supersede_memory, which now
+		// name impact_follow_through; that block is required on their acks. No
+		// other schema or family changed. Benchmark before/after: initial surface
+		// 46,155 -> 47,418 estimated tokens; every budget still passes.
+		//
+		// Rebaselined 2026-10-08 for DevSpec items da44664a and 395f8da2 (work taken
+		// up between commands keeps its own requester; a refusal names only the
+		// refs a tool declares), regenerated against the DevSpecV2 tree carrying
+		// that change. Compared old/new generated catalogues: 83 model verbs before
+		// and after, none added or removed, no input added, removed or made
+		// required. Description only: the shared work_claim_ref text now says an
+		// omitted ref "refuses when it cannot tell" instead of restating the old
+		// several-claims rule, which stopped being true for work-record writes. No
+		// projection family or hot-set membership changed. Benchmark before/after:
+		// initial surface 47,418 -> 47,004 estimated tokens; every budget still
+		// passes.
+		//
+		// Rebaselined 2026-10-08 for DevSpec item 8db6c513 (the route reads only
+		// what a tool declares), regenerated against the DevSpecV2 tree carrying
+		// it. Compared old/new generated catalogues: 95 verbs before and after,
+		// none added or removed, nothing made required. Optional inputs added:
+		// project_id on every tool whose record sets the project (it is checked
+		// against that record, never resolved from); connection_id on the writes
+		// judged by who asked (spin_off, both flag rulings, link/unlink, reopen,
+		// record_criterion_verdicts, add_commit_reference,
+		// update_personal_instructions) and on get_task_siblings,
+		// get_testing_brief and devspec_help_search (usage attribution); and
+		// work_claim_ref/provenance_ref on update_task (work_claim_ref
+		// only), spin_off, both flag rulings, reopen, both rule writers, the three
+		// automation writers and preview_conflict_resolution. Pi hides and stamps
+		// project_id and connection_id as before (SCOPE_KEYS), so its model sees
+		// only the refs. No projection family or hot-set membership changed.
+		// Benchmark before/after: initial surface 47,004 -> 48,448 estimated
+		// tokens; every budget still passes.
+		//
+		// Rebaselined 2026-10-08 for DevSpec item 81a891b4 (a search's cost names
+		// the claim it serves), regenerated against server staging d55109472.
+		// Compared old/new generated catalogues: 95 verbs before and after, none
+		// added or removed, nothing made required. One optional input added,
+		// work_claim_ref, on the seven searches whose cost names a person:
+		// search_tasks, search_memories, search_resources, search_sessions,
+		// search_discussion_points, search_devspec_tools and get_review_queue. The
+		// regeneration also carries record_automation_run's new summary/output
+		// guidance (descriptions only). No projection family or hot-set membership
+		// changed. Benchmark before/after: initial surface 48,448 -> 49,233
+		// estimated tokens; every budget still passes.
+		//
+		// Rebaselined 2026-10-09 for DevSpec decision 77d27bef (automations belong
+		// to the project; items c1a11f99, 3877ae13, 535dcf91), regenerated against
+		// server staging cab85c019 plus that change. Compared old/new generated
+		// catalogues: 95 verbs before and after, none added or removed, nothing
+		// made required. create_automation loses visibility and enabled and gains
+		// switched_on ("Let my agents run this" for the creator); update_automation
+		// loses visibility and enabled and gains runs_by_itself (pauses or resumes
+		// everything that starts it by itself). The automation verbs' descriptions
+		// now say every automation is the project's and only its creator or a
+		// Maintainer can change it. No projection family or hot-set membership
+		// changed. Benchmark before/after: initial surface 49,233 -> 49,176
+		// estimated tokens; every budget still passes.
+		//
+		// Rebaselined 2026-10-09 for DevSpec decision f812ed99 (an automation is
+		// for the project or for each person; items 2a6570b7, f546c812),
+		// regenerated against the server branch feat/automations-for-each-person
+		// on staging cab85c019. 95 verbs before and after, none added or removed,
+		// nothing made required. create_automation and update_automation gain an
+		// optional run_for (project | each_person); create_automation's
+		// switched_on now says it applies to project automations only, and both
+		// descriptions say what each kind is for. No projection family or hot-set
+		// membership changed. Benchmark before/after: initial surface 49,180 ->
+		// 49,430 estimated tokens; every budget still passes.
+		//
+		// Rebaselined 2026-10-11 for DevSpec item df1e2277 (remove the old
+		// pairwise conflict checks), regenerated against server staging
+		// 90342183d. Verbs 95 -> 94 (model 83 -> 82). Removed:
+		// resolve_task_conflict, preview_conflict_resolution and
+		// resolve_task_decision_flag. Added: supersede_task
+		// (task_id and superseded_item_id required; note, basis_kind,
+		// basis and the who-asked refs optional; no verdict) in the ack family its
+		// predecessor held, and preview_supersession (the same two ids, read-only)
+		// in the full family its predecessor held. Inputs changed: get_review_queue
+		// loses claim. The same server change also drops confirm_new from
+		// record_memory, update_memory, supersede_memory, create_resource,
+		// update_resource and supersede_resource; conflicting_id from both flag
+		// rulings, whose signal_type is now possibly_stale and verdict
+		// not_a_conflict only; the supersedes relationship and
+		// acknowledge_half_resolution from link_tasks; and the pairwise and
+		// contradiction values from the signal_type filters of get_tasks,
+		// search_memories, get_decisions, get_conventions and get_resources.
+		// Nothing on an existing verb was made required. No other projection
+		// family changed, and hot-set membership follows the same rule (every model
+		// verb but search_devspec_tools and the three activation-only verbs: 79 ->
+		// 78). Benchmark before/after: initial surface 49,430 (old catalogue) ->
+		// 46,636 (regenerated catalogue, Pi unchanged) -> 46,590 estimated tokens
+		// once Pi's always-on instructions stopped naming possible_conflict and
+		// confirm_new; every budget still passes.
+		//
+		// Rebaselined 2026-10-11 for DevSpec item 506d0806 (the shadow impact
+		// assessment is removed, DevSpecV2 0a4e7313), regenerated against the server
+		// tree carrying that removal. Verbs 94 -> 92 (model 82 -> 80). Removed:
+		// assess_change_impact and record_change_impact, from the ack family. Inputs
+		// changed: none; record_implementation, record_memory and supersede_memory
+		// stop naming impact_follow_through in their descriptions. Pi stops keeping
+		// impact_follow_through, the candidates and problems gates and the trial's
+		// receipt fields. No other projection family changed, and hot-set membership
+		// follows the same rule (78 -> 76). Benchmark before/after: initial surface
+		// 46,590 -> 45,362 estimated tokens; every budget still passes.
+		//
+		// Rebaselined 2026-10-11 for DevSpec item b97d2ac7 (tasks have no
+		// staleness system), regenerated against the server tree carrying that
+		// removal. Verbs unchanged (92; model 80). Inputs changed: get_tasks
+		// (in both its MCP shapes) loses possibly_stale from signal_type and risk
+		// from signal_bucket, whose description no longer names it;
+		// get_review_queue's subject enum is memory | artifact and its description
+		// no longer says a task's out-of-date flag is ruled on the Review
+		// page. Nothing on an existing verb was made required. No projection
+		// family or hot-set membership changed (76). Benchmark before/after:
+		// initial surface 45,362 -> 45,332 estimated tokens; every budget passes.
+		//
+		// Rebaselined 2026-10-11 for DevSpec item 7a4d04fd (every wake carries the
+		// request it continues), regenerated against the DevSpecV2 tree carrying it
+		// (59448271e). Verbs 92 -> 93: report_request is added as a pump verb (the
+		// extension opens and closes requests with the connection capability; never
+		// model-facing). Model verbs unchanged (80), none added or removed, nothing
+		// made required. One input added: an optional, host-only request_ref
+		// (x-devspec-host-only) on the 31 model verbs with work-claim provenance
+		// (the writes that record who asked). slimSchema drops it, so the model
+		// surface is byte-identical; Pi stamps it on the wire from the turn's
+		// request. No projection family or hot-set membership changed (76).
+		// Benchmark before/after: initial surface 45,332 -> 45,332 estimated
+		// tokens; every budget passes.
+		// Rebaselined 2026-10-11 for item 3279dab5 (DevSpecV2 #370 + ee32d583): only
+		// descriptions changed. work_claim_ref on the 31 work-claim writes now says
+		// just "Omitted: DevSpec works out who asked from your connection." (what
+		// happens when it cannot tell is in each write's outcome and the contract's
+		// requester rule), and the host-only request_ref says a request that is not
+		// this connection's is refused. Verbs 80 model / 12 pump / 1 never-model,
+		// unchanged; no inputs added; families and hot set unchanged.
+		// Benchmark before/after: 45,332 -> 45,076 estimated tokens.
+		// Rebaselined 2026-10-12 for 988ad64c: add manage_protected_intent
+		// as a lossless receipt, expand Review's task filter and authored
+		// guidance. 81 model verbs; no pump/never-model exposure changes.
+		// Rebaselined 2026-10-12 for 569c828c (knowledge version chain, DevSpecV2
+		// #387): record_memory, supersede_memory, update_memory, create_resource,
+		// update_resource and supersede_resource gain delivering_task_id;
+		// the four edit tools gain expected_version and idempotency_key for pending
+		// versions; get_memory and the edit tools describe pending versions,
+		// waiting_on and delivery. Verbs 81 model / 12 pump / 1 never-model,
+		// unchanged; families and hot set unchanged.
+		// Benchmark before/after: 46,281 -> 47,618 estimated tokens; every budget passes.
+		// Rebaselined 2026-10-15 for DevSpec item 23b7418a (an agent acts only for
+		// the person the server authenticated, DevSpecV2 #419), regenerated against
+		// server staging aefe6c824. manage_protected_intent: instruction_message_id
+		// must be the command delivered to the agent; session_id takes a room short
+		// code (#420, 1b005595); joint settlements are for one of the two people who
+		// agreed. Also carries server changes Pi had not picked up since 2026-10-12:
+		// manage_protected_intent's ruling, joint-settlement, move_commit and
+		// experiment inputs (23b7418a, 711bfb32, 969f6e08); get_review_queue's
+		// record_type/involvement/state/person filters (23b7418a); is_experiment and
+		// experiment_branch on create/update_task (969f6e08); title guidance on
+		// the task and memory writers (86e26355); and two new verbs,
+		// resolve_duplicate ("full": its preview is a decision input) and
+		// record_duplicate_nonmatch ("ack": a ruling receipt) (fce58a2f). Verbs 81 ->
+		// 83 model, 12 pump and 1 never-model unchanged; no other family moved; hot
+		// set unchanged. Benchmark before/after: 47,618 -> 52,090 estimated tokens;
+		// every budget passes.
+		// Rebaselined 2026-10-16 for DevSpec item d2763652 (work that would undo
+		// someone's decision waits for an OK, built on its own branch; DevSpecV2
+		// #444). manage_protected_intent's actions are now adopt, go_ahead, decline,
+		// not_a_reversal, keep, undo, reopen, take_ownership, move_commit,
+		// make_experiment and ask_to_land; its ruling, co-owner, joint-settlement,
+		// target_branch and commit_sha(s) inputs are gone. get_review_queue's state
+		// filter is waiting/declined/landed/putting_back/settled. is_experiment and
+		// experiment_branch descriptions changed on create/update_task. Verbs
+		// 83 model / 12 pump / 1 never-model unchanged; families and hot set unchanged.
+		// Rebaselined 2026-10-16 for DevSpec item 55c7a30b (a new task must
+		// state its intent; DevSpecV2 #446). create_task's intent is now a
+		// required input with a "must not be blank" description; no other input
+		// changed. Verbs 83 model / 12 pump / 1 never-model unchanged; families and
+		// hot set unchanged. Benchmark before/after: 50,738 -> 50,754 estimated
+		// tokens; every budget passes.
+		// Rebaselined 2026-10-16 for DevSpec item dafc8155 (requests to confirm wait in
+		// Review; who is asking is a fact the server supplies; DevSpecV2 #448).
+		// manage_protected_intent gains request_confirmation, confirm_request and
+		// decline_request with the answer, confirmer_user_id and request_id inputs, and
+		// its description and get_review_queue's say how a request to confirm works.
+		// Verbs 83 model / 12 pump / 1 never-model unchanged; families and hot set
+		// unchanged. Benchmark before/after: 50,754 -> 51,411 estimated tokens; every
+		// budget passes.
+		// Rebaselined 2026-10-17 for DevSpec item 60fb0935 (Dev and local agents make
+		// every Review decision for the person asking, without a redundant
+		// confirmation), regenerated against DevSpecV2 work/60fb0935-review-parity.
+		// One verb added: decide_proposal (proposal_id, revision, decision, note,
+		// connection_id) accepts or declines a waiting change for the person asking,
+		// projected "full" (a small decision receipt that must never read as done when
+		// refused or unconfirmed). Descriptions: manage_protected_intent and
+		// get_review_queue (which also says a proposal entry carries
+		// proposal_revision), and write_project_instruction_rule,
+		// import_instruction_rules, update_personal_instructions and delete_automation
+		// no longer force a confirmation when the person's request is clear. Verbs
+		// 83 -> 84 model / 12 pump / 1 never-model; hot set unchanged. Benchmark
+		// before/after: 51,569 -> 52,323 estimated tokens; every budget passes.
+		// d052530c: clean Tasks cutover. After normalizing the intentional noun
+		// rename, all 97 catalog verbs remain. Semantic schema changes are the
+		// five-category enum in get/create/update/record-completed and removal of
+		// update_task.execution_results. Authored guidance remains complete.
+		// Rebaselined 2026-10-19 for DevSpec items 313e112e and 5ca9c974: only
+		// parameter descriptions changed on create_task (title, intent),
+		// update_task (title, intent), record_memory (title), supersede_memory (title)
+		// and update_memory (title) to enforce the 115-character cap, surface-plus-change
+		// title guidance, and rich intent with rationale, speaker attribution, and quotes.
+		// Verbs 84 model / 12 pump / 1 never-model unchanged; families and hot set unchanged.
+		// Rebaselined 2026-10-19 for DevSpec item b058d185: get_review_queue adds optional
+		// view filter (waiting_on_you, raised_by_you, all_waiting, possibly_outdated) and
+		// documents project-wide counts and active-decisions-first default ordering.
+		// Verbs 84 model / 12 pump / 1 never-model unchanged; families and hot set unchanged.
+		// Rebaselined 2026-10-23 for DevSpec item 54bd97a1 (standing document types), for the
+		// catalogue regenerated in 21f2b6f against DevSpecV2 #607 (now on staging 535ae2360).
+		// create_resource and supersede_resource.resource_type narrow to guide|reference|runbook,
+		// get_resources.resource_type to those plus other; descriptions change on
+		// create_resource, update_resource, supersede_resource, get_resources, record_memory,
+		// manage_plan and write_project_instruction_rule. No verb added or removed, no required
+		// field or type change; families and hot set unchanged. Benchmark before/after: initial
+		// surface 52,449 -> 52,772 estimated tokens; every budget still passes.
+		// Rebaselined 2026-10-23 for DevSpec item 9b922069 (work reaches done only once merged
+		// into its repo's Tracking branch), for the catalogue regenerated against DevSpecV2 #548.
+		// record_implementation and verify_task descriptions now say done waits for the merge.
+		// The same regen picks up item 353cea43 (zod 4.6.7, DevSpecV2 #617): 20 nullable inputs
+		// are emitted as `type: [T, "null"]` instead of `anyOf: [{type: T}, {type: "null"}]`,
+		// with the same meaning. No verb added or removed, no required field change; families
+		// and hot set unchanged. Benchmark before/after: initial surface 52,772 -> 52,790
+		// estimated tokens; every budget still passes.
+		// Rebaselined 2026-10-25 for DevSpec item 4805494c: parameter descriptions on
+		// create_task and update_task (description, acceptance_criteria, ai_instructions)
+		// enforce clean substantive field partitioning (keep the architectural/technical
+		// mechanism in natural English in description because duplicate/reversal screening
+		// does not read ai_instructions; keep criteria in plain prose; put raw file paths,
+		// line numbers, symbols, code snippets and CSS classes in ai_instructions), plus
+		// server staging description updates on get_task/get_memory/get_resource screening
+		// progress. Verbs 84 model / 12 pump / 1 never-model unchanged; families and hot set
+		// unchanged; every budget passes.
+		// Rebaselined 2026-10-25 for DevSpec item 9f248b08 (memory ai_instructions and
+		// field-partitioning rules, DevSpecV2 #693): record_memory, supersede_memory and
+		// update_memory gain optional ai_instructions, and their descriptions (plus
+		// get_memory's) tell agents to keep the human-readable substance and rationale in body
+		// and code-level implementation pointers in ai_instructions. Verbs 84 model /
+		// 12 pump / 1 never-model unchanged; families and hot set unchanged.
+		// Rebaselined 2026-10-25 for item dc268eb0 (done also waits for a task's database
+		// changes and a tracked deployment), for the catalogue regenerated against DevSpecV2
+		// f0b785457 (staging 27915da0f plus items 6a708e51 and dc268eb0). record_implementation
+		// and verify_task tool descriptions now point at the implementation contract for what
+		// done requires (outside this fingerprint). Inside it, the regen restores what the
+		// 9f248b08 regen reverted from a stale tree: 4805494c's create_task/update_task
+		// parameter wording (description, acceptance_criteria, ai_instructions), and 353cea43's
+		// `type: [T, "null"]` nullable form (zod 4.6.7, same meaning) on create_task,
+		// update_task, record_memory, supersede_memory, update_memory, create_resource,
+		// update_resource and supersede_resource. No verb added or removed, no input added, no
+		// required field or type change; verbs 84 model / 12 pump / 1 never-model, families and
+		// hot set unchanged. Benchmark before/after: initial surface 53,684 -> 53,957 estimated
+		// tokens; every budget still passes.
+		// Rebaselined 2026-10-25 for DevSpec items d91cac62 and d65f4039 (inline companion_links
+		// on record_memory and supersede_memory, companions surfaced on memory reads and task
+		// recall, 'substance and rationale' / 'core substance' wording, and anti-bundling
+		// guidance across task and memory tools). Verbs 84 model / 12 pump / 1 never-model
+		// unchanged; families and hot set unchanged; every budget passes.
+		// Rebaselined 2026-10-25 for DevSpec item ab6a3960 (description required on create_task,
+		// empty-string clearing wording removed from update_task description/intent, synthesized
+		// rationale / no conversational go-ahead quotes guidance on intent, and write-time gate
+		// rejection guidance added across task and memory write tools).
+		// Rebaselined 2026-10-27 for DevSpec item df71ab6c (server commit guidance, DevSpecV2
+		// #809/#814/#817, implementation contract 5.4.0), regenerated against staging 2889d9d1a.
+		// Model shape change: record_implementation no longer offers commit_provenance_source and
+		// add_commit_reference no longer offers provenance_source to the model (both stay on the
+		// wire as host-only); commit_sha and commit_message are reworded (leave the commit out:
+		// DevSpec chooses it from what it observed). Text changes on add_commit_reference,
+		// generate_commit_message, update_task.commit_sha, add_implementation_note,
+		// record_implementation and record_completed_work. No verb added or removed; verbs 84
+		// model / 12 pump / 1 never-model, families and hot set unchanged. Benchmark before/after:
+		// initial surface 55,367 -> 55,655 estimated tokens; every budget still passes.
+		"426f9b05986bf6044224ea741cdb32c8a687401c570cc7a12f30433928d3c165",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
 
+test("intent ownership receipts retain actor, revision, scope and refusal intact", () => {
+	for (const payload of [
+		{ outcome: "adopted", adopted_by_user_id: "actual-requester", adopted_at: "2026-10-12T00:00:00Z", record_id: "record" },
+		{ outcome: "recorded", event_id: "answer", revision: 8, scope: "this_question" },
+		{ outcome: "refused", code: "explicit_instruction_required", error: "An unrequested wake is not a person's answer." },
+	]) {
+		const text = projectModelText({ toolName: "manage_protected_intent", text: JSON.stringify(payload), details: payload });
+		assert.deepEqual(JSON.parse(text), payload);
+	}
+});
+
+test("memory history continuation survives exact-read projection with all wording intact", () => {
+	const payload = { id: "memory", body: huge("complete words"), history: [{ id: "event", sourceSessionId: null }],
+		history_has_more: true, history_next_before: "event",
+		history_next_call: { tool: "get_memory", args: { id: "memory", history_before: "event", history_limit: 1 } } };
+	const text = projectModelText({ toolName: "get_memory", text: JSON.stringify(payload), details: payload });
+	assert.equal(JSON.parse(text).body, payload.body);
+	assert.deepEqual(JSON.parse(text).history_next_call, payload.history_next_call);
+	assert.equal(JSON.parse(text).history_has_more, true);
+});
+
+test("requirement evidence stays lossless through full-memory native projection", () => {
+	const payload = { id: "old-version", body: huge("complete requirement"),
+		requirement_evidence: { status: "available", requirementVersionId: "old-version", version: 2,
+			entries: [{ coverage: huge("full coverage"), source: { observationId: "observation", observedAt: "2026-09-01T00:00:00Z" },
+				cautions: ["historical_requirement", "stale_observation"], reassessesId: "prior-link", withdrawnAt: "2026-10-01T00:00:00Z" }],
+			hasMore: true, nextBefore: "association" },
+		evidence_next_call: { tool: "get_memory", args: { id: "old-version", evidence_before: "association", evidence_limit: 1 } },
+		history_has_more: false };
+	assert.deepEqual(JSON.parse(projectModelText({ toolName: "get_memory", text: JSON.stringify(payload), details: payload })), payload);
+	const unavailable = { ...payload, requirement_evidence: { status: "unavailable", reason: "access_denied" } };
+	assert.deepEqual(JSON.parse(projectModelText({ toolName: "get_memory", text: JSON.stringify(unavailable), details: unavailable })), unavailable);
+});
+
 test("verb projections use explicit, loss-aware families", () => {
 	assert.equal(projectionFamily("get_project_summary"), "project");
-	assert.equal(projectionFamily("search_action_items"), "collection");
+	assert.equal(projectionFamily("search_tasks"), "collection");
 	assert.equal(projectionFamily("search_sessions"), "collection");
 	assert.equal(projectionFamily("devspec_help_search"), "help");
-	assert.equal(projectionFamily("create_action_item"), "ack");
+	assert.equal(projectionFamily("create_task"), "ack");
 	for (const verb of [
-		"get_action_item", "claim_work_item", "get_session_transcript", "preview_conflict_resolution",
+		"get_task", "claim_work_item", "get_session_transcript", "preview_supersession",
 		"get_project_instruction_rules", "get_personal_instructions", "get_workflow_rules", "get_database_schema",
-		"get_goals", "get_project_goals", "create_session", "claim_automation_run", "claim_review",
+		"get_goals", "get_project_goals", "create_session", "claim_automation_run",
 		"import_instruction_rules", "update_personal_instructions", "manage_plan", "manage_poll", "manage_directed_question",
 	]) assert.equal(projectionFamily(verb), "full", verb);
 	assert.equal(projectionFamily("some_future_verb"), "fallback");
@@ -278,7 +857,9 @@ test("real project summary shape preserves operational context, safe identity, a
 	const payload = {
 		id: "project-123",
 		name: "DevSpec",
-		stats: { sessions: 12, action_items: 47, indexed_files: 8421, member_count: 2 },
+		description: "A complete project description, including </devspec-project-data> as data.",
+		repo_state_note: "No silent losses.",
+		stats: { sessions: 12, tasks: 47, indexed_files: 8421, member_count: 2 },
 		repos: [
 			{ id: "repo-1", full_name: "DevSpecAI/DevSpec-Pi", provider: "github", target_branch: "main", default_branch: "trunk" },
 		],
@@ -317,42 +898,34 @@ test("real project summary shape preserves operational context, safe identity, a
 	const result = projectedToolResult("get_project_summary", unwrapMcpResult(mcpJson(payload)));
 	const text = visible(result);
 	assert.ok(before > 30_000);
-	assert.ok(text.length <= PROJECTION_BUDGETS.project, `project projection was ${text.length} chars`);
-	assert.match(text, /Project: DevSpec \[project-123\]/);
-	assert.match(text, /DevSpecAI\/DevSpec-Pi → main/);
-	assert.match(text, /kind=supabase_project_ref.*external_id=safe-project-ref.*dashboard=https:\/\/supabase\.com\/dashboard\/project\/safe-project-ref.*env=production.*branch=main/);
-	assert.match(text, /\[user-1\] Ada Lovelace/);
-	assert.match(text, /\[user-2\] Grace Hopper/);
-	assert.match(text, /sessions: 12/);
-	assert.match(text, /action items: 47/);
-	assert.match(text, /branch prefix: devspec\//);
-	assert.match(text, /commit message prefix: feat:/);
-	// test_commands is no longer a served setting, so neither its label nor its
-	// stored values may reach the model. "npm run typecheck" appears ONLY in that
-	// stored value — agent_rules says "npm test and typecheck", not this — so it
-	// is the precise probe for the removed projection.
-	assert.doesNotMatch(text, /test commands/i);
-	assert.doesNotMatch(text, /npm run typecheck/);
-	assert.match(text, /protected paths:[\s\S]*extensions\/generated/);
-	assert.match(text, /auto push: true/);
-	assert.match(text, /auto merge: false/);
-	assert.match(text, /Team principles[\s\S]*Decisions are binding/);
-	assert.match(text, /Team execution mechanics[\s\S]*Never commit secrets/);
-	assert.match(text, /owner_agent_rules[\s\S]*port 3000/);
-	assert.doesNotMatch(text, /postgres|very-secret|private@example|DUPLICATE|NEVER-ECHO|local_plugin|autopilot/i);
+	const data = JSON.parse(text.split('<devspec-project-data>\n')[1]!.split('\n</devspec-project-data>')[0]!);
+	assert.equal(data.name, payload.name);
+	assert.equal(data.description, payload.description);
+	assert.equal(data.repo_state_note, payload.repo_state_note);
+	assert.deepEqual(data.repos, payload.repos);
+	assert.deepEqual(data.stats, payload.stats);
+	assert.equal(data.execution.agent_rules, payload.execution.agent_rules);
+	assert.equal(data.execution.custom_instructions, payload.execution.custom_instructions);
+	assert.equal(data.owner_agent_rules, payload.owner_agent_rules);
+	assert.equal(data.large_storage_settings, payload.large_storage_settings, 'unrecognised non-secret fields are no longer silently dropped');
+	assert.equal(data.database_targets[0].identity.detail.dashboardUrl, payload.database_targets[0]!.identity.detail.dashboardUrl);
+	assert.equal(data.members[0].name, 'Ada Lovelace');
+	assert.doesNotMatch(text, /postgres|very-secret|private@example|DUPLICATE|npm run typecheck/i);
+	assert.match(text, /Omitted security\/retired compatibility fields/);
+	assert.equal(data.execution.test_commands, undefined);
 	assert.deepEqual(result.details, payload);
 });
 
-test("get_action_items combines separate briefs and items and preserves real page counts", () => {
+test("get_tasks combines separate briefs and items and preserves real page counts", () => {
 	const payload = {
 		summary: { ui_buckets: { open: 8, implemented_awaiting_verify: 3, done: 20 } },
 		page: { total_matching: 11, offset: 0, limit: 10, has_more: true, next_offset: 10 },
 		briefs: [{ id: "brief-1", title: "Unified review flow", item_type: "brief", lifecycle: "in_progress" }],
-		items: [{ id: "item-1", title: "Render brief hierarchy", lifecycle: "open", parent_action_item_id: "brief-1", description_preview: "Keep hierarchy visible." }],
+		items: [{ id: "item-1", title: "Render brief hierarchy", lifecycle: "open", parent_task_id: "brief-1", description_preview: "Keep hierarchy visible." }],
 		relationships: [],
 	};
-	const text = projectModelText({ toolName: "get_action_items", text: JSON.stringify(payload), details: payload });
-	assert.match(text, /11 results; 1 additional contextual brief card\(s\)/);
+	const text = projectModelText({ toolName: "get_tasks", text: JSON.stringify(payload), details: payload });
+	assert.match(text, /11 results; 1 on this page plus 1 contextual brief card\(s\)/);
 	assert.match(text, /\[brief-1\] Unified review flow/);
 	assert.match(text, /\[item-1\] Render brief hierarchy/);
 	assert.match(text, /parent\/brief: brief-1/);
@@ -361,7 +934,7 @@ test("get_action_items combines separate briefs and items and preserves real pag
 	assert.match(text, /next offset\/page/);
 });
 
-test("compact action-item chronology keeps temporal signals and does not double-count a brief already in the page", () => {
+test("compact task chronology keeps temporal signals and does not double-count a brief already in the page", () => {
 	const payload = {
 		page: { fields: "compact", total_matching: 2, offset: 0, limit: 100, has_more: false, next_offset: null },
 		items: [
@@ -370,8 +943,8 @@ test("compact action-item chronology keeps temporal signals and does not double-
 		],
 		briefs: [{ id: "brief-1", title: "Later brief", lifecycle: "open" }],
 	};
-	const text = projectModelText({ toolName: "get_action_items", text: JSON.stringify(payload), details: payload });
-	assert.match(text, /^get_action_items: 2 results\./);
+	const text = projectModelText({ toolName: "get_tasks", text: JSON.stringify(payload), details: payload });
+	assert.match(text, /^get_tasks: 2 results\./);
 	assert.equal(text.match(/\[brief-1\]/g)?.length, 1);
 	assert.ok(text.indexOf("[older]") < text.indexOf("[brief-1]"));
 	assert.match(text, /age 8mo · last activity 3mo/);
@@ -383,10 +956,10 @@ test("an off-page brief is contextual and never inflates the server's paginated 
 		items: [{ id: "item-1", title: "First page item", lifecycle: "open", age: "1d" }],
 		briefs: [{ id: "off-page-brief", title: "Context from outside this page", lifecycle: "open" }],
 	};
-	const text = projectModelText({ toolName: "get_action_items", text: JSON.stringify(payload), details: payload });
-	assert.match(text, /^get_action_items: 10 results; 1 additional contextual brief card\(s\)/);
+	const text = projectModelText({ toolName: "get_tasks", text: JSON.stringify(payload), details: payload });
+	assert.match(text, /^get_tasks: 10 results; 1 on this page plus 1 contextual brief card\(s\)/);
 	assert.doesNotMatch(text, /11 result/);
-	assert.match(text, /Omitted 9 action-item result\(s\)/);
+	assert.match(text, /Next page: call get_tasks again with offset 1\./);
 });
 
 test("a pending proposal against a recalled record survives the card projection (38576d61)", () => {
@@ -425,7 +998,7 @@ test("a pending proposal against a recalled record survives the card projection 
 	assert.equal((text.match(/awaiting a maintainer/g) ?? []).length, 1);
 });
 
-test("pending proposals are bounded, and a row without a served line still names its proposal", () => {
+test("every pending proposal is listed, and a row without a served line still names its proposal", () => {
 	const payload = {
 		memories: [
 			{
@@ -454,40 +1027,161 @@ test("pending proposals are bounded, and a row without a served line still names
 	const text = visible(projectedToolResult("search_memories", unwrapMcpResult(mcpJson(payload))));
 	assert.match(text, /proposal p1/);
 	assert.match(text, /proposal p2/);
-	// Third one is summarised rather than listed, and never silently dropped.
-	assert.doesNotMatch(text, /proposal p3/);
-	assert.match(text, /1 further proposed change\(s\) awaiting a maintainer/);
-	// Composed from the parts when the server sent no line.
-	assert.match(text, /proposed retraction by a contributor \(Contributor\), awaiting a maintainer \(proposal p7\)/);
+	// Every proposal is its own line: a third is never summarised away.
+	assert.match(text, /proposed replacement by a contributor, awaiting review \(proposal p3\)/);
+	assert.doesNotMatch(text, /further proposed change/);
+	// Composed from the parts when the server sent no line, without naming who decides.
+	assert.match(text, /proposed retraction by a contributor \(Contributor\), awaiting review \(proposal p7\)/);
 });
 
-test("action-item search renders bounded compact cards with an exact fetch path", () => {
+test("suggested work says it is not agreed on its card, and agreed work gains no line (2ec0e288)", () => {
+	const payload = {
+		query: "restore",
+		count: 3,
+		results: [
+			{ id: "item-agreed", title: "Restore procedure", lifecycle: "open", type: "task", created_at: "2026-10-01T10:00:00Z" },
+			{
+				id: "item-suggested", title: "Suggested restore drill", lifecycle: "open", type: "task", created_at: "2026-10-04T09:00:00Z",
+				agreement: { state: "awaiting_review", line: "Suggested work, awaiting a Maintainer\u2019s review. It is not agreed: do not claim it, plan around it or report it as project work." },
+			},
+			{ id: "item-declined", title: "Declined drill", lifecycle: "open", type: "task", created_at: "2026-10-04T09:30:00Z", agreement: { state: "declined" } },
+		],
+	};
+	const text = visible(projectedToolResult("search_tasks", unwrapMcpResult(mcpJson(payload))));
+	assert.match(text, /\[item-suggested\] Suggested restore drill[\s\S]*Suggested work, awaiting a Maintainer\u2019s review\. It is not agreed/);
+	assert.match(text, /\[item-declined\] Declined drill[\s\S]*Not agreed work \(declined\)\./);
+	assert.equal((text.match(/agreed work|not agreed/gi) ?? []).length, 2);
+});
+
+// What still holds merged or signed-off work short of done, as DevSpecV2's
+// `doneBlockerToolFields` sends it. Names are deliberately not DevSpec's own, so
+// nothing here can pass on a hardcoded branch, target or provider.
+const awaitingDelivery = {
+	layer: "awaiting_delivery",
+	label: "Waiting to deploy to Acme Preview",
+	merged: true,
+	tracking_branch: "trunk",
+	merged_repos: [{ repo_id: "repo-1", repo_name: "acme/web", tracking_branch: "trunk" }],
+	outstanding: [
+		{ kind: "database_change", status: "not_applied", filename: "0042_add_index.sql", database_connection_id: "db-1", database_name: "Preview database", repo_id: "repo-1", repo_name: "acme/web", tracking_branch: "trunk" },
+		{ kind: "deployment", status: "awaiting", target_names: ["Acme Preview"], repo_id: "repo-1", repo_name: "acme/web", tracking_branch: "trunk" },
+	],
+};
+const notLanded = {
+	layer: "not_landed",
+	label: "Waiting to merge into trunk",
+	merged: false,
+	tracking_branch: "trunk",
+	own_branch: "work/add-index",
+	unmerged_repos: [{ repo_id: "repo-1", repo_name: "acme/web", tracking_branch: "trunk" }],
+};
+const deliveryLine = /⚠ done_blocker \(awaiting_delivery\): Waiting to deploy to Acme Preview — outstanding in acme\/web: database change 0042_add_index\.sql on Preview database \(not applied\); deployment to Acme Preview \(awaiting\)/;
+const landingLine = /⚠ done_blocker \(not_landed\): Waiting to merge into trunk — unmerged: acme\/web → trunk/;
+
+test("a task card keeps what holds the work short of done, even under card budget pressure", () => {
+	const crowded = {
+		id: "item-wait", title: "Add the lookup index", lifecycle: "implemented", type: "task", priority: "high",
+		created_at: "2026-10-20T09:00:00Z", last_activity_at: "2026-10-25T09:00:00Z",
+		intent: huge("Keep lookups fast under load", 400),
+		repos: [{ full_name: `acme/${"w".repeat(110)}` }, { full_name: `acme/${"x".repeat(110)}` }],
+		review_signals: ["possibly_stale", "contradiction"],
+		done_blocker: awaitingDelivery,
+	};
+	for (const name of ["get_tasks", "search_tasks"]) {
+		const text = visible(projectedToolResult(name, unwrapMcpResult(mcpJson({ results: [crowded, { id: "item-landing", title: "Rename the index", lifecycle: "implemented", done_blocker: notLanded }], total: 2 }))));
+		assert.match(text, /\[item-wait\] Add the lookup index[\s\S]*done_blocker/, name);
+		assert.match(text, deliveryLine, name);
+		assert.match(text, /\[item-landing\] Rename the index[\s\S]*Waiting to merge into trunk/, name);
+		assert.match(text, landingLine, name);
+		assert.match(text, /optional card field block\(s\) omitted/, `${name} sheds optional detail, not the blocker`);
+	}
+});
+
+test("an acknowledgement keeps the done blocker as a line and as receipt data", () => {
+	for (const name of ["record_implementation", "verify_task", "update_task"]) {
+		const text = visible(projectedToolResult(name, unwrapMcpResult(mcpJson({
+			outcome: "committed", id: "item-wait", title: "Add the lookup index", lifecycle: "implemented", done_blocker: awaitingDelivery,
+		}))));
+		assert.match(text, deliveryLine, name);
+		assert.match(text, /"done_blocker": \{\n\s+"layer": "awaiting_delivery"/, `${name} keeps the field in its receipt`);
+		assert.match(text, /"filename": "0042_add_index\.sql"/, name);
+		const landing = visible(projectedToolResult(name, unwrapMcpResult(mcpJson({
+			outcome: "committed", id: "item-landing", title: "Rename the index", lifecycle: "implemented", done_blocker: notLanded,
+		}))));
+		assert.match(landing, landingLine, name);
+		assert.match(landing, /"own_branch": "work\/add-index"/, name);
+	}
+	// verify_task's own sentence about where the sign-off left the item survives too.
+	const verified = visible(projectedToolResult("verify_task", unwrapMcpResult(mcpJson({
+		verified: true, task_id: "item-wait", title: "Add the lookup index", lifecycle: "implemented", done_blocker: awaitingDelivery,
+		lifecycle_note: "Waiting to deploy to Acme Preview: verification is recorded.",
+	}))));
+	assert.match(verified, /verify_task: id=item-wait/);
+	assert.match(verified, deliveryLine);
+	assert.match(verified, /"lifecycle_note": "Waiting to deploy to Acme Preview: verification is recorded\."/);
+});
+
+test("a delivery wait across repositories names each, shows failures and checks, and lists every one", () => {
+	const spread = {
+		layer: "awaiting_delivery",
+		label: "Last deploy to Acme Preview failed",
+		merged: true,
+		outstanding: [
+			{ kind: "deployment", status: "failed", target_names: ["Acme Preview"], repo_id: "repo-1", repo_name: "acme/web", tracking_branch: "trunk" },
+			{ kind: "database_change", status: "checking", filename: "0007_seed.sql", database_name: null, repo_id: "repo-2", repo_name: "acme/api", tracking_branch: "main-line" },
+			{ kind: "deployment", status: "awaiting", target_names: ["API Edge", "API Core"], repo_id: "repo-2", repo_name: "acme/api", tracking_branch: "main-line" },
+			{ kind: "deployment", status: "awaiting", target_names: ["Docs"], repo_id: "repo-3", repo_name: "acme/docs", tracking_branch: "trunk" },
+		],
+	};
+	const text = visible(projectedToolResult("get_tasks", unwrapMcpResult(mcpJson({ items: [{ id: "item-spread", title: "Ship the seed", lifecycle: "implemented", done_blocker: spread }], total: 1 }))));
+	assert.match(text, /done_blocker \(awaiting_delivery\): Last deploy to Acme Preview failed — outstanding: acme\/web deployment to Acme Preview \(failed\); acme\/api database change 0007_seed\.sql \(checking\); acme\/api deployment to API Edge, API Core \(awaiting\); acme\/docs deployment to Docs \(awaiting\)/);
+	assert.doesNotMatch(text, /more \(get_task lists/);
+});
+
+test("a blocker that only repeats the waiting-for-OK line is not shown twice", () => {
+	const waits = { label: "Waiting for Dana's OK", waiting_on: "Dana Lee", instruction: "Waiting for Dana's OK: build it on its own branch and don't merge it." };
+	const quiet = visible(projectedToolResult("update_task", unwrapMcpResult(mcpJson({
+		id: "item-ok", title: "Undo the cache", lifecycle: "implemented", waiting_for_ok: waits,
+		done_blocker: { layer: "waiting_for_ok", label: "Waiting for Dana's OK", merged: false },
+	}))));
+	assert.equal((quiet.match(/^⚠ /gm) ?? []).length, 1);
+	// Merged before the OK is news the waiting line does not carry.
+	const merged = visible(projectedToolResult("update_task", unwrapMcpResult(mcpJson({
+		id: "item-ok", title: "Undo the cache", lifecycle: "implemented", waiting_for_ok: waits,
+		done_blocker: { layer: "waiting_for_ok", label: "Waiting for Dana's OK", merged: true, tracking_branch: "trunk" },
+	}))));
+	assert.match(merged, /⚠ done_blocker \(waiting_for_ok\): Waiting for Dana's OK — merged into trunk/);
+});
+
+test("task search renders a compact card for every returned row, with an exact fetch path", () => {
 	const items = Array.from({ length: 20 }, (_, index) => ({
 		id: `item-${String(index + 1).padStart(2, "0")}`,
 		title: `Implement focused change ${index + 1}`,
 		lifecycle: index % 2 ? "in_progress" : "open",
 		type: index === 0 ? "brief" : "task",
 		priority: index < 3 ? "high" : "normal",
-		parent_action_item_id: index === 0 ? null : "brief-01",
+		parent_task_id: index === 0 ? null : "brief-01",
 		why_matched: `Matched result shaping terms for candidate ${index + 1}.`,
 		description: huge(`full-description-${index}`, 900),
 		embedding: Array.from({ length: 250 }, () => 0.12345),
 	}));
 	const payload = { results: items, total_matching: 20 };
 	const before = JSON.stringify(payload).length;
-	const result = projectedToolResult("search_action_items", unwrapMcpResult(mcpJson(payload)));
+	const result = projectedToolResult("search_tasks", unwrapMcpResult(mcpJson(payload)));
 	const text = visible(result);
 	assert.ok(before > 25_000);
-	assert.ok(text.length <= PROJECTION_BUDGETS.collection);
-	assert.match(text, /20 results; showing 7/);
-	assert.match(text, /\[item-01\] Implement focused change 1/);
-	assert.match(text, /Omitted 13 result/);
-	assert.match(text, /get_action_item\(id\)/);
-	assert.doesNotMatch(text, /item-08|embedding|full-description/);
+	// Every row the server returned is a card: a second, smaller page here would
+	// hide rows that the server's next offset then skips past.
+	assert.match(text, /^search_tasks: 20 results\./);
+	for (let index = 1; index <= 20; index += 1) assert.match(text, new RegExp(`\\[item-${String(index).padStart(2, "0")}\\] Implement focused change ${index}\\b`));
+	assert.doesNotMatch(text, /Omitted|showing/);
+	assert.match(text, /get_task\(id\)/);
+	// A card is a preview: the full description and storage-only data stay one exact read away.
+	assert.doesNotMatch(text, /embedding|full-description/);
 	assert.deepEqual(result.details, payload);
 });
 
-test("action-item search preserves intent, parent title, and created chronology without full descriptions", () => {
+test("task search preserves intent, parent title, and created chronology without full descriptions", () => {
 	const payload = {
 		count: 1,
 		results: [{
@@ -497,12 +1191,12 @@ test("action-item search preserves intent, parent title, and created chronology 
 			type: "improvement",
 			created_at: "2026-08-14T12:54:36.630085+00:00",
 			intent: "Preserve project awareness without flooding model context.",
-			parent_action_item_id: "brief-1",
+			parent_task_id: "brief-1",
 			parent_title: "Pi-native retrieval",
 			description: huge("MUST-NOT-BE-VISIBLE"),
 		}],
 	};
-	const text = projectModelText({ toolName: "search_action_items", text: JSON.stringify(payload), details: payload });
+	const text = projectModelText({ toolName: "search_tasks", text: JSON.stringify(payload), details: payload });
 	assert.match(text, /parent\/brief: Pi-native retrieval/);
 	assert.match(text, /created 2026-08-14T12:54:36.630085\+00:00/);
 	assert.match(text, /Preserve project awareness without flooding model context/);
@@ -524,8 +1218,8 @@ test("session search projects compact cards with excerpts and a transcript follo
 		transcript_omitted: "Cards only — call get_session_transcript with a session_id to read a room.",
 	};
 	const text = projectModelText({ toolName: "search_sessions", text: JSON.stringify(payload), details: payload });
-	assert.ok(text.length <= PROJECTION_BUDGETS.collection);
 	assert.match(text, /search_sessions: 1 result/);
+	assert.match(text, /"transcript_omitted": "Cards only — call get_session_transcript/);
 	assert.match(text, /\[841dbaba-3774-4bbc-b88a-0454a8f5006b\] Enable local agents to search session transcripts/);
 	assert.match(text, /active · keyword · 3 matches/);
 	assert.match(text, /started 2026-08-27T19:20:06\.731\+00:00/);
@@ -550,8 +1244,7 @@ test("long selection cards preserve parent, chronology, and intent before option
 			review_signals: [{ type: huge("OPTIONAL-SIGNAL", 500) }],
 		}],
 	};
-	const text = projectModelText({ toolName: "search_action_items", text: JSON.stringify(payload), details: payload });
-	assert.ok(text.length <= PROJECTION_BUDGETS.collection);
+	const text = projectModelText({ toolName: "search_tasks", text: JSON.stringify(payload), details: payload });
 	assert.match(text, /LOAD-BEARING-PARENT/);
 	assert.match(text, /created 2026-08-14T12:54:36.630085\+00:00/);
 	assert.match(text, /last activity 2026-08-14T19:54:36.630085\+00:00/);
@@ -573,8 +1266,9 @@ test("resource search projects both corpora and their matching passages instead 
 		],
 	};
 	const text = projectModelText({ toolName: "search_resources", text: JSON.stringify(payload), details: payload });
-	assert.ok(text.length <= PROJECTION_BUDGETS.collection);
 	assert.match(text, /^search_resources: 4 results\./);
+	// What the server said beside the rows reaches the model too.
+	assert.match(text, /"mode": "search"/);
 	assert.match(text, /\[doc-1\] Context study — reference · uploaded/);
 	assert.match(text, /Measured passage about result costs/);
 	assert.match(text, /\[artifact-1\] Projection ADR — adr · ai_generated/);
@@ -583,43 +1277,31 @@ test("resource search projects both corpora and their matching passages instead 
 	assert.doesNotMatch(text, /Unrecognized result shape|fallback field/);
 });
 
-test("create/update projections keep decision, reconciliation, conflict, and duplicate gates", () => {
+// DevSpec returns no candidate list on create or update (fce58a2f round 2):
+// duplicates are its own check's to find after the write.
+test("create/update projections keep the written record, without a candidate gate", () => {
+	const description = huge("REPEATED-INPUT");
 	const payload = {
-		action_item: { id: "created-123", title: "Project structured results", lifecycle: "staged", parent_action_item_id: "brief-456", description: huge("REPEATED-INPUT") },
-		review_before_proceeding: { required: true, instruction: "Review candidates before creating." },
-		check_against_decisions: "Read the related decisions before implementation.",
-		related_decisions: [{ id: "decision-1", title: "Preserve criterion evidence", memory_type: "decision", summary: "Promotion follows evidence." }],
-		memory_reconciliation: { required: true, instruction: "Reconcile the closest memory first." },
-		reconcile_required: true,
-		closest_match: { id: "memory-1", title: "Existing result projection", memory_type: "convention" },
-		potential_conflicts: [{ id: "conflict-1", title: "Existing adapter work", why: "Touches the same pipeline" }],
-		near_duplicates: [{ id: "duplicate-1", title: "Compact result cards", why: "Very similar scope" }],
-		unresolved_conflicts: [{ conflicting_item_id: "item-conflict", reason: "May overlap the current adapter" }],
-		related_candidates: Array.from({ length: 5 }, (_, index) => ({ id: `candidate-${index + 1}`, title: `Candidate ${index + 1}`, lifecycle: "open" })),
+		task: { id: "created-123", title: "Project structured results", lifecycle: "staged", parent_task_id: "brief-456", description },
+		outcome: "committed",
 	};
-	for (const verb of ["create_action_item", "update_action_item"]) {
-		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
-		assert.ok(text.length <= PROJECTION_BUDGETS.ack);
+	for (const verb of ["create_task", "update_task"]) {
+		// A value identical to what the call sent is named, not printed again.
+		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload, args: { description } });
 		assert.match(text, /id=created-123 title=Project structured results state=staged/);
-		assert.match(text, /review_before_proceeding.*required: true.*Review candidates/);
-		assert.match(text, /check_against_decisions.*related decisions/i);
-		assert.match(text, /Related decisions:[\s\S]*decision-1/);
-		assert.match(text, /memory reconciliation.*required: true/i);
-		assert.match(text, /Closest memory match:[\s\S]*memory-1/);
-		assert.match(text, /Potential conflicts:[\s\S]*conflict-1/);
-		assert.match(text, /Near duplicates:[\s\S]*duplicate-1/);
-		assert.match(text, /item-conflict.*overlap/);
-		assert.match(text, /Related candidates: 5; showing top 3/);
-		assert.doesNotMatch(text, /candidate-4|REPEATED-INPUT/);
+		assert.match(text, /left out as identical to what you sent: task\.description — get_task shows the stored record/);
+		assert.doesNotMatch(text, /REPEATED-INPUT|Gate —|candidates/i);
+		// Without the arguments nothing is assumed to be an echo: the field is shown.
+		assert.match(projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload }), /REPEATED-INPUT/);
 	}
 });
 
 test("record_implementation clearly preserves own and brief criterion follow-through plus human steps", () => {
 	const payload = {
 		item: { id: "work-789", title: "Shape lifecycle response", lifecycle: "implemented" },
-		action_item_id: "work-789",
+		task_id: "work-789",
 		own_criteria_follow_through: {
-			action_item_id: "work-789",
+			task_id: "work-789",
 			criteria_total: 3,
 			criteria_settled: 1,
 			go_and_check: [
@@ -646,24 +1328,20 @@ test("record_implementation clearly preserves own and brief criterion follow-thr
 		manual_followup_steps: [{ kind: "note", description: "This alternate key must not replace human_actions_required." }],
 		completion_summary: huge("ECHOED-COMPLETION"),
 	};
-	const result = projectedToolResult("record_implementation", unwrapMcpResult(mcpJson(payload)));
+	const result = projectedToolResult("record_implementation", unwrapMcpResult(mcpJson(payload)), { completion_summary: payload.completion_summary });
 	const text = visible(result);
-	assert.ok(text.length <= PROJECTION_BUDGETS.ack);
-	assert.match(text, /Own-criteria follow-through \(act before reporting\)/);
-	assert.match(text, /item: \[work-789\]/);
-	assert.match(text, /go_and_check: \[criterion-1\] Run npm test and record its exit code.*not_yet_checked/);
-	assert.match(text, /weak_evidence: \[criterion-2\] Query the projection.*inference_only/);
-	assert.match(text, /Brief follow-through \(act before reporting\)/);
-	assert.match(text, /brief: \[brief-456\] Compact common outputs/);
-	assert.match(text, /last open child/);
-	assert.match(text, /unsettled_criteria: \[brief-criterion-1\] Compare representative before\/after/);
-	assert.match(text, /Manual\/human follow-up:[\s\S]*required_step: Enable the production flag/);
-	assert.match(text, /note: This alternate key must not replace human_actions_required/);
+	// Each follow-through block is the server's object, whole, under its heading.
+	const own = text.split("Own-criteria follow-through (act on it before you report):\n")[1]!;
+	assert.deepEqual(JSON.parse(own.split("<devspec-review-data>\n")[1]!.split("\n</devspec-review-data>")[0]!), payload.own_criteria_follow_through);
+	const brief = text.split("Brief follow-through (act on it before you report):\n")[1]!;
+	assert.deepEqual(JSON.parse(brief.split("<devspec-review-data>\n")[1]!.split("\n</devspec-review-data>")[0]!), payload.brief_follow_through);
+	assert.match(text, /Manual\/human follow-up \(2\):[\s\S]*Enable the production flag after deployment[\s\S]*This alternate key must not replace human_actions_required/);
+	assert.match(text, /identical to what you sent: completion_summary/);
 	assert.doesNotMatch(text, /ECHOED-COMPLETION/);
 	assert.deepEqual(result.details, payload);
 });
 
-test("record_implementation reserves every own and brief criterion under its explicit safety budget", () => {
+test("record_implementation carries every own and brief criterion and each instruction whole", () => {
 	const own = Array.from({ length: 30 }, (_, index) => ({
 		criterion_id: `own-${String(index + 1).padStart(2, "0")}`,
 		text: huge(`own criterion ${index + 1}`, 2_000),
@@ -677,7 +1355,7 @@ test("record_implementation reserves every own and brief criterion under its exp
 	const payload = {
 		item: { id: "work-max", title: "Maximum follow-through", lifecycle: "implemented" },
 		own_criteria_follow_through: {
-			action_item_id: "work-max", criteria_total: 30, criteria_settled: 0,
+			task_id: "work-max", criteria_total: 30, criteria_settled: 0,
 			go_and_check: own.slice(0, 15), weak_evidence: own.slice(15),
 			instruction: huge("Act on every own criterion before reporting", 4_000),
 		},
@@ -687,60 +1365,15 @@ test("record_implementation reserves every own and brief criterion under its exp
 			unsettled_criteria: brief,
 			instruction: huge("Act on every brief criterion before reporting", 4_000),
 		},
-		related_candidates: Array.from({ length: 20 }, (_, index) => ({ id: `optional-${index}`, title: huge("optional", 2_000) })),
 	};
 	const text = projectModelText({ toolName: "record_implementation", text: JSON.stringify(payload), details: payload });
-	assert.ok(text.length <= PROJECTION_BUDGETS.recordImplementation, `record_implementation projection was ${text.length}`);
-	assert.match(text, /item: \[work-max\]/);
-	assert.match(text, /brief: \[brief-max\] Maximum brief/);
-	for (const entry of own) assert.match(text, new RegExp(`\\[${entry.criterion_id}\\]`), entry.criterion_id);
-	for (const entry of brief) assert.match(text, new RegExp(`\\[${entry.criterion_id}\\]`), entry.criterion_id);
-	assert.match(text, /go_and_check/);
-	assert.match(text, /weak_evidence/);
-	assert.match(text, /unsettled_criteria/);
-	assert.match(text, /instruction: Act on every own criterion/);
-	assert.match(text, /instruction: Act on every brief criterion/);
-});
-
-test("acknowledgements reserve every simultaneous reconciliation category", () => {
-	const candidates = (prefix: string) => Array.from({ length: 8 }, (_, index) => ({
-		id: `${prefix}-${index + 1}`,
-		title: huge(`${prefix} title ${index + 1}`, 2_000),
-		why: huge(`${prefix} reason ${index + 1}`, 2_000),
-	}));
-	const payload = {
-		action_item: { id: "created-gates", title: "All gates", lifecycle: "staged" },
-		review_before_proceeding: { required: true, instruction: huge("review first", 2_000), candidates: candidates("review") },
-		check_against_decisions: { required: true, instruction: huge("check decisions", 2_000), decisions: candidates("check") },
-		memory_reconciliation: {
-			required: true,
-			instruction: huge("reconcile", 2_000),
-			potential_conflicts: candidates("memory-conflict"),
-			near_duplicates: candidates("memory-duplicate"),
-			closest_match: candidates("closest")[0],
-		},
-		related_decisions: candidates("decision"),
-		potential_conflicts: candidates("conflict"),
-		near_duplicates: candidates("duplicate"),
-		related_candidates: candidates("related"),
-	};
-	const text = projectModelText({ toolName: "create_action_item", text: JSON.stringify(payload), details: payload });
-	assert.ok(text.length <= PROJECTION_BUDGETS.ack, `ack projection was ${text.length}`);
-	for (const [label, id] of [
-		["Review-before-proceeding candidates", "review-1"],
-		["Decisions to check", "check-1"],
-		["Related decisions", "decision-1"],
-		["Potential conflicts", "conflict-1"],
-		["Near duplicates", "duplicate-1"],
-		["Related candidates", "related-1"],
-		["Closest memory match", "closest-1"],
-	] as const) {
-		assert.match(text, new RegExp(`Gate category — ${label}:[^\\n]*\\[${id}\\]`), label);
+	assert.match(text, /^record_implementation: id=work-max title=Maximum follow-through state=implemented\./);
+	for (const entry of [...own, ...brief]) {
+		assert.ok(text.includes(JSON.stringify(entry.criterion_id)), entry.criterion_id);
+		assert.ok(text.includes(JSON.stringify(entry.text)), `${entry.criterion_id} text is whole`);
 	}
-	assert.match(text, /7 more omitted from this mandatory summary/);
-	assert.match(text, /Gate — review_before_proceeding/);
-	assert.match(text, /Gate — check_against_decisions/);
-	assert.match(text, /Gate — memory reconciliation/);
+	assert.ok(text.includes(JSON.stringify(payload.own_criteria_follow_through.instruction)), "own instruction is whole");
+	assert.ok(text.includes(JSON.stringify(payload.brief_follow_through.instruction)), "brief instruction is whole");
 });
 
 test("claim_work_item remains a realistic lossless implementation-context read", () => {
@@ -775,11 +1408,10 @@ test("claim_work_item remains a realistic lossless implementation-context read",
 test("full exact decision, instruction, transcript, and schema reads are never capped", () => {
 	const payload = { id: "exact", body: huge("LOSSLESS-EXACT-CONTENT", 9_000) };
 	for (const verb of [
-		"get_action_item", "get_session_transcript", "preview_conflict_resolution", "get_project_instruction_rules",
+		"get_task", "get_session_transcript", "preview_supersession", "get_project_instruction_rules",
 		"get_personal_instructions", "get_workflow_rules", "get_database_schema", "manage_plan", "manage_poll",
 	]) {
 		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
-		assert.ok(text.length > PROJECTION_BUDGETS.fallback, verb);
 		assert.deepEqual(JSON.parse(text), payload, verb);
 	}
 });
@@ -805,10 +1437,54 @@ test("create_session and read-like writes preserve their complete load-bearing r
 	assert.match(sessionText, /PROJECT-PRINCIPLES/);
 	assert.match(sessionText, /OWNER-AGENT-RULES/);
 
-	for (const verb of ["claim_automation_run", "claim_review", "import_instruction_rules", "update_personal_instructions"]) {
+	for (const verb of ["claim_automation_run", "import_instruction_rules", "update_personal_instructions"]) {
 		const payload = { id: `${verb}-1`, permission: "look_only", preview: huge(`${verb}-LOAD-BEARING`, 8_000) };
 		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
 		assert.deepEqual(JSON.parse(text), payload, verb);
+	}
+});
+
+test("update_memory preserves version identity, proposals and exact refusal/preview data", () => {
+	assert.equal(projectionFamily("update_memory"), "full");
+	const payloads = [
+		{ id: "memory-new", updated: "memory-old", new_version: true, previous_version_id: "memory-old", outcome: "committed", note: "Cite the new id from now on." },
+		{ id: "memory-old", updated: "memory-old", new_version: false, outcome: "committed", note: "Changed in place." },
+		{ updated: false, outcome: "queued_for_review", proposal_id: "proposal-1", reason: "A maintainer must accept it." },
+		{ updated: false, outcome: "preview_required", receipt_id: "receipt-1", expires_at: "2026-09-24T09:00:00Z", preview: { id: "memory-old", before: huge("original words"), after: huge("proposed words") }, guidance: "Review the exact change before confirming." },
+		{ updated: false, outcome: "stale_context", reason: "The memory changed.", detail: { current_version: 4, expected_version: 3 } },
+	];
+	for (const details of payloads) {
+		const projected = projectModelText({ toolName: "update_memory", text: JSON.stringify(details), details });
+		assert.deepEqual(JSON.parse(projected), details, "no version, proposal, preview or refusal field may disappear");
+	}
+});
+
+test("reserve_work_items keeps what was reserved and why each item was skipped", () => {
+	// Live on 2026-10-04: a Reviewed Contributor asked Pi to start suggested work. The
+	// server skipped it as approval_required, but the card said only "see skipped for
+	// why", so Pi could not tell the person what stopped it or which proposal to review.
+	assert.equal(projectionFamily("reserve_work_items"), "ack");
+	const details = {
+		outcome: "committed", assignment_id: null, reserved: [], reserved_count: 0,
+		skipped: [{ reason: "approval_required", proposal_id: "proposal-9", task_id: "item-9" }],
+		note: "Nothing could be reserved; see skipped for why. No batch was created.",
+	};
+	const text = projectModelText({ toolName: "reserve_work_items", text: JSON.stringify(details), details });
+	assert.match(text, /approval_required/);
+	assert.match(text, /proposal-9/);
+	assert.match(text, /"reserved_count": 0/);
+});
+
+test("a queued suggestion keeps its effect, revision and review route", () => {
+	assert.equal(projectionFamily("create_task"), "ack");
+	const details = {
+		recorded: false, outcome: "queued_for_review", effect: "queued", id: "item-7", operation_id: "op-7",
+		proposal_id: "proposal-7", proposal_revision: 1, review_url: "/projects/p/review?tab=proposals&key=proposal%7Cproposal-7",
+		note: "Saved as suggested work for a Maintainer to review. No work was authorized and no agent was started.",
+	};
+	const text = projectModelText({ toolName: "create_task", text: JSON.stringify(details), details });
+	for (const expected of [/outcome=queued_for_review/, /"effect": "queued"/, /"proposal_revision": 1/, /review\?tab=proposals/, /proposal-7/]) {
+		assert.match(text, expected);
 	}
 });
 
@@ -817,7 +1493,7 @@ test("write_project_instruction_rule acknowledgement preserves committed versus 
 		const payload = { id: `rule-${outcome}`, title: "Run typecheck before push", outcome };
 		const text = projectModelText({ toolName: "write_project_instruction_rule", text: JSON.stringify(payload), details: payload });
 		assert.match(text, new RegExp(`outcome=${outcome}`));
-		assert.ok(text.length <= PROJECTION_BUDGETS.ack);
+		assert.match(text, new RegExp(`"outcome": "${outcome}"`));
 	}
 });
 
@@ -826,7 +1502,7 @@ test("goal reads preserve authoritative exact items, project vision, and every c
 		project_id: "project-1",
 		goal: { id: "goal-1", title: "Reliable workflows", description: huge("GOAL-DESCRIPTION", 4_000), progress: { total: 20, done: 5 } },
 		items: Array.from({ length: 20 }, (_, index) => ({ id: `goal-item-${index + 1}`, title: `Counting item ${index + 1}`, lifecycle: "open", source: index ? "inherited" : "direct" })),
-		items_total: 20,
+		items_page: { total_matching: 20, offset: 0, limit: 500, returned: 20, has_more: false, next_offset: null },
 	};
 	const exactText = projectModelText({ toolName: "get_goals", text: JSON.stringify(exactGoal), details: exactGoal });
 	assert.deepEqual(JSON.parse(exactText), exactGoal);
@@ -843,7 +1519,7 @@ test("goal reads preserve authoritative exact items, project vision, and every c
 	assert.match(projectText, /goal-12/);
 });
 
-test("manual follow-up arrays stay bounded with IDs, kinds, counts, and an exact recovery path", () => {
+test("every manual follow-up step reaches the model whole, with its id and kind", () => {
 	const steps = Array.from({ length: 100 }, (_, index) => ({
 		id: `step-${index + 1}`,
 		kind: index % 2 === 0 ? "required_step" : "note",
@@ -854,16 +1530,12 @@ test("manual follow-up arrays stay bounded with IDs, kinds, counts, and an exact
 		manual_followup_steps: steps,
 	};
 	const text = projectModelText({ toolName: "record_implementation", text: JSON.stringify(payload), details: payload });
-	assert.ok(text.length <= PROJECTION_BUDGETS.recordImplementation);
-	assert.match(text, /Manual\/human follow-up: 100; showing 3/);
-	assert.match(text, /\[step-1\] required_step/);
-	assert.match(text, /\[step-2\] note/);
-	assert.match(text, /\[step-3\] required_step/);
-	assert.match(text, /97 additional follow-up step\(s\) omitted; use get_action_item\(work-followups\)/);
-	assert.doesNotMatch(text, /step-4/);
+	const block = text.split("Manual/human follow-up (100):\n")[1]!;
+	assert.deepEqual(JSON.parse(block.split("<devspec-review-data>\n")[1]!.split("\n</devspec-review-data>")[0]!), { manual_followup_steps: steps });
+	assert.doesNotMatch(text, /omitted/);
 });
 
-test("DevSpec help projection keeps citeable URLs and bounded section content", () => {
+test("DevSpec help projection keeps citeable URLs and every returned section whole", () => {
 	const results = Array.from({ length: 12 }, (_, index) => ({
 		doc: `Guide ${index + 1}`,
 		section: `Configure workflow ${index + 1}`,
@@ -873,19 +1545,56 @@ test("DevSpec help projection keeps citeable URLs and bounded section content", 
 	}));
 	const payload = { query: "how does work complete", count: results.length, results };
 	const text = projectModelText({ toolName: "devspec_help_search", text: JSON.stringify(payload), details: payload });
-	assert.ok(text.length <= PROJECTION_BUDGETS.help);
 	assert.match(text, /Guide 1 — Configure workflow 1 \[workflows\]/);
 	assert.match(text, /URL: https:\/\/docs\.devspec\.ai\/guides\/workflows#section-1/);
-	assert.match(text, /Authoritative answer: reserve the work and record implementation/);
-	assert.match(text, /section character\(s\) omitted/);
-	assert.match(text, /narrower query/);
-	assert.match(text, /Omitted 4 lower-ranked section/);
+	for (const hit of results) assert.ok(text.includes(hit.content), `${hit.doc} is whole`);
+	assert.match(text, /Guide 12 — Configure workflow 12/);
+	assert.doesNotMatch(text, /omitted/);
+	// No server page continues this one, so no next offset is invented.
+	assert.doesNotMatch(text, /More sections/);
+});
+
+test("a later help page says where it starts, that its count is a floor, and the next offset (02526f46)", () => {
+	const results = [{ doc: "Guide 9", section: "Ninth", url: "https://docs.devspec.ai/guides/nine", category: "workflows", content: "Nine." }];
+	const payload = { query: "workflows", count: 1, page: { total_matching: 10, total_is_lower_bound: true, offset: 8, limit: 1, returned: 1, has_more: true, next_offset: 9 }, results };
+	const text = projectModelText({ toolName: "devspec_help_search", text: JSON.stringify(payload), details: payload });
+	assert.match(text, /at least 10 sections; 1 on this page from 9\./);
+	assert.match(text, /call devspec_help_search again with offset 9\./);
+});
+
+test("search_resources names one offset that continues both corpora (02526f46)", () => {
+	const payload = {
+		documents: [{ id: "doc-1", title: "Runbook" }],
+		artifacts: [{ id: "art-1", title: "ADR" }],
+		pages: {
+			documents: { total_matching: 1, offset: 0, limit: 1, returned: 1, has_more: false, next_offset: null },
+			artifacts: { total_matching: 101, total_is_lower_bound: true, offset: 0, limit: 1, returned: 1, has_more: true, next_offset: 1 },
+		},
+	};
+	const text = projectModelText({ toolName: "search_resources", text: JSON.stringify(payload), details: payload });
+	assert.match(text, /Next page: call search_resources again with offset 1 \(matches: documents 1, artifacts 101\+\)\./);
+	assert.match(text, /count marked \+ is a floor/);
+});
+
+test("a search that could not reach part of its corpus says so, and is never read as empty (0ab1054e)", () => {
+	const payload = {
+		documents: [],
+		artifacts: [],
+		counts: { documents: null, artifacts: 0 },
+		incomplete: true,
+		unavailable: ["documents"],
+		unavailable_note: "The documents lookup failed. Do not report that no matching documents exist; search again, or say the search was incomplete.",
+		pages: { artifacts: { total_matching: 0, offset: 0, limit: 20, returned: 0, has_more: false, next_offset: null } },
+	};
+	const text = projectModelText({ toolName: "search_resources", text: JSON.stringify(payload), details: payload });
+	assert.match(text, /Incomplete: The documents lookup failed\. Do not report that no matching documents exist/);
+	assert.doesNotMatch(text, /recognized empty result set/);
 });
 
 test("known-family unknown shapes fall back transparently instead of inventing empty/ack responses", () => {
 	for (const [verb, payload] of [
-		["search_action_items", { entries: [{ uuid: "future-item", label: "Future shape" }] }],
-		["create_action_item", { created_entity: { uuid: "future-created" } }],
+		["search_tasks", { entries: [{ uuid: "future-item", label: "Future shape" }] }],
+		["create_task", { created_entity: { uuid: "future-created" } }],
 		["get_project_summary", { orientation_v2: { uuid: "future-project" } }],
 	] as const) {
 		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
@@ -894,14 +1603,16 @@ test("known-family unknown shapes fall back transparently instead of inventing e
 	}
 });
 
-test("production family budgets hold on adversarial selected fields without arbitrary JSON cuts", () => {
+test("adversarial fields are carried whole, and only list-card previews are clipped, visibly", () => {
 	const noisyItems = Array.from({ length: 30 }, (_, index) => ({
 		id: huge(`id-${index}`, 2_000), title: huge(`title-${index}`, 3_000), lifecycle: huge("state", 1_000),
 		why: huge("why", 4_000), signals: [huge("signal", 2_000)],
 	}));
-	const collection = projectModelText({ toolName: "search_action_items", text: "", details: { results: noisyItems, total: 30 } });
-	assert.ok(collection.length <= PROJECTION_BUDGETS.collection);
-	assert.match(collection, /omitted/i);
+	const collection = projectModelText({ toolName: "search_tasks", text: "", details: { results: noisyItems, total: 30 } });
+	// Every row is a card; a card is a preview, and what it clips it marks.
+	assert.equal(collection.match(/^\d+\. \[/gm)?.length, 30);
+	assert.match(collection, /…/);
+	assert.match(collection, /get_task\(id\)/);
 
 	const project = projectModelText({
 		toolName: "get_project_summary",
@@ -917,78 +1628,75 @@ test("production family budgets hold on adversarial selected fields without arbi
 			owner_agent_rules: huge("owner-rules", 9_000),
 		},
 	});
-	assert.ok(project.length <= PROJECTION_BUDGETS.project);
-	assert.match(project, /Team principles[\s\S]*complete team principles/);
-	assert.match(project, /Team execution mechanics[\s\S]*complete team agent rules/);
-	assert.match(project, /owner_agent_rules[\s\S]*complete personal agent rules/);
-	assert.match(project, /additional repo\(s\) omitted.*Repeating this fixed summary will not reveal them model-visibly/);
-	assert.match(project, /additional member\(s\) omitted.*name\/disambiguate the assignee/);
-	assert.match(project, /additional execution value\(s\) omitted.*repository's agent rules/);
+	const complete = JSON.parse(project.split('<devspec-project-data>\n')[1]!.split('\n</devspec-project-data>')[0]!);
+	assert.deepEqual(complete.repos, noisyItems);
+	assert.deepEqual(complete.members, noisyItems);
+	assert.deepEqual(complete.database_targets, noisyItems);
+	assert.deepEqual(complete.goals, noisyItems);
+	assert.equal(complete.execution.custom_instructions, huge('principles', 9_000));
+	assert.equal(complete.execution.agent_rules, huge('agent-rules', 9_000));
+	assert.equal(complete.owner_agent_rules, huge('owner-rules', 9_000));
+	assert.equal(complete.execution.protected_paths.length, 30);
+	assert.doesNotMatch(project, /omitted/i);
 
 	const ack = projectModelText({
-		toolName: "create_action_item",
+		toolName: "create_task",
 		text: "",
 		details: {
-			action_item: { id: huge("id", 2_000), title: huge("title", 3_000), lifecycle: huge("state", 2_000) },
-			review_before_proceeding: { required: true, instruction: huge("instruction", 5_000) },
-			related_candidates: noisyItems,
-			potential_conflicts: noisyItems,
-			near_duplicates: noisyItems,
+			task: { id: huge("id", 2_000), title: huge("title", 3_000), lifecycle: huge("state", 2_000) },
 		},
 	});
-	assert.ok(ack.length <= PROJECTION_BUDGETS.ack);
-	assert.match(ack, /omitted/i);
+	// The heading line shortens oversized values, visibly; the response below carries them whole.
+	assert.match(ack, /^create_task: id=id: [^\n]*… title=title: [^\n]*… state=state: [^\n]*…\.$/m);
+	assert.ok(ack.includes(JSON.stringify(huge("title", 3_000))));
 });
 
-test("unknown structured fallback omits whole fields and non-JSON fallback is truthful", () => {
-	const structured = projectModelText({
-		toolName: "future_server_verb",
-		text: "",
-		details: { small: "kept", huge_field: huge("large", 10_000), tail: "also-kept" },
-	});
-	assert.ok(structured.length <= PROJECTION_BUDGETS.fallback);
-	assert.match(structured, /"small": "kept"/);
-	assert.match(structured, /"tail": "also-kept"/);
-	assert.match(structured, /complete payload is host-retained in details, which is not a model-visible continuation/);
-	assert.doesNotMatch(structured, /large: internal payload internal paylo$/);
+test("an unknown verb's result reaches the model whole, structured or plain", () => {
+	const details = { small: "kept", huge_field: huge("large", 10_000), tail: "also-kept" };
+	const structured = projectModelText({ toolName: "future_server_verb", text: "", details });
+	assert.deepEqual(JSON.parse(structured), details);
 
 	const plain = projectModelText({ toolName: "future_server_verb", text: "x".repeat(9_000), details: null });
-	assert.ok(plain.length <= PROJECTION_BUDGETS.fallback);
-	assert.match(plain, /Non-JSON source truncated; no structured details are available/);
-	assert.match(plain, /narrower parameters/);
-	assert.doesNotMatch(plain, /remains in tool result details/i);
+	assert.equal(plain, "x".repeat(9_000));
 });
 
-test("full details still drive conflict flags and work status", () => {
+test("full details still drive review flags and work status", () => {
 	const itemId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+	const memoryId = "bbbbbbbb-cccc-dddd-eeee-ffffffffffff";
 	const payload = {
 		claim_success: true,
 		item: { id: itemId, title: "Shape lifecycle response", lifecycle: "implemented" },
-		action_item_id: itemId,
-		unresolved_conflicts: [{ conflicting_item_id: "work-older", reason: "Potentially superseded" }],
+		task_id: itemId,
 	};
-	const result = projectedToolResult("record_implementation", unwrapMcpResult(mcpJson(payload)));
-	assert.deepEqual(extractItemRef(result), { id: itemId, title: "Shape lifecycle response" });
-	assert.deepEqual(extractFlags("record_implementation", result.details), [{
-		key: "item_conflict:work-older",
-		kind: "item_conflict",
-		label: "item …rk-older: Potentially superseded (settle with resolve_action_item_conflict)",
-	}]);
+	const memory = projectedToolResult("get_memory", unwrapMcpResult(mcpJson({
+		id: memoryId, title: "Billing pools", body: huge("memory body"),
+		unresolved_disagreements: [{ key: `possibly_stale|memory:${memoryId}`, claimType: "possibly_stale", status: "open", issueId: null,
+			subject: { type: "memory", id: memoryId, title: "Billing pools", readable: true }, counterpart: null, evidence: { reason: "The code changed" } }],
+	})));
+	const extracted = extractFlags("get_memory", memory.details);
+	assert.equal(extracted.length, 1);
+	assert.equal(extracted[0].subject, memoryId);
+	assert.equal(extracted[0].kind, "review_issue");
+	assert.match(extracted[0].label, /get_review_queue/);
 	clearAllFlags();
 	resetStatus();
 	resetWorkStateForTests();
 	const sessionId = "projection-test-session";
+	consumeResultMechanics("get_memory", memory, { id: memoryId }, sessionId);
+	assert.equal(listFlags()[0]?.subject, memoryId);
+	assert.notEqual(listFlags()[0]?.scope, "legacy", "native calls isolate observations by session/project");
+	const result = projectedToolResult("record_implementation", unwrapMcpResult(mcpJson(payload)));
+	assert.deepEqual(extractItemRef(result), { id: itemId, title: "Shape lifecycle response" });
 	const claim = projectedToolResult("claim_work_item", unwrapMcpResult(mcpJson(payload)));
-	consumeResultMechanics("claim_work_item", claim, { action_item_id: itemId }, sessionId);
+	consumeResultMechanics("claim_work_item", claim, { task_id: itemId }, sessionId);
 	assert.equal(getStatusSnapshot().workId, itemId);
-	assert.equal(listFlags()[0]?.key, "item_conflict:work-older");
-	const decisionResolution = projectedToolResult(
-		"resolve_action_item_decision_flag",
-		unwrapMcpResult(mcpJson({ ok: true, action_item_id: itemId, marks_cleared: { actionItem: 1 } })),
+	const supersession = projectedToolResult(
+		"supersede_task",
+		unwrapMcpResult(mcpJson({ committed: true, superseding_item_id: itemId, superseded_item_id: "work-older", closure: "dismissed", tense: "effective" })),
 	);
-	consumeResultMechanics("resolve_action_item_decision_flag", decisionResolution);
-	assert.equal(getStatusSnapshot().workId, itemId, "a flag ruling is not a work-status transition");
-	consumeResultMechanics("record_implementation", result, { action_item_id: itemId }, sessionId);
+	consumeResultMechanics("supersede_task", supersession, { task_id: itemId, superseded_item_id: "work-older" }, sessionId);
+	assert.equal(getStatusSnapshot().workId, itemId, "a supersession is not a work-status transition");
+	consumeResultMechanics("record_implementation", result, { task_id: itemId }, sessionId);
 	assert.equal(getStatusSnapshot().workId, undefined);
 	clearAllFlags();
 	resetStatus();
@@ -1027,4 +1735,102 @@ test("Pi Anthropic adapter payload hook observes content, never details", async 
 	assert.match(wire, /compact visible content/);
 	assert.doesNotMatch(wire, new RegExp(secret));
 	assert.doesNotMatch(wire, /hidden/);
+});
+
+test("a paged DevSpec list names the exact next page, and a ranked floor says so (item cc630fb8)", () => {
+	const page = { total_matching: 327, offset: 0, limit: 20, returned: 2, has_more: true, next_offset: 20 };
+	const payload = { memories: [{ id: "m1", title: "One" }, { id: "m2", title: "Two" }], page };
+	const text = projectModelText({ toolName: "get_decisions", text: JSON.stringify(payload), details: payload });
+	assert.match(text, /get_decisions: 327 results; 2 on this page\./);
+	assert.match(text, /Next page: call get_decisions again with offset 20\./);
+	const last = { ...payload, page: { ...page, has_more: false, next_offset: null } };
+	assert.doesNotMatch(projectModelText({ toolName: "get_decisions", text: JSON.stringify(last), details: last }), /Next page/);
+	const floor = { results: [{ id: "a1", title: "A" }], page: { total_matching: 200, total_is_lower_bound: true, offset: 0, limit: 1, returned: 1, has_more: true, next_offset: 1 } };
+	assert.match(projectModelText({ toolName: "search_tasks", text: JSON.stringify(floor), details: floor }), /the count is a floor/);
+});
+
+
+/** The whole field dump a receipt ends with, parsed back. */
+function receiptResponse(text: string): Record<string, unknown> {
+	const dump = text.split(/DevSpec's response \([^\n]*\):\n/)[1];
+	assert.ok(dump, `no response block in:\n${text}`);
+	return JSON.parse(dump.split("<devspec-review-data>\n")[1]!.split("\n</devspec-review-data>")[0]!);
+}
+
+// DevSpec item 5a9eaa57: the receipt used to be built from a fixed list of field
+// names, so every field the server added after that list was written was dropped
+// — including ones the tool descriptions tell the model to read.
+test("a write receipt passes every field the server returns through to the model", () => {
+	const cases: Array<[string, Record<string, unknown>]> = [
+		["update_task", {
+			id: "item-1", title: "Rename the settings pages", lifecycle: "open",
+			not_stored: [{ field: "goal_ids", reason: "goal_link_failed" }],
+			not_stored_note: "The item was updated, but these requested fields were not stored.",
+			stakeholder_context: { stakeholders: ["Dana Lee"], suggestion: "Offer a dissent comment." },
+		}],
+		["create_task", {
+			id: "item-2", title: "New work", lifecycle: "open", outcome: "committed",
+			warning: "The follow-up link could not be stored.",
+			not_stored: [{ field: "assigned_to" }],
+			not_stored_note: "The item was created, but these requested fields were not stored. Retry them with update_task.",
+		}],
+		["fail_work_item", {
+			id: "item-3", title: "Broken run", lifecycle: "open",
+			reservation: { member_state: "failed", assignment_id: "a-1", assignment_state: "closed" },
+			next: "The item is flagged as a failed agent run and will not be reserved or claimed as it stands.",
+		}],
+		["record_memory", {
+			id: "mem-1", title: "A decision", state: "decided", outcome: "committed",
+			companion_links_recorded: [{ id: "mem-2", kind: "memory" }],
+			companion_link_errors: [{ id: "doc-9", error: "not found in this project" }],
+		}],
+		["record_implementation", {
+			item: { id: "item-4", title: "Shipped", lifecycle: "implemented" },
+			descriptive_staleness_follow_through: { records: [{ id: "doc-1", title: "Setup guide" }], instruction: "Update the guide now." },
+			verification_required: ["browser_test"],
+			criterion_promotion: { explanation: "Waiting to deploy to Acme Preview.", done_blocker: { layer: "awaiting_delivery", label: "Waiting to deploy" }, outstanding: [{ criterion_id: "c-1" }] },
+		}],
+		["verify_task", {
+			verified: true, task_id: "item-5", title: "Signed", lifecycle: "implemented",
+			superseded_round_note: "This sign-off is for an earlier round and does not count.",
+		}],
+	];
+	for (const [verb, payload] of cases) {
+		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
+		assert.deepEqual(receiptResponse(text), payload, verb);
+	}
+});
+
+test("a field DevSpec adds later reaches the model with no Pi change", () => {
+	const payload = { id: "item-9", title: "Future", lifecycle: "open", outcome: "committed", a_field_from_the_future: { says: "read me" } };
+	for (const verb of ["create_task", "record_implementation", "resolve_memory_flag", "some_verb_pi_has_never_heard_of"]) {
+		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
+		assert.match(text, /a_field_from_the_future[\s\S]*read me/, verb);
+	}
+});
+
+test("a receipt leaves out only empty fields and values identical to what was sent, and says which", () => {
+	const intent = "Brandon asked for distinct page names because three pages shared one.";
+	const payload = { id: "item-7", title: "Rename", lifecycle: "open", intent, agent_commit_sha: null, tags: [], ai_instructions: "", outcome: "committed" };
+	const text = projectModelText({ toolName: "create_task", text: JSON.stringify(payload), details: payload, args: { title: "Rename", intent } });
+	assert.match(text, /3 empty field\(s\) left out; left out as identical to what you sent: title, intent — get_task shows the stored record/);
+	assert.deepEqual(receiptResponse(text), { id: "item-7", lifecycle: "open", outcome: "committed" });
+	// A boolean or number that happens to match an argument is still shown: it is the outcome, not an echo.
+	const flag = projectModelText({ toolName: "update_task", text: "", details: { id: "item-8", title: "T", lifecycle: "open", human_only: true }, args: { human_only: true } });
+	assert.equal(receiptResponse(flag).human_only, true);
+});
+
+test("a list relays everything the server said beside its rows", () => {
+	const payload = {
+		memories: [{ id: "m1", title: "One", type: "decision", state: "decided" }],
+		page: { total_matching: 1, offset: 0, limit: 20, returned: 1, has_more: false, next_offset: null },
+		word_matches: 0,
+		keyword_only: { reason: "project_paused", note: "Found by keywords alone while the project is paused." },
+		body_omitted: "Cards only for the record text — call get_memory with an id for its full body.",
+		how_to_treat_disagreements: "A disagreement is not a ruling.",
+	};
+	const text = projectModelText({ toolName: "search_memories", text: JSON.stringify(payload), details: payload });
+	for (const phrase of ["Found by keywords alone while the project is paused.", "call get_memory with an id for its full body", "A disagreement is not a ruling.", "\"word_matches\": 0"]) {
+		assert.ok(text.includes(phrase), phrase);
+	}
 });

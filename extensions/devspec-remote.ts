@@ -6,8 +6,9 @@
  *
  * Design (VISION.md):
  * - Bond key = the pi session id (conversation id — never cwd/shell).
- * - ONE negotiated poll_connection long-poll carries heartbeat and canonical
- *   ingress; commands arrive as REAL user messages (sendUserMessage).
+ * - ONE live poll_connection loop carries heartbeat and canonical commands.
+ *   Bounded history-only recovery reads never admit commands or mutate its cursor.
+ *   Commands arrive as REAL user messages (sendUserMessage).
  * - Runtime ingress semantics are served at
  *   devspec://product/remote-ingress-contract rather than duplicated here.
  * - Egress is runtime-mechanical (item cc9e8c43): the extension delivers
@@ -21,6 +22,11 @@
  */
 
 import { AssistantSpeechSource, AssistantSpeechQueue, assistantSpeechWithinBudget } from "./core/assistant-speech.ts";
+import { startLocalActivity } from "./core/local-activity.ts";
+import { githubIdentityNotice } from "./core/github-identity.ts";
+import { CommandPreemptionBudget, commandOfferAction, parseCommandOfferPoll, type CommandOffer, type CommandOfferScope } from "./core/command-offer.ts";
+import { randomUUID } from "node:crypto";
+import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getSupportedThinkingLevels, type ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { readFileSync } from "node:fs";
@@ -30,18 +36,33 @@ import { DeliveryQueue, StaleDeliveryError, nextDeliveryRetryDelayMs, type Deliv
 import { revalidateAutomationRunRetry } from "./core/automation-run-retry.ts";
 import {
 	callDevspec,
+	readDevspecResource,
 	DevspecAuthError,
 	isPermanentServerEnd,
+	personEndClosesPi,
 	MODEL_TIMEOUT_MS,
 	DevspecToolError,
 	shouldEndBondOnPollFailure,
 } from "./core/client.ts";
 import { connectionCapabilityFromResult, getBond, setBond, type BondState } from "./core/bond-state.ts";
+import { repositoryContextMessage } from "./core/repository-context.ts";
+import { applyConnectionContext } from "./core/connection-context.ts";
+import { installProjectSelection } from "./core/project-selection-ui.ts";
+import { getProjectChoice, projectFromRegistration, projectRemoteArgs, type ProjectCandidate, type ProjectChoice, type ProjectChoiceRequired } from "./core/project-choice.ts";
+import { openRoomStore, roomPrincipalFingerprint, type RoomStoreScope } from "./core/room-store.ts";
+import { readRoomForContext, roomUnreadBoundary, roomUnreadForContext } from "./core/room-tools.ts";
+import { observeRoomAccess } from "./core/room-access.ts";
+import { compactRoomAwareness, roomScopeFromEntries, ROOM_READ_TOOL, ROOM_SCOPE_ENTRY } from "./core/room-reader.ts";
+import { deliveredCommandKeys } from "./core/room-unread.ts";
+import { advertisesRoomContext } from "./core/room-context.ts";
+import { advertisesSessionEvents } from "./core/session-events.ts";
+import { RoomSync } from "./core/room-sync.ts";
 import {
 	capturePumpAuthority,
 	isPumpAuthorityCurrent,
 	planRecoveredConnectionScope,
 } from "./core/bond-recovery.ts";
+import { unreadableRemoteMessageNotice, unreadableRoomStateNotice } from "./core/version-mismatch.ts";
 import {
 	formatCanonicalDeliveryContext,
 	formatInboundBundleMessage,
@@ -49,22 +70,28 @@ import {
 	parsePollPayload,
 	REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE,
 	senderStyleRepairNeeded,
+	SYSTEM_NOTICE_CHANNEL_VERSION,
 	type IngressAdvisoryContext,
 	type OwnerCommand,
 	type OwnerCommandBundle,
 	type RemoteConnectionIdentity,
 } from "./core/remote-payload.ts";
-import { CommandTurnBindings, type CanonicalQueueItem } from "./core/command-turn.ts";
-import { compactWithContext, executeControlCommand, parseControlCommand, reloadWithContext, runReloadLap } from "./core/control.ts";
+import { CommandTurnBindings, type CanonicalQueueItem, type CommandRequestRef } from "./core/command-turn.ts";
+import { noteDeliveredCommandRefs, clearDealtRefs } from "./core/provenance-refs.ts";
+import { CONTROL_VERBS, compactWithContext, executeControlCommand, parseControlCommand, reloadWithContext, runReloadLap } from "./core/control.ts";
 import { safeHasUI, withLiveUi } from "./core/ctx-guard.ts";
-import { commandReloadContext, rememberExtensionRunner } from "./core/command-runner.ts";
+import { extensionCommandContext, rememberExtensionRunner } from "./core/command-runner.ts";
+import { clearConversation } from "./core/clear-conversation.ts";
 import { collectModelCatalog, type ModelCatalogSnapshot } from "./core/model-catalog.ts";
+import { CONTROL_RESULT_ENTRY, ControlResultOutbox, type ControlResult, type ControlResultEntry, type ControlDeliveryOutcome } from "./core/control-result-outbox.ts";
 import {
 	AttachmentDeliveryLease,
 	cleanupMaterialisedAttachments,
 	createAttachmentHydrationBudget,
 	formatAttachmentNotes,
 	materialiseAttachments,
+	attachmentDirFor,
+	defaultFetchUrl,
 	requireMaterialisedAttachments,
 	sanitizeAttachmentFailureReason,
 	type AttachmentHydrationBudget,
@@ -76,9 +103,34 @@ import { shapeTranscript } from "./core/attach-context.ts";
 import { parsePostSessionReceipt, TrailDeliveryState } from "./core/post-session-receipt.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { SubagentFleetClient, type SubagentFleetSnapshot } from "./core/subagent-fleet.ts";
+import { BackgroundWorkObserver, backgroundTaskFromLaunch, backgroundTasksFromManagement, type BackgroundObservation } from "./core/background-observer.ts";
+import { BACKGROUND_WORK_ENTRY, backgroundScopeKey, backgroundWorkEntry, journaledFinishedTasks, restoreBackgroundWork, type BackgroundWorkScope } from "./core/background-journal.ts";
 import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
-import { takeContextBudgetReport } from "./core/context-budget.ts";
-import { automaticBackgroundTaskId, backgroundTaskNotificationId, terminalBackgroundTaskIds, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitSpeech, isHarnessOrigin, isSubagentAsyncNotification, TurnTracker } from "./core/turn-lifecycle.ts";
+import { takeContextBudgetReport, noteInjectedContext } from "./core/context-budget.ts";
+import { backgroundTaskNotificationId, classifyUserKind, isBackgroundCompletionOrigin, terminalBackgroundTaskIds, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitSpeech, isHarnessOrigin, isSubagentAsyncNotification, TurnTracker, noteProgressEvent, currentProgressMarker } from "./core/turn-lifecycle.ts";
+import {
+	activeRequestChain,
+	askedQuestionId,
+	backgroundLaunch,
+	backgroundNotificationTask,
+	cancelledQuestionId,
+	installRequestChain,
+	installServeToolSwitch,
+	isLaunchCall,
+	launchRefusal,
+	questionKey,
+	REQUEST_LINK_ENTRY,
+	RequestChain,
+	subagentKey,
+	subagentLaunch,
+	taskKey,
+	typedInputLedger,
+	wakeKeys,
+	withServeRequestToolActive,
+	type RequestLinkEntry,
+	type LaunchSnapshot,
+	type WakeKey,
+} from "./core/request-chain.ts";
 import {
 	formatAutomationRunMessage,
 	isAutomationRunEnvelope,
@@ -178,6 +230,16 @@ import {
 	shouldDeliverSystemNotices,
 	transitionToRealUserActivity,
 } from "./core/system-notice.ts";
+import {
+	advertisesNoticeReply,
+	noticeIdsFromDelivery,
+	noticeReplyFinalText,
+	noticeReplyTerminalMessage,
+	postNoticeReply,
+	type NoticeReplyCapture,
+} from "./core/notice-reply.ts";
+
+class StaleCommandHandoffError extends DevspecToolError {}
 
 const AGENT_NAME = "Pi";
 /** Aggregate current-session ownership; child identities remain inside pi-subagents. */
@@ -230,6 +292,14 @@ interface PumpState {
 	dispatchCursor?: string;
 	/** Independent v1 notice point; advances only after validated host acceptance. */
 	systemNoticeCursor?: string;
+	/** The unreadable-message reason already reported to the person and the room (39c05c1f). */
+	unreadableIngressReported?: string;
+	/**
+	 * The unreadable room-state set already reported to the person (39c05c1f). Kept
+	 * for the life of this pump: room state is re-sent whenever it changes, and the
+	 * person needs telling once, not on every change.
+	 */
+	unreadableRoomStateReported?: string;
 	/** Frozen exact addressee for this registered pump generation. */
 	connectionIdentity: RemoteConnectionIdentity;
 	/** globalThis notice state key: Pi session + connection + pump generation. */
@@ -276,6 +346,11 @@ interface PumpState {
 	pendingInteractionStarts: Map<string, PendingInteractionStartRetry>;
 	pendingInteractionReleases: Map<string, PendingInteractionReleaseRetry>;
 	interactionRetryTimer?: ReturnType<typeof setTimeout>;
+	controlResults: ControlResultOutbox;
+	controlResultRetryTimer?: ReturnType<typeof setTimeout>;
+	/** Clears that arrived mid-response and wait for it to end (item 6beb89c6). */
+	queuedClears: Set<string>;
+	controlResultWarning?: boolean;
 	wakeGate: WakeGenerationGate;
 	/** Last attach-context/title fetch attempt — titles are job-generated, so a
 	 *  missing one is retried on a slow cadence, never hot-polled (Ali: a brand-new
@@ -290,6 +365,9 @@ interface PumpState {
 	attachmentRetryAttempts: Map<string, number>;
 	/** Pi local session identity scopes minimal awareness across reload/rebond. */
 	awarenessKey: string;
+	roomSync?: RoomSync;
+	roomSyncKey?: string;
+	roomSyncAttemptAt?: number;
 	/** Latest validated 1.3 projection tail and its not-yet-injected revision. */
 	activePlanTail: string;
 	pendingActivePlanTail: string;
@@ -340,6 +418,8 @@ interface SpeechBinding {
 	readonly args: Readonly<Record<string, unknown>>;
 	readonly current: () => boolean;
 	readonly capability: string;
+	/** The bond's session at capture — the receipt expectation, on either lane. */
+	readonly sessionId: string;
 	readonly ready: Promise<{ args: Readonly<Record<string, unknown>>; token: string } | null>;
 }
 interface TurnState {
@@ -358,6 +438,26 @@ interface TurnState {
 	commandMessageId?: string;
 	/** Harness notice runs never post/complete owner command activity. */
 	completionNeutral: boolean;
+	/**
+	 * The notices this neutral segment was woken by and its final message, posted
+	 * as their reply when the segment closes (6aad2b46). Never carried to the next segment.
+	 */
+	noticeReply?: NoticeReplyCapture;
+	/**
+	 * Terminal provider failure reason for this run (item e99d158b): a
+	 * stopReason "error" assistant message is never speech and never settles
+	 * as an answer, so without this the room sees a silent stop. The settle
+	 * fallback posts it with phase "error" instead of reportComplete.
+	 */
+	terminalError?: string;
+	/** Captured before local work executes; failure never falls back to latest unbound. */
+	localActivityReady?: Promise<string | null>;
+	/**
+	 * What started this segment (item 7a4d04fd). Only a prompt the owner typed
+	 * at this terminal ("typed") is admitted as a local turn or mirrored as one:
+	 * automation runs, harness wakes, notices and the extension's own sends never are.
+	 */
+	requestKind?: SegmentRequestKind;
 	/** Exact event/claim-bound activity for a directed-question continuation. */
 	interaction?: ExactInteractionRun;
 	/** Runtime run generation; older settle callbacks cannot clear a newer run. */
@@ -428,17 +528,22 @@ const pendingBackgroundTaskIds = new Set<string>();
  * the command turn open; a completion-wake turn is born with NO command ids,
  * and an unbound post while a command turn is parked is fenced server-side as
  * stale_generation and silently dropped — the wake report vanished today.
- * Wake turns therefore ADOPT this identity (they are the command's own work
- * continuing), and it clears when the turn genuinely closes: a successful
- * complete_turn:true post, a reportComplete for it, or any authority
- * rotation. A stale adoption that still fences fails explicitly; it must never
- * shed its source identity to bypass the server fence.
+ * Wake turns therefore ADOPT the identity of the command they continue while
+ * its turn is this one, and it clears when the turn genuinely closes: a
+ * successful complete_turn:true post, a reportComplete for it, or any
+ * authority rotation. A stale adoption that still fences fails explicitly; it
+ * must never shed its source identity to bypass the server fence.
  */
 let activeCommandTurnIdentity: { turnId: string; commandMessageId: string } | null = null;
 
-/** A completion-wake segment with no ids of its own rides the parked command
- *  turn it is continuing. Never for interaction runs (exact identity) or
- *  mid-owner-turn injections (the turn is already bound). */
+/**
+ * A completion-wake segment with no ids of its own rides the parked command
+ * turn it is continuing, posting as that turn's newest command, so its reply
+ * lands (759f2818). Posting only: who asked travels in request_ref (item
+ * 7a4d04fd), never in the posting identity, so this is exactly as before for
+ * every host, including one that cannot open requests. Never for interaction
+ * runs (exact identity) or mid-owner-turn injections (the turn is already bound).
+ */
 function adoptParkedCommandIdentity(t: { commandTurnId?: string; commandMessageId?: string; interaction?: unknown } | null, kind: string | null): void {
 	if (!t || t.interaction || kind !== "harness") return;
 	if (t.commandTurnId || t.commandMessageId) return;
@@ -446,6 +551,246 @@ function adoptParkedCommandIdentity(t: { commandTurnId?: string; commandMessageI
 	t.commandTurnId = activeCommandTurnIdentity.turnId;
 	t.commandMessageId = activeCommandTurnIdentity.commandMessageId;
 	debug("wake adopted command turn");
+}
+
+// ---- The request chain (item 7a4d04fd) --------------------------------------
+// Every wake carries the request it continues. The chain lives on globalThis
+// (devspec-tools stamps or refuses each write from it); this extension feeds it.
+
+/** What started the current segment, attached or not; inherited by a mid-run attach. */
+type SegmentRequestKind = "typed" | "command" | "automation" | "wake" | "none" | "untyped";
+let segmentInputKind: SegmentRequestKind | undefined;
+/** A Pi run is in progress (agent_start..agent_settled). */
+let runActive = false;
+/**
+ * A completion notice that was the session leaf when a prompt started its run
+ * (before_agent_start). Applied by the run's first user message, then dropped.
+ */
+let leafWake: WakeKey[] | null = null;
+/** The last prompt the owner typed: a wake that replays it is the wake's, not a new request. */
+let lastTypedText: string | null = null;
+/** The last session entry scanned for notices that reached the agent without a message event. */
+let lastScannedEntryId: string | null = null;
+
+/** Journals a launch on the session branch (assigned in the extension factory). */
+let pi_appendRequestLink: (entry: RequestLinkEntry) => void = () => {};
+/** Shows serve_request to the model only while a turn carries requests recorded differently. */
+let pi_setServeToolActive: (enabled: boolean) => void = () => {};
+/** Restored launches are checked against what the host still runs (assigned in the factory). */
+let pi_reconcileRestoredLaunches: (chain: RequestChain) => void = () => {};
+
+/**
+ * The bonded connection's chain, created on first use. A different connection
+ * — or the same one revived — gets a fresh chain that restores the launches
+ * this branch journaled for it, re-opening each request to learn whether it is
+ * still being carried, and skipping any whose notice already reached the agent.
+ */
+function requestChain(): RequestChain | null {
+	const active = pump;
+	const existing = activeRequestChain();
+	if (!active) return null;
+	// A stopping pump (shutdown) may still close its own chain; it never starts one.
+	if (active.stop) return existing?.connectionId === active.bond.connectionId ? existing : null;
+	const connectionId = active.bond.connectionId;
+	if (existing?.connectionId === connectionId) return existing;
+	existing?.dispose();
+	const nativeSessionId = active.localSessionId;
+	const chain = new RequestChain({
+		connectionId,
+		transport: { call: (args) => reportRequest(active, connectionId, args) },
+		journal: (entry) => pi_appendRequestLink({ version: 1, nativeSessionId, connectionId, ...entry }),
+		onError: (what) => debug("request chain failed", { open: what === "open", close: what === "close", restore: what === "restore", persist: what === "persist" }),
+	});
+	installRequestChain(chain);
+	const ctx = lastCtx;
+	if (ctx && ctx.sessionManager.getSessionId() === nativeSessionId) {
+		try {
+			const branch = ctx.sessionManager.getBranch();
+			const restored = chain.restore(branch, nativeSessionId, noticeKeysOf);
+			lastScannedEntryId = lastEntryId(branch);
+			if (restored > 0) {
+				debug("request launches restored", { restored });
+				pi_reconcileRestoredLaunches(chain);
+			}
+		} catch { debug("request launches restore failed", { errorPresent: true }); }
+	}
+	return chain;
+}
+
+/** Drop the chain without a word to the server: the connection is ending, replaced or revived. */
+function dropRequestChain(): void {
+	activeRequestChain()?.dispose();
+	installRequestChain(null);
+	segmentInputKind = undefined;
+	leafWake = null;
+	pi_setServeToolActive(false);
+}
+
+/** report_request, proven by the connection's own capability like the exact local turn. */
+async function reportRequest(active: PumpState, connectionId: string, args: Record<string, unknown>): Promise<unknown> {
+	const current = () => pump === active && (!active.stop || Boolean(active.closing)) && active.bond.connectionId === connectionId;
+	const capability = active.bond.connectionCapability;
+	if (!current() || !capability) throw new DevspecToolError("No connection capability for requests.");
+	const resolved = await resolveToken();
+	if (!resolved || !current()) throw new DevspecToolError("Request authority changed.");
+	const raw = await callDevspec(resolved.token, "report_request", { connection_id: connectionId, ...args }, {
+		lane: "pump", timeoutMs: 10_000, connectionCapability: capability,
+		beforeSend: () => { if (!current()) throw new DevspecToolError("Request authority changed before send."); },
+	});
+	const result = unwrapMcpResult(raw);
+	if (result.isError) throw new DevspecToolError(result.text || "report_request refused");
+	return result.details;
+}
+
+const QUESTION_EVENT_CUSTOM_TYPES = [INTERACTION_EVENT_CUSTOM_TYPE, QUESTION_DISMISSAL_EVENT_CUSTOM_TYPE] as const;
+
+/** The work keys a wake message carries (empty for context and other harness input). */
+function wakeKeysFor(text: string, customType: string | null, details: unknown, known: readonly string[] | undefined): WakeKey[] {
+	return wakeKeys({
+		text, customType, details,
+		task: backgroundNotificationTask(text, details),
+		questionCustomTypes: QUESTION_EVENT_CUSTOM_TYPES,
+		known,
+	});
+}
+
+/** A session entry's wake keys: custom messages only (notices Pi may append without a message event). */
+function noticeKeysOf(entry: Record<string, unknown>, known: readonly string[]): WakeKey[] {
+	if (entry.type !== "custom_message") return [];
+	const content = entry.content;
+	const text = typeof content === "string" ? content : Array.isArray(content)
+		? content.filter((block): block is { type: "text"; text: string } => block?.type === "text" && typeof block.text === "string").map((block) => block.text).join("\n")
+		: "";
+	return wakeKeysFor(text, typeof entry.customType === "string" ? entry.customType : null, entry.details, known);
+}
+
+function lastEntryId(branch: readonly unknown[]): string | null {
+	const last = branch[branch.length - 1] as { id?: unknown } | undefined;
+	return typeof last?.id === "string" ? last.id : null;
+}
+
+/**
+ * Notices Pi delivered without a message event (appended while idle, flushed
+ * mid-run) still reached the agent: their work has finished and stops holding
+ * its requests open. Scans only what was appended since the last scan; never
+ * binds a turn, so it is safe at a settle or while idle — never at a run's
+ * start, where the run's own wake is still to be bound.
+ */
+function scanAppendedNotices(chain: RequestChain | null, ctx: ExtensionContext | null): void {
+	if (!chain || !ctx) return;
+	try {
+		const branch = ctx.sessionManager.getBranch() as unknown as Record<string, unknown>[];
+		const start = lastScannedEntryId ? branch.findIndex((entry) => entry.id === lastScannedEntryId) + 1 : 0;
+		const known = chain.knownKeys();
+		if (known.length) {
+			for (const entry of branch.slice(Math.max(0, start))) chain.noteNotified(noticeKeysOf(entry, known));
+		}
+		lastScannedEntryId = lastEntryId(branch);
+	} catch { debug("request launch record failed", { errorPresent: true }); }
+}
+
+/** A wake: work finishing (its keys, or a completion notice nothing here launched) or a question's answer. */
+function isWakeMessage(text: string, customType: string | null, keys: readonly WakeKey[]): boolean {
+	return keys.length > 0 || isBackgroundCompletionOrigin(text, customType) ||
+		(customType !== null && (QUESTION_EVENT_CUSTOM_TYPES as readonly string[]).includes(customType));
+}
+
+/**
+ * serve_request is shown while the turn carries requests that would be
+ * recorded differently, once their opens have answered (one person's two
+ * commands never show it).
+ */
+function refreshServeTool(chain: RequestChain | null): void {
+	if (!chain) { pi_setServeToolActive(false); return; }
+	void chain.undecided().then((carried) => {
+		if (activeRequestChain() === chain && runActive) pi_setServeToolActive(carried !== null);
+	}, () => {});
+}
+
+/**
+ * Feed the chain one message, attached or not. A run's first input is what it
+ * was woken for; later input joins it. A command opens its requests; a prompt
+ * the owner typed opens theirs; a wake continues the request its launch was
+ * made for; an automation run is positively nobody's ("none", which DevSpec
+ * records as the running automation); a system notice, a command message with
+ * no binding, or a wake nothing here launched, names nothing. Context
+ * injections are not input and change nothing. Returns the kind of input, or
+ * null when the message is not input.
+ */
+function bindSegmentForMessage(input: {
+	text: string;
+	customType: string | null;
+	details: unknown;
+	isRealUserMessage: boolean;
+	incomingCommand?: { turnId: string; commandMessageId: string; requests?: readonly CommandRequestRef[] };
+}): SegmentRequestKind | null {
+	const chain = requestChain();
+	const ledger = typedInputLedger();
+	const { text, customType, details, isRealUserMessage, incomingCommand } = input;
+	let kind: SegmentRequestKind | null = null;
+	if (isRealUserMessage) {
+		const userKind = classifyUserKind(text, customType);
+		const firstInput = !chain?.turnActive;
+		const leaf = firstInput ? leafWake : null;
+		leafWake = null;
+		let leafApplied = false;
+		if (incomingCommand) {
+			ledger.dropForMessage(text);
+			kind = "command";
+			const ids = (incomingCommand.requests ?? []).flatMap((ref) => {
+				const id = chain?.openCommand({ provenanceRef: ref.provenanceRef, messageId: ref.messageId, fromOwner: ref.fromOwner === true,
+					commandTurnId: incomingCommand.turnId, commandMessageId: incomingCommand.commandMessageId });
+				return id ? [id] : [];
+			});
+			chain?.arrive(ids);
+		} else if (userKind === "automation") {
+			ledger.dropForMessage(text);
+			kind = "automation";
+			chain?.arriveNobody();
+		} else if (userKind !== "local") {
+			// A command message with no binding (a replay, a stray) or another
+			// framed message: whose it is is not known here. Never a leaf's request.
+			ledger.dropForMessage(text);
+			kind = "untyped";
+			chain?.arriveUnknown();
+		} else if (ledger.takeForMessage(text)) {
+			kind = "typed";
+			lastTypedText = text;
+			const id = chain?.openTyped();
+			chain?.arrive(id ? [id] : []);
+		} else if (leaf?.length && text === lastTypedText) {
+			// The completion wake replayed the owner's last prompt: it is that wake's
+			// turn, continuing the request whose work woke it.
+			kind = "untyped";
+			chain?.wake(leaf);
+			leafApplied = true;
+		} else {
+			// Not typed here (another extension's send, the duplicate-tool recovery
+			// follow-up): a run it starts names nothing; it joins a running one unchanged.
+			kind = "untyped";
+			chain?.arriveUntyped();
+		}
+		// A completion notice that was the leaf when this prompt started reached
+		// the agent with it: its requests join, but never decide, the turn.
+		if (leaf?.length && !leafApplied) chain?.wake(leaf, { alongside: true });
+	} else if (customType === SYSTEM_NOTICE_CUSTOM_TYPE) {
+		kind = "none";
+		chain?.arriveUnknown();
+	} else {
+		const keys = wakeKeysFor(text, customType, details, chain?.knownKeys());
+		if (!isWakeMessage(text, customType, keys)) return null;
+		if (!runActive) {
+			// Appended with no wake (Pi starts no run): the work has finished and
+			// its notice is in the conversation, but no turn begins here.
+			chain?.noteNotified(keys);
+			return null;
+		}
+		const matched = chain ? chain.wake(keys) : false;
+		kind = matched && chain?.currentRequestId() ? "wake" : "none";
+	}
+	if (kind) segmentInputKind = kind;
+	refreshServeTool(chain);
+	return kind;
 }
 
 function noteCommandTurnClosed(turnId: string | undefined): void {
@@ -456,11 +801,17 @@ function noteCommandTurnClosed(turnId: string | undefined): void {
 
 function ensureTurn(): void {
 	if (turn) return;
-	if (!getBond()?.sessionId) { debug("ensureTurn: not attached"); return; }
+	const bond = getBond();
+	if (!bond?.connectionId || (!bond.sessionId && segmentInputKind !== "automation")) {
+		debug("ensureTurn: not attached");
+		return;
+	}
 	const revision = nextTurnRevision++;
 	const receiptBatch = new DirectedQuestionReceiptBatch();
 	receiptBatch.reset(revision);
-	turn = { revision, tracker: new TurnTracker(pendingBackgroundTaskIds), trail: new TrailBuilder(), completionNeutral: false, receiptBatch, trailPostFence: new TrailPostFence(), trailDelivery: new TrailDeliveryState(), canPost: capturePostAuthority(), interval: null, posts: 0, lastPostAt: 0 };
+	// A mid-run attach inherits what started the running segment (item 7a4d04fd);
+	// a fresh run learns it from its first message.
+	turn = { revision, tracker: new TurnTracker(pendingBackgroundTaskIds), trail: new TrailBuilder(), completionNeutral: false, receiptBatch, trailPostFence: new TrailPostFence(), trailDelivery: new TrailDeliveryState(), canPost: capturePostAuthority(), interval: null, posts: 0, lastPostAt: 0, ...(segmentInputKind ? { requestKind: segmentInputKind } : {}) };
 	debug("ensureTurn: tracking (run-scoped)");
 	turn.interval = setInterval(trailTick, TRAIL_INTERVAL_MS);
 	// Don't hold the process open for the trail timer in headless runs.
@@ -468,6 +819,46 @@ function ensureTurn(): void {
 }
 
 const assistantSpeechQueue = new AssistantSpeechQueue();
+let localActivityPredecessor: { scope: string; attemptId: string } | null = null;
+
+/**
+ * Admission is independent of v2 speech, and is never started by a settle
+ * callback. Only a prompt the owner typed here is a local turn (item
+ * 7a4d04fd): automation runs, harness wakes, notices and the extension's own
+ * sends never become one.
+ */
+function prepareLocalActivity(t: TurnState): Promise<string | null> {
+	if (t.localActivityReady) return t.localActivityReady;
+	const active = pump;
+	if (!active || t.requestKind !== "typed" || t.completionNeutral || t.interaction || t.commandTurnId || t.commandMessageId) return Promise.resolve(null);
+	const { connectionId, sessionId, attachedAt, speechAttachmentId, connectionCapability } = active.bond;
+	if (!sessionId || !attachedAt || !speechAttachmentId || !connectionCapability) return Promise.resolve(null);
+	const revision = t.revision;
+	const current = () => turn === t && t.revision === revision && t.canPost() && pump === active && !active.stop &&
+		active.bond.sessionId === sessionId && active.bond.speechAttachmentId === speechAttachmentId &&
+		active.bond.connectionCapability === connectionCapability;
+	const scope = { connection_id: connectionId, expected_session_id: sessionId,
+		expected_attached_at: attachedAt, expected_attachment_id: speechAttachmentId };
+	const key = JSON.stringify(scope);
+	const attemptId = randomUUID();
+	t.localActivityReady = (async () => {
+		const resolved = await resolveToken();
+		if (!resolved || !current()) return null;
+		const admitted = await startLocalActivity({ scope, attemptId,
+			previousAttemptId: localActivityPredecessor?.scope === key ? localActivityPredecessor.attemptId : null,
+			current, request: async args => {
+				const raw = await callDevspec(resolved.token, "report_pickup", args, {
+					lane: "pump", retry: "never", timeoutMs: 10_000, connectionCapability,
+					beforeSend: () => { if (!current()) throw new DevspecToolError("Local activity changed before admission."); },
+				});
+				const result = unwrapMcpResult(raw);
+				return result.isError ? null : result.details;
+			} });
+		if (admitted && current()) localActivityPredecessor = { scope: key, attemptId: admitted };
+		return admitted;
+	})().catch(() => null);
+	return t.localActivityReady;
+}
 
 /** Consumed input is known at context, unlike turn_start (which precedes user events). */
 function prepareAssistantSpeech(t: TurnState): Promise<void> {
@@ -488,7 +879,24 @@ function prepareAssistantSpeech(t: TurnState): Promise<void> {
 	t.speechScopeCaptured = true;
 	const completeCommandIdentity = Boolean(t.commandTurnId) === Boolean(t.commandMessageId);
 	const missingInteractionIdentity = t.occupancy?.kind === "interaction" && !t.interaction;
-	if (firstScope && active && connectionId && sessionId && attachedAt && attachmentId && capability && !t.completionNeutral && completeCommandIdentity && !missingInteractionIdentity) {
+	// The v2 lane (item bf84793b, server migration 953): ordinary speech is
+	// append-only — connection + source id + text, no expected_* scope and no
+	// pinned attempt. The server lands the text in the live session and
+	// annotates the open attempt/turn after the fact, so a scope that went stale
+	// mid-turn can no longer wedge the post. The exact interaction path keeps
+	// the v1 binding: its attempt is claim-token-bound by design (938).
+	const isInteraction = t.occupancy?.kind === "interaction";
+	if (firstScope && !isInteraction && active && connectionId && sessionId && capability && !t.completionNeutral) {
+		const v2Args = Object.freeze({ connection_id: connectionId, ingest_version: 2 });
+		const ready = (async () => {
+			try {
+				const resolved = await resolveToken();
+				if (!resolved || !current()) return null;
+				return Object.freeze({ args: v2Args, token: resolved.token });
+			} catch { return null; }
+		})();
+		t.speechBinding = Object.freeze({ args: v2Args, current, capability, sessionId, ready });
+	} else if (firstScope && active && connectionId && sessionId && attachedAt && attachmentId && capability && !t.completionNeutral && completeCommandIdentity && !missingInteractionIdentity) {
 		const interaction = interactionIdentity(t.interaction);
 		const args = Object.freeze({ connection_id: connectionId, expected_session_id: sessionId, expected_attached_at: attachedAt, expected_attachment_id: attachmentId,
 			...(interaction ? exactInteractionContinuationArgs(interaction) : t.commandTurnId && t.commandMessageId
@@ -512,7 +920,7 @@ function prepareAssistantSpeech(t: TurnState): Promise<void> {
 				return Object.freeze({ args: Object.freeze({ ...args, attempt_id: details.attempt_id }), token: resolved.token });
 			} catch { return null; }
 		})();
-		t.speechBinding = Object.freeze({ args, current, capability, ready });
+		t.speechBinding = Object.freeze({ args, current, capability, sessionId, ready });
 	}
 	t.assistantSpeech = { source, binding: t.speechBinding, model: replyModelArgs() };
 	return (t.speechBinding?.ready ?? Promise.resolve(null)).then(() => undefined);
@@ -520,14 +928,19 @@ function prepareAssistantSpeech(t: TurnState): Promise<void> {
 
 /** Actual assistant messages only; journals contain no cap/claim/token and are not a replay outbox. */
 function deliverAssistantSpeech(t: TurnState, message: unknown, append: (type: string, data: unknown) => void): void {
+	// A notice-woken run is not room speech: it has no speech scope, so every text
+	// used to end in a false "storage not confirmed". Its final message reaches the
+	// room through the notice reply instead (6aad2b46).
+	if (t.completionNeutral) return;
 	const captured = t.assistantSpeech;
 	const record = captured?.source.finalize(message);
 	if (!record) return;
 	const binding = captured?.binding;
 	append("devspec-assistant-speech", { ...record, connectionId: binding?.args.connection_id,
-		expectedSessionId: binding?.args.expected_session_id, expectedAttachedAt: binding?.args.expected_attached_at, expectedAttachmentId: binding?.args.expected_attachment_id,
+		expectedSessionId: binding?.args.expected_session_id ?? binding?.sessionId, expectedAttachedAt: binding?.args.expected_attached_at, expectedAttachmentId: binding?.args.expected_attachment_id,
 		commandTurnId: binding?.args.command_turn_id, commandMessageId: binding?.args.command_message_id,
-		interactionEventId: binding?.args.interaction_event_id ?? binding?.args.question_dismissal_event_id });
+		interactionEventId: binding?.args.interaction_event_id ?? binding?.args.question_dismissal_event_id,
+		...(binding?.args.ingest_version === 2 ? { ingestVersion: 2 } : {}) });
 	trackTerminalPost(assistantSpeechQueue.enqueue(async () => {
 		let stored = false;
 		let attemptId: unknown;
@@ -542,8 +955,12 @@ function deliverAssistantSpeech(t: TurnState, message: unknown, append: (type: s
 						phase: "answer", complete_turn: false, ...captured!.model,
 					}, { lane: "pump", retry: "never", connectionCapability: binding.capability,
 						beforeSend: () => { if (!binding.current()) throw new DevspecToolError("Speech scope changed."); } });
-					const receipt = parsePostSessionReceipt(raw, { connectionId: String(scope.connection_id), sessionId: String(scope.expected_session_id), phase: "answer", assistantSourceId: record.assistantSourceId });
+					// v2 carries no expected session: the receipt's expectation is the
+					// bond's session at capture, and current() above guarantees the bond
+					// has not moved since (the drop-on-move policy is unchanged).
+					const receipt = parsePostSessionReceipt(raw, { connectionId: String(scope.connection_id), sessionId: binding.sessionId ?? String(scope.expected_session_id), phase: "answer", assistantSourceId: record.assistantSourceId });
 					stored = receipt.status === "stored" || receipt.status === "idempotently_stored";
+					if ("messageId" in receipt) noteOwnRoomMessage(receipt.messageId);
 				}
 			}
 		} catch { /* Exact raw text and source remain in JSONL; never relabel or replay. */ }
@@ -657,7 +1074,7 @@ function capturePostAuthority(): () => boolean {
 		(!active.stop || active.closing));
 }
 
-async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; localTurn?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; isCurrent?: () => boolean; agentStats?: AgentStatsReport } = {}): Promise<boolean> {
+async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; localTurn?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; isCurrent?: () => boolean; agentStats?: AgentStatsReport; onReceipt?: (status: "stored" | "idempotently_stored" | "skipped" | "rejected" | "malformed") => void } = {}): Promise<boolean> {
 	const active = pump;
 	const bond = getBond();
 	const ctx = lastCtx;
@@ -670,8 +1087,14 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 		else console.error(warning);
 		return false;
 	};
-	if (!active || !bond?.sessionId) return failure("skipped");
-	const authority = { connectionId: bond.connectionId, sessionId: bond.sessionId };
+	const sessionlessAutomationTrail =
+		!bond?.sessionId &&
+		opts.phase === "trail" &&
+		(turn?.requestKind === "automation" || segmentInputKind === "automation");
+	// A post needs a connection to go through: a sessionless automation trail may
+	// post without a room, never without a bond (a54ff6ba).
+	if (!active || !bond || (!bond.sessionId && !sessionlessAutomationTrail)) return failure("skipped");
+	const authority = { connectionId: bond.connectionId, sessionId: bond.sessionId ?? null };
 	const parkedIdentity = activeCommandTurnIdentity;
 	const isCurrent = () => current() && (opts.isCurrent?.() ?? true);
 	let resolved;
@@ -708,8 +1131,16 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 		const receipt = parsePostSessionReceipt(raw, {
 			...authority, phase: opts.phase ?? "answer", turnKind: opts.turnKind,
 		});
-		if (receipt.status !== "stored" && receipt.status !== "idempotently_stored") return failure(receipt.status);
+		// onReceipt fires ONLY on a parsed server receipt (or storage) — never
+		// for pre-send skips or response loss, so callers can tell a server-side
+		// noop (activity completed, content refused) from "never reached".
+		if (receipt.status !== "stored" && receipt.status !== "idempotently_stored") {
+			opts.onReceipt?.(receipt.status);
+			return failure(receipt.status);
+		}
+		opts.onReceipt?.(receipt.status);
 		debug("post stored", { idempotent: receipt.status === "idempotently_stored" });
+		if (authority.sessionId) noteOwnRoomMessage(receipt.messageId);
 		if (isCurrent() && activeCommandTurnIdentity === parkedIdentity) {
 			if (opts.completeTurn === true) noteCommandTurnClosed(opts.commandTurnId);
 		}
@@ -719,6 +1150,12 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 		// NOT STORED, and never replay non-idempotent speech/local_prompt.
 		return failure(err instanceof DevspecToolError ? "rejected" : "unknown");
 	}
+}
+
+/** Pi's own rows never count as unread for Pi; the post receipt names each one exactly (ce1ffca1). */
+function noteOwnRoomMessage(messageId: string): void {
+	try { pump?.roomSync?.store.markOwn([messageId]); }
+	catch { debug("room storage unavailable", { errorPresent: true }); }
 }
 
 function trackTerminalPost(post: Promise<void>): void {
@@ -777,26 +1214,35 @@ function trailTick(): void {
  * otherwise strand the Working indicator until lease expiry. report_complete
  * is the explicit channel; idempotent when the attempt already closed.
  */
-async function reportComplete(reason: string, commandTurnId?: string, commandMessageId?: string, commandTurnUnbound = false, interaction?: ExactInteractionContinuationIdentity, prePersistenceFailure = false): Promise<boolean> {
+async function reportComplete(reason: string, commandTurnId?: string, commandMessageId?: string, commandTurnUnbound = false, interaction?: ExactInteractionContinuationIdentity, prePersistenceFailure = false, stillCurrent: () => boolean = () => true, localAttemptId?: string): Promise<boolean> {
 	const active = pump;
 	if (!active || (active.stop && !active.closing)) return false;
 	const authority = capturePumpAuthority({ generation: active.generation, connectionId: active.bond.connectionId });
 	const resolved = await resolveToken();
-	if (!resolved) return false;
+	if (!resolved || !stillCurrent()) return false;
 	if (pump !== active || !isPumpAuthorityCurrent(authority, {
 		generation: active.generation,
 		connectionId: active.bond.connectionId,
 	}) || (active.stop && !active.closing)) return false;
 	try {
-		await callDevspec(resolved.token, "report_complete", {
+		const raw = await callDevspec(resolved.token, "report_complete", {
 			connection_id: authority.connectionId,
 			reason,
 			...(commandTurnId ? { command_turn_id: commandTurnId } : {}),
 			...(commandMessageId ? { command_message_id: commandMessageId } : {}),
-			...(commandTurnUnbound && !interaction ? { command_turn_unbound: true } : {}),
+			...(commandTurnUnbound && !interaction && !localAttemptId ? { command_turn_unbound: true } : {}),
+			...(localAttemptId ? { attempt_id: localAttemptId } : {}),
 			...(interaction ? exactInteractionContinuationArgs(interaction) : {}),
 			...(prePersistenceFailure ? { interaction_pre_persistence_failure: true } : {}),
-		}, { timeoutMs: 10_000, lane: "pump", ...(interaction && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}) });
+		}, { timeoutMs: 10_000, lane: "pump", ...(interaction && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}),
+			beforeSend: () => { if (!stillCurrent()) throw new DevspecToolError("Completion observation changed before send."); },
+		});
+		const receipt = unwrapMcpResult(raw);
+		const completed = receipt.details as Record<string, unknown> | undefined;
+		if (receipt.isError || completed?.connection_id !== authority.connectionId || completed.phase !== "done" ||
+			(interaction && completed.attempt_id !== interaction.attemptId) ||
+			(localAttemptId && completed.attempt_id !== localAttemptId) ||
+			(commandTurnId && completed.command_turn_id !== commandTurnId) || !stillCurrent()) return false;
 		// The command is closed: drop any never-taken binding strays for it so a
 		// later terminal input with identical text cannot inherit them (6f4136d8).
 		commandTurnBindings.forgetByCommand(commandTurnId, commandMessageId);
@@ -809,6 +1255,81 @@ async function reportComplete(reason: string, commandTurnId?: string, commandMes
 	} catch {
 		/* lease expiry + disconnect remain backstops for best-effort callers */
 		return false;
+	}
+}
+
+/** Freeze identity before awaiting: message_start may reuse the segment object. */
+async function completeTurnActivity(t: TurnState, reason: string, current: () => boolean = t.canPost): Promise<boolean> {
+	const { commandTurnId, commandMessageId, localActivityReady } = t;
+	const interaction = interactionIdentity(t.interaction);
+	if (commandTurnId || interaction) return reportComplete(reason, commandTurnId, commandMessageId, false, interaction, false, current);
+	const attemptId = await localActivityReady;
+	if (!attemptId || !current()) return false;
+	return reportComplete(reason, undefined, undefined, false, undefined, false, current, attemptId);
+}
+
+/** Cap for the provider's own error text inside the room bubble. */
+const TERMINAL_ERROR_PROVIDER_CHARS = 2_000;
+
+/**
+ * Room-facing render of a terminal provider error (item e99d158b). Customer
+ * copy: what happened and what to do next — no internals, no ids. Display
+ * only by owner direction: no retry affordance, no replaying the owner's
+ * command — the human fixes the cause and sends the next message; whatever
+ * they originally said is still in the agent's context.
+ */
+export function renderTerminalErrorPost(errorMessage: string): string {
+	const cleaned = errorMessage.replace(/\r/g, "").trim();
+	const detail = cleaned.length > TERMINAL_ERROR_PROVIDER_CHARS
+		? `${cleaned.slice(0, TERMINAL_ERROR_PROVIDER_CHARS)}…`
+		: cleaned;
+	// Four-backtick fence: the provider text itself may contain backticks.
+	return `**I couldn't finish that — the model provider returned an error:**\n\n\`\`\`\`\n${detail}\n\`\`\`\`\n\nFix the cause in the terminal (for example, an expired key or a provider balance that needs topping up), then send another message here and I'll carry on.`;
+}
+
+/**
+ * Post the reason a run died on a terminal provider error (item e99d158b),
+ * replacing the silent reportComplete fallback for that case only. The
+ * phase "error" post finalizes an open bubble in the explicit error state
+ * AND completes the activity (turn_error) server-side. When nothing streamed
+ * this segment the server deliberately refuses to invent a bubble
+ * (noop_error → receipt "skipped") but still completes the activity — so the
+ * reason is re-posted once as a plain message: a first-call failure must
+ * never be invisible either. Pre-send skips and lost responses never fall
+ * back (no receipt = no server action = no double-post risk).
+ */
+async function reportTerminalError(t: TurnState, agentStats: AgentStatsReport | null): Promise<void> {
+	if (!t.terminalError) return;
+	const finalTrail = t.trail.render(FINAL_TRAIL_CHARS, false);
+	const finalEvents = t.trail.events();
+	const activityTrail = finalEvents.length > 0 ? finalTrail : undefined;
+	const identity = {
+		commandTurnId: t.commandTurnId,
+		commandMessageId: t.commandMessageId,
+		commandTurnUnbound: isCommandTurnUnbound(t),
+		localTurn: isCommandTurnUnbound(t) && !t.interaction,
+		interaction: interactionIdentity(t.interaction),
+	};
+	const message = renderTerminalErrorPost(t.terminalError);
+	let receipt: string | undefined;
+	const stored = await postToSession(message, {
+		...identity, phase: "error", completeTurn: true, isCurrent: t.canPost,
+		workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined,
+		onReceipt: (status) => { receipt = status; },
+	});
+	if (receipt === "skipped") {
+		// noop_error: no open bubble existed; the activity is already closed
+		// (turn_error). This second post is transcript-only — omit complete_turn.
+		await postToSession(message, { ...identity, phase: "answer", isCurrent: t.canPost });
+	}
+	// Parity with reportComplete's success cleanup: the server acted on the
+	// command turn (stored it, or completed it via noop_error), so drop the
+	// binding/style strays and unpark the identity. On rejected/malformed or a
+	// lost response we know nothing — leave them, as reportComplete does.
+	if (stored || receipt === "skipped") {
+		commandTurnBindings.forgetByCommand(t.commandTurnId, t.commandMessageId);
+		if (t.commandTurnId) activeCommandStyles.delete(t.commandTurnId);
+		noteCommandTurnClosed(t.commandTurnId);
 	}
 }
 
@@ -831,7 +1352,7 @@ async function startInteractionContinuation(
 }
 
 function interactionRunIsLive(run: ExactInteractionRun): boolean {
-	return run.application !== "released";
+	return activeInteractionRun(run.active) === run;
 }
 
 async function keepInteractionContinuationAlive(run: ExactInteractionRun): Promise<boolean> {
@@ -895,6 +1416,13 @@ async function releaseInteractionBeforePersistence(run: ExactInteractionRun, rea
  * mid-run close (f0df6c3e) passes false: the bubble is finished, work is not.
  */
 async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | null, why: string, completeTurn = true): Promise<boolean> {
+	// A notice-woken segment answers its notices, never a command. Its final
+	// message goes to the room as their reply and it reports no transcript,
+	// trail or completion, so it never closes a turn (6aad2b46).
+	if (t.completionNeutral) {
+		if (t.noticeReply) await deliverNoticeReply(t.noticeReply, agentStats);
+		return false;
+	}
 	if (!remoteRunActivityPolicy(t.completionNeutral).reportTranscript) return false;
 	// The final render rides the answer post (item 9b7455df): the server
 	// REPLACES the fold-merged accumulation with this canonical final render —
@@ -906,7 +1434,7 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 	const finalTrail = t.trail.render(FINAL_TRAIL_CHARS, false);
 	const finalEvents = t.trail.events();
 	const activityTrail = finalEvents.length > 0 ? finalTrail : undefined;
-	const plan = t.speechManaged ? { kind: "none" as const } : planSettle(t.tracker, true);
+	const plan = t.speechManaged || !getBond()?.sessionId ? { kind: "none" as const } : planSettle(t.tracker, true);
 	debug("settle segment", { completeTurn, planFinal: plan.kind === "final", planMirror: plan.kind === "local_mirror", trailChars: finalTrail.length, answerChars: t.tracker.lastAssistantText.length, pendingBg: t.tracker.pendingBackgroundTasks().length, harness: t.tracker.userKind === "harness", bound: Boolean(t.commandTurnId || t.commandMessageId) });
 	// Context-injection / leftover harness segments never leave room content
 	// (60cf5f00). A background-completion wake MAY speak (its own bubble) and
@@ -928,6 +1456,49 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 		t.trailDelivery.finish(snapshot, stored);
 	}
 	return false;
+}
+
+/**
+ * Post a notice-woken segment's final message as its reply to the notices that
+ * woke it (6aad2b46). What that post is lives in the served remote ingress
+ * contract (semantics.notice_reply): here it carries only connection_id, the
+ * text and the notice ids, so it binds to no command turn, attempt or dispatch
+ * and changes no Working, Pending or idle. It never goes through the speech,
+ * local-turn or background-completion writers. Anything that keeps it out of the
+ * room is said in the terminal, with DevSpec's own reason when DevSpec refused it.
+ */
+async function deliverNoticeReply(capture: NoticeReplyCapture, agentStats: AgentStatsReport | null): Promise<void> {
+	const ctx = lastCtx;
+	const current = () => {
+		const active = pump;
+		const bond = getBond();
+		if (!active || (active.stop && !active.closing) || !bond || active.bond.connectionId !== bond.connectionId) return null;
+		return { connectionId: bond.connectionId, sessionId: bond.sessionId ?? null };
+	};
+	const outcome = await postNoticeReply({
+		capture,
+		current,
+		call: async (args) => {
+			const resolved = await resolveToken();
+			if (!resolved) throw new Error("no DevSpec login is available");
+			try {
+				// The server stores the same notices and text once, so the client's
+				// ordinary transport retry cannot post it twice.
+				return { raw: await callDevspec(resolved.token, "post_session_message", args, { lane: "pump",
+					beforeSend: () => { if (current()?.connectionId !== capture.connectionId) throw new Error("this Pi's DevSpec connection changed before sending"); } }) };
+			} catch (error) {
+				if (error instanceof DevspecToolError) return { refusal: error.message };
+				throw error;
+			}
+		},
+		extraArgs: { agent_name: AGENT_NAME, ...(agentStats ? { agent_stats: agentStats } : {}), ...replyModelArgs(agentStats ?? undefined) },
+	});
+	debug("notice reply", { notices: capture.noticeIds.length, posted: outcome.kind === "posted", idempotent: outcome.kind === "posted" && outcome.idempotent, refused: outcome.kind === "refused", unconfirmed: outcome.kind === "unconfirmed", skipped: outcome.kind === "no_final_text" || outcome.kind === "not_attached" || outcome.kind === "connection_changed" });
+	if (outcome.kind === "posted") { noteOwnRoomMessage(outcome.messageId); return; }
+	const message = noticeReplyTerminalMessage(outcome, capture);
+	if (!message) return;
+	if (safeHasUI(ctx)) notify(ctx, message, "warning");
+	else console.error(message);
 }
 
 /**
@@ -988,6 +1559,8 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 		trailPostFence,
 		commandTurnId: t.commandTurnId,
 		commandMessageId: t.commandMessageId,
+		localActivityReady: t.localActivityReady,
+		...(t.requestKind ? { requestKind: t.requestKind } : {}),
 		completionNeutral: t.completionNeutral,
 		interaction: t.interaction,
 		occupancy: t.occupancy,
@@ -1004,7 +1577,8 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 		await t.trailPostFence.drain();
 		const posted = await postSegmentAnswer(t, null, why, completeTurn);
 		if (completeTurn && !posted && previousPolicy.reportCompletion && t.canPost()) {
-			await reportComplete(why, t.commandTurnId, t.commandMessageId, isCommandTurnUnbound(t), interactionIdentity(t.interaction));
+			if (t.terminalError) await reportTerminalError(t, null);
+			else await completeTurnActivity(t, why);
 		}
 	})();
 	// A create in the fresh segment must wait for this predecessor projection too:
@@ -1037,6 +1611,9 @@ async function beatBusy(busy: boolean, agentStats?: AgentStatsReport | null): Pr
 			status: "live",
 			busy,
 			agent_name: AGENT_NAME,
+			// Progress evidence (item 0b8035ac): the server renews the working
+			// lease only while this marker keeps changing.
+			progress_marker: currentProgressMarker(),
 			...(agentStats ? { agent_stats: agentStats } : {}),
 		}, { lane: "pump" });
 	} catch {
@@ -1055,7 +1632,9 @@ function deliverQueuedSystemNotices(active: PumpState, ctx: ExtensionContext): b
 	const notices = queuedSystemNotices(active.systemNoticeKey);
 	if (notices.length === 0) return false;
 	const ids = notices.map((notice) => notice.notice_id);
-	pi_systemNoticeSend(formatSystemNoticeMessage(notices), { notices });
+	// Attached, the run's final message becomes the room reply to these notices (6aad2b46).
+	const roomAttached = Boolean(active.bond.sessionId);
+	pi_systemNoticeSend(formatSystemNoticeMessage(notices, { roomAttached }), { notices, roomAttached });
 	if (!commitSystemNoticeDelivery(active.systemNoticeKey, ids)) {
 		throw new Error("System notice generation changed during Pi delivery.");
 	}
@@ -1070,16 +1649,45 @@ async function ackControl(
 	connectionId: string,
 	controlId: string,
 	catalog?: ModelCatalogSnapshot,
-): Promise<void> {
-	await callDevspec(token, "poll_connection", {
+	result?: ControlResult,
+	endpoint?: string,
+): Promise<ControlDeliveryOutcome> {
+	const active = pump;
+	if (!active || active.stop || active.bond.connectionId !== connectionId) throw new Error("CONTROL authority changed");
+	const raw = await callDevspec(token, "poll_connection", {
 		connection_id: connectionId,
-		ingress_version: 1,
-		delegated_scope_version: 1,
-		active_plan_projection_version: 1,
 		control_ack: controlId,
-		wait_ms: 0,
+		control_ack_only: true,
+		...(result ? { control_result: result } : {}),
 		...(catalog ? { model_catalog: catalog } : {}),
-	}, { timeoutMs: 10_000, lane: "pump" });
+	}, { timeoutMs: 10_000, lane: "pump", endpoint, connectionCapability: active.bond.connectionCapability,
+		beforeSend: () => { if (pump !== active || active.stop) throw new Error("CONTROL authority changed"); } });
+	const details = unwrapMcpResult(raw).details as { control_ack?: { status?: string; result?: { id?: string } } } | undefined;
+	const receipt = details?.control_ack;
+	if (receipt?.status === "stale") {
+		if (!result) throw new Error("CONTROL is no longer pending"); // never reload on an obsolete control
+		return "superseded";
+	}
+	if ((receipt?.status === "acknowledged" || receipt?.status === "already_acknowledged") && receipt.result?.id === controlId) return "acknowledged";
+	throw new Error("Invalid CONTROL acknowledgement receipt");
+}
+
+function drainControlResults(active: PumpState, ctx: ExtensionContext, token: string, endpoint: string): void {
+	if (pump !== active || active.stop || active.controlResultRetryTimer || !active.controlResults.hasPending(active.bond.connectionId)) return;
+	void active.controlResults.drain(active.bond.connectionId,
+		value => ackControl(token, value.connectionId, value.controlId, value.catalog, value.result, endpoint),
+		pi_appendControlResult, () => pump === active && !active.stop,
+	).then(() => { if (!active.controlResults.hasPending(active.bond.connectionId)) active.controlResultWarning = false; }).catch(() => {
+		if (pump !== active || active.stop) return;
+		debug("control acknowledgement failed", { errorPresent: true });
+		if (!active.controlResultWarning) notify(ctx, "DevSpec remote: couldn't deliver the agent control result. Retrying automatically.", "warning");
+		active.controlResultWarning = true;
+		active.controlResultRetryTimer = setTimeout(() => {
+			active.controlResultRetryTimer = undefined;
+			if (pump === active && !active.stop) signalWake(active);
+		}, ERROR_BACKOFF_MS);
+		active.controlResultRetryTimer.unref?.();
+	});
 }
 
 function setRemoteStatus(ctx: ExtensionContext | null): void {
@@ -1128,10 +1736,16 @@ async function hydrateOwnerBundle(
 	connectionId: string,
 ): Promise<{ bundle: OwnerCommandBundle; materialised: MaterialisedAttachment[] }> {
 	const commands: OwnerCommand[] = [];
-	const materialised: MaterialisedAttachment[] = [];
 	const budget = createAttachmentHydrationBudget(bundle.commands.map((command) => command.attachments ?? []));
+	const prepared = await pi_takePreparedOfferAttachments(bundle.commands);
+	const materialised: MaterialisedAttachment[] = prepared ? [...prepared.materialised] : [];
+	budget.remainingBytes -= prepared?.budgetUsed ?? 0;
 	try {
 		for (const command of bundle.commands) {
+			if (prepared?.sourceId === command.id) {
+				commands.push({ ...command, attachmentNotes: formatAttachmentNotes(prepared.materialised) });
+				continue;
+			}
 			const hydrated = await withMaterialisedAttachments(command, connectionId, budget);
 			commands.push(hydrated.command);
 			materialised.push(...hydrated.materialised);
@@ -1166,14 +1780,42 @@ function scheduleTitleRefresh(sessionId: string, delayMs = 8_000): void {
 	if (typeof timer.unref === "function") timer.unref();
 }
 
+/**
+ * End from DevSpec closes Pi (item 7813bcd9). Runs after the pump has stopped, so the
+ * connection is already settled; Pi's own graceful shutdown then runs session_shutdown,
+ * which finishes this extension's cleanup. Only a person's End reaches here
+ * (personEndClosesPi), never a local stop or a recoverable end.
+ *
+ * Pi's shutdown() only RECORDS the request while the agent is working, and carries it
+ * out when the run settles (interactive-mode `shutdownHandler` → `agent_settled`).
+ * Measured 2026-10-06 on Pi 1.0.0: mid-turn, shutdown() alone left Pi running its
+ * tool for over a minute. The owner decided End closes even mid-task, so the run is
+ * aborted after the request is recorded, and the settle it causes does the shutdown.
+ */
+function closePiOnPersonEnd(ctx: ExtensionContext, status: string | null | undefined, endReason: string | null | undefined): void {
+	if (!personEndClosesPi(status, endReason)) return;
+	debug("ended from DevSpec — closing Pi");
+	try {
+		ctx.shutdown();
+		if (!ctx.isIdle()) ctx.abort();
+	} catch (err) {
+		debug("shutdown after End failed", { errorPresent: Boolean(err) });
+	}
+}
+
 async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "owner_gone" | "auth", serverAlreadyEnded = false): Promise<void> {
 	const active = pump;
 	if (!active) return;
 	const stoppingTurn = turn;
 	const stoppingTrailFence = stoppingTurn?.trailPostFence;
 	active.stop = true;
+	active.roomSync?.close(true);
+	active.roomSync = undefined;
+	pi_appendRoomScope(null, active.localSessionId);
 	if (active.interactionRetryTimer) clearTimeout(active.interactionRetryTimer);
 	active.interactionRetryTimer = undefined;
+	if (active.controlResultRetryTimer) clearTimeout(active.controlResultRetryTimer);
+	active.controlResultRetryTimer = undefined;
 	const starting = startingInteractionRun?.active === active ? startingInteractionRun : null;
 	if (starting?.application === "starting") {
 		await releaseInteractionBeforePersistence(starting, "interaction_pump_stopped_before_persistence");
@@ -1200,10 +1842,14 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	resetDirectedQuestionReceiptBatch();
 	if (stoppingTrailFence) await stoppingTrailFence.drain();
 	pump = null;
+	pi_syncBackgroundScope();
 	commandTurnBindings.clear();
+	clearDealtRefs();
 	activeCommandStyles.clear();
 	pendingBackgroundTaskIds.clear();
 	activeCommandTurnIdentity = null;
+	// The connection ends here; the server closes every request it carried.
+	dropRequestChain();
 	setBond(null);
 	pi_setPlanToolActive(false);
 	pi_setQuestionToolActive(false);
@@ -1289,16 +1935,29 @@ function interactionEventsRelevant(active: PumpState): boolean {
 }
 
 function activeInteractionRun(active: PumpState): ExactInteractionRun | undefined {
-	return [...interactionRunsByEvent.values()].find((run) =>
-		run.active === active && run.application !== "released");
+	// The journal/map retain receipt bookkeeping; only the starting/current
+	// foreground can own presence. A completed question must not own later work.
+	return [startingInteractionRun, turn?.interaction].find((run): run is ExactInteractionRun =>
+		Boolean(run && run.active === active && run.application !== "released"));
+}
+
+function retireInteractionForeground(run: ExactInteractionRun | undefined): void {
+	if (!run) return;
+	const eventId = run.details.event.event_id;
+	if (interactionRunsByEvent.get(eventId) === run) interactionRunsByEvent.delete(eventId);
+	if (startingInteractionRun === run) startingInteractionRun = null;
+	// Do not mark application released: durable application/ACK retries remain
+	// valid, and captured speech/completion still uses the exact original tuple.
 }
 
 /** Server attachment authority changed; the old exact workflow cannot retarget. */
 function revokeInteractionForAttachmentChange(active: PumpState, ctx: ExtensionContext): boolean {
 	const running = [...interactionRunsByEvent.values()].filter((run) => run.active === active);
-	if (running.length === 0 && turn?.interaction?.active !== active &&
+	const foreground = activeInteractionRun(active);
+	const confirming = [...pendingInteractionConfirmations].some((confirmation) => confirmation.active === active);
+	if (running.length === 0 && !foreground && !confirming &&
 		active.pendingInteractionStarts.size === 0 && active.pendingInteractionReleases.size === 0) return false;
-	ctx.abort();
+	if (foreground) ctx.abort();
 	for (const confirmation of [...pendingInteractionConfirmations]) {
 		if (confirmation.active !== active) continue;
 		interactionDelivery.abandonMessage(confirmation.message);
@@ -1317,7 +1976,7 @@ function revokeInteractionForAttachmentChange(active: PumpState, ctx: ExtensionC
 	active.pendingInteractionStarts.clear();
 	active.pendingInteractionReleases.clear();
 	armInteractionRetryWake(active);
-	active.busy = false;
+	if (foreground) active.busy = false;
 	return true;
 }
 
@@ -1713,7 +2372,7 @@ function startPushChannel(active: PumpState, token: string, endpoint: string): v
 		token,
 		connectionId: active.bond.connectionId,
 		connectionCapability: active.bond.connectionCapability,
-		systemNoticeVersion: 1,
+		systemNoticeVersion: SYSTEM_NOTICE_CHANNEL_VERSION,
 		...(active.pushInteractionAware ? { interactionEventVersion: 1 as const, questionDismissalEventVersion: 1 as const } : {}),
 		signal: controller.signal,
 		handlers: {
@@ -1903,6 +2562,9 @@ async function reviveRecoverableBond(
 	// "confirmed revocation, stop retrying" from "still ambiguous, ride it
 	// out" without parsing messages (item 781886cf).
 	failure?: { authFailed: boolean },
+	// The server reported this connection ended (a push end or a poll status of
+	// ended/not_found): it closed every request the connection carried (7a4d04fd).
+	serverEnded = false,
 ): Promise<boolean> {
 	if (active.stop || pump !== active) return false;
 	const prior = active.bond;
@@ -1922,6 +2584,7 @@ async function reviveRecoverableBond(
 		const connectionCapability = connectionCapabilityFromResult(regRaw);
 		if (!connectionId || !connectionCapability || active.stop || pump !== active) return false;
 
+		let contextPayload = details;
 		let sessionId = typeof details.session_id === "string" ? details.session_id : undefined;
 		let attachedAt = typeof details.attached_at === "string" ? details.attached_at : undefined;
 		let speechAttachmentId = typeof details.speech_attachment_id === "string" ? details.speech_attachment_id : undefined;
@@ -1933,6 +2596,7 @@ async function reviveRecoverableBond(
 			const attach = unwrapMcpResult(attachRaw);
 			if (attach.isError || active.stop || pump !== active) return false;
 			const attached = (attach.details ?? {}) as Record<string, unknown>;
+			contextPayload = { ...details, ...attached };
 			sessionId = typeof attached.session_id === "string" ? attached.session_id : prior.sessionId;
 			attachedAt = typeof attached.attached_at === "string" ? attached.attached_at : undefined;
 			speechAttachmentId = typeof attached.speech_attachment_id === "string" ? attached.speech_attachment_id : undefined;
@@ -1952,7 +2616,7 @@ async function reviveRecoverableBond(
 		});
 		const changedConnection = recoveredScope.changedConnection;
 		const bond: BondState = {
-			...prior,
+			...applyConnectionContext(prior, contextPayload),
 			connectionId,
 			projectId: typeof details.project_id === "string" ? details.project_id : prior.projectId,
 			connectionCapability,
@@ -1960,12 +2624,6 @@ async function reviveRecoverableBond(
 			sessionId,
 			attachedAt,
 			speechAttachmentId,
-			instructions: {
-				owner_custom_instructions: (details.owner_custom_instructions as string | undefined) ?? prior.instructions?.owner_custom_instructions,
-				owner_agent_rules: (details.owner_agent_rules as string | undefined) ?? prior.instructions?.owner_agent_rules,
-				project_custom_instructions: (details.project_custom_instructions as string | undefined) ?? prior.instructions?.project_custom_instructions,
-				project_agent_rules: (details.project_agent_rules as string | undefined) ?? prior.instructions?.project_agent_rules,
-			},
 		};
 
 		active.pushGenerationFence.invalidate();
@@ -1988,6 +2646,7 @@ async function reviveRecoverableBond(
 			// A replacement row is different authority: pending bindings for the old
 			// connection's turns must not be inherited here (item 6f4136d8).
 			commandTurnBindings.clear();
+			clearDealtRefs();
 			activeCommandStyles.clear();
 			pendingBackgroundTaskIds.clear();
 			activeCommandTurnIdentity = null;
@@ -2018,6 +2677,11 @@ async function reviveRecoverableBond(
 				}
 			}
 		}
+		// The request chain (item 7a4d04fd) survives a same-row revive of a live
+		// connection: its requests are still open on the server, and dropping it
+		// would leak them. A replacement row carries none of them, and an ended
+		// connection's were all closed: then it rebuilds from the journal.
+		if (changedConnection || serverEnded) dropRequestChain();
 		setBond(bond);
 		pi_setPlanToolActive(Boolean(bond.sessionId));
 		pi_setQuestionToolActive(Boolean(bond.sessionId && bond.connectionCapability));
@@ -2031,6 +2695,89 @@ async function reviveRecoverableBond(
 	} catch (err) {
 		if (failure) failure.authFailed = err instanceof DevspecAuthError;
 		return false;
+	}
+}
+
+async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: string, endpoint: string): Promise<void> {
+	const effective = await resolveToken();
+	const effectiveEndpoint = await resolveEndpoint();
+	if (pump !== active || active.stop) return;
+	if (effective?.token !== token || effectiveEndpoint !== endpoint) {
+		active.roomSync?.close(true); active.roomSync = undefined; pi_appendRoomScope(null, active.localSessionId); return;
+	}
+	const b = active.bond;
+	if (!b.projectId || !b.sessionId || !b.speechAttachmentId) {
+		active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncKey = undefined; pi_appendRoomScope(null, active.localSessionId); return;
+	}
+	// Connection identity fences the authenticated principal; credentials are never
+	// part of the persisted scope. Endpoint credentials/query strings are omitted.
+	const url = new URL(endpoint);
+	const scope = { endpoint: `${url.origin}${url.pathname}`, projectId: b.projectId, nativeSessionId: active.localSessionId, connectionId: b.connectionId, sessionId: b.sessionId, attachmentId: b.speechAttachmentId };
+	const capability = b.connectionCapability;
+	const key = JSON.stringify([scope, capability]); // process memory only
+	if (active.roomSyncKey === key && (active.roomSync || Date.now() - (active.roomSyncAttemptAt ?? 0) < 60_000)) return;
+	const old = active.roomSync;
+	active.roomSync = undefined;
+	old?.close(old.store.scope.sessionId !== scope.sessionId || old.store.scope.attachmentId !== scope.attachmentId || old.store.scope.connectionId !== scope.connectionId);
+	active.roomSyncKey = key; active.roomSyncAttemptAt = Date.now();
+	const current = () => pump === active && !active.stop && ctx.sessionManager.getSessionId() === active.localSessionId && getBond()?.connectionId === scope.connectionId && getBond()?.connectionCapability === capability && active.bond.connectionId === scope.connectionId && active.bond.sessionId === scope.sessionId && active.bond.speechAttachmentId === scope.attachmentId && active.bond.connectionCapability === capability;
+	try {
+		const advertised = await readDevspecResource(token, "devspec://product/remote-ingress-contract", { lane: "pump", timeoutMs: 5_000 });
+		if (!current() || !advertisesRoomContext(advertised)) return;
+		// Rows this connection posted before this copy existed are its own too; a
+		// bare "Pi" without a codename would also match the owner's other Pis.
+		const identity = active.connectionIdentity;
+		const store = await openRoomStore(scope, { current, principalFingerprint: roomPrincipalFingerprint(token), selfLabel: identity.connection_id === scope.connectionId && identity.codename ? identity.label : null });
+		if (!current()) { store.close(true); return; }
+		const sessionEventsNegotiated = advertisesSessionEvents(advertised);
+		const noticeReplyNegotiated = advertisesNoticeReply(advertised);
+		active.roomSync = new RoomSync({
+			store, sessionEventsNegotiated, noticeReplyNegotiated, current, liveCursor: () => active.cursor,
+			wake: () => { if (current()) signalWake(active); },
+			onError: () => debug("room storage unavailable", { errorPresent: true }),
+			fetchHistory: async (args) => {
+				if (!current()) throw new Error("room attachment changed");
+				let raw: unknown;
+				try {
+					raw = await callDevspec(token, "poll_connection", {
+						connection_id: scope.connectionId, ingress_version: 1, delegated_scope_version: 1,
+						active_plan_projection_version: 1, system_notice_version: SYSTEM_NOTICE_CHANNEL_VERSION, sender_style_version: 1,
+						room_context_version: 1, session_polls_projection_version: 2, wait_ms: 0, ...args,
+					}, { timeoutMs: POLL_TIMEOUT_MS, cwd: ctx.cwd, lane: "pump", beforeSend: () => { if (!current()) throw new DevspecToolError("Room history attachment changed before send."); }, ...(capability ? { connectionCapability: capability } : {}) });
+				} catch (error) {
+					// The embedded client raises MCP refusals before unwrapMcpResult.
+					if (current() && (error instanceof DevspecToolError || error instanceof DevspecAuthError)) {
+						active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncAttemptAt = Date.now();
+						pi_appendRoomScope(null, active.localSessionId);
+						signalWake(active);
+					}
+					throw error;
+				}
+				const response = unwrapMcpResult(raw);
+				if (response.isError) {
+					// A server refusal is not permission to keep using cached room data.
+					if (current()) { active.roomSync?.close(true); active.roomSync = undefined; pi_appendRoomScope(null, active.localSessionId); }
+					throw new Error("room history refused");
+				}
+				const details = response.details as { session_id?: unknown; speech_attachment_id?: unknown } | null;
+				if (!current()) throw new Error("room history attachment changed");
+				if (details?.session_id !== scope.sessionId || details?.speech_attachment_id !== scope.attachmentId) {
+					active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncAttemptAt = Date.now();
+					pi_appendRoomScope(null, active.localSessionId);
+					signalWake(active); // only the main pump adopts the new attachment
+					throw new Error("room history attachment mismatch");
+				}
+				return parsePollPayload(response.details, active.connectionIdentity, { systemNoticeNegotiated: true, senderStyleNegotiated: true, roomContextNegotiated: true, sessionEventsNegotiated, noticeReplyNegotiated });
+			},
+		});
+		if (current()) { pi_appendRoomScope(scope); active.roomSync.schedule(); signalWake(active); }
+	} catch (error) {
+		if (!current()) return;
+		debug("room storage unavailable", { errorPresent: true });
+		const unsupported = (error as { code?: unknown } | null)?.code === "ERR_UNKNOWN_BUILTIN_MODULE";
+		notify(ctx, unsupported
+			? "Local room history needs Node.js 22.19 or later. Command delivery and online reads still work."
+			: "Local room history is temporarily unavailable. Command delivery and online reads still work.", "warning");
 	}
 }
 
@@ -2062,10 +2809,11 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (isPermanentServerEnd("ended", active.pushEnded)) {
 				notify(ctx, `DevSpec remote: connection ended${active.pushEnded ? ` (${active.pushEnded})` : ""}.`, "info");
 				await stopPump(ctx, "owner_gone", true);
+				closePiOnPersonEnd(ctx, "ended", active.pushEnded);
 				return;
 			}
 			debug("push ended recoverable", { reasonPresent: Boolean(active.pushEnded) });
-			if (await reviveRecoverableBond(active, token, ctx)) {
+			if (await reviveRecoverableBond(active, token, ctx, undefined, true)) {
 				pushMode = true;
 				notifiedFallback = false;
 				continue;
@@ -2087,18 +2835,33 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (active.pushEnded !== undefined) continue; // handled at the top
 			if (active.pushClosed) continue; // fall through to long-poll next lap
 		}
-		const retryAt = nextInteractionRetryAt(active);
-		if (retryAt !== null && retryAt > Date.now()) {
-			await new Promise((resolve) => setTimeout(resolve, retryAt - Date.now()));
-			if (active.stop || pump !== active) return;
-		}
-		if (await drainInteractionRetries(active, ctx)) continue;
+		// In-process status reads share the existing safety cadence and never wake
+		// the model or block command polling on a missing provider.
+		void pi_refreshBackgroundWork();
+		// Retry timers already wake the pump when due. Neither waiting for a
+		// future retry nor merely attempting a deferred start may starve the
+		// ordinary command/control poll (4284a43c / 4221d08e).
+		await drainInteractionRetries(active, ctx);
+		if (active.stop || pump !== active) return;
+		drainControlResults(active, ctx, token, endpoint);
 
 		// The server can claim ten at once. Negotiate only when that complete batch
 		// fits; otherwise ordinary 1.3 command polling continues while notices stay
 		// server-retained behind the still-aware SSE marker.
+		void ensureRoomSync(active, ctx, token, endpoint).catch(() => debug("room storage unavailable", { errorPresent: true }));
+		if (active.stop || pump !== active) return;
 		const systemNoticeNegotiated = hasSystemNoticeBatchCapacity(active.systemNoticeKey);
 		const senderStyleNegotiated = systemNoticeNegotiated;
+		let roomContextNegotiated = senderStyleNegotiated && Boolean(active.roomSync);
+		let roomWatch: Record<string, unknown> = {};
+		if (roomContextNegotiated) {
+			try { roomWatch = { ...active.roomSync!.store.watch(), ...active.roomSync!.negotiationWatch() }; }
+			catch {
+				active.roomSync?.close(); active.roomSync = undefined;
+				active.roomSyncAttemptAt = Date.now(); roomContextNegotiated = false;
+				debug("room storage unavailable", { errorPresent: true });
+			}
+		}
 		// Claims are idle-only. A durable application ACK is different: it must
 		// travel immediately while the model is busy, before the 30-second event
 		// lease can redeliver. catch_up below keeps that ACK lap event/command-free.
@@ -2116,6 +2879,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			&& !interactionClaimIdle
 			&& !interactionEventAck;
 		const interactionEventNegotiated = interactionClaimIdle || interactionClaimBusyPreempt || Boolean(interactionEventAck);
+		const commandOfferNegotiated = Boolean(active.bond.sessionId && active.bond.speechAttachmentId && active.bond.connectionCapability);
+		const commandHandoffReady = commandOfferNegotiated && !interactionEventAck ? pi_commandHandoffReady(active, ctx) : null;
 		let payload: unknown;
 		try {
 			const raw = await callDevspec(
@@ -2126,11 +2891,16 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					ingress_version: 1,
 					delegated_scope_version: 1,
 					active_plan_projection_version: 1,
+					// Item bba35976: the poll inventory that is never dropped when the room
+					// has more polls than fit; it carries the totals and where the rest are.
+					session_polls_projection_version: 2,
+					...(commandOfferNegotiated ? { command_offer_version: 1,
+						...(commandHandoffReady ? { command_handoff_ready: commandHandoffReady } : {}) } : {}),
 					...(systemNoticeNegotiated ? {
-						system_notice_version: 1,
+						system_notice_version: SYSTEM_NOTICE_CHANNEL_VERSION,
 						system_notice_cursor: active.systemNoticeCursor,
 						// Sender style rides the same gate: the server requires
-						// system_notice_version: 1 as its prerequisite (item 6a511dab).
+						// system_notice_version as its prerequisite (item 6a511dab).
 						sender_style_version: 1,
 					} : {}),
 					...(interactionEventNegotiated ? {
@@ -2138,21 +2908,31 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 						question_dismissal_event_version: 1,
 						...(interactionEventAck ? interactionEventAckArgs(interactionEventAck) : {}),
 					} : {}),
+					...(roomContextNegotiated ? { room_context_version: 1, ...roomWatch } : {}),
 					cursor_v2: active.cursor,
 					dispatch_cursor: active.dispatchCursor,
 					wait_ms: pushMode ? 0 : POLL_WAIT_MS,
 					...(interactionEventAck && (active.busy || active.runtimeOccupancy.isBusy()) ? { catch_up: true } : {}),
 					// Generic busy projection is forbidden for exact interaction attempts;
 					// their lease is refreshed with report_keepalive and exact tuple.
-					...(!activeInteractionRun(active) ? { busy: active.busy } : {}),
+					...(!activeInteractionRun(active) ? { busy: active.busy, progress_marker: currentProgressMarker() } : {}),
 					listener_armed: true,
 					agent_name: AGENT_NAME,
 					agent_stats: runtimeAgentStats(ctx),
+					// What this Pi carries out (item 6beb89c6). Authoritative once sent:
+					// DevSpec offers exactly these, so Clear only to a Pi that has it.
+					control_verbs: [...CONTROL_VERBS],
 				},
-				{ timeoutMs: POLL_TIMEOUT_MS, cwd: ctx.cwd, lane: "pump", ...(interactionEventNegotiated && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}) },
+				{ timeoutMs: POLL_TIMEOUT_MS, cwd: ctx.cwd, lane: "pump",
+					beforeSend: () => { if (commandHandoffReady && pi_commandHandoffReady(active, ctx) !== commandHandoffReady) throw new StaleCommandHandoffError("Command readiness changed before send."); },
+					...((interactionEventNegotiated || commandOfferNegotiated) && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}) },
 			);
 			const { details, isError, text } = unwrapMcpResult(raw);
-			if (isError) throw new Error(text || "poll_connection failed");
+			if (isError) {
+				active.roomSync?.close(true); active.roomSync = undefined;
+				pi_appendRoomScope(null, active.localSessionId);
+				throw new Error(text || "poll_connection failed");
+			}
 			payload = details;
 			if (notifiedDegraded) {
 				notifiedDegraded = false;
@@ -2160,6 +2940,11 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			}
 			active.errors = 0;
 		} catch (err) {
+			if (err instanceof StaleCommandHandoffError) { signalWake(active); continue; }
+			if (err instanceof DevspecToolError || err instanceof DevspecAuthError) {
+				active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncAttemptAt = Date.now();
+				pi_appendRoomScope(null, active.localSessionId);
+			} else active.roomSync?.store.markOffline();
 			// Only CONFIRMED credential rejection ends the bond (item 781886cf).
 			// Unavailable validation, transport noise, and ambiguous 401s ride
 			// out the backoff below. An auth-shaped failure first gets one
@@ -2208,11 +2993,12 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (isPermanentServerEnd(status, endReason)) {
 				notify(ctx, `DevSpec remote: connection ended${endReason ? ` (${endReason})` : ""}.`, "info");
 				await stopPump(ctx, "owner_gone", true);
+				closePiOnPersonEnd(ctx, status, endReason);
 				return;
 			}
 			active.errors += 1;
 			debug("poll recoverable server response", { ended: status === "ended", reasonPresent: Boolean(endReason) });
-			if (await reviveRecoverableBond(active, token, ctx)) {
+			if (await reviveRecoverableBond(active, token, ctx, undefined, true)) {
 				pushMode = true;
 				notifiedFallback = false;
 				continue;
@@ -2259,6 +3045,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			// A new room (or detach) invalidates pending bindings for the old room's
 			// turns: identical terminal text must not inherit them (item 6f4136d8).
 			commandTurnBindings.clear();
+			clearDealtRefs();
 			activeCommandStyles.clear();
 			pendingBackgroundTaskIds.clear();
 			activeCommandTurnIdentity = null;
@@ -2272,7 +3059,10 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				attachContext: undefined,
 				roomDigest: undefined,
 			};
+			active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncKey = undefined;
+			pi_appendRoomScope(null, active.localSessionId);
 			active.bond = next;
+			void ensureRoomSync(active, ctx, token, endpoint).catch(() => debug("room storage unavailable", { errorPresent: true }));
 			const detachTail = authoritativeActivePlanTransitionTail(
 				active.awarenessKey,
 				active.activePlanTail,
@@ -2285,6 +3075,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			active.pendingStillToDiscussTail = "";
 			active.stillToDiscussTail = "";
 			setBond(next);
+			pi_syncBackgroundScope();
 			pi_setPlanToolActive(Boolean(serverSessionId));
 			pi_setQuestionToolActive(Boolean(serverSessionId && next.connectionCapability));
 			pi_setPollToolActive(Boolean(serverSessionId && next.connectionCapability));
@@ -2305,6 +3096,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		}
 
 		if (interactionEvent) {
+			try { active.roomSync?.store.observeQuestion(interactionEvent); }
+			catch { debug("room storage unavailable", { errorPresent: true }); }
 			const idle = !active.busy && !active.runtimeOccupancy.isBusy() && ctx.isIdle();
 			if (decideInteractionDelivery({
 				idle,
@@ -2362,8 +3155,14 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			}
 		}
 
-		const pkg = parsePollPayload(payload, active.connectionIdentity, { systemNoticeNegotiated, senderStyleNegotiated });
+		const pkg = parsePollPayload(payload, active.connectionIdentity, { systemNoticeNegotiated, senderStyleNegotiated, roomContextNegotiated, sessionEventsNegotiated: roomContextNegotiated && roomWatch.session_events_version === 1, noticeReplyNegotiated: roomContextNegotiated && roomWatch.notice_reply_version === 1 });
 		if (pkg.canonicalState === "invalid") {
+			if (roomContextNegotiated) {
+				// Re-request the preserved lane; never reinterpret a malformed1.6
+				// payload as an older envelope or let cache availability wedge intake.
+				active.roomSync?.close(); active.roomSync = undefined;
+				active.roomSyncAttemptAt = Date.now();
+			}
 			// A negotiated changed response without a valid known ingress envelope
 			// has no executable or contextual meaning. Keep the canonical cursor
 			// unchanged so a corrected response can be retried.
@@ -2372,8 +3171,44 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (pkg.dispatchCursor) active.dispatchCursor = pkg.dispatchCursor;
 			active.errors += 1;
 			debug("canonical ingress rejected", { errors: active.errors, errorPresent: Boolean(pkg.canonicalError) });
+			// Say so once per reason, here and in the room: the sender cannot see
+			// this terminal, and a silent retry looked like DevSpec had lost the
+			// message (item 39c05c1f). The retry above is unchanged.
+			const unreadable = unreadableRemoteMessageNotice(pkg.canonicalError, active.unreadableIngressReported);
+			if (unreadable) {
+				active.unreadableIngressReported = unreadable.key;
+				notify(ctx, unreadable.local, "error");
+				void postToSession(unreadable.room, { commandTurnUnbound: true });
+			}
 			await new Promise((resolve) => setTimeout(resolve, ERROR_BACKOFF_MS));
 			continue;
+		}
+		if (pkg.canonicalState === "valid") active.unreadableIngressReported = undefined;
+
+		if (pkg.canonicalState === "valid" && pkg.ownerBundle) {
+			active.bond = applyConnectionContext(active.bond, payload);
+			setBond(active.bond);
+		}
+
+		// Additive read model: no storage result is used for command admission,
+		// notice/question ACKs, Working, attachment hydration or speech.
+		active.roomSync?.observe(pkg);
+
+		// Tell the person once, by closed section names only: the agent is working
+		// without that part of the room (item 39c05c1f).
+		const roomState = unreadableRoomStateNotice(pkg.advisoryRejections, active.unreadableRoomStateReported);
+		if (roomState) {
+			active.unreadableRoomStateReported = roomState.key;
+			notify(ctx, roomState.local, "warning");
+		}
+		if (pkg.advisoryRejections?.length) {
+			debug("optional room state rejected", {
+				sessionPolls: pkg.advisoryRejections.includes("session_polls"),
+				stillToDiscuss: pkg.advisoryRejections.includes("still_to_discuss"),
+				...(pkg.advisoryRejections.includes("session_activity") ? { sessionActivity: true } : {}),
+				...(pkg.advisoryRejections.includes("session_events") ? { sessionEvents: true } : {}),
+				...(pkg.advisoryRejections.includes("notice_reply") ? { noticeReply: true } : {}),
+			});
 		}
 
 		if (pkg.unboundSenderStyleIds && pkg.unboundSenderStyleIds.length > 0) {
@@ -2423,6 +3258,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		}
 
 		if (pkg.stillToDiscuss !== undefined) {
+			// A changed package supplies a snapshot or explicit unavailability. Both
+			// replace prior awareness; an idle response leaves it alone (01b7c2e2).
 			const discussTail = serializeStillToDiscussProjection(pkg.stillToDiscuss);
 			if (discussTail !== active.stillToDiscussTail) active.pendingStillToDiscussTail = discussTail;
 			active.stillToDiscussTail = discussTail;
@@ -2434,33 +3271,56 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			// Reload is terminal for this pump frame (item e4d5612c). Ack first so
 			// a revived bond cannot see the same pending CONTROL, then reload, then
 			// return. Do not notify on the old ctx after a successful reload.
-			if (control.verb === "reload") {
+			if (control.verb === "clear" && !ctx.isIdle()) {
+				// Mid-response: hand the control back now, as received rather than done,
+				// so DevSpec's one control slot, and with it the owner's Stop, stays free;
+				// the clear runs when this response ends. A redelivery before the ack
+				// lands schedules nothing twice.
+				if (!active.queuedClears.has(control.id)) {
+					active.queuedClears.add(control.id);
+					void clearForOwner(ctx).then(
+						() => notify(ctx, "DevSpec remote: conversation cleared."),
+						(err) => notify(ctx, `DevSpec remote: clear failed — ${err instanceof Error ? err.message : String(err)}`, "error"),
+					);
+				}
+				try {
+					await ackControl(token, active.bond.connectionId, control.id);
+				} catch {
+					debug("control acknowledgement failed", { errorPresent: true });
+				}
+			} else if (control.verb === "reload") {
 				const lap = await runReloadLap({
-					ack: () => ackControl(token, active.bond.connectionId, control.id),
-					reload: () => reloadWithContext(commandReloadContext() ?? (ctx as { reload?: () => Promise<void> })),
+					ack: async () => { await ackControl(token, active.bond.connectionId, control.id); },
+					reload: () => reloadWithContext(extensionCommandContext() ?? (ctx as { reload?: () => Promise<void> })),
 				});
 				debug("control reload", { succeeded: lap.status === "reloaded", errorPresent: Boolean(lap.error) });
 				if (lap.status === "reloaded") return;
 				notify(ctx, `DevSpec remote: reload failed — ${lap.error ?? lap.status}`, "error");
-			} else {
+			} else if (!active.controlResults.has(active.bond.connectionId, control.id)) {
 				let catalog: ModelCatalogSnapshot | undefined;
+				let collectionMs: number | undefined;
+				let controlResult: ControlResult = { status: "completed" };
 				try {
 					const result = await executeControlCommand(control, {
 						isIdle: () => ctx.isIdle(),
 						abort: () => ctx.abort(),
 						compact: () => compactWithContext(ctx),
-						reload: () => reloadWithContext(commandReloadContext() ?? (ctx as { reload?: () => Promise<void> })),
+						clear: () => clearForOwner(ctx),
+						reload: () => reloadWithContext(extensionCommandContext() ?? (ctx as { reload?: () => Promise<void> })),
 						setThinkingLevel: (level) => pi_setThinking(level),
 						setModel: (modelId) => pi_setModel(modelId),
 						notify: (message) => notify(ctx, message),
 					});
 					debug("control completed", { resultPresent: Boolean(result) });
 					if (control.verb === "list_models") {
+						const collectionStarted = performance.now();
 						catalog = collectModelCatalog({
 							scopedModels: ctx.scopedModels,
 							modelRegistry: ctx.modelRegistry,
 							model: ctx.model,
 						});
+						collectionMs = performance.now() - collectionStarted;
+						debug("control catalogue collected", { models: catalog.models.length, collectionMs, catalogBytes: Buffer.byteLength(JSON.stringify(catalog)) });
 						notify(ctx, `DevSpec remote: list_models — ${catalog.models.length} models.`);
 					} else {
 						notify(ctx, `DevSpec remote: ${control.verb} — ${result}.`);
@@ -2468,12 +3328,21 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				} catch (err) {
 					const msg = err instanceof Error ? err.message : String(err);
 					debug("control failed", { messageChars: msg.length });
+					controlResult = { status: "failed", error: control.verb === "list_models" ? "model_catalog_unavailable" : "control_failed" };
+					catalog = undefined;
 					notify(ctx, `DevSpec remote: ${control.verb} failed — ${msg}`, "error");
 				} finally {
 					// Pi emits no event when a request clamps to the already-active level.
 					if (control.verb === "set_thinking") scheduleRuntimeStamp(ctx);
 				}
-				void ackControl(token, active.bond.connectionId, control.id, catalog).catch(() => {});
+				try {
+					active.controlResults.produce({ connectionId: active.bond.connectionId, controlId: control.id, result: controlResult,
+						...(catalog ? { catalog } : {}), ...(collectionMs !== undefined ? { collectionMs } : {}) }, pi_appendControlResult);
+				} catch {
+					debug("control result persistence failed", { errorPresent: true });
+					notify(ctx, "DevSpec remote: couldn't save the control result locally. Delivery will retry in this runtime.", "warning");
+				}
+				drainControlResults(active, ctx, token, endpoint);
 			}
 		}
 
@@ -2489,10 +3358,21 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			active.advisoryCarry = [pkg.advisoryContext];
 		}
 
+		let commandOfferHoldsCursor = false;
+		if (commandOfferNegotiated) {
+			try {
+				const available = parseCommandOfferPoll(payload, { nativeSessionId: active.localSessionId,
+					connectionId: active.bond.connectionId, sessionId: active.bond.sessionId!, attachmentId: active.bond.speechAttachmentId! });
+				commandOfferHoldsCursor = Boolean(available.offer) || available.stale;
+			} catch { commandOfferHoldsCursor = true; } // an invalid availability sidecar cannot consume input
+		}
+		await pi_receiveCommandOffer(payload, active, ctx, pkg.ownerBundle?.commands ?? []);
+		if (pump !== active || active.stop) return;
 		let commandDeliveryFailed = false;
 		let commandRetryDelayMs = 0;
 		if (pkg.rejectedBundle) {
 			const unseen = active.seenOwnerCommands.takeUnseen(pkg.rejectedBundle.commands);
+					noteDeliveredCommandRefs(unseen);
 			if (unseen.length > 0) {
 				const rejected = ownerBundleSubset(pkg.rejectedBundle, unseen);
 				// Unavailable attachments are terminal for this immutable envelope, but
@@ -2502,6 +3382,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				if (reported) {
 					active.attachmentRetryAttempts.delete(rejected.commandTurnId);
 					active.seenOwnerCommands.commitBundle(unseen);
+					pi_offerCanonicalReceived(unseen);
 				} else {
 					active.seenOwnerCommands.releaseBundle(unseen);
 					commandDeliveryFailed = true;
@@ -2515,7 +3396,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 
 		if (pkg.ownerBundle) {
 			const unseen = active.seenOwnerCommands.takeUnseen(pkg.ownerBundle.commands);
+				noteDeliveredCommandRefs(unseen);
 			if (unseen.length > 0) {
+				pi_backgroundInputPending();
 				const selectedBundle = ownerBundleSubset(pkg.ownerBundle, unseen);
 				let attachmentLease: AttachmentDeliveryLease | undefined;
 				try {
@@ -2526,17 +3409,21 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					attachmentLease = new AttachmentDeliveryLease(hydration.materialised);
 					const mode = decideOwnerDelivery({
 						idle: ctx.isIdle(),
-						preemptEnabled: preemptOwnerCached,
+						preemptEnabled: preemptOwnerCached && !pi_offerAlreadyAborted(hydrated.primaryCommand.id),
 						hasOwnerCommand: true,
 					});
 					const formatted = formatInboundBundleMessage(hydrated);
 					const contextByEnvelope = new Map(
 						[...active.advisoryCarry, hydrated.advisoryContext].map((context) => [context.envelopeId, context]),
 					);
-					const contexts = [...contextByEnvelope.values()];
+					let localHistory = false;
+					try { localHistory = Boolean(pkg.roomPage && pi_roomReaderAvailable() && active.roomSync && !active.roomSync.store.status().storageError); } catch { /* keep the supported delivery fallback */ }
+					const contexts = localHistory ? [] : [...contextByEnvelope.values()];
 					const queueItem = {
 						hiddenContent: formatCanonicalDeliveryContext(hydrated, contexts),
-						details: { bundle: hydrated, contexts },
+						details: localHistory
+							? { local_room: { session_id: active.bond.sessionId, attachment_id: active.bond.speechAttachmentId }, command_message_ids: hydrated.commands.map(c => c.id) }
+							: { bundle: hydrated, contexts },
 					};
 					const primary = hydrated.primaryCommand;
 					const requester = primary.requester.display_name ?? primary.requester.user_id;
@@ -2561,7 +3448,11 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 							? `DevSpec remote: queued canonical command turn (${requester}).`
 							: `DevSpec remote: delivered canonical command turn (${requester}).`;
 					}
-					pi_send(formatted, sendMode, hydrated.commandTurnId, primary.id, queueItem);
+					// Each command's own delivery ref opens its request when the message
+					// starts (item 7a4d04fd): a later command from someone else that joins
+					// an open turn is that person's request, not the first sender's.
+					pi_send(formatted, sendMode, hydrated.commandTurnId, primary.id, queueItem,
+						hydrated.commands.map((command) => ({ provenanceRef: command.delivery.provenance_ref, messageId: command.id, fromOwner: command.authority.kind === "owner" })));
 					attachmentLease.accept();
 					active.attachmentRetryAttempts.delete(hydrated.commandTurnId);
 					// Commit immediately after Pi accepts the sole queue item; later UI
@@ -2572,6 +3463,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 						command.responseStyleNotes ? [{ id: command.id, responseStyleNotes: command.responseStyleNotes }] : []);
 					if (deliveredStyles.length > 0) activeCommandStyles.set(hydrated.commandTurnId, deliveredStyles);
 					active.seenOwnerCommands.commitBundle(unseen);
+					pi_offerCanonicalReceived(unseen);
 					notify(ctx, deliveryNotice);
 					if (untitledAttached()) {
 						setSessionPreview(previewFromText(primary.text));
@@ -2590,10 +3482,11 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				}
 			}
 		}
-		if (!commandDeliveryFailed) {
+		if (!commandDeliveryFailed && !commandOfferHoldsCursor) {
 			if (pkg.cursorV2) active.cursor = pkg.cursorV2;
 			if (pkg.ownerBundle) active.advisoryCarry = [];
 		}
+		active.roomSync?.schedule();
 		const dispatches = (payload as { dispatches?: unknown[] } | null)?.dispatches ?? [];
 		for (const dispatch of dispatches) enqueueAutomationRun(active, token, dispatch, ctx);
 		if (pkg.dispatchCursor) active.dispatchCursor = pkg.dispatchCursor;
@@ -2610,13 +3503,33 @@ interface BondOutcome {
 	errorKind?: "auth" | "api";
 	codename?: string;
 	attached?: boolean;
+	projectChoice?: ProjectChoiceRequired;
+}
+
+/**
+ * The owner's Clear (item 6beb89c6): empty this agent's conversation with Pi's own
+ * tree navigation, keeping the session and so the DevSpec connection. Pi will not
+ * navigate mid-response, so this waits for the response in progress to end, as a
+ * /tree typed now would have to.
+ */
+async function clearForOwner(ctx: ExtensionContext): Promise<void> {
+	const command = extensionCommandContext();
+	const navigateTree = command?.navigateTree;
+	if (!command || !navigateTree) throw new Error("this Pi cannot clear its conversation from here");
+	if (!ctx.isIdle()) await command.waitForIdle?.();
+	await clearConversation({
+		branch: () => ctx.sessionManager.getBranch(),
+		navigateTree: (targetId) => navigateTree.call(command, targetId, { summarize: false }),
+		getEditorText: () => ctx.ui.getEditorText(),
+		setEditorText: (text) => ctx.ui.setEditorText(text),
+	});
 }
 
 /**
  * Register/revive the bond and start the pump. Shared by /devspec.remote and
  * the auto-bond on session_start. Never throws.
  */
-async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<BondOutcome> {
+async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: ProjectCandidate): Promise<BondOutcome> {
 	const resolved = await resolveToken();
 	if (!resolved) return { ok: false, error: "Not connected to DevSpec — /devspec.login first.", errorKind: "auth" };
 
@@ -2633,6 +3546,8 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 			machine_hostname: hostname(),
 			cwd: ctx.cwd,
 			connection_capability_version: 1,
+			project_selection_version: 1,
+			...(project ? { project_id: project.id } : {}),
 		}, { cwd: ctx.cwd, lane: "pump" });
 		const reg = unwrapMcpResult(regRaw);
 		if (reg.isError) return { ok: false, error: `register failed: ${reg.text}`, errorKind: "api" };
@@ -2642,14 +3557,26 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 		if (!negotiatedCapability) throw new Error("register_connection did not return negotiated connection capability v1 metadata");
 		connectionCapability = negotiatedCapability;
 	} catch (err) {
-		return { ok: false, error: err instanceof Error ? err.message : String(err), errorKind: "api" };
+		return { ok: false, error: err instanceof Error ? err.message : String(err), errorKind: "api",
+			...(err instanceof DevspecToolError && err.projectChoice ? { projectChoice: err.projectChoice } : {}) };
 	}
 	const connectionId = (d.connection_id ?? d.connectionId) as string | undefined;
 	if (!connectionId) return { ok: false, error: `register returned no connection id: ${regText.slice(0, 200)}`, errorKind: "api" };
 
-	const bond: BondState = {
+	if (ctx.sessionManager.getSessionId() !== localId) return { ok: false, error: "The local conversation changed during connection. Retry in the current conversation.", errorKind: "api" };
+	const choice = projectFromRegistration(d, await resolveEndpoint(), project ?? getProjectChoice()?.project);
+	if (!choice || (project && choice.project.id !== project.id)) return { ok: false, error: "DevSpec did not confirm the selected project. No local connection was adopted.", errorKind: "api" };
+	pi_persistProjectChoice(ctx, choice);
+	// GitHub identity link at connect (ADR §14, c45f75d4): DevSpec offers the
+	// link; the person opens it, so it is shown to them, not to the model.
+	const githubLink = githubIdentityNotice(d.github_identity);
+	if (githubLink) notify(ctx, githubLink, "info");
+
+	let bond: BondState = {
 		connectionId,
 		projectId: typeof d.project_id === "string" ? d.project_id : undefined,
+		projectName: choice.project.name !== choice.project.id ? choice.project.name : undefined,
+		repositoryContext: repositoryContextMessage(d.repository_context, choice.project.id, choice.project.name),
 		connectionCapability,
 		codename: typeof d.codename === "string" ? d.codename : undefined,
 		sessionId: (d.session_id as string | undefined) ?? undefined,
@@ -2675,6 +3602,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 				notify(ctx, `DevSpec remote: bonded but attach failed: ${att.text}`, "warning");
 			} else {
 				const ad = (att.details ?? {}) as Record<string, unknown>;
+				bond = applyConnectionContext(bond, ad);
 				bond.sessionId = (ad.session_id as string | undefined) ?? bond.sessionId;
 				bond.attachedAt = typeof ad.attached_at === "string" ? ad.attached_at : undefined;
 				bond.speechAttachmentId = typeof ad.speech_attachment_id === "string" ? ad.speech_attachment_id : undefined;
@@ -2716,6 +3644,8 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 		localSessionId: localId,
 		pendingInteractionStarts: new Map(),
 		pendingInteractionReleases: new Map(),
+		controlResults: ControlResultOutbox.reconstruct(ctx.sessionManager.getBranch()),
+		queuedClears: new Set(),
 		wakeGate: new WakeGenerationGate(),
 		automationQueue: new DeliveryQueue(),
 		automationRetryAttempts: new Map(),
@@ -2729,6 +3659,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 		stillToDiscussTail: "",
 		pendingStillToDiscussTail: "",
 	};
+	pi_syncBackgroundScope();
 	pi_setPlanToolActive(Boolean(bond.sessionId));
 	pi_setQuestionToolActive(Boolean(bond.sessionId && bond.connectionCapability));
 	pi_setPollToolActive(Boolean(bond.sessionId && bond.connectionCapability));
@@ -2746,7 +3677,8 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string): Promise<Bond
 }
 
 // Late-bound so the loop can reference the ExtensionAPI closure.
-let pi_systemNoticeSend: (message: string, details: { notices: unknown[] }) => void = () => {};
+let pi_appendControlResult: (entry: ControlResultEntry) => void = () => { throw new Error("CONTROL journal unavailable"); };
+let pi_systemNoticeSend: (message: string, details: { notices: unknown[]; roomAttached: boolean }) => void = () => {};
 let pi_appendInteractionEntry: (
 	state: "observed" | "applied" | "acknowledged",
 	details: InteractionEventApplicationDetails,
@@ -2763,15 +3695,27 @@ let pi_send: (
 	commandTurnId?: string,
 	commandMessageId?: string,
 	canonicalQueueItem?: CanonicalQueueItem,
+	requests?: readonly CommandRequestRef[],
 ) => void = () => {};
+let pi_persistProjectChoice: (ctx: ExtensionContext, choice: ProjectChoice) => void = () => {};
 let pi_abort: () => void = () => {};
 let pi_compact: () => void = () => {};
 let pi_reload: () => Promise<void> = async () => {};
 let pi_setThinking: (level: string) => string = () => { throw new Error("setThinkingLevel is not available"); };
 let pi_setModel: (modelId: string) => Promise<boolean> = async () => false;
 let pi_setPlanToolActive: (enabled: boolean) => void = () => {};
+let pi_roomReaderAvailable: () => boolean = () => false;
+let pi_appendRoomScope: (scope: RoomStoreScope | null, nativeSessionId?: string) => void = () => {};
 let pi_setQuestionToolActive: (enabled: boolean) => void = () => {};
 let pi_setPollToolActive: (enabled: boolean) => void = () => {};
+let pi_syncBackgroundScope: () => void = () => {};
+let pi_refreshBackgroundWork: () => Promise<void> = async () => {};
+let pi_backgroundInputPending: () => void = () => {};
+let pi_receiveCommandOffer: (payload: unknown, active: PumpState, ctx: ExtensionContext, commands: readonly OwnerCommand[]) => Promise<void> = async () => {};
+let pi_commandHandoffReady: (active: PumpState, ctx: ExtensionContext) => Record<string, unknown> | null = () => null;
+let pi_offerAlreadyAborted: (sourceId: string) => boolean = () => false;
+let pi_offerCanonicalReceived: (commands: readonly OwnerCommand[]) => void = () => {};
+let pi_takePreparedOfferAttachments: (commands: readonly OwnerCommand[]) => Promise<{ sourceId: string; materialised: MaterialisedAttachment[]; budgetUsed: number } | null> = async () => null;
 
 /**
  * Refresh display identity only. Conversational/model context is accepted
@@ -2815,7 +3759,305 @@ async function enrichBondWithSession(sessionId: string): Promise<void> {
 
 export default function (pi: ExtensionAPI) {
 	rememberExtensionRunner();
+	const projectSelection = installProjectSelection(pi, {
+		attempt: bondNow,
+		stop: async ctx => { if (pump) await stopPump(ctx, "local_stop"); },
+	});
+	pi_persistProjectChoice = projectSelection.persist;
 	const subagentFleet = new SubagentFleetClient(pi.events);
+	let observationScope: BackgroundWorkScope | null = null;
+	let restoringBackground = false;
+	let foregroundEpoch = 0;
+	let parkedBackground: { active: PumpState; scope: string; epoch: number; settled: TurnState; ready: Promise<void> } | null = null;
+	let completingBackground = false;
+	let settledInteractionForOffer: { run: ExactInteractionRun; epoch: number; scope: string } | null = null;
+	const observedIds = new Set<string>();
+	const journalStates = new Map<string, string>();
+	const launchScopes = new Map<string, string>();
+	/** What each tool call's turn served when it started, and its args (item 7a4d04fd). */
+	const launchRequests = new Map<string, { snapshot: LaunchSnapshot | null; args: unknown }>();
+	/**
+	 * Record what a tool call started against what its turn served when it
+	 * LAUNCHED (item 7a4d04fd): a background task, an async subagent run, a
+	 * directed question. Every launch is recorded — for a request, for nobody's,
+	 * or as not known — so its wake is never mistaken for one nothing here
+	 * started; journaled, so a /reload keeps it. A kill or a cancelled question
+	 * ends the work without a wake, so it stops holding its requests open.
+	 */
+	const recordLaunchedWork = (toolName: string, launch: { snapshot: LaunchSnapshot | null; args: unknown } | undefined, result: unknown, isError: boolean): void => {
+		const chain = requestChain();
+		if (!chain) return;
+		try {
+			if (launch?.snapshot) {
+				const task = backgroundLaunch(toolName, result, isError);
+				if (task) chain.recordLaunch(taskKey(task.id), launch.snapshot, { notifies: task.notifies });
+				const run = subagentLaunch(toolName, result, isError);
+				if (run) chain.recordLaunch(subagentKey(run.id), launch.snapshot, { aliases: run.aliases });
+				const questionId = askedQuestionId(toolName, launch.args, result, isError);
+				if (questionId) chain.recordLaunch(questionKey(questionId), launch.snapshot);
+			}
+			if (toolName === "bg_kill") for (const id of terminalBackgroundTaskIds(toolName, result, isError)) chain.endLaunch(taskKey(id));
+			const cancelled = cancelledQuestionId(toolName, launch?.args, isError);
+			if (cancelled) chain.endLaunch(questionKey(cancelled));
+		} catch { debug("request launch record failed", { errorPresent: true }); }
+	};
+	/**
+	 * Restored launches against what the host still runs (item 7a4d04fd): a
+	 * background task the provider (or the journal) reports finished — or, after
+	 * a fresh refresh, one the provider does not list at all — or async subagents
+	 * when none is running, will not wake this instance, so they stop holding
+	 * their requests open. Anything the host cannot tell about waits.
+	 */
+	const reconcileRestored = (chain: RequestChain, refreshed: boolean, fleetActive: number | null): void => {
+		if (activeRequestChain() !== chain || !chain.restoredKeys().length) return;
+		const observation = backgroundObserver.snapshot();
+		const listedAfterRefresh = refreshed && observation.scope !== null;
+		const states = new Map(observation.tasks.map((task) => [task.id, task.state]));
+		const active = pump;
+		const finished = active && lastCtx?.sessionManager.getSessionId() === active.localSessionId
+			? journaledFinishedTasks(lastCtx.sessionManager.getBranch(), active.localSessionId, active.bond.connectionId)
+			: new Set<string>();
+		const ended = chain.reconcileRestored((key) => {
+			if (key.startsWith("task:")) {
+				const id = key.slice("task:".length);
+				const state = states.get(id);
+				if (state === "running") return true;
+				if (state === "completed" || state === "failed" || state === "killed" || finished.has(id)) return false;
+				if (state === undefined && listedAfterRefresh) return false;
+				return undefined;
+			}
+			if (key.startsWith("subagent:")) return refreshed && fleetActive === 0 ? false : undefined;
+			return undefined;
+		});
+		if (ended > 0) debug("request launches ended after restore", { ended });
+	};
+	pi_reconcileRestoredLaunches = (chain) => {
+		void (async () => {
+			try {
+				reconcileRestored(chain, false, null);
+				if (!chain.restoredKeys().length) return;
+				await pi_refreshBackgroundWork();
+				const fleet = chain.restoredKeys().some((key) => key.startsWith("subagent:")) ? await subagentFleet.refreshFresh() : null;
+				reconcileRestored(chain, true, fleet ? fleet.totalActive : null);
+			} catch { debug("request launches restore failed", { errorPresent: true }); }
+		})();
+	};
+	const currentBackgroundScope = (): BackgroundWorkScope | null => {
+		const active = pump;
+		if (!active || active.stop || !active.bond.sessionId || !active.bond.speechAttachmentId ||
+			lastCtx?.sessionManager.getSessionId() !== active.localSessionId) return null;
+		return { nativeSessionId: active.localSessionId, connectionId: active.bond.connectionId,
+			sessionId: active.bond.sessionId, attachmentId: active.bond.speechAttachmentId };
+	};
+	type PendingOffer = { offer: CommandOffer; scope: CommandOfferScope; run: ExactInteractionRun; epoch: number;
+		materialised: MaterialisedAttachment[]; budgetUsed: number; preparing: Promise<void>; ready: Record<string, unknown> | null };
+	let pendingOffer: PendingOffer | null = null;
+	let offerCleanup: Promise<void> = Promise.resolve();
+	let offerWarningShown = false;
+	const offerBudget = new CommandPreemptionBudget();
+	const clearOffer = (): Promise<void> => {
+		const previous = pendingOffer; pendingOffer = null;
+		if (previous) offerCleanup = offerCleanup.then(async () => {
+			await previous.preparing.catch(() => {});
+			await cleanupMaterialisedAttachments(previous.materialised);
+		});
+		return offerCleanup;
+	};
+	const offerCurrent = (state: PendingOffer) => pendingOffer === state && pump === state.run.active && !state.run.active.stop &&
+		state.run.application === "applied" && interactionAuthorityCurrent(state.run.authority) &&
+		JSON.stringify(currentBackgroundScope()) === JSON.stringify(state.scope);
+	const foregroundIdleForOffer = (active: PumpState, ctx: ExtensionContext) => ctx.isIdle() && !active.runtimeOccupancy.isBusy();
+	pi_offerAlreadyAborted = source => offerBudget.has(source);
+	pi_offerCanonicalReceived = commands => {
+		const scope = currentBackgroundScope();
+		if (!scope) return;
+		try { for (const command of commands) offerBudget.received(command.id, scope, (type, data) => pi.appendEntry(type, data)); }
+		catch { debug("command offer preparation failed", { errorPresent: true }); } // never replay an accepted send for a journal failure
+	};
+	pi_commandHandoffReady = (active, ctx) => {
+		const state = pendingOffer;
+		return state && state.run.active === active && offerCurrent(state) && state.epoch === foregroundEpoch &&
+			foregroundIdleForOffer(active, ctx) && !ctx.hasPendingMessages() ? state.ready : null;
+	};
+	pi_takePreparedOfferAttachments = async commands => {
+		const state = pendingOffer;
+		if (!state) return null;
+		if (!offerCurrent(state)) { void clearOffer(); return null; }
+		await state.preparing.catch(() => {});
+		const command = commands.find(command => command.id === state.offer.source_message_id);
+		if (!offerCurrent(state) || !command || JSON.stringify(command.attachments ?? []) !== JSON.stringify(state.offer.attachments)) {
+			void clearOffer(); return null;
+		}
+		pendingOffer = null; // ownership passes to the ordinary canonical attachment lease
+		return { sourceId: command.id, materialised: state.materialised, budgetUsed: state.budgetUsed };
+	};
+	pi_receiveCommandOffer = async (payload, active, ctx, commands) => {
+		let ownedState: PendingOffer | null = null;
+		try {
+			const scope = currentBackgroundScope();
+			if (!scope || pump !== active || active.stop) return;
+			const parsed = parseCommandOfferPoll(payload, scope);
+			if (!parsed.supported) return;
+			if (parsed.stale) { void clearOffer(); signalWake(active); }
+			const offer = parsed.offer;
+			if (!offer) {
+				if (!commands.some(command => command.id === pendingOffer?.offer.source_message_id)) void clearOffer();
+				return;
+			}
+			const currentRun = activeInteractionRun(active);
+			const parkedRun = parkedBackground?.active === active ? parkedBackground.settled.interaction : undefined;
+			const retainedRun = foregroundIdleForOffer(active, ctx) ? pendingOffer?.run : undefined;
+			const settledRun = settledInteractionForOffer?.epoch === foregroundEpoch && settledInteractionForOffer.scope === backgroundScopeKey(scope)
+				? settledInteractionForOffer.run : undefined;
+			const run = [currentRun, parkedRun, retainedRun, settledRun].find(run => run?.identity.attemptId === offer.blocking_attempt_id && run.application === "applied");
+			if (!run || !interactionAuthorityCurrent(run.authority) || (!foregroundIdleForOffer(active, ctx) && run !== currentRun)) return;
+			if (!pendingOffer || JSON.stringify(pendingOffer.offer) !== JSON.stringify(offer) || !offerCurrent(pendingOffer)) {
+				void clearOffer();
+				const state: PendingOffer = { offer, scope, run, epoch: foregroundEpoch, materialised: [], budgetUsed: 0, preparing: Promise.resolve(), ready: null };
+				pendingOffer = state;
+				state.preparing = (async () => {
+					if (offer.attachments.length === 0) return;
+					const resolved = await resolveToken();
+					if (!resolved || !offerCurrent(state)) throw new Error("Command attachment scope unavailable");
+					const budget = createAttachmentHydrationBudget([offer.attachments]);
+					const initialBudget = budget.remainingBytes;
+					state.materialised = await materialiseAttachments(offer.attachments, { token: resolved.token, connectionId: scope.connectionId,
+						dir: join(attachmentDirFor(scope.connectionId), "offers", randomUUID()),
+						getResource: (token, args) => { if (!offerCurrent(state)) throw new StaleCommandHandoffError("Offer attachment changed"); return callDevspec(token, "get_resource", args, { lane: "pump" }); },
+						fetchUrl: async (url, maxBytes) => {
+							if (!offerCurrent(state)) throw new StaleCommandHandoffError("Offer attachment changed");
+							const bytes = await defaultFetchUrl(url, maxBytes);
+							if (!offerCurrent(state)) throw new StaleCommandHandoffError("Offer attachment changed");
+							return bytes;
+						},
+					}, offer.source_message_id, budget);
+					state.budgetUsed = initialBudget - budget.remainingBytes;
+					requireMaterialisedAttachments(state.materialised, offer.attachments.length);
+				})();
+			}
+			const state = pendingOffer;
+			ownedState = state;
+			state.epoch = foregroundEpoch; // a fresh server offer, not a late callback, permits this observation
+			await state.preparing;
+			if (!offerCurrent(state) || state.epoch !== foregroundEpoch) return;
+			debug("command offer prepared", { foregroundIdle: foregroundIdleForOffer(active, ctx), pendingBg: pendingBackgroundTaskIds.size });
+			let action = commandOfferAction({ current: true, exactInteractionApplied: run.application === "applied",
+				foregroundIdle: foregroundIdleForOffer(active, ctx), hasPendingMessages: ctx.hasPendingMessages(),
+				preemptEnabled: preemptOwnerCached, abortAlreadyRequested: offerBudget.has(offer.source_message_id) });
+			if (action === "abort") {
+				if (!offerBudget.request(offer.source_message_id, scope, (type, data) => pi.appendEntry(type, data))) return;
+				debug("preempt: aborting exact question for validated command availability");
+				pi_abort();
+				const settled = await waitUntil(() => foregroundIdleForOffer(active, ctx), { timeoutMs: 8_000, intervalMs: 50 });
+				debug("command offer preempt", { settled });
+				if (!settled || !offerCurrent(state) || state.epoch !== foregroundEpoch) return;
+				action = ctx.hasPendingMessages() ? "wait" : "ready";
+			}
+			if (action === "ready" && !state.ready) {
+				// Reuse the existing durable-application ACK; never fabricate one in the handoff.
+				if (!await acknowledgeInteractionApplication(run) || !offerCurrent(state) || state.epoch !== foregroundEpoch ||
+					!foregroundIdleForOffer(active, ctx) || ctx.hasPendingMessages()) return;
+				state.ready = { source_message_id: offer.source_message_id, attachment_id: scope.attachmentId, ...exactInteractionContinuationArgs(run.identity) };
+				debug("command handoff ready", { pendingBg: pendingBackgroundTaskIds.size });
+				signalWake(active);
+			}
+			offerWarningShown = false;
+		} catch {
+			if ((ownedState && pendingOffer !== ownedState) || pump !== active || active.stop) return;
+			void clearOffer();
+			debug("command offer preparation failed", { errorPresent: true });
+			if (!offerWarningShown) notify(ctx, "DevSpec remote: couldn't prepare an incoming message; it remains queued.", "warning");
+			offerWarningShown = true;
+		}
+	};
+	const completeObservedIdle = async (): Promise<void> => {
+		const candidate = parkedBackground;
+		if (!candidate || completingBackground) return;
+		const { settled, active } = candidate;
+		// Local work must have started admission before execution, never at drain.
+		if (!settled.interaction && (!settled.commandTurnId || !settled.commandMessageId) && !settled.localActivityReady) return;
+		const current = () => parkedBackground === candidate && pump === active && !active.stop &&
+			foregroundEpoch === candidate.epoch && observationScope !== null &&
+			backgroundScopeKey(observationScope) === candidate.scope && settled.canPost() &&
+			pendingBackgroundTaskIds.size === 0 && turn === null && !active.runtimeOccupancy.isBusy() &&
+			lastCtx?.isIdle() === true && !lastCtx.hasPendingMessages();
+		if (!current()) return;
+		completingBackground = true;
+		try {
+			await candidate.ready;
+			if (!current()) return;
+			const completed = await completeTurnActivity(settled, "turn_end", current);
+			if (completed && current()) {
+				parkedBackground = null;
+				active.busy = false;
+				void beatBusy(false);
+				signalWake(active);
+			}
+		} catch { debug("background observation reconciliation failed", { errorPresent: true }); }
+		finally { completingBackground = false; }
+	};
+	const applyBackgroundObservation = (observation: BackgroundObservation): void => {
+		const scope = currentBackgroundScope();
+		if (restoringBackground || !scope || observation.scope !== backgroundScopeKey(scope)) return;
+		for (const id of observedIds) pendingBackgroundTaskIds.delete(id);
+		observedIds.clear();
+		for (const task of observation.tasks) {
+			observedIds.add(task.id);
+			if (task.state === "running" || task.state === "unknown") pendingBackgroundTaskIds.add(task.id);
+			const stateKey = `${task.startTime}:${task.state}`;
+			if (journalStates.get(task.id) === stateKey) continue;
+			try {
+				pi.appendEntry(BACKGROUND_WORK_ENTRY, backgroundWorkEntry(scope, task));
+				journalStates.set(task.id, stateKey);
+			} catch { debug("background observation persistence failed", { errorPresent: true }); }
+		}
+		debug("background observation", { pendingBg: pendingBackgroundTaskIds.size,
+			unknown: observation.tasks.filter(task => task.state === "unknown").length });
+		// Item 7a4d04fd: work the provider reports killed will not wake the agent;
+		// a notice Pi appended while idle reached the conversation without an
+		// event. Both stop holding their requests open. Restored launches are
+		// checked against what is still running.
+		const chain = activeRequestChain();
+		if (chain) {
+			for (const task of observation.tasks) if (task.state === "killed") chain.endLaunch(taskKey(task.id));
+			reconcileRestored(chain, false, null);
+			if (!runActive && observation.tasks.some((task) => task.state !== "running" && task.state !== "unknown")) {
+				scanAppendedNotices(chain, lastCtx);
+				// The provider's notice may follow its terminal event.
+				const later = setTimeout(() => { if (!runActive) scanAppendedNotices(activeRequestChain(), lastCtx); }, 1_000);
+				if (typeof later.unref === "function") later.unref();
+			}
+		}
+		void completeObservedIdle();
+	};
+	const backgroundObserver = new BackgroundWorkObserver(pi.events, applyBackgroundObservation);
+	pi_backgroundInputPending = () => { foregroundEpoch += 1; parkedBackground = null; settledInteractionForOffer = null; };
+	pi_syncBackgroundScope = () => {
+		const scope = currentBackgroundScope();
+		const key = scope ? backgroundScopeKey(scope) : null;
+		if ((observationScope ? backgroundScopeKey(observationScope) : null) === key) return;
+		pi_backgroundInputPending();
+		for (const id of observedIds) pendingBackgroundTaskIds.delete(id);
+		observedIds.clear(); journalStates.clear(); launchScopes.clear();
+		observationScope = scope;
+		void clearOffer();
+		offerBudget.bind(scope, lastCtx?.sessionManager.getBranch() ?? []);
+		restoringBackground = true;
+		try {
+			backgroundObserver.bind(key);
+			if (scope && key && lastCtx) {
+				for (const task of restoreBackgroundWork(lastCtx.sessionManager.getBranch(), scope)) backgroundObserver.track(task, key);
+			}
+		} finally { restoringBackground = false; }
+		applyBackgroundObservation(backgroundObserver.snapshot());
+	};
+	pi_refreshBackgroundWork = async () => {
+		try {
+			pi_syncBackgroundScope();
+			await backgroundObserver.refresh();
+			await completeObservedIdle();
+		} catch { debug("background observation reconciliation failed", { errorPresent: true }); }
+	};
 	const reconcileSubagentFleetOwnership = async (
 		trackedTurn: TurnState,
 		attempts = 2,
@@ -2842,6 +4084,13 @@ export default function (pi: ExtensionAPI) {
 			if (trackedTurn.trail.applySubagentFleet(toolCallId, snapshot)) trackedTurn.trailDelivery.markDirty();
 		});
 	};
+	pi_appendControlResult = entry => { pi.appendEntry(CONTROL_RESULT_ENTRY, entry); };
+	pi_appendRequestLink = entry => { pi.appendEntry(REQUEST_LINK_ENTRY, entry); };
+	pi_setServeToolActive = (enabled) => {
+		const next = withServeRequestToolActive(pi.getActiveTools(), enabled);
+		if (next.join("\0") !== pi.getActiveTools().join("\0")) pi.setActiveTools(next);
+	};
+	installServeToolSwitch(pi_setServeToolActive);
 	pi_appendInteractionEntry = (state, details) => {
 		pi.appendEntry(INTERACTION_EVENT_JOURNAL_TYPE, interactionEventJournalEntry(state, details));
 	};
@@ -2880,8 +4129,9 @@ export default function (pi: ExtensionAPI) {
 			throw error;
 		}
 	};
-	pi_send = (message, mode = "now", commandTurnId, commandMessageId, canonicalQueueItem) => {
-		commandTurnBindings.remember(message, commandTurnId, commandMessageId, canonicalQueueItem);
+	pi_send = (message, mode = "now", commandTurnId, commandMessageId, canonicalQueueItem, requests) => {
+		pi_backgroundInputPending();
+		commandTurnBindings.remember(message, commandTurnId, commandMessageId, canonicalQueueItem, requests);
 		try {
 			// Exactly one Pi queue item. Delegated scope is already in its visible
 			// canonical framing; idle turns additionally receive hidden typed data
@@ -2893,6 +4143,14 @@ export default function (pi: ExtensionAPI) {
 			commandTurnBindings.forget(message, commandTurnId, commandMessageId);
 			throw error;
 		}
+		// Being woken with a command is being TOLD about it, however it was queued
+		// (now, steer or follow-up), so it never makes a notice fresh. It still
+		// counts as unread for this agent until the reader hands it over (ce1ffca1).
+		const told = deliveredCommandKeys(commandMessageId, canonicalQueueItem?.details);
+		if (told.length) {
+			try { pump?.roomSync?.store.markPresented(told); }
+			catch { debug("room storage unavailable", { errorPresent: true }); }
+		}
 	};
 	pi_abort = () => {
 		if (lastCtx && !lastCtx.isIdle()) lastCtx.abort();
@@ -2901,7 +4159,7 @@ export default function (pi: ExtensionAPI) {
 		lastCtx?.compact?.({});
 	};
 	pi_reload = async () => {
-		await reloadWithContext(commandReloadContext() ?? (lastCtx as { reload?: () => Promise<void> } | null));
+		await reloadWithContext(extensionCommandContext() ?? (lastCtx as { reload?: () => Promise<void> } | null));
 	};
 	pi_setThinking = (level) => {
 		if (typeof pi.setThinkingLevel !== "function") throw new Error("setThinkingLevel is not available");
@@ -2918,6 +4176,17 @@ export default function (pi: ExtensionAPI) {
 		if (!model) return false;
 		return Boolean(await pi.setModel?.(model));
 	};
+	pi_roomReaderAvailable = () => pi.getActiveTools().includes(ROOM_READ_TOOL);
+	let lastRoomScope: string | undefined;
+	pi_appendRoomScope = (scope, nativeSessionId = scope?.nativeSessionId) => {
+		if (!nativeSessionId) return;
+		observeRoomAccess(nativeSessionId, scope);
+		if (lastCtx?.sessionManager.getSessionId() !== nativeSessionId) return;
+		const serialized = JSON.stringify([nativeSessionId, scope]);
+		if (serialized === lastRoomScope) return;
+		try { pi.appendEntry(ROOM_SCOPE_ENTRY, { version: 1, scope }); lastRoomScope = serialized; }
+		catch { debug("room storage unavailable", { errorPresent: true }); }
+	};
 	pi_setPlanToolActive = (enabled) => {
 		const next = withPlanToolActive(pi.getActiveTools(), enabled);
 		if (next.join("\0") !== pi.getActiveTools().join("\0")) pi.setActiveTools(next);
@@ -2931,6 +4200,14 @@ export default function (pi: ExtensionAPI) {
 		if (next.join("\0") !== pi.getActiveTools().join("\0")) pi.setActiveTools(next);
 	};
 
+	// Where each input came from (item 7a4d04fd). Only interactive/RPC input, or
+	// the extension's own send on the owner's behalf (/devspec.work), is typed;
+	// the user message that carries it later is admitted as the owner's request.
+	pi.on("input", (event) => {
+		typedInputLedger().noteInput(event);
+		return undefined;
+	});
+
 	pi.on("model_select", (_event, ctx) => {
 		scheduleRuntimeStamp(ctx);
 	});
@@ -2939,7 +4216,11 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("agent_start", async (_event, ctx) => {
+		noteProgressEvent();
 		lastCtx = ctx;
+		runActive = true;
+		pi_backgroundInputPending();
+		pi_syncBackgroundScope();
 		const active = pump;
 		const newInteractionRun = startingInteractionRun;
 		const continuedInteractionRun = turn?.interaction ?? (active ? activeInteractionRun(active) : undefined);
@@ -2993,11 +4274,25 @@ export default function (pi: ExtensionAPI) {
 		}
 	});
 	pi.on("agent_settled", async (_event, ctx) => {
+		noteProgressEvent();
 		lastCtx = ctx;
+		// The run is over before anything here awaits (item 7a4d04fd): input it
+		// never consumed never became a message, and its segment stops running —
+		// a request with nothing pending closes now.
+		typedInputLedger().expire();
+		const settledChain = requestChain();
+		settledChain?.endTurn();
+		// Notices Pi appended or flushed during the run without a message event.
+		scanAppendedNotices(settledChain, ctx);
+		segmentInputKind = undefined;
+		leafWake = null;
+		runActive = false;
+		pi_setServeToolActive(false);
 		const activeAtSettle = pump;
 		const occupancyAtSettle = activeAtSettle?.runtimeOccupancy.capture() ?? null;
 		const turnAtSettle = turn;
 		const revisionAtSettle = turnAtSettle?.revision;
+		await pi_refreshBackgroundWork();
 		await Promise.all([...pendingInteractionConfirmations].map((confirmation) =>
 			attemptInteractionPersistenceConfirmation(confirmation, true)));
 		// The parent model may be locally finished while async children still own
@@ -3017,10 +4312,8 @@ export default function (pi: ExtensionAPI) {
 			(activeAtSettle && !activeAtSettle.runtimeOccupancy.finish(occupancyAtSettle))) return;
 		// Capture after fleet reconciliation and before settleTurn releases the
 		// segment; terminal fallback must never complete a newer owner command.
-		const commandTurnId = settlingTurn?.commandTurnId;
-		const commandMessageId = settlingTurn?.commandMessageId;
-		const commandTurnUnbound = settlingTurn ? isCommandTurnUnbound(settlingTurn) : false;
 		const interactionRun = settlingTurn?.interaction;
+		retireInteractionForeground(interactionRun);
 		const completionNeutral = occupancyAtSettle?.kind === "system_notice" || settlingTurn?.completionNeutral === true;
 		const activityPolicy = remoteRunActivityPolicy(completionNeutral);
 		// Settle telemetry FIRST so the idle/parked heartbeat and answer post carry
@@ -3049,20 +4342,32 @@ export default function (pi: ExtensionAPI) {
 		if (!completionNeutral && untitledAttached() && pump?.bond.sessionId) {
 			scheduleTitleRefresh(pump.bond.sessionId);
 		}
-		trackTerminalPost((async () => {
+		settledInteractionForOffer = interactionRun && observationScope
+			? { run: interactionRun, epoch: foregroundEpoch, scope: backgroundScopeKey(observationScope) } : null;
+		const terminalPost = (async () => {
 			const posted = await settleTurn(agentStats, true);
 			// No complete_turn post landed (aborted/empty turn, or the post
 			// failed) — close the exact activity honestly. Outstanding owned
 			// background work is the one exception: the attempt stays open so
 			// Working persists until the last completion wake settles.
 			if (!posted && activityPolicy.reportCompletion && pendingBackgroundTaskIds.size === 0 && (settlingTurn?.canPost() ?? pump === activeAtSettle)) {
-				await reportComplete("turn_end", commandTurnId, commandMessageId, commandTurnUnbound, interactionIdentity(interactionRun));
+				// A run that died on a terminal provider error posts its reason
+				// (item e99d158b); every other silent close is unchanged.
+				if (settlingTurn?.terminalError) {
+					await reportTerminalError(settlingTurn, agentStats);
+				} else {
+					if (settlingTurn) await completeTurnActivity(settlingTurn, "turn_end");
+				}
 			}
-			if (interactionRun) {
-				interactionRunsByEvent.delete(interactionRun.details.event.event_id);
-				if (startingInteractionRun === interactionRun) startingInteractionRun = null;
-			}
-		})());
+			retireInteractionForeground(interactionRun);
+		})();
+		trackTerminalPost(terminalPost);
+		if (keepWorking && settlingTurn && activeAtSettle && observationScope) {
+			parkedBackground = { active: activeAtSettle, settled: settlingTurn, epoch: foregroundEpoch,
+				scope: backgroundScopeKey(observationScope), ready: terminalPost };
+			void completeObservedIdle();
+		}
+		if (pendingOffer && pump && foregroundIdleForOffer(pump, ctx)) signalWake(pump);
 		// Local telemetry above is safe; from here onward the notice run is over.
 		// Busy notices may wake only after final settlement proves both Pi and pump
 		// idle. The next custom run remains unbound from every owner generation.
@@ -3082,8 +4387,8 @@ export default function (pi: ExtensionAPI) {
 		ensureTurn();
 		const t = turn;
 		if (!t) return undefined;
-		const prepared = prepareAssistantSpeech(t);
-		if (t.tracker.shouldMirrorPrompt && t.tracker.userText) {
+		const prepared = Promise.all([prepareAssistantSpeech(t), prepareLocalActivity(t)]);
+		if (t.tracker.shouldMirrorPrompt && t.tracker.userText && t.requestKind === "typed") {
 			t.tracker.shouldMirrorPrompt = false;
 			await postToSession(t.tracker.userText, { turnKind: "local_prompt", localTurn: true, isCurrent: t.canPost });
 		}
@@ -3110,6 +4415,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("turn_start", (_event, ctx) => {
+		noteProgressEvent();
 		lastCtx = ctx;
 		// Per-LLM-round event — the state must SURVIVE it, never be recreated
 		// (cc9e8c43). Lazily covers a mid-run attach too.
@@ -3117,11 +4423,28 @@ export default function (pi: ExtensionAPI) {
 		if (turn) turn.receiptBatch.reset(turn.revision);
 	});
 
+	// Pi's tool-result boundary: the mid-turn unread notice, which is also the
+	// check before Pi's answer reaches the room (ce1ffca1). Speech posts each
+	// assistant message as it finishes, so the notice must reach the model
+	// BEFORE the request that may write the final message, not after it.
+	// Counts only, and only when something arrived that no notice has told the
+	// model about: nothing new adds nothing. Directed commands keep their own
+	// interruption path; this never starts or extends a run. Only an attached
+	// copy can change mid-run; an offline one was fully presented at the wake.
+	pi.on("turn_end", async (event, ctx) => {
+		lastCtx = ctx;
+		if (!pump?.bond.sessionId || !pi_roomReaderAvailable()) return undefined;
+		const boundary = await roomUnreadBoundary(event, () => roomUnreadForContext(ctx, "fresh"));
+		if (boundary) noteInjectedContext("roomDigest", boundary.entries.reduce((n, e) => n + e.content.length, 0));
+		return boundary;
+	});
+
 	// Leftover bg receipts arrive as custom_message (customType
 	// background-task-notification) and may then replay the last typed prompt
 	// as a user message. Stamp harness origin here so that replay cannot
 	// remirror (item 56b9a3b4). Typed /commands never take this path.
-	pi.on("before_agent_start", (event, ctx) => {
+	pi.on("before_agent_start", async (event, ctx) => {
+		noteProgressEvent();
 		const canonicalQueueItem = commandTurnBindings.peek(event.prompt)?.canonicalQueueItem;
 		const active = pump;
 		// A queued owner turn may start after a newer projection arrived. Bind its
@@ -3150,13 +4473,30 @@ export default function (pi: ExtensionAPI) {
 			active?.pendingStillToDiscussTail ?? "",
 		);
 		if (active && discussTail) active.pendingStillToDiscussTail = "";
-		const hiddenContent = appendActivePlanTail(
+		let hiddenContent = appendActivePlanTail(
 			appendActivePlanTail(
 				appendActivePlanTail(canonicalQueueItem?.hiddenContent ?? "", planTail),
 				pollTail,
 			),
 			discussTail,
 		);
+		if (pi_roomReaderAvailable() && (active?.bond.sessionId || canonicalQueueItem || roomScopeFromEntries(ctx.sessionManager.getBranch()))) {
+			const expected = (canonicalQueueItem?.details as { local_room?: { session_id?: string; attachment_id?: string } } | undefined)?.local_room;
+			const stillSameRoom = !expected || (expected.session_id === active?.bond.sessionId && expected.attachment_id === active?.bond.speechAttachmentId);
+			let status: Record<string, unknown> = stillSameRoom ? await readRoomForContext(ctx, { view: "status" }) : { availability: "unavailable" };
+			if (expected && (status.room_id !== expected.session_id || expected.attachment_id !== active?.bond.speechAttachmentId)) status = { availability: "unavailable", room_id: expected.session_id };
+			// Every wake carries the unread counts beside the command. Showing them
+			// records them as PRESENTED, never read: only read_room_context handing
+			// messages over moves the read bookmark (ce1ffca1). A new attachment
+			// starts with nothing read, so its first notice covers the whole room.
+			if (status.coverage) {
+				const unread = await roomUnreadForContext(ctx, "always");
+				if (unread && unread.room_id === status.room_id) status.unread = unread.summary;
+			}
+			const awareness = compactRoomAwareness(status);
+			hiddenContent = appendActivePlanTail(hiddenContent, awareness);
+			noteInjectedContext("roomDigest", awareness.length);
+		}
 		const injected = hiddenContent ? {
 			message: {
 				customType: canonicalQueueItem ? REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE : "devspec-active-session-plans",
@@ -3166,7 +4506,6 @@ export default function (pi: ExtensionAPI) {
 			},
 		} : undefined;
 		ensureTurn();
-		if (!turn) return injected;
 		const leaf = ctx.sessionManager.getLeafEntry();
 		if (!leaf || leaf.type !== "custom_message") return injected;
 		const customType = leaf.customType;
@@ -3179,14 +4518,16 @@ export default function (pi: ExtensionAPI) {
 					.join("\n")
 				: "";
 		if (!isHarnessOrigin(content, customType)) return injected;
-		// Context/harness may wake the model. Do not close the live owner
-		// turn as complete (item 60cf5f00). A terminal task notification
-		// resolves only its matching owner-started task (item 15cb0983).
 		const details = (leaf as { details?: unknown }).details;
-		turn.tracker.userMessage(content, {
-			customType,
-			backgroundTaskId: backgroundTaskNotificationId(content, details),
-		});
+		// The notice reached the agent with this prompt (item 7a4d04fd): the
+		// prompt's own message decides what the run was woken for and applies it.
+		const keys = wakeKeysFor(content, customType ?? null, details, requestChain()?.knownKeys());
+		leafWake = isWakeMessage(content, customType ?? null, keys) ? keys : null;
+		if (!turn) return injected;
+		// Notification consumption is communication, not task liveness. It can
+		// prompt an in-process status refresh, never directly resolve ownership.
+		if (backgroundTaskNotificationId(content, details)) void pi_refreshBackgroundWork();
+		turn.tracker.userMessage(content, { customType });
 		// A completion wake rides the parked command turn it continues — an
 		// unbound wake post while a command turn is parked is fenced as
 		// stale_generation server-side and drops silently (759f2818 live repro).
@@ -3195,16 +4536,43 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("message_start", async (event, ctx) => {
+		noteProgressEvent();
 		lastCtx = ctx;
 		const msg = event.message as { role?: string; customType?: string; details?: unknown } | undefined;
 		const customType = typeof msg?.customType === "string" ? msg.customType : null;
 		if (customType === SYSTEM_NOTICE_CUSTOM_TYPE) systemNoticeTurnPending = false;
-		if (!turn) return;
 		const text = extractText(event.message);
 		const harness = isHarnessOrigin(text, customType);
-		if (msg?.role === "user" || msg?.role === "custom" || harness) {
-			const isRealUserMessage = msg?.role === "user" && !harness;
-			if (customType === SYSTEM_NOTICE_CUSTOM_TYPE) turn.completionNeutral = true;
+		const isInput = msg?.role === "user" || msg?.role === "custom" || harness;
+		const isRealUserMessage = msg?.role === "user" && !harness;
+		// A binding lives from remember() until this take (6f4136d8), attached or
+		// not: the request chain needs the command even with no room.
+		const incomingCommand = isRealUserMessage ? commandTurnBindings.take(text) : undefined;
+		// Bind the segment to the request this input continues (item 7a4d04fd)
+		// before anything room-scoped: writes are stamped from it everywhere.
+		const segmentKind = isInput
+			? bindSegmentForMessage({ text, customType, details: msg?.details, isRealUserMessage, incomingCommand })
+			: null;
+		if (!turn && segmentKind === "automation") ensureTurn();
+		if (!turn) return;
+		if (isInput) {
+			const previousInteraction = isRealUserMessage ? turn.interaction : undefined;
+			if (customType === SYSTEM_NOTICE_CUSTOM_TYPE) {
+				turn.completionNeutral = true;
+				// The notices this run answers, for the reply its final message becomes
+				// (6aad2b46): only the connection they were delivered to may name them.
+				const noticeIds = noticeIdsFromDelivery(msg?.details);
+				const connectionId = getBond()?.connectionId;
+				if (noticeIds.length > 0 && connectionId) {
+					const held = turn.noticeReply?.connectionId === connectionId ? turn.noticeReply.noticeIds : [];
+					turn.noticeReply = {
+						connectionId,
+						noticeIds: [...new Set([...held, ...noticeIds])],
+						roomPromised: (msg?.details as { roomAttached?: unknown } | undefined)?.roomAttached === true,
+						finalText: null,
+					};
+				}
+			}
 			const activityTransition = isRealUserMessage
 				? transitionToRealUserActivity({
 					systemNoticeRunActive,
@@ -3212,7 +4580,6 @@ export default function (pi: ExtensionAPI) {
 				})
 				: null;
 			if (activityTransition?.previousCompletionNeutral) turn.completionNeutral = true;
-			const incomingCommand = isRealUserMessage ? commandTurnBindings.take(text) : undefined;
 			// A mid-run OWNER/LOCAL user message is a delivery boundary
 			// (b1fb756a). Context/harness injections stay on this turn so
 			// they cannot complete_turn a working sentence (item 60cf5f00).
@@ -3229,22 +4596,21 @@ export default function (pi: ExtensionAPI) {
 				const previousPolicy = activityTransition?.previousPolicy ??
 					remoteRunActivityPolicy(previousTurn.completionNeutral);
 				if (previousPolicy.reportCompletion) {
-					trackTerminalPost(reportComplete(
-						"turn_end",
-						previousTurn.commandTurnId,
-						previousTurn.commandMessageId,
-						isCommandTurnUnbound(previousTurn),
-						interactionIdentity(previousTurn.interaction),
-					).then(() => undefined));
+					// A provider-killed segment keeps its reason even when the close
+					// races the next user message (item e99d158b).
+					trackTerminalPost((previousTurn.terminalError
+						? reportTerminalError(previousTurn, null)
+						: completeTurnActivity(previousTurn, "turn_end")).then(() => undefined));
 				}
 			}
 			// Atomically leave notice neutrality before starting the real segment.
 			// Bind immutable command identity (or clear it for local input), then
 			// begin normal busy presence exactly once for this same-run transition.
 			if (isRealUserMessage) {
+				pi_backgroundInputPending();
 				// A genuine user follow-up promotes the one run-level occupancy. Low-level
 				// retry starts never do this merely because the pending flag was cleared.
-				if (pump && turn.occupancy?.kind === "system_notice") {
+				if (pump && (turn.occupancy?.kind === "system_notice" || turn.occupancy?.kind === "interaction")) {
 					const promoted = pump.runtimeOccupancy.promote(turn.occupancy, "owner");
 					if (promoted) {
 						turn.occupancy = promoted;
@@ -3263,20 +4629,24 @@ export default function (pi: ExtensionAPI) {
 				if (incomingCommand?.turnId && incomingCommand?.commandMessageId) {
 					activeCommandTurnIdentity = { turnId: incomingCommand.turnId, commandMessageId: incomingCommand.commandMessageId };
 				}
+				retireInteractionForeground(previousInteraction);
 				turn.interaction = undefined;
 				turn.lastInteractionKeepaliveAt = undefined;
 				turn.speechBinding = undefined;
 				turn.speechScopeCaptured = false;
+				turn.localActivityReady = undefined;
+				turn.requestKind = segmentKind ?? "untyped";
 				turn.tracker.userMessage(text, { customType });
+				// Only a prompt the owner typed here is mirrored as a local prompt.
+				if (turn.requestKind !== "typed") turn.tracker.shouldMirrorPrompt = false;
 				if (activityTransition?.beginBusyPresence && pump) {
 					pump.busy = true;
 					void beatBusy(true);
 				}
 			} else {
-				turn.tracker.userMessage(text, {
-					customType,
-					backgroundTaskId: harness ? backgroundTaskNotificationId(text, msg?.details) : null,
-				});
+				if (harness && backgroundTaskNotificationId(text, msg?.details)) void pi_refreshBackgroundWork();
+				turn.tracker.userMessage(text, { customType });
+				if (!turn.requestKind && segmentKind) turn.requestKind = segmentKind;
 				if (harness) adoptParkedCommandIdentity(turn, turn.tracker.userKind);
 			}
 			// Idle triggerTurn custom messages bypass before_agent_start in Pi. The
@@ -3298,6 +4668,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("message_update", (event, ctx) => {
+		noteProgressEvent();
 		lastCtx = ctx;
 		if (!turn) return;
 		const msg = event.message as { role?: string } | undefined;
@@ -3309,6 +4680,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("message_end", (event, ctx) => {
+		noteProgressEvent();
 		lastCtx = ctx;
 		// Telemetry accumulates for EVERY assistant message while bonded —
 		// including turns the trail skips (unattached/local), so sessionless
@@ -3330,7 +4702,17 @@ export default function (pi: ExtensionAPI) {
 			// streams live in the TUI, but headless modes (RPC/print/SDK) emit
 			// no deltas — this keeps the trail complete there (flushed at
 			// settle) without double-posting in the TUI (cumulative snapshots).
-			const { text, thinking, hasToolCalls, stopReason } = extractAssistantParts(event.message);
+			const { text, thinking, hasToolCalls, stopReason, errorMessage } = extractAssistantParts(event.message);
+			// Terminal provider failure (402 out-of-credit, auth, exhausted
+			// retries…): pi persists it exactly once (auto-retry omits the
+			// intermediate attempts) and it is never an answer, so capture the
+			// reason for the settle fallback (item e99d158b). Observation only —
+			// no classification, speech, or lifecycle behaviour changes here.
+			if (stopReason === "error") {
+				turn.terminalError = errorMessage?.trim() || "The model provider returned an error.";
+			}
+			// The last assistant message decides a notice run's reply (6aad2b46).
+			if (turn.noticeReply) turn.noticeReply.finalText = noticeReplyFinalText({ text, stopReason });
 			turn.receiptBatch.noteAssistantText(text, turn.revision);
 			turn.trail.setThinking(thinking);
 			turn.trail.setText(text);
@@ -3350,8 +4732,37 @@ export default function (pi: ExtensionAPI) {
 		}
 	});
 
+	// Item 7a4d04fd, the Claude Code PreToolUse deny's equivalent: work that wakes
+	// the agent later is never launched under a guess. While the run carries
+	// requests that would be recorded differently and the agent has not named
+	// one, the launch is refused with the same naming instruction; otherwise
+	// what it serves is captured once the carried opens have answered (bounded).
+	pi.on("tool_call", async (event) => {
+		const call = event as { toolName: string; toolCallId: string; input?: unknown };
+		if (!isLaunchCall(call.toolName, call.input)) return undefined;
+		const chain = requestChain();
+		if (!chain) return undefined;
+		try {
+			const carried = await chain.ambiguity();
+			if (carried) {
+				pi_setServeToolActive(true);
+				return { block: true, reason: launchRefusal(carried) };
+			}
+			launchRequests.set(call.toolCallId, { snapshot: chain.launchSnapshot(), args: call.input });
+		} catch { debug("request launch record failed", { errorPresent: true }); }
+		return undefined;
+	});
+
 	pi.on("tool_execution_start", async (event, ctx) => {
+		noteProgressEvent();
 		lastCtx = ctx;
+		pi_syncBackgroundScope();
+		if (observationScope) launchScopes.set(event.toolCallId, backgroundScopeKey(observationScope));
+		// Work belongs to the request its segment continued when it LAUNCHED
+		// (item 7a4d04fd), whatever is current when the receipt comes back.
+		if (!launchRequests.has(event.toolCallId)) {
+			launchRequests.set(event.toolCallId, { snapshot: requestChain()?.launchSnapshot() ?? null, args: event.args });
+		}
 		noteVerbStart(event.toolCallId, event.toolName, event.args);
 		paintStatus(ctx);
 		if (!turn) return;
@@ -3388,6 +4799,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("tool_execution_update", (event, ctx) => {
+		noteProgressEvent();
 		lastCtx = ctx;
 		if (!turn) return;
 		turn.trail.toolUpdate(event.toolCallId, event.partialResult);
@@ -3398,31 +4810,37 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("tool_execution_end", (event, ctx) => {
+		noteProgressEvent();
 		lastCtx = ctx;
 		noteVerbEnd(event.toolCallId);
 		paintStatus(ctx);
-		if (!turn) return;
-		// Register ownership only from a successful launch receipt that promises
-		// both terminal notification and automatic wake. tool_execution_start is
-		// too early: a failed launch would otherwise park the turn forever.
-		const backgroundTaskId = automaticBackgroundTaskId(event.toolName, event.result, event.isError);
-		if (backgroundTaskId) {
-			turn.tracker.noteBackgroundTask(backgroundTaskId);
-			// Numeric-only vocabulary by design (debug.ts drops all strings):
-			// the pendingBg count after each note/resolve makes a leak
-			// computable (notes minus resolves) without naming tasks.
-			debug("background task noted", { pendingBg: turn.tracker.pendingBackgroundTasks().length });
-		}
-		// Reconcile terminally-finished tasks observed in management results
-		// (item f453c61f): a kill produces no completion message, so without
-		// this the id leaks and every later settle posts complete_turn:false
-		// forever. Only explicit terminal states resolve; anything else (and
-		// any id this turn never owned) is a no-op by construction.
-		for (const terminalId of terminalBackgroundTaskIds(event.toolName, event.result, event.isError)) {
-			if (turn.tracker.resolveBackgroundTask(terminalId)) {
-				debug("background task resolved from tool result", { pendingBg: turn.tracker.pendingBackgroundTasks().length });
+		const launchScope = launchScopes.get(event.toolCallId);
+		launchScopes.delete(event.toolCallId);
+		const launch = launchRequests.get(event.toolCallId);
+		launchRequests.delete(event.toolCallId);
+		recordLaunchedWork(event.toolName, launch, event.result, event.isError);
+		pi_syncBackgroundScope();
+		if (launchScope && observationScope && launchScope === backgroundScopeKey(observationScope)) {
+			const task = backgroundTaskFromLaunch(event.toolName, event.result, event.isError);
+			if (task && backgroundObserver.track(task, launchScope)) {
+				debug("background task noted", { pendingBg: pendingBackgroundTaskIds.size });
+				void pi_refreshBackgroundWork();
+			}
+			const before = pendingBackgroundTaskIds.size;
+			for (const task of backgroundTasksFromManagement(event.toolName, event.result, event.isError)) {
+				backgroundObserver.observe(task, launchScope);
+			}
+			// Preserve strict f453c61f reconciliation for existing non-provider ids;
+			// registered provider executions additionally match their start identity.
+			for (const id of terminalBackgroundTaskIds(event.toolName, event.result, event.isError)) {
+				if (!observedIds.has(id)) pendingBackgroundTaskIds.delete(id);
+			}
+			if (pendingBackgroundTaskIds.size < before) {
+				debug("background task resolved from tool result", { pendingBg: pendingBackgroundTaskIds.size });
+				void completeObservedIdle();
 			}
 		}
+		if (!turn) return;
 		const terminatingReceipt = isReceiptOwningDirectedQuestionCreate(
 			event.toolName,
 			event.result,
@@ -3437,6 +4855,20 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", async () => {
+		resetStatus(); // clear the dedicated row before this UI becomes stale
+		pi_backgroundInputPending();
+		backgroundObserver.dispose();
+		launchScopes.clear();
+		launchRequests.clear();
+		installServeToolSwitch(null);
+		pi_refreshBackgroundWork = async () => {};
+		void clearOffer();
+		pi_receiveCommandOffer = async () => {};
+		pi_commandHandoffReady = () => null;
+		pi_takePreparedOfferAttachments = async () => null;
+		pi_offerAlreadyAborted = () => false;
+		pi_offerCanonicalReceived = () => {};
+		pi_syncBackgroundScope = () => {};
 		subagentFleet.dispose();
 		for (const confirmation of pendingInteractionConfirmations) {
 			interactionDelivery.abandonMessage(confirmation.message);
@@ -3465,10 +4897,14 @@ export default function (pi: ExtensionAPI) {
 		if (!active) return;
 		if (active.interactionRetryTimer) clearTimeout(active.interactionRetryTimer);
 		active.interactionRetryTimer = undefined;
+		if (active.controlResultRetryTimer) clearTimeout(active.controlResultRetryTimer);
+		active.controlResultRetryTimer = undefined;
 		active.pendingInteractionStarts.clear();
 		active.pendingInteractionReleases.clear();
 		active.closing = true;
 		active.stop = true;
+		active.roomSync?.close(); // keep the transaction checkpoint across reload/exit
+		active.roomSync = undefined;
 		revokeSystemNoticeState(active.systemNoticeKey);
 		active.pushGenerationFence.invalidate();
 		active.pushAbort?.abort();
@@ -3482,10 +4918,19 @@ export default function (pi: ExtensionAPI) {
 		if (openTurn) await openTurn.trailPostFence.drain();
 		// Close the activity attempt while the bond is still on the wire.
 		if (openTurn && remoteRunActivityPolicy(openTurn.completionNeutral).reportCompletion) {
-			try { await reportComplete("process_exit", openTurn.commandTurnId, openTurn.commandMessageId, isCommandTurnUnbound(openTurn), interactionIdentity(openTurn.interaction)); } catch { /* best-effort */ }
+			try { await completeTurnActivity(openTurn, "process_exit"); } catch { /* best-effort */ }
 		}
+		// Requests with nothing pending are finished; one whose work is still
+		// running stays open, and its journaled links rebuild it after a reload
+		// (item 7a4d04fd).
+		const chainAtShutdown = activeRequestChain();
+		if (chainAtShutdown?.connectionId === active.bond.connectionId) {
+			try { await chainAtShutdown.shutdown(); } catch { /* best-effort */ }
+		}
+		dropRequestChain();
 		pump = null;
 		commandTurnBindings.clear();
+		clearDealtRefs();
 		activeCommandStyles.clear();
 		pendingBackgroundTaskIds.clear();
 		activeCommandTurnIdentity = null;
@@ -3517,6 +4962,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
+		if (!await projectSelection.prepare(ctx)) return;
 		replaceInteractionJournal(InteractionEventJournal.reconstruct(
 			readPersistedActiveBranchEntries(ctx.sessionManager) ?? [],
 			ctx.sessionManager.getSessionId(),
@@ -3526,15 +4972,16 @@ export default function (pi: ExtensionAPI) {
 		// and cloud workers bond explicitly (RPC command / future flag).
 		if (ctx.mode !== "tui" || pump) return;
 		const settings = await loadSettings();
-		if (!settings.autoBond) return;
+		const explicitlyRequested = projectSelection.consumeExplicitConnect();
+		if (!settings.autoBond && !explicitlyRequested) return;
 		const resolved = await resolveToken();
 		if (!resolved) return;
-		const outcome = await bondNow(ctx);
+		const outcome = await projectSelection.connect(ctx);
 		if (outcome.ok) {
 			lastCtx = ctx;
 			notify(ctx, `DevSpec remote: auto-bonded as ${outcome.codename ?? "agent"} — you're reachable from the Agents page. /devspec.remote stop to end.`);
 		} else {
-			notify(ctx, `DevSpec remote: auto-bond failed: ${outcome.error}`, outcome.errorKind === "auth" ? "warning" : "error");
+			notify(ctx, outcome.cancelled ? `DevSpec remote: ${outcome.error}` : `DevSpec remote: auto-bond failed: ${outcome.error}`, outcome.cancelled ? "info" : outcome.errorKind === "auth" ? "warning" : "error");
 		}
 	});
 
@@ -3558,9 +5005,15 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("devspec.remote", {
-		description: "Bond this pi session as DevSpec capacity. Usage: /devspec.remote [--session <id>] | stop | reconnect | auto [on|off] | preempt [on|off]",
+		description: "Connect this Pi conversation. Usage: /devspec.remote [--project <name-or-id>] [--session <id>] | stop | reconnect | auto [on|off] | preempt [on|off]",
 		handler: async (args, ctx) => {
-			const arg = args.trim();
+			const parsed = projectRemoteArgs(args);
+			if (parsed.error) { notify(ctx, parsed.error, "error"); return; }
+			const arg = parsed.remaining;
+			if (arg && !namedSessionFromRemoteArg(arg) && !/^(?:stop|off|end|reconnect|retry|auto(?: (?:on|off))?|preempt(?: (?:on|off))?)$/.test(arg)) {
+				notify(ctx, "Unknown Remote arguments. Use --project <name-or-id>, --session <id>, or /devspec.help.", "error"); return;
+			}
+			if (parsed.selector && arg && !namedSessionFromRemoteArg(arg)) { notify(ctx, "Combine --project only with a room selector, not a control command.", "error"); return; }
 
 			if (arg === "stop" || arg === "off" || arg === "end") {
 				if (!pump) {
@@ -3603,9 +5056,9 @@ export default function (pi: ExtensionAPI) {
 			// rebuilds state, reloads extensions, or disturbs a healthy bond.
 			if (arg === "reconnect" || arg === "retry") {
 				if (!pump) {
-					const outcome = await bondNow(ctx);
+					const outcome = await projectSelection.connect(ctx);
 					if (!outcome.ok) {
-						notify(ctx, `DevSpec remote: ${outcome.error}`, outcome.errorKind === "auth" ? "warning" : "error");
+						notify(ctx, `DevSpec remote: ${outcome.error}`, outcome.cancelled ? "info" : outcome.errorKind === "auth" ? "warning" : "error");
 						return;
 					}
 					notify(
@@ -3625,6 +5078,15 @@ export default function (pi: ExtensionAPI) {
 			const sessionId = namedSessionFromRemoteArg(arg);
 
 			if (pump) {
+				if (parsed.selector) {
+					try {
+						const selected = await projectSelection.resolve(ctx, parsed.selector);
+						if (!selected) return;
+						if (selected.id !== pump.bond.projectId) {
+							notify(ctx, "Already connected to another project. Use /devspec.project choose to start a fresh conversation.", "warning"); return;
+						}
+					} catch (err) { notify(ctx, err instanceof Error ? err.message : String(err), "error"); return; }
+				}
 				const action = bondedRemoteAction(arg);
 				// Already bonded, and no room named — nothing to do.
 				if (action.type === "report_already_bonded") {
@@ -3646,8 +5108,9 @@ export default function (pi: ExtensionAPI) {
 					return;
 				}
 				try {
+					const attaching = pump;
 					const attRaw = await callDevspec(resolved.token, "attach_connection", {
-						connection_id: pump.bond.connectionId,
+						connection_id: attaching.bond.connectionId,
 						session_id: action.sessionId,
 					}, { cwd: ctx.cwd, lane: "pump" });
 					const att = unwrapMcpResult(attRaw);
@@ -3655,6 +5118,9 @@ export default function (pi: ExtensionAPI) {
 						notify(ctx, `DevSpec remote: attach failed: ${att.text}`, "error");
 						return;
 					}
+					if (pump !== attaching || attaching.stop) return;
+					attaching.bond = applyConnectionContext(attaching.bond, att.details);
+					setBond(attaching.bond);
 				} catch (err) {
 					notify(ctx, `DevSpec remote: attach failed: ${err instanceof Error ? err.message : err}`, "error");
 					return;
@@ -3670,9 +5136,9 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
-			const outcome = await bondNow(ctx, sessionId);
+			const outcome = await projectSelection.connect(ctx, sessionId, parsed.selector);
 			if (!outcome.ok) {
-				notify(ctx, `DevSpec remote: ${outcome.error}`, outcome.errorKind === "auth" ? "warning" : "error");
+				notify(ctx, `DevSpec remote: ${outcome.error}`, outcome.cancelled ? "info" : outcome.errorKind === "auth" ? "warning" : "error");
 				return;
 			}
 			notify(

@@ -3,18 +3,22 @@
  *
  * Direct commits are observed by the private session Git shim (item 2c971806).
  * The older command/output recognizer remains as a conservative fallback. Neither
- * path blocks Git, rewrites messages, parses Bash policy, or grants authority.
+ * path blocks Git, parses Bash policy, or grants authority. The shim tags a plain
+ * commit with the one claimed task's reference (item df71ab6c, owner-approved),
+ * and each commit's outcome is told to the model under the command's output.
  */
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { resolveToken } from "./core/auth-store.ts";
+import { resolveToken, resolveEndpoint } from "./core/auth-store.ts";
 import { getBond } from "./core/bond-state.ts";
 import {
 	DevspecAuthError,
 	DevspecRateLimitError,
 	callDevspec,
 	isRecoverableTransportError,
+	type CallOptions,
 } from "./core/client.ts";
 import {
 	annotateCommitMessage,
@@ -25,6 +29,7 @@ import {
 	type LedgerCommit,
 } from "./core/commit-ledger.ts";
 import { debugRemote } from "./core/debug.ts";
+import { unwrapMcpResult } from "./core/result.ts";
 import {
 	drainGitObservations,
 	initializeGitObserver,
@@ -34,6 +39,9 @@ import {
 	type ObservedGitCommit,
 } from "./core/git-observer.ts";
 import { resolveGitRemote, resolveProjectPin, sanitizeGitRemoteForTransport } from "./core/project-scope.ts";
+import { commitStampNote, commitStampScope, type CommitStampDeps } from "./core/commit-stamp.ts";
+import { listObservedClaims } from "./core/work-state.ts";
+import { resolveNudgeProject } from "./devspec-provenance-assistance.ts";
 
 function commandOf(args: unknown): string {
 	const a = args as { command?: unknown } | null;
@@ -61,28 +69,59 @@ export interface FrozenCommitAttribution {
 	/** Hidden transport capability frozen host-side; never exported to the shim. */
 	connectionCapability?: string;
 	observationId?: string;
+	/** Captured before Bash; hashes only, no bearer passed to child processes. */
+	transport?: { tokenHash: string; endpoint: string };
+	/** Captured once when the proved observation is enqueued, not on retry. */
+	repository?: { remote: string | null; pin: string | null };
 }
 
 interface ReporterDeps {
 	resolveToken(): Promise<{ token: string } | null>;
+	resolveEndpoint(): Promise<string>;
 	resolveGitRemote(cwd: string): Promise<string | null>;
 	resolveProjectPin(cwd: string): Promise<string | null>;
 	call(
 		token: string,
 		name: string,
 		args: Record<string, unknown>,
-		options?: { lane?: "work" | "pump"; timeoutMs?: number; cwd?: string; connectionCapability?: string },
+		options?: CallOptions,
 	): Promise<unknown>;
 }
 
 const reporterDeps: ReporterDeps = {
 	resolveToken,
+	resolveEndpoint,
 	resolveGitRemote,
 	resolveProjectPin,
 	call: callDevspec,
 };
 
 export type CommitReportOutcome = "sent" | "permanent_rejection" | "transient_failure";
+
+export function commitTokenHash(token: string): string {
+	return createHash("sha256").update(token).digest("hex");
+}
+
+/** Capture host auth before execution. A later login cannot adopt its observations. */
+export async function captureCommitTransport(deps: ReporterDeps = reporterDeps): Promise<FrozenCommitAttribution["transport"] | null> {
+	try {
+		const [auth, endpoint] = await Promise.all([deps.resolveToken(), deps.resolveEndpoint()]);
+		if (!auth?.token || !endpoint) return null;
+		return Object.freeze({ tokenHash: commitTokenHash(auth.token), endpoint });
+	} catch { return null; }
+}
+
+/** Freeze actual observed-worktree scope once; no shell parsing or cwd guessing. */
+export async function captureCommitRepository(cwd: string, projectId: string, deps: ReporterDeps = reporterDeps): Promise<FrozenCommitAttribution["repository"] | null> {
+	try {
+		const [rawPin, rawRemote] = await Promise.all([deps.resolveProjectPin(cwd), deps.resolveGitRemote(cwd)]);
+		const remote = sanitizeGitRemoteForTransport(rawRemote);
+		if (rawRemote && !remote) return null;
+		if (rawPin && rawPin !== projectId) return null;
+		const pin = rawPin === projectId ? rawPin : null;
+		return remote || pin ? Object.freeze({ remote, pin }) : null;
+	} catch { return null; }
+}
 
 /** Report one mechanically proved commit using identity frozen before execution. */
 export async function reportCapturedCommit(
@@ -91,23 +130,23 @@ export async function reportCapturedCommit(
 	attribution: FrozenCommitAttribution,
 	deps: ReporterDeps = reporterDeps,
 ): Promise<CommitReportOutcome> {
-	if (!FULL_SHA.test(commit.sha) || !FULL_PROJECT_ID.test(attribution.connectionId) || !FULL_PROJECT_ID.test(attribution.projectId)) {
+	if (!FULL_SHA.test(commit.sha) || !FULL_PROJECT_ID.test(attribution.connectionId) || !FULL_PROJECT_ID.test(attribution.projectId) ||
+		!attribution.connectionCapability || !attribution.transport || !attribution.repository) {
+		// Old reload-surviving entries cannot acquire today's missing binding.
 		return "permanent_rejection";
 	}
 	const resolved = await deps.resolveToken().catch(() => null);
 	if (!resolved?.token) return "transient_failure";
+	const endpoint = await deps.resolveEndpoint().catch(() => null);
+	if (!endpoint) return "transient_failure";
+	if (commitTokenHash(resolved.token) !== attribution.transport.tokenHash || endpoint !== attribution.transport.endpoint) return "permanent_rejection";
 
 	try {
-		const [rawPin, rawRemote] = await Promise.all([
-			deps.resolveProjectPin(cwd).catch(() => null),
-			deps.resolveGitRemote(cwd).catch(() => null),
-		]);
-		const remote = sanitizeGitRemoteForTransport(rawRemote);
-		if (rawRemote && !remote) return "permanent_rejection";
-		const pin = typeof rawPin === "string" && rawPin === attribution.projectId ? rawPin : null;
-		if (!remote && !pin) return "permanent_rejection";
+		const repository = await captureCommitRepository(cwd, attribution.projectId, deps);
+		if (!repository || repository.remote !== attribution.repository.remote || repository.pin !== attribution.repository.pin) return "permanent_rejection";
+		const { remote, pin } = attribution.repository;
 
-		await deps.call(
+		const response = await deps.call(
 			resolved.token,
 			"report_commit_provenance",
 			{
@@ -121,10 +160,15 @@ export async function reportCapturedCommit(
 			{
 				lane: "work",
 				timeoutMs: 10_000,
-				...(attribution.connectionCapability ? { connectionCapability: attribution.connectionCapability } : {}),
+				retry: "never",
+				endpoint: attribution.transport.endpoint,
+				connectionCapability: attribution.connectionCapability,
 			},
 		);
-		return "sent";
+		const result = unwrapMcpResult(response);
+		const details = result.details as { recorded?: unknown; conflict?: unknown } | null;
+		if (result.isError || details?.recorded === false || details?.conflict === true) return "permanent_rejection";
+		return details?.recorded === true ? "sent" : "transient_failure";
 	} catch (error) {
 		if (error instanceof DevspecRateLimitError || error instanceof DevspecAuthError || isRecoverableTransportError(error)) {
 			return "transient_failure";
@@ -160,8 +204,15 @@ export function enqueueCommitReport(commit: LedgerCommit, cwd: string, attributi
 	const key = `${attribution.connectionId}:${commit.sha}`;
 	if (queue.items.some((item) => item.key === key)) return;
 	const now = Date.now();
-	queue.items.push({ key, commit: { ...commit }, cwd, attribution: { ...attribution }, createdAt: now, attempts: 0, nextAttemptAt: now });
-	if (queue.items.length > MAX_REPORTS) queue.items.splice(0, queue.items.length - MAX_REPORTS);
+	queue.items.push({ key, commit: { ...commit }, cwd, attribution: {
+		...attribution,
+		...(attribution.transport ? { transport: Object.freeze({ ...attribution.transport }) } : {}),
+		...(attribution.repository ? { repository: Object.freeze({ ...attribution.repository }) } : {}),
+	}, createdAt: now, attempts: 0, nextAttemptAt: now });
+	if (queue.items.length > MAX_REPORTS) {
+		debugRemote("commit provenance delivery", { capacity: queue.items.length - MAX_REPORTS });
+		queue.items.splice(0, queue.items.length - MAX_REPORTS);
+	}
 }
 
 function scheduleCommitReportRetry(at: number): void {
@@ -192,7 +243,9 @@ export function flushCommitReports(now = Date.now(), deps: ReporterDeps = report
 	const queue = reportQueue();
 	if (queue.flushing) return queue.flushing;
 	queue.flushing = (async () => {
+		const priorCount = queue.items.length;
 		queue.items = queue.items.filter((item) => now - item.createdAt <= REPORT_TTL_MS && item.attempts < 5);
+		if (priorCount !== queue.items.length) debugRemote("commit provenance delivery", { expired: priorCount - queue.items.length });
 		for (const item of [...queue.items]) {
 			if (item.nextAttemptAt > now) {
 				scheduleCommitReportRetry(item.nextAttemptAt);
@@ -201,10 +254,12 @@ export function flushCommitReports(now = Date.now(), deps: ReporterDeps = report
 			item.attempts += 1;
 			const outcome = await reportCapturedCommit(item.commit, item.cwd, item.attribution, deps);
 			if (outcome === "sent" || outcome === "permanent_rejection") {
+				debugRemote("commit provenance delivery", { sent: outcome === "sent", dropped: outcome === "permanent_rejection" });
 				queue.items = queue.items.filter((candidate) => candidate.key !== item.key);
 				continue;
 			}
 			// One reload-safe scheduled retry; lifecycle bursts cannot consume attempts.
+			debugRemote("commit provenance delivery", { retry: item.attempts });
 			const backoff = Math.min(30_000, 1000 * (2 ** Math.max(0, item.attempts - 1)));
 			item.nextAttemptAt = Date.now() + backoff + Math.floor(Math.random() * 250);
 			scheduleCommitReportRetry(item.nextAttemptAt);
@@ -259,8 +314,43 @@ export function corroborateObservedCommit(observed: ObservedGitCommit, now = Dat
 		reflogMs >= earliest && reflogMs <= now + 2000 && committedMs >= earliest && committedMs <= now + 2000;
 }
 
-function ledgerAndQueue(observed: ObservedGitCommit): void {
+const stampDeps: CommitStampDeps = {
+	claims: (sessionId) => listObservedClaims(sessionId),
+	originUrl: (cwd) => Promise.resolve(gitOutput(cwd, ["remote", "get-url", "origin"])),
+	resolveProject: (cwd) => resolveNudgeProject(cwd),
+};
+
+/** Lines for the model, per tool call, from the commits that call made (df71ab6c). */
+const STAMP_NOTES_KEY = "__devspecPiCommitStampNotes";
+function stampNotes(): Map<string, string[]> {
+	const g = globalThis as unknown as Record<string, Map<string, string[]> | undefined>;
+	if (!(g[STAMP_NOTES_KEY] instanceof Map)) g[STAMP_NOTES_KEY] = new Map();
+	return g[STAMP_NOTES_KEY] as Map<string, string[]>;
+}
+
+function noteStampOutcome(observed: ObservedGitCommit): void {
+	const note = commitStampNote(observed);
+	if (!note) return;
+	const notes = stampNotes();
+	notes.set(observed.envelope.toolCallId, [...(notes.get(observed.envelope.toolCallId) ?? []), note]);
+	while (notes.size > 50) {
+		const oldest = notes.keys().next().value;
+		if (!oldest) break;
+		notes.delete(oldest);
+	}
+}
+
+/** Take the lines for one tool call, once. */
+export function takeCommitStampNotes(toolCallId: string): string[] {
+	const notes = stampNotes();
+	const lines = notes.get(toolCallId) ?? [];
+	notes.delete(toolCallId);
+	return lines;
+}
+
+async function ledgerAndQueue(observed: ObservedGitCommit): Promise<void> {
 	if (!corroborateObservedCommit(observed)) return;
+	noteStampOutcome(observed);
 	const message = repoCommitMessage(observed.worktree, observed.sha);
 	const commit: LedgerCommit = {
 		sha: observed.sha,
@@ -270,10 +360,15 @@ function ledgerAndQueue(observed: ObservedGitCommit): void {
 		...(message !== null ? { commitMessage: message } : {}),
 	};
 	recordObservedCommit(commit);
+	const repository = await captureCommitRepository(observed.worktree, observed.envelope.projectId);
+	if (!repository || !observed.envelope.transport || !observed.envelope.connectionCapability) return;
 	enqueueCommitReport(commit, observed.worktree, {
 		connectionId: observed.envelope.connectionId,
 		projectId: observed.envelope.projectId,
 		observationId: observed.envelope.observationId,
+		connectionCapability: observed.envelope.connectionCapability,
+		transport: observed.envelope.transport,
+		repository,
 	});
 	debugRemote("commit ledger captured");
 }
@@ -311,22 +406,31 @@ export default function (pi: ExtensionAPI) {
 		}
 	});
 
-	pi.on("tool_call", (event) => {
+	pi.on("tool_call", async (event) => {
 		if (event.toolName !== "bash") return;
 		const start = pending.get(event.toolCallId);
-		if (!start?.attribution || typeof event.input.command !== "string") return;
+		if (!start?.attribution?.connectionCapability || typeof event.input.command !== "string") return;
+		const transport = await captureCommitTransport();
+		const bond = getBond();
+		if (!transport || bond?.connectionId !== start.attribution.connectionId || bond?.projectId !== start.attribution.projectId ||
+			bond?.connectionCapability !== start.attribution.connectionCapability) return;
+		// Stamping is armed only while a task is claimed; a failure arms nothing.
+		const stamp = await commitStampScope({ sessionId: start.piSessionId, projectId: start.attribution.projectId, cwd: start.cwd }, stampDeps).catch(() => null);
 		const prepared = prepareGitObservation({
 			toolCallId: event.toolCallId,
 			piSessionId: start.piSessionId,
 			connectionId: start.attribution.connectionId,
 			projectId: start.attribution.projectId,
+			connectionCapability: start.attribution.connectionCapability,
+			transport,
+			stamp,
 		});
 		if (!prepared) return;
 		injectedOriginal.set(event.toolCallId, event.input.command);
 		event.input.command = `${prepared.prefix}${event.input.command}`;
 	});
 
-	pi.on("tool_result", (event) => {
+	pi.on("tool_result", async (event) => {
 		if (event.toolName !== "bash") return;
 		const original = injectedOriginal.get(event.toolCallId);
 		if (original) {
@@ -334,8 +438,12 @@ export default function (pi: ExtensionAPI) {
 			event.input.command = original;
 			injectedOriginal.delete(event.toolCallId);
 		}
-		for (const observed of drainGitObservations()) ledgerAndQueue(observed);
+		for (const observed of drainGitObservations()) await ledgerAndQueue(observed);
 		void flushCommitReports();
+		// What happened to each commit's task tag, where the model reads the output.
+		const notes = takeCommitStampNotes(event.toolCallId);
+		if (notes.length > 0) return { content: [...event.content, { type: "text" as const, text: notes.join("\n") }] };
+		return undefined;
 	});
 
 	pi.on("tool_execution_end", (event, ctx) => {
@@ -352,13 +460,13 @@ export default function (pi: ExtensionAPI) {
 		debugRemote("commit ledger captured");
 	});
 
-	pi.on("agent_settled", () => {
-		for (const observed of drainGitObservations()) ledgerAndQueue(observed);
+	pi.on("agent_settled", async () => {
+		for (const observed of drainGitObservations()) await ledgerAndQueue(observed);
 		void flushCommitReports();
 	});
 
 	pi.on("session_shutdown", async (event) => {
-		for (const observed of drainGitObservations()) ledgerAndQueue(observed);
+		for (const observed of drainGitObservations()) await ledgerAndQueue(observed);
 		await Promise.race([
 			flushCommitReports(),
 			new Promise<void>((resolve) => setTimeout(resolve, 1500)),

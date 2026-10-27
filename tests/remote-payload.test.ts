@@ -463,7 +463,7 @@ test("idle poll never falls back to legacy top-level executable arrays", () => {
 		changed: false,
 		commands: [{ content: "execute me" }],
 		cursor: "legacy",
-		system_notice_version: 1,
+		system_notice_version: 2,
 		system_notice_cursor: null,
 		system_notices: [],
 	}, ME);

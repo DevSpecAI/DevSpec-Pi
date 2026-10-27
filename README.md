@@ -1,87 +1,102 @@
-# DevSpec Pi
+# DevSpec for Pi
 
-The native DevSpec experience for the [Pi](https://pi.dev) coding agent.
+Connect the [Pi](https://pi.dev) coding agent to [DevSpec](https://devspec.ai) with a single native package. Once installed and signed in, Pi connects to your DevSpec project automatically when you start it in a repository linked to that project, appears on your project's **Agents** page, works from your tasks, decisions, and documents, and can be steered live from your phone or the web.
 
-```bash
-npm install -g @earendil-works/pi-coding-agent
-pi install npm:@devspec/pi-plugin
-pi   # /devspec.login and you're in
-```
+## Requirements
 
-One package: native tools, native auth, native remote control, native memory.
-No MCP adapter, no hook scripts, no other packages required.
+- [Pi](https://pi.dev) 1.0 or later
+- Node.js 22.19 or later
 
-This package **is** your DevSpec connection. After `/devspec.login`, do not add a
-DevSpec MCP server in Pi (`/mcp`, `.mcp.json`, or a Bearer header). That path is
-for Claude, Cursor, and OpenCode. If this folder already has a DevSpec entry
-because another tool shares it, leave that file — we turn the extra copy off
-for Pi. Other MCP servers you use (Supabase, browsers) stay.
+Full commit tracking — every commit reported to DevSpec and tagged with its task automatically — works on macOS, Linux, and Windows, both natively and through WSL. On native Windows, Pi runs its commands in Git Bash, which comes with [Git for Windows](https://git-scm.com/download/win) and is what Pi uses there by default. If Pi's shell is the older WSL `bash.exe` instead, Pi does not see the agent's commits, so the agent adds the task tag itself and DevSpec links the commits to their tasks later.
 
-Open source: [github.com/DevSpecAI/DevSpec-Pi](https://github.com/DevSpecAI/DevSpec-Pi).
-On npm as `@devspec/pi-plugin` (keyword `pi-package`).
+## Setup
 
-**Read [VISION.md](./VISION.md) first** — it is the founding design document
-and binds all implementation decisions in this repo.
+### 1. Install Pi
 
-## Status
-
-**Phase 2 complete**: embedded MCP transport, `/devspec.login` / `/devspec.logout`
-/ `/devspec.status`. Everyday DevSpec work is a small active native hot set;
-less-common native tools are loaded on demand with `search_devspec_tools`. The
-generated MCP catalog is the wire map, not the initial model surface. Shared session
-plans and session polls are native: qualifying bonded work activates `manage_plan` and `manage_poll`, and strict
-remote-ingress 1.4 adds capacity-gated exact-connection system notices through
-an activity-neutral, generation-scoped harness turn, with preserved 1.3 command
-intake under notice backpressure. See VISION.md.
-
-## Development
+On macOS and Linux:
 
 ```bash
-npm install
-npm run check                 # typecheck + full tests + deterministic context benchmark
-npm run benchmark:context     # print the current prefix/result budget baseline
-
-# Dogfood against staging (dev Clerk/Supabase) without installing:
-export DEVSPEC_ENV=staging                 # or DEVSPEC_MCP_URL=https://api.devspecstaging.com/api/mcp
-export DEVSPEC_MCP_TOKEN=<from https://app.devspecstaging.com/settings/connections>
-pi -e ./extensions/devspec-auth.ts -e ./extensions/devspec-tools.ts
+curl -fsSL https://pi.dev/install.sh | sh
 ```
 
-Production (`https://api.devspec.ai/api/mcp`) is the default when no override is set.
+On Windows PowerShell:
 
-### Regression and context-budget workflow
+```powershell
+powershell -c "irm https://pi.dev/install.ps1 | iex"
+```
 
-GitHub Actions runs `npm run check` on every pull request and push to `main`.
-The suite enforces the 2–8k-token initial DevSpec surface, measured one-tool plan
-activation delta, per-family model-visible result budgets, lossless exact reads,
-privacy boundaries, deferred-tool routing,
-and provider serialization. A checked-in fingerprint makes every model-facing
-schema or projection-family change an explicit review event. `npm run
-benchmark:context` exercises every bounded projection family with deterministic
-lower/upper ranges and required-field markers, so both payload bloat and silent
-information loss fail before a schema, projection, hot tool, or instruction block
-can merge.
+### 2. Install the DevSpec package
 
-When the sibling `devspecv2` checkout is present at `../devspecv2`, the full test
-suite also fingerprint-checks every generated MCP tool name/schema against the
-current server contract. For worktrees or another location, run
-`DEVSPEC_V2_ROOT=/path/to/devspecv2 npm run check`. Run that paired check before
-merging any server tool change; standalone CI cannot read the separate private
-repository and therefore reports this one check as skipped.
+Install the DevSpec package at user level (without `-l`) so every folder has DevSpec:
 
-Set `DEVSPEC_DEBUG_REMOTE=1` to append privacy-safe runtime diagnostics to
-`devspec-remote-debug.log` under the platform's `os.tmpdir()`. Each settled bonded
-run writes a `context budget` event containing numeric character/count attribution:
-static system/tool footprint, context-file and skill counts/sizes, tail-injected
-attach/room/recall/nudge sizes, and model-visible DevSpec result sizes by a fixed
-generated verb allowlist. It never records prompt text, instruction bodies,
-context-file/skill contents, tool arguments, result bodies, credentials, or
-provider payloads. The same aggregate rides the existing `agent_stats` report;
-`ctx.getContextUsage()` remains the authoritative overall token/window reading.
+```bash
+pi install git:github.com/DevSpecAI/DevSpec-Pi
+```
 
-## Relationship to other DevSpec plugins
+This package provides native DevSpec tools, authentication, project selection, and remote control. No separate DevSpec MCP server entry is needed. (If you previously added DevSpec to Pi's `/mcp` settings, the package disables that duplicate entry so its tools aren't loaded twice.)
 
-Independent implementation, per the plugin-independence ADR
-(`b98a39a9`). What binds all DevSpec plugins is the canonical contract served
-at `devspec://product/remote-ingress-contract` and the MCP tool surface — never
-shared files.
+**Optional recommended extensions** (delegated subagents and web search):
+
+```bash
+pi install npm:pi-subagents
+pi install npm:pi-exa
+```
+
+### 3. Sign in with your DevSpec token
+
+Create an access token with **Read & write** access on your [Agent setup](https://app.devspec.ai/settings/agents) page, then start `pi` and run:
+
+```text
+/devspec.login dvs_your_token_here
+```
+
+Your token is saved locally (`~/.pi/agent/devspec/auth.json`) with owner-only permissions and works across all of your DevSpec projects.
+
+### 4. Start Pi and connect to your project
+
+- **Inside a linked repository:** Start `pi` in the folder where you cloned the Git repository linked to your DevSpec project. Pi matches the repository to your project automatically and appears on the project's **Agents** page.
+- **In any other folder, or when switching projects:** Start `pi` and run `/devspec.project` to choose which project this conversation belongs to (or launch with `pi --devspec-project "Client Website"`).
+
+## Commands
+
+Everything in DevSpec can be asked in plain words ("Work on DevSpec task 4f2a", "What did we decide about caching?", "Create a task for the login redirect bug"). The package also adds these slash commands in Pi:
+
+| Command | What it does |
+|---|---|
+| `/devspec.login <token>` | Signs Pi in to DevSpec with your `dvs_…` access token. |
+| `/devspec.logout` | Removes the stored token from this computer. |
+| `/devspec.status` | Shows whether you're connected, as whom, and to which project and session. |
+| `/devspec.project` | Opens the project menu to inspect or change the project for this conversation or folder. |
+| `/devspec.remote` | Connects this conversation to DevSpec (or pass `--project`, `--session <id>`, `--new`, `--new --private`, or `--name "…"`). |
+| `/devspec.remote-stop` | Disconnects this Pi conversation from DevSpec while leaving other terminals running. |
+| `/devspec.work` | Lists open tasks or claims a specific task by ID or title to start working on it. |
+| `/devspec.pin <project-uuid>` | Writes `.devspec/project.json` in the current folder to pin it to that project. |
+
+## Choosing and remembering a project
+
+When a repository belongs to more than one DevSpec project, or you start Pi in a folder without a Git remote, Pi prompts you to pick from your accessible projects.
+
+You can also target a project directly:
+
+```text
+pi --devspec-project "Client Website"
+/devspec.remote --project "Client Website"
+/devspec.remote --project <project-id> --session <session-id>
+```
+
+Use `/devspec.project` to manage the current conversation's project and folder default:
+
+- `/devspec.project status` shows the selected project, organization, full project ID, how it was selected, and any folder default.
+- `/devspec.project choose` selects a project for this conversation. Switching away from a project you have already been working in starts a fresh local conversation so context from one project never leaks into another.
+- `/devspec.project remember` saves the current project to `.devspec/project.json` in the folder after showing the file path and asking for confirmation.
+- `/devspec.project forget` removes the `.devspec/project.json` folder default after confirmation without disconnecting active conversations.
+
+## Updating
+
+To update the package to the latest version, run:
+
+```bash
+pi update
+```
+
+Then restart any open `pi` sessions so the updated package is loaded.

@@ -9,7 +9,7 @@
 
 export interface ObservedClaim {
 	sessionId: string;
-	actionItemId: string;
+	taskId: string;
 	projectId?: string;
 	observedAt: number;
 }
@@ -19,8 +19,8 @@ interface WorkStateStore {
 	nudgedProjects: Set<string>;
 }
 
-const WORK_STATE_KEY = Symbol.for("devspec.pi.work-state.v1");
-const FULL_ACTION_ITEM_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const WORK_STATE_KEY = Symbol.for("devspec.pi.work-state.v2");
+const FULL_TASK_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TERMINAL_WORK_VERBS = new Set(["record_implementation", "release_work_item", "fail_work_item"]);
 const MAX_OBSERVED_CLAIMS = 100;
 
@@ -52,27 +52,27 @@ function resultDetails(value: unknown): Record<string, unknown> | null {
 function responseProjectId(details: Record<string, unknown>): string | undefined {
 	const direct = exactNonEmpty(details.project_id);
 	if (direct) return direct;
-	const actionItem = record(details.action_item);
+	const task = record(details.task);
 	const item = record(details.item);
-	return exactNonEmpty(actionItem?.project_id) ??
+	return exactNonEmpty(task?.project_id) ??
 		exactNonEmpty(item?.project_id) ??
-		exactNonEmpty(record(item?.action_item)?.project_id);
+		exactNonEmpty(record(item?.task)?.project_id);
 }
 
-function responseActionItemId(details: Record<string, unknown>): string | undefined {
-	const direct = exactNonEmpty(details.action_item_id) ?? exactNonEmpty(details.id);
+function responseTaskId(details: Record<string, unknown>): string | undefined {
+	const direct = exactNonEmpty(details.task_id) ?? exactNonEmpty(details.id);
 	if (direct) return direct;
-	const actionItem = record(details.action_item);
+	const task = record(details.task);
 	const item = record(details.item);
-	return exactNonEmpty(actionItem?.id) ??
+	return exactNonEmpty(task?.id) ??
 		exactNonEmpty(item?.id) ??
-		exactNonEmpty(record(item?.action_item)?.id);
+		exactNonEmpty(record(item?.task)?.id);
 }
 
 function matchingResponseItemId(args: Record<string, unknown>, details: Record<string, unknown>): string | undefined {
-	const requested = exactNonEmpty(args.action_item_id);
-	const confirmed = responseActionItemId(details);
-	return requested && FULL_ACTION_ITEM_ID.test(requested) && confirmed === requested ? confirmed : undefined;
+	const requested = exactNonEmpty(args.task_id);
+	const confirmed = responseTaskId(details);
+	return requested && FULL_TASK_ID.test(requested) && confirmed === requested ? confirmed : undefined;
 }
 
 function hasNegativeMarker(details: Record<string, unknown>): boolean {
@@ -97,8 +97,8 @@ function terminalSucceeded(name: string, details: Record<string, unknown>): bool
 	return false;
 }
 
-function claimKey(sessionId: string, actionItemId: string): string {
-	return `${sessionId}\0${actionItemId}`;
+function claimKey(sessionId: string, taskId: string): string {
+	return `${sessionId}\0${taskId}`;
 }
 
 export function listObservedClaims(sessionId?: string): ObservedClaim[] {
@@ -125,16 +125,16 @@ export function observeSuccessfulWorkResult(
 	const exactSessionId = exactNonEmpty(sessionId);
 	const details = resultDetails(result);
 	if (!exactSessionId || !details) return false;
-	const actionItemId = matchingResponseItemId(args, details);
-	if (!actionItemId) return false;
+	const taskId = matchingResponseItemId(args, details);
+	if (!taskId) return false;
 	const resolvedProjectId = exactNonEmpty(projectId) ?? responseProjectId(details);
 
 	if (name === "claim_work_item") {
 		if (details.claim_success !== true || hasNegativeMarker(details)) return false;
 		const current = store();
-		current.claims.set(claimKey(exactSessionId, actionItemId), {
+		current.claims.set(claimKey(exactSessionId, taskId), {
 			sessionId: exactSessionId,
-			actionItemId,
+			taskId,
 			...(resolvedProjectId ? { projectId: resolvedProjectId } : {}),
 			observedAt: Date.now(),
 		});
@@ -147,7 +147,7 @@ export function observeSuccessfulWorkResult(
 	}
 
 	if (!TERMINAL_WORK_VERBS.has(name) || !terminalSucceeded(name, details)) return false;
-	store().claims.delete(claimKey(exactSessionId, actionItemId));
+	store().claims.delete(claimKey(exactSessionId, taskId));
 	return false;
 }
 

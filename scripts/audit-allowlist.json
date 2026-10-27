@@ -1,0 +1,13 @@
+{
+  "//": "Triaged audit acceptances consumed by scripts/audit-gate.mjs. The gate fails on any UNLISTED or EXPIRED high/critical advisory. List ONLY high/critical advisories you have traced as not reachable from what customers install, each with a concrete reason and an expiry, so the acceptance resurfaces for re-review instead of rotting. Moderate/low advisories never block the gate. Match key is the GHSA id, so a NEW advisory on the same package still trips the gate. Prefer fixing the dependency (a targeted install, never npm audit fix) over listing it here.",
+  "advisories": [
+    {
+      "ghsa": "GHSA-xjj6-f33q-929c",
+      "package": "undici",
+      "severity": "high",
+      "title": "undici vulnerable to Denial of Service via unhandled error on excessive content-encodings",
+      "reason": "Not in what customers install from this package. undici reaches this repository only through the Pi host packages we develop and test against (devDependencies @earendil-works/pi-coding-agent, which pins undici 8.10.2 exactly in every release through 1.4.0, and openai via @earendil-works/pi-ai); `npm ls undici --omit=dev` is empty and the published dependencies are @modelcontextprotocol/sdk and minisearch. At runtime the customer's undici is their own Pi host's, so the fix (8.12.2+) has to land upstream in pi-coding-agent; overriding the host's exact pin here would only change our test tree. Re-review when pi-coding-agent ships a patched undici.",
+      "expires": "2026-11-25"
+    }
+  ]
+}

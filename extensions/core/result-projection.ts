@@ -2,80 +2,77 @@
  * Pure, model-visible projections for structured DevSpec MCP results.
  *
  * Pi persists `details` for extension/session consumers, while provider adapters
- * send tool-result `content` to the model. These projections therefore remove
- * repeated/storage-only data only where the verb contract permits it. Exact
- * reads stay lossless, and every compact family has a production output budget.
+ * send tool-result `content` to the model. What the server returns reaches the
+ * model: exact reads stay lossless, a write's receipt passes every field through,
+ * an unrecognised result is shown whole, and a list shows every row the server
+ * returned. The only condensing is lossless or visibly declared — a list row is a
+ * card that names the exact read for its full record, and a receipt leaves out
+ * empty fields and values identical to the call's own arguments, and says which.
+ * There is no output budget: a field the server wants read is never dropped to
+ * save tokens (DevSpec item 5a9eaa57, convention 8958f7b1).
  */
+
+import { disagreementBlock, reviewData } from "./review-context.ts";
 
 export interface ProjectionInput {
 	toolName: string;
 	text: string;
 	details: unknown;
+	/** The arguments the call was sent with, when known: a receipt names fields equal to them instead of repeating them. */
+	args?: Record<string, unknown>;
 }
 
 export type ProjectionFamily = "project" | "collection" | "help" | "ack" | "full" | "fallback";
 
-export const PROJECTION_BUDGETS = {
-	project: 28_000,
-	collection: 4_500,
-	help: 12_000,
-	ack: 5_000,
-	// record_implementation can carry up to 30 own and 30 brief criteria.
-	// Their actionable follow-through is load-bearing, not acknowledgement noise.
-	recordImplementation: 28_000,
-	fallback: 6_000,
-} as const;
-
-const CARD_LIMIT = 7;
+/**
+ * A list card is a preview whose purpose is choosing which exact read to pay for.
+ * Its optional metadata (repositories, signals) yields to its required lines at
+ * this size and says so; the full record is always one exact read away.
+ */
 const CARD_BUDGET = 560;
-const RELATED_LIMIT = 3;
-const MANUAL_FOLLOWUP_LIMIT = 3;
-const PENDING_PROPOSAL_LIMIT = 2;
 const LINE_LIMIT = 240;
-// High on purpose: these are binding inputs, not repeated metadata. The cap is
-// only a pathological-payload guard and carries an exact recovery instruction.
-const INSTRUCTION_TIER_LIMIT = 6_000;
 
 const COLLECTION_VERBS = new Set([
 	"list_projects",
-	"get_action_items",
-	"search_action_items",
+	"get_tasks",
+	"search_tasks",
 	"get_resources",
 	"search_resources",
 	"search_memories",
 	"get_decisions",
 	"get_conventions",
-	"get_unresolved_questions",
 	"get_recent_sessions",
 	"search_sessions",
 	"search_discussion_points",
 	"get_automation_runs",
 	"get_automations",
-	"get_claimable_reviews",
 ]);
 
 const FULL_READ_VERBS = new Set([
 	// Exact implementation/decision inputs are intentionally exempt from compact
 	// family budgets. Arbitrary truncation would not have a lossless continuation.
-	"get_action_item",
+	"get_task",
 	// A pull request's provenance umbrella is one exact entity read; every list in it
 	// is already bounded by the joins, and its `absent` sentences must reach the model whole.
 	"get_pull_request",
 	"get_memory",
 	"get_resource",
 	"get_testing_brief",
-	"get_action_item_history",
-	"get_action_item_siblings",
+	"get_task_history",
+	"get_task_siblings",
 	"get_automation",
 	"get_goals",
 	"get_project_goals",
 	"claim_work_item",
 	"get_session_transcript",
 	"get_discussion_point",
-	"preview_conflict_resolution",
+	// A read-only consequence preview: who decides, what closes, any refusal and
+	// what is not affected. Every sentence is the decision input, so it stays whole.
+	"preview_supersession",
 	"get_project_instruction_rules",
 	"get_personal_instructions",
 	"get_workflow_rules",
+	"search_devspec_tools",
 	"validate_commit_reference",
 	// Projection does not receive call parameters, so conservatively keep both
 	// focused query/table reads and whole-schema reads lossless.
@@ -84,12 +81,15 @@ const FULL_READ_VERBS = new Set([
 	// briefing, permission, previews, resulting text, or mandatory instructions.
 	"create_session",
 	"claim_automation_run",
-	"claim_review",
 	// Every review-queue entry is a decision waiting on a person; a dropped row
 	// reads as "nothing outstanding", so the whole queue survives projection.
 	"get_review_queue",
 	"import_instruction_rules",
 	"update_personal_instructions",
+	// Knowledge writes can return an exact preview/receipt or a new version id.
+	// Keep update_memory lossless: an acknowledgement alone would drop the
+	// preview that must be reviewed before an overrule, or its stale context.
+	"update_memory",
 	// Every connection-bound ledger mutation/read returns the authoritative
 	// revisioned object; there is no safe continuation for omitted state.
 	"manage_plan",
@@ -98,15 +98,25 @@ const FULL_READ_VERBS = new Set([
 	// Same shape: revisioned link mutations plus `list`, whose companion rows
 	// must reach the model whole — a silently dropped link reads as "not linked".
 	"manage_knowledge_links",
+	// Exact ownership receipts: keep who adopted, revision, scope and refusals.
+	// Already small; no generic acknowledgement projection (988ad64c).
+	"manage_protected_intent",
+	// A decision receipt: accepted, declined, refused, not_decided or unknown, with
+	// what happened and what the person can do next. Already small, and a refusal
+	// or an unconfirmed outcome must never read as done, so it stays whole (60fb0935).
+	"decide_proposal",
+	// A duplicate resolution either previews the exact snapshots, the planned
+	// closure and who decides, or returns its receipt. Projection cannot see which
+	// action was called, so both stay whole, as for preview_supersession (fce58a2f).
+	"resolve_duplicate",
 ]);
 
 const ACK_VERBS = new Set([
-	"update_action_item",
-	"create_action_item",
+	"update_task",
+	"create_task",
 	"add_commit_reference",
 	"add_implementation_note",
 	"record_automation_run",
-	"record_review",
 	"create_automation",
 	"update_automation",
 	"delete_automation",
@@ -116,15 +126,13 @@ const ACK_VERBS = new Set([
 	"fail_work_item",
 	"report_progress",
 	"record_completed_work",
-	"send_agent_message",
-	"submit_plan_review",
-	"reopen_action_item",
-	"spin_off_action_item",
-	"resolve_action_item_conflict",
-	"resolve_action_item_decision_flag",
-	"link_action_items",
-	"unlink_action_items",
-	"verify_action_item",
+	"reopen_task",
+	"spin_off_task",
+	// A receipt: committed with the closure and tense, or queued with a proposal_id.
+	"supersede_task",
+	"link_tasks",
+	"unlink_tasks",
+	"verify_task",
 	"record_criterion_verdicts",
 	"classify_criterion",
 	"record_memory",
@@ -136,28 +144,19 @@ const ACK_VERBS = new Set([
 	"archive_resource",
 	"resolve_resource_flag",
 	"resolve_memory_flag",
-	"surface_session_action_items",
-	"control_connection",
+	// An explicit not-a-duplicate ruling returns a receipt, like the flag rulings (fce58a2f).
+	"record_duplicate_nonmatch",
+	"surface_session_tasks",
 	"reserve_work_items",
 	"write_project_instruction_rule",
 ]);
 
 const ROW_KEYS = [
-	"results", "items", "action_items", "memories", "resources", "projects", "goals", "sessions",
+	"results", "items", "tasks", "memories", "resources", "projects", "goals", "sessions",
 	"automations", "runs", "reviews", "matches", "data",
 ] as const;
 const COUNT_KEYS = ["total_matching", "total", "count"] as const;
 const ACK_GATE_KEYS = [
-	"review_before_proceeding",
-	"check_against_decisions",
-	"related_decisions",
-	"memory_reconciliation",
-	"reconcile_required",
-	"closest_match",
-	"potential_conflicts",
-	"near_duplicates",
-	"unresolved_conflicts",
-	"related_candidates",
 	"human_actions_required",
 	"manual_followup_steps",
 	"own_criteria_follow_through",
@@ -198,6 +197,12 @@ function oneLine(value: unknown, max = LINE_LIMIT): string | undefined {
 	return flat.length > max ? `${flat.slice(0, Math.max(0, max - 1))}…` : flat;
 }
 
+/** A sentence DevSpec wrote to be read (a label, an instruction): flattened to one line, never clipped. */
+function whole(value: unknown): string | undefined {
+	const raw = scalar(value);
+	return raw ? raw.replace(/\s+/g, " ").trim() : undefined;
+}
+
 function json(value: unknown): string | null {
 	try {
 		const encoded = JSON.stringify(value, null, 2);
@@ -217,7 +222,7 @@ function safeDashboardUrl(value: unknown): string | undefined {
 		parsed.password = "";
 		parsed.search = "";
 		parsed.hash = "";
-		return oneLine(parsed.toString(), 220);
+		return parsed.toString();
 	} catch {
 		return undefined;
 	}
@@ -231,32 +236,10 @@ function safeCiteUrl(value: unknown): string | undefined {
 		if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return undefined;
 		parsed.username = "";
 		parsed.password = "";
-		return oneLine(parsed.toString(), 500);
+		return parsed.toString();
 	} catch {
 		return undefined;
 	}
-}
-
-/** Join whole blocks only. Known projections are never sliced mid-JSON/card. */
-function withinBudget(blocks: readonly string[], budget: number, family: string): string {
-	const nonempty = blocks.filter((block) => block.trim().length > 0);
-	const complete = nonempty.join("\n");
-	if (complete.length <= budget) return complete;
-
-	const included: string[] = [];
-	let omitted = 0;
-	for (let index = 0; index < nonempty.length; index += 1) {
-		const block = nonempty[index];
-		const prospectiveOmitted = omitted + 1;
-		const remaining = nonempty.length - index - 1;
-		const note = `[${prospectiveOmitted + remaining} ${family} block(s) omitted from model-visible content to stay within the ${budget}-character budget; complete data is host-retained in details, which is not a model-visible continuation.]`;
-		const candidate = [...included, block, note].join("\n");
-		if (candidate.length <= budget) included.push(block);
-		else omitted += 1;
-	}
-	const note = `[${omitted} ${family} block(s) omitted from model-visible content to stay within the ${budget}-character budget; complete data is host-retained in details, which is not a model-visible continuation.]`;
-	while (included.length > 0 && [...included, note].join("\n").length > budget) included.pop();
-	return [...included, note].join("\n");
 }
 
 /** Required blocks are reserved before optional detail and are never dropped. */
@@ -298,8 +281,11 @@ export function projectionFamily(toolName: string): ProjectionFamily {
 	return "fallback";
 }
 
+/** Where a response carries the record it is about. */
+const NESTED_ENTITY_KEYS: readonly string[] = ["item", "task", "memory", "resource", "automation", "goal", "project", "session", "assignment", "run"];
+
 function nestedEntity(root: Row): Row {
-	for (const key of ["item", "action_item", "memory", "resource", "automation", "goal", "project", "session", "assignment", "run"]) {
+	for (const key of NESTED_ENTITY_KEYS) {
 		const found = record(root[key]);
 		if (found) return found;
 	}
@@ -308,16 +294,14 @@ function nestedEntity(root: Row): Row {
 
 function boundedId(row: Row, outer: Row = row): string | undefined {
 	return oneLine(
-		first(row, ["id", "action_item_id", "memory_id", "resource_id", "project_id", "session_id", "run_id", "criterion_id"])
-			?? first(outer, ["id", "action_item_id", "memory_id", "resource_id", "project_id", "session_id", "run_id", "criterion_id"]),
+		first(row, ["id", "task_id", "memory_id", "resource_id", "project_id", "session_id", "run_id", "criterion_id"])
+			?? first(outer, ["id", "task_id", "memory_id", "resource_id", "project_id", "session_id", "run_id", "criterion_id"]),
 		90,
 	);
 }
 
 function signalLabels(row: Row): string[] {
 	const labels: string[] = [];
-	const unresolved = Array.isArray(row.unresolved_conflicts) ? row.unresolved_conflicts : [];
-	if (unresolved.length > 0) labels.push(`${unresolved.length} unresolved conflict${unresolved.length === 1 ? "" : "s"}`);
 	const review = Array.isArray(row.review_signals)
 		? row.review_signals
 		: Array.isArray(row.signals)
@@ -327,7 +311,6 @@ function signalLabels(row: Row): string[] {
 		const signal = typeof raw === "string" ? oneLine(raw, 80) : oneLine(first(record(raw) ?? {}, ["type", "signal_type", "kind"]), 80);
 		if (signal) labels.push(signal.replace(/_/g, " "));
 	}
-	if (row.reconcile_required === true) labels.push("reconcile required");
 	if (row.claimed === false) labels.push("not claimed");
 	if (row.blocked === true || row.is_blocked === true) labels.push("blocked");
 	if (Array.isArray(row.human_actions_required) && row.human_actions_required.length > 0) {
@@ -337,7 +320,7 @@ function signalLabels(row: Row): string[] {
 }
 
 /**
- * A change someone has PROPOSED against this record, awaiting a maintainer
+ * A change someone has PROPOSED against this record, awaiting review
  * (DevSpec item 38576d61). The card still shows the decided record; these lines
  * say a change is waiting on it, who proposed it and which proposal.
  *
@@ -356,10 +339,10 @@ function pendingProposalLines(row: Row, outer: Row): string[] {
 			? outer.pending_proposals
 			: [];
 	const lines: string[] = [];
-	for (const raw of source.slice(0, PENDING_PROPOSAL_LIMIT)) {
+	for (const raw of source) {
 		const entry = record(raw);
 		if (!entry) continue;
-		const served = oneLine(entry.line, LINE_LIMIT);
+		const served = whole(entry.line);
 		if (served) {
 			lines.push(served);
 			continue;
@@ -368,14 +351,112 @@ function pendingProposalLines(row: Row, outer: Row): string[] {
 		const by = oneLine(entry.by, 80);
 		const id = oneLine(entry.proposal_id, 90);
 		lines.push(
-			`\u26a0 ${what}${by ? ` by ${by}` : ""}, awaiting a maintainer${id ? ` (proposal ${id})` : ""}`,
+			// Who it waits on is DevSpec's to say (contract 4.31.0: not always a Maintainer).
+			`\u26a0 ${what}${by ? ` by ${by}` : ""}, awaiting review${id ? ` (proposal ${id})` : ""}`,
 		);
 	}
-	const remaining = source.length - lines.length;
-	if (lines.length && remaining > 0) {
-		lines.push(`\u26a0 ${remaining} further proposed change(s) awaiting a maintainer.`);
-	}
 	return lines;
+}
+
+/**
+ * Suggested work that is not agreed yet, or that a Maintainer declined (DevSpec
+ * decision 2ec0e288). The server attaches `agreement` only to such rows and writes
+ * its `line`, so Pi renders what it was sent, the same way as a pending proposal.
+ * A required block: dropping it under budget would show a suggestion as agreed work.
+ */
+function agreementLine(row: Row, outer: Row): string | null {
+	const entry = record(row.agreement) ?? record(outer.agreement);
+	if (!entry) return null;
+	const served = whole(entry.line);
+	if (served) return `\u26a0 ${served}`;
+	const state = oneLine(entry.state, 40);
+	return state ? `\u26a0 Not agreed work (${state}).` : null;
+}
+
+/**
+ * Work that waits for an OK, or is an experiment (contract 4.31.0,
+ * core.waiting-work-stays-on-its-branch; ADR "Protecting intent" §6.2, §6.9).
+ * DevSpec writes the label ("Experiment", or "Waiting for <name>'s OK") and the
+ * instruction; Pi shows them as sent. Required wherever it appears: dropping it
+ * would let an agent merge waiting work into the tracking branch. The done
+ * blocker follows in the same required lines (see doneBlockerLine).
+ */
+function waitingLines(row: Row, outer: Row = row): string[] {
+	const waiting = record(row.waiting_for_ok) ?? record(outer.waiting_for_ok);
+	const lines: string[] = [];
+	if (waiting) {
+		const label = whole(waiting.label) ?? "Waiting for an OK";
+		const on = whole(waiting.waiting_on);
+		const instruction = whole(waiting.instruction);
+		lines.push(`\u26a0 ${label}${on && on !== label ? ` (${on})` : ""}${instruction ? ` — ${instruction}` : ""}`);
+	} else if (row.is_experiment === true || outer.is_experiment === true || row.badge === "Experiment" || outer.badge === "Experiment") {
+		const branch = oneLine(first(row, ["experiment_branch"]) ?? first(outer, ["experiment_branch"]), 160);
+		lines.push(`\u26a0 Experiment${branch ? ` (branch ${branch})` : ""}: build and push it on its own branch; never merge it into the tracking branch until it has the OK.`);
+	}
+	const blocker = doneBlockerLine(row, outer, lines.length > 0);
+	if (blocker) lines.push(blocker);
+	return lines;
+}
+
+/**
+ * What still stands between the work and done: an OK, a merge into a Tracking
+ * branch (`not_landed`), or, once merged, a database change or a tracked
+ * deployment (`awaiting_delivery`, with what is `outstanding`). DevSpec writes the
+ * label ("Waiting to deploy to <target>"); Pi shows it as sent, plus the parts.
+ * When done follows is devspec://product/implementation-contract's to say, not
+ * Pi's. Required wherever it appears: dropping it let an agent report waiting
+ * work as done.
+ */
+function doneBlockerLine(row: Row, outer: Row, waitingShown: boolean): string | null {
+	const blocker = record(row.done_blocker) ?? record(outer.done_blocker);
+	if (!blocker) return null;
+	const layer = oneLine(blocker.layer, 40);
+	const label = whole(blocker.label) ?? "Not done yet";
+	const parts: string[] = [];
+	if (layer === "waiting_for_ok") {
+		// The waiting line above already says this, unless it merged before the OK.
+		if (blocker.merged !== true && waitingShown) return null;
+		if (blocker.merged === true) parts.push(`merged into ${oneLine(blocker.tracking_branch, 80) ?? "the tracking branch"}`);
+	} else if (layer === "not_landed") {
+		const repos = Array.isArray(blocker.unmerged_repos) ? blocker.unmerged_repos : [];
+		const names = repos.map((raw) => {
+			const repo = record(raw) ?? {};
+			const name = whole(repo.repo_name);
+			const branch = whole(repo.tracking_branch);
+			return name ? `${name}${branch ? ` \u2192 ${branch}` : ""}` : undefined;
+		}).filter((entry): entry is string => Boolean(entry));
+		if (names.length) parts.push(`unmerged: ${names.join(", ")}`);
+	} else if (layer === "awaiting_delivery") {
+		const outstanding = (Array.isArray(blocker.outstanding) ? blocker.outstanding : [])
+			.map((raw) => record(raw))
+			.filter((entry): entry is Row => entry !== null);
+		// Name the repository per entry only when the wait spans more than one.
+		const repoNames = new Set(outstanding.map((entry) => oneLine(entry.repo_name, 80)).filter(Boolean));
+		const perRepo = repoNames.size > 1;
+		const entries = outstanding.map((entry) => {
+			const status = oneLine(entry.status, 40)?.replace(/_/g, " ") ?? "pending";
+			const repo = perRepo ? oneLine(entry.repo_name, 80) : undefined;
+			let what: string;
+			if (entry.kind === "deployment") {
+				const targets = Array.isArray(entry.target_names)
+					? oneLine(entry.target_names.filter((name) => typeof name === "string").join(", "), 120)
+					: undefined;
+				what = `deployment${targets ? ` to ${targets}` : ""}`;
+			} else if (entry.kind === "database_change") {
+				const file = oneLine(entry.filename, 100);
+				const database = oneLine(entry.database_name, 80);
+				what = `database change${file ? ` ${file}` : ""}${database ? ` on ${database}` : ""}`;
+			} else {
+				what = oneLine(entry.kind, 40)?.replace(/_/g, " ") ?? "delivery";
+			}
+			return `${repo ? `${repo} ` : ""}${what} (${status})`;
+		});
+		if (entries.length) {
+			const only = repoNames.size === 1 ? [...repoNames][0] : undefined;
+			parts.push(`outstanding${only ? ` in ${only}` : ""}: ${entries.join("; ")}`);
+		}
+	}
+	return `\u26a0 done_blocker${layer ? ` (${layer})` : ""}: ${label}${parts.length ? ` \u2014 ${parts.join("; ")}` : ""}`;
 }
 
 function card(raw: unknown, index: number): string {
@@ -395,6 +476,9 @@ function card(raw: unknown, index: number): string {
 		const value = oneLine(first(row, keys), 70);
 		if (value && !metadata.includes(value)) metadata.push(value);
 	}
+	// A requirement binds work that would break it, so it is labelled apart from
+	// ordinary knowledge (ADR "Protecting intent" §10), never left to read as one.
+	if (first(row, ["kind", "memory_kind"]) === "requirement" && !metadata.includes("requirement")) metadata.unshift("requirement");
 	const matchCount = Number(first(row, ["match_count", "matchCount"]));
 	if (Number.isFinite(matchCount) && matchCount > 0) {
 		const label = `${matchCount} match${matchCount === 1 ? "" : "es"}`;
@@ -402,7 +486,7 @@ function card(raw: unknown, index: number): string {
 	}
 	const parentRow = record(row.parent) ?? record(row.brief);
 	const parent = oneLine(
-		first(row, ["parent_title", "brief_title", "parent_action_item_id", "parent_id"])
+		first(row, ["parent_title", "brief_title", "parent_task_id", "parent_id"])
 			?? (parentRow ? first(parentRow, ["title", "name", "id"]) : undefined),
 		140,
 	);
@@ -426,7 +510,12 @@ function card(raw: unknown, index: number): string {
 	if (parent) required.push(`   parent/brief: ${parent}`);
 	if (timeline.length) required.push(`   ${timeline.join(" · ")}`);
 	if (why) required.push(`   ${why}`);
+	const agreement = agreementLine(row, outer);
+	if (agreement) required.push(`   ${agreement}`);
+	for (const line of waitingLines(row, outer)) required.push(`   ${line}`);
 	for (const line of pendingProposalLines(row, outer)) required.push(`   ${line}`);
+	const disagreements = disagreementBlock(row, 1_600);
+	if (disagreements) required.push(disagreements);
 	const optional: string[] = [];
 	const repos = Array.isArray(row.repos) ? row.repos : [];
 	if (repos.length) {
@@ -443,22 +532,24 @@ interface FoundRows {
 	rows: unknown[];
 	recognized: boolean;
 	briefCount: number;
+	/** The response's own top-level keys the rows came from; every other key is shown as a response note. */
+	keys: string[];
 }
 
 function genericRows(root: Row): FoundRows {
 	for (const key of ROW_KEYS) {
-		if (Array.isArray(root[key])) return { rows: root[key] as unknown[], recognized: true, briefCount: 0 };
+		if (Array.isArray(root[key])) return { rows: root[key] as unknown[], recognized: true, briefCount: 0, keys: [key] };
 	}
 	for (const key of ["page", "result"] as const) {
 		const nested = record(root[key]);
 		if (!nested) continue;
 		const found = genericRows(nested);
-		if (found.recognized) return found;
+		if (found.recognized) return { ...found, keys: [key] };
 	}
 	const hasCount = [root, record(root.page)].some((container) =>
 		container && COUNT_KEYS.some((key) => typeof container[key] === "number" && Number.isFinite(container[key])),
 	);
-	return { rows: [], recognized: hasCount, briefCount: 0 };
+	return { rows: [], recognized: hasCount, briefCount: 0, keys: [] };
 }
 
 function collectionRows(toolName: string, root: Row): FoundRows {
@@ -469,15 +560,15 @@ function collectionRows(toolName: string, root: Row): FoundRows {
 		const documents = hasDocuments ? root.documents as unknown[] : [];
 		const artifacts = hasArtifacts ? root.artifacts as unknown[] : [];
 		const rows: unknown[] = [];
-		// The server searches these as two independent corpora. Interleave them so
-		// one full corpus cannot hide every hit from the other at the card budget.
+		// The server searches these as two independent corpora; interleaving keeps
+		// both visible near the top of the list.
 		for (let index = 0; index < Math.max(documents.length, artifacts.length); index += 1) {
 			if (index < documents.length) rows.push(documents[index]);
 			if (index < artifacts.length) rows.push(artifacts[index]);
 		}
-		return { rows, recognized: true, briefCount: 0 };
+		return { rows, recognized: true, briefCount: 0, keys: ["documents", "artifacts"] };
 	}
-	if (toolName !== "get_action_items") return genericRows(root);
+	if (toolName !== "get_tasks") return genericRows(root);
 	const hasItems = Array.isArray(root.items);
 	const hasBriefs = Array.isArray(root.briefs);
 	if (!hasItems && !hasBriefs) return genericRows(root);
@@ -501,7 +592,7 @@ function collectionRows(toolName: string, root: Row): FoundRows {
 		combined.push(raw);
 		briefCount += 1;
 	}
-	return { rows: combined, recognized: true, briefCount };
+	return { rows: combined, recognized: true, briefCount, keys: ["items", "briefs"] };
 }
 
 function totalRows(root: Row, found: number): number {
@@ -516,8 +607,8 @@ function totalRows(root: Row, found: number): number {
 }
 
 function fetchHint(toolName: string): string {
-	if (toolName.includes("action_item")) return "Fetch an exact item with get_action_item(id); rerun with a narrower filter or next offset/page for more.";
-	if (toolName.includes("memor") || ["get_decisions", "get_conventions", "get_unresolved_questions"].includes(toolName)) {
+	if (toolName.includes("task")) return "Fetch an exact item with get_task(id); rerun with a narrower filter or next offset/page for more.";
+	if (toolName.includes("memor") || ["get_decisions", "get_conventions"].includes(toolName)) {
 		return "Fetch an exact memory with get_memory(id); rerun the list/search with a narrower filter for more.";
 	}
 	if (toolName.includes("resource")) return "Fetch an exact resource with get_resource(id); rerun the list/search with a narrower filter for more.";
@@ -528,381 +619,263 @@ function fetchHint(toolName: string): string {
 	return `Rerun ${toolName} with a narrower filter or pagination to fetch more; use the entity's exact get tool when available.`;
 }
 
+/** Keys a collection projection renders itself: the page, its counts and its completeness. */
+const COLLECTION_RENDERED_KEYS = new Set(["page", "pages", "count", "total", "total_matching", "incomplete", "unavailable_note", "query"]);
+
+/**
+ * Everything else the server put beside the rows — how to treat a disagreement,
+ * that a search ran on keywords alone, that bodies are left out, that an offset is
+ * past the end — reaches the model whole, in DevSpec's words.
+ */
+function collectionNotes(root: Row, found: FoundRows, countsKey: string | null): Row {
+	const notes: Row = {};
+	for (const [key, value] of Object.entries(root)) {
+		if (COLLECTION_RENDERED_KEYS.has(key) || found.keys.includes(key)) continue;
+		if (key === "summary" && countsKey) {
+			const summary = record(value);
+			if (summary) {
+				const { [countsKey]: _rendered, ...rest } = summary;
+				if (Object.keys(rest).length) notes.summary = rest;
+				continue;
+			}
+		}
+		notes[key] = value;
+	}
+	return notes;
+}
+
 function collectionProjection(toolName: string, details: unknown): string | null {
 	const root = record(details) ?? (Array.isArray(details) ? { results: details } : null);
 	if (!root) return null;
 	const found = collectionRows(toolName, root);
 	if (!found.recognized) return null;
-	const shown = found.rows.slice(0, CARD_LIMIT);
-	const primaryCount = toolName === "get_action_items"
+	// Every row the server returned is shown. The page size is the caller's own
+	// `limit`, so a second, smaller page here would hide rows that the server's
+	// next offset then skips past.
+	const shown = found.rows;
+	const primaryCount = toolName === "get_tasks"
 		? Math.max(0, found.rows.length - found.briefCount)
 		: found.rows.length;
 	const total = totalRows(root, primaryCount);
 	const summary = record(root.summary);
-	const counts = summary ? record(summary.ui_buckets) ?? record(summary.lifecycle_breakdown) : null;
-	const heading = toolName === "get_action_items" && found.briefCount > 0
-		? `${toolName}: ${total} result${total === 1 ? "" : "s"}; ${found.briefCount} additional contextual brief card(s); showing ${shown.length} combined card(s).`
-		: `${toolName}: ${total} result${total === 1 ? "" : "s"}${shown.length < total ? `; showing ${shown.length}` : ""}.`;
+	const countsKey = summary ? (record(summary.ui_buckets) ? "ui_buckets" : record(summary.lifecycle_breakdown) ? "lifecycle_breakdown" : null) : null;
+	const counts = summary && countsKey ? record(summary[countsKey]) : null;
+	const heading = toolName === "get_tasks" && found.briefCount > 0
+		? `${toolName}: ${total} result${total === 1 ? "" : "s"}; ${primaryCount} on this page plus ${found.briefCount} contextual brief card(s).`
+		: `${toolName}: ${total} result${total === 1 ? "" : "s"}${primaryCount < total ? `; ${primaryCount} on this page` : ""}.`;
 	const blocks = [heading];
 	if (counts) {
-		const compactCounts = Object.entries(counts)
+		const allCounts = Object.entries(counts)
 			.filter(([, value]) => typeof value === "number")
-			.slice(0, 8)
-			.map(([key, value]) => `${oneLine(key.replace(/_/g, " "), 60)}=${value}`);
-		if (compactCounts.length) blocks.push(`Counts: ${compactCounts.join(", ")}`);
+			.map(([key, value]) => `${key.replace(/_/g, " ")}=${value}`);
+		if (allCounts.length) blocks.push(`Counts: ${allCounts.join(", ")}`);
 	}
+	// A search that could not reach part of its corpus says so (DevSpec item 0ab1054e):
+	// relay it, so a partial answer is never read as a complete one.
+	const incomplete = root.incomplete === true;
+	if (incomplete) blocks.push(`Incomplete: ${typeof root.unavailable_note === "string" ? whole(root.unavailable_note) : "part of this search could not be run; do not report that nothing matched."}`);
+	const notes = collectionNotes(root, found, countsKey);
+	if (Object.keys(notes).length) blocks.push(`Response notes (server data):\n${reviewData(notes)}`);
 	for (const [index, row] of shown.entries()) blocks.push(card(row, index));
-	if (total === 0 && found.briefCount === 0) blocks.push("No matching entities returned (recognized empty result set).");
-	if (toolName === "get_action_items") {
-		const shownPrimary = Math.min(shown.length, primaryCount);
-		const shownBriefs = Math.max(0, shown.length - shownPrimary);
-		const omittedPrimary = Math.max(0, total - shownPrimary);
-		const omittedBriefs = Math.max(0, found.briefCount - shownBriefs);
-		if (omittedPrimary > 0) blocks.push(`Omitted ${omittedPrimary} action-item result(s) from model-visible content.`);
-		if (omittedBriefs > 0) blocks.push(`Omitted ${omittedBriefs} contextual brief card(s) from model-visible content.`);
-	} else {
-		const omitted = Math.max(total - shown.length, found.rows.length - shown.length);
-		if (omitted > 0) blocks.push(`Omitted ${omitted} result(s) from model-visible content.`);
+	if (total === 0 && found.briefCount === 0 && !incomplete) blocks.push("No matching entities returned (recognized empty result set).");
+	// DevSpec lists page with an exact continuation (item cc630fb8). Name it, so the
+	// model can fetch the rest rather than read one page as the whole list.
+	const page = record(root.page);
+	if (page && typeof page.next_offset === "number") {
+		blocks.push(`Next page: call ${toolName} again with offset ${page.next_offset}${page.total_is_lower_bound === true ? " (the count is a floor: the ranking stopped at its bound; narrow the query to reach beyond it)" : ""}.`);
+	} else if (page && page.total_is_lower_bound === true) {
+		blocks.push("The count is a floor: the ranking stopped at its bound. Narrow the query to reach beyond it.");
+	}
+	// search_resources pages its two corpora with one offset, each with its own page
+	// (DevSpec item 02526f46). The next offset is the further of the two.
+	const corpusPages = page ? null : record(root.pages);
+	if (corpusPages) {
+		const parts = Object.entries(corpusPages)
+			.map(([corpus, raw]) => [corpus, record(raw)] as const)
+			.filter((entry): entry is readonly [string, Row] => entry[1] !== null);
+		const next = parts.map(([, corpusPage]) => corpusPage.next_offset).filter((value): value is number => typeof value === "number");
+		const floor = parts.some(([, corpusPage]) => corpusPage.total_is_lower_bound === true);
+		const counts = parts.map(([corpus, corpusPage]) => `${corpus} ${corpusPage.total_matching}${corpusPage.total_is_lower_bound === true ? "+" : ""}`).join(", ");
+		if (next.length) blocks.push(`Next page: call ${toolName} again with offset ${Math.max(...next)} (matches: ${counts}).`);
+		if (floor) blocks.push("A count marked + is a floor: the ranking stopped at its bound. Narrow the query, or browse with get_resources, to reach beyond it.");
 	}
 	blocks.push(fetchHint(toolName));
-	return withinBudget(blocks, PROJECTION_BUDGETS.collection, "collection");
-}
-
-function sectionExcerpt(value: unknown, max = 1_100): string | undefined {
-	const source = scalar(value);
-	if (!source) return undefined;
-	if (source.length <= max) return source;
-	let boundary = source.lastIndexOf("\n\n", max);
-	if (boundary < max / 2) boundary = source.lastIndexOf(". ", max);
-	if (boundary < max / 2) boundary = source.lastIndexOf(" ", max);
-	if (boundary < max / 2) boundary = max;
-	return `${source.slice(0, boundary).trimEnd()}…\n[${source.length - boundary} section character(s) omitted; rerun devspec_help_search with a narrower query and cite the returned URL.]`;
+	return blocks.join("\n");
 }
 
 function helpProjection(details: unknown): string | null {
 	const root = record(details);
 	if (!root || !Array.isArray(root.results)) return null;
 	const query = oneLine(root.query, 240);
-	const total = typeof root.count === "number" ? Math.max(root.count, root.results.length) : root.results.length;
-	const shown = (root.results as unknown[]).slice(0, 8);
-	const blocks = [`DevSpec help${query ? ` for “${query}”` : ""}: ${total} section${total === 1 ? "" : "s"}; showing ${shown.length}.`];
+	const page = record(root.page);
+	const offset = page && typeof page.offset === "number" ? page.offset : 0;
+	const pageTotal = page && typeof page.total_matching === "number" ? page.total_matching : undefined;
+	const total = pageTotal ?? (typeof root.count === "number" ? Math.max(root.count, root.results.length) : root.results.length);
+	const floor = page?.total_is_lower_bound === true;
+	// Every section the server returned, each whole: its page size is the caller's.
+	const shown = root.results as unknown[];
+	const blocks = [`DevSpec help${query ? ` for “${query}”` : ""}: ${floor ? "at least " : ""}${total} section${total === 1 ? "" : "s"}; ${shown.length} on this page${offset > 0 ? ` from ${offset + 1}` : ""}.`];
 	for (const [index, raw] of shown.entries()) {
 		const hit = record(raw);
 		if (!hit) continue;
-		const doc = oneLine(first(hit, ["doc", "document", "title"]), 160) ?? "DevSpec help";
-		const section = oneLine(first(hit, ["section", "section_title", "heading"]), 180);
-		const category = oneLine(hit.category, 80);
+		const doc = whole(first(hit, ["doc", "document", "title"])) ?? "DevSpec help";
+		const section = whole(first(hit, ["section", "section_title", "heading"]));
+		const category = whole(hit.category);
 		const url = safeCiteUrl(hit.url);
-		const content = sectionExcerpt(first(hit, ["content", "text", "body"]));
+		const content = scalar(first(hit, ["content", "text", "body"]));
 		const lines = [`${index + 1}. ${doc}${section ? ` — ${section}` : ""}${category ? ` [${category}]` : ""}`];
 		if (url) lines.push(`   URL: ${url}`);
 		if (content) lines.push(content);
 		blocks.push(lines.join("\n"));
 	}
-	if (total > shown.length) blocks.push(`Omitted ${total - shown.length} lower-ranked section(s).`);
-	blocks.push("For more or fuller text, rerun devspec_help_search with a narrower query; cite the returned URL in the answer.");
-	return withinBudget(blocks, PROJECTION_BUDGETS.help, "help section");
-}
-
-function selectedScalars(source: Row | null, keys: readonly string[]): string[] {
-	if (!source) return [];
-	const lines: string[] = [];
-	for (const key of keys) {
-		const value = oneLine(source[key], 160);
-		if (value !== undefined) lines.push(`${key.replace(/_/g, " ")}: ${value}`);
+	// Pages continue from the last section shown (DevSpec item 02526f46).
+	if (page && typeof page.next_offset === "number") {
+		blocks.push(`More sections: call devspec_help_search again with offset ${page.next_offset}.`);
 	}
-	return lines;
+	blocks.push("Cite the returned URL in the answer.");
+	return blocks.join("\n");
 }
 
-function instructionTier(label: string, value: unknown, recovery: string): string | null {
-	const source = scalar(value);
-	if (!source) return null;
-	if (source.length <= INSTRUCTION_TIER_LIMIT) return `${label} (mandatory):\n${source}`;
-	let boundary = source.lastIndexOf("\n", INSTRUCTION_TIER_LIMIT);
-	if (boundary < INSTRUCTION_TIER_LIMIT / 2) boundary = source.lastIndexOf(" ", INSTRUCTION_TIER_LIMIT);
-	if (boundary < INSTRUCTION_TIER_LIMIT / 2) boundary = INSTRUCTION_TIER_LIMIT;
-	return `${label} (mandatory; shortened at a field boundary):\n${source.slice(0, boundary).trimEnd()}…\n[${source.length - boundary} instruction character(s) omitted; ${recovery}.]`;
-}
-
-function projectRecognized(root: Row, project: Row): boolean {
-	return ["id", "project_id", "name", "project_name", "title", "stats", "repos", "database_targets", "members", "execution", "goals"]
-		.some((key) => hasOwn(root, key) || hasOwn(project, key));
-}
-
-function projectSummary(details: unknown): string | null {
+function completeProjectSummary(details: unknown): string | null {
 	const root = record(details);
 	if (!root) return null;
-	const project = record(root.project) ?? root;
-	if (!projectRecognized(root, project)) return null;
-	const name = oneLine(first(project, ["name", "project_name", "title"]), 180);
-	const id = oneLine(first(project, ["id", "project_id"]), 90);
-	const identityBlock = `Project: ${name ?? "(name not returned)"}${id ? ` [${id}]` : ""}`;
-	const blocks: string[] = [];
-
-	const repos = Array.isArray(root.repos) ? root.repos : Array.isArray(project.repos) ? project.repos : [];
-	if (repos.length) {
-		const lines = ["Repository targets:"];
-		if (repos.length > 12) lines.push(`- ${repos.length - 12} additional repo(s) omitted. Repeating this fixed summary will not reveal them model-visibly; ask the user for the exact repository or use repository tooling to enumerate the project.`);
-		for (const raw of repos.slice(0, 12)) {
-			const repo = record(raw) ?? {};
-			const repoName = oneLine(first(repo, ["full_name", "name", "repo", "url"]), 180) ?? "unknown";
-			const target = oneLine(first(repo, ["target_branch"]), 100);
-			const fallback = oneLine(first(repo, ["default_branch"]), 100);
-			const provider = oneLine(first(repo, ["provider"]), 60);
-			lines.push(`- ${repoName} → ${target ?? fallback ?? "(branch not returned)"}${!target && fallback ? " (default)" : ""}${provider ? ` (${provider})` : ""}`);
-		}
-		blocks.push(withinBudget(lines, 1_200, "repository target"));
-	}
-
-	const databases = [root.database_targets, project.database_targets, root.databases, project.databases].find(Array.isArray) as unknown[] | undefined;
-	if (databases?.length) {
-		const lines = ["Database targets (safe identity only):"];
-		if (databases.length > 12) lines.push(`- ${databases.length - 12} additional database target(s) omitted. Repeating this fixed summary will not reveal them model-visibly; use database-provider tooling with the visible safe identity or ask a maintainer for the exact target.`);
-		for (const raw of databases.slice(0, 12)) {
-			const database = record(raw) ?? {};
-			const identity = record(database.identity);
-			const name = oneLine(first(database, ["name", "target_name", "database_name"]), 120) ?? "unnamed";
-			const detail = identity ? record(identity.detail) : null;
-			const kind = oneLine((identity && first(identity, ["kind", "type", "provider"])) ?? first(database, ["kind", "type", "provider"]), 60);
-			const external = oneLine((identity && first(identity, ["external_id", "externalId", "project_ref", "id"])) ?? first(database, ["external_id", "externalId", "project_ref"]), 120);
-			const dashboard = safeDashboardUrl(
-				(identity && first(identity, ["dashboard_url", "dashboardUrl", "url"]))
-					?? (detail && first(detail, ["dashboard_url", "dashboardUrl", "url"]))
-					?? first(database, ["dashboard_url", "dashboardUrl"]),
-			);
-			const environment = oneLine(first(database, ["environment", "env", "stage"]), 60);
-			const branch = oneLine(first(database, ["branch_name", "target_branch"]), 100);
-			const facts = [kind && `kind=${kind}`, external && `external_id=${external}`, dashboard && `dashboard=${dashboard}`, environment && `env=${environment}`, branch && `branch=${branch}`].filter(Boolean);
-			lines.push(`- ${name}${facts.length ? ` — ${facts.join(" · ")}` : ""}`);
-		}
-		blocks.push(withinBudget(lines, 1_600, "database target"));
-	}
-
-	const members = Array.isArray(root.members) ? root.members : Array.isArray(project.members) ? project.members : [];
-	if (members.length) {
-		const lines = ["Members (use IDs for assignment):"];
-		if (members.length > 20) lines.push(`- ${members.length - 20} additional member(s) omitted. Repeating this fixed summary will not reveal them model-visibly; ask the user to name/disambiguate the assignee in DevSpec.`);
-		for (const raw of members.slice(0, 20)) {
-			const member = record(raw) ?? {};
-			const memberId = oneLine(first(member, ["id", "user_id", "member_id"]), 90) ?? "id not returned";
-			const memberName = oneLine(first(member, ["name", "display_name", "displayName", "user_name"]), 140) ?? "name not returned";
-			lines.push(`- [${memberId}] ${memberName}`);
-		}
-		blocks.push(withinBudget(lines, 1_000, "member"));
-	}
-
-	const stats = record(root.stats) ?? record(project.stats);
-	const statLines = selectedScalars(stats, [
-		"sessions", "action_items", "repo_count", "repository_count", "indexed_file_count", "indexed_files", "member_count",
-		"recent_session_count", "recent_sessions", "integration_count", "action_item_count", "open_action_item_count",
-		"active_action_item_count", "completed_action_item_count",
-	]);
-	if (!statLines.some((line) => line.startsWith("repo ")) && repos.length) statLines.unshift(`repo count: ${repos.length}`);
-	if (databases?.length) statLines.push(`database target count: ${databases.length}`);
-	if (statLines.length) blocks.push(withinBudget(["Stats:", ...statLines.map((line) => `- ${line}`)], 900, "stat"));
-
-	const goals = root.goals ?? project.goals;
-	if (Array.isArray(goals)) {
-		const lines = [`Goals: ${goals.length}`];
-		for (const [index, raw] of goals.slice(0, 7).entries()) lines.push(card(raw, index).replace(/^\d+\./, "-"));
-		if (goals.length > 7) lines.push(`- ${goals.length - 7} additional goal(s) omitted; use get_goals/get_project_goals.`);
-		blocks.push(withinBudget(lines, 1_200, "goal"));
-	} else {
-		const goalCounts = record(root.goal_counts) ?? record(root.goal_progress) ?? record(goals) ?? record(project.goal_counts);
-		if (goalCounts) {
-			const lines: string[] = [];
-			for (const [key, value] of Object.entries(goalCounts)) {
-				if (typeof value === "number") lines.push(`${oneLine(key.replace(/_/g, " "), 70)}: ${value}`);
-				const nested = record(value);
-				if (nested) for (const [nestedKey, nestedValue] of Object.entries(nested)) {
-					if (typeof nestedValue === "number") lines.push(`${oneLine(`${key} ${nestedKey}`.replace(/_/g, " "), 100)}: ${nestedValue}`);
-				}
+	const omitted: string[] = [];
+	function safe(value: unknown, path = ""): unknown {
+		if (Array.isArray(value)) return value.map((v, i) => safe(v, `${path}[${i}]`));
+		const row = record(value);
+		if (!row) return value;
+		return Object.fromEntries(Object.entries(row).flatMap(([key, v]) => {
+			const field = path ? `${path}.${key}` : key;
+			// Redaction is explicit and semantic, never a content-size quota.
+			if (/^(password|token|access_token|refresh_token|api_key|authorization|connection_string|email)$/i.test(key)
+				|| (!path && ["autopilot", "local_plugin_settings"].includes(key))
+				|| (path === "execution" && key === "test_commands")) {
+				omitted.push(field); return [];
 			}
-			if (lines.length) blocks.push(withinBudget(["Goal progress:", ...lines.slice(0, 12).map((line) => `- ${line}`)], 1_200, "goal-progress"));
-		}
-	}
-
-	const execution = record(root.execution) ?? record(project.execution);
-	if (execution) {
-		const lines = ["Unified execution settings:"];
-		const hiddenExecutionValues = ["protected_paths"]
-			.reduce((sum, key) => sum + Math.max(0, (Array.isArray(execution[key]) ? execution[key] as unknown[] : []).length - 16), 0);
-		if (hiddenExecutionValues > 0) lines.push(`- ${hiddenExecutionValues} additional execution value(s) omitted. Repeating this fixed summary will not reveal them model-visibly; inspect the repository's agent rules or ask a maintainer for the exact setting.`);
-		for (const line of selectedScalars(execution, ["branch_prefix", "commit_message_prefix", "auto_push", "auto_merge"])) lines.push(`- ${line}`);
-		for (const [key, label] of [["protected_paths", "protected paths"]] as const) {
-			const values = Array.isArray(execution[key]) ? execution[key] as unknown[] : [];
-			if (values.length) {
-				lines.push(`- ${label}:`);
-				for (const value of values.slice(0, 16)) lines.push(`  - ${oneLine(value, 220) ?? "(empty)"}`);
+			if (/url$/i.test(key) && typeof v === "string" && /^https?:/.test(v)) {
+				const cleaned = safeDashboardUrl(v);
+				if (cleaned !== v) omitted.push(`${field} (URL credentials/query/fragment)`);
+				return [[key, cleaned ?? null]];
 			}
-		}
-		blocks.push(withinBudget(lines, 1_600, "execution setting"));
+			return [[key, safe(v, field)]];
+		}));
 	}
-
-	// Prefer unified execution fields and deliberately ignore deprecated duplicate
-	// execution copies under autopilot/local_plugin_settings.
-	const customInstructions = execution?.custom_instructions ?? root.project_custom_instructions ?? project.project_custom_instructions;
-	const agentRules = execution?.agent_rules ?? root.project_agent_rules ?? project.project_agent_rules;
-	const ownerAgentRules = root.owner_agent_rules ?? project.owner_agent_rules ?? execution?.owner_agent_rules;
-	const principlesBlock = instructionTier("Team principles / custom_instructions", customInstructions, "use get_project_instruction_rules for the complete team principles");
-	const mechanicsBlock = instructionTier("Team execution mechanics / agent_rules", agentRules, "use get_project_instruction_rules for the complete team agent rules");
-	const ownerBlock = instructionTier("Calling user's owner_agent_rules", ownerAgentRules, "use get_personal_instructions for the complete personal agent rules");
-	const mandatory = [identityBlock, principlesBlock, mechanicsBlock, ownerBlock]
-		.filter((block): block is string => Boolean(block));
-	return withinBudgetRequired(mandatory, blocks, PROJECTION_BUDGETS.project, "project-summary");
+	const data = safe(root);
+	const json = JSON.stringify(data, null, 2).replaceAll("<", "\\u003c").replaceAll(">", "\\u003e");
+	return `Project summary data (complete, except explicitly listed security/retired compatibility fields).\n<devspec-project-data>\n${json}\n</devspec-project-data>${omitted.length ? `\nOmitted security/retired compatibility fields:\n<devspec-omitted-fields>\n${JSON.stringify(omitted).replaceAll("<", "\\u003c").replaceAll(">", "\\u003e")}\n</devspec-omitted-fields>` : ""}`;
 }
 
 function conflictBlocks(root: Row): string[] {
-	const blocks: string[] = [];
-	const unresolved = Array.isArray(root.unresolved_conflicts) ? root.unresolved_conflicts : [];
-	if (unresolved.length) {
-		const lines = [`Gate — unresolved conflicts: ${unresolved.length}; showing top ${Math.min(unresolved.length, RELATED_LIMIT)}.`];
-		for (const raw of unresolved.slice(0, RELATED_LIMIT)) {
-			const row = record(raw) ?? {};
-			const id = oneLine(first(row, ["conflicting_item_id", "item_id", "id"]), 90) ?? "unknown";
-			lines.push(`- [${id}] ${oneLine(first(row, ["reason", "summary", "title"]), 180) ?? "possible conflict"}`);
-		}
-		if (unresolved.length > RELATED_LIMIT) lines.push(`- ${unresolved.length - RELATED_LIMIT} additional unresolved conflict(s) omitted; fetch the exact item and inspect its unresolved_conflicts before proceeding.`);
-		blocks.push(lines.join("\n"));
-	}
-	if (root.reconcile_required === true) blocks.push("Gate — memory reconciliation: required before creating or updating a duplicate.");
+	const disagreements = disagreementBlock(root);
+	const blocks: string[] = disagreements ? [disagreements] : [];
 	if (root.claimed === false) blocks.push("Gate — claim rejected/not acquired.");
 	if (root.blocked === true || root.is_blocked === true) blocks.push("Gate — result is blocked.");
 	return blocks;
 }
 
-function gateValue(label: string, value: unknown): string {
-	if (Array.isArray(value)) return `${label}: ${value.length} item(s).`;
+/** Response fields a receipt renders in their own block, whole, instead of in the field dump. */
+const ACK_OWN_BLOCK_KEYS = new Set(["own_criteria_follow_through", "brief_follow_through", "manual_followup_steps", "human_actions_required"]);
+
+/** null, a blank string, an empty list or an empty object: a field that says nothing. */
+function isEmptyValue(value: unknown): boolean {
+	if (value === null || value === undefined) return true;
+	if (typeof value === "string") return value.trim() === "";
+	if (Array.isArray(value)) return value.length === 0;
 	const row = record(value);
-	if (row) {
-		const facts = selectedScalars(row, ["required", "status", "action", "instruction", "reason", "message"]);
-		return `${label}:${facts.length ? ` ${facts.join(" · ")}` : " present; inspect the candidate summaries below and fetch exact entities before proceeding."}`;
+	return row !== null && Object.keys(row).length === 0;
+}
+
+function sameValue(a: unknown, b: unknown): boolean {
+	if (a === b) return true;
+	if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
+	if (Array.isArray(a) || Array.isArray(b)) {
+		if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+		return a.every((value, index) => sameValue(value, b[index]));
 	}
-	return `${label}: ${oneLine(value, 260) ?? "present"}`;
+	const left = a as Row;
+	const right = b as Row;
+	const keys = Object.keys(left);
+	return keys.length === Object.keys(right).length && keys.every((key) => hasOwn(right, key) && sameValue(left[key], right[key]));
 }
 
-function relatedBlock(label: string, values: unknown[], fetch: string): string {
-	const lines = [`${label}: ${values.length}; showing top ${Math.min(values.length, RELATED_LIMIT)}.`];
-	for (const [index, value] of values.slice(0, RELATED_LIMIT).entries()) lines.push(card(value, index));
-	if (values.length > RELATED_LIMIT) lines.push(`${values.length - RELATED_LIMIT} additional ${label.toLowerCase()} omitted; ${fetch}.`);
-	return lines.join("\n");
+/** A value the server returned that is exactly what the call sent (a description, an intent): known to the model already. */
+function isEcho(args: Row | undefined, key: string, value: unknown): boolean {
+	if (!args || !hasOwn(args, key) || typeof value === "boolean" || typeof value === "number") return false;
+	return sameValue(args[key], value);
 }
 
-function mandatoryCategoryBlock(label: string, values: unknown[]): string {
-	const firstValue = record(values[0]);
-	const entity = firstValue ? nestedEntity(firstValue) : null;
-	const id = entity && firstValue ? boundedId(entity, firstValue) : undefined;
-	const reason = oneLine(
-		firstValue
-			? first(firstValue, ["why", "reason", "why_matched", "match_reason", "summary", "title"])
-				?? (entity ? first(entity, ["why", "reason", "summary", "title", "name"]) : undefined)
-			: values[0],
-		160,
-	) ?? "reason not returned";
-	return `Gate category — ${label}: ${values.length}; first=${id ? `[${id}] ` : ""}${reason}${values.length > 1 ? `; ${values.length - 1} more omitted from this mandatory summary` : ""}.`;
+/** The read that shows the stored record a receipt is about. */
+function readToolFor(toolName: string): string {
+	if (toolName.includes("memory")) return "get_memory";
+	if (toolName.includes("resource")) return "get_resource";
+	if (toolName.includes("automation")) return "get_automation";
+	if (toolName.includes("discussion_point")) return "get_discussion_point";
+	if (toolName.includes("instruction_rule")) return "get_project_instruction_rules";
+	return "get_task";
 }
 
-function candidateRows(value: unknown, keys: readonly string[] = ["candidates", "items", "results"]): unknown[] {
-	if (Array.isArray(value)) return value;
-	const container = record(value);
-	if (!container) return [];
-	const rows: unknown[] = [];
-	for (const key of keys) if (Array.isArray(container[key])) rows.push(...container[key] as unknown[]);
-	return rows;
+interface ReceiptFields {
+	shown: Row;
+	empty: string[];
+	echoed: string[];
 }
 
-function uniqueRows(values: readonly unknown[]): unknown[] {
-	const seen = new Set<string>();
-	return values.filter((value) => {
-		const row = record(value);
-		const id = row ? boundedId(nestedEntity(row), row) : undefined;
-		if (!id) return true;
-		if (seen.has(id)) return false;
-		seen.add(id);
-		return true;
-	});
-}
-
-function criterionLines(value: unknown): string[] {
-	const container = record(value);
-	const groups: Array<[string, unknown[]]> = [];
-	if (Array.isArray(value)) groups.push(["criteria", value]);
-	if (container) {
-		for (const key of [
-			"criteria", "unchecked_criteria", "criteria_to_check", "criterion_ids",
-			"go_and_check", "weak_evidence", "failed", "leave_for_a_person", "unsettled_criteria",
-		] as const) {
-			if (Array.isArray(container[key])) groups.push([key, container[key] as unknown[]]);
+/**
+ * Every top-level field of a write's response, so a field the server adds later
+ * reaches the model with no Pi change. Two kinds of field are left out, and the
+ * receipt names how many and which: an empty one (null, blank, [] or {}) and one
+ * identical to the argument the call sent. The record's own read shows both.
+ */
+function receiptFields(root: Row, args: Row | undefined): ReceiptFields {
+	const shown: Row = {};
+	const empty: string[] = [];
+	const echoed: string[] = [];
+	for (const [key, value] of Object.entries(root)) {
+		if (ACK_OWN_BLOCK_KEYS.has(key)) continue;
+		if (isEmptyValue(value)) {
+			empty.push(key);
+			continue;
 		}
-	}
-	if (!groups.length) return [];
-	const lines: string[] = [];
-	for (const [group, candidates] of groups) {
-		for (const raw of candidates) {
-			const criterion = record(raw);
-			if (!criterion) {
-				lines.push(`- ${group}: [${oneLine(raw, 100) ?? "unknown"}] check and record an observed verdict.`);
-				continue;
-			}
-			const id = oneLine(first(criterion, ["criterion_id", "id", "acceptance_criterion_id"]), 90) ?? "unknown";
-			const instruction = oneLine(first(criterion, ["instruction", "prompt", "action", "text", "description", "criterion"]), 180) ?? "check this criterion and record an observed verdict";
-			const reason = oneLine(first(criterion, ["reason", "status"]), 100);
-			lines.push(`- ${group}: [${id}] ${instruction}${reason ? ` (reason: ${reason})` : ""}`);
+		if (isEcho(args, key, value)) {
+			echoed.push(key);
+			continue;
 		}
+		const nested = NESTED_ENTITY_KEYS.includes(key) ? record(value) : null;
+		if (!nested) {
+			shown[key] = value;
+			continue;
+		}
+		const kept: Row = {};
+		for (const [inner, innerValue] of Object.entries(nested)) {
+			if (isEmptyValue(innerValue)) empty.push(`${key}.${inner}`);
+			else if (isEcho(args, inner, innerValue)) echoed.push(`${key}.${inner}`);
+			else kept[inner] = innerValue;
+		}
+		shown[key] = kept;
 	}
-	return lines;
+	return { shown, empty, echoed };
 }
 
 function followThroughBlock(kind: "own" | "brief", value: unknown): string {
 	const label = kind === "own" ? "Own-criteria follow-through" : "Brief follow-through";
 	if (value === false) return `${label}: none requested.`;
-	const row = record(value);
-	const lines = [`${label} (act before reporting):`];
-	if (row) {
-		const brief = record(row.brief);
-		if (kind === "brief") {
-			const id = oneLine(first(row, ["brief_action_item_id", "action_item_id", "brief_id", "id"]) ?? (brief ? first(brief, ["id", "action_item_id"]) : undefined), 90);
-			const title = oneLine(first(row, ["brief_title", "title", "name"]) ?? (brief ? first(brief, ["title", "name"]) : undefined), 160);
-			if (id || title) lines.push(`- brief: ${id ? `[${id}]` : ""}${id && title ? " " : ""}${title ?? ""}`);
-		} else {
-			const id = oneLine(first(row, ["action_item_id", "item_id", "id"]), 90);
-			if (id) lines.push(`- item: [${id}]`);
-		}
-		for (const key of [
-			"band", "children_total", "children_resolved", "percent_complete", "criteria_total", "criteria_settled",
-			"action", "instruction", "prompt", "message", "status",
-		] as const) {
-			const text = oneLine(row[key], 360);
-			if (text) lines.push(`- ${key}: ${text}`);
-		}
-	}
-	lines.push(...criterionLines(value));
-	if (lines.length === 1) lines.push(`- ${oneLine(value, 400) ?? "follow-through required; fetch the exact item and inspect its acceptance criteria before reporting"}`);
-	return lines.join("\n");
+	return `${label} (act on it before you report):\n${reviewData(value)}`;
 }
 
 function manualFollowUpBlock(root: Row): string | null {
-	const human = [
-		...(Array.isArray(root.human_actions_required) ? root.human_actions_required : []),
-		...(Array.isArray(root.manual_followup_steps) ? root.manual_followup_steps : []),
-	];
-	if (!human.length) return null;
-	const lines = [`Manual/human follow-up: ${human.length}; showing ${Math.min(human.length, MANUAL_FOLLOWUP_LIMIT)}.`];
-	for (const raw of human.slice(0, MANUAL_FOLLOWUP_LIMIT)) {
-		const row = record(raw);
-		const id = row ? oneLine(first(row, ["id", "step_id"]), 90) : undefined;
-		const kind = row ? oneLine(first(row, ["kind", "type"]), 60) : undefined;
-		const description = oneLine(row ? first(row, ["description", "text", "title", "instruction"]) : raw, 180) ?? "unspecified action";
-		lines.push(`- ${id ? `[${id}] ` : ""}${kind ? `${kind}: ` : ""}${description}`);
+	const steps: Row = {};
+	let count = 0;
+	for (const key of ["human_actions_required", "manual_followup_steps"] as const) {
+		if (Array.isArray(root[key]) && (root[key] as unknown[]).length > 0) {
+			steps[key] = root[key];
+			count += (root[key] as unknown[]).length;
+		}
 	}
-	if (human.length > MANUAL_FOLLOWUP_LIMIT) {
-		const itemId = boundedId(nestedEntity(root), root);
-		lines.push(`- ${human.length - MANUAL_FOLLOWUP_LIMIT} additional follow-up step(s) omitted; ${itemId ? `use get_action_item(${itemId})` : "fetch the exact action item"} to read every step before reporting.`);
-	}
-	return lines.join("\n");
+	if (!count) return null;
+	return `Manual/human follow-up (${count}):\n${reviewData(steps)}`;
 }
 
-function ackProjection(toolName: string, details: unknown): string | null {
+function ackProjection(toolName: string, details: unknown, args?: Row): string | null {
 	const root = record(details);
 	if (!root) return null;
 	const entity = nestedEntity(root);
@@ -913,109 +886,41 @@ function ackProjection(toolName: string, details: unknown): string | null {
 	const recognizedGate = ACK_GATE_KEYS.some((key) => hasOwn(root, key) || hasOwn(entity, key));
 	if (!id && !title && !state && !outcome && !recognizedGate) return null;
 
-	const required: string[] = [];
-	const optional: string[] = [];
-	const parent = oneLine(first(entity, ["parent_action_item_id", "parent_id", "parent_title", "brief_title"])
-		?? first(root, ["parent_action_item_id", "parent_id", "parent_title", "brief_title"]), 140);
+	const blocks: string[] = [];
+	const parent = oneLine(first(entity, ["parent_task_id", "parent_id", "parent_title", "brief_title"])
+		?? first(root, ["parent_task_id", "parent_id", "parent_title", "brief_title"]), 140);
 	const facts = [id && `id=${id}`, title && `title=${title}`, state && `state=${state}`, outcome && `outcome=${outcome}`].filter(Boolean);
-	required.push(`${toolName}: ${facts.length ? facts.join(" ") : "recognized response (see gates/follow-through below)"}.`);
-	if (parent) required.push(`Parent/brief: ${parent}`);
-	required.push(...conflictBlocks(root));
-	if (entity !== root) required.push(...conflictBlocks(entity));
-
-	for (const key of ["review_before_proceeding", "check_against_decisions"] as const) {
-		if (!hasOwn(root, key)) continue;
-		required.push(`Gate — ${gateValue(key, root[key])}`);
-		const rows = candidateRows(root[key], key === "check_against_decisions"
-			? ["decisions", "related_decisions", "candidates", "items"]
-			: ["candidates", "related_candidates", "near_duplicates", "items"]);
-		if (rows.length) {
-			const label = key === "check_against_decisions" ? "Decisions to check" : "Review-before-proceeding candidates";
-			required.push(mandatoryCategoryBlock(label, rows));
-			optional.push(relatedBlock(
-				label,
-				rows,
-				key === "check_against_decisions" ? "use get_memory(id) for the exact decision" : "fetch the exact candidate before proceeding",
-			));
-		}
-	}
-	const memoryReconciliation = record(root.memory_reconciliation);
-	if (hasOwn(root, "memory_reconciliation")) required.push(`Gate — ${gateValue("memory reconciliation", root.memory_reconciliation)}`);
-
+	blocks.push(`${toolName}: ${facts.length ? facts.join(" ") : "recognized response (see the fields below)"}.`);
+	if (parent) blocks.push(`Parent/brief: ${parent}`);
+	// Work that waits for an OK, is an experiment, or is not done yet: said in a
+	// line first, and its fields are in the response below as well.
+	blocks.push(...waitingLines(entity, root));
+	blocks.push(...conflictBlocks(root));
+	if (entity !== root) blocks.push(...conflictBlocks(entity));
 	if (hasOwn(root, "own_criteria_follow_through") && root.own_criteria_follow_through != null) {
-		required.push(followThroughBlock("own", root.own_criteria_follow_through));
+		blocks.push(followThroughBlock("own", root.own_criteria_follow_through));
 	}
 	if (hasOwn(root, "brief_follow_through") && root.brief_follow_through != null) {
-		required.push(followThroughBlock("brief", root.brief_follow_through));
+		blocks.push(followThroughBlock("brief", root.brief_follow_through));
 	}
 	const manual = manualFollowUpBlock(root);
-	if (manual) required.push(manual);
-
-	const relatedContainer = record(root.related_candidates);
-	const groupedCandidates: Array<[string, unknown[], string]> = [
-		["Related decisions", uniqueRows([
-			...candidateRows(root.related_decisions),
-			...candidateRows(relatedContainer?.decisions),
-			...candidateRows(relatedContainer?.related_decisions),
-		]), "use get_memory(id) for the full decision"],
-		["Potential conflicts", uniqueRows([
-			...candidateRows(root.potential_conflicts),
-			...candidateRows(memoryReconciliation?.potential_conflicts),
-		]), "resolve/reconcile them or fetch the exact entity"],
-		["Near duplicates", uniqueRows([
-			...candidateRows(root.near_duplicates),
-			...candidateRows(memoryReconciliation?.near_duplicates),
-		]), "search and fetch the exact candidate before proceeding"],
-		["Related candidates", uniqueRows([
-			...candidateRows(root.related_candidates, ["candidates", "items", "results", "action_items", "artifacts", "resources", "memories"]),
-		]), "search/list then fetch the exact candidate by id"],
-	];
-	for (const [label, values, fetch] of groupedCandidates) {
-		if (!values.length) continue;
-		required.push(mandatoryCategoryBlock(label, values));
-		optional.push(relatedBlock(label, values, fetch));
-	}
-	const closestMatch = root.closest_match ?? memoryReconciliation?.closest_match;
-	if (closestMatch != null) {
-		required.push(mandatoryCategoryBlock("Closest memory match", [closestMatch]));
-		optional.push(relatedBlock("Closest memory match", [closestMatch], "use get_memory(id), then reconcile before writing"));
-	}
-
-	const budget = toolName === "record_implementation"
-		? PROJECTION_BUDGETS.recordImplementation
-		: PROJECTION_BUDGETS.ack;
-	return withinBudgetRequired(required, optional, budget, "acknowledgement");
+	if (manual) blocks.push(manual);
+	const fields = receiptFields(root, args);
+	const leftOut = [
+		fields.empty.length ? `${fields.empty.length} empty field(s) left out` : null,
+		fields.echoed.length ? `left out as identical to what you sent: ${fields.echoed.join(", ")}` : null,
+	].filter((part): part is string => part !== null);
+	const heading = leftOut.length
+		? `DevSpec's response (every other field; ${leftOut.join("; ")} — ${readToolFor(toolName)} shows the stored record):`
+		: "DevSpec's response (every field):";
+	blocks.push(`${heading}\n${reviewData(fields.shown)}`);
+	return blocks.join("\n");
 }
 
-/** Structured fallbacks omit only complete top-level fields/array elements. */
-function structuredFallback(toolName: string, details: unknown): string {
-	const encoded = json(details) ?? "(unserializable structured payload)";
-	if (encoded.length <= PROJECTION_BUDGETS.fallback) return encoded;
-	const header = `Unrecognized result shape for ${toolName}; showing complete top-level fields/elements that fit the fallback budget.`;
-	const blocks = [header];
-	if (Array.isArray(details)) {
-		for (const [index, value] of details.entries()) {
-			const block = json({ index, value });
-			if (block) blocks.push(block);
-		}
-	} else {
-		const root = record(details);
-		if (root) for (const [key, value] of Object.entries(root)) {
-			const block = json({ [key]: value });
-			if (block) blocks.push(block);
-		}
-	}
-	blocks.push(`Rerun ${toolName} with narrower parameters if available. The complete payload is host-retained in details, which is not a model-visible continuation.`);
-	return withinBudget(blocks, PROJECTION_BUDGETS.fallback, "fallback field/element");
-}
-
-function boundedFallback(toolName: string, text: string, details: unknown): string {
-	if (details != null) return structuredFallback(toolName, details);
-	const source = text || "(empty response)";
-	if (source.length <= PROJECTION_BUDGETS.fallback) return source;
-	const note = `\n\n[Non-JSON source truncated; no structured details are available. Rerun ${toolName} with narrower parameters.]`;
-	const available = Math.max(0, PROJECTION_BUDGETS.fallback - note.length);
-	return `${source.slice(0, available)}${note}`;
+/** A result no family recognises reaches the model whole: a field DevSpec adds is never cut off here. */
+function wholeFallback(text: string, details: unknown): string {
+	if (details != null) return json(details) ?? (text || "(unserializable structured payload)");
+	return text || "(empty response)";
 }
 
 /** Project a successful result. The caller must retain `details` unchanged. */
@@ -1026,9 +931,9 @@ export function projectModelText(input: ProjectionInput): string {
 			? input.text || "(empty response)"
 			: (json(input.details) ?? input.text) || "(empty response)";
 	}
-	if (family === "project") return projectSummary(input.details) ?? boundedFallback(input.toolName, input.text, input.details);
-	if (family === "collection") return collectionProjection(input.toolName, input.details) ?? boundedFallback(input.toolName, input.text, input.details);
-	if (family === "help") return helpProjection(input.details) ?? boundedFallback(input.toolName, input.text, input.details);
-	if (family === "ack") return ackProjection(input.toolName, input.details) ?? boundedFallback(input.toolName, input.text, input.details);
-	return boundedFallback(input.toolName, input.text, input.details);
+	if (family === "project") return completeProjectSummary(input.details) ?? input.text;
+	if (family === "collection") return collectionProjection(input.toolName, input.details) ?? wholeFallback(input.text, input.details);
+	if (family === "help") return helpProjection(input.details) ?? wholeFallback(input.text, input.details);
+	if (family === "ack") return ackProjection(input.toolName, input.details, input.args) ?? wholeFallback(input.text, input.details);
+	return wholeFallback(input.text, input.details);
 }

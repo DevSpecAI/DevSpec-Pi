@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, type TestContext } from "node:test";
+import { BASH, withEnv } from "./bash-fixture.ts";
 import { corroborateObservedCommit } from "../extensions/devspec-commit-ledger.ts";
 import {
 	drainGitObservations,
@@ -41,14 +42,18 @@ function prepare(toolCallId: string, session = SESSION) {
 		piSessionId: session,
 		connectionId: CONNECTION,
 		projectId: PROJECT,
+		connectionCapability: "fixture-host-only-capability",
+		transport: { tokenHash: "fixture-host-only-token-hash", endpoint: "https://original.invalid/api/mcp" },
 	});
 	assert.ok(result);
+	assert.equal(result.prefix.includes("fixture-host-only"), false, "credentials and their hashes stay outside the child environment");
+	assert.equal(result.prefix.includes("original.invalid"), false, "the transport endpoint stays host-side");
 	return result;
 }
 
 function bash(command: string, session = SESSION, extraEnv: Record<string, string> = {}): void {
-	execFileSync("/bin/bash", ["-c", command], {
-		env: { ...process.env, PI_SESSION_ID: session, ...extraEnv },
+	execFileSync(BASH, ["-c", command], {
+		env: withEnv({ PI_SESSION_ID: session, ...extraEnv }),
 		stdio: ["ignore", "pipe", "pipe"],
 	});
 }
@@ -56,7 +61,9 @@ function bash(command: string, session = SESSION, extraEnv: Record<string, strin
 function fixture(t: TestContext) {
 	resetGitObserverForTests();
 	assert.equal(initializeGitObserver(SESSION), true);
-	const root = mkdtempSync(join(tmpdir(), "devspec-pi-observer-test-"));
+	// The canonical long path: Windows hands out 8.3 short temp paths (RUNNER~1),
+	// while the stand-in reports the repository's real path.
+	const root = realpathSync.native(mkdtempSync(join(tmpdir(), "devspec-pi-observer-test-")));
 	t.after(() => {
 		resetGitObserverForTests();
 		rmSync(root, { recursive: true, force: true });
@@ -80,6 +87,8 @@ test("quiet cd and git -C commits in two repositories are both captured", (t) =>
 		assert.equal(row.envelope.toolCallId, "tool-multi");
 		assert.equal(row.envelope.connectionId, CONNECTION);
 		assert.equal(row.envelope.projectId, PROJECT);
+		assert.equal(row.envelope.connectionCapability, "fixture-host-only-capability");
+		assert.deepEqual(row.envelope.transport, { tokenHash: "fixture-host-only-token-hash", endpoint: "https://original.invalid/api/mcp" });
 	}
 });
 
@@ -309,7 +318,7 @@ test("install resolves real Git past a stale shim dir on PATH", (t) => {
 		rmSync(dir, { recursive: true, force: true });
 	});
 	writeFileSync(join(dir, "git"), "#!/bin/sh\nexit 1\n", { mode: 0o700 });
-	process.env.PATH = `${dir}:${originalPath ?? ""}`;
+	process.env.PATH = `${dir}${delimiter}${originalPath ?? ""}`;
 	resetGitObserverForTests();
 	assert.equal(initializeGitObserver("session-poisoned-path"), true);
 	const prepared = prepareGitObservation({

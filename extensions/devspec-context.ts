@@ -10,7 +10,10 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { resolveToken } from "./core/auth-store.ts";
 import { getBond } from "./core/bond-state.ts";
 import { buildDevspecInstructions } from "./core/instructions.ts";
+import { commitTaggingAvailable } from "./core/commit-stamp.ts";
 import { noteInjectedContext, noteStaticContextBudget } from "./core/context-budget.ts";
+import { REPOSITORY_CONTEXT_MESSAGE, repositorySnapshotNeeded } from "./core/repository-context.ts";
+import { INSTRUCTION_CONTEXT_MESSAGE, instructionContextMessage } from "./core/connection-context.ts";
 
 /** Extra block while this session is bonded as remote capacity. Exported for unit tests (byte-stability pins). */
 export function buildBondedInstructions(): string | null {
@@ -34,13 +37,9 @@ export function buildBondedInstructions(): string | null {
 		"Your conversational text is delivered to the DevSpec session mechanically — never call tools to post it yourself. For non-trivial work, begin with one concise user-facing sentence confirming what you understood and what you will do next before using tools; add another progress message only at a meaningful boundary (for example, delegating, starting a long check, or becoming blocked). Do not narrate individual tools. Finish with the canonical answer.",
 		"If you need the requester before you can finish, ask with manage_directed_question and stop. The server ends Working unless you pass keep_turn because you still have work.",
 	];
-	const tiers = bond.instructions ?? {};
-	if (tiers.project_custom_instructions) lines.push(`Project principles: ${tiers.project_custom_instructions}`);
-	if (tiers.project_agent_rules) lines.push(`Project agent rules (mandatory): ${tiers.project_agent_rules}`);
-	// Response style is NOT a system-prompt tier (item 6a511dab): it rides
-	// each delivered command on the per-message rail, so a preference edit
-	// never alters this block and the prefix cache stays stable.
-	if (tiers.owner_agent_rules) lines.push(`Owner machine rules: ${tiers.owner_agent_rules}`);
+	// Mutable rule text is a persisted tail snapshot, not a rewritten system prefix.
+	// Sender response style remains on its own per-command lane.
+	lines.push("Project and owner rules arrive in DevSpec instruction-context snapshots; use the latest snapshot under the served implementation contract's precedence.");
 	return lines.join("\n");
 }
 
@@ -58,6 +57,20 @@ function contentChars(values: unknown): number {
 }
 
 export default function (pi: ExtensionAPI) {
+	// Independent of room attachment: sessionless agents need the same project facts.
+	// Pi persists returned custom messages, so resume/reload reuses an identical snapshot.
+	pi.on("before_agent_start", async (_event, ctx) => {
+		const content = getBond()?.repositoryContext;
+		if (!content || !repositorySnapshotNeeded(ctx.sessionManager.getBranch(), content)) return;
+		return { message: { customType: REPOSITORY_CONTEXT_MESSAGE, content, display: false } };
+	});
+	pi.on("before_agent_start", async (_event, ctx) => {
+		const bond = getBond();
+		if (!bond) return;
+		const content = instructionContextMessage(bond);
+		if (!repositorySnapshotNeeded(ctx.sessionManager.getBranch(), content, INSTRUCTION_CONTEXT_MESSAGE)) return;
+		return { message: { customType: INSTRUCTION_CONTEXT_MESSAGE, content, display: false } };
+	});
 	// The room digest is a one-shot orientation message: injected once per
 	// session instance, the first turn after the pump's cold-start sync.
 	let digestInjected = false;
@@ -66,10 +79,22 @@ export default function (pi: ExtensionAPI) {
 	// the injected block, not a boolean.
 	let injectedAttachContext: string | null = null;
 
+	// One-shot means once per branch, not once per process: after the conversation
+	// moves to a branch without them (the owner's Clear, item 6beb89c6, or /tree),
+	// the next turn adds them again.
+	pi.on("session_tree", (_event, ctx) => {
+		const branch = ctx.sessionManager.getBranch();
+		const holds = (customType: string) => branch.some((entry) =>
+			entry.type === "custom_message" && (entry as { customType?: string }).customType === customType);
+		if (!holds("devspec-attach-context")) injectedAttachContext = null;
+		if (!holds("devspec-room-orientation")) digestInjected = false;
+	});
+
 	pi.on("before_agent_start", async (event, _ctx) => {
 		const resolved = await resolveToken();
 		if (!resolved) return undefined;
-		let prompt = `${event.systemPrompt}\n\n${buildDevspecInstructions()}`;
+		// Stable for a bonded session; it changes only when the git stand-in or the bond does.
+		let prompt = `${event.systemPrompt}\n\n${buildDevspecInstructions({ commitTagging: commitTaggingAvailable() })}`;
 		const bonded = buildBondedInstructions();
 		if (bonded) prompt += `\n\n### DevSpec remote (bonded)\n${bonded}`;
 

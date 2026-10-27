@@ -10,6 +10,10 @@ export interface BondState {
 	connectionId: string;
 	/** Immutable DevSpec project bound when this connection generation registered. */
 	projectId?: string;
+	/** Display-only project name confirmed at registration. */
+	projectName?: string;
+	/** Immutable factual snapshot captured at registration, injected as a tail message. */
+	repositoryContext?: string;
 	/** Hidden server-minted capability; transport header only, never model context. */
 	connectionCapability?: string;
 	codename?: string;

@@ -35,6 +35,7 @@ function harness(gate?: Promise<void>, receipt?: (args: Record<string, unknown>)
 		TurnTracker, shouldSplitSpeech, isClosedAnswer, extractAssistantParts, turn: t, pump: { bond, generation: 1, stop: false }, lastCtx: ctx,
 		getBond: () => bond, resolveToken: async () => ({ token: "private-bearer" }), ensureTurn() {}, replyModelArgs: () => ({ model: { providerID: "test", modelID: "model" } }),
 		interactionIdentity: () => undefined, exactInteractionContinuationArgs: (value: unknown) => value,
+		noteProgressEvent: () => {}, currentProgressMarker: () => "1",
 		DevspecToolError: Error, safeHasUI: () => true, notify: (_ctx: unknown, warning: string) => warnings.push(warning),
 		trackTerminalPost: (post: Promise<void>) => posts.push(post), debug() {}, telemetry: { addMessageUsage() {} },
 		INTERACTION_EVENT_CUSTOM_TYPE: "interaction", QUESTION_DISMISSAL_EVENT_CUSTOM_TYPE: "dismissal", splitTurnAtBoundary() { throw new Error("speech split execution"); },
@@ -49,7 +50,9 @@ function harness(gate?: Promise<void>, receipt?: (args: Record<string, unknown>)
 				await gate;
 				return envelope({ ...args, attempt_id: "attempt" });
 			}
-			return envelope(receipt ? receipt(args) : { connection_id: args.connection_id, session_id: args.expected_session_id, phase: "answer", assistant_source_id: args.assistant_source_id, message_id: "row", delivery: { status: "stored", message_id: "row" } });
+			// The v2 lane carries no expected session: the receipt echoes the bond's
+			// room, as the server would (item bf84793b).
+			return envelope(receipt ? receipt(args) : { connection_id: args.connection_id, session_id: args.expected_session_id ?? bond.sessionId, phase: "answer", assistant_source_id: args.assistant_source_id, message_id: "row", delivery: { status: "stored", message_id: "row" } });
 		},
 		pi: { on: (name: string, fn: typeof hooks[string]) => hooks[name] = fn, appendEntry: (type: string, data: unknown) => journal.push({ type, data }) },
 	};
@@ -65,11 +68,14 @@ test("actual context/message_end hooks deliver each text in order, tools and abo
 		await h.hooks.message_end({ message: message(text, i === 2 ? "aborted" : i === 3 ? "error" : "stop", i === 0) }, h.ctx);
 	}
 	await h.drain();
-	assert.equal(h.requests.filter(r => r.name === "report_pickup").length, 1);
+	// The v2 lane (bf84793b): ordinary speech never binds a scope — no
+	// report_pickup, no attempt pin, no expected_* triple. Connection + source id
+	// + text + ingest_version 2 is the whole post.
+	assert.equal(h.requests.filter(r => r.name === "report_pickup").length, 0);
 	const speech = h.requests.filter(r => r.name === "post_session_message");
 	assert.deepEqual(speech.map(r => r.args.message), texts);
 	assert.equal(new Set(speech.map(r => r.args.assistant_source_id)).size, texts.length);
-	assert.ok(speech.every(r => r.args.complete_turn === false && r.args.attempt_id === "attempt" && r.opts.connectionCapability === "private-cap"));
+	assert.ok(speech.every(r => r.args.complete_turn === false && r.args.ingest_version === 2 && r.args.attempt_id === undefined && r.args.expected_session_id === undefined && r.opts.connectionCapability === "private-cap"));
 	assert.equal(await h.api.postSegmentAnswer(h.t, null, "run_end", true), false);
 	assert.equal(h.requests.filter(r => r.name === "post_session_message").length, texts.length);
 	assert.equal(JSON.stringify(h.journal).includes("private-"), false);
@@ -92,36 +98,40 @@ for (const variant of ["missing source", "wrong source", "untyped receipt", "wro
 }
 
 for (const change of ["capability", "epoch", "timestamp", "room ABA"] as const) {
-	test(`scope acquired after ${change} cannot relabel the in-flight source or refresh it next round`, async () => {
-		const gate = deferred(), h = harness(gate.promise);
+	test(`capture under a changed ${change} drops the post rather than relabel or refresh it next round`, async () => {
+		const h = harness();
+		// Mutate the bond while capture is in flight (the token resolve is the only
+		// async gap on the v2 lane): the current() guard reads the bond afterwards.
 		const preparing = h.hooks.context({}, h.ctx);
-		await new Promise(resolve => setImmediate(resolve));
-		assert.equal(h.requests.length, 1);
 		if (change === "capability") h.bond.connectionCapability = "new-cap";
 		if (change === "epoch") h.bond.speechAttachmentId = "new-epoch";
 		if (change === "timestamp") h.bond.attachedAt = "2026-09-17T01:02:04+00:00";
 		if (change === "room ABA") { h.bond.sessionId = "other"; h.bond.sessionId = "room"; h.bond.speechAttachmentId = "new-epoch"; }
-		gate.resolve(); await preparing;
+		await preparing;
 		await h.hooks.message_end({ message: message("raw unsent") }, h.ctx);
 		await h.hooks.context({}, h.ctx);
 		await h.hooks.message_end({ message: message("later unsent") }, h.ctx);
 		await h.drain();
 		assert.equal(h.requests.filter(r => r.name === "post_session_message").length, 0);
-		assert.equal(h.requests.filter(r => r.name === "report_pickup").length, 1);
+		assert.equal(h.requests.filter(r => r.name === "report_pickup").length, 0);
 		assert.match(JSON.stringify(h.journal), /raw unsent/);
 		assert.equal(h.warnings.length, 2);
 	});
 }
 
-test("missing scope and structural notice never fall back or acquire generic local publication", async () => {
+test("no attached room and structural notice never fall back or acquire generic local publication", async () => {
 	for (const notice of [false, true]) {
 		const h = harness();
-		if (notice) h.t.completionNeutral = true; else h.bond.attachedAt = "";
+		// v2's one live check is attachment: no session, no post (item bf84793b).
+		if (notice) h.t.completionNeutral = true; else h.bond.sessionId = "";
 		await h.hooks.context({}, h.ctx);
 		await h.hooks.message_end({ message: message("actual but unsupported") }, h.ctx);
 		await h.drain();
 		assert.equal(h.requests.length, 0);
-		assert.equal(h.warnings.length, 1);
+		// A notice run is not room speech: its final message reaches the room as the
+		// reply to its notices (6aad2b46), so nothing here is unconfirmed speech.
+		assert.equal(h.warnings.length, notice ? 0 : 1);
+		if (notice) assert.deepEqual(h.journal, []);
 	}
 });
 
@@ -138,7 +148,7 @@ test("tool/custom/user/thinking input never becomes speech and a post cannot ref
 	await h.hooks.message_end({ message: message("raw delayed text") }, h.ctx);
 	await h.drain();
 	assert.equal(h.requests.filter(r => r.name === "post_session_message").length, 0);
-	assert.equal(h.requests.filter(r => r.name === "report_pickup").length, 1);
+	assert.equal(h.requests.filter(r => r.name === "report_pickup").length, 0);
 	assert.match(JSON.stringify(h.journal), /raw delayed text/);
 	assert.doesNotMatch(JSON.stringify(h.journal), /replacement-cap|private-cap|private-bearer/);
 	assert.equal(h.warnings.length, 1);

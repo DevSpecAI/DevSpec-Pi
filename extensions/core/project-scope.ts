@@ -28,7 +28,7 @@
 
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
@@ -190,20 +190,27 @@ function pinSearchDirs(cwd: string, home: string): string[] {
  * folder that has no repo; a broken one must never surface as an error on an unrelated
  * call, and must never be sent as a guess.
  */
-export function resolveProjectPin(
+export interface ProjectPinFile { path: string; projectId: string }
+
+export async function resolveProjectPin(cwd: string, home: string = homedir()): Promise<string | null> {
+	return (await resolveProjectPinFile(cwd, home))?.projectId ?? null;
+}
+
+/** Return the effective file as well as its value, so management never guesses a path. */
+export function resolveProjectPinFile(
 	cwd: string,
 	home: string = homedir(),
-): Promise<string | null> {
+): Promise<ProjectPinFile | null> {
 	const dirs = pinSearchDirs(cwd, home);
 
 	// Nearest wins, so an inner folder can deliberately override an outer one.
 	// A linked worktree's cwd chain ends at its `.git` pointer, not at the main
 	// checkout. Add the repository's main working tree as the final candidate so
 	// repository-local jurisdiction follows Git identity across every worktree.
-	const walk = async (): Promise<string | null> => {
+	const walk = async (): Promise<ProjectPinFile | null> => {
 		for (const dir of dirs) {
 			const id = await readPinAt(dir);
-			if (id) return id;
+			if (id) return { path: join(dir, ".devspec", "project.json"), projectId: id };
 		}
 
 		const repositoryRoot = await resolveRepositoryMainWorktree(cwd);
@@ -213,7 +220,8 @@ export function resolveProjectPin(
 			!isAtOrAbove(repositoryRoot, home) &&
 			pinSearchDirs(repositoryRoot, home)[0] === repositoryRoot
 		) {
-			return readPinAt(repositoryRoot);
+			const id = await readPinAt(repositoryRoot);
+			return id ? { path: join(repositoryRoot, ".devspec", "project.json"), projectId: id } : null;
 		}
 		return null;
 	};
@@ -241,6 +249,13 @@ export async function folderScopeArgs(cwd: string): Promise<{
 		...(remote ? { git_remote: remote } : {}),
 		...(pin ? { pinned_project_id: pin } : {}),
 	};
+}
+
+/** Remove only the effective default the human confirmed, never a newly changed value. */
+export async function forgetProjectPin(pin: ProjectPinFile): Promise<void> {
+	const current = await readPinAt(dirname(dirname(pin.path)));
+	if (current !== pin.projectId) throw new Error("The folder default changed. Review it again before forgetting it.");
+	await unlink(pin.path);
 }
 
 /** Test hook. */
@@ -285,8 +300,8 @@ export function pinTargetDir(cwd: string, home: string = homedir()): string {
  * Write this folder's pin. Returns what changed; throws only if the filesystem does.
  *
  * Deliberately does NOT decide whether writing is appropriate — that is the caller's job,
- * and the rules are in D9/D13: only when the pin is load-bearing (no remote, or a remote
- * matching nothing), never silently, and a re-pin is stated before it happens. This
+ * and the rules are in D9/D13/D14: explicit association or remember consent only,
+ * never as a side effect of connecting, and a re-pin is stated before it happens. This
  * function reports `replaced` so the caller can say what it is about to overwrite rather
  * than repointing a whole team's committed folder on one person's say-so.
  *

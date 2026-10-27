@@ -5,15 +5,16 @@ import { test } from "node:test";
 const source = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 
 test("Pi carries immutable turn + command identity through every activity output path", () => {
-	assert.match(source, /commandTurnBindings\.remember\(message, commandTurnId, commandMessageId, canonicalQueueItem\)/);
+	assert.match(source, /commandTurnBindings\.remember\(message, commandTurnId, commandMessageId, canonicalQueueItem, requests\)/);
 	assert.match(source, /turn\.commandTurnId = incomingCommand\?\.turnId/);
 	assert.match(source, /turn\.commandMessageId = incomingCommand\?\.commandMessageId/);
 	assert.match(source, /command_turn_id: opts\.commandTurnId/);
 	assert.match(source, /command_message_id: opts\.commandMessageId/);
 	assert.match(source, /command_turn_unbound: true/);
 	assert.match(source, /commandTurnId: postingTurn\.commandTurnId, commandMessageId: postingTurn\.commandMessageId/);
-	assert.match(source, /reportComplete\("turn_end", commandTurnId, commandMessageId, commandTurnUnbound, interactionIdentity\(interactionRun\)\)/);
-	assert.match(source, /reportComplete\("process_exit", openTurn\.commandTurnId, openTurn\.commandMessageId, isCommandTurnUnbound\(openTurn\), interactionIdentity\(openTurn\.interaction\)\)/);
+	assert.match(source, /completeTurnActivity\(settlingTurn, "turn_end"\)/);
+	assert.match(source, /completeTurnActivity\(openTurn, "process_exit"\)/);
+	assert.match(source, /reportComplete\(reason, commandTurnId, commandMessageId, false, interaction, false, current\)/);
 });
 
 test("async subagents reconcile the fleet, and settle closes Working honestly (759f2818)", () => {
@@ -46,7 +47,9 @@ test("delivery boundaries post the old exact command before rebinding the new se
 	assert.match(split, /commandMessageId: t\.commandMessageId/);
 	assert.match(source, /splitTurnAtBoundary\(\);[\s\S]{0,2400}turn\.commandTurnId = incomingCommand\?\.turnId;[\s\S]{0,200}turn\.commandMessageId = incomingCommand\?\.commandMessageId/);
 	assert.doesNotMatch(source, /commandTurnBindings\.has\(/, "client queue guesses must not own server completion");
-	assert.match(source, /pure tool-call\/no-text segment[\s\S]{0,500}trackTerminalPost\(reportComplete/);
+	// The close still happens — provider-killed segments route to the error post
+	// (e99d158b), everything else through captured exact activity completion.
+	assert.match(source, /pure tool-call\/no-text segment[\s\S]{0,800}trackTerminalPost\(\(previousTurn\.terminalError[\s\S]{0,200}reportTerminalError\(previousTurn, null\)[\s\S]{0,400}completeTurnActivity\(previousTurn, "turn_end"\)/);
 	assert.match(source, /await Promise\.allSettled\(\[\.\.\.pendingTerminalPosts\]\)/);
 	const shutdown = source.slice(source.indexOf('pi.on("session_shutdown"'));
 	assert.ok(shutdown.indexOf("active.stop = true") < shutdown.indexOf("await Promise.allSettled"));
@@ -75,6 +78,9 @@ test("completion wakes adopt the parked command identity; drops are reported wit
 	assert.match(messageStart, /if \(harness\) adoptParkedCommandIdentity\(turn, turn\.tracker\.userKind\)/);
 	const beforeStart = source.slice(source.indexOf('pi.on("before_agent_start"'), source.indexOf('pi.on("message_start"'));
 	assert.match(beforeStart, /adoptParkedCommandIdentity\(turn, turn\.tracker\.userKind\)/);
+	// Posting rides the open turn's newest command; who asked travels in request_ref (7a4d04fd).
+	const adopt = source.slice(source.indexOf("function adoptParkedCommandIdentity"), source.indexOf("// ---- The request chain"));
+	assert.match(adopt, /t\.commandMessageId = activeCommandTurnIdentity\.commandMessageId/);
 	// Cleared exactly when the parked turn closes, never mid-park.
 	assert.match(source, /if \(opts\.completeTurn === true\) noteCommandTurnClosed\(opts\.commandTurnId\)/);
 	assert.match(source, /noteCommandTurnClosed\(commandTurnId\);/);
@@ -89,17 +95,43 @@ test("completion wakes adopt the parked command identity; drops are reported wit
 
 test("killed/terminal tasks observed in tool results reconcile the pending set (f453c61f)", () => {
 	const end = source.slice(source.indexOf('pi.on("tool_execution_end"'), source.indexOf('pi.on("session_shutdown"'));
-	// Launch registration is unchanged: only successful notifying wakes park.
-	assert.match(end, /automaticBackgroundTaskId\(event\.toolName, event\.result, event\.isError\)/);
+	// db495c8f: launch ownership no longer depends on notification/wake flags.
+	assert.match(end, /backgroundTaskFromLaunch\(event\.toolName, event\.result, event\.isError\)/);
+	assert.match(end, /launchScope === backgroundScopeKey\(observationScope\)/);
+	assert.match(end, /backgroundObserver\.track\(task, launchScope\)/);
 	// Terminal observations resolve: a kill produces no completion message,
 	// so without this the id leaks and every later settle posts
 	// complete_turn:false forever (live 2026-09-20: 5h stuck Working).
 	assert.match(end, /terminalBackgroundTaskIds\(event\.toolName, event\.result, event\.isError\)/);
-	assert.match(end, /turn\.tracker\.resolveBackgroundTask\(terminalId\)/);
+	assert.match(end, /backgroundTasksFromManagement\(event\.toolName, event\.result, event\.isError\)/);
+	assert.match(end, /backgroundObserver\.observe\(task, launchScope\)/);
+	assert.match(end, /!observedIds\.has\(id\)\) pendingBackgroundTaskIds\.delete\(id\)/);
 	// Observability: note/resolve events with the running count make the next
 	// leak computable (notes minus resolves) instead of needing forensics.
 	// (Counts only — debug.ts drops all strings by design, so ids stay out.)
 	// (Numeric counts only — debug.ts drops all strings by design.)
-	assert.match(end, /debug\("background task noted", \{ pendingBg: turn\.tracker\.pendingBackgroundTasks\(\)\.length \}\)/);
-	assert.match(end, /debug\("background task resolved from tool result", \{ pendingBg: turn\.tracker\.pendingBackgroundTasks\(\)\.length \}\)/);
+	assert.match(end, /debug\("background task noted", \{ pendingBg: pendingBackgroundTaskIds\.size \}\)/);
+	assert.match(end, /debug\("background task resolved from tool result", \{ pendingBg: pendingBackgroundTaskIds\.size \}\)/);
+});
+
+test("both working-lease beats carry the progress marker, fed by the event handlers (0b8035ac)", () => {
+	// The server (migration 952) renews a working lease only while the marker
+	// keeps changing; a wedged tracker's frozen marker stops renewing after the
+	// staleness bound and the attempt expires instead of lying Working for hours
+	// (live 2026-09-20: 5h stuck on connection 7d451716).
+	assert.match(source, /progress_marker: currentProgressMarker\(\)/);
+	const beat = source.slice(source.indexOf("async function beatBusy"), source.indexOf("function notify"));
+	assert.match(beat, /progress_marker: currentProgressMarker\(\)/, "heartbeat_connection carries the marker");
+	const commentAt = source.indexOf("Generic busy projection is forbidden");
+	const poll = source.slice(commentAt, commentAt + 400);
+	assert.match(poll, /busy: active\.busy, progress_marker: currentProgressMarker\(\)/, "the folded poll heartbeat carries the marker next to busy");
+	// The marker is fed by every event that IS work evidence: turns, messages,
+	// tool executions, and their streaming updates — the exact streams that
+	// froze in the incident.
+	for (const handler of ["before_agent_start", "agent_start", "turn_start", "message_start", "message_update", "message_end", "tool_execution_start", "tool_execution_update", "tool_execution_end", "agent_settled"]) {
+		const begin = source.indexOf(`pi.on("${handler}"`);
+		assert.notEqual(begin, -1, handler);
+		const head = source.slice(begin, begin + 120);
+		assert.match(head, /noteProgressEvent\(\)/, `${handler} bumps the progress counter`);
+	}
 });

@@ -21,8 +21,8 @@ test("summarizeResult never copies raw output text", () => {
 	const res = { content: [{ type: "text", text: "line one\nline two   with   space" }] };
 	assert.equal(summarizeResult("bash", res), undefined);
 	assert.equal(
-		summarizeResult("search_action_items", {
-			content: [{ type: "text", text: "search_action_items: 12 results; showing 7.\nprivate body" }],
+		summarizeResult("search_tasks", {
+			content: [{ type: "text", text: "search_tasks: 12 results; showing 7.\nprivate body" }],
 		}),
 		"12 results; showing 7",
 	);
@@ -43,6 +43,7 @@ test("extractAssistantParts separates text and thinking", () => {
 		thinking: "hmm",
 		hasToolCalls: false,
 		stopReason: null,
+		errorMessage: null,
 	});
 });
 
@@ -60,7 +61,26 @@ test("extractAssistantParts flags toolCall blocks and stopReason", () => {
 		thinking: "",
 		hasToolCalls: true,
 		stopReason: "toolUse",
+		errorMessage: null,
 	});
+});
+
+test("extractAssistantParts surfaces a terminal provider error (item e99d158b)", () => {
+	const msg = {
+		role: "assistant",
+		stopReason: "error",
+		errorMessage: "402 {\"error\":{\"message\":\"Insufficient balance\"}}",
+		content: [],
+	};
+	assert.deepEqual(extractAssistantParts(msg), {
+		text: "",
+		thinking: "",
+		hasToolCalls: false,
+		stopReason: "error",
+		errorMessage: "402 {\"error\":{\"message\":\"Insufficient balance\"}}",
+	});
+	// A non-string errorMessage never reaches the room.
+	assert.equal(extractAssistantParts({ role: "assistant", stopReason: "error", errorMessage: 402 }).errorMessage, null);
 });
 
 test("extractText handles string and block content", () => {
@@ -286,15 +306,15 @@ test("common tool projections retain safe operations without credential values",
 test("domain events keep identity and safe outcome but discard private bodies", () => {
 	const secret = "DOMAIN_PRIVATE_SENTINEL_46c2";
 	const t = new TrailBuilder();
-	t.toolStart("domain-1", "create_action_item", {
+	t.toolStart("domain-1", "create_task", {
 		title: "Safe trail item",
 		description: `private description ${secret}`,
 		testing_notes: secret,
 	});
-	t.toolEnd("domain-1", "create_action_item", true, {
-		content: [{ type: "text", text: "create_action_item: created Safe trail item" }],
+	t.toolEnd("domain-1", "create_task", true, {
+		content: [{ type: "text", text: "create_task: created Safe trail item" }],
 		details: {
-			action_item: {
+			task: {
 				id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
 				title: "Safe trail item",
 				lifecycle: "open",
@@ -304,17 +324,17 @@ test("domain events keep identity and safe outcome but discard private bodies", 
 			server_payload: secret,
 		},
 	});
-	t.toolStart("domain-2", "claim_work_item", { action_item_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", force_reason: secret });
+	t.toolStart("domain-2", "claim_work_item", { task_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", force_reason: secret });
 	t.toolEnd("domain-2", "claim_work_item", true, {
 		content: [{ type: "text", text: "claim_work_item: claimed Safe trail item" }],
 		details: {
 			claim_success: true,
-			action_item: { id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", title: "Safe trail item", state: "claimed" },
+			task: { id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", title: "Safe trail item", state: "claimed" },
 			project_agent_rules: secret,
 		},
 	});
 	t.toolStart("domain-3", "record_criterion_verdicts", {
-		action_item_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+		task_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
 		verdicts: [{ criterion_id: "criterion-safe", evidence: secret }],
 	});
 	t.toolEnd("domain-3", "record_criterion_verdicts", true, {
@@ -422,9 +442,9 @@ test("manage_directed_question trail keeps mechanics and discards prompt/options
 test("realistic domain wrappers preserve safe lifecycle outcomes and markdown-safe labels", () => {
 	const secret = "TITLE_URL_SENTINEL_5bc9";
 	const t = new TrailBuilder();
-	t.toolStart("wrapper-1", "create_action_item", { title: "unsafe `trail` **title** [link]" });
-	t.toolEnd("wrapper-1", "create_action_item", true, {
-		content: [{ type: "text", text: "create_action_item: created" }],
+	t.toolStart("wrapper-1", "create_task", { title: "unsafe `trail` **title** [link]" });
+	t.toolEnd("wrapper-1", "create_task", true, {
+		content: [{ type: "text", text: "create_task: created" }],
 		details: {
 			item: {
 				id: "11111111-2222-3333-4444-555555555555",
@@ -433,11 +453,11 @@ test("realistic domain wrappers preserve safe lifecycle outcomes and markdown-sa
 			},
 		},
 	});
-	t.toolStart("wrapper-2", "update_action_item", { action_item_id: "22222222-3333-4444-5555-666666666666" });
-	t.toolEnd("wrapper-2", "update_action_item", true, {
-		content: [{ type: "text", text: "update_action_item: updated" }],
+	t.toolStart("wrapper-2", "update_task", { task_id: "22222222-3333-4444-5555-666666666666" });
+	t.toolEnd("wrapper-2", "update_task", true, {
+		content: [{ type: "text", text: "update_task: updated" }],
 		details: {
-			action_item: {
+			task: {
 				id: "22222222-3333-4444-5555-666666666666",
 				title: `Reset https://${secret}.example.com/password-reset/${secret}`,
 				lifecycle: "in_progress",
@@ -467,12 +487,12 @@ test("realistic domain wrappers preserve safe lifecycle outcomes and markdown-sa
 			recorded: true,
 		},
 	});
-	t.toolStart("wrapper-5", "record_implementation", { action_item_id: "55555555-6666-7777-8888-999999999999" });
+	t.toolStart("wrapper-5", "record_implementation", { task_id: "55555555-6666-7777-8888-999999999999" });
 	t.toolEnd("wrapper-5", "record_implementation", true, {
 		content: [{ type: "text", text: "record_implementation: recorded" }],
 		details: {
 			item: {
-				action_item: {
+				task: {
 					id: "55555555-6666-7777-8888-999999999999",
 					title: "Implemented item",
 					lifecycle: "implemented",
@@ -499,8 +519,8 @@ test("realistic domain wrappers preserve safe lifecycle outcomes and markdown-sa
 });
 
 test("a queued write is not reported in the trail as one that landed (689d44cb)", () => {
-	// The served contested_rule ends "Never describe a contested pair as resolved",
-	// and the same holds for a memory nobody has accepted yet.
+	// A queued supersession has not superseded anything, and a memory nobody has
+	// accepted yet has not been recorded: both read "proposed".
 	const t = new TrailBuilder();
 	t.toolStart("tool-1", "record_memory", { title: "Two-pool billing" });
 	t.toolEnd("tool-1", "record_memory", true, {
@@ -511,13 +531,14 @@ test("a queued write is not reported in the trail as one that landed (689d44cb)"
 			title: "Two-pool billing",
 		}) }],
 	});
-	t.toolStart("tool-2", "resolve_action_item_conflict", { action_item_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" });
-	t.toolEnd("tool-2", "resolve_action_item_conflict", true, {
+	t.toolStart("tool-2", "supersede_task", { task_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", superseded_item_id: "bbbbbbbb-cccc-dddd-eeee-ffffffffffff" });
+	t.toolEnd("tool-2", "supersede_task", true, {
 		content: [{ type: "text", text: JSON.stringify({
 			committed: false,
 			outcome: "queued_for_review",
 			proposal_id: "prop-10",
-			contested: true,
+			superseding_item_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+			would_close: { id: "bbbbbbbb-cccc-dddd-eeee-ffffffffffff", title: "Older item", current_lifecycle: "open" },
 		}) }],
 	});
 	t.toolStart("tool-3", "record_memory", { title: "Committed one" });
@@ -528,25 +549,27 @@ test("a queued write is not reported in the trail as one that landed (689d44cb)"
 	const actions = t.events()
 		.filter((event): event is Extract<typeof event, { kind: "domain" }> => event.kind === "domain")
 		.map((event) => event.action);
-	assert.deepEqual(actions, ["proposed", "contested", "recorded"]);
+	assert.deepEqual(actions, ["proposed", "proposed", "recorded"]);
 });
 
 test("TrailBuilder.events emits stable seqs and classifies domain tools", () => {
-	assert.deepEqual(classifyDomainTool("create_action_item"), {
-		domain: "action_item",
+	assert.deepEqual(classifyDomainTool("create_task"), {
+		domain: "task",
 		action: "created",
 	});
-	assert.deepEqual(classifyDomainTool("resolve_action_item_decision_flag"), {
-		domain: "conflict",
-		action: "resolved",
+	assert.deepEqual(classifyDomainTool("supersede_task"), {
+		domain: "task",
+		action: "superseded",
 	});
+	assert.equal(classifyDomainTool("preview_supersession"), null);
+	assert.equal(classifyDomainTool("resolve_task_conflict"), null);
 	assert.equal(classifyDomainTool("devspec", { verb: "record_memory" }), null);
 	assert.equal(classifyDomainTool("bash"), null);
 
 	const t = new TrailBuilder();
 	t.setThinking("plan");
-	t.toolStart("tool-1", "create_action_item", { title: "Trail UI" });
-	t.toolEnd("tool-1", "create_action_item", true, {
+	t.toolStart("tool-1", "create_task", { title: "Trail UI" });
+	t.toolEnd("tool-1", "create_task", true, {
 		content: [{ type: "text", text: JSON.stringify({ id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", title: "Trail UI" }) }],
 	});
 	t.toolStart("tool-2", "bash", { command: "npm test" });
@@ -555,7 +578,7 @@ test("TrailBuilder.events emits stable seqs and classifies domain tools", () => 
 	assert.equal(events[0]?.seq, 1);
 	assert.equal(events[1]?.kind, "domain");
 	if (events[1]?.kind === "domain") {
-		assert.equal(events[1].domain, "action_item");
+		assert.equal(events[1].domain, "task");
 		assert.equal(events[1].status, "ok");
 		assert.equal(events[1].title, "Trail UI");
 		assert.equal(typeof events[1].durationMs, "number");

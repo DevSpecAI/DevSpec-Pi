@@ -4,7 +4,7 @@
  * Lifecycle only. Never authors conversational content.
  */
 
-export const CONTROL_VERBS = ["abort", "set_model", "set_thinking", "compact", "reload", "list_models"] as const;
+export const CONTROL_VERBS = ["abort", "set_model", "set_thinking", "compact", "clear", "reload", "list_models"] as const;
 export type ControlVerb = (typeof CONTROL_VERBS)[number];
 
 export interface ControlCommand {
@@ -41,6 +41,8 @@ export interface ControlHost {
 	isIdle(): boolean;
 	abort(): void;
 	compact(): Promise<void> | void;
+	/** Empty this agent's conversation, keeping its session and DevSpec connection (item 6beb89c6). */
+	clear(): Promise<void> | void;
 	reload(): Promise<void> | void;
 	/** Set the requested level and read back the host's effective (possibly clamped) level. */
 	setThinkingLevel?(level: string): string;
@@ -57,6 +59,9 @@ export async function executeControlCommand(cmd: ControlCommand, host: ControlHo
 		case "compact":
 			await host.compact();
 			return "compacted";
+		case "clear":
+			await host.clear();
+			return "cleared";
 		case "set_thinking": {
 			const level = cmd.args?.thinking;
 			if (!level) return "set_thinking missing level";

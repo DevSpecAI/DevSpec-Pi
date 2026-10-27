@@ -6,7 +6,7 @@ export type PostSessionReceipt =
 
 export interface ExpectedPostReceipt {
 	connectionId: string;
-	sessionId: string;
+	sessionId?: string | null;
 	phase: string;
 	turnKind?: string;
 	/** Source-aware delivery must not accept a different row's legacy receipt. */
@@ -28,7 +28,8 @@ export function parsePostSessionReceipt(raw: unknown, expected: ExpectedPostRece
 	if (receipt?.status === "rejected") return { status: "rejected" };
 	if (data.skipped === true || data.noop === true || receipt?.status === "skipped") return { status: "skipped" };
 	if (data.error !== undefined) return { status: "rejected" };
-	if (data.session_id !== expected.sessionId || data.phase !== expected.phase ||
+	const expectedSessionId = expected.sessionId ?? null;
+	if ((data.session_id ?? null) !== expectedSessionId || data.phase !== expected.phase ||
 		data.connection_id !== expected.connectionId ||
 		(expected.turnKind !== undefined && data.turn_kind !== expected.turnKind) ||
 		typeof data.message_id !== "string" || !data.message_id.trim()) return { status: "malformed" };

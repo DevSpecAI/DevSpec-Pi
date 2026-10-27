@@ -41,7 +41,7 @@ test("buildAgentStatsReport shapes the wire report and rounds cost/percent", () 
 			v: 1,
 			static: { systemPromptChars: 20_000, activeToolCount: 16, activeToolDefinitionChars: 12_000, contextFileCount: 1, contextFileChars: 4_000, skillCount: 2, skillChars: 3_000 },
 			injected: { attachChars: 0, roomDigestChars: 0, recallChars: 900, conflictNudgeChars: 0, totalChars: 900 },
-			toolResults: { calls: 1, chars: 4_000, maxChars: 4_000, byVerb: [{ verb: "search_action_items", calls: 1, chars: 4_000, maxChars: 4_000 }] },
+			toolResults: { calls: 1, chars: 4_000, maxChars: 4_000, byVerb: [{ verb: "search_tasks", calls: 1, chars: 4_000, maxChars: 4_000 }] },
 		},
 		now: "2026-08-12T00:00:00.000Z",
 	});
@@ -49,7 +49,7 @@ test("buildAgentStatsReport shapes the wire report and rounds cost/percent", () 
 	assert.deepEqual(report.model, { provider: "anthropic", id: "claude-opus-4.1" });
 	assert.equal(report.thinkingLevel, "high");
 	assert.deepEqual(report.context, { tokens: 12346, window: 200000, percent: 61.7 });
-	assert.equal(report.contextBudget?.toolResults.byVerb[0]?.verb, "search_action_items");
+	assert.equal(report.contextBudget?.toolResults.byVerb[0]?.verb, "search_tasks");
 	assert.equal(report.at, "2026-08-12T00:00:00.000Z");
 });
 

@@ -9,8 +9,8 @@ import {
 import { MCP_CATALOG } from "../extensions/generated/mcp-catalog.ts";
 
 const ATTRIBUTION_VERBS = ["claim_work_item", "record_implementation", "record_completed_work"];
-const AUTOMATION_VERBS = ["get_automation_runs", "claim_automation_run", "record_automation_run"];
-const LOCAL_SESSION_VERBS = ["update_action_item", "record_automation_run", "claim_work_item", "record_implementation"];
+const AUTOMATION_VERBS = ["claim_automation_run", "record_automation_run"];
+const LOCAL_SESSION_VERBS = ["update_task", "record_automation_run", "claim_work_item", "record_implementation"];
 
 test("every attribution verb is stamped with provider=pi", () => {
 	for (const name of [...ATTRIBUTION_VERBS, ...AUTOMATION_VERBS]) {
@@ -22,9 +22,9 @@ test("the host's identity wins over anything the model supplied", () => {
 	// Pi is Pi. A model that names another tool would misattribute Pi's work,
 	// so the stamp is applied after the model's params, not merged under them.
 	for (const name of ATTRIBUTION_VERBS) {
-		const stamped = stampHostProvider(name, { provider: "claude_code", action_item_id: "abc" });
+		const stamped = stampHostProvider(name, { provider: "claude_code", task_id: "abc" });
 		assert.equal(stamped.provider, "pi");
-		assert.equal(stamped.action_item_id, "abc", "unrelated params must survive");
+		assert.equal(stamped.task_id, "abc", "unrelated params must survive");
 	}
 });
 
@@ -32,29 +32,29 @@ test("the host local session wins over model-supplied resume identity", () => {
 	for (const name of LOCAL_SESSION_VERBS) {
 		const stamped = stampHostLocalSession(name, {
 			local_session_id: "model-invented",
-			action_item_id: "abc",
+			task_id: "abc",
 		}, "pi-runtime-session");
 		assert.equal(stamped.local_session_id, "pi-runtime-session");
-		assert.equal(stamped.action_item_id, "abc", "unrelated params must survive");
+		assert.equal(stamped.task_id, "abc", "unrelated params must survive");
 	}
 });
 
 test("verbs that do not carry local session attribution are untouched", () => {
 	const params = { local_session_id: "caller-owned" };
-	assert.equal(stampHostLocalSession("create_action_item", params, "pi-runtime-session"), params);
+	assert.equal(stampHostLocalSession("create_task", params, "pi-runtime-session"), params);
 });
 
 test("every generated local_session_id input is host stamped", () => {
 	const accepting = MCP_CATALOG
 		.filter((entry) => Object.hasOwn(entry.inputSchema.properties ?? {}, "local_session_id"))
 		.map((entry) => entry.name);
-	assert.deepEqual(accepting, LOCAL_SESSION_VERBS);
+	assert.deepEqual([...accepting].sort(), [...LOCAL_SESSION_VERBS].sort());
 	for (const name of accepting) {
 		assert.equal(stampHostLocalSession(name, {}, "pi-runtime-session").local_session_id, "pi-runtime-session");
 	}
 });
 
-test("the ledger owns SHA/message while Pi conservatively omits source attribution", () => {
+test("an explicit full-object verdict carries its message without inventing source attribution", () => {
 	const stamped = applyCommitLedgerVerdict({
 		commit_sha: "model-sha",
 		commit_message: "model message",
@@ -62,7 +62,7 @@ test("the ledger owns SHA/message while Pi conservatively omits source attributi
 	}, {
 		ok: true,
 		sha: "a".repeat(40),
-		autoFilled: true,
+		autoFilled: false,
 		commitMessage: "actual commit\n\n[devspec:aaaaaaaa]",
 	});
 	assert.equal(stamped.commit_sha, "a".repeat(40));
@@ -83,8 +83,8 @@ test("models cannot submit either provenance-source reporting field", () => {
 
 test("verbs that do not carry provider are untouched", () => {
 	const params = { title: "hello" };
-	assert.deepEqual(stampHostProvider("create_action_item", params), params);
-	assert.equal(stampHostProvider("get_action_items", {}).provider, undefined);
+	assert.deepEqual(stampHostProvider("create_task", params), params);
+	assert.equal(stampHostProvider("get_tasks", {}).provider, undefined);
 });
 
 test("preferred_provider is an authoring choice and is never overwritten", () => {

@@ -2,18 +2,20 @@
  * Capability-honest provenance assistance for Pi.
  *
  * Pi exposes reliable first-class file edit calls, so an explicitly associated
- * project may receive one advisory nudge. Pi does not expose a first-class Git
- * commit-message or outgoing-push hook, so this extension never parses arbitrary
- * shell text, rewrites commits, blocks tools, or claims push enforcement.
+ * project may receive one advisory nudge. This extension never parses shell
+ * text, blocks tools, or claims push enforcement. Commit tags are added by Pi's
+ * git stand-in when exactly one task is claimed (item df71ab6c), never here.
  */
 
 import { createHash } from "node:crypto";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
 import { callDevspecAdvisoryOnce } from "./core/client.ts";
-import { resolveGitRemote, resolveProjectPin, writeProjectPin } from "./core/project-scope.ts";
+import { resolveGitRemote, resolveProjectPin, resolveProjectPinFile, writeProjectPin } from "./core/project-scope.ts";
+import { getProjectChoice } from "./core/project-choice.ts";
 import { unwrapMcpResult } from "./core/result.ts";
 import { hasObservedClaim, markProjectNudged, unmarkProjectNudged } from "./core/work-state.ts";
+import { commitTaggingAvailable } from "./core/commit-stamp.ts";
 
 const RELIABLE_EDIT_TOOLS = new Set(["write", "edit", "apply_patch", "notebook"]);
 const FULL_PROJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -149,22 +151,26 @@ export async function unclaimedEditNudge(
 	toolName: string,
 	runtime: ProvenanceRuntime,
 	projectResolver: (cwd: string) => Promise<string | null> = resolveNudgeProject,
+	commitTagging: () => boolean = commitTaggingAvailable,
 ): Promise<ProvenanceNudge | null> {
 	if (!RELIABLE_EDIT_TOOLS.has(toolName)) return null;
 	const sessionId = runtime.sessionManager.getSessionId();
 
 	// Positive jurisdiction is either an explicit pin or a server-verified remote.
 	// Every auth/network/ambiguous/malformed state is a plain non-blocking null.
-	const projectId = await projectResolver(runtime.cwd);
+	const projectId = getProjectChoice(sessionId)?.project.id ?? await projectResolver(runtime.cwd);
 	if (!projectId || !FULL_PROJECT_ID.test(projectId) || hasObservedClaim(sessionId, projectId) || !markProjectNudged(sessionId, projectId)) return null;
 	return {
 		customType: "devspec-provenance-nudge",
 		content:
-			`DevSpec provenance note: this folder is positively associated with project ${projectId}, ` +
+			`DevSpec provenance note: this conversation is working with project ${projectId}, ` +
 			"but this Pi session has not observed an active claim. Continue this edit—editing is never blocked. " +
-			"Before committing, use search_action_items to find and claim the covering item; if none exists, " +
-			"create and claim a thin last-mile item. Pi cannot add the [devspec:<full-uuid>] commit reference for you, " +
-			"so include it in the commit message yourself.",
+			"Before committing, use search_tasks to find and claim the covering item. If none exists, " +
+			"create the smallest task that does, with a substantive description and the reason for the work (create_task " +
+			"requires both), as the implementation contract's work_entry_contract decides, and claim it. " +
+			(commitTagging()
+				? "Once one task is claimed, Pi adds its [devspec:<full-uuid>] tag to your commits itself; write the tag yourself only when Pi says it did not."
+				: "Pi cannot add task tags to commits in this setup, so put the claimed task's [devspec:<full-uuid>] in every commit message yourself."),
 		display: true,
 		details: { projectId },
 	};
@@ -208,6 +214,13 @@ export default function (pi: ExtensionAPI): void {
 				return;
 			}
 			try {
+				const existing = await resolveProjectPinFile(ctx.cwd);
+				if (existing && existing.projectId !== projectId) {
+					if (ctx.mode !== "tui" || !await ctx.ui.confirm("Replace folder default?", `${existing.projectId} at ${existing.path}\nNew project: ${projectId}\nThis may affect other users of the folder, but not existing conversations.`)) return;
+					if (JSON.stringify(await resolveProjectPinFile(ctx.cwd)) !== JSON.stringify(existing)) {
+						ctx.ui.notify("The folder default changed. Review it again before replacing it.", "warning"); return;
+					}
+				}
 				const result = await writeProjectPin(ctx.cwd, projectId);
 				const replacement = result.replaced ? ` (replaced ${result.replaced})` : "";
 				ctx.ui.notify(`DevSpec project association written to ${result.path}${replacement}.`, "info");

@@ -22,9 +22,13 @@ export const DEFAULT_MCP_URL = "https://api.devspec.ai/api/mcp";
 /** Staging MCP endpoint — active development happens here (dev Clerk/Supabase). */
 export const STAGING_MCP_URL = "https://api.devspecstaging.com/api/mcp";
 
-/** Where users mint/revoke account-wide access tokens in the DevSpec web app (app host, not the API). */
-export const CONNECTIONS_URL = "https://app.devspec.ai/settings/connections";
-export const STAGING_CONNECTIONS_URL = "https://app.devspecstaging.com/settings/connections";
+/**
+ * The Agent setup page (`/settings/agents`): where users create, reveal and
+ * revoke their account-wide access token in the DevSpec web app (app host, not
+ * the API). Customer copy links to it by URL rather than naming a menu path.
+ */
+export const AGENTS_SETTINGS_URL = "https://app.devspec.ai/settings/agents";
+export const STAGING_AGENTS_SETTINGS_URL = "https://app.devspecstaging.com/settings/agents";
 
 /** Env var that always wins over the on-disk token store (CI / cloud workers). */
 export const TOKEN_ENV_VAR = "DEVSPEC_MCP_TOKEN";
@@ -53,7 +57,7 @@ export function mcpUrl(): string {
 	return DEFAULT_MCP_URL;
 }
 
-/** The Connections page matching the effective endpoint (for login guidance). */
-export function connectionsUrl(): string {
-	return mcpUrl() === STAGING_MCP_URL ? STAGING_CONNECTIONS_URL : CONNECTIONS_URL;
+/** The Agent setup page matching the effective endpoint (for login guidance). */
+export function agentsSettingsUrl(): string {
+	return mcpUrl() === STAGING_MCP_URL ? STAGING_AGENTS_SETTINGS_URL : AGENTS_SETTINGS_URL;
 }

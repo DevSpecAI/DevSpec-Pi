@@ -37,6 +37,13 @@ test("wide terminals get the side-by-side lockup", () => {
 	assert.ok(withText[0]!.includes(TAGLINE));
 });
 
+test("the approved channel tagline fits at its exact lockup boundary", () => {
+	assert.equal(TAGLINE, "Your team’s knowledge, where you build.");
+	const boundary = WIDTH + 2 + visibleWidth(`DevSpec · ${TAGLINE}`);
+	assert.ok(renderHeader(boundary).some((line) => line.includes(TAGLINE)));
+	assert.ok(!renderHeader(boundary - 1).some((line) => line.includes(TAGLINE)));
+});
+
 test("mid-width terminals stack the wordmark under the mark", () => {
 	const lines = renderHeader(WIDTH + 4);
 	assert.equal(lines.length, HEIGHT + 3); // mark + wordmark + subtitle + blank
@@ -52,7 +59,7 @@ test("terminals too narrow for the mark drop it rather than wrap it", () => {
 });
 
 test("no header line ever exceeds the terminal width", () => {
-	for (const width of [12, 21, 22, 30, 60, 72, 73, 120, 200]) {
+	for (let width = 0; width <= 200; width++) {
 		for (const line of renderHeader(width)) {
 			assert.ok(
 				visibleWidth(line) <= width,

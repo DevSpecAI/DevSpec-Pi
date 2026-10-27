@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -14,9 +14,6 @@ const {
 	isAdapterSource,
 	isDevspecMcpHost,
 	isDevspecMcpUrl,
-	mergeDisabledOverlay,
-	persistDisabledOverlay,
-	projectOverlayPath,
 	resetAdapterGuardState,
 	recordAdapterGuard,
 	getAdapterGuardState,
@@ -83,46 +80,9 @@ test("serversFromConfig reads mcpServers and mcp-servers", () => {
 	assert.deepEqual(serversFromConfig(null), {});
 });
 
-test("mergeDisabledOverlay writes only disabled:true and does not copy credentials", () => {
-	const { next, changed } = mergeDisabledOverlay({}, ["devspec"]);
-	assert.equal(changed, true);
-	const servers = (next.mcpServers as Record<string, { disabled?: boolean; url?: string }>).devspec;
-	assert.equal(servers.disabled, true);
-	assert.equal(servers.url, undefined);
-});
-
-test("mergeDisabledOverlay is a no-op when already disabled", () => {
-	const existing = { mcpServers: { devspec: { disabled: true } } };
-	const { changed } = mergeDisabledOverlay(existing, ["devspec"]);
-	assert.equal(changed, false);
-});
-
-test("persistDisabledOverlay writes .pi/mcp.json and never needs a shared file", async () => {
-	const cwd = await mkdtemp(join(tmpdir(), "devspec-pi-overlay-"));
-	await writeFile(join(cwd, ".mcp.json"), JSON.stringify({
-		mcpServers: {
-			devspec: { url: STAGING, headers: { Authorization: "Bearer secret" }, directTools: true },
-			supabase: { url: "https://mcp.supabase.com/mcp", directTools: true },
-		},
-	}));
-	const result = persistDisabledOverlay(cwd, ["devspec"]);
-	assert.equal(result.changed, true);
-	assert.equal(result.path, projectOverlayPath(cwd));
-	const overlay = JSON.parse(await readFile(result.path, "utf8")) as {
-		mcpServers: Record<string, { disabled?: boolean; url?: string; headers?: unknown }>;
-	};
-	assert.equal(overlay.mcpServers.devspec.disabled, true);
-	assert.equal(overlay.mcpServers.devspec.url, undefined);
-	assert.equal(overlay.mcpServers.devspec.headers, undefined);
-	assert.equal(overlay.mcpServers.supabase, undefined);
-	const shared = await readFile(join(cwd, ".mcp.json"), "utf8");
-	assert.match(shared, /Bearer secret/);
-	assert.match(shared, /supabase/);
-});
-
 test("adapterToolName default prefix is server_verb", () => {
-	assert.equal(adapterToolName("get_action_item", "devspec", "server"), "devspec_get_action_item");
-	assert.equal(adapterToolName("get_action_item", "devspec", "none"), "get_action_item");
+	assert.equal(adapterToolName("get_task", "devspec", "server"), "devspec_get_task");
+	assert.equal(adapterToolName("get_task", "devspec", "none"), "get_task");
 	assert.equal(adapterToolName("post_session_message", "devspec", "server"), "devspec_post_session_message");
 });
 
@@ -130,34 +90,34 @@ test("adapterToolNamesFor includes pump and delivery verbs under every prefix", 
 	const names = adapterToolNamesFor("devspec");
 	assert.ok(names.includes("devspec_post_session_message"));
 	assert.ok(names.includes("devspec_poll_connection"));
-	assert.ok(names.includes("get_action_item")); // prefix none
+	assert.ok(names.includes("get_task")); // prefix none
 });
 
 test("toolsToDeactivate removes prefixed adapter names and leaves native verbs", () => {
 	const removed = toolsToDeactivate(
 		[
-			{ name: "get_action_item", sourceInfo: { source: "extension", path: "devspec-tools.ts" } },
-			{ name: "devspec_get_action_item", sourceInfo: { source: "pi-mcp-adapter" } },
+			{ name: "get_task", sourceInfo: { source: "extension", path: "devspec-tools.ts" } },
+			{ name: "devspec_get_task", sourceInfo: { source: "pi-mcp-adapter" } },
 			{ name: "devspec_post_session_message" },
 			{ name: "supabase_list_projects" },
 			{ name: "read" },
 		],
 		["devspec"],
 	);
-	assert.deepEqual(removed.sort(), ["devspec_get_action_item", "devspec_post_session_message"]);
+	assert.deepEqual(removed.sort(), ["devspec_get_task", "devspec_post_session_message"]);
 });
 
 test("toolsToDeactivate only strips a bare verb when sourceInfo is the adapter", () => {
 	assert.deepEqual(
-		toolsToDeactivate([{ name: "get_action_item" }], ["devspec"]),
+		toolsToDeactivate([{ name: "get_task" }], ["devspec"]),
 		[],
 	);
 	assert.deepEqual(
 		toolsToDeactivate(
-			[{ name: "get_action_item", sourceInfo: { path: "/x/pi-mcp-adapter/index.ts" } }],
+			[{ name: "get_task", sourceInfo: { path: "/x/pi-mcp-adapter/index.ts" } }],
 			["devspec"],
 		),
-		["get_action_item"],
+		["get_task"],
 	);
 	assert.equal(isAdapterSource({ path: "/home/n3o/.pi/agent/npm/node_modules/pi-mcp-adapter/index.ts" }), true);
 	assert.equal(isAdapterSource({ source: "builtin" }), false);
@@ -168,10 +128,11 @@ test("guard state lives on globalThis so other extension files can read it", () 
 	recordAdapterGuard({
 		suppressed: [{ name: "devspec", source: "/tmp/.mcp.json", url: STAGING, alreadyDisabled: false }],
 		persisted: true,
-		overlayPath: "/tmp/.pi/mcp.json",
+		overlayPath: "/tmp/.pi/mcp-adapter.json",
 	});
 	const s = getAdapterGuardState();
 	assert.equal(s.suppressed[0].name, "devspec");
 	assert.equal(s.persisted, true);
-	assert.match(SUPPRESSION_NOTICE, /turned off the extra DevSpec MCP server/);
+	assert.match(SUPPRESSION_NOTICE, /disabled in Pi to avoid duplicate tools/);
+	assert.match(SUPPRESSION_NOTICE, /Other agents’ settings and your other MCP servers are unchanged/);
 });

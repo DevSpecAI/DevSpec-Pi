@@ -2,8 +2,8 @@
  * DevSpec Pi — native tools.
  *
  * The generated catalog is the WIRE map. Every safe model-facing verb is a
- * real Pi tool, but only a small everyday hot set starts active. One tiny
- * search tool additively loads less-common tools on demand. Pump/lifecycle
+ * real Pi tool, immediately active when its context permits. Optional hybrid
+ * search recommends among those tools without changing activation. Pump/lifecycle
  * verbs and post_session_message are never registered.
  *
  * Headless: tools work in every mode — errors come back as text the model can
@@ -12,16 +12,30 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { resolveToken } from "./core/auth-store.ts";
+import { selectTools } from "./core/tool-selection.ts";
 import { getBond } from "./core/bond-state.ts";
-import { connectionsUrl, TOKEN_ENV_VAR } from "./core/config.ts";
+import { registerRoomReader } from "./core/room-tools.ts";
+import { ROOM_READ_TOOL } from "./core/room-reader.ts";
+import { agentsSettingsUrl, TOKEN_ENV_VAR } from "./core/config.ts";
 import { callDevspec, MODEL_TIMEOUT_MS } from "./core/client.ts";
 import { repoResolver, validateCommitSha } from "./core/commit-ledger.ts";
-import { addFlags, extractFlags } from "./core/conflict-watch.ts";
+import { observeReviewResult, listFlags, type ReviewObservation } from "./core/review-watch.ts";
+import { reviewScope, reviewData } from "./core/review-context.ts";
 import { jsonSchemaToTypebox } from "./core/json-schema.ts";
 import { consumeDeliveryLifecycle } from "./core/active-deliveries.ts";
 import { observeSuccessfulWorkResult } from "./core/work-state.ts";
+import { guardWriteRefs, observeResultClaimRefs } from "./core/provenance-refs.ts";
+import {
+	activeRequestChain,
+	SERVE_REQUEST_DESCRIPTION,
+	SERVE_REQUEST_SCHEMA,
+	SERVE_REQUEST_TOOL,
+	stampRequestRef,
+	unstampedNote,
+} from "./core/request-chain.ts";
 import { directedQuestionTranscriptReceiptId } from "./core/question-receipt-lifecycle.ts";
 import {
+	catalogEntry,
 	DIRECTED_QUESTION_TOOL_NAME,
 	HOT_SET_VERBS,
 	isConnectionBoundTool,
@@ -31,8 +45,6 @@ import {
 	TOOL_LOADER_PROMPT_METADATA,
 	allModelFacingTools,
 	hotToolPromptMetadata,
-	rareModelVerbs,
-	searchRareModelTools,
 	toolLoaderInputSchema,
 	withDirectedQuestionToolActive,
 	withPlanToolActive,
@@ -60,29 +72,36 @@ import {
 	paintStatus,
 } from "./core/status-line.ts";
 import { MODEL_VERB_NAMES, type CatalogEntry } from "./generated/mcp-catalog.ts";
+import { toolVersionMismatchNote } from "./core/version-mismatch.ts";
 
 /**
  * A write the server queued instead of committing (DevSpec item 06936ee9). The
- * served authority_contract decides who may commit; Pi's only job is to make the
- * outcome impossible to miss — the model must relay the proposal id and the reason
- * and never report the change as done.
+ * served authority_contract decides who may commit and who a queued change waits
+ * on; Pi's only job is to make the outcome impossible to miss. The model relays
+ * the proposal id, the reason and who it waits on exactly as DevSpec sent them,
+ * and never reports the change as done. Pi does not say who that is itself: a
+ * pending version waits on whoever can give the OK, which is not always a
+ * Maintainer (contract 4.31.0, reversal_rule).
  */
 export function queuedForReviewRelay(details: unknown): string | null {
 	if (details === null || typeof details !== "object" || Array.isArray(details)) return null;
 	const row = details as Record<string, unknown>;
 	if (row.outcome !== "queued_for_review") return null;
-	const proposalId = typeof row.proposal_id === "string" && row.proposal_id.trim() ? row.proposal_id.trim() : null;
-	const reason = typeof row.reason === "string" && row.reason.trim() ? row.reason.trim() : null;
+	const text = (value: unknown) => typeof value === "string" && value.trim() ? value.trim() : null;
 	return [
-		"QUEUED FOR A MAINTAINER — not in effect.",
-		proposalId ? `Proposal ${proposalId}.` : null,
-		reason ? `Reason: ${reason}` : null,
-		"Relay the proposal id and the reason to the user and say a maintainer has to accept it on the project's Review tab before it applies; do not report this change as done.",
-	].filter(Boolean).join(" ");
+		"QUEUED — not in effect.",
+		reviewData({ proposal_id: text(row.proposal_id), reason: text(row.reason), waiting_on: text(row.waiting_on) }),
+		"Relay the proposal id, the reason and who it waits on to the person, and say it applies only once it is accepted; do not report this change as done. Who can accept it is the served contract's authority_contract.",
+	].join(" ");
 }
 
-/** Unwrap and project a DevSpec result, retaining complete data in details. */
-function unwrapOrThrow(name: string, raw: unknown) {
+/**
+ * Unwrap and project a DevSpec result, retaining complete data in details.
+ * `hostNote` is Pi's own note about the call (never server data), appended last.
+ * `modelArgs` are the arguments the model sent, so a receipt can name the fields
+ * that merely repeat them instead of printing them again.
+ */
+export function unwrapOrThrow(name: string, raw: unknown, hostNote?: string, modelArgs?: Record<string, unknown>) {
 	const unwrapped = unwrapMcpResult(raw);
 	const relay = unwrapped.isError ? null : queuedForReviewRelay(unwrapped.details);
 	const { details, isError } = unwrapped;
@@ -96,16 +115,25 @@ function unwrapOrThrow(name: string, raw: unknown) {
 		} catch {
 			/* parsed JSON should be serializable; retain the generic fallback if not */
 		}
-		throw new Error(text || structuredError || `DevSpec tool ${name} failed.`);
+		// A refusal caused by DevSpec and this extension describing the tool
+		// differently says so, so the model can tell the person to update
+		// (item 39c05c1f). Ordinary mistakes carry no such note.
+		const mismatch = toolVersionMismatchNote(name, details, catalogEntry(name)?.inputSchema);
+		const reason = text || structuredError || `DevSpec tool ${name} failed.`;
+		throw new Error(mismatch ? `${reason}\n\n${mismatch}` : reason);
 	}
-	return projectedToolResult(name, { text, details, isError });
+	const projected = projectedToolResult(name, unwrapped, modelArgs);
+	// Append AFTER projection: ack/full projections intentionally read details,
+	// so putting the relay into input.text silently threw it away.
+	const body = relay ? `${relay}\n\n${projected.content[0].text}` : projected.content[0].text;
+	return relay || hostNote ? toolTextResult(hostNote ? `${body}\n\n${hostNote}` : body, details) : projected;
 }
 
 /** Feed the conflict watch: signals in results become structural flags. */
-function watchForSignals(name: string, result: unknown): void {
+function watchForSignals(name: string, result: unknown, args: Record<string, unknown>, scope: string, observed?: readonly ReviewObservation[]): void {
 	try {
 		const details = (result as { details?: unknown }).details;
-		addFlags(extractFlags(name, details));
+		observeReviewResult(name, details, args, scope, observed);
 	} catch {
 		/* never let the watch break a tool call */
 	}
@@ -140,8 +168,13 @@ export function consumeResultMechanics(
 	args: Record<string, unknown> = {},
 	sessionId?: string,
 	projectId?: string,
+	scope = reviewScope(sessionId, projectId),
+	observed?: readonly ReviewObservation[],
 ): void {
-	watchForSignals(name, result);
+	watchForSignals(name, result, args, scope, observed);
+	// Claim refs are dealt through results, not deliveries — observe them so the
+	// guard knows them (item a03ba7ab).
+	observeResultClaimRefs(result);
 	// executeVerb calls this only after unwrapOrThrow has established MCP success.
 	// This observation drives status and nudge suppression only; it grants no permission.
 	const claimArmed = sessionId
@@ -153,7 +186,7 @@ export function consumeResultMechanics(
 
 const NOT_CONNECTED =
 	`Not connected to DevSpec. Run /devspec.login, or set ${TOKEN_ENV_VAR}. ` +
-	`Tokens are minted at ${connectionsUrl()}.`;
+	`Tokens are minted at ${agentsSettingsUrl()}.`;
 
 type CallCtx = { sessionManager: { getSessionId(): string }; cwd: string };
 
@@ -196,8 +229,8 @@ export function applyCommitLedgerVerdict(
 		...hostSafeParams,
 		// sha null = no sha sent at all: the server's own mechanical fill (or the
 		// tag on the landed commit) carries the identity — never write a null key.
-		// A non-null value may be ledger-verified, cwd-resolved, or an unverified
-		// hint the server resolves project-wide (item b07a518f, ADR 60efaed0).
+		// Supplied hints retain their bytes. Only an explicit full object may be
+		// locally corroborated; omitted/short inputs need server-scoped evidence.
 		...(verdict.sha !== null ? { commit_sha: verdict.sha } : {}),
 		// Pi can mechanically attach a recognized commit object's message, but
 		// cannot prove that a Bash surface authored its DevSpec reference. Source
@@ -209,11 +242,10 @@ export function applyCommitLedgerVerdict(
 /** Per-verb argument transforms that cannot live in the generated catalog. */
 const AUGMENTS: Record<string, (params: Record<string, unknown>, ctx: CallCtx) => Record<string, unknown>> = {
 	record_implementation: (params, ctx) => {
-		// The ledger (item efe7e0a7) is accuracy assistance, not a gate: a ledger
-		// or cwd hit attaches the mechanical message and canonical sha; a miss
-		// passes the model's value through as a hint the server resolves across
-		// every tracked repo of the project (item b07a518f, ADR 60efaed0). Only
-		// shape garbage still throws — never identity.
+		// The ledger is explicit-object assistance, not a work selector. Omitted
+		// SHAs stay omitted; short hints stay short so local context cannot erase
+		// project-wide ambiguity. The server owns claim-scoped selection and
+		// resolution (e47fcd4e, ADR 60efaed0). Only malformed shape throws.
 		const verdict = validateCommitSha(params.commit_sha as string | undefined, repoResolver(ctx.cwd));
 		if (!verdict.ok) throw new Error(verdict.error);
 		return applyCommitLedgerVerdict(params, verdict);
@@ -221,7 +253,7 @@ const AUGMENTS: Record<string, (params: Record<string, unknown>, ctx: CallCtx) =
 };
 
 const LOCAL_SESSION_STAMPED_VERBS: ReadonlySet<string> = new Set([
-	"update_action_item",
+	"update_task",
 	"record_automation_run",
 	"claim_work_item",
 	"record_implementation",
@@ -252,13 +284,12 @@ export function stampHostLocalSession(
 const HOST_PROVIDER = "pi";
 
 const PROVIDER_STAMPED_VERBS: ReadonlySet<string> = new Set([
-	// Attribution: persisted to action_items.provider.
+	// Attribution: persisted to tasks.provider.
 	"claim_work_item",
 	"record_implementation",
 	"record_completed_work",
 	// Automation runs: free-text "your coding agent", used to match a run's
 	// provider constraint and to build the resume affordance.
-	"get_automation_runs",
 	"claim_automation_run",
 	"record_automation_run",
 ]);
@@ -293,6 +324,11 @@ export function stampKnownScope(params: Record<string, unknown>, name?: string):
 }
 
 async function executeVerb(name: string, params: Record<string, unknown>, ctx: CallCtx) {
+	// The provenance-ref guard (item a03ba7ab): a ref this process was never
+	// dealt is a transcription error — refuse it locally, before any network.
+	// Omission is always allowed: the server attributes to the open turn.
+	const refVerdict = guardWriteRefs(params);
+	if (!refVerdict.ok) return measuredToolResult(name, toolErrorResult(refVerdict.message));
 	const resolved = await resolveToken();
 	if (!resolved) return measuredToolResult(name, toolErrorResult(NOT_CONNECTED));
 	try {
@@ -300,12 +336,22 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 		const bond = getBond();
 		const scopedParams = stampKnownScope(params, name);
 		const augmentedParams = augment ? augment(scopedParams, ctx) : scopedParams;
-		const args = stampHostLocalSession(
-			name,
-			stampHostProvider(name, augmentedParams),
-			ctx.sessionManager.getSessionId(),
-		);
+		// The request this write serves (item 7a4d04fd): host-only request_ref,
+		// stamped from what woke this turn, on every tool whose wire schema takes
+		// it. A turn carrying several people's requests that the agent has not
+		// named one of refuses the write here, before the network.
+		const stamped = await stampRequestRef({
+			params: stampHostLocalSession(name, stampHostProvider(name, augmentedParams), ctx.sessionManager.getSessionId()),
+			inputSchema: catalogEntry(name)?.inputSchema,
+			connectionId: bond?.connectionId,
+		});
+		if ("deny" in stamped) return measuredToolResult(name, toolErrorResult(stamped.deny));
+		const args = stamped.args;
+		const unstamped = stamped.unstamped;
+		if (unstamped) debugRemote("request write unstamped", { connectionChanged: unstamped === "connection_changed", notRecorded: unstamped === "not_recorded", errorPresent: unstamped === "error" });
 		const localSessionId = ctx.sessionManager.getSessionId();
+		const scope = reviewScope(localSessionId, bond?.projectId ?? ctx.cwd, resolved.token);
+		const observed = listFlags(scope);
 		const raw = await callDevspec(resolved.token, name, args, {
 			cwd: ctx.cwd,
 			lane: "work",
@@ -314,11 +360,11 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 				? { connectionCapability: bond.connectionCapability }
 				: {}),
 		});
-		const projected = unwrapOrThrow(name, raw);
+		const projected = unwrapOrThrow(name, raw, unstamped ? unstampedNote(unstamped) : undefined, params);
 		const result = shouldTerminateAfterDirectedQuestionCreate(name, args, projected)
 			? { ...projected, terminate: true as const }
 			: projected;
-		consumeResultMechanics(name, result, args, localSessionId, getBond()?.projectId);
+		consumeResultMechanics(name, result, args, localSessionId, bond?.projectId, scope, observed);
 		return measuredToolResult(name, result);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
@@ -340,9 +386,9 @@ function registerCatalogTool(pi: ExtensionAPI, def: CatalogEntry): void {
 	});
 }
 
-/** Rare verbs are the loader's domain; transcript-announced restores are scoped to them. */
-const RARE_VERB_SET: ReadonlySet<string> = new Set(rareModelVerbs());
-const MODEL_VERB_SET: ReadonlySet<string> = new Set(MODEL_VERB_NAMES);
+/** Recover legacy deferred announcements without re-announcing denied tools. */
+const RARE_VERB_SET: ReadonlySet<string> = new Set(MODEL_VERB_NAMES);
+const MODEL_VERB_SET: ReadonlySet<string> = new Set([...MODEL_VERB_NAMES, ROOM_READ_TOOL]);
 
 /**
  * Tools deactivated by duplicate-tool recovery (item dc8f52d4). Re-seeded from
@@ -358,43 +404,57 @@ function registerToolLoader(pi: ExtensionAPI): void {
 		description: TOOL_LOADER_DESCRIPTION,
 		...TOOL_LOADER_PROMPT_METADATA,
 		parameters: jsonSchemaToTypebox(toolLoaderInputSchema()),
-		async execute(_toolCallId, params) {
-			const input = params as { query?: unknown; limit?: unknown };
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			const input = params as { query?: unknown; limit?: unknown; offset?: unknown };
 			const query = String(input.query ?? "").trim();
-			const limit = typeof input.limit === "number" ? input.limit : undefined;
-			const matches = searchRareModelTools(query, limit).map((entry) => entry.name);
-			if (matches.length === 0) {
-				return measuredToolResult(TOOL_LOADER_NAME, toolTextResult(`No less-common DevSpec tools found for: ${query}`, {
-					matches: [],
-					added: [],
-				}));
-			}
+			if (!query || query.length > 1000) return toolErrorResult("query must contain 1–1000 characters");
+			const result = await selectTools(query, input.limit, pi.getActiveTools().filter(name => !sessionDeniedTools.has(name)), async args => {
+				const token = await resolveToken();
+				if (!token) throw new Error("not connected");
+				const bond = getBond();
+				const raw = await callDevspec(token.token, TOOL_LOADER_NAME, stampKnownScope(args, TOOL_LOADER_NAME), {
+					cwd: ctx.cwd, lane: "work", timeoutMs: 5000,
+					...(bond?.connectionCapability ? { connectionCapability: bond.connectionCapability } : {}),
+				});
+				const unwrapped = unwrapMcpResult(raw);
+				if (unwrapped.isError) throw new Error("search unavailable");
+				return unwrapped.details;
+			}, input.offset);
+			const lines = [
+				result.degraded ? result.reason : "These tools are already available; call the appropriate one directly.",
+				...result.matches.map(hit => `${hit.name}: ${hit.description}`),
+				!result.matches.length ? "No matching callable tool found. No operation was executed." : "",
+				result.unavailable.length ? `Unavailable here: ${result.unavailable.join(", ")}. No substitute was selected.` : "",
+				result.page.has_more ? `${result.page.returned} of ${result.page.total_matching} matches; pass offset ${result.page.next_offset} for more.` : "",
+			].filter(Boolean);
+			return measuredToolResult(TOOL_LOADER_NAME, toolTextResult(lines.join("\n"), result));
+		},
+	});
+}
 
-			// Tools deactivated by duplicate-tool recovery must stay inactive:
-			// re-activating re-announces them, and a transcript carrying two
-			// announcements for one tool is exactly what bricked dc8f52d4.
-			const loadable = matches.filter((name) => !sessionDeniedTools.has(name));
-			const unavailable = matches.filter((name) => sessionDeniedTools.has(name));
-			if (loadable.length === 0) {
-				return measuredToolResult(TOOL_LOADER_NAME, toolTextResult(
-					`Matching DevSpec tools are unavailable this session (deactivated after a provider duplicate-tool error): ${unavailable.join(", ")}`,
-					{ matches, added: [], unavailable },
-				));
+/**
+ * The agent names the request its next writes serve (item 7a4d04fd) when a
+ * turn carries several people's requests. A host tool, not a DevSpec verb:
+ * the request chain lives in this process. Active only while it can matter
+ * (devspec-remote shows it when a second request joins a turn).
+ */
+function registerServeRequestTool(pi: ExtensionAPI): void {
+	pi.registerTool({
+		name: SERVE_REQUEST_TOOL,
+		label: "Name the request",
+		description: SERVE_REQUEST_DESCRIPTION,
+		parameters: jsonSchemaToTypebox(SERVE_REQUEST_SCHEMA as unknown as Record<string, unknown>),
+		async execute(_toolCallId, params) {
+			const input = params as { message_id?: unknown; terminal?: unknown; none?: unknown };
+			const chain = activeRequestChain();
+			const bond = getBond();
+			if (!chain || !bond || chain.connectionId !== bond.connectionId) {
+				return measuredToolResult(SERVE_REQUEST_TOOL, toolErrorResult("This Pi is not carrying any DevSpec requests, so there is nothing to name."));
 			}
-
-			const active = pi.getActiveTools();
-			const activeSet = new Set(active);
-			const added = loadable.filter((name) => !activeSet.has(name));
-			if (added.length > 0) pi.setActiveTools([...active, ...added]);
-			const unavailableNote = unavailable.length > 0
-				? `; unavailable this session (deactivated after a provider duplicate-tool error): ${unavailable.join(", ")}`
-				: "";
-			return measuredToolResult(TOOL_LOADER_NAME, toolTextResult(
-				(added.length > 0
-					? `Loaded DevSpec tools: ${added.join(", ")}`
-					: `Matching DevSpec tools already active: ${loadable.join(", ")}`) + unavailableNote,
-				{ matches, added, unavailable },
-			));
+			const served = await chain.serve({ messageId: input.message_id, terminal: input.terminal, none: input.none });
+			return measuredToolResult(SERVE_REQUEST_TOOL, served.ok
+				? toolTextResult(`Your next DevSpec writes serve ${served.serving}, until another request reaches you.`, { serving: served.serving })
+				: toolErrorResult(served.error));
 		},
 	});
 }
@@ -404,22 +464,31 @@ export function modelFacingCatalog(): CatalogEntry[] {
 	return allModelFacingTools();
 }
 
-/** Preserve non-DevSpec tools while resetting this extension to hot set + loader. */
+/** Preserve foreign tools and expose every safe non-contextual operation. */
 export function initialActiveTools(active: readonly string[]): string[] {
 	const devspecVerbs = new Set(modelFacingCatalog().map((entry) => entry.name));
 	return [
 		...new Set([
-			...active.filter((name) => !devspecVerbs.has(name) && name !== TOOL_LOADER_NAME),
+			// serve_request is shown only while a turn carries several requests.
+			...active.filter((name) => !devspecVerbs.has(name) && name !== TOOL_LOADER_NAME && name !== ROOM_READ_TOOL && name !== SERVE_REQUEST_TOOL),
 			...HOT_SET_VERBS,
 			TOOL_LOADER_NAME,
+			ROOM_READ_TOOL,
 		]),
 	];
 }
 
 export default function (pi: ExtensionAPI) {
-	registerContextBudgetToolNames([...MODEL_VERB_NAMES, TOOL_LOADER_NAME]);
-	for (const entry of allModelFacingTools()) registerCatalogTool(pi, entry);
+	registerContextBudgetToolNames([...MODEL_VERB_NAMES, TOOL_LOADER_NAME, ROOM_READ_TOOL, SERVE_REQUEST_TOOL]);
+	for (const entry of allModelFacingTools()) if (entry.name !== TOOL_LOADER_NAME) registerCatalogTool(pi, entry);
 	registerToolLoader(pi);
+	registerServeRequestTool(pi);
+	registerRoomReader(pi, () => {
+		if (sessionDeniedTools.has("get_session_transcript")) return false;
+		const active = pi.getActiveTools();
+		if (!active.includes("get_session_transcript")) pi.setActiveTools([...active, "get_session_transcript"]);
+		return true;
+	});
 	pi.on("session_start", (_event, ctx) => {
 		const bond = getBond();
 		const initial = initialActiveTools(pi.getActiveTools());
@@ -430,15 +499,16 @@ export default function (pi: ExtensionAPI) {
 		// sessions have no announcements, so the happy path is unchanged.
 		const { restore, denied } = scanTranscriptToolState(
 			ctx?.sessionManager?.getBranch?.() ?? [],
-			(name) => RARE_VERB_SET.has(name),
+			(name) => RARE_VERB_SET.has(name) || name === ROOM_READ_TOOL,
 		);
 		sessionDeniedTools.clear();
 		for (const name of denied) sessionDeniedTools.add(name);
-		const withRestored = withRestoredTools(initial, restore);
+		const withRestored = withRestoredTools(initial, restore).filter(name => !sessionDeniedTools.has(name));
 		const attached = Boolean(bond?.sessionId && bond.connectionCapability);
 		const withPlan = withPlanToolActive(withRestored, Boolean(bond?.sessionId));
 		const withPoll = withPollToolActive(withPlan, attached);
-		pi.setActiveTools(withDirectedQuestionToolActive(withPoll, attached));
+		const withQuestion = withDirectedQuestionToolActive(withPoll, attached);
+		pi.setActiveTools(withQuestion.filter(name => !sessionDeniedTools.has(name)));
 	});
 
 	// Safety net (item dc8f52d4): if a duplicate-tools provider error still

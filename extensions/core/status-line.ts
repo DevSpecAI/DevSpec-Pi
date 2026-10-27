@@ -6,7 +6,7 @@
  * still has a generated title, the locally selected/claimed item, a claimed
  * automation, and the DevSpec verb currently executing. paintStatus also
  * retitles the OS terminal tab (session → automation → untitled stand-in →
- * current action item → codename). Pure formatter + globalThis store — pi
+ * current task → codename). Pure formatter + globalThis store — pi
  * loads each extension
  * file with a fresh jiti graph, so module singletons are not shared.
  *
@@ -15,20 +15,22 @@
  * web UI, item 23f4665f).
  */
 
+import { stripVTControlCharacters } from "node:util";
+import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { TOOL_LOADER_NAME, isCallableModelVerb } from "./model-surface.ts";
 import { safeHasUI, withLiveUi } from "./ctx-guard.ts";
 
 export const STATUS_KEY = "devspec-remote";
 
-const SESSION_TITLE_MAX = 28;
 const SESSION_PREVIEW_MAX = 22;
-const WORK_TITLE_MAX = 28;
-const AUTOMATION_NAME_MAX = 28;
 const TERMINAL_TITLE_MAX = 48;
 export const DEFAULT_TERMINAL_TITLE = "Pi";
 
 export interface StatusSnapshot {
 	codename?: string;
+	/** Readable name from the confirmed bond, never a folder guess or ID fallback. */
+	projectName?: string;
 	sessionId?: string;
 	/** Generated / user-set title only. Never a placeholder. */
 	sessionTitle?: string;
@@ -45,7 +47,9 @@ export interface StatusSnapshot {
 
 export interface StatusUi {
 	hasUI?: boolean;
+	mode?: string;
 	ui: {
+		setWidget?: ExtensionUIContext["setWidget"];
 		setStatus(key: string, text: string | undefined): void;
 		setTitle?(title: string): void;
 	};
@@ -78,6 +82,10 @@ export function getStatusSnapshot(): StatusSnapshot {
 
 export function resetStatus(): void {
 	const s = store();
+	withLiveUi(s.lastUi, () => {
+		s.lastUi?.ui.setWidget?.(STATUS_KEY, undefined);
+		s.lastUi?.ui.setStatus(STATUS_KEY, undefined);
+	});
 	s.current = {};
 	s.live = [];
 	s.lastUi = null;
@@ -102,9 +110,8 @@ export function isRealSessionTitle(title: unknown): title is string {
 }
 
 export function truncateLabel(text: string, max: number): string {
-	const flat = text.replace(/\s+/g, " ").trim();
-	if (!flat) return "";
-	return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
+	const flat = stripVTControlCharacters(text).replace(/[\u0000-\u001f\u007f-\u009f\s]+/g, " ").trim();
+	return stripVTControlCharacters(truncateToWidth(flat, Math.max(0, max), "…"));
 }
 
 /** First non-empty human text — a stand-in, never a title. */
@@ -145,18 +152,18 @@ export function resolveExecutingVerb(toolName: string, _args: unknown): string |
 const VERB_LABELS: Record<string, string> = {
 	claim_work_item: "claiming",
 	record_implementation: "recording",
-	create_action_item: "creating item",
-	update_action_item: "updating item",
-	search_action_items: "searching items",
-	get_action_item: "reading item",
-	get_action_items: "listing items",
+	create_task: "creating item",
+	update_task: "updating item",
+	search_tasks: "searching items",
+	get_task: "reading item",
+	get_tasks: "listing items",
 	search_memories: "searching memories",
 	get_memory: "reading memory",
 	record_memory: "recording memory",
 	search_resources: "searching docs",
 	get_resource: "reading doc",
-	resolve_action_item_conflict: "resolving conflict",
-	resolve_action_item_decision_flag: "resolving decision flag",
+	supersede_task: "superseding",
+	preview_supersession: "previewing supersession",
 	record_criterion_verdicts: "recording verdicts",
 	get_session_transcript: "reading transcript",
 	search_sessions: "searching sessions",
@@ -167,7 +174,7 @@ const VERB_LABELS: Record<string, string> = {
 	release_work_item: "releasing",
 	fail_work_item: "failing item",
 	report_progress: "reporting",
-	verify_action_item: "verifying",
+	verify_task: "verifying",
 	reserve_work_items: "reserving work",
 	claim_automation_run: "claiming automation",
 	record_automation_run: "recording automation",
@@ -188,7 +195,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 		: null;
 }
 
-/** Best-effort id/title from a claim or get_action_item payload. */
+/** Best-effort id/title from a claim or get_task payload. */
 export function extractItemRef(value: unknown): { id?: string; title?: string } {
 	const root = asRecord(value);
 	if (!root) return {};
@@ -196,10 +203,10 @@ export function extractItemRef(value: unknown): { id?: string; title?: string } 
 		const inner = extractItemRef(root.details);
 		if (inner.id || inner.title) return inner;
 	}
-	const nested = asRecord(root.item) ?? asRecord(root.action_item) ?? root;
+	const nested = asRecord(root.item) ?? asRecord(root.task) ?? root;
 	const id =
 		(typeof nested.id === "string" && nested.id) ||
-		(typeof root.action_item_id === "string" && root.action_item_id) ||
+		(typeof root.task_id === "string" && root.task_id) ||
 		undefined;
 	const title = typeof nested.title === "string" && nested.title.trim() ? nested.title.trim() : undefined;
 	return { id, title };
@@ -236,35 +243,52 @@ export function extractAutomationRef(value: unknown): {
 	return { id, runId, name };
 }
 
-export function formatStatusLine(snap: StatusSnapshot): string | undefined {
-	const codename = snap.codename?.trim();
-	if (!codename && !snap.sessionId && !snap.workTitle && !snap.automationName && !snap.verb) {
-		return undefined;
+export type StatusTextStyle = (role: "text" | "dim", text: string) => string;
+
+export function formatStatusLine(snap: StatusSnapshot, width = Infinity, style: StatusTextStyle = (_role, text) => text): string | undefined {
+	if (!snap.codename && !snap.sessionId && !snap.workTitle && !snap.automationName && !snap.verb) return undefined;
+
+	// No fixed title caps: take the full row when it fits. Under pressure,
+	// shorten project, work, then session; never abbreviate the agent identity.
+	const fields: Array<{ text: string; columns: number; prefix: string; suffix: string; priority: number; role: "text" | "dim" }> = [];
+	function add(text: string, priority: number, prefix = "", suffix = "", role: "text" | "dim" = "text") {
+		const clean = truncateLabel(text, Infinity);
+		if (clean) fields.push({ text: clean, columns: visibleWidth(clean), prefix, suffix, priority, role });
 	}
-
-	const parts: string[] = [`⛁ ${codename || "bonded"}`];
-
+	add(snap.codename?.trim() || "connected", Infinity);
+	if (snap.projectName) add(snap.projectName, 0, "", "", "dim");
 	if (snap.sessionId) {
-		if (isRealSessionTitle(snap.sessionTitle)) {
-			parts.push(`“${truncateLabel(snap.sessionTitle, SESSION_TITLE_MAX)}”`);
-		} else if (snap.sessionPreview) {
-			parts.push(`untitled “${truncateLabel(snap.sessionPreview, SESSION_PREVIEW_MAX)}”`);
-		} else {
-			parts.push("untitled");
-		}
+		if (isRealSessionTitle(snap.sessionTitle)) add(snap.sessionTitle, 3, "“", "”");
+		else if (snap.sessionPreview) add(snap.sessionPreview, 3, "untitled “", "”", "dim");
+		else add("untitled", 3, "", "", "dim");
 	}
-
-	if (snap.automationName) {
-		parts.push(`automation “${truncateLabel(snap.automationName, AUTOMATION_NAME_MAX)}”`);
+	if (snap.automationName) add(snap.automationName, 1, "automation “", "”");
+	if (snap.workTitle) add(snap.workTitle, 1, "“", "”");
+	if (snap.verb) add(verbLabel(snap.verb), 2, "", "", "dim");
+	// Allocate width on plain text, then style individual roles. Never wrap the
+	// entire row in dim: identity/current work must use the reader's foreground.
+	const render = (styled = false) => {
+		const paint: StatusTextStyle = (role, text) => styled && text ? style(role, text) : text;
+		return paint("text", "DevSpec: ") + fields.filter(f => f.columns > 0)
+			.map(f => paint("dim", f.prefix) + paint(f.role, truncateLabel(f.text, f.columns)) + paint("dim", f.suffix))
+			.join(paint("dim", " · "));
+	};
+	let line = render();
+	const shrinkable = fields.filter(f => Number.isFinite(f.priority)).sort((a, b) => a.priority - b.priority);
+	for (const field of shrinkable) {
+		const excess = visibleWidth(line) - width;
+		if (excess <= 0) break;
+		field.columns = Math.max(1, field.columns - excess);
+		line = render();
 	}
-
-	if (snap.workTitle) {
-		parts.push(`“${truncateLabel(snap.workTitle, WORK_TITLE_MAX)}”`);
+	// Extremely narrow terminals may not fit even the abbreviated fields.
+	// Drop them in the same order; the widget wraps identity only if necessary.
+	for (const field of shrinkable) {
+		if (visibleWidth(line) <= width) break;
+		field.columns = 0;
+		line = render();
 	}
-
-	if (snap.verb) parts.push(verbLabel(snap.verb));
-
-	return parts.join(" · ");
+	return render(true);
 }
 
 /** OS tab title. Session → automation → untitled stand-in → current item → codename. */
@@ -346,6 +370,8 @@ export function clearAutomation(id?: string): void {
 /** Apply bond identity into the snapshot. Session change drops the old preview. */
 export function syncBondIntoStatus(bond: {
 	codename?: string;
+	projectId?: string;
+	projectName?: string;
 	sessionId?: string;
 	sessionTitle?: string;
 } | null): void {
@@ -358,6 +384,7 @@ export function syncBondIntoStatus(bond: {
 	const realTitle = isRealSessionTitle(bond.sessionTitle) ? bond.sessionTitle.trim() : undefined;
 	patchStatus({
 		codename: bond.codename,
+		projectName: bond.projectName?.trim() && bond.projectName.trim() !== bond.projectId ? bond.projectName : undefined,
 		sessionId: bond.sessionId,
 		sessionTitle: realTitle,
 		...((sessionChanged || realTitle) ? { sessionPreview: undefined } : {}),
@@ -382,7 +409,24 @@ export function paintStatus(ctx?: StatusUi | null): void {
 		return;
 	}
 	withLiveUi(target, () => {
-		target.ui.setStatus(STATUS_KEY, formatStatusLine(s.current));
-		target.ui.setTitle?.(formatTerminalTitle(s.current));
+		const snapshot = { ...s.current };
+		if (target.mode === "tui" && target.ui.setWidget) {
+			// Native widget placement gives DevSpec its own width without replacing
+			// Pi's footer or sharing the BG/MCP extension-status row (b8f94798).
+			target.ui.setStatus(STATUS_KEY, undefined);
+			if (formatStatusLine(snapshot)) {
+				target.ui.setWidget(STATUS_KEY, (_tui, theme) => ({
+					invalidate() {},
+					render(width) {
+						if (width < 1) return [];
+						return wrapTextWithAnsi(formatStatusLine(snapshot, width, (role, text) => theme.fg(role, text)) ?? "", width);
+					},
+				}), { placement: "belowEditor" });
+			} else target.ui.setWidget(STATUS_KEY, undefined);
+		} else {
+			// RPC exposes text status, not custom terminal components.
+			target.ui.setStatus(STATUS_KEY, formatStatusLine(snapshot));
+		}
+		target.ui.setTitle?.(formatTerminalTitle(snapshot));
 	});
 }

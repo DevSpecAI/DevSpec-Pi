@@ -3,7 +3,7 @@
  *
  * `poll_connection.dispatches[]` and `get_connection_dispatch` are transport
  * names retained by the server API. Their only executable payload in Pi is a
- * typed automation run. Action-item work is selected and reserved locally; it
+ * typed automation run. Task work is selected and reserved locally; it
  * never enters this path.
  */
 

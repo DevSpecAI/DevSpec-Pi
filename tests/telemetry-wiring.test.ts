@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { ControlResultOutbox } from "../extensions/core/control-result-outbox.ts";
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { test } from "node:test";
@@ -71,7 +72,7 @@ test("thinking control refreshes unchanged/clamped/failed attempts and still ack
 		const ctx = { thinkingLevel: "high" };
 		const handle = runInNewContext(stripTypeScriptTypes(`(async () => { ${control} })`), {
 			pkg: { control: { id: "c1", verb: "set_thinking", issuedAt: "now", issuedByUserId: "owner", args: { thinking: scenario === "unchanged" ? "high" : "xhigh" } } },
-			ctx, lastCtx: null, token: "token", active: { bond: { connectionId: "connection" } },
+			ctx, lastCtx: null, token: "token", endpoint: "https://example.test/api/mcp", active: { bond: { connectionId: "connection" }, controlResults: new ControlResultOutbox() },
 			parseControlCommand, executeControlCommand,
 			pi_setThinking: () => {
 				order.push("set");
@@ -82,7 +83,14 @@ test("thinking control refreshes unchanged/clamped/failed attempts and still ack
 				assert.equal(liveCtx, ctx);
 				order.push(`stamp:${liveCtx.thinkingLevel}`);
 			},
-			ackControl: async (_token: string, _connection: string, id: string) => { order.push(`ack:${id}`); },
+			pi_appendControlResult: () => {},
+			drainControlResults: (active: { controlResults: ControlResultOutbox }) => {
+				void active.controlResults.drain("connection", async value => {
+					assert.equal(value.result.status, scenario === "failed" ? "failed" : "completed");
+					order.push(`ack:${value.controlId}`);
+					return "acknowledged";
+				}, () => {});
+			},
 			notify: (_ctx: unknown, message: string) => { notifications.push(message); },
 			debug: () => {},
 		});
@@ -92,8 +100,22 @@ test("thinking control refreshes unchanged/clamped/failed attempts and still ack
 	}
 });
 
-test("control ack has no new result schema", () => {
-	const ack = bodyBetween("async function ackControl(", "function setRemoteStatus");
-	assert.match(ack, /control_ack: controlId/);
-	assert.doesNotMatch(ack, /control_result|thinking|status:/);
+test("control ACK invokes only the non-consuming server path and validates its exact receipt", async () => {
+	const ack = bodyBetween("async function ackControl(", "function drainControlResults");
+	const calls: Array<Record<string, unknown>> = [];
+	const active = { stop: false, bond: { connectionId: "connection", connectionCapability: "capability" } };
+	const invoke = runInNewContext(stripTypeScriptTypes(`${ack}; ackControl;`), {
+		pump: active,
+		callDevspec: async (_token: string, name: string, args: Record<string, unknown>) => {
+			assert.equal(name, "poll_connection"); calls.push(args);
+			return { control_ack: { status: "acknowledged", result: { id: "control" } } };
+		},
+		unwrapMcpResult: (raw: unknown) => ({ details: raw }),
+	});
+	await invoke("token", "connection", "control");
+	assert.equal(calls.length, 1);
+	assert.equal(calls[0]!.control_ack_only, true);
+	assert.equal(calls[0]!.control_ack, "control");
+	assert.equal(calls[0]!.cursor_v2, undefined);
+	assert.equal(calls[0]!.system_notice_version, undefined);
 });

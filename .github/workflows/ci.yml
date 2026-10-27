@@ -25,3 +25,27 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      - name: Triaged security audit gate
+        # Fails on a high or critical advisory that is not triaged in
+        # scripts/audit-allowlist.json with a reason and an unexpired expiry.
+        # Its regression tests run in npm test (tests/audit-gate.test.ts).
+        run: npm run audit:gate
+
+  # Native Windows (DevSpec item c4b14794): Pi's bash tool runs Git Bash there, and
+  # the git stand-in must observe and tag commits exactly as on Linux. The stand-in
+  # tests run against real Git Bash and Git for Windows, then actual Pi runs the
+  # multi-line commit e2e through its own bash tool.
+  windows-commit-tracking:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node --test --test-concurrency=1 tests/commit-stamp.test.ts tests/git-observer.test.ts
+      - run: node scripts/e2e-commit-stamp.mjs
+        env:
+          STAMP_E2E_PI_CLI: node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js

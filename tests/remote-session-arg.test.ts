@@ -30,10 +30,10 @@ test("a bare or unrelated remote arg while bonded is not an attach", () => {
 	assert.deepEqual(bondedRemoteAction("stop"), { type: "report_already_bonded" });
 });
 
-test("bonded --session path calls attach_connection and does not write bond/tool state", () => {
+test("bonded --session path refreshes context without optimistically writing attachment/tool state", () => {
 	const source = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 	const start = source.indexOf("const sessionId = namedSessionFromRemoteArg(arg);");
-	const end = source.indexOf("const outcome = await bondNow(ctx, sessionId);");
+	const end = source.indexOf("const outcome = await projectSelection.connect(ctx, sessionId, parsed.selector);");
 	assert.ok(start >= 0 && end > start, "bonded-session handler block missing");
 	const bonded = source.slice(start, end);
 	assert.match(bonded, /bondedRemoteAction\(arg\)/);
@@ -42,5 +42,7 @@ test("bonded --session path calls attach_connection and does not write bond/tool
 	assert.match(bonded, /already bonded as/);
 	assert.doesNotMatch(bonded, /bond\.sessionId\s*=/);
 	assert.doesNotMatch(bonded, /pi_setPlanToolActive|pi_setQuestionToolActive|pi_setPollToolActive/);
-	assert.doesNotMatch(bonded, /setBond\(/);
+	assert.match(bonded, /if \(pump !== attaching \|\| attaching\.stop\) return/);
+	assert.match(bonded, /attaching\.bond = applyConnectionContext\(attaching\.bond, att\.details\)/);
+	assert.doesNotMatch(bonded, /bond\.(attachedAt|speechAttachmentId)\s*=/);
 });

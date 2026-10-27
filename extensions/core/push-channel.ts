@@ -8,6 +8,9 @@
  * unavailable (older server, proxy that buffers SSE, etc).
  */
 
+import { pluginHeaders } from "./client-versions.ts";
+import { SYSTEM_NOTICE_CHANNEL_VERSION } from "./remote-payload.ts";
+
 export interface PushChannelHandlers {
 	/** A wake frame arrived — something moved; fetch now. */
 	onWake(): void;
@@ -25,7 +28,7 @@ export interface PushChannelOptions {
 	/** Hidden exact-connection capability minted with this bond. */
 	connectionCapability?: string;
 	/** Main intake capability only; side polls never inherit this negotiation. */
-	systemNoticeVersion?: 1;
+	systemNoticeVersion?: typeof SYSTEM_NOTICE_CHANNEL_VERSION;
 	/** Durable interaction events share this one stream's wake marker. */
 	interactionEventVersion?: 1;
 	questionDismissalEventVersion?: 1;
@@ -215,7 +218,7 @@ export function nextPushReconnectDelayMs(
  */
 export function pushChannelUrl(opts: Pick<PushChannelOptions, "mcpUrl" | "connectionId" | "systemNoticeVersion" | "interactionEventVersion" | "questionDismissalEventVersion">): string {
 	const query = new URLSearchParams({ connection_id: opts.connectionId });
-	if (opts.systemNoticeVersion === 1) query.set("system_notice_version", "1");
+	if (opts.systemNoticeVersion === SYSTEM_NOTICE_CHANNEL_VERSION) query.set("system_notice_version", String(SYSTEM_NOTICE_CHANNEL_VERSION));
 	if (opts.interactionEventVersion === 1) query.set("interaction_event_version", "1");
 	if (opts.questionDismissalEventVersion === 1) {
 		if (opts.interactionEventVersion !== 1) throw new Error("Dismissal requires answer negotiation");
@@ -231,6 +234,7 @@ export async function openPushChannel(opts: PushChannelOptions): Promise<void> {
 		headers: {
 			authorization: `Bearer ${opts.token}`,
 			accept: "text/event-stream",
+			...pluginHeaders(),
 			...(opts.connectionCapability ? { "x-devspec-connection-capability": opts.connectionCapability } : {}),
 		},
 		signal: opts.signal,

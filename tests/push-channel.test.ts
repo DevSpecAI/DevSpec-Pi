@@ -18,10 +18,10 @@ test("main SSE URL advertises additive capabilities only when dynamically reques
 		pushChannelUrl({
 			mcpUrl: "https://devspec.test/api/mcp",
 			connectionId: "id with spaces",
-			systemNoticeVersion: 1,
+			systemNoticeVersion: 2,
 			interactionEventVersion: 1,
 		}),
-		"https://devspec.test/api/mcp/connection-stream?connection_id=id+with+spaces&system_notice_version=1&interaction_event_version=1",
+		"https://devspec.test/api/mcp/connection-stream?connection_id=id+with+spaces&system_notice_version=2&interaction_event_version=1",
 	);
 	assert.equal(
 		pushChannelUrl({ mcpUrl: "https://devspec.test/api/mcp/", connectionId: "plain" }),

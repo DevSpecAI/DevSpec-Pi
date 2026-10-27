@@ -14,10 +14,9 @@ export const TRAIL_EVENT_STATUSES = ["running", "ok", "error"] as const;
 export type TrailEventStatus = (typeof TRAIL_EVENT_STATUSES)[number];
 
 export const TRAIL_DOMAINS = [
-	"action_item",
+	"task",
 	"memory",
 	"implementation",
-	"conflict",
 	"criterion",
 	"resource",
 ] as const;
@@ -104,14 +103,17 @@ interface DomainSpec {
 }
 
 const DOMAIN_BY_NAME: Record<string, DomainSpec> = {
-	create_action_item: { domain: "action_item", action: "created" },
-	update_action_item: { domain: "action_item", action: "updated" },
-	claim_work_item: { domain: "action_item", action: "claimed" },
+	create_task: { domain: "task", action: "created" },
+	update_task: { domain: "task", action: "updated" },
+	claim_work_item: { domain: "task", action: "claimed" },
 	record_implementation: { domain: "implementation", action: "recorded" },
 	record_criterion_verdicts: { domain: "criterion", action: "recorded" },
-	resolve_action_item_conflict: { domain: "conflict", action: "resolved" },
-	resolve_action_item_decision_flag: { domain: "conflict", action: "resolved" },
+	// The replacing item, like supersede_memory's successor: the one to read now.
+	supersede_task: { domain: "task", action: "superseded" },
 	record_memory: { domain: "memory", action: "recorded" },
+	update_memory: { domain: "memory", action: "updated" },
+	resolve_memory_flag: { domain: "memory", action: "reviewed" },
+	resolve_resource_flag: { domain: "resource", action: "reviewed" },
 	supersede_memory: { domain: "memory", action: "superseded" },
 	retract_memory: { domain: "memory", action: "retracted" },
 	create_resource: { domain: "resource", action: "created" },
@@ -167,7 +169,13 @@ export function classifyDomainTool(name: string, _args?: unknown): DomainSpec | 
 }
 
 /** Fixed public dispositions only; receipt bodies and arbitrary outcome strings stay private. */
-export type TrailWriteOutcome = "committed" | "queued_for_review" | "not_applied" | "failed";
+export type TrailWriteOutcome = "committed" | "queued_for_review" | "pending" | "not_applied" | "failed";
+
+/** The boolean receipts a write sets: false means it did not apply, true that it did. */
+const WRITE_MARKERS = [
+	"applied", "committed", "recorded", "created", "updated", "superseded",
+	"retracted", "archived", "claim_success", "implementation_recorded",
+] as const;
 
 export function writeOutcomeFromResult(result: unknown): TrailWriteOutcome | undefined {
 	const row = unwrapResult(result);
@@ -178,24 +186,16 @@ export function writeOutcomeFromResult(result: unknown): TrailWriteOutcome | und
 	if (asRecord(result)?.isError === true || row.isError === true || row.success === false || row.ok === false
 		|| row.outcome === "failed" || row.outcome === "error") return "failed";
 	// Queued creates explicitly say recorded/created=false. Keep the proposal
-	// distinct from a comparison gate or failure, without borrowing its source ID.
+	// distinct from a write that did not apply or failed, without borrowing its source ID.
 	if (row.outcome === "queued_for_review") return "queued_for_review";
-	if (row.reconcile_required === true || [
-		"applied", "committed", "recorded", "created", "updated", "superseded",
-		"retracted", "archived", "claim_success", "implementation_recorded", "resolved",
-	].some((key) => row[key] === false)) return "not_applied";
-	if (row.outcome === "committed") return "committed";
+	if (row.closure === "pending" || row.tense === "pending") return "pending";
+	if (WRITE_MARKERS.some((key) => row[key] === false)) return "not_applied";
+	if (row.outcome === "committed" || (row.outcome === "duplicate" && row.original_outcome === "committed")) return "committed";
 	// A new explicit disposition is not evidence that the default write happened.
 	if (typeof row.outcome === "string" && row.outcome.trim()) return "not_applied";
+	if (WRITE_MARKERS.some((key) => row[key] === true)) return "committed";
 	return undefined;
 }
-
-/** The word a queued write gets instead of the committed one, per domain. */
-const QUEUED_ACTION_BY_DOMAIN: Partial<Record<TrailDomain, string>> = {
-	// A queued pair ruling is contested, not resolved — the served contested_rule
-	// ends "Never describe a contested pair as resolved."
-	conflict: "contested",
-};
 
 /**
  * What the trail says a write DID. `DOMAIN_BY_NAME` names the committed outcome,
@@ -204,10 +204,11 @@ const QUEUED_ACTION_BY_DOMAIN: Partial<Record<TrailDomain, string>> = {
  * ledger exists to prevent (DevSpec item 689d44cb).
  */
 export function domainAction(spec: DomainSpec, outcome?: TrailWriteOutcome): string {
+	if (outcome === undefined) return "outcome unknown";
+	if (outcome === "pending") return "pending";
 	if (outcome === "not_applied") return "not applied";
 	if (outcome === "failed") return "failed";
-	if (outcome !== "queued_for_review") return spec.action;
-	return QUEUED_ACTION_BY_DOMAIN[spec.domain] ?? "proposed";
+	return outcome === "queued_for_review" ? "proposed" : spec.action;
 }
 
 export function domainIdentity(name: string, args?: unknown, result?: unknown): { id?: string; title?: string } {
@@ -217,29 +218,29 @@ export function domainIdentity(name: string, args?: unknown, result?: unknown): 
 	const r = unwrapResult(result);
 	const item = asRecord(r?.item);
 	let nested: Record<string, unknown> | null = null;
-	if (spec.domain === "action_item") nested = asRecord(r?.action_item) ?? asRecord(item?.action_item) ?? item ?? r;
+	if (spec.domain === "task") nested = asRecord(r?.task) ?? asRecord(item?.task) ?? item ?? r;
 	if (spec.domain === "memory") nested = asRecord(r?.memory) ?? asRecord(item?.memory) ?? item ?? r;
 	if (spec.domain === "resource") nested = asRecord(r?.resource) ?? asRecord(item?.resource) ?? item ?? r;
-	if (["implementation", "criterion", "conflict"].includes(spec.domain)) {
-		nested = asRecord(r?.action_item) ?? asRecord(item?.action_item) ?? item ?? r;
+	if (["implementation", "criterion"].includes(spec.domain)) {
+		nested = asRecord(r?.task) ?? asRecord(item?.task) ?? item ?? r;
 	}
 
 	const resultIdKeys = spec.domain === "memory"
 		? ["id", "memory_id"]
 		: spec.domain === "resource"
 			? ["id", "resource_id"]
-			: ["id", "action_item_id"];
+			: ["id", "task_id", "superseding_item_id"];
 	const argIdKeys = spec.domain === "memory"
 		? ["memory_id", "id"]
 		: spec.domain === "resource"
 			? ["resource_id", "id"]
-			: ["action_item_id", "id"];
+			: ["task_id", "id"];
 	const title = safeTrailLabel(pickString(nested, ["title"]) ?? pickString(a, ["title"]), 240);
 	const outcome = writeOutcomeFromResult(result);
-	if (outcome && outcome !== "committed") return { title };
+	if (result !== undefined && outcome !== "committed") return { title };
 	// Creates and supersedes mint a new identity. A missing replacement ID must
 	// never fall back to the old row merely because the host reported success.
-	const mintsIdentity = ["create_action_item", "record_memory", "create_resource", "supersede_memory", "supersede_resource"].includes(name);
+	const mintsIdentity = ["create_task", "record_memory", "create_resource", "supersede_memory", "supersede_resource"].includes(name);
 	const fallbackId = result !== undefined && mintsIdentity ? undefined : pickString(a, argIdKeys);
 	const id = safeTrailId(pickString(nested, resultIdKeys) ?? fallbackId);
 	return { id, title };

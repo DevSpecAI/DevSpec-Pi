@@ -21,9 +21,13 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { resolveEndpoint } from "./auth-store.ts";
 import { argsHaveProjectScope, folderScopeArgs, needsProjectScope } from "./project-scope.ts";
+import { LOADED_CLIENT_VERSIONS, pluginHeaders, withClientVersions } from "./client-versions.ts";
+import { conversationScope, hasConversationProjectScope, readProjectChoiceRequired, type ProjectChoiceRequired } from "./project-choice.ts";
 
 const CLIENT_NAME = "devspec-pi";
-const CLIENT_VERSION = "0.2.0";
+// The MCP handshake names the same loaded artifact the x-devspec-plugin header
+// does; a hand-kept literal here had drifted to a release long gone.
+const CLIENT_VERSION = LOADED_CLIENT_VERSIONS.plugin_version ?? "unknown";
 const DEFAULT_TIMEOUT_MS = 60_000;
 /** Hard cap for model-facing verbs. The SDK timeout alone did not fire on the
  *  live Streamable-HTTP parse hang (~90s, session d8883a49). */
@@ -51,7 +55,13 @@ export class DevspecAuthUnavailableError extends DevspecApiError {
 }
 
 /** MCP tool result with `isError: true` — a verb refusal, not a dead socket. */
-export class DevspecToolError extends DevspecApiError {}
+export class DevspecToolError extends DevspecApiError {
+	readonly projectChoice: ProjectChoiceRequired | null;
+	constructor(message: string, raw?: unknown) {
+		super(message);
+		this.projectChoice = readProjectChoiceRequired(raw);
+	}
+}
 
 /** The per-token request budget is exhausted; carries the server's retry hint. */
 export class DevspecRateLimitError extends DevspecApiError {
@@ -265,6 +275,7 @@ async function openClient(
 		requestInit: {
 			headers: {
 				authorization: `Bearer ${token}`,
+				...pluginHeaders(),
 				...(connectionCapability ? { "x-devspec-connection-capability": connectionCapability } : {}),
 			},
 		},
@@ -274,8 +285,8 @@ async function openClient(
 	return client as unknown as LaneClient;
 }
 
-async function acquireClient(token: string, lane: ClientLane, connectionCapability?: string): Promise<CacheEntry> {
-	const url = laneClientFactory() ? "https://devspec.test/api/mcp" : await resolveEndpoint();
+async function acquireClient(token: string, lane: ClientLane, connectionCapability?: string, endpoint?: string): Promise<CacheEntry> {
+	const url = endpoint ?? (laneClientFactory() ? "https://devspec.test/api/mcp" : await resolveEndpoint());
 	const slot = cacheStore()[lane];
 	for (;;) {
 		if (reusable(slot.entry, token, url, connectionCapability)) {
@@ -428,7 +439,19 @@ export function isPermanentServerEnd(status?: string | null, endReason?: string 
 	return endReason === "ui" || endReason === "local_stop";
 }
 
+/**
+ * A person ended this agent from DevSpec (End on the Agents page or in a session), so
+ * Pi closes itself (item 7813bcd9). The server's `ui` is the only end that does this:
+ * only the connection's owner can cause it. A local stop means the person is at this
+ * terminal and keeps Pi open, and every recoverable end keeps it open too.
+ */
+export function personEndClosesPi(status?: string | null, endReason?: string | null): boolean {
+	return isPermanentServerEnd(status, endReason) && endReason === "ui";
+}
+
 export interface CallOptions {
+	/** Host-frozen endpoint for an existing observation; never adopt a new login's URL on retry. */
+	endpoint?: string;
 	/** Non-idempotent mechanical delivery: no transport, scope, or rate-limit replay. */
 	retry?: "never";
 	/** Recheck captured authority after cooldown/client acquisition, immediately before send. */
@@ -473,9 +496,10 @@ async function invokeOnLane<T>(
 	timeoutMs: number,
 	label: string,
 	run: (client: LaneClient) => Promise<T>,
+	endpoint?: string,
 ): Promise<T> {
 	await waitOutCooldown();
-	const entry = await acquireClient(token, lane, connectionCapability);
+	const entry = await acquireClient(token, lane, connectionCapability, endpoint);
 	try {
 		return await withHardTimeout(run(entry.client), timeoutMs, label);
 	} catch (err) {
@@ -505,7 +529,11 @@ export async function callDevspec(
 ): Promise<unknown> {
 	const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 	const lane: ClientLane = options.lane ?? "work";
-	let callArgs = args;
+	let callArgs = withClientVersions(name, args);
+	// Scope is conversation-owned. Folder facts are only the unbound fallback.
+	if (hasConversationProjectScope() && !options.connectionCapability && name !== "list_projects" && name !== "verify_agent_connection" && name !== "get_personal_instructions" && name !== "update_personal_instructions" && name !== "devspec_help_search") {
+		callArgs = conversationScope(callArgs, options.endpoint ?? await resolveEndpoint());
+	}
 	if (options.cwd && !argsHaveProjectScope(callArgs)) {
 		const scope = await folderScopeArgs(options.cwd);
 		if (scope.git_remote || scope.pinned_project_id) {
@@ -527,9 +555,10 @@ export async function callDevspec(
 					options.beforeSend?.();
 					return client.callTool({ name, arguments: callArgs }, undefined, { timeout: timeoutMs });
 				},
+				options.endpoint,
 			);
 			const toolError = mcpToolErrorText(raw, name);
-			if (toolError) throw new DevspecToolError(toolError);
+			if (toolError) throw new DevspecToolError(toolError, raw);
 			return raw;
 		} catch (err) {
 			const mapped = mapClientError(err);
@@ -592,13 +621,13 @@ export async function callDevspecAdvisoryOnce(
 	if (cooldown > 0) throw new DevspecRateLimitError("DevSpec advisory skipped during rate-limit cooldown.", cooldown);
 	const url = await resolveEndpoint();
 	const transport = new StreamableHTTPClientTransport(new URL(url), {
-		requestInit: { headers: { authorization: `Bearer ${token}` } },
+		requestInit: { headers: { authorization: `Bearer ${token}`, ...pluginHeaders() } },
 	});
 	const client = new Client({ name: `${CLIENT_NAME}-advisory`, version: CLIENT_VERSION }, { capabilities: {} });
 	try {
 		const raw = await withHardTimeout((async () => {
 			await client.connect(transport);
-			return client.callTool({ name, arguments: args }, undefined, { timeout: timeoutMs });
+			return client.callTool({ name, arguments: withClientVersions(name, args) }, undefined, { timeout: timeoutMs });
 		})(), timeoutMs, `${name} advisory`);
 		const result = raw as { isError?: boolean; content?: Array<{ type?: string; text?: string }> };
 		if (result?.isError) {

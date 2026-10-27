@@ -1,0 +1,54 @@
+name: Native tool catalogue contracts
+on:
+  push:
+    branches: [staging, main]
+    paths:
+      - 'extensions/generated/**'
+      - 'extensions/core/model-surface.ts'
+      - 'extensions/core/tool-selection.ts'
+      - 'extensions/devspec-tools.ts'
+      - 'scripts/generate-mcp-catalog.mjs'
+      - 'scripts/context-benchmark.ts'
+      - 'tests/model-surface.test.ts'
+      - 'tests/mcp-catalog.test.ts'
+      - 'tests/catalog-drift.test.ts'
+      - 'tests/tool-selection.test.ts'
+      - 'tests/catalog-generation.test.ts'
+      - '.github/workflows/tool-catalogue.yml'
+  pull_request:
+    paths:
+      - 'extensions/generated/**'
+      - 'extensions/core/model-surface.ts'
+      - 'extensions/core/tool-selection.ts'
+      - 'extensions/devspec-tools.ts'
+      - 'scripts/generate-mcp-catalog.mjs'
+      - 'scripts/context-benchmark.ts'
+      - 'tests/model-surface.test.ts'
+      - 'tests/mcp-catalog.test.ts'
+      - 'tests/catalog-drift.test.ts'
+      - 'tests/tool-selection.test.ts'
+      - 'tests/catalog-generation.test.ts'
+      - '.github/workflows/tool-catalogue.yml'
+permissions:
+  contents: read
+concurrency:
+  group: native-tool-catalogue-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24.x'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      # No private-repository or model-provider credentials on public PR runners.
+      # Paired source parity also runs when both checkouts are present locally.
+      - run: node --test --test-concurrency=1 tests/model-surface.test.ts tests/mcp-catalog.test.ts tests/tool-selection.test.ts tests/catalog-drift.test.ts tests/catalog-generation.test.ts
+      - run: npm run benchmark:context

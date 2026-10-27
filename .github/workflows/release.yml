@@ -1,0 +1,58 @@
+name: Publish @devspec/pi-plugin to npm
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish (e.g. v0.10.2)'
+        required: true
+        type: string
+
+concurrency:
+  group: devspec-pi-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Verify release tag matches package.json version
+        env:
+          RELEASE_REF: ${{ inputs.tag || github.ref_name }}
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          EXPECTED_TAG="v${PKG_VERSION}"
+          if [ "$RELEASE_REF" != "$EXPECTED_TAG" ]; then
+            echo "Error: release ref '$RELEASE_REF' does not match package.json version '$EXPECTED_TAG'" >&2
+            exit 1
+          fi
+          echo "Verified tag $RELEASE_REF matches package.json version $PKG_VERSION"
+
+      - run: npm ci --ignore-scripts
+      - run: npm run check
+      - run: npm run audit:gate
+      - run: node --test tests/packed-package.test.ts
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public

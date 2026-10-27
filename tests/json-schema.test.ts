@@ -6,17 +6,17 @@ test("wraps a JSON Schema object without rewriting properties", () => {
 	const schema = {
 		type: "object",
 		properties: {
-			action_item_id: { type: "string", description: "id" },
+			task_id: { type: "string", description: "id" },
 			verdicts: { type: "array", items: { type: "object" } },
 		},
-		required: ["action_item_id", "verdicts"],
+		required: ["task_id", "verdicts"],
 	};
 	const wrapped = jsonSchemaToTypebox(schema) as unknown as Record<string, unknown>;
 	assert.equal(wrapped.type, "object");
 	const props = wrapped.properties as Record<string, unknown>;
-	assert.ok(props.action_item_id);
+	assert.ok(props.task_id);
 	assert.ok(props.verdicts);
-	assert.deepEqual(wrapped.required, ["action_item_id", "verdicts"]);
+	assert.deepEqual(wrapped.required, ["task_id", "verdicts"]);
 });
 
 test("empty / missing schema becomes an empty object", () => {

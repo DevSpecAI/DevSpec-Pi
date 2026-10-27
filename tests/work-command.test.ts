@@ -11,8 +11,8 @@ const source = readFileSync(
 test("/devspec.work is one explicit selection and has no independent queue drain", () => {
 	assert.doesNotMatch(source, /get_next_work_item/);
 	assert.doesNotMatch(source, /fetchNextFromQueue/);
-	assert.match(source, /Choose one action item to work on/);
-	assert.match(source, /Select one explicit DevSpec action item to work on/);
+	assert.match(source, /Choose one task to work on/);
+	assert.match(source, /Select one explicit DevSpec task to work on/);
 	assert.doesNotMatch(source, /implementationContext\.source === "local_safety_fallback"/);
 	// No execution mode is passed to the loader, because there is none to pass.
 	assert.doesNotMatch(source, /executionMode/);

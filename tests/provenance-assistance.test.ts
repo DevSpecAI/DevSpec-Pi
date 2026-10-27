@@ -38,7 +38,7 @@ const waitFor = async (predicate: () => boolean, timeoutMs = 2_000): Promise<boo
 };
 
 function successfulClaim(id = ITEM, projectId = PROJECT) {
-	return { details: { claim_success: true, action_item: { id, project_id: projectId } } };
+	return { details: { claim_success: true, task: { id, project_id: projectId } } };
 }
 
 test("only reliable first-class edit events can emit the one advisory nudge", async () => {
@@ -47,14 +47,26 @@ test("only reliable first-class edit events can emit the one advisory nudge", as
 	for (const tool of ["bash", "shell", "subagent", "future_tool", "read"]) {
 		assert.equal(await unclaimedEditNudge(tool, runtime(), resolvePin), null, tool);
 	}
-	const first = await unclaimedEditNudge("edit", runtime(), resolvePin);
+	const first = await unclaimedEditNudge("edit", runtime(), resolvePin, () => true);
 	assert.ok(first);
 	assert.equal(first.customType, "devspec-provenance-nudge");
 	assert.equal(first.display, true, "custom message stays visible as well as model-visible");
 	assert.match(first.content, /Continue this edit—editing is never blocked/);
-	assert.match(first.content, /search_action_items/);
-	assert.match(first.content, /thin last-mile item/);
-	assert.match(first.content, /Pi cannot add the \[devspec:<full-uuid>\] commit reference for you/);
+	assert.match(first.content, /search_tasks/);
+	// create_task requires a substantive description and intent: never advise a thin item (5a9eaa57).
+	assert.match(first.content, /substantive description and the reason for the work/);
+	assert.doesNotMatch(first.content, /thin|last-mile/);
+	// Pi tags commits itself once one task is claimed (df71ab6c); the model writes
+	// the tag only when Pi says it did not.
+	assert.match(first.content, /Once one task is claimed, Pi adds its \[devspec:<full-uuid>\] tag to your commits itself; write the tag yourself only when Pi says it did not\./);
+	assert.doesNotMatch(first.content, /Pi cannot add/);
+	// Where the git stand-in cannot tag (native Windows, no bonded connection), the
+	// nudge asks for the tag outright (c4b14794).
+	resetWorkStateForTests();
+	const untagged = await unclaimedEditNudge("edit", runtime(), resolvePin, () => false);
+	assert.match(untagged?.content ?? "", /Pi cannot add task tags to commits in this setup, so put the claimed task's \[devspec:<full-uuid>\] in every commit message yourself\./);
+	resetWorkStateForTests();
+	assert.ok(await unclaimedEditNudge("edit", runtime(), resolvePin, () => true));
 	assert.doesNotMatch(first.content, /refus|analy[sz]er|reconcil|safety net/i);
 	assert.equal(first.details.projectId, PROJECT);
 	for (const tool of ["write", "edit", "apply_patch", "notebook"]) {
@@ -79,7 +91,7 @@ test("uncertain jurisdiction and existing claims suppress the nudge without bloc
 	assert.equal(hasObservedClaim("session-a"), false);
 	assert.equal(observeSuccessfulWorkResult(
 		"claim_work_item",
-		{ action_item_id: ITEM },
+		{ task_id: ITEM },
 		successfulClaim(),
 		"session-a",
 		PROJECT,
@@ -90,7 +102,7 @@ test("uncertain jurisdiction and existing claims suppress the nudge without bloc
 
 test("a claim in one project does not suppress another project's one-shot nudge", async () => {
 	resetWorkStateForTests();
-	observeSuccessfulWorkResult("claim_work_item", { action_item_id: ITEM }, successfulClaim(), "session-a", PROJECT);
+	observeSuccessfulWorkResult("claim_work_item", { task_id: ITEM }, successfulClaim(), "session-a", PROJECT);
 	assert.equal(hasObservedClaim("session-a", PROJECT), true);
 	assert.equal(hasObservedClaim("session-a", PROJECT_B), false);
 	const other = await unclaimedEditNudge("edit", runtime(), async () => PROJECT_B);
@@ -100,18 +112,18 @@ test("a claim in one project does not suppress another project's one-shot nudge"
 
 test("an unbonded claim stores the server-resolved project from its result", () => {
 	resetWorkStateForTests();
-	observeSuccessfulWorkResult("claim_work_item", { action_item_id: ITEM }, successfulClaim(ITEM, PROJECT), "headless-session");
+	observeSuccessfulWorkResult("claim_work_item", { task_id: ITEM }, successfulClaim(ITEM, PROJECT), "headless-session");
 	assert.equal(hasObservedClaim("headless-session", PROJECT), true);
 	assert.equal(hasObservedClaim("headless-session", PROJECT_B), false);
 });
 
 test("post-record follow-through remains writable and may receive only the advisory nudge", async () => {
 	resetWorkStateForTests();
-	observeSuccessfulWorkResult("claim_work_item", { action_item_id: ITEM }, successfulClaim(), "session-a", PROJECT);
+	observeSuccessfulWorkResult("claim_work_item", { task_id: ITEM }, successfulClaim(), "session-a", PROJECT);
 	assert.equal(hasObservedClaim("session-a"), true);
 	observeSuccessfulWorkResult(
 		"record_implementation",
-		{ action_item_id: ITEM },
+		{ task_id: ITEM },
 		{ details: { id: ITEM, lifecycle: "implemented" } },
 		"session-a",
 		PROJECT,
@@ -302,17 +314,4 @@ test("obsolete mutation parser and trusted-child authority files are removed", (
 	assert.equal(existsSync(new URL("../extensions/core/claim-authority.ts", import.meta.url)), false);
 	const tools = readFileSync(new URL("../extensions/devspec-tools.ts", import.meta.url), "utf8");
 	assert.doesNotMatch(tools, /claimAuthority|mutation authority|trusted subprocess/i);
-});
-
-test("checked-in capability table names every required fail-open surface", () => {
-	const table = readFileSync(new URL("../docs/commit-provenance-capabilities.md", import.meta.url), "utf8");
-	for (const phrase of [
-		"First-class file edits", "Arbitrary Bash/shell", "Direct Git commit", "Git rewrite/ref operations", "Git push/outgoing history",
-		"Project association", "DevSpec unavailable", "Post-implementation tools", "Subagents/unattended work",
-	]) assert.match(table, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
-	assert.match(table, /instructions plus DevSpec's universal commit ingestion\/analyzer/i);
-	assert.match(table, /private session Git argv shim/i);
-	assert.match(table, /`plugin_observed` measurement/i);
-	assert.match(table, /does \*\*not\*\* claim universal process coverage/i);
-	assert.match(table, /merge.*cherry-pick.*revert.*rebase.*am.*update-ref.*commit-tree/s);
 });

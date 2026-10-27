@@ -2,6 +2,19 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { shouldTerminateAfterDirectedQuestionCreate } from "../extensions/devspec-tools.ts";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+
+/**
+ * The installed host's agent loop. `pi-agent-core` is resolved from `pi-coding-agent` the way
+ * Node resolves it: nested under the host when its shrinkwrap pins it (Pi 1.0), hoisted when
+ * it does not (Pi 1.1).
+ */
+function installedAgentLoop(): string {
+	const host = createRequire(new URL("../node_modules/@earendil-works/pi-coding-agent/package.json", import.meta.url));
+	const core = dirname(host.resolve("@earendil-works/pi-agent-core/package.json"));
+	return readFileSync(join(core, "dist/agent-loop.js"), "utf8");
+}
 
 const remote = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 const tools = readFileSync(new URL("../extensions/devspec-tools.ts", import.meta.url), "utf8");
@@ -30,7 +43,7 @@ test("only a receipt-owning successful directed-question create requests Pi term
 });
 
 test("installed Pi termination is batch-safe and stops only an all-terminating tool batch", () => {
-	const loop = readFileSync(new URL("../node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-agent-core/dist/agent-loop.js", import.meta.url), "utf8");
+	const loop = installedAgentLoop();
 	assert.match(loop, /hasMoreToolCalls = !executedToolBatch\.terminate/);
 	assert.match(loop, /finalizedCalls\.length > 0 && finalizedCalls\.every\(\(finalized\) => finalized\.result\.terminate === true\)/);
 });
@@ -66,8 +79,9 @@ test("trail, final, keepalive, fallback, and process exit carry the exact intera
 	assert.match(keepalive, /connection_id: run\.authority\.connectionId[^]*exactInteractionContinuationArgs\(run\.identity\)/);
 	assert.match(keepalive, /await callDevspec[^]*return interactionRunIsLive\(run\) && interactionAuthorityCurrent\(run\.authority\)/);
 	assert.doesNotMatch(keepalive, /active\.bond\.connectionId/);
-	assert.match(remote, /reportComplete\("turn_end", commandTurnId, commandMessageId, commandTurnUnbound, interactionIdentity\(interactionRun\)\)/);
-	assert.match(remote, /reportComplete\("process_exit", openTurn\.commandTurnId, openTurn\.commandMessageId, isCommandTurnUnbound\(openTurn\), interactionIdentity\(openTurn\.interaction\)\)/);
+	assert.match(remote, /completeTurnActivity\(settlingTurn, "turn_end"\)/);
+	assert.match(remote, /completeTurnActivity\(openTurn, "process_exit"\)/);
+	assert.match(remote, /const interaction = interactionIdentity\(t\.interaction\);[^]*reportComplete\(reason, commandTurnId, commandMessageId, false, interaction, false, current\)/);
 	assert.match(remote, /command_turn_unbound: true[^]*exactInteractionContinuationArgs/);
 });
 
@@ -114,7 +128,8 @@ test("ambiguous start and release calls retain exact pump retries", () => {
 
 test("owner polling is deferred by server activity while Pi suppresses generic busy mutation", () => {
 	const pump = between("async function pumpLoop", "interface BondOutcome");
-	assert.match(pump, /!activeInteractionRun\(active\) \? \{ busy: active\.busy \} : \{\}/);
+	// Both generic presence fields stay absent during an exact interaction run.
+	assert.match(pump, /!activeInteractionRun\(active\) \? \{ busy: active\.busy, progress_marker: currentProgressMarker\(\) \} : \{\}/);
 	assert.match(pump, /interactionEventAck[^]*catch_up: true/);
 	assert.match(pump, /await applyInteractionEvent\(active, ctx, interactionEvent\)/);
 });

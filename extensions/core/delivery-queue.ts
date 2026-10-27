@@ -62,7 +62,7 @@ export class DeliveryQueue {
 				// pump has a new queue and receives any still-live delivery itself.
 				if (!lease.isCurrent() || error instanceof StaleDeliveryError) return;
 				// A live inbox may offer the same automation run again after a transient
-				// send failure. Action-item work never enters this queue.
+				// send failure. Task work never enters this queue.
 				this.seen.delete(key);
 				onError(error);
 			});

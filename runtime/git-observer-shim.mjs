@@ -6,10 +6,17 @@
  * not installed as a Git hook and never changes repository or machine config.
  * It delegates Git byte-for-byte, then emits only a bounded local observation
  * when a successful direct `commit` can be proved from Trace2 + the actual repo.
+ *
+ * The one exception (DevSpec item df71ab6c, owner-approved): when the host armed
+ * stamping for this call, a plain `git commit` in the claimed task's project gets
+ * the task's `[devspec:<uuid>]` appended to its subject, by the rules in
+ * commit-stamp.mjs. Every other invocation, and every commit those rules do not
+ * cover, is delegated exactly as before.
  */
 
 import { spawn, spawnSync } from "node:child_process";
-import { appendFileSync, mkdirSync, realpathSync, rmSync } from "node:fs";
+import { appendFileSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { planCommitStamp, readStampScope, repositoryInProject, unplannedReport } from "./commit-stamp.mjs";
 import { randomUUID } from "node:crypto";
 import { basename, dirname, join } from "node:path";
 import { createServer } from "node:net";
@@ -33,13 +40,20 @@ function run(realGit, args, options = {}) {
 	});
 }
 
-async function delegate(realGit, args, childEnv) {
+async function delegate(realGit, args, childEnv, stdin = null) {
 	const child = spawn(realGit, args, {
 		cwd: process.cwd(),
 		env: childEnv,
-		stdio: "inherit",
+		stdio: stdin ? ["pipe", "inherit", "inherit"] : "inherit",
 		windowsHide: true,
 	});
+	if (stdin) {
+		// The message git would have read from stdin: tagged, or the exact bytes.
+		child.stdin.on("error", () => { /* git exited without reading */ });
+		child.stdin.write(stdin.bytes);
+		if (stdin.rest) process.stdin.pipe(child.stdin);
+		else child.stdin.end();
+	}
 	const forwarded = [];
 	for (const signal of ["SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT"]) {
 		const handler = () => {
@@ -56,8 +70,41 @@ async function delegate(realGit, args, childEnv) {
 	return result;
 }
 
+/**
+ * Git for Windows has no Unix domain sockets, so there Trace2 writes one file per
+ * git process into a private directory instead (c4b14794). The events are the same.
+ */
+function startDirectoryTraceCapture(observerDir) {
+	const dir = join(observerDir, `trace-${randomUUID()}`);
+	mkdirSync(dir, { mode: 0o700 });
+	return {
+		target: dir,
+		async finish() {
+			try {
+				let bytes = 0;
+				const parts = [];
+				for (const name of readdirSync(dir).sort()) {
+					const part = readFileSync(join(dir, name), "utf8");
+					bytes += Buffer.byteLength(part);
+					if (bytes > MAX_TRACE_BYTES) return null;
+					parts.push(part.endsWith("\n") ? part : `${part}\n`);
+				}
+				return parts.join("");
+			} catch {
+				return null;
+			} finally {
+				try { rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }
+			}
+		},
+	};
+}
+
 async function startTraceCapture(observerDir) {
+	if (process.platform === "win32") return startDirectoryTraceCapture(observerDir);
 	const socketPath = join(observerDir, `trace-${randomUUID()}.sock`);
+	// Git connects only to a socket path that fits sun_path with its NUL; a longer
+	// one (a deep temp directory) can bind in node yet receive nothing from git.
+	if (Buffer.byteLength(socketPath) > 100) return startDirectoryTraceCapture(observerDir);
 	const chunks = [];
 	const sockets = new Set();
 	let bytes = 0;
@@ -78,13 +125,20 @@ async function startTraceCapture(observerDir) {
 			}
 		});
 	});
-	await new Promise((resolve, reject) => {
-		server.once("error", reject);
-		server.listen(socketPath, () => {
-			server.off("error", reject);
-			resolve();
+	try {
+		await new Promise((resolve, reject) => {
+			server.once("error", reject);
+			server.listen(socketPath, () => {
+				server.off("error", reject);
+				resolve();
+			});
 		});
-	});
+	} catch {
+		// A socket path past the platform limit (a deep temp directory, or one
+		// with spaces) cannot be bound: the same events go to files instead.
+		try { server.close(); } catch { /* never listening */ }
+		return startDirectoryTraceCapture(observerDir);
+	}
 	return {
 		target: `af_unix:stream:${socketPath}`,
 		async finish() {
@@ -143,7 +197,7 @@ function parseGitGlobalArgs(args) {
 			continue;
 		}
 		if (arg.startsWith("-")) return null;
-		return { globals, command: arg };
+		return { globals, command: arg, index: i };
 	}
 	return null;
 }
@@ -159,11 +213,15 @@ function preflightRepository(realGit, args) {
 	const previousHead = before.status === 0 && FULL_SHA.test(before.stdout.trim().toLowerCase())
 		? before.stdout.trim().toLowerCase()
 		: null;
-	return { worktree, previousHead };
+	return { worktree, previousHead, globals: parsed.globals, command: parsed.command, commandIndex: parsed.index };
 }
 
 function directCommit(rows) {
-	const rootSid = rows.find((row) => row.event === "start" && typeof row.sid === "string")?.sid;
+	// The outermost process: first on a socket stream, and the shortest SID when
+	// Trace2 wrote one file per process (Windows), whatever order they are read in.
+	const rootSid = rows
+		.filter((row) => row.event === "start" && typeof row.sid === "string")
+		.reduce((best, row) => (!best || row.sid.split("/").length < best.split("/").length ? row.sid : best), null);
 	if (!rootSid) return null;
 	const commit = rows.find((row) => {
 		if (row.event !== "cmd_name" || row.name !== "commit" || typeof row.sid !== "string") return false;
@@ -253,6 +311,20 @@ const eligible = Boolean(
 );
 
 const preflight = eligible ? preflightRepository(realGit, args) : null;
+const stampScope = eligible ? readStampScope(process.env) : null;
+const gitRun = (gitArgs) => run(realGit, gitArgs);
+let stampPlan = null;
+if (preflight && stampScope && preflight.command === "commit") {
+	try {
+		mkdirSync(observerDir, { recursive: true, mode: 0o700 });
+		stampPlan = planCommitStamp({
+			args, commandIndex: preflight.commandIndex, globals: preflight.globals, cwd: process.cwd(),
+			worktree: preflight.worktree, scope: stampScope, run: gitRun, privateDir: observerDir,
+		});
+	} catch {
+		stampPlan = null; // stamping never stops git; the commit runs untouched
+	}
+}
 let traceCapture = null;
 let childEnv = process.env;
 if (preflight) {
@@ -266,8 +338,12 @@ if (preflight) {
 }
 
 const startedAt = Date.now();
-const result = await delegate(realGit, args, childEnv);
+const result = await delegate(realGit, stampPlan?.args ?? args, childEnv,
+	stampPlan?.stdin ? { bytes: stampPlan.stdin, rest: stampPlan.stdinRest === true } : null);
 const endedAt = Date.now();
+if (stampPlan?.privateFile) {
+	try { rmSync(stampPlan.privateFile, { force: true }); } catch { /* best effort */ }
+}
 const trace = traceCapture ? await traceCapture.finish().catch(() => null) : null;
 
 try {
@@ -279,6 +355,12 @@ try {
 			? inspectCommit(realGit, actualWorktree, preflight.previousHead, found.amend, startedAt, endedAt)
 			: null;
 		if (found && actualWorktree && commit) {
+			let stamp;
+			if (stampScope) {
+				try {
+					stamp = stampPlan?.report ?? unplannedReport(stampScope, repositoryInProject(gitRun, actualWorktree, null, stampScope));
+				} catch { stamp = undefined; }
+			}
 			const line = JSON.stringify({
 				v: 1,
 				generation,
@@ -289,6 +371,7 @@ try {
 				previousHead: commit.previousHead,
 				amend: commit.amend,
 				observedAt: new Date(endedAt).toISOString(),
+				...(stamp ? { stamp } : {}),
 			});
 			if (Buffer.byteLength(line) <= 4096) appendFileSync(journal, `${line}\n`, { encoding: "utf8", mode: 0o600 });
 		}

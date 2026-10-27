@@ -1,104 +1,72 @@
 # DevSpec for Pi
 
-Connect the [Pi](https://pi.dev) coding agent to [DevSpec](https://devspec.ai) with a single native package. Once installed and signed in, Pi connects to your DevSpec project automatically when you start it in a repository linked to that project, appears on your project's **Agents** page, works from your tasks, decisions, and documents, and can be steered live from your phone or the web.
+**Build on your team's best thinking.** [DevSpec](https://devspec.ai) is where your team, your shared knowledge, and your coding agents build software together.
 
-## Requirements
+Installing `@devspecai/pi-plugin` connects Pi directly to your DevSpec projects — giving your agent durable project memory, structured task execution, automatic commit provenance, and live remote control from your phone or browser.
 
-- [Pi](https://pi.dev) 1.0 or later
-- Node.js 22.19 or later
+---
 
-Full commit tracking — every commit reported to DevSpec and tagged with its task automatically — works on macOS, Linux, and Windows, both natively and through WSL. On native Windows, Pi runs its commands in Git Bash, which comes with [Git for Windows](https://git-scm.com/download/win) and is what Pi uses there by default. If Pi's shell is the older WSL `bash.exe` instead, Pi does not see the agent's commits, so the agent adds the task tag itself and DevSpec links the commits to their tasks later.
+## Why DevSpec + Pi?
 
-## Setup
+- **Shared team memory that never goes stale** — Pi automatically recalls the architectural decisions, conventions, risks, and reference docs that apply to the code it's touching. When you make a new decision together, Pi records it to DevSpec so every teammate and every agent stays aligned.
+- **Steer Pi live from your phone or the web** — Attach any Pi terminal to a DevSpec session room (`/devspec.remote`). Chat with your running agent from [devspec.ai](https://devspec.ai), collaborate with teammates in shared rooms, answer structured agent questions and polls, and track multi-phase execution plans in real time.
+- **Tasks, criteria, and automatic commit provenance** — Pick up tasks with full context (`/devspec.work`). While a task is claimed, Pi automatically tags your commits (`[devspec:<id>]`), links pull requests, and records test evidence against each acceptance criterion.
+- **Protected intent** — DevSpec screens changes against your team's recorded decisions and requirements, catching accidental reversals or duplicate work before it lands.
+- **One native package** — Native DevSpec tools, authentication, project matching, commit tracking, and live remote control are all built in. No separate MCP server setup required.
 
-### 1. Install Pi
+---
 
-On macOS and Linux:
+## Quick Start
 
-```bash
-curl -fsSL https://pi.dev/install.sh | sh
-```
-
-On Windows PowerShell:
-
-```powershell
-powershell -c "irm https://pi.dev/install.ps1 | iex"
-```
-
-### 2. Install the DevSpec package
-
-Install the DevSpec package at user level (without `-l`) so every folder has DevSpec:
+### 1. Install the package
 
 ```bash
 pi install npm:@devspecai/pi-plugin
 ```
 
-(If npm is unreachable in your environment, you can also install directly from GitHub with `pi install git:github.com/DevSpecAI/DevSpec-Pi`.)
+### 2. Sign in with your DevSpec token
 
-This package provides native DevSpec tools, authentication, project selection, and remote control. No separate DevSpec MCP server entry is needed. (If you previously added DevSpec to Pi's `/mcp` settings, the package disables that duplicate entry so its tools aren't loaded twice.)
-
-**Optional recommended extensions** (delegated subagents and web search):
-
-```bash
-pi install npm:pi-subagents
-pi install npm:pi-exa
-```
-
-### 3. Sign in with your DevSpec token
-
-Create an access token with **Read & write** access on your [Agent setup](https://app.devspec.ai/settings/agents) page, then start `pi` and run:
+Create a **Read & write** access token on your [Agent setup](https://app.devspec.ai/settings/agents) page, then inside `pi` run:
 
 ```text
 /devspec.login dvs_your_token_here
 ```
 
-Your token is saved locally (`~/.pi/agent/devspec/auth.json`) with owner-only permissions and works across all of your DevSpec projects.
+Your token is stored locally (`~/.pi/agent/devspec/auth.json`) with owner-only permissions and works across all of your DevSpec projects.
 
-### 4. Start Pi and connect to your project
+### 3. Connect to your project
 
-- **Inside a linked repository:** Start `pi` in the folder where you cloned the Git repository linked to your DevSpec project. Pi matches the repository to your project automatically and appears on the project's **Agents** page.
-- **In any other folder, or when switching projects:** Start `pi` and run `/devspec.project` to choose which project this conversation belongs to (or launch with `pi --devspec-project "Client Website"`).
+- **In a linked repository:** Start `pi` in any Git repository linked to your DevSpec project. Pi matches the repository to your project automatically.
+- **Connect for remote control:** Run `/devspec.remote` to put this Pi session live on your project's **Agents** page and attach it to a session room.
+- **Switch or pin projects anywhere:** Run `/devspec.project` to inspect or change the active project for the current conversation or folder (or launch with `pi --devspec-project "Project Name"`).
+
+---
 
 ## Commands
 
-Everything in DevSpec can be asked in plain words ("Work on DevSpec task 4f2a", "What did we decide about caching?", "Create a task for the login redirect bug"). The package also adds these slash commands in Pi:
+You can ask Pi to do anything in DevSpec in plain English (*"Work on DevSpec task 4f2a"*, *"What did we decide about rate limiting?"*, *"Create a task for the webhook retry bug"*).
+
+The package also adds these slash commands inside Pi:
 
 | Command | What it does |
 |---|---|
 | `/devspec.login <token>` | Signs Pi in to DevSpec with your `dvs_…` access token. |
-| `/devspec.logout` | Removes the stored token from this computer. |
-| `/devspec.status` | Shows whether you're connected, as whom, and to which project and session. |
-| `/devspec.project` | Opens the project menu to inspect or change the project for this conversation or folder. |
-| `/devspec.remote` | Connects this conversation to DevSpec (or pass `--project`, `--session <id>`, `--new`, `--new --private`, or `--name "…"`). |
+| `/devspec.logout` | Removes your stored DevSpec token from this machine. |
+| `/devspec.status` | Shows your connection status, active user, project, and attached session room. |
+| `/devspec.remote` | Connects this Pi conversation to DevSpec for live remote control from the web or phone. |
+| `/devspec.remote --new` | Connects and starts a fresh shared session room (`--new --private` for a private room). |
+| `/devspec.remote --session <id>` | Connects and joins a specific DevSpec session room. |
+| `/devspec.remote --project "<name>"` | Connects to a specific project for this conversation without changing the folder default. |
+| `/devspec.remote --name "Night Owl"` | Connects using a custom agent codename. |
 | `/devspec.remote-stop` | Disconnects this Pi conversation from DevSpec while leaving other terminals running. |
-| `/devspec.work` | Lists open tasks or claims a specific task by ID or title to start working on it. |
-| `/devspec.pin <project-uuid>` | Writes `.devspec/project.json` in the current folder to pin it to that project. |
+| `/devspec.work` | Lists open tasks in your project or claims a task by ID or title to start building. |
+| `/devspec.project` | Opens the project selector (`status`, `choose`, `remember`, or `forget`). |
+| `/devspec.pin <project-uuid>` | Pins the current folder to a DevSpec project via `.devspec/project.json`. |
 
-## Choosing and remembering a project
+---
 
-When a repository belongs to more than one DevSpec project, or you start Pi in a folder without a Git remote, Pi prompts you to pick from your accessible projects.
+## Learn More
 
-You can also target a project directly:
-
-```text
-pi --devspec-project "Client Website"
-/devspec.remote --project "Client Website"
-/devspec.remote --project <project-id> --session <session-id>
-```
-
-Use `/devspec.project` to manage the current conversation's project and folder default:
-
-- `/devspec.project status` shows the selected project, organization, full project ID, how it was selected, and any folder default.
-- `/devspec.project choose` selects a project for this conversation. Switching away from a project you have already been working in starts a fresh local conversation so context from one project never leaks into another.
-- `/devspec.project remember` saves the current project to `.devspec/project.json` in the folder after showing the file path and asking for confirmation.
-- `/devspec.project forget` removes the `.devspec/project.json` folder default after confirmation without disconnecting active conversations.
-
-## Updating
-
-To update the package to the latest version, run:
-
-```bash
-pi update
-```
-
-Then restart any open `pi` sessions so the updated package is loaded.
+- **Web & Sign Up:** [devspec.ai](https://devspec.ai)
+- **App & Agent Setup:** [app.devspec.ai/settings/agents](https://app.devspec.ai/settings/agents)
+- **Changelog:** [CHANGELOG.md](./CHANGELOG.md)

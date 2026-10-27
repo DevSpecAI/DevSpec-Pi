@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.4 - 2026-10-27
+
+- Added `pi.image` (`https://devspec.ai/logo-icon.png`), `homepage` (`https://devspec.ai`), and discovery keywords in `package.json` for the Pi package gallery (`pi.dev/packages`).
+- Overhauled `README.md` for `pi.dev/packages` and npm with a clear overview of DevSpec's capabilities, a streamlined 3-step Quick Start, and complete `/devspec.*` command reference.
+
 ## 0.10.3 - 2026-10-27
 
 - Scoped the published npm package under `@devspecai/pi-plugin` (matching the `DevSpecAI` organization) and updated the release workflow to support npm staged publishing (`npm stage publish --access public`).

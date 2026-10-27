@@ -8,6 +8,30 @@
       "title": "undici vulnerable to Denial of Service via unhandled error on excessive content-encodings",
       "reason": "Not in what customers install from this package. undici reaches this repository only through the Pi host packages we develop and test against (devDependencies @earendil-works/pi-coding-agent, which pins undici 8.10.2 exactly in every release through 1.4.0, and openai via @earendil-works/pi-ai); `npm ls undici --omit=dev` is empty and the published dependencies are @modelcontextprotocol/sdk and minisearch. At runtime the customer's undici is their own Pi host's, so the fix (8.12.2+) has to land upstream in pi-coding-agent; overriding the host's exact pin here would only change our test tree. Re-review when pi-coding-agent ships a patched undici.",
       "expires": "2026-11-25"
+    },
+    {
+      "ghsa": "GHSA-4w7w-5xrc-9h26",
+      "package": "undici",
+      "severity": "high",
+      "title": "undici vulnerable to cache poisoning and cross-user disclosure via cross-origin redirects",
+      "reason": "Not in what customers install from this package. undici reaches this repository only through devDependencies (@earendil-works/pi-coding-agent 1.4.0 pins undici 8.10.2 exactly); `npm ls undici --omit=dev` is empty and our published dependencies are @modelcontextprotocol/sdk and minisearch. Re-review when pi-coding-agent ships a patched undici.",
+      "expires": "2026-11-25"
+    },
+    {
+      "ghsa": "GHSA-2m5v-pch6-74hx",
+      "package": "undici",
+      "severity": "high",
+      "title": "undici vulnerable to TLS certificate validation bypass via dropped tls options in Agent",
+      "reason": "Not in what customers install from this package. undici reaches this repository only through devDependencies (@earendil-works/pi-coding-agent 1.4.0 pins undici 8.10.2 exactly); `npm ls undici --omit=dev` is empty and our published dependencies are @modelcontextprotocol/sdk and minisearch. Re-review when pi-coding-agent ships a patched undici.",
+      "expires": "2026-11-25"
+    },
+    {
+      "ghsa": "GHSA-qrxm-fqhp-jwvm",
+      "package": "undici",
+      "severity": "high",
+      "title": "undici vulnerable to Denial of Service via TLS 1.2 certificate-changing renegotiation",
+      "reason": "Not in what customers install from this package. undici reaches this repository only through devDependencies (@earendil-works/pi-coding-agent 1.4.0 pins undici 8.10.2 exactly); `npm ls undici --omit=dev` is empty and our published dependencies are @modelcontextprotocol/sdk and minisearch. Re-review when pi-coding-agent ships a patched undici.",
+      "expires": "2026-11-25"
     }
   ]
 }

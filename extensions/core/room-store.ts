@@ -9,6 +9,7 @@ import type { ActivityIndex, DeletionSeen, RoomAddressee, RoomCoverage, RoomMess
 import { ROOM_MARKS_TABLE, writeRoomMarks, type RoomMarkKind } from "./room-unread.ts";
 
 import type { SessionEvents } from "./session-events.ts";
+import type { NoticeReplySnapshot } from "./notice-reply.ts";
 
 export interface StoredEventStatus {
 	availability: "available" | "unavailable";
@@ -31,6 +32,8 @@ export interface StoredRoomRecord extends RoomRecord {
 	state: RoomRowState;
 	addressee: RoomAddressee;
 	attachments: RoomMessage["attachments"];
+	/** The notices this row replies to, as the server snapshotted them (8885423d). Never on a tombstone. */
+	notice_reply?: NoticeReplySnapshot;
 }
 interface Progress {
 	version: 1;
@@ -167,9 +170,13 @@ export class RoomStore {
 		const old = this.row(id);
 		const deleted = description.state === "deleted" || old?.state === "deleted" || Boolean(this.db.prepare("SELECT 1 FROM tombstones WHERE id=?").get(id));
 		const keepOld = old && rank[old.state] > rank[description.state];
+		// The snapshot is fixed when the reply is posted; a later page that does not
+		// describe it (an open_check answer) keeps the one already held.
+		const noticeReply = description.notice_reply ?? old?.notice_reply;
+		const { notice_reply: _dropped, ...tombstoneBase } = old ?? record as StoredRoomRecord;
 		const result: StoredRoomRecord = deleted
-			? { ...(old ?? record), message_id: id, content: "", state: "deleted", addressee: old?.addressee ?? description.addressee, attachments: [] }
-			: keepOld ? old : { ...record, state: description.state, addressee: description.addressee, attachments: description.attachments };
+			? { ...tombstoneBase, message_id: id, content: "", state: "deleted", addressee: old?.addressee ?? description.addressee, attachments: [] }
+			: keepOld ? old : { ...record, state: description.state, addressee: description.addressee, attachments: description.attachments, ...(noticeReply ? { notice_reply: noticeReply } : {}) };
 		if (deleted) this.db.prepare("INSERT OR IGNORE INTO tombstones VALUES (?)").run(id);
 		this.db.prepare("INSERT INTO messages VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET state=excluded.state,body=excluded.body").run(id, record.order.sequence, result.state, JSON.stringify(result));
 	}
@@ -228,7 +235,7 @@ export class RoomStore {
 				else if (check.state === "absent") this.db.prepare("DELETE FROM messages WHERE id=?").run(check.message_id);
 				else if (check.state === "final" && check.entry && old) {
 					const { message_id, order, actor, source_type, content } = check.entry;
-					this.merge({ message_id, order, actor, source_type, content }, { message_id, addressee: old.addressee, attachments: old.attachments, state: "final" });
+					this.merge({ message_id, order, actor, source_type, content }, { message_id, addressee: old.addressee, attachments: old.attachments, state: "final", ...(old.notice_reply ? { notice_reply: old.notice_reply } : {}) });
 				}
 			}
 			const d = page.room.deletions;

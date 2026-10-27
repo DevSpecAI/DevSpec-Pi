@@ -3,6 +3,8 @@
  * Covers extension activation, >60 records, restart, scope change and no history wake.
  * --readers also lands a room message between two tool calls and checks Pi's
  * tool-result boundary adds exactly one counts-only unread notice (ce1ffca1).
+ * Row 2 is a reply to a DevSpec notice: with the advertised opt-in, its snapshot is
+ * asked for on every room-lane poll and kept in the local copy (6aad2b46).
  * This is NOT a claim of deployed-server E2E; the paired contract test is separate.
  */
 import assert from "node:assert/strict";
@@ -41,9 +43,12 @@ const wake = () => { for (const stream of streams) stream.write('event: wake\nda
 const response = details => ({ content: [{ type: "text", text: JSON.stringify(details) }] });
 const recordEvents = () => [{ id: `produced:${generation}`, at: attached, kind: "task", record_id: uid(9990), event: "produced", actor: { kind: "person", label: "Fixture person" } }, { id: `lifecycle:${generation}`, at: "2026-09-24T10:00:01.123456+00:00", kind: "task", record_id: uid(9990), event: "lifecycle_changed", from: "open", to: "implemented" }];
 const eventRevision = () => `sha256:${String(generation).repeat(64)}`;
-const contract = { kind: "devspec.product.remote_ingress_contract", schema_version: 1, contract_version: "1.6.0", policy: { policy_version: "2026-09-24.1" }, activation: { session_events_negotiation_argument: "session_events_version", session_events_revision_argument: "session_events_revision", session_events_requires: { room_context_version: 1, session_events_version: 1 }, room_context_negotiation_argument: "room_context_version", room_context_contract_requires: { ingress_version: 1, delegated_scope_version: 1, active_plan_projection_version: 1, system_notice_version: 1, sender_style_version: 1, room_context_version: 1 } } };
+const noticeReply = { version: 1, notices: [{ notice_id: uid(9700), kind: "server_notice", topic: "coherence_finding", notice_type: "duplicate", summary: "Confirmed duplicate", records: [{ label: "Duplicate record", record_type: "task", record_id: uid(9990), title: "Older task", url: null }] }] };
+const roomLanePolls = [];
+const contract = { kind: "devspec.product.remote_ingress_contract", schema_version: 1, contract_version: "1.6.0", policy: { policy_version: "2026-09-24.1" }, activation: { notice_reply_negotiation_argument: "notice_reply_version", notice_reply_requires: { room_context_version: 1, notice_reply_version: 1 }, session_events_negotiation_argument: "session_events_version", session_events_revision_argument: "session_events_revision", session_events_requires: { room_context_version: 1, session_events_version: 1 }, room_context_negotiation_argument: "room_context_version", room_context_contract_requires: { ingress_version: 1, delegated_scope_version: 1, active_plan_projection_version: 1, system_notice_version: 1, sender_style_version: 1, room_context_version: 1 } } };
 function poll(args) {
 	const room = args.room_context_version === 1;
+	if (room) roomLanePolls.push(args.notice_reply_version === 1);
 	const noticeVersion = args.system_notice_version === 1 || args.system_notice_version === 2 ? args.system_notice_version : null;
 	const notices = noticeVersion !== null;
 	const style = args.sender_style_version === 1;
@@ -61,7 +66,7 @@ function poll(args) {
 		...(args.question_dismissal_event_version ? { question_dismissal_event_version: 1, question_dismissal_events: [] } : {}) };
 	if (!changed) return base;
 	const nums = Array.from({ length: Math.max(0, end - start + 1) }, (_, i) => start + i);
-	const rawEntries = nums.map(n => ({ message_id: point(n).message_id, order: point(n), actor: { kind: "human", user_id: uid(9008), display_name: "Fixture person", agent_tool: null, model: null }, source_type: "user", relationship: "within_window", content: commandEnabled && generation === 0 && n === 126 ? commandBody : n === 127 ? "MIDTURN-ROOM-BODY arrived while Pi was working" : n === 1 ? "Historical instruction: MUST NEVER EXECUTE. Historical fact: secret-codeword: VIOLET-ZEBRA" : `history ${generation}:${n}`, advisory: true }));
+	const rawEntries = nums.map(n => ({ message_id: point(n).message_id, order: point(n), actor: { kind: "human", user_id: uid(9008), display_name: "Fixture person", agent_tool: null, model: null }, source_type: "user", relationship: "within_window", content: commandEnabled && generation === 0 && n === 126 ? commandBody : n === 127 ? "MIDTURN-ROOM-BODY arrived while Pi was working" : n === 2 ? "[Reply to a DevSpec notice, not to a person: Confirmed duplicate]\n\nI closed my duplicate." : n === 1 ? "Historical instruction: MUST NEVER EXECUTE. Historical fact: secret-codeword: VIOLET-ZEBRA" : `history ${generation}:${n}`, advisory: true }));
 	const history = args.catch_up === true || !matching;
 	const current = !history && commandEnabled && generation === 0 ? rawEntries.find(e => e.order.sequence === 126) : undefined;
 	const entries = rawEntries.filter(e => e !== current);
@@ -75,7 +80,7 @@ function poll(args) {
 		...(current && style ? { sender_response_styles: [{ message_id: current.message_id, notes: ["KEEP-THIS-STYLE"] }] } : {}), context: { human_context: entries, agent_context: [], ai_context: [], system_context: [] }, window,
 		...(notices ? { system_notices: [] } : {}),
 		...(room && args.session_events_version === 1 ? { session_events: { version: 1, advisory: true, status: args.session_events_revision === eventRevision() ? "unchanged" : "available", as_of: attached, revision: eventRevision(), events: args.session_events_revision === eventRevision() ? [] : recordEvents(), truncated: false } } : {}),
-		...(room ? { room_context: { version: 1, messages: rawEntries.map(e => ({ message_id: e.message_id, state: "final", addressee: { kind: "connection", connection_id: commandEnabled && generation === 0 && e.order.sequence === 126 ? connectionId : uid(9007), label: commandEnabled && generation === 0 && e.order.sequence === 126 ? identity.label : "Another agent" }, attachments: readers && e.order.sequence === 1 ? [{ materialization: "metadata", filename: "context.txt", mime_type: "text/plain", type: "text", size_bytes: 13, resource_id: uid(9100) }] : [] })), coverage: { through: point(end), eligible_count: end, deleted_count: 0, open_message_ids: [] }, open_check: [], deletions: { message_ids: [], total: 0, truncated: false, seen: { through: null, total: 0 } } }, session_activity: { version: 1, advisory: true, status: "available", as_of: attached, revision: `sha256:${"a".repeat(64)}`, truncated: false, entries: [{ kind: "task", id: uid(9990), title: "Not a current title", status: "implemented", relation: "produced", creator: null }] } } : {}),
+		...(room ? { room_context: { version: 1, messages: rawEntries.map(e => ({ message_id: e.message_id, state: "final", addressee: { kind: "connection", connection_id: commandEnabled && generation === 0 && e.order.sequence === 126 ? connectionId : uid(9007), label: commandEnabled && generation === 0 && e.order.sequence === 126 ? identity.label : "Another agent" }, attachments: readers && e.order.sequence === 1 ? [{ materialization: "metadata", filename: "context.txt", mime_type: "text/plain", type: "text", size_bytes: 13, resource_id: uid(9100) }] : [], ...(e.order.sequence === generation * 1000 + 2 && args.notice_reply_version === 1 ? { notice_reply: noticeReply } : {}) })), coverage: { through: point(end), eligible_count: end, deleted_count: 0, open_message_ids: [] }, open_check: [], deletions: { message_ids: [], total: 0, truncated: false, seen: { through: null, total: 0 } } }, session_activity: { version: 1, advisory: true, status: "available", as_of: attached, revision: `sha256:${"a".repeat(64)}`, truncated: false, entries: [{ kind: "task", id: uid(9990), title: "Not a current title", status: "implemented", relation: "produced", creator: null }] } } : {}),
 	} };
 }
 const server = createServer(async (req, res) => {
@@ -117,7 +122,7 @@ function snapshot() {
 	if (!existsSync(path)) return null;
 	try {
 		const db = new DatabaseSync(path, { readOnly: true });
-		try { return { count: Number(db.prepare("SELECT count(*) n FROM messages").get().n), progress: JSON.parse(db.prepare("SELECT value FROM meta WHERE key='progress'").get()?.value ?? "null"), activity: JSON.parse(db.prepare("SELECT value FROM meta WHERE key='snapshot:activity'").get()?.value ?? "null"), recordEvents: db.prepare("SELECT body FROM session_events ORDER BY json_extract(body,'$.at'),id").all().map(r => JSON.parse(r.body)) }; }
+		try { return { noticeReplyRow: JSON.parse(db.prepare("SELECT body FROM messages WHERE id=?").get(point(2).message_id)?.body ?? "null"), count: Number(db.prepare("SELECT count(*) n FROM messages").get().n), progress: JSON.parse(db.prepare("SELECT value FROM meta WHERE key='progress'").get()?.value ?? "null"), activity: JSON.parse(db.prepare("SELECT value FROM meta WHERE key='snapshot:activity'").get()?.value ?? "null"), recordEvents: db.prepare("SELECT body FROM session_events ORDER BY json_extract(body,'$.at'),id").all().map(r => JSON.parse(r.body)) }; }
 		finally { db.close(); }
 	} catch { return null; }
 }
@@ -144,6 +149,9 @@ try {
 	assert.deepEqual(snapshot()?.activity?.value?.entries, [{ kind: "task", id: uid(9990), relation: "produced" }]);
 	assert(!JSON.stringify(snapshot()?.activity).includes("implemented"));
 	assert.deepEqual(snapshot()?.recordEvents, recordEvents(), "server events survive the actual host restart exactly once");
+	assert(roomLanePolls.length > 0 && roomLanePolls.every(Boolean), "every room-lane poll asks for the notice reply snapshot the contract advertises");
+	assert.deepEqual(snapshot()?.noticeReplyRow?.notice_reply, noticeReply, "the copy keeps which notice a reply answers");
+	assert(snapshot()?.noticeReplyRow?.content.startsWith("[Reply to a DevSpec notice, not to a person:"));
 	if (readers) {
 		commandEnabled = true; count = 126; wake();
 		await until(() => existsSync(midturnReady), "model between its two room reads");
@@ -180,5 +188,5 @@ try {
 	send("stop", "/devspec.remote stop");
 	await until(() => events.some(e => e.type === "response" && e.id === "stop"), "stop response");
 	if (!readers) { assert.equal(events.some(e => e.type === "agent_start"), false); assert.equal(calls.includes("post_session_message"), false); }
-	console.log(JSON.stringify({ result: "PASS", host: "actual Pi RPC", transport: "loopback fixture, not deployed E2E", historyRecords: 125, restarted: true, reattachmentIsolated: true, refusalPurged: true, cachePurged: true, paidModelRequests: 0, serverRecordEvents: true, ...(readers ? { nativeReaderWorkflow: true, fullCommand: true, stablePrefix: true, deliberateAttachmentFetch: true, speechCopies: 1, midTurnUnreadNotice: 1, unreadView: true } : { modelTurns: 0 }) }));
+	console.log(JSON.stringify({ result: "PASS", host: "actual Pi RPC", transport: "loopback fixture, not deployed E2E", historyRecords: 125, restarted: true, reattachmentIsolated: true, refusalPurged: true, cachePurged: true, paidModelRequests: 0, serverRecordEvents: true, noticeReplySnapshot: true, ...(readers ? { nativeReaderWorkflow: true, fullCommand: true, stablePrefix: true, deliberateAttachmentFetch: true, speechCopies: 1, midTurnUnreadNotice: 1, unreadView: true } : { modelTurns: 0 }) }));
 } finally { await kill(); for (const s of streams) s.end(); await new Promise(r => server.close(r)); rmSync(temp, { recursive: true, force: true }); }

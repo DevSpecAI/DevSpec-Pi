@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 43a9799136bcda2c4a08e86df557d807175d6d0c1bf7497a219d00f75eaf555b
- * Description fingerprint: 3280a91b88727cb84dcac2e0632f9c475456fd221262c06afae91cb2862c65f4
- * Regenerated: 2026-10-25T20:52:02.383Z
+ * Schema fingerprint: deefbad314f1cba8c891e111eed414e40f9893d6f8b8d1118ce00b437ad54171
+ * Description fingerprint: 7636e536aab6954c16dc572163b5303c637baf3d22aad22a43ad48430fc1cdea
+ * Regenerated: 2026-10-27T07:38:08.270Z
  */
-export const MCP_CATALOG_FINGERPRINT = "43a9799136bcda2c4a08e86df557d807175d6d0c1bf7497a219d00f75eaf555b";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "3280a91b88727cb84dcac2e0632f9c475456fd221262c06afae91cb2862c65f4";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-25T20:52:02.384Z";
-export const TOOL_CATALOG_VERSION = "72b20c7d52b3ef4d61f51437ebadcdcefdb0a987d7467cdcd35ed42792f04111";
+export const MCP_CATALOG_FINGERPRINT = "deefbad314f1cba8c891e111eed414e40f9893d6f8b8d1118ce00b437ad54171";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "7636e536aab6954c16dc572163b5303c637baf3d22aad22a43ad48430fc1cdea";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-27T07:38:08.270Z";
+export const TOOL_CATALOG_VERSION = "dcbae49dcd9efaf7b941ad19412cfa354dc7d0ad4c8e0624082bb23c96253cbf";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -11448,8 +11448,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "post_session_message",
 		"label": "DevSpec: Post Session Message",
-		"description": "Post a message into a DevSpec room as your agent, shown as \"<agent> (<your name>)\". Pass connection_id: the server posts into the room your connection is attached to now, as part of the turn it has open for you, and refuses a connection with no room. Pass complete_turn:true on your final answer so the room stops showing Working; omit it on progress posts. For a turn the person started by typing in your terminal, pass local_turn:true and command_turn_unbound:true on every post of it. An @Full Name notifies that project member, and a reply notifies the author of the message it replies to. If your host already relays your replies into the room, do not post them again. To open a new room, use create_session.",
-		"searchIntent": "post reply answer message into attached room conversation mention notify a teammate",
+		"description": "Post a message into a DevSpec room as your agent, shown as \"<agent> (<your name>)\". Pass connection_id: the server posts into the room your connection is attached to now, as part of the turn it has open for you, and refuses a connection with no room. Pass complete_turn:true on your final answer so the room stops showing Working; omit it on progress posts. For a turn the person started by typing in your terminal, pass local_turn:true and command_turn_unbound:true on every post of it. An @Full Name notifies that project member, and a reply notifies the author of the message it replies to. To tell the person in your room about a notice DevSpec sent you (a finding, an outcome, a review of your work), pass system_notice_ids with connection_id: the post is your own message, shown as a reply to that DevSpec notice and to no person, and it opens, closes and completes no turn. If your host already relays your replies into the room, do not post them again. To open a new room, use create_session.",
+		"searchIntent": "post reply answer message into attached room conversation mention notify a teammate tell the person about a devspec notice finding",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -11476,6 +11476,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"local_turn": {
 					"type": "boolean",
 					"description": "true on every post of a turn the person started by typing in your terminal (prompt mirror, trail, answer), together with command_turn_unbound:true. The server then opens that turn if none is open yet. Default false: the server opens no turn for the post."
+				},
+				"system_notice_ids": {
+					"minItems": 1,
+					"maxItems": 25,
+					"type": "array",
+					"items": {
+						"type": "string",
+						"format": "uuid"
+					},
+					"uniqueItems": true,
+					"description": "The notice_id of each DevSpec notice this post replies to, as system_notices delivered them to your connection (all of them when one run handled a batch). Requires connection_id. Each must have been delivered to that exact connection in this project, or nothing is posted and the refusal names it. The post lands in the room your connection is attached to now, as your own message marked as a reply to those notices, and is bound to no command or turn: it never changes Working and complete_turn has no effect. Not combinable with command_turn_id, command_message_id, command_turn_unbound, local_turn, attempt_id, interaction or dismissal fields, assistant speech, reply_to_message_id, turn_kind local_prompt, work_trail, trail_events, needs_input, or a phase other than answer. The same notices and text sent again return the stored message. Omitted: an ordinary post."
 				},
 				"message": {
 					"type": "string",
@@ -11875,6 +11886,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"x-devspec-host-only": true,
 					"format": "uuid",
 					"description": "Host-only: the dismissal claim generation bound to attempt_id."
+				},
+				"system_notice_ids": {
+					"minItems": 1,
+					"maxItems": 25,
+					"type": "array",
+					"items": {
+						"type": "string",
+						"format": "uuid"
+					},
+					"uniqueItems": true,
+					"description": "The notice_id of each DevSpec notice this post replies to, as system_notices delivered them to your connection (all of them when one run handled a batch). Requires connection_id. Each must have been delivered to that exact connection in this project, or nothing is posted and the refusal names it. The post lands in the room your connection is attached to now, as your own message marked as a reply to those notices, and is bound to no command or turn: it never changes Working and complete_turn has no effect. Not combinable with command_turn_id, command_message_id, command_turn_unbound, local_turn, attempt_id, interaction or dismissal fields, assistant speech, reply_to_message_id, turn_kind local_prompt, work_trail, trail_events, needs_input, or a phase other than answer. The same notices and text sent again return the stored message. Omitted: an ordinary post."
 				},
 				"message": {
 					"type": "string",
@@ -14253,6 +14275,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"description": "With room_context_version 1: also send session_events, the dated history of what happened to the room's records (produced, first mentioned, lifecycle moves, supersessions, retractions, archives). Add the events you lack and never rewrite one you hold; status unavailable means it could not be read completely, not that nothing happened."
 				},
+				"notice_reply_version": {
+					"type": "integer",
+					"enum": [
+						1
+					],
+					"description": "With room_context_version 1: room_context.messages also carries notice_reply on a message that replies to DevSpec notices, with each notice's summary and records. Every lane already shows such a message's text labelled as a reply to a DevSpec notice."
+				},
 				"session_events_revision": {
 					"description": "The session_events revision you hold (null the first time); requires session_events_version 1. While it is current the section resends no events.",
 					"type": [
@@ -14745,6 +14774,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						1
 					],
 					"description": "With room_context_version 1: also send session_events, the dated history of what happened to the room's records (produced, first mentioned, lifecycle moves, supersessions, retractions, archives). Add the events you lack and never rewrite one you hold; status unavailable means it could not be read completely, not that nothing happened."
+				},
+				"notice_reply_version": {
+					"type": "integer",
+					"enum": [
+						1
+					],
+					"description": "With room_context_version 1: room_context.messages also carries notice_reply on a message that replies to DevSpec notices, with each notice's summary and records. Every lane already shows such a message's text labelled as a reply to a DevSpec notice."
 				},
 				"session_events_revision": {
 					"description": "The session_events revision you hold (null the first time); requires session_events_version 1. While it is current the section resends no events.",

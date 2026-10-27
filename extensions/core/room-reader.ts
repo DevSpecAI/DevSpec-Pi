@@ -110,7 +110,8 @@ function markRoom(Database: typeof DatabaseSync, path: string, kind: RoomMarkKin
 }
 
 function unreadMessage(r: StoredRoomRecord, w: RoomWaitingMessage): Record<string, unknown> {
-	return { message_id: r.message_id, sequence: r.order.sequence, created_at: r.order.created_at, change: w.change, actor: { kind: r.actor.kind, label: r.actor.display_name }, to: r.addressee, for_you: w.for_you, message_state: r.state, content: r.content, attachments: r.attachments };
+	// A reply to a DevSpec notice keeps the server's snapshot of what it answers (8885423d).
+	return { message_id: r.message_id, sequence: r.order.sequence, created_at: r.order.created_at, change: w.change, actor: { kind: r.actor.kind, label: r.actor.display_name }, to: r.addressee, for_you: w.for_you, message_state: r.state, content: r.content, attachments: r.attachments, ...(r.notice_reply ? { notice_reply: r.notice_reply } : {}) };
 }
 
 /**

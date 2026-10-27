@@ -1,10 +1,15 @@
 /** Negotiated room data, never command authority (829394e9). */
 import type { IngressAttachment, IngressContextEntry, IngressOrderPoint } from "./remote-payload.ts";
+import type { NoticeReplySnapshot } from "./notice-reply.ts";
 
 export const ROOM_CONTEXT_LANE = { contractVersion: "1.6.0", policyVersion: "2026-09-24.1" } as const;
 export type RoomRowState = "in_progress" | "final" | "deleted";
 export type RoomAddressee = { kind: "room" | "dev" } | { kind: "connection"; connection_id: string; label: string };
-export interface RoomMessage { message_id: string; addressee: RoomAddressee; attachments: IngressAttachment[]; state: RoomRowState }
+export interface RoomMessage {
+	message_id: string; addressee: RoomAddressee; attachments: IngressAttachment[]; state: RoomRowState;
+	/** Negotiated (notice_reply_version 1): the notices this row replies to (8885423d). */
+	notice_reply?: NoticeReplySnapshot;
+}
 export interface RoomCoverage { through: IngressOrderPoint; eligible_count: number; deleted_count: number; open_message_ids: string[] }
 export interface DeletionSeen { through: { deleted_at: string; message_id: string } | null; total: number | null }
 export interface RoomDeletions { message_ids: string[]; truncated: boolean; total: number; seen: DeletionSeen }
@@ -28,6 +33,14 @@ export interface RoomValidators {
 	order(value: unknown, path: string): IngressOrderPoint;
 	attachment(value: unknown, path: string): IngressAttachment;
 	entry(value: unknown, path: string): IngressContextEntry;
+	/**
+	 * Present only when notice_reply_version 1 was negotiated; without it the field is
+	 * refused like any unknown key. Returns null for a snapshot the server's schema
+	 * would refuse: that row keeps its labelled text and loses only the snapshot.
+	 */
+	noticeReply?(value: unknown): NoticeReplySnapshot | null;
+	/** Called once per row whose snapshot could not be read. */
+	noticeReplyRejected?(): void;
 }
 
 /** Advertise before opting in: an older server must keep receiving its old lane. */
@@ -86,7 +99,7 @@ export function parseRoomContext(
 	const liveCommands = new Set([...commandIds].map(id => id.toLowerCase()));
 	const seen = new Set<string>();
 	const messages = list(row.messages).map((value): RoomMessage => {
-		const m = object(value); keys(m, ["message_id", "addressee", "attachments", "state"]);
+		const m = object(value); keys(m, ["message_id", "addressee", "attachments", "state"], validate.noticeReply ? ["notice_reply"] : []);
 		const message_id = uuid(m.message_id);
 		if (!emitted.has(message_id) || seen.has(message_id)) bad();
 		seen.add(message_id);
@@ -101,7 +114,13 @@ export function parseRoomContext(
 		}
 		const parsedState = state(m.state);
 		if (liveCommands.has(message_id) && parsedState !== "final") bad();
-		return { message_id, addressee, state: parsedState, attachments: list(m.attachments, Number.MAX_SAFE_INTEGER).map(a => validate.attachment(a, "room.attachment")) };
+		const message: RoomMessage = { message_id, addressee, state: parsedState, attachments: list(m.attachments, Number.MAX_SAFE_INTEGER).map(a => validate.attachment(a, "room.attachment")) };
+		if (validate.noticeReply && Object.hasOwn(m, "notice_reply")) {
+			const snapshot = validate.noticeReply(m.notice_reply);
+			if (snapshot) message.notice_reply = snapshot;
+			else validate.noticeReplyRejected?.();
+		}
+		return message;
 	});
 	if (seen.size !== emitted.size) bad();
 	let coverage: RoomCoverage | null = null;

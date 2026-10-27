@@ -2,9 +2,9 @@
  * Capability-honest provenance assistance for Pi.
  *
  * Pi exposes reliable first-class file edit calls, so an explicitly associated
- * project may receive one advisory nudge. Pi does not expose a first-class Git
- * commit-message or outgoing-push hook, so this extension never parses arbitrary
- * shell text, rewrites commits, blocks tools, or claims push enforcement.
+ * project may receive one advisory nudge. This extension never parses shell
+ * text, blocks tools, or claims push enforcement. Commit tags are added by Pi's
+ * git stand-in when exactly one task is claimed (item df71ab6c), never here.
  */
 
 import { createHash } from "node:crypto";
@@ -166,7 +166,7 @@ export async function unclaimedEditNudge(
 			"Before committing, use search_tasks to find and claim the covering item. If none exists, " +
 			"create the smallest task that does, with a substantive description and the reason for the work (create_task " +
 			"requires both), as the implementation contract's work_entry_contract decides, and claim it. " +
-			"Pi cannot add the [devspec:<full-uuid>] commit reference for you, so include it in the commit message yourself.",
+			"Once one task is claimed, Pi adds its [devspec:<full-uuid>] tag to your commits itself; write the tag yourself only when Pi says it did not.",
 		display: true,
 		details: { projectId },
 	};

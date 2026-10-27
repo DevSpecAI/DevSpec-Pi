@@ -56,7 +56,10 @@ test("only reliable first-class edit events can emit the one advisory nudge", as
 	// create_task requires a substantive description and intent: never advise a thin item (5a9eaa57).
 	assert.match(first.content, /substantive description and the reason for the work/);
 	assert.doesNotMatch(first.content, /thin|last-mile/);
-	assert.match(first.content, /Pi cannot add the \[devspec:<full-uuid>\] commit reference for you/);
+	// Pi tags commits itself once one task is claimed (df71ab6c); the model writes
+	// the tag only when Pi says it did not.
+	assert.match(first.content, /Once one task is claimed, Pi adds its \[devspec:<full-uuid>\] tag to your commits itself; write the tag yourself only when Pi says it did not\./);
+	assert.doesNotMatch(first.content, /Pi cannot add/);
 	assert.doesNotMatch(first.content, /refus|analy[sz]er|reconcil|safety net/i);
 	assert.equal(first.details.projectId, PROJECT);
 	for (const tool of ["write", "edit", "apply_patch", "notebook"]) {

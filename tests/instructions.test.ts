@@ -68,7 +68,11 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /Search is optional/);
 	assert.match(text, /include_implementation_contract:true/);
 	assert.doesNotMatch(text, /interactive authority|maintainer-only|always queues/i);
-	assert.match(text, /server reconciliation/);
+	// Pi tags commits itself (df71ab6c): the model writes a tag only when Pi says it
+	// did not, and is not offered reconciliation as a safety net (5f9fd5dc).
+	assert.match(text, /When exactly one task is claimed, Pi adds its full \[devspec:<id>\] tag to your commit messages itself/);
+	assert.match(text, /Write the tag yourself only when Pi says it did not add it/);
+	assert.doesNotMatch(text, /server reconciliation/);
 	assert.doesNotMatch(text, /trusted subprocess|trusted child/i);
 	assert.match(text, /record_memory/);
 	assert.match(text, /git_remote/);

@@ -50,7 +50,7 @@ Create an access token with **Read & write** access on your [Agent setup](https:
 /devspec.login dvs_your_token_here
 ```
 
-Your token is saved locally (`~/.devspec/auth.json`) with owner-only permissions and works across all of your DevSpec projects.
+Your token is saved locally (`~/.pi/agent/devspec/auth.json`) with owner-only permissions and works across all of your DevSpec projects.
 
 ### 4. Start Pi and connect to your project
 

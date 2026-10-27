@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.2 - 2026-10-27
+
+- Published package hygiene: `package.json` now declares an explicit `files` allowlist (`extensions`, `runtime`, `skills`, `prompts`, `themes`, `README.md`, `CHANGELOG.md`, `LICENSE`) and public `publishConfig` so `npm pack` ships only the runtime extension files and never bundles tests, helper scripts, workflow definitions, or local `.pi` state.
+- Added the MIT `LICENSE` file and a tag-triggered GitHub Actions release workflow (`.github/workflows/release.yml`) that verifies the tag matches `package.json`, runs the full check and security audit suite, and publishes `@devspec/pi-plugin` to npm.
+
 ## 0.10.1 - 2026-10-27
 
 - The tool catalogue is regenerated against DevSpec's current tools. Your agent is no longer asked how a commit's task tag came about, and the commit fields of recording work and linking a commit now say to leave the commit out: DevSpec picks it from what it saw, and naming one by hand is the fallback. Update with `pi update --extensions`, then restart Pi.

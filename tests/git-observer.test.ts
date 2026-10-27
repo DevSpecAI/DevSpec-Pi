@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -61,7 +61,9 @@ function bash(command: string, session = SESSION, extraEnv: Record<string, strin
 function fixture(t: TestContext) {
 	resetGitObserverForTests();
 	assert.equal(initializeGitObserver(SESSION), true);
-	const root = mkdtempSync(join(tmpdir(), "devspec-pi-observer-test-"));
+	// The canonical long path: Windows hands out 8.3 short temp paths (RUNNER~1),
+	// while the stand-in reports the repository's real path.
+	const root = realpathSync.native(mkdtempSync(join(tmpdir(), "devspec-pi-observer-test-")));
 	t.after(() => {
 		resetGitObserverForTests();
 		rmSync(root, { recursive: true, force: true });

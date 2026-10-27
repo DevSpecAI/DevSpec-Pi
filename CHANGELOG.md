@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.10 - 2026-10-27
+
+- Your agent no longer copies a commit id when it records finished work. DevSpec uses the commit Pi saw it make, and the agent names a commit only when DevSpec says it found none, copying the id from Git rather than from memory.
+- Pi keeps working when DevSpec adds to its rules for linking commits, and shows the agent the new rules exactly as DevSpec sends them. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.8.9 - 2026-10-27
 
 - When DevSpec sends Pi a notice about its own work while you are driving it from a DevSpec room, such as a confirmed finding or the outcome of a change, Pi's answer now appears in that room, marked as a reply to the DevSpec notice rather than to a person. It is your agent's final message from handling the notice, written to you briefly. It does not start, finish or interrupt any request you sent, and it does not change whether the agent shows as Working. When Pi is not in a room, the answer stays in the terminal as before.

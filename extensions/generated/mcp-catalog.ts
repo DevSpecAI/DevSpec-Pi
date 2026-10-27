@@ -2,25 +2,25 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: deefbad314f1cba8c891e111eed414e40f9893d6f8b8d1118ce00b437ad54171
- * Description fingerprint: 7636e536aab6954c16dc572163b5303c637baf3d22aad22a43ad48430fc1cdea
- * Regenerated: 2026-10-27T07:38:08.270Z
+ * Schema fingerprint: cbc74d3afc8527799adb5e8a8dcc7ae494b12bddcbe9440a25ad6e8ad642a33c
+ * Description fingerprint: 3073906e6d35c3261b5e4146174bb6f9a68c149c6994f6c9d4dcaf48be1e2092
+ * Regenerated: 2026-10-27T12:31:03.841Z
  */
-export const MCP_CATALOG_FINGERPRINT = "deefbad314f1cba8c891e111eed414e40f9893d6f8b8d1118ce00b437ad54171";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "7636e536aab6954c16dc572163b5303c637baf3d22aad22a43ad48430fc1cdea";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-27T07:38:08.270Z";
-export const TOOL_CATALOG_VERSION = "dcbae49dcd9efaf7b941ad19412cfa354dc7d0ad4c8e0624082bb23c96253cbf";
+export const MCP_CATALOG_FINGERPRINT = "cbc74d3afc8527799adb5e8a8dcc7ae494b12bddcbe9440a25ad6e8ad642a33c";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "3073906e6d35c3261b5e4146174bb6f9a68c149c6994f6c9d4dcaf48be1e2092";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-27T12:31:03.841Z";
+export const TOOL_CATALOG_VERSION = "31780944a5df9ae6d6d465e657d5091065521e1830c3545fa5990921ffa7aaa4";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
 		"name": "add commit reference",
-		"description": "Link a commit you are not reporting through record_implementation to a task, session or memory in this project. A short or full SHA is accepted. Pass at least one of task_id, session_id or memory_id; with none, the commit is linked to the project alone. Linking it to a task marks that item's current item-level verification stale, a person's sign-off included (schema checks and criterion verdicts are kept), and links any deployment that already shipped the commit. Linking the same commit to the same target with the same provenance_source returns the existing link (deduplicated: true) and marks nothing stale; under a different provenance_source it adds a second link, which marks the item's verification stale like any new link; on an item, verification_effect in the response says what was marked stale. The project comes from project_id, git_remote or pinned_project_id, not from the ids you link. A link is not completion evidence: report delivered work with record_implementation.",
+		"description": "Link a commit to a task, session or memory in this project by hand. A fallback: a commit carrying a task's [devspec:<id>] reference links itself when it lands, and record_implementation links the commits your host observed. Use this for a commit with no reference that your host did not observe, one made outside your session, a session or memory link, or when record_implementation reported commit_sha_source none. Any form git shows is accepted, short or full. Pass at least one of task_id, session_id or memory_id; with none, the commit is linked to the project alone. Linking it to a task marks that item's current item-level verification stale, a person's sign-off included (schema checks and criterion verdicts are kept), and links any deployment that already shipped the commit. Linking a commit already linked to the same target returns the existing link (deduplicated: true) and marks nothing stale; on an item, verification_effect in the response says what was marked stale. The project comes from project_id, git_remote or pinned_project_id, not from the ids you link. A link is not completion evidence: report delivered work with record_implementation.",
 		"intent": "link attach existing git commit to task session memory"
 	},
 	{
 		"id": "add_implementation_note",
 		"name": "add implementation note",
-		"description": "Add a Markdown note (context, caveats, links) to a task's history, where people read it on the item. It is a note for people and changes no state: report delivered work with record_implementation, criterion evidence with record_criterion_verdicts, and commits with add_commit_reference.",
+		"description": "Add a Markdown note (context, caveats, links) to a task's history, where people read it on the item. It is a note for people and changes no state: report delivered work with record_implementation and criterion evidence with record_criterion_verdicts. Commits link through their [devspec:<id>] reference and your host's observation; add_commit_reference is the fallback for one that did neither.",
 		"intent": "add note context caveat to task history"
 	},
 	{
@@ -98,7 +98,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "generate_commit_message",
 		"name": "generate commit message",
-		"description": "Build the commit message for work on a task: `<type>: <summary> [devspec:<item id>]`, then an optional body. Commit the returned message verbatim: the tag format is what deployment matching reads, so a hand-written near-miss links nothing. Use the message field; the usage example drops the body. It only formats text: it does not commit, change the item or check its state. To check an existing message, use validate_commit_reference.",
+		"description": "Build the commit message for work on a task: `<type>: <summary> [devspec:<item id>]`, then an optional body. A fallback for when your host does not add the task's reference itself: it does when it recognizes the repository as the project's and exactly one task is claimed, and says so; otherwise, for example with several tasks claimed, use this. Commit the returned message verbatim: the reference format is what links the commit, so a hand-written near-miss links nothing. Use the message field; the usage example drops the body. It only formats text: it does not commit, change the item or check its state. To check an existing message, use validate_commit_reference.",
 		"intent": "write generate git commit message with task tag"
 	},
 	{
@@ -320,7 +320,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_completed_work",
 		"name": "record completed work",
-		"description": "Create a new task for work already done that has no item, recorded as implemented with its requirement, summary, commits and changed files. Search first with search_tasks: if an item already exists, claimed or not, use record_implementation on it instead of making a duplicate. Infer type, priority and tags from the git log and diff rather than interviewing the person; they can edit them afterwards. The new item is recorded as implemented, not done. Whether finished work needs an item is set by work_entry_contract in devspec://product/implementation-contract.",
+		"description": "Create a new task for work already done that has no item, recorded as implemented with its requirement, summary, commits and changed files. Its commit list is for work done outside an agent session DevSpec observed (by a person, or before DevSpec was connected), so you list the commits yourself, from git. Search first with search_tasks: if an item already exists, claimed or not, use record_implementation on it instead of making a duplicate. Infer type, priority and tags from the git log and diff rather than interviewing the person; they can edit them afterwards. The new item is recorded as implemented, not done. Whether finished work needs an item is set by work_entry_contract in devspec://product/implementation-contract.",
 		"intent": "record work already finished that has no task yet retroactive new item"
 	},
 	{
@@ -338,7 +338,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_implementation",
 		"name": "record implementation",
-		"description": "Record delivered work on an existing task, claimed or not: the commit, changed files, checks and an honest summary. If the item is claimed, only the claim's holder can record it, and the claim and its reservation close. The item moves to implemented, or to done once everything the implementation contract requires for done is in place; lifecycle and done_blocker in the response say where it landed and what it still waits for. Each call opens a new implementation round, so call it once per delivery; add later context with add_implementation_note or add_commit_reference. For work that has no item, use record_completed_work. Act on any returned own_criteria_follow_through or brief_follow_through before you report. Then report the commit, lifecycle and verification status exactly as returned. This is not human sign-off. Lifecycle and completion follow devspec://product/implementation-contract.",
+		"description": "Record delivered work on an existing task, claimed or not: changed files, checks and an honest summary. You do not name the commit: DevSpec chooses it from what it observed, and the response's commit_sha_source says where it came from; only none asks you for one. If the item is claimed, only the claim's holder can record it, and the claim and its reservation close. The item moves to implemented, or to done once everything the implementation contract requires for done is in place; lifecycle and done_blocker in the response say where it landed and what it still waits for. Each call opens a new implementation round, so call it once per delivery; add later context with add_implementation_note. For work that has no item, use record_completed_work. Act on any returned own_criteria_follow_through or brief_follow_through before you report. Then report the commit, lifecycle and verification status exactly as returned. This is not human sign-off. Lifecycle and completion follow devspec://product/implementation-contract.",
 		"intent": "record report delivered implementation on an existing task claimed or unclaimed commit changed files checks completion"
 	},
 	{
@@ -2014,7 +2014,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "generate_commit_message",
 		"label": "DevSpec: Generate Commit Message",
-		"description": "Build the commit message for work on a task: `<type>: <summary> [devspec:<item id>]`, then an optional body. Commit the returned message verbatim: the tag format is what deployment matching reads, so a hand-written near-miss links nothing. Use the message field; the usage example drops the body. It only formats text: it does not commit, change the item or check its state. To check an existing message, use validate_commit_reference.",
+		"description": "Build the commit message for work on a task: `<type>: <summary> [devspec:<item id>]`, then an optional body. A fallback for when your host does not add the task's reference itself: it does when it recognizes the repository as the project's and exactly one task is claimed, and says so; otherwise, for example with several tasks claimed, use this. Commit the returned message verbatim: the reference format is what links the commit, so a hand-written near-miss links nothing. Use the message field; the usage example drops the body. It only formats text: it does not commit, change the item or check its state. To check an existing message, use validate_commit_reference.",
 		"searchIntent": "write generate git commit message with task tag",
 		"modelInputSchema": {
 			"type": "object",
@@ -4693,7 +4693,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"commit_sha": {
 					"type": "string",
-					"description": "Links a commit to the item, short or full; never pad a short SHA. A commit not yet indexed is stored as provisional and resolves itself when it lands. Linking marks the item's current item-level verification stale, unless the commit is already linked to the item as server_linked: that link is returned instead (commit_reference_deduplicated) and nothing is marked stale. A link that cannot be stored is listed under not_stored. add_commit_reference links a commit without editing anything. Omitted: no commit is linked."
+					"description": "Links a commit to the item by hand, in any form git shows it, short or full; never pad a short SHA. A fallback: a commit carrying the item's [devspec:<id>] reference links itself when it lands, and record_implementation links the commits your host observed. A commit not yet indexed is stored as provisional and resolves itself when it lands. Linking marks the item's current item-level verification stale, unless the commit is already linked to the item as server_linked: that link is returned instead (commit_reference_deduplicated) and nothing is marked stale. A link that cannot be stored is listed under not_stored. add_commit_reference links a commit without editing anything. Omitted: no commit is linked."
 				},
 				"note": {
 					"type": "string",
@@ -4919,7 +4919,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"commit_sha": {
 					"type": "string",
-					"description": "Links a commit to the item, short or full; never pad a short SHA. A commit not yet indexed is stored as provisional and resolves itself when it lands. Linking marks the item's current item-level verification stale, unless the commit is already linked to the item as server_linked: that link is returned instead (commit_reference_deduplicated) and nothing is marked stale. A link that cannot be stored is listed under not_stored. add_commit_reference links a commit without editing anything. Omitted: no commit is linked."
+					"description": "Links a commit to the item by hand, in any form git shows it, short or full; never pad a short SHA. A fallback: a commit carrying the item's [devspec:<id>] reference links itself when it lands, and record_implementation links the commits your host observed. A commit not yet indexed is stored as provisional and resolves itself when it lands. Linking marks the item's current item-level verification stale, unless the commit is already linked to the item as server_linked: that link is returned instead (commit_reference_deduplicated) and nothing is marked stale. A link that cannot be stored is listed under not_stored. add_commit_reference links a commit without editing anything. Omitted: no commit is linked."
 				},
 				"note": {
 					"type": "string",
@@ -5899,7 +5899,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "add_implementation_note",
 		"label": "DevSpec: Add Implementation Note",
-		"description": "Add a Markdown note (context, caveats, links) to a task's history, where people read it on the item. It is a note for people and changes no state: report delivered work with record_implementation, criterion evidence with record_criterion_verdicts, and commits with add_commit_reference.",
+		"description": "Add a Markdown note (context, caveats, links) to a task's history, where people read it on the item. It is a note for people and changes no state: report delivered work with record_implementation and criterion evidence with record_criterion_verdicts. Commits link through their [devspec:<id>] reference and your host's observation; add_commit_reference is the fallback for one that did neither.",
 		"searchIntent": "add note context caveat to task history",
 		"modelInputSchema": {
 			"type": "object",
@@ -6519,7 +6519,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_implementation",
 		"label": "DevSpec: Record Implementation",
-		"description": "Record delivered work on an existing task, claimed or not: the commit, changed files, checks and an honest summary. If the item is claimed, only the claim's holder can record it, and the claim and its reservation close. The item moves to implemented, or to done once everything the implementation contract requires for done is in place; lifecycle and done_blocker in the response say where it landed and what it still waits for. Each call opens a new implementation round, so call it once per delivery; add later context with add_implementation_note or add_commit_reference. For work that has no item, use record_completed_work. Act on any returned own_criteria_follow_through or brief_follow_through before you report. Then report the commit, lifecycle and verification status exactly as returned. This is not human sign-off. Lifecycle and completion follow devspec://product/implementation-contract.",
+		"description": "Record delivered work on an existing task, claimed or not: changed files, checks and an honest summary. You do not name the commit: DevSpec chooses it from what it observed, and the response's commit_sha_source says where it came from; only none asks you for one. If the item is claimed, only the claim's holder can record it, and the claim and its reservation close. The item moves to implemented, or to done once everything the implementation contract requires for done is in place; lifecycle and done_blocker in the response say where it landed and what it still waits for. Each call opens a new implementation round, so call it once per delivery; add later context with add_implementation_note. For work that has no item, use record_completed_work. Act on any returned own_criteria_follow_through or brief_follow_through before you report. Then report the commit, lifecycle and verification status exactly as returned. This is not human sign-off. Lifecycle and completion follow devspec://product/implementation-contract.",
 		"searchIntent": "record report delivered implementation on an existing task claimed or unclaimed commit changed files checks completion",
 		"modelInputSchema": {
 			"type": "object",
@@ -6534,20 +6534,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"commit_sha": {
 					"type": "string",
-					"description": "The commit this landed in, short or full; never pad a short SHA. If the host observed a commit for this claim, that commit is used instead of a different value you send (see commit_sha_source in the response). Omitted, the observed commit is used if there is one; otherwise no commit is linked. A commit not yet indexed is stored provisional and resolves when it lands. A commit already linked to the item under the same commit_provenance_source is reused, not linked twice (commit_reference.deduplicated); under another source it is linked again."
+					"description": "The commit this work is in, short or full; never pad a short SHA. Usually leave it out: DevSpec takes the commit from what it observed itself, first a commit that landed carrying this item's tag, then the newest commit your host saw you make while you held the claim. A commit you name is always linked to the item, and is the implementing commit only when there is no such evidence. commit_sha_source and commit_selection in the response say which commit was chosen and why, and every commit linked. A commit not yet indexed is stored provisional and resolves when it lands."
 				},
 				"commit_message": {
 					"type": "string",
-					"description": "The commit's message, stored on the commit link. It is dropped when the host's observed commit replaces your commit_sha. Omitted: the commit link has no message."
-				},
-				"commit_provenance_source": {
-					"type": "string",
-					"enum": [
-						"agent_authored",
-						"plugin_stamped",
-						"server_linked"
-					],
-					"description": "How the commit's [devspec:…] tag came about, as the host observed it: agent_authored (you wrote the tag into the message), plugin_stamped (the host appended it), or server_linked (no observed tag). It is not an authentication signal. Defaults to server_linked."
+					"description": "The message of the commit you name in commit_sha, stored on its link. Omitted: that link has no message."
 				},
 				"agent_merged": {
 					"type": "boolean",
@@ -6722,11 +6713,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"commit_sha": {
 					"type": "string",
-					"description": "The commit this landed in, short or full; never pad a short SHA. If the host observed a commit for this claim, that commit is used instead of a different value you send (see commit_sha_source in the response). Omitted, the observed commit is used if there is one; otherwise no commit is linked. A commit not yet indexed is stored provisional and resolves when it lands. A commit already linked to the item under the same commit_provenance_source is reused, not linked twice (commit_reference.deduplicated); under another source it is linked again."
+					"description": "The commit this work is in, short or full; never pad a short SHA. Usually leave it out: DevSpec takes the commit from what it observed itself, first a commit that landed carrying this item's tag, then the newest commit your host saw you make while you held the claim. A commit you name is always linked to the item, and is the implementing commit only when there is no such evidence. commit_sha_source and commit_selection in the response say which commit was chosen and why, and every commit linked. A commit not yet indexed is stored provisional and resolves when it lands."
 				},
 				"commit_message": {
 					"type": "string",
-					"description": "The commit's message, stored on the commit link. It is dropped when the host's observed commit replaces your commit_sha. Omitted: the commit link has no message."
+					"description": "The message of the commit you name in commit_sha, stored on its link. Omitted: that link has no message."
 				},
 				"commit_provenance_source": {
 					"type": "string",
@@ -6735,7 +6726,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"plugin_stamped",
 						"server_linked"
 					],
-					"description": "How the commit's [devspec:…] tag came about, as the host observed it: agent_authored (you wrote the tag into the message), plugin_stamped (the host appended it), or server_linked (no observed tag). It is not an authentication signal. Defaults to server_linked."
+					"x-devspec-host-only": true,
+					"description": "Host-only. How the named commit's [devspec:…] tag came about, as the host observed it: agent_authored (the agent wrote the tag), plugin_stamped (the host appended it), or server_linked (no observed tag). It labels that commit's link only and is never evidence for which commit is chosen. Not an authentication signal. Defaults to server_linked."
 				},
 				"agent_merged": {
 					"type": "boolean",
@@ -6907,7 +6899,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_completed_work",
 		"label": "DevSpec: Record Completed Work",
-		"description": "Create a new task for work already done that has no item, recorded as implemented with its requirement, summary, commits and changed files. Search first with search_tasks: if an item already exists, claimed or not, use record_implementation on it instead of making a duplicate. Infer type, priority and tags from the git log and diff rather than interviewing the person; they can edit them afterwards. The new item is recorded as implemented, not done. Whether finished work needs an item is set by work_entry_contract in devspec://product/implementation-contract.",
+		"description": "Create a new task for work already done that has no item, recorded as implemented with its requirement, summary, commits and changed files. Its commit list is for work done outside an agent session DevSpec observed (by a person, or before DevSpec was connected), so you list the commits yourself, from git. Search first with search_tasks: if an item already exists, claimed or not, use record_implementation on it instead of making a duplicate. Infer type, priority and tags from the git log and diff rather than interviewing the person; they can edit them afterwards. The new item is recorded as implemented, not done. Whether finished work needs an item is set by work_entry_contract in devspec://product/implementation-contract.",
 		"searchIntent": "record work already finished that has no task yet retroactive new item",
 		"modelInputSchema": {
 			"type": "object",
@@ -6959,7 +6951,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"properties": {
 							"sha": {
 								"type": "string",
-								"description": "The commit SHA, short or full; never pad a short one."
+								"description": "The commit SHA, in any form git shows it, short or full; never pad a short one."
 							},
 							"message": {
 								"type": "string",
@@ -6970,7 +6962,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"sha"
 						]
 					},
-					"description": "The commits for this work. Each is linked to the item; the first also becomes the item's commit. Any deployment already carrying one is linked. Each SHA is resolved across the project's tracked repositories and stored in full when found, or provisional until it lands; a malformed SHA refuses the call before the item is created. Omitted: no commit is linked."
+					"description": "The commits for this work, from git log: nothing observed them, so this list is how they reach the item. Each is linked to the item; the first also becomes the item's commit. Any deployment already carrying one is linked. Each SHA is resolved across the project's tracked repositories and stored in full when found, or provisional until it lands; a malformed SHA refuses the call before the item is created. Omitted: no commit is linked."
 				},
 				"affected_files": {
 					"type": "array",
@@ -7131,7 +7123,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"properties": {
 							"sha": {
 								"type": "string",
-								"description": "The commit SHA, short or full; never pad a short one."
+								"description": "The commit SHA, in any form git shows it, short or full; never pad a short one."
 							},
 							"message": {
 								"type": "string",
@@ -7142,7 +7134,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"sha"
 						]
 					},
-					"description": "The commits for this work. Each is linked to the item; the first also becomes the item's commit. Any deployment already carrying one is linked. Each SHA is resolved across the project's tracked repositories and stored in full when found, or provisional until it lands; a malformed SHA refuses the call before the item is created. Omitted: no commit is linked."
+					"description": "The commits for this work, from git log: nothing observed them, so this list is how they reach the item. Each is linked to the item; the first also becomes the item's commit. Any deployment already carrying one is linked. Each SHA is resolved across the project's tracked repositories and stored in full when found, or provisional until it lands; a malformed SHA refuses the call before the item is created. Omitted: no commit is linked."
 				},
 				"affected_files": {
 					"type": "array",
@@ -7773,18 +7765,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "add_commit_reference",
 		"label": "DevSpec: Add Commit Reference",
-		"description": "Link a commit you are not reporting through record_implementation to a task, session or memory in this project. A short or full SHA is accepted. Pass at least one of task_id, session_id or memory_id; with none, the commit is linked to the project alone. Linking it to a task marks that item's current item-level verification stale, a person's sign-off included (schema checks and criterion verdicts are kept), and links any deployment that already shipped the commit. Linking the same commit to the same target with the same provenance_source returns the existing link (deduplicated: true) and marks nothing stale; under a different provenance_source it adds a second link, which marks the item's verification stale like any new link; on an item, verification_effect in the response says what was marked stale. The project comes from project_id, git_remote or pinned_project_id, not from the ids you link. A link is not completion evidence: report delivered work with record_implementation.",
+		"description": "Link a commit to a task, session or memory in this project by hand. A fallback: a commit carrying a task's [devspec:<id>] reference links itself when it lands, and record_implementation links the commits your host observed. Use this for a commit with no reference that your host did not observe, one made outside your session, a session or memory link, or when record_implementation reported commit_sha_source none. Any form git shows is accepted, short or full. Pass at least one of task_id, session_id or memory_id; with none, the commit is linked to the project alone. Linking it to a task marks that item's current item-level verification stale, a person's sign-off included (schema checks and criterion verdicts are kept), and links any deployment that already shipped the commit. Linking a commit already linked to the same target returns the existing link (deduplicated: true) and marks nothing stale; on an item, verification_effect in the response says what was marked stale. The project comes from project_id, git_remote or pinned_project_id, not from the ids you link. A link is not completion evidence: report delivered work with record_implementation.",
 		"searchIntent": "link attach existing git commit to task session memory",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
 				"commit_sha": {
 					"type": "string",
-					"description": "The commit, short or full. The server resolves it across the project's tracked repositories and stores the full SHA when found. A commit not indexed yet is stored provisional and resolves itself when it lands. Never pad a short SHA yourself: that names a commit that does not exist."
+					"description": "The commit, in any form git shows it, short or full. The server resolves it across the project's tracked repositories and stores the full SHA when found. A commit not indexed yet is stored provisional and resolves itself when it lands. Never pad a short SHA yourself: that names a commit that does not exist."
 				},
 				"commit_message": {
 					"type": "string",
-					"description": "The commit's subject. The server does not look it up: if you don't have it, read it from Git (`git log --format=%s -1 <sha>`) and pass it, rather than leaving the reference unlabelled. Omitted: the link has no message."
+					"description": "The commit's subject. Usually leave it out: when DevSpec already holds the commit, it stores the commit's own message. Pass it only for a commit DevSpec has not seen yet, if you have it. Omitted: the stored message is DevSpec's own copy, or none until the commit lands."
 				},
 				"session_id": {
 					"type": "string",
@@ -7797,15 +7789,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"memory_id": {
 					"type": "string",
 					"description": "Memory to link: a UUID or 8-character short code. Omitted: no memory is linked."
-				},
-				"provenance_source": {
-					"type": "string",
-					"enum": [
-						"agent_authored",
-						"plugin_stamped",
-						"server_linked"
-					],
-					"description": "How the commit's [devspec:…] tag came about, as the host observed it: agent_authored (you wrote the tag into the message), plugin_stamped (the host appended it), or server_linked (no observed tag, and this call is the link). It is not an authentication signal. A task link to a full SHA marked agent_authored or plugin_stamped counts as the host's observed commit for the item's current round of work, so record_implementation uses it in place of a different commit_sha. Defaults to server_linked."
 				},
 				"connection_id": {
 					"type": "string",
@@ -7841,11 +7824,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"commit_sha": {
 					"type": "string",
-					"description": "The commit, short or full. The server resolves it across the project's tracked repositories and stores the full SHA when found. A commit not indexed yet is stored provisional and resolves itself when it lands. Never pad a short SHA yourself: that names a commit that does not exist."
+					"description": "The commit, in any form git shows it, short or full. The server resolves it across the project's tracked repositories and stores the full SHA when found. A commit not indexed yet is stored provisional and resolves itself when it lands. Never pad a short SHA yourself: that names a commit that does not exist."
 				},
 				"commit_message": {
 					"type": "string",
-					"description": "The commit's subject. The server does not look it up: if you don't have it, read it from Git (`git log --format=%s -1 <sha>`) and pass it, rather than leaving the reference unlabelled. Omitted: the link has no message."
+					"description": "The commit's subject. Usually leave it out: when DevSpec already holds the commit, it stores the commit's own message. Pass it only for a commit DevSpec has not seen yet, if you have it. Omitted: the stored message is DevSpec's own copy, or none until the commit lands."
 				},
 				"session_id": {
 					"type": "string",
@@ -7866,7 +7849,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"plugin_stamped",
 						"server_linked"
 					],
-					"description": "How the commit's [devspec:…] tag came about, as the host observed it: agent_authored (you wrote the tag into the message), plugin_stamped (the host appended it), or server_linked (no observed tag, and this call is the link). It is not an authentication signal. A task link to a full SHA marked agent_authored or plugin_stamped counts as the host's observed commit for the item's current round of work, so record_implementation uses it in place of a different commit_sha. Defaults to server_linked."
+					"x-devspec-host-only": true,
+					"description": "Host-only. How the commit's [devspec:…] tag came about, as the host observed it: agent_authored (the agent wrote the tag), plugin_stamped (the host appended it), or server_linked (no observed tag, and this call is the link). It labels the link only: record_implementation never treats it as evidence of which commit implemented an item. Not an authentication signal. Defaults to server_linked."
 				},
 				"connection_id": {
 					"type": "string",

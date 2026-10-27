@@ -17,7 +17,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync, readSync, realpathSync, writeFileSync } from "node:fs";
 import { isatty } from "node:tty";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 
 export const STAMP_ENV = Object.freeze({
 	project: "DEVSPEC_PI_STAMP_PROJECT",
@@ -186,7 +186,7 @@ export function repositoryInProject(run, worktree, cwd, scope) {
 	const root = resolve(worktree);
 	let dir = resolve(cwd ?? worktree);
 	try { dir = realpathSync(dir); } catch { /* a missing directory has no pin */ }
-	if (dir === root || dir.startsWith(`${root}/`)) {
+	if (dir === root || dir.startsWith(`${root}${sep}`)) {
 		for (;;) {
 			const pin = readPin(dir);
 			if (pin !== null) return pin === scope.projectId;

@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, type TestContext } from "node:test";
+import { BASH, withEnv } from "./bash-fixture.ts";
 import { corroborateObservedCommit } from "../extensions/devspec-commit-ledger.ts";
 import {
 	drainGitObservations,
@@ -51,8 +52,8 @@ function prepare(toolCallId: string, session = SESSION) {
 }
 
 function bash(command: string, session = SESSION, extraEnv: Record<string, string> = {}): void {
-	execFileSync("/bin/bash", ["-c", command], {
-		env: { ...process.env, PI_SESSION_ID: session, ...extraEnv },
+	execFileSync(BASH, ["-c", command], {
+		env: withEnv({ PI_SESSION_ID: session, ...extraEnv }),
 		stdio: ["ignore", "pipe", "pipe"],
 	});
 }
@@ -315,7 +316,7 @@ test("install resolves real Git past a stale shim dir on PATH", (t) => {
 		rmSync(dir, { recursive: true, force: true });
 	});
 	writeFileSync(join(dir, "git"), "#!/bin/sh\nexit 1\n", { mode: 0o700 });
-	process.env.PATH = `${dir}:${originalPath ?? ""}`;
+	process.env.PATH = `${dir}${delimiter}${originalPath ?? ""}`;
 	resetGitObserverForTests();
 	assert.equal(initializeGitObserver("session-poisoned-path"), true);
 	const prepared = prepareGitObservation({

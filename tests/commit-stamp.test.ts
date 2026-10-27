@@ -13,6 +13,7 @@ import {
 } from "../extensions/core/git-observer.ts";
 import { commitStampNote, commitStampScope, commitTaggingAvailable, originFingerprint } from "../extensions/core/commit-stamp.ts";
 import { setBond } from "../extensions/core/bond-state.ts";
+import { BASH } from "./bash-fixture.ts";
 // @ts-expect-error plain ESM runtime module without types
 import { planCommitStamp, readCommitMessageSource, readStampScope, stampMessage } from "../runtime/commit-stamp.mjs";
 
@@ -52,7 +53,7 @@ function bash(command: string, stamp: CommitStampScope | null, env: Record<strin
 		connectionCapability: "fixture-host-only-capability", transport: { tokenHash: "fixture-hash", endpoint: "https://original.invalid/api/mcp" }, stamp,
 	});
 	assert.ok(prepared);
-	execFileSync("/bin/bash", ["-c", `${prepared.prefix}${command}`], { env: { ...process.env, PI_SESSION_ID: SESSION, ...env }, stdio: ["ignore", "pipe", "pipe"] });
+	execFileSync(BASH, ["-c", `${prepared.prefix}${command}`], { env: { ...process.env, PI_SESSION_ID: SESSION, ...env }, stdio: ["ignore", "pipe", "pipe"] });
 	const observerDir = /DEVSPEC_PI_GIT_OBSERVER_DIR='([^']+)'/u.exec(prepared.prefix)?.[1] ?? "";
 	return Object.assign(drainGitObservations(), { observerDir });
 }
@@ -247,7 +248,7 @@ test("Pi says it tags commits only where a working stand-in and a bonded connect
 	setBond(null as never);
 	assert.equal(commitTaggingAvailable(), false, "no bond: nothing arms the stand-in");
 	setBond({ projectId: PROJECT, connectionId: CONNECTION, connectionCapability: "fixture-capability" } as never);
-	assert.equal(commitTaggingAvailable(), process.platform !== "win32", "the stand-in runs on POSIX only today");
+	assert.equal(commitTaggingAvailable(), true, "a working stand-in, on POSIX and native Windows alike");
 	resetGitObserverForTests();
 	assert.equal(commitTaggingAvailable(), false, "no stand-in: the model writes the tag itself");
 	setBond(null as never);

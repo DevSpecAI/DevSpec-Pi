@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -252,4 +252,39 @@ test("Pi says it tags commits only where a working stand-in and a bonded connect
 	resetGitObserverForTests();
 	assert.equal(commitTaggingAvailable(), false, "no stand-in: the model writes the tag itself");
 	setBond(null as never);
+});
+
+test("the stand-in, the repository and the message file may all sit under paths with spaces, named in either path style (c4b14794)", (t) => {
+	// The stand-in's own directory comes from the temp directory: put a space in it,
+	// and make it deep enough that a Trace2 socket path could not fit (git then
+	// writes its events to files instead, as it always does on Windows).
+	const spaced = realpathSync.native(mkdtempSync(join(tmpdir(), "devspec pi spaced ")));
+	const temp = join(spaced, `temp dir ${"deep".repeat(15)}`);
+	mkdirSync(temp);
+	const saved = { TMPDIR: process.env.TMPDIR, TMP: process.env.TMP, TEMP: process.env.TEMP };
+	process.env.TMPDIR = temp; process.env.TMP = temp; process.env.TEMP = temp;
+	resetGitObserverForTests();
+	t.after(() => {
+		for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+		resetGitObserverForTests();
+		rmSync(spaced, { recursive: true, force: true });
+	});
+	assert.equal(initializeGitObserver(SESSION), true);
+	const cwd = repo(spaced, "my project repo");
+	mkdirSync(join(cwd, ".devspec"));
+	writeFileSync(join(cwd, ".devspec", "project.json"), JSON.stringify({ project_id: PROJECT }));
+	writeFileSync(join(cwd, "my message.txt"), "Message from a spaced file\n");
+	// Native style everywhere, and on Windows also the POSIX form Git Bash prints.
+	const posix = process.platform === "win32" ? `"$(/usr/bin/cygpath -u '${cwd}')"` : `'${cwd}'`;
+	const pinned = scope({ remoteSha256: null });
+	let rows = bash(`cd '${cwd}' && git commit -q --allow-empty -m 'Native style'`, pinned);
+	assert.equal(message(cwd), `Native style ${TAG}\n`);
+	assert.equal(rows[0]?.stamp?.outcome, "stamped");
+	assert.ok(rows.observerDir.includes(" "), "the stand-in itself ran from a path with spaces");
+	rows = bash(`cd ${posix} && git commit -q --allow-empty -F 'my message.txt'`, pinned);
+	assert.equal(message(cwd), `Message from a spaced file ${TAG}\n`);
+	assert.equal(readFileSync(join(cwd, "my message.txt"), "utf8"), "Message from a spaced file\n");
+	rows = bash(`git -C ${posix} commit -q --allow-empty -F - <<'EOF'\nPOSIX style through -C\nEOF`, pinned);
+	assert.equal(message(cwd), `POSIX style through -C ${TAG}\n`);
+	assert.equal(rows[0]?.worktree, cwd);
 });

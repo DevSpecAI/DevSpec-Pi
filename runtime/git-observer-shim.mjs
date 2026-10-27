@@ -102,6 +102,9 @@ function startDirectoryTraceCapture(observerDir) {
 async function startTraceCapture(observerDir) {
 	if (process.platform === "win32") return startDirectoryTraceCapture(observerDir);
 	const socketPath = join(observerDir, `trace-${randomUUID()}.sock`);
+	// Git connects only to a socket path that fits sun_path with its NUL; a longer
+	// one (a deep temp directory) can bind in node yet receive nothing from git.
+	if (Buffer.byteLength(socketPath) > 100) return startDirectoryTraceCapture(observerDir);
 	const chunks = [];
 	const sockets = new Set();
 	let bytes = 0;
@@ -122,13 +125,20 @@ async function startTraceCapture(observerDir) {
 			}
 		});
 	});
-	await new Promise((resolve, reject) => {
-		server.once("error", reject);
-		server.listen(socketPath, () => {
-			server.off("error", reject);
-			resolve();
+	try {
+		await new Promise((resolve, reject) => {
+			server.once("error", reject);
+			server.listen(socketPath, () => {
+				server.off("error", reject);
+				resolve();
+			});
 		});
-	});
+	} catch {
+		// A socket path past the platform limit (a deep temp directory, or one
+		// with spaces) cannot be bound: the same events go to files instead.
+		try { server.close(); } catch { /* never listening */ }
+		return startDirectoryTraceCapture(observerDir);
+	}
 	return {
 		target: `af_unix:stream:${socketPath}`,
 		async finish() {

@@ -7,6 +7,8 @@ Connect the [Pi](https://pi.dev) coding agent to [DevSpec](https://devspec.ai) w
 - [Pi](https://pi.dev) 1.0 or later
 - Node.js 22.19 or later
 
+Full commit tracking — every commit reported to DevSpec and tagged with its task automatically — needs macOS, Linux, or Windows through WSL. On native Windows, Pi does not see the agent's commits yet, so the agent adds the task tag to its commit messages itself and DevSpec links the commits to their tasks later.
+
 ## Setup
 
 ### 1. Install Pi

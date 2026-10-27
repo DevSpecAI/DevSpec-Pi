@@ -1,6 +1,6 @@
 {
   "name": "@devspec/pi-plugin",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "DevSpec for Pi — native tools, auth, remote control, and memory for the Pi agent. One install, everything included.",
   "type": "module",
   "license": "MIT",

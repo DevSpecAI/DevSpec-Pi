@@ -73,6 +73,12 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /When exactly one task is claimed, Pi adds its full \[devspec:<id>\] tag to your commit messages itself/);
 	assert.match(text, /Write the tag yourself only when Pi says it did not add it/);
 	assert.doesNotMatch(text, /server reconciliation/);
+	// Without a working git stand-in (native Windows, no bonded connection) the model
+	// is told to write the tag itself, never that Pi adds it (c4b14794).
+	const untagged = buildDevspecInstructions({ commitTagging: false });
+	assert.match(untagged, /Pi cannot add task tags to commits in this setup, so put the claimed task's full \[devspec:<id>\] reference in every implementing commit message yourself/);
+	assert.doesNotMatch(untagged, /Pi adds its full/);
+	assert.match(untagged, /commit_provenance_contract/);
 	assert.doesNotMatch(text, /trusted subprocess|trusted child/i);
 	assert.match(text, /record_memory/);
 	assert.match(text, /git_remote/);

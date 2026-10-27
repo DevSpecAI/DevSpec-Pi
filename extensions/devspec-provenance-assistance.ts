@@ -15,6 +15,7 @@ import { resolveGitRemote, resolveProjectPin, resolveProjectPinFile, writeProjec
 import { getProjectChoice } from "./core/project-choice.ts";
 import { unwrapMcpResult } from "./core/result.ts";
 import { hasObservedClaim, markProjectNudged, unmarkProjectNudged } from "./core/work-state.ts";
+import { commitTaggingAvailable } from "./core/commit-stamp.ts";
 
 const RELIABLE_EDIT_TOOLS = new Set(["write", "edit", "apply_patch", "notebook"]);
 const FULL_PROJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -150,6 +151,7 @@ export async function unclaimedEditNudge(
 	toolName: string,
 	runtime: ProvenanceRuntime,
 	projectResolver: (cwd: string) => Promise<string | null> = resolveNudgeProject,
+	commitTagging: () => boolean = commitTaggingAvailable,
 ): Promise<ProvenanceNudge | null> {
 	if (!RELIABLE_EDIT_TOOLS.has(toolName)) return null;
 	const sessionId = runtime.sessionManager.getSessionId();
@@ -166,7 +168,9 @@ export async function unclaimedEditNudge(
 			"Before committing, use search_tasks to find and claim the covering item. If none exists, " +
 			"create the smallest task that does, with a substantive description and the reason for the work (create_task " +
 			"requires both), as the implementation contract's work_entry_contract decides, and claim it. " +
-			"Once one task is claimed, Pi adds its [devspec:<full-uuid>] tag to your commits itself; write the tag yourself only when Pi says it did not.",
+			(commitTagging()
+				? "Once one task is claimed, Pi adds its [devspec:<full-uuid>] tag to your commits itself; write the tag yourself only when Pi says it did not."
+				: "Pi cannot add task tags to commits in this setup, so put the claimed task's [devspec:<full-uuid>] in every commit message yourself."),
 		display: true,
 		details: { projectId },
 	};

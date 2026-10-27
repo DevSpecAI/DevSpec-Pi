@@ -9,7 +9,8 @@
  */
 
 import { createHash } from "node:crypto";
-import type { CommitStampReport, CommitStampScope } from "./git-observer.ts";
+import { getBond } from "./bond-state.ts";
+import { gitObserverActive, type CommitStampReport, type CommitStampScope } from "./git-observer.ts";
 import type { ObservedClaim } from "./work-state.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -21,6 +22,16 @@ export interface CommitStampDeps {
 	originUrl(cwd: string): Promise<string | null>;
 	/** The project a directory positively belongs to (pin or server-verified remote), or null. */
 	resolveProject(cwd: string): Promise<string | null>;
+}
+
+/**
+ * Whether Pi can tag this conversation's commits at all: a working git stand-in
+ * (POSIX today, so not native Windows) and a bonded connection it arms per call.
+ * Without it, the model is told to write the tag itself (c4b14794).
+ */
+export function commitTaggingAvailable(): boolean {
+	const bond = getBond();
+	return gitObserverActive() && Boolean(bond?.projectId && bond.connectionCapability);
 }
 
 export function originFingerprint(url: string): string {

@@ -10,6 +10,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { resolveToken } from "./core/auth-store.ts";
 import { getBond } from "./core/bond-state.ts";
 import { buildDevspecInstructions } from "./core/instructions.ts";
+import { commitTaggingAvailable } from "./core/commit-stamp.ts";
 import { noteInjectedContext, noteStaticContextBudget } from "./core/context-budget.ts";
 import { REPOSITORY_CONTEXT_MESSAGE, repositorySnapshotNeeded } from "./core/repository-context.ts";
 import { INSTRUCTION_CONTEXT_MESSAGE, instructionContextMessage } from "./core/connection-context.ts";
@@ -92,7 +93,8 @@ export default function (pi: ExtensionAPI) {
 	pi.on("before_agent_start", async (event, _ctx) => {
 		const resolved = await resolveToken();
 		if (!resolved) return undefined;
-		let prompt = `${event.systemPrompt}\n\n${buildDevspecInstructions()}`;
+		// Stable for a bonded session; it changes only when the git stand-in or the bond does.
+		let prompt = `${event.systemPrompt}\n\n${buildDevspecInstructions({ commitTagging: commitTaggingAvailable() })}`;
 		const bonded = buildBondedInstructions();
 		if (bonded) prompt += `\n\n### DevSpec remote (bonded)\n${bonded}`;
 

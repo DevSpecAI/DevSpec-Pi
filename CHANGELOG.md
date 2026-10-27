@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.1 - 2026-10-27
+
+- The tool catalogue is regenerated against DevSpec's current tools. Your agent is no longer asked how a commit's task tag came about, and the commit fields of recording work and linking a commit now say to leave the commit out: DevSpec picks it from what it saw, and naming one by hand is the fallback. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.10.0 - 2026-10-27
 
 - Full commit tracking now works on native Windows too. When Pi runs in Git Bash, which comes with Git for Windows and is Pi's default shell there, it sees every commit the agent makes, reports it to DevSpec, and adds the claimed task's tag to it, just as on macOS and Linux. Paths with spaces and both Windows and Unix-style paths work. A Windows job in Pi's own test runs proves this on every change.

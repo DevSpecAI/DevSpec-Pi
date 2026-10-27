@@ -789,7 +789,17 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// empty-string clearing wording removed from update_task description/intent, synthesized
 		// rationale / no conversational go-ahead quotes guidance on intent, and write-time gate
 		// rejection guidance added across task and memory write tools).
-		"b633e76e21183aaadd126fa9bf9c62044e5ba5e84e305e4c3167d631386a0f4e",
+		// Rebaselined 2026-10-27 for DevSpec item df71ab6c (server commit guidance, DevSpecV2
+		// #809/#814/#817, implementation contract 5.4.0), regenerated against staging 2889d9d1a.
+		// Model shape change: record_implementation no longer offers commit_provenance_source and
+		// add_commit_reference no longer offers provenance_source to the model (both stay on the
+		// wire as host-only); commit_sha and commit_message are reworded (leave the commit out:
+		// DevSpec chooses it from what it observed). Text changes on add_commit_reference,
+		// generate_commit_message, update_task.commit_sha, add_implementation_note,
+		// record_implementation and record_completed_work. No verb added or removed; verbs 84
+		// model / 12 pump / 1 never-model, families and hot set unchanged. Benchmark before/after:
+		// initial surface 55,367 -> 55,655 estimated tokens; every budget still passes.
+		"426f9b05986bf6044224ea741cdb32c8a687401c570cc7a12f30433928d3c165",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

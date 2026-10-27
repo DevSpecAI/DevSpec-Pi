@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import {
 	drainGitObservations,
+	windowsShellHasCygpath,
 	initializeGitObserver,
 	prepareGitObservation,
 	resetGitObserverForTests,
@@ -287,4 +288,16 @@ test("the stand-in, the repository and the message file may all sit under paths 
 	rows = bash(`git -C ${posix} commit -q --allow-empty -F - <<'EOF'\nPOSIX style through -C\nEOF`, pinned);
 	assert.equal(message(cwd), `POSIX style through -C ${TAG}\n`);
 	assert.equal(rows[0]?.worktree, cwd);
+});
+
+test("on Windows the stand-in runs only where Pi's bash has cygpath (Git Bash, MSYS2, Cygwin), never the legacy WSL bash", { skip: process.platform !== "win32" }, (t) => {
+	assert.equal(windowsShellHasCygpath(), true, "the runner's Git Bash");
+	const empty = mkdtempSync(join(tmpdir(), "devspec-pi-no-bash-"));
+	t.after(() => rmSync(empty, { recursive: true, force: true }));
+	const wslOnly = { ProgramFiles: empty, "ProgramFiles(x86)": empty, PATH: join(process.env.SystemRoot ?? "C:\\Windows", "System32") } as NodeJS.ProcessEnv;
+	const saved = { ...process.env };
+	for (const key of Object.keys(process.env)) if (key.toLowerCase() === "path") delete process.env[key];
+	process.env.PATH = wslOnly.PATH;
+	try { assert.equal(windowsShellHasCygpath(wslOnly), false); }
+	finally { for (const key of Object.keys(process.env)) delete process.env[key]; Object.assign(process.env, saved); }
 });

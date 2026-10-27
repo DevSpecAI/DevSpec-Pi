@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.0 - 2026-10-27
+
+- Full commit tracking now works on native Windows too. When Pi runs in Git Bash, which comes with Git for Windows and is Pi's default shell there, it sees every commit the agent makes, reports it to DevSpec, and adds the claimed task's tag to it, just as on macOS and Linux. Paths with spaces and both Windows and Unix-style paths work. A Windows job in Pi's own test runs proves this on every change.
+- Fixed: on macOS and Linux, when the temporary folder had a long path, Pi stopped seeing the agent's commits without saying so. It now sees them wherever the temporary folder is.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.9.1 - 2026-10-27
 
 - The README now says which setups get full commit tracking: macOS, Linux, or Windows through WSL. On native Windows, Pi does not see the agent's commits yet, so the agent adds the task tag to its commit messages itself and DevSpec links the commits to their tasks later.

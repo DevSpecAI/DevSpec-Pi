@@ -127,6 +127,29 @@ function windowsPathForShell(path: string): string {
 	return path.replaceAll("\\", "/");
 }
 
+/**
+ * Whether the bash Pi will run on Windows can reach the stand-in: Pi takes Git
+ * Bash from Program Files first, then the first bash.exe on PATH. Git Bash,
+ * MSYS2 and Cygwin ship cygpath beside their bash; the legacy WSL bash.exe does
+ * not (and runs Linux git), so there Pi stays unobserved and says so (c4b14794).
+ * A shell set by hand in Pi's settings is not consulted.
+ */
+export function windowsShellHasCygpath(env: NodeJS.ProcessEnv = process.env): boolean {
+	const gitBash = [env.ProgramFiles, env["ProgramFiles(x86)"]]
+		.filter((base): base is string => Boolean(base))
+		.map((base) => join(base, "Git", "bin", "bash.exe"))
+		.find((path) => existsSync(path));
+	let shell = gitBash ?? null;
+	if (!shell) {
+		try {
+			shell = execFileSync("where", ["bash.exe"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000, windowsHide: true })
+				.trim().split(/\r?\n/u).find((path) => path && existsSync(path)) ?? null;
+		} catch { shell = null; }
+	}
+	if (!shell) return false;
+	return [dirname(shell), join(dirname(dirname(shell)), "usr", "bin")].some((dir) => existsSync(join(dir, "cygpath.exe")));
+}
+
 function pathAssignment(dir: string): string {
 	if (process.platform !== "win32") return `export PATH=${shellQuote(dir)}:"$PATH"`;
 	return `__devspec_pi_git_dir="$(/usr/bin/cygpath -u ${shellQuote(windowsPathForShell(dir))} 2>/dev/null)" && [ -n "$__devspec_pi_git_dir" ] && export PATH="$__devspec_pi_git_dir:$PATH"; unset __devspec_pi_git_dir`;
@@ -141,6 +164,10 @@ function cleanupGeneration(generation: GitObserverGeneration | null): void {
 
 export function initializeGitObserver(piSessionId: string, preserveReload = false): boolean {
 	const state = store();
+	if (process.platform === "win32" && !windowsShellHasCygpath()) {
+		state.current = null;
+		return false;
+	}
 	if (preserveReload && state.current?.active && state.current.piSessionId === piSessionId) return true;
 	cleanupGeneration(state.current);
 	const realGit = findRealGit();

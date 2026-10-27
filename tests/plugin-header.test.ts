@@ -69,7 +69,7 @@ after(async () => {
 
 test("the header names this plugin and its loaded version, and is left off when the version is unknown", () => {
 	assert.deepEqual(pluginHeaders(), { [PLUGIN_HEADER]: expected });
-	assert.deepEqual(pluginHeaders(versionReportFromManifest({ name: "@devspec/pi-plugin", version: "1.2.3" }, undefined)), { [PLUGIN_HEADER]: "pi/1.2.3" });
+	assert.deepEqual(pluginHeaders(versionReportFromManifest({ name: "@devspecai/pi-plugin", version: "1.2.3" }, undefined)), { [PLUGIN_HEADER]: "pi/1.2.3" });
 	assert.deepEqual(pluginHeaders({}), {});
 });
 

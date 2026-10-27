@@ -1,4 +1,4 @@
-name: Publish @devspec/pi-plugin to npm
+name: Publish @devspecai/pi-plugin to npm
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to publish (e.g. v0.10.2)'
+        description: 'Release tag to publish (e.g. v0.10.3)'
         required: true
         type: string
 
@@ -52,7 +52,7 @@ jobs:
       - run: npm run audit:gate
       - run: node --test tests/packed-package.test.ts
 
-      - name: Publish to npm
+      - name: Stage release on npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public
+        run: npx -y npm@latest stage publish --access public

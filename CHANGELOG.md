@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.3 - 2026-10-27
+
+- Scoped the published npm package under `@devspecai/pi-plugin` (matching the `DevSpecAI` organization) and updated the release workflow to support npm staged publishing (`npm stage publish --access public`).
+- Updated `README.md` with the primary one-line npm install command (`pi install npm:@devspecai/pi-plugin`) and GitHub fallback.
+
 ## 0.10.2 - 2026-10-27
 
 - Published package hygiene: `package.json` now declares an explicit `files` allowlist (`extensions`, `runtime`, `skills`, `prompts`, `themes`, `README.md`, `CHANGELOG.md`, `LICENSE`) and public `publishConfig` so `npm pack` ships only the runtime extension files and never bundles tests, helper scripts, workflow definitions, or local `.pi` state.

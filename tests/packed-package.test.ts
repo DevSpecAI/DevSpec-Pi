@@ -8,7 +8,7 @@ import { test } from "node:test";
 
 const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
-test("npm package contains fail-open provenance runtime and no obsolete gate", (t) => {
+test("npm package contains fail-open provenance runtime and no obsolete gate, tests, scripts, or .pi state", (t) => {
 	const destination = mkdtempSync(join(tmpdir(), "devspec-pi-pack-"));
 	t.after(() => rmSync(destination, { recursive: true, force: true }));
 	const packed = JSON.parse(execFileSync("npm", ["pack", "--json", "--pack-destination", destination], {
@@ -17,8 +17,13 @@ test("npm package contains fail-open provenance runtime and no obsolete gate", (
 		stdio: ["ignore", "pipe", "pipe"],
 	})) as Array<{ filename: string; files: Array<{ path: string }> }>;
 	assert.equal(packed.length, 1);
-	const files = new Set(packed[0]!.files.map((file) => file.path));
+	const fileList = packed[0]!.files.map((file) => file.path);
+	const files = new Set(fileList);
 	for (const required of [
+		"package.json",
+		"README.md",
+		"CHANGELOG.md",
+		"LICENSE",
 		"extensions/devspec-provenance-assistance.ts",
 		"extensions/core/work-state.ts",
 		"extensions/core/git-observer.ts",
@@ -30,4 +35,14 @@ test("npm package contains fail-open provenance runtime and no obsolete gate", (
 	]) assert.equal(files.has(required), true, `${required} missing from packed npm package`);
 	assert.equal(files.has("extensions/devspec-mutation-gate.ts"), false);
 	assert.equal(files.has("extensions/core/claim-authority.ts"), false);
+
+	const forbidden = fileList.filter(
+		(path) =>
+			path.startsWith("tests/") ||
+			path.startsWith("scripts/") ||
+			path.startsWith(".pi/") ||
+			path.startsWith(".github/") ||
+			path === "tsconfig.json",
+	);
+	assert.deepEqual(forbidden, [], `Unexpected non-runtime files in packed tarball: ${forbidden.join(", ")}`);
 });

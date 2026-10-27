@@ -3,7 +3,9 @@
  *
  * Direct commits are observed by the private session Git shim (item 2c971806).
  * The older command/output recognizer remains as a conservative fallback. Neither
- * path blocks Git, rewrites messages, parses Bash policy, or grants authority.
+ * path blocks Git, parses Bash policy, or grants authority. The shim tags a plain
+ * commit with the one claimed task's reference (item df71ab6c, owner-approved),
+ * and each commit's outcome is told to the model under the command's output.
  */
 
 import { execFileSync } from "node:child_process";
@@ -37,6 +39,9 @@ import {
 	type ObservedGitCommit,
 } from "./core/git-observer.ts";
 import { resolveGitRemote, resolveProjectPin, sanitizeGitRemoteForTransport } from "./core/project-scope.ts";
+import { commitStampNote, commitStampScope, type CommitStampDeps } from "./core/commit-stamp.ts";
+import { listObservedClaims } from "./core/work-state.ts";
+import { resolveNudgeProject } from "./devspec-provenance-assistance.ts";
 
 function commandOf(args: unknown): string {
 	const a = args as { command?: unknown } | null;
@@ -309,8 +314,43 @@ export function corroborateObservedCommit(observed: ObservedGitCommit, now = Dat
 		reflogMs >= earliest && reflogMs <= now + 2000 && committedMs >= earliest && committedMs <= now + 2000;
 }
 
+const stampDeps: CommitStampDeps = {
+	claims: (sessionId) => listObservedClaims(sessionId),
+	originUrl: (cwd) => Promise.resolve(gitOutput(cwd, ["remote", "get-url", "origin"])),
+	resolveProject: (cwd) => resolveNudgeProject(cwd),
+};
+
+/** Lines for the model, per tool call, from the commits that call made (df71ab6c). */
+const STAMP_NOTES_KEY = "__devspecPiCommitStampNotes";
+function stampNotes(): Map<string, string[]> {
+	const g = globalThis as unknown as Record<string, Map<string, string[]> | undefined>;
+	if (!(g[STAMP_NOTES_KEY] instanceof Map)) g[STAMP_NOTES_KEY] = new Map();
+	return g[STAMP_NOTES_KEY] as Map<string, string[]>;
+}
+
+function noteStampOutcome(observed: ObservedGitCommit): void {
+	const note = commitStampNote(observed);
+	if (!note) return;
+	const notes = stampNotes();
+	notes.set(observed.envelope.toolCallId, [...(notes.get(observed.envelope.toolCallId) ?? []), note]);
+	while (notes.size > 50) {
+		const oldest = notes.keys().next().value;
+		if (!oldest) break;
+		notes.delete(oldest);
+	}
+}
+
+/** Take the lines for one tool call, once. */
+export function takeCommitStampNotes(toolCallId: string): string[] {
+	const notes = stampNotes();
+	const lines = notes.get(toolCallId) ?? [];
+	notes.delete(toolCallId);
+	return lines;
+}
+
 async function ledgerAndQueue(observed: ObservedGitCommit): Promise<void> {
 	if (!corroborateObservedCommit(observed)) return;
+	noteStampOutcome(observed);
 	const message = repoCommitMessage(observed.worktree, observed.sha);
 	const commit: LedgerCommit = {
 		sha: observed.sha,
@@ -374,6 +414,8 @@ export default function (pi: ExtensionAPI) {
 		const bond = getBond();
 		if (!transport || bond?.connectionId !== start.attribution.connectionId || bond?.projectId !== start.attribution.projectId ||
 			bond?.connectionCapability !== start.attribution.connectionCapability) return;
+		// Stamping is armed only while a task is claimed; a failure arms nothing.
+		const stamp = await commitStampScope({ sessionId: start.piSessionId, projectId: start.attribution.projectId, cwd: start.cwd }, stampDeps).catch(() => null);
 		const prepared = prepareGitObservation({
 			toolCallId: event.toolCallId,
 			piSessionId: start.piSessionId,
@@ -381,6 +423,7 @@ export default function (pi: ExtensionAPI) {
 			projectId: start.attribution.projectId,
 			connectionCapability: start.attribution.connectionCapability,
 			transport,
+			stamp,
 		});
 		if (!prepared) return;
 		injectedOriginal.set(event.toolCallId, event.input.command);
@@ -397,6 +440,10 @@ export default function (pi: ExtensionAPI) {
 		}
 		for (const observed of drainGitObservations()) await ledgerAndQueue(observed);
 		void flushCommitReports();
+		// What happened to each commit's task tag, where the model reads the output.
+		const notes = takeCommitStampNotes(event.toolCallId);
+		if (notes.length > 0) return { content: [...event.content, { type: "text" as const, text: notes.join("\n") }] };
+		return undefined;
 	});
 
 	pi.on("tool_execution_end", (event, ctx) => {

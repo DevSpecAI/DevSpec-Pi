@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.0 - 2026-10-27
+
+- When your agent has exactly one DevSpec task claimed, Pi now adds that task's tag to the agent's commit messages itself. The tag goes at the end of the first line, so the rest of the message, including a `Co-Authored-By:` line, is kept as written. This works for messages given with `-m`, multi-line messages written with a heredoc, and messages read from a file, whose file is never changed.
+- Pi tags only commits in a repository that belongs to the task's project, either by its remote or by its project pin. It never replaces a tag that is already there, and it leaves amended, fixup, squash and reused-message commits alone. Commits in other repositories, such as test fixtures, are not touched.
+- After each commit, Pi tells the agent whether it added the tag. When several tasks are claimed, Pi does not guess: it tells the agent to write the right tag itself. Pi never blocks a commit.
+- Update with `pi update --extensions`, then restart Pi.
+
 ## 0.8.10 - 2026-10-27
 
 - Your agent no longer copies a commit id when it records finished work. DevSpec uses the commit Pi saw it make, and the agent names a commit only when DevSpec says it found none, copying the id from Git rather than from memory.

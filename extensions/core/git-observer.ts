@@ -4,6 +4,9 @@
  * The model Bash command is not parsed. A private PATH prefix routes ordinary `git`
  * argv through the package shim for that one tool execution. Connection/project
  * identity stays host-side in this frozen envelope and never reaches child processes.
+ * When the host arms stamping (df71ab6c), the shim also receives the project id,
+ * the claim count, the one claimed task id and a fingerprint of the verified origin
+ * remote — never a credential — and tags plain commits by runtime/commit-stamp.mjs.
  */
 
 import { execFileSync } from "node:child_process";
@@ -33,6 +36,25 @@ export interface FrozenGitObservationEnvelope {
 	createdAt: number;
 }
 
+/** What the host armed the shim with for one tool call (df71ab6c). */
+export interface CommitStampScope {
+	projectId: string;
+	/** Claimed tasks of this conversation in that project; 1 is the only count that stamps. */
+	claimCount: number;
+	/** The one claimed task, exactly when claimCount is 1. */
+	taskId: string | null;
+	/** sha256 of the verified origin URL (`git remote get-url origin`, trimmed), or null. */
+	remoteSha256: string | null;
+}
+
+/** What the shim did about the task tag of one observed commit. */
+export interface CommitStampReport {
+	outcome: "stamped" | "skipped";
+	reason: string | null;
+	task: string | null;
+	claims: number;
+}
+
 export interface ObservedGitCommit {
 	envelope: FrozenGitObservationEnvelope;
 	sha: string;
@@ -41,6 +63,8 @@ export interface ObservedGitCommit {
 	previousHead: string | null;
 	amend: boolean;
 	observedAt: string;
+	/** Present when stamping was armed for the call that made this commit. */
+	stamp?: CommitStampReport;
 }
 
 interface GitObserverGeneration {
@@ -121,6 +145,10 @@ export function initializeGitObserver(piSessionId: string, preserveReload = fals
 		const source = fileURLToPath(new URL("../../runtime/git-observer-shim.mjs", import.meta.url));
 		copyFileSync(source, modulePath);
 		chmodSync(modulePath, 0o600);
+		// The shim imports its stamping rules from beside itself (df71ab6c).
+		const stampModulePath = join(dir, "commit-stamp.mjs");
+		copyFileSync(fileURLToPath(new URL("../../runtime/commit-stamp.mjs", import.meta.url)), stampModulePath);
+		chmodSync(stampModulePath, 0o600);
 		// Use the exact host runtime, never /usr/bin/env node or the mutated PATH.
 		writeFileSync(shimPath, `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(modulePath)} "$@"\n`, { mode: 0o700 });
 		chmodSync(shimPath, 0o700);
@@ -161,6 +189,7 @@ export function prepareGitObservation(params: {
 	projectId: string;
 	connectionCapability?: string;
 	transport?: { tokenHash: string; endpoint: string };
+	stamp?: CommitStampScope | null;
 }): { observationId: string; prefix: string } | null {
 	const generation = store().current;
 	if (!generation?.active || generation.piSessionId !== params.piSessionId) return null;
@@ -192,8 +221,38 @@ export function prepareGitObservation(params: {
 		`export DEVSPEC_PI_GIT_OBSERVER_GENERATION=${shellQuote(generation.id)}`,
 		`export DEVSPEC_PI_GIT_OBSERVATION_ID=${shellQuote(observationId)}`,
 		`export DEVSPEC_PI_GIT_OBSERVER_SESSION=${shellQuote(params.piSessionId)}`,
+		// Always set or cleared, so a value exported by an enclosing session can
+		// never arm stamping for this one.
+		...stampAssignments(params.stamp ?? null),
 	];
 	return { observationId, prefix: `${assignments.join("; ")}\n` };
+}
+
+const STAMP_ENV_NAMES = ["DEVSPEC_PI_STAMP_PROJECT", "DEVSPEC_PI_STAMP_CLAIMS", "DEVSPEC_PI_STAMP_TASK", "DEVSPEC_PI_STAMP_REMOTE_SHA256"] as const;
+const SHA256 = /^[0-9a-f]{64}$/u;
+
+function stampAssignments(stamp: CommitStampScope | null): string[] {
+	const valid = stamp && UUID.test(stamp.projectId) && Number.isSafeInteger(stamp.claimCount) && stamp.claimCount >= 1 &&
+		(stamp.claimCount === 1 ? Boolean(stamp.taskId && UUID.test(stamp.taskId)) : stamp.taskId === null) &&
+		(stamp.remoteSha256 === null || SHA256.test(stamp.remoteSha256));
+	if (!stamp || !valid) return [`unset ${STAMP_ENV_NAMES.join(" ")}`];
+	return [
+		`export DEVSPEC_PI_STAMP_PROJECT=${shellQuote(stamp.projectId.toLowerCase())}`,
+		`export DEVSPEC_PI_STAMP_CLAIMS=${shellQuote(String(stamp.claimCount))}`,
+		stamp.taskId ? `export DEVSPEC_PI_STAMP_TASK=${shellQuote(stamp.taskId.toLowerCase())}` : "unset DEVSPEC_PI_STAMP_TASK",
+		stamp.remoteSha256 ? `export DEVSPEC_PI_STAMP_REMOTE_SHA256=${shellQuote(stamp.remoteSha256)}` : "unset DEVSPEC_PI_STAMP_REMOTE_SHA256",
+	];
+}
+
+function stampReport(value: unknown): CommitStampReport | undefined {
+	if (!value || typeof value !== "object") return undefined;
+	const row = value as Record<string, unknown>;
+	if (row.v !== 1 || (row.outcome !== "stamped" && row.outcome !== "skipped")) return undefined;
+	if (row.reason !== null && (typeof row.reason !== "string" || !/^[a-z_]{1,40}$/u.test(row.reason))) return undefined;
+	if (row.task !== null && (typeof row.task !== "string" || !UUID.test(row.task))) return undefined;
+	if (!Number.isSafeInteger(row.claims) || (row.claims as number) < 1) return undefined;
+	if (row.outcome === "stamped" && (row.task === null || row.reason !== null)) return undefined;
+	return { outcome: row.outcome, reason: row.reason as string | null, task: row.task as string | null, claims: row.claims as number };
 }
 
 function validJournalRow(value: unknown): value is {
@@ -261,6 +320,7 @@ export function drainGitObservations(now = Date.now()): ObservedGitCommit[] {
 				previousHead: parsed.previousHead,
 				amend: parsed.amend,
 				observedAt: parsed.observedAt,
+				...(() => { const stamp = stampReport((parsed as { stamp?: unknown }).stamp); return stamp ? { stamp } : {}; })(),
 			});
 		}
 		return observed;

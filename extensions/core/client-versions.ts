@@ -8,7 +8,7 @@ export type ClientVersionReport = Readonly<{ plugin_version?: string; host_versi
 export function versionReportFromManifest(manifest: unknown, hostVersion: unknown): ClientVersionReport {
 	if (!manifest || typeof manifest !== "object") return {};
 	const value = manifest as { name?: unknown; version?: unknown };
-	if (value.name !== "@devspec/pi-plugin" || typeof value.version !== "string" || !LABEL.test(value.version)) return {};
+	if ((value.name !== "@devspecai/pi-plugin" && value.name !== "@devspec/pi-plugin") || typeof value.version !== "string" || !LABEL.test(value.version)) return {};
 	return Object.freeze({
 		plugin_version: value.version,
 		...(typeof hostVersion === "string" && LABEL.test(hostVersion) ? { host_version: hostVersion } : {}),

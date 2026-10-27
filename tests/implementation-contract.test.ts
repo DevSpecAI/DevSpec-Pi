@@ -294,6 +294,11 @@ test("changes inside the commit-provenance section never take the contract down"
 		["reordered outcomes", (section) => { ((section.validation as { local_outcomes: string[] }).local_outcomes).reverse(); }],
 		["a changed value", (section) => { (section.validation as Record<string, unknown>).network_dependency = "required"; }],
 		// What DevSpec staging serves until server PR #182 lands, and what it says after.
+		// DevSpec item df71ab6c: the server adds an observation clause (how a host's
+		// own observation of a commit counts) as an additive change.
+		["an added observation clause", (section) => {
+			section.observation = { host_observed: "A commit the host observed is linked by record_implementation without a commit id.", requires: ["exact_connection"] };
+		}],
 		["exactly one reference, with the ambiguous outcome", (section) => {
 			(section.commit_reference as Record<string, unknown>).multiplicity = "exactly_one";
 			(section.validation as Record<string, unknown>).local_outcomes = ["absent", "malformed", "ambiguous", "well_formed"];
@@ -315,6 +320,21 @@ test("changes inside the commit-provenance section never take the contract down"
 		assert.equal(context.commitProvenanceContract, undefined);
 		assert.ok(context.authorityContract);
 	});
+});
+
+test("an added commit observation clause and a newer contract version reach the model exactly as served (df71ab6c)", async () => {
+	const clause = { host_observed: "A commit the host observed is linked by record_implementation without a commit id.", model_fallback: "Name a commit only when the response says none was found." };
+	resetImplementationContractCache();
+	const context = await loadImplementationContext({
+		reference: { contract_version: "4.6.0", resource_uri: IMPLEMENTATION_CONTRACT_RESOURCE_URI },
+		loader: loader({ resource: resource(served((root) => { (root.commit_provenance_contract as Record<string, unknown>).observation = clause; }, "4.6.0")), compatibilityError: new Error("unavailable") }),
+	});
+	assert.equal(context.source, "resource");
+	assert.equal(context.warning, undefined);
+	assert.equal(context.contractVersion, "4.6.0");
+	assert.deepEqual((context.commitProvenanceContract as Record<string, unknown>).observation, clause);
+	assert.ok(formatImplementationContext(context).includes(JSON.stringify(context.commitProvenanceContract)));
+	assert.ok(formatImplementationContext(context).includes(clause.host_observed));
 });
 
 test("the work-entry section is shown exactly as served, at any schema_version", async (t) => {

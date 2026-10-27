@@ -25,6 +25,11 @@ test("instructions carry the load-bearing rules", () => {
 	const text = buildDevspecInstructions();
 	assert.match(text, /\[devspec:<id>\]/);
 	assert.match(text, /record_implementation/);
+	// The commit id is mechanical: DevSpec takes the commit Pi observed, and the model
+	// names one only when the response says none was found, copied from git (df71ab6c).
+	assert.doesNotMatch(text, /final commit SHA/i);
+	assert.match(text, /record_implementation with affected_files, testing_notes, and completion_summary and no commit id/);
+	assert.match(text, /Name a commit only when the response says none was found, and then copy its full id from git \(git rev-parse HEAD\), never from memory/);
 	assert.match(text, /never mark items done/i);
 	// It must NOT restate who may verify. "a human verifies" was true until
 	// evidence promotion shipped, and then quietly became a lie in six of seven

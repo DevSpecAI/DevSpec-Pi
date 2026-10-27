@@ -10,16 +10,23 @@
  */
 
 /** Bump when the block changes materially; handy for debugging drift reports. */
-export const INSTRUCTIONS_VERSION = 26;
+export const INSTRUCTIONS_VERSION = 27;
 
-export function buildDevspecInstructions(): string {
+/**
+ * `commitTagging`: whether Pi's git stand-in can tag commits here (df71ab6c). Where it
+ * cannot (native Windows, no bonded connection), the model writes the tag itself.
+ */
+export function buildDevspecInstructions(options: { commitTagging?: boolean } = {}): string {
+	const commitTagging = options.commitTagging ?? true;
 	return `## DevSpec
 This project is connected to DevSpec, and every DevSpec tool this connection may use is available natively. Call a fitting tool directly; \`search_devspec_tools\` only helps pick one when unsure. Search is optional. Do not connect a duplicate DevSpec MCP server.
 
 - The loaded implementation contract alone chooses task/session-plan tracking and the plan threshold. If it selects a task, search/reuse/create one and claim via claim_work_item. A missing claim never blocks edits, execution, tests, worktrees, delegation, or follow-through.
 - When creating or updating a task (create_task requires title, intent, and description; update_task), keep each task atomic around one primary subject or cohesive deliverable — never bundle unrelated subjects, independent deliverables, or separate carve-outs into one task; create separate tasks (or child tasks under a parent brief) and connect them via parent_task_id, follow_up_from_task_id, or link_tasks. Partition fields cleanly: intent records the underlying problem, who raised it and their synthesized rationale (never conversational go-ahead quotes), and the desired outcome; description states the complete product behaviour, rules, edge cases, and the architectural or technical mechanism in natural English (screening reads title, intent, description, and acceptance_criteria — never ai_instructions — so never strip the technical mechanism out of description or dump raw file paths, line numbers, code snippets, or CSS classes into it); acceptance_criteria lists plain-prose checkable conditions; ai_instructions holds file paths, symbols, code snippets, and CSS classes. Writes violating field placement, substance/intent, or single-subject atomicity are rejected at write time.
 - Read the canonical product contract when needed via get_workflow_rules with include_implementation_contract:true; work entry loads it for you. Nothing is ever sent work — reserve the items you were asked to work (reserve_work_items), then claim them in order when available.
-- When exactly one task is claimed, Pi adds its full [devspec:<id>] tag to your commit messages itself and says so under the command's output. Write the tag yourself only when Pi says it did not add it, for example because several tasks are claimed (the served contract's commit_provenance_contract).
+${commitTagging
+		? "- When exactly one task is claimed, Pi adds its full [devspec:<id>] tag to your commit messages itself and says so under the command's output. Write the tag yourself only when Pi says it did not add it, for example because several tasks are claimed (the served contract's commit_provenance_contract)."
+		: "- Pi cannot add task tags to commits in this setup, so put the claimed task's full [devspec:<id>] reference in every implementing commit message yourself (the served contract's commit_provenance_contract)."}
 - After pushing, call record_implementation with affected_files, testing_notes, and completion_summary and no commit id: DevSpec takes the commit Pi observed. Name a commit only when the response says none was found, and then copy its full id from git (git rev-parse HEAD), never from memory. Report the lifecycle and anything still holding it short of done exactly as the result says. Never mark items done yourself: what done requires, and who may sign off on what evidence, is the served contract's boundary, not a rule to remember here.
 - Agreed project conventions and decisions are binding. Work that would undo a protected decision waits for an OK: when a result carries waiting_for_ok ("Waiting for <name>'s OK", or "Experiment"), follow its instruction and the served contract's core.waiting-work-stays-on-its-branch rule — build and push it on its own branch and never merge it into the tracking branch until it has the OK — and tell the person plainly. Who can give the OK is the served contract's reversal_rule; give it only for a person who can and clearly asks you to (acting_rule), never on your own judgement.
 - Act for the person who asks you, with their authority (the served contract's acting_rule). When their request is clear and they evidently know what it does, do it at once: never ask them to confirm what they just said, or send them to Review to do it themselves. Ask only when what they want is unclear. If they seem unaware of a significant consequence (say, that it undoes someone's decision), say so once, up front, then do what they decide.

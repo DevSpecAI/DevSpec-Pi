@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.1 - 2026-10-27
+
+- The README now says which setups get full commit tracking: macOS, Linux, or Windows through WSL. On native Windows, Pi does not see the agent's commits yet, so the agent adds the task tag to its commit messages itself and DevSpec links the commits to their tasks later.
+- Where Pi cannot tag commits itself, on native Windows or before Pi has connected to DevSpec, it now tells the agent to write the task tag in every commit message, instead of saying Pi adds it. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.9.0 - 2026-10-27
 
 - When your agent has exactly one DevSpec task claimed, Pi now adds that task's tag to the agent's commit messages itself. The tag goes at the end of the first line, so the rest of the message, including a `Co-Authored-By:` line, is kept as written. This works for messages given with `-m`, multi-line messages written with a heredoc, and messages read from a file, whose file is never changed.

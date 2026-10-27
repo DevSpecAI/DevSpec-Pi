@@ -47,7 +47,7 @@ test("only reliable first-class edit events can emit the one advisory nudge", as
 	for (const tool of ["bash", "shell", "subagent", "future_tool", "read"]) {
 		assert.equal(await unclaimedEditNudge(tool, runtime(), resolvePin), null, tool);
 	}
-	const first = await unclaimedEditNudge("edit", runtime(), resolvePin);
+	const first = await unclaimedEditNudge("edit", runtime(), resolvePin, () => true);
 	assert.ok(first);
 	assert.equal(first.customType, "devspec-provenance-nudge");
 	assert.equal(first.display, true, "custom message stays visible as well as model-visible");
@@ -60,6 +60,13 @@ test("only reliable first-class edit events can emit the one advisory nudge", as
 	// the tag only when Pi says it did not.
 	assert.match(first.content, /Once one task is claimed, Pi adds its \[devspec:<full-uuid>\] tag to your commits itself; write the tag yourself only when Pi says it did not\./);
 	assert.doesNotMatch(first.content, /Pi cannot add/);
+	// Where the git stand-in cannot tag (native Windows, no bonded connection), the
+	// nudge asks for the tag outright (c4b14794).
+	resetWorkStateForTests();
+	const untagged = await unclaimedEditNudge("edit", runtime(), resolvePin, () => false);
+	assert.match(untagged?.content ?? "", /Pi cannot add task tags to commits in this setup, so put the claimed task's \[devspec:<full-uuid>\] in every commit message yourself\./);
+	resetWorkStateForTests();
+	assert.ok(await unclaimedEditNudge("edit", runtime(), resolvePin, () => true));
 	assert.doesNotMatch(first.content, /refus|analy[sz]er|reconcil|safety net/i);
 	assert.equal(first.details.projectId, PROJECT);
 	for (const tool of ["write", "edit", "apply_patch", "notebook"]) {

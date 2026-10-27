@@ -174,6 +174,11 @@ export function initializeGitObserver(piSessionId: string, preserveReload = fals
 	}
 }
 
+/** Whether this Pi process has a working git stand-in (never on native Windows yet: c4b14794). */
+export function gitObserverActive(): boolean {
+	return store().current?.active === true;
+}
+
 export function shutdownGitObserver(reason: "quit" | "reload" | "new" | "resume" | "fork"): void {
 	if (reason === "reload") return;
 	const state = store();

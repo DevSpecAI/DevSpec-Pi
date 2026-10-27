@@ -11,7 +11,8 @@ import {
 	resetGitObserverForTests,
 	type CommitStampScope,
 } from "../extensions/core/git-observer.ts";
-import { commitStampNote, commitStampScope, originFingerprint } from "../extensions/core/commit-stamp.ts";
+import { commitStampNote, commitStampScope, commitTaggingAvailable, originFingerprint } from "../extensions/core/commit-stamp.ts";
+import { setBond } from "../extensions/core/bond-state.ts";
 // @ts-expect-error plain ESM runtime module without types
 import { planCommitStamp, readCommitMessageSource, readStampScope, stampMessage } from "../runtime/commit-stamp.mjs";
 
@@ -239,4 +240,15 @@ test("-F - from a terminal is never read, and a failed read hands git what was r
 	const stamped = planCommitStamp({ ...base, stdinIsTerminal: () => false, readStdin: () => ({ bytes: Buffer.from("Subject\n\nBody\n"), complete: true }) });
 	assert.equal(stamped.stdin.toString(), `Subject ${TAG}\n\nBody\n`);
 	assert.equal(stamped.args, undefined, "argv is unchanged for -F -");
+});
+
+test("Pi says it tags commits only where a working stand-in and a bonded connection exist (c4b14794)", (t) => {
+	fixture(t);
+	setBond(null as never);
+	assert.equal(commitTaggingAvailable(), false, "no bond: nothing arms the stand-in");
+	setBond({ projectId: PROJECT, connectionId: CONNECTION, connectionCapability: "fixture-capability" } as never);
+	assert.equal(commitTaggingAvailable(), process.platform !== "win32", "the stand-in runs on POSIX only today");
+	resetGitObserverForTests();
+	assert.equal(commitTaggingAvailable(), false, "no stand-in: the model writes the tag itself");
+	setBond(null as never);
 });

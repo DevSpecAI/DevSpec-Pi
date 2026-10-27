@@ -20,7 +20,8 @@ test("the report identifies this loaded plugin and the host SDK separately", () 
 
 test("unknown/foreign manifests and absent host versions are not guessed", () => {
 	assert.deepEqual(versionReportFromManifest({ name: "foreign-package", version: "9.0.0" }, "1.0.0"), {});
-	assert.deepEqual(versionReportFromManifest({ name: "@devspec/pi-plugin", version: "" }, "1.0.0"), {});
+	assert.deepEqual(versionReportFromManifest({ name: "@devspecai/pi-plugin", version: "" }, "1.0.0"), {});
+	assert.deepEqual(versionReportFromManifest({ name: "@devspecai/pi-plugin", version: "1.0.0" }, undefined), { plugin_version: "1.0.0" });
 	assert.deepEqual(versionReportFromManifest({ name: "@devspec/pi-plugin", version: "1.0.0" }, undefined), { plugin_version: "1.0.0" });
 });
 
@@ -57,7 +58,7 @@ test("an installed artifact resolves its own manifest and retains the loaded ver
 	try {
 		mkdirSync(join(fixture, "extensions/core"), { recursive: true });
 		symlinkSync(join(root, "node_modules"), join(fixture, "node_modules"), "junction");
-		const manifest = { name: "@devspec/pi-plugin", version: "1.2.3", type: "module" };
+		const manifest = { name: "@devspecai/pi-plugin", version: "1.2.3", type: "module" };
 		writeFileSync(join(fixture, "package.json"), JSON.stringify(manifest));
 		const module = join(fixture, "extensions/core/client-versions.ts");
 		writeFileSync(module, readFileSync(join(root, "extensions/core/client-versions.ts"), "utf8"));

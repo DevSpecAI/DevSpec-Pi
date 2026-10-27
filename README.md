@@ -30,8 +30,10 @@ powershell -c "irm https://pi.dev/install.ps1 | iex"
 Install the DevSpec package at user level (without `-l`) so every folder has DevSpec:
 
 ```bash
-pi install git:github.com/DevSpecAI/DevSpec-Pi
+pi install npm:@devspecai/pi-plugin
 ```
+
+(If npm is unreachable in your environment, you can also install directly from GitHub with `pi install git:github.com/DevSpecAI/DevSpec-Pi`.)
 
 This package provides native DevSpec tools, authentication, project selection, and remote control. No separate DevSpec MCP server entry is needed. (If you previously added DevSpec to Pi's `/mcp` settings, the package disables that duplicate entry so its tools aren't loaded twice.)
 

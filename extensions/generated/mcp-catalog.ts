@@ -3,13 +3,13 @@
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
  * Schema fingerprint: 2e94824b071588ee6d331c6ae2a024f2a409aabe6273e1fdf25047f141c242bf
- * Description fingerprint: 87354fca0005ee1a0382f10243cee91adad9ce98c2e8849f18d0c4f424c5dd9b
- * Regenerated: 2026-10-30T14:33:03.821Z
+ * Description fingerprint: 1aae5984b40b475ad67cfc226c43b7387bcfc099ceb4cf038d6e568052d9c5d2
+ * Regenerated: 2026-10-30T14:37:15.624Z
  */
 export const MCP_CATALOG_FINGERPRINT = "2e94824b071588ee6d331c6ae2a024f2a409aabe6273e1fdf25047f141c242bf";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "87354fca0005ee1a0382f10243cee91adad9ce98c2e8849f18d0c4f424c5dd9b";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-30T14:33:03.821Z";
-export const TOOL_CATALOG_VERSION = "d21d714024bb6372a032676f9fdbb6865141a28053c88548fd8e9789f787c5be";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "1aae5984b40b475ad67cfc226c43b7387bcfc099ceb4cf038d6e568052d9c5d2";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-30T14:37:15.624Z";
+export const TOOL_CATALOG_VERSION = "e171352134ab94b56b6f07b291878e97fe97f070db3746892dd5bebc33b8fce0";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -512,7 +512,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "verify_task",
 		"name": "verify task",
-		"description": "Record a person's decision on one task: passed: true signs it off, passed: false requests changes and flags it for attention. A person can also sign off work they did themselves that nobody handed in, when the task involves no code; the sign-off records the work in their name, and every wait for done still applies. Work that involves code is signed off once its commits are linked and it has been handed in. Who may decide, and when you may relay a decision, is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, unfinished work that involves code or that an agent is working on, callers who are not allowed verifiers, and passed: true while a required follow-up step is open or an OK is still waiting. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. With passed: true the response gives the lifecycle the item ended up in (an item still waiting for something done requires records the sign-off and stays implemented, and its done_blocker says what it waits for), and says so if the sign-off landed on an older round of work and does not count.",
+		"description": "Record a person's decision on one task: passed: true signs it off, passed: false requests changes and flags it for attention. A person can also sign off work they did themselves that nobody handed in, when the task involves no code; the sign-off records the work in their name, and every wait for done still applies. Work that involves code is signed off once its commits are linked and it has been handed in. Who may decide, and when you may relay a decision, is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, unfinished work that involves code or that an agent is working on, callers who are not allowed verifiers, and passed: true while a required follow-up step is open, an OK is still waiting, or a task that involves code has no code linked yet. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. With passed: true the response gives the lifecycle the item ended up in (an item still waiting for something done requires records the sign-off and stays implemented, and its done_blocker says what it waits for), and says so if the sign-off landed on an older round of work and does not count.",
 		"intent": "person signs off verifies implemented item request changes"
 	},
 	{
@@ -7337,7 +7337,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "verify_task",
 		"label": "DevSpec: Verify Task",
-		"description": "Record a person's decision on one task: passed: true signs it off, passed: false requests changes and flags it for attention. A person can also sign off work they did themselves that nobody handed in, when the task involves no code; the sign-off records the work in their name, and every wait for done still applies. Work that involves code is signed off once its commits are linked and it has been handed in. Who may decide, and when you may relay a decision, is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, unfinished work that involves code or that an agent is working on, callers who are not allowed verifiers, and passed: true while a required follow-up step is open or an OK is still waiting. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. With passed: true the response gives the lifecycle the item ended up in (an item still waiting for something done requires records the sign-off and stays implemented, and its done_blocker says what it waits for), and says so if the sign-off landed on an older round of work and does not count.",
+		"description": "Record a person's decision on one task: passed: true signs it off, passed: false requests changes and flags it for attention. A person can also sign off work they did themselves that nobody handed in, when the task involves no code; the sign-off records the work in their name, and every wait for done still applies. Work that involves code is signed off once its commits are linked and it has been handed in. Who may decide, and when you may relay a decision, is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, unfinished work that involves code or that an agent is working on, callers who are not allowed verifiers, and passed: true while a required follow-up step is open, an OK is still waiting, or a task that involves code has no code linked yet. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. With passed: true the response gives the lifecycle the item ended up in (an item still waiting for something done requires records the sign-off and stays implemented, and its done_blocker says what it waits for), and says so if the sign-off landed on an older round of work and does not count.",
 		"searchIntent": "person signs off verifies implemented item request changes",
 		"modelInputSchema": {
 			"type": "object",

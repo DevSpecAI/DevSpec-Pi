@@ -30,6 +30,8 @@ test("npm package contains fail-open provenance runtime and no obsolete gate, te
 		"runtime/git-observer-shim.mjs",
 		// The shim imports its stamping rules from beside itself (df71ab6c).
 		"runtime/commit-stamp.mjs",
+		// ...and what every DevSpec stand-in agrees on (80bceb2c).
+		"runtime/git-stand-in.mjs",
 		"extensions/core/commit-stamp.ts",
 		"extensions/generated/mcp-catalog.ts",
 	]) assert.equal(files.has(required), true, `${required} missing from packed npm package`);

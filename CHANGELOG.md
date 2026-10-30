@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.6 - 2026-10-30
+
+- Fixed a loop that could use up all of your computer's memory. DevSpec's plugins for Pi, Claude Code and Antigravity each put a stand-in for `git` in front of the real one, so they can tag and report commits. When two of them were on the same PATH, for example a Pi session or Pi's tests started from a Claude Code agent, each took the other for git and they passed every git command back and forth, starting a new process each time. Pi's stand-in now recognises any DevSpec plugin's stand-in and always runs the real git. If an older version of another plugin still sends a command round in a loop, the command stops at once with a message saying so, instead of exhausting memory.
+
 ## 0.10.5 - 2026-10-30
 
 - The tool catalogue is regenerated against DevSpec's current tools. When your agent creates a task whose work won't produce any commits (research, a setting changed in a dashboard, an errand), it can now flag it as involving no code, so the task finishes once it is verified instead of waiting for code. Signing off now also covers work a person did themselves that nobody handed in. Goals and their outcomes are managed with the new goals tool rather than a goal list on each task. Update with `pi update --extensions`, then restart Pi.

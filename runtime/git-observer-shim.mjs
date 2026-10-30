@@ -17,6 +17,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { appendFileSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { planCommitStamp, readStampScope, repositoryInProject, unplannedReport } from "./commit-stamp.mjs";
+import { MAX_STAND_IN_DEPTH, STAND_IN_DEPTH_ENV, isMarkedStandIn, loopStoppedText, standInDepth } from "./git-stand-in.mjs";
 import { randomUUID } from "node:crypto";
 import { basename, dirname, join } from "node:path";
 import { createServer } from "node:net";
@@ -294,18 +295,32 @@ const args = process.argv.slice(2);
 
 if (!realGit) process.exit(126);
 
+// Started inside another stand-in's work: go no deeper than the plugins agree, and
+// make everything started from here, git included, one level deeper (80bceb2c).
+const depth = standInDepth(process.env);
+if (depth >= MAX_STAND_IN_DEPTH) {
+	process.stderr.write(`${loopStoppedText()}\n`);
+	process.exit(126);
+}
+process.env[STAND_IN_DEPTH_ENV] = String(depth + 1);
+
 // Never delegate into another observer shim. If a stale generation's dir
 // reaches PATH, findRealGit can hand us a shim as "the real git"; every hop
 // then re-runs preflight through the next shim, which inherits this env and
 // self-spawns without bound (measured: >1,100 processes, 12G swap, machine
 // lockup — item 8729992e). Refusing the call fails one git command instead.
+// Another DevSpec plugin's stand-in is refused the same way (80bceb2c).
 try {
 	if (basename(dirname(realpathSync(realGit))).startsWith("devspec-pi-git-")) process.exit(126);
+	if (isMarkedStandIn(realGit)) process.exit(126);
 } catch {
 	process.exit(126);
 }
 
+// Inside another stand-in's work (another plugin's, or a git hook under one), the
+// commit is that one's to tag and record: git runs straight through.
 const eligible = Boolean(
+	depth === 0 &&
 	observerDir && journal && generation && observationId && expectedSession && actualSession === expectedSession &&
 	!process.env.GIT_TRACE2_EVENT && !process.env.GIT_TRACE2,
 );

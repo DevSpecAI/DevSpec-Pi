@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 672b376fec72bf06433dbf1493c14c3e459d5db1541de088d0e0707fa4695dba
- * Description fingerprint: 1aae5984b40b475ad67cfc226c43b7387bcfc099ceb4cf038d6e568052d9c5d2
- * Regenerated: 2026-10-30T15:08:09.132Z
+ * Schema fingerprint: a5c404992cd17c4ade8399dbf57811cfab89d1780dd009b3cc39b3aa0c095e7f
+ * Description fingerprint: ef0458c53ade8a5167fdad64f431e487d27c58653f6b6e19106767f4eb039eaa
+ * Regenerated: 2026-10-30T18:39:23.249Z
  */
-export const MCP_CATALOG_FINGERPRINT = "672b376fec72bf06433dbf1493c14c3e459d5db1541de088d0e0707fa4695dba";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "1aae5984b40b475ad67cfc226c43b7387bcfc099ceb4cf038d6e568052d9c5d2";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-30T15:08:09.132Z";
-export const TOOL_CATALOG_VERSION = "e171352134ab94b56b6f07b291878e97fe97f070db3746892dd5bebc33b8fce0";
+export const MCP_CATALOG_FINGERPRINT = "a5c404992cd17c4ade8399dbf57811cfab89d1780dd009b3cc39b3aa0c095e7f";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "ef0458c53ade8a5167fdad64f431e487d27c58653f6b6e19106767f4eb039eaa";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-30T18:39:23.249Z";
+export const TOOL_CATALOG_VERSION = "7f44ba4a9723b8f27f5d69732ec3be01788a76471d31c995c2ba8f1fd99e4410";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -500,7 +500,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "update_task",
 		"name": "update task",
-		"description": "Edit an existing task's details (title, description, intent, criteria, guidance, notes, type, priority, tags, due date, assignee, brief) or park, block, dismiss or resume it. Keep each task atomic around one primary subject or cohesive deliverable; when work spans independent deliverables, unrelated subjects, or separate carve-outs, create separate tasks (or child tasks under a parent brief) and connect them with parent_task_id, follow_up_from_task_id, or link_tasks instead of bundling them into one task. Writes that violate field placement (code/paths/CSS in prose), substance or self-contained intent completeness, or single-subject atomicity are rejected at write time. Prefer description_edits for local changes, keep criterion ids, and pass expected_version from your last read so a stale edit is refused instead of overwriting someone else's. Before changing lifecycle, tell the person which change you are making and why. Claiming, delivering, failing and releasing work, and reopening finished work, have their own tools: claim_work_item, record_implementation, fail_work_item, release_work_item and reopen_task. A change to the title, description, intent or criteria can come back queued_for_review with a proposal_id; it changes nothing until a Maintainer accepts it.",
+		"description": "Edit an existing task's details (title, description, intent, criteria, guidance, notes, type, priority, tags, due date, assignee, brief, whether it is human-only or involves no code) or park, block, dismiss or resume it. Keep each task atomic around one primary subject or cohesive deliverable; when work spans independent deliverables, unrelated subjects, or separate carve-outs, create separate tasks (or child tasks under a parent brief) and connect them with parent_task_id, follow_up_from_task_id, or link_tasks instead of bundling them into one task. Writes that violate field placement (code/paths/CSS in prose), substance or self-contained intent completeness, or single-subject atomicity are rejected at write time. Prefer description_edits for local changes, keep criterion ids, and pass expected_version from your last read so a stale edit is refused instead of overwriting someone else's. Before changing lifecycle, tell the person which change you are making and why. Claiming, delivering, failing and releasing work, and reopening finished work, have their own tools: claim_work_item, record_implementation, fail_work_item, release_work_item and reopen_task. A change to the title, description, intent or criteria can come back queued_for_review with a proposal_id; it changes nothing until a Maintainer accepts it.",
 		"intent": "edit update existing task task specification criteria priority tags assignee park defer dismiss block resume"
 	},
 	{
@@ -4509,7 +4509,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_task",
 		"label": "DevSpec: Update Task",
-		"description": "Edit an existing task's details (title, description, intent, criteria, guidance, notes, type, priority, tags, due date, assignee, brief) or park, block, dismiss or resume it. Keep each task atomic around one primary subject or cohesive deliverable; when work spans independent deliverables, unrelated subjects, or separate carve-outs, create separate tasks (or child tasks under a parent brief) and connect them with parent_task_id, follow_up_from_task_id, or link_tasks instead of bundling them into one task. Writes that violate field placement (code/paths/CSS in prose), substance or self-contained intent completeness, or single-subject atomicity are rejected at write time. Prefer description_edits for local changes, keep criterion ids, and pass expected_version from your last read so a stale edit is refused instead of overwriting someone else's. Before changing lifecycle, tell the person which change you are making and why. Claiming, delivering, failing and releasing work, and reopening finished work, have their own tools: claim_work_item, record_implementation, fail_work_item, release_work_item and reopen_task. A change to the title, description, intent or criteria can come back queued_for_review with a proposal_id; it changes nothing until a Maintainer accepts it.",
+		"description": "Edit an existing task's details (title, description, intent, criteria, guidance, notes, type, priority, tags, due date, assignee, brief, whether it is human-only or involves no code) or park, block, dismiss or resume it. Keep each task atomic around one primary subject or cohesive deliverable; when work spans independent deliverables, unrelated subjects, or separate carve-outs, create separate tasks (or child tasks under a parent brief) and connect them with parent_task_id, follow_up_from_task_id, or link_tasks instead of bundling them into one task. Writes that violate field placement (code/paths/CSS in prose), substance or self-contained intent completeness, or single-subject atomicity are rejected at write time. Prefer description_edits for local changes, keep criterion ids, and pass expected_version from your last read so a stale edit is refused instead of overwriting someone else's. Before changing lifecycle, tell the person which change you are making and why. Claiming, delivering, failing and releasing work, and reopening finished work, have their own tools: claim_work_item, record_implementation, fail_work_item, release_work_item and reopen_task. A change to the title, description, intent or criteria can come back queued_for_review with a proposal_id; it changes nothing until a Maintainer accepts it.",
 		"searchIntent": "edit update existing task task specification criteria priority tags assignee park defer dismiss block resume",
 		"modelInputSchema": {
 			"type": "object",
@@ -4654,6 +4654,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"is_brief": {
 					"type": "boolean",
 					"description": "true marks the item as a brief (an item that groups others); false unmarks it. Nothing refuses unmarking a brief that still has children, so do not. Omitted: unchanged."
+				},
+				"human_only": {
+					"type": "boolean",
+					"description": "true marks the item as work only a person can do, so agents never take it, and as involving no code; false unmarks it. Refused once an agent has handed in work on it or while code is linked to it, and either turns it off. Omitted: unchanged."
+				},
+				"no_code": {
+					"type": "boolean",
+					"description": "true marks the item as involving no code: nothing to commit, merge or deploy, so it reaches done on its acceptance criteria. Set it whenever the work turns out to need no commits, including when you hand it in; false means it is expected to involve code. Refused while code is linked to the item, and linking a commit turns it off; it can't be turned off while the item is human-only. Omitted: unchanged."
 				},
 				"is_experiment": {
 					"type": "boolean",
@@ -4873,6 +4881,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"is_brief": {
 					"type": "boolean",
 					"description": "true marks the item as a brief (an item that groups others); false unmarks it. Nothing refuses unmarking a brief that still has children, so do not. Omitted: unchanged."
+				},
+				"human_only": {
+					"type": "boolean",
+					"description": "true marks the item as work only a person can do, so agents never take it, and as involving no code; false unmarks it. Refused once an agent has handed in work on it or while code is linked to it, and either turns it off. Omitted: unchanged."
+				},
+				"no_code": {
+					"type": "boolean",
+					"description": "true marks the item as involving no code: nothing to commit, merge or deploy, so it reaches done on its acceptance criteria. Set it whenever the work turns out to need no commits, including when you hand it in; false means it is expected to involve code. Refused while code is linked to the item, and linking a commit turns it off; it can't be turned off while the item is human-only. Omitted: unchanged."
 				},
 				"is_experiment": {
 					"type": "boolean",
@@ -5054,13 +5070,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Where people will find the feature and how to use it. Omitted: none."
 				},
-				"suggest_human_only": {
+				"human_only": {
 					"type": "boolean",
-					"description": "true suggests only a person can do this work, so agents never take it (call the lawyer, buy the domain); a person confirms it in the app. A human-only item never involves code: work with code in it is not human-only, and a person's part of it is a manual follow-up step. Default false."
+					"description": "true when only a person can do this work, so agents never take it (call the lawyer, buy the domain); it also marks the item as involving no code. Work with code in it is never human-only: a person's part of it is a manual follow-up step. Change it later with update_task. Default false."
 				},
-				"suggest_no_code": {
+				"no_code": {
 					"type": "boolean",
-					"description": "true suggests the work will produce no commits to any repository (a research or decision item, a setting changed through a provider's API, a human-only errand); a person confirms it in the app. An item without it is expected to involve code: once handed in, it waits until code is linked and has landed before it can be done. Default false."
+					"description": "true when the work will produce no commits to any repository (a research or decision item, a setting changed through a provider's API or dashboard, a human-only errand): it reaches done on its acceptance criteria, with nothing to merge or deploy. Without it the item is expected to involve code, and once handed in it waits until code is linked and has landed. Change it later with update_task. Default false."
 				},
 				"is_brief": {
 					"type": "boolean",
@@ -5222,13 +5238,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Where people will find the feature and how to use it. Omitted: none."
 				},
-				"suggest_human_only": {
+				"human_only": {
 					"type": "boolean",
-					"description": "true suggests only a person can do this work, so agents never take it (call the lawyer, buy the domain); a person confirms it in the app. A human-only item never involves code: work with code in it is not human-only, and a person's part of it is a manual follow-up step. Default false."
+					"description": "true when only a person can do this work, so agents never take it (call the lawyer, buy the domain); it also marks the item as involving no code. Work with code in it is never human-only: a person's part of it is a manual follow-up step. Change it later with update_task. Default false."
 				},
-				"suggest_no_code": {
+				"no_code": {
 					"type": "boolean",
-					"description": "true suggests the work will produce no commits to any repository (a research or decision item, a setting changed through a provider's API, a human-only errand); a person confirms it in the app. An item without it is expected to involve code: once handed in, it waits until code is linked and has landed before it can be done. Default false."
+					"description": "true when the work will produce no commits to any repository (a research or decision item, a setting changed through a provider's API or dashboard, a human-only errand): it reaches done on its acceptance criteria, with nothing to merge or deploy. Without it the item is expected to involve code, and once handed in it waits until code is linked and has landed. Change it later with update_task. Default false."
 				},
 				"is_brief": {
 					"type": "boolean",

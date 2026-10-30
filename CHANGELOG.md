@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.9 - 2026-10-30
+
+- The tool catalogue is regenerated against DevSpec's current tools. Your agent now sets Human-only and No code directly, when it creates a task or at any time after with the task-update tool, either way, instead of suggesting them for someone to confirm. When an agent finishes a task that turned out to need no code, it can mark it No code itself, so the task stops waiting for code. Linking a commit to a task switches No code off. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.10.8 - 2026-10-30
 
 - The tool catalogue is regenerated against DevSpec's current tools. A person signing off work they did themselves, before anyone handed it in, now applies only to tasks that involve no code. A task that involves code is signed off once its commits are linked and the work is handed in, including work an agent handed in with nothing linked, and your agent is told so if it asks to sign one off early. Update with `pi update --extensions`, then restart Pi.

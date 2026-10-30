@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.8 - 2026-10-30
+
+- The tool catalogue is regenerated against DevSpec's current tools. A person signing off work they did themselves, before anyone handed it in, now applies only to tasks that involve no code. A task that involves code is signed off once its commits are linked and the work is handed in, including work an agent handed in with nothing linked, and your agent is told so if it asks to sign one off early. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.10.7 - 2026-10-30
 
 - Regenerated the tool catalogue for `manage_goals` (`merged_chapter_summary` when merging goals) and added status-line labels and privacy-safe Activity trail projections for `get_project_goals`, `get_goals`, and `manage_goals`. Update with `pi update --extensions`, then restart Pi.

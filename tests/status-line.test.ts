@@ -116,6 +116,9 @@ test("claimed work and a live DevSpec verb append; bash does not", () => {
 	assert.equal(verbLabel("record_implementation"), "recording");
 	assert.equal(verbLabel("supersede_task"), "superseding");
 	assert.equal(verbLabel("preview_supersession"), "previewing supersession");
+	assert.equal(verbLabel("get_goals"), "reading goals");
+	assert.equal(verbLabel("get_project_goals"), "reading project goals");
+	assert.equal(verbLabel("manage_goals"), "updating goals");
 });
 
 test("first-text preview skips presence markers and empty / non-human rows", () => {

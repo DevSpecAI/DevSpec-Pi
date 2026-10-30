@@ -812,7 +812,14 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// get_project_goals, get_project_summary, get_resource and update_task. Hot set
 		// unchanged. Benchmark before/after: initial surface 55,655 -> 57,234 estimated
 		// tokens; every budget still passes.
-		"645294dcc81c5a1497536895ad065482be8d61d15424b6c863efd5f344a72a8c",
+		// Rebaselined 2026-10-30 for DevSpec items 5339d7b7 and 2f6797e2, regenerated against
+		// DevSpecV2 .worktrees/goals-audit-fixes. Compared old/new generated objects by
+		// name/inputSchema: 85 model / 12 pump / 1 never-model unchanged, none added or
+		// removed, no required field or projection family changed. The single inputSchema diff
+		// is manage_goals gaining optional merged_chapter_summary for atomic chapter merges.
+		// Benchmark before/after: initial surface 57,234 -> 57,273 estimated tokens; every
+		// budget still passes.
+		"175a058c099ca2afa209548bae5e14d0853271f7e26819802afd406beb4e9555",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -1846,4 +1853,26 @@ test("a list relays everything the server said beside its rows", () => {
 	for (const phrase of ["Found by keywords alone while the project is paused.", "call get_memory with an id for its full body", "A disagreement is not a ruling.", "\"word_matches\": 0"]) {
 		assert.ok(text.includes(phrase), phrase);
 	}
+});
+
+test("manage_goals stays lossless so merged goals, outcomes_moved, and outcome links reach the model whole", () => {
+	assert.equal(projectionFamily("manage_goals"), "full");
+	assert.equal(projectionFamily("get_goals"), "full");
+	assert.equal(projectionFamily("get_project_goals"), "full");
+	const payload = {
+		merged: true,
+		outcomes_moved: 2,
+		goal: {
+			id: "goal-merged-1",
+			title: "Unified Goals Chapter",
+			chapter_summary: "Why this unified chapter matters right now.",
+			outcomes: [
+				{ id: "out-1", title: "First outcome", horizon: "active_now", state: "ready_to_confirm" },
+				{ id: "out-2", title: "Second outcome", horizon: "up_next", state: "active" },
+			],
+		},
+	};
+	const raw = JSON.stringify(payload, null, 2);
+	const text = projectModelText({ toolName: "manage_goals", text: raw, details: payload });
+	assert.equal(text, raw);
 });

@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 2e94824b071588ee6d331c6ae2a024f2a409aabe6273e1fdf25047f141c242bf
+ * Schema fingerprint: 672b376fec72bf06433dbf1493c14c3e459d5db1541de088d0e0707fa4695dba
  * Description fingerprint: 78f277e12ff7116740c48bf84f165789c1327c38744dd926584898e52796962b
- * Regenerated: 2026-10-30T10:51:17.937Z
+ * Regenerated: 2026-10-30T13:53:49.848Z
  */
-export const MCP_CATALOG_FINGERPRINT = "2e94824b071588ee6d331c6ae2a024f2a409aabe6273e1fdf25047f141c242bf";
+export const MCP_CATALOG_FINGERPRINT = "672b376fec72bf06433dbf1493c14c3e459d5db1541de088d0e0707fa4695dba";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "78f277e12ff7116740c48bf84f165789c1327c38744dd926584898e52796962b";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-30T10:51:17.937Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-30T13:53:49.848Z";
 export const TOOL_CATALOG_VERSION = "bd3ba20e6951b5920d54d4b60f786af7ce69ad4fd014ae970715f02b70f3eea1";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -8042,6 +8042,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "Title for the merged goal produced by action 'merge'."
 				},
+				"merged_chapter_summary": {
+					"type": "string",
+					"description": "Optional chapter summary for the merged goal produced by action 'merge' (up to 2,000 characters)."
+				},
 				"merged_description": {
 					"type": "string",
 					"description": "Optional description for the merged goal produced by action 'merge'."
@@ -8250,6 +8254,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"merged_title": {
 					"type": "string",
 					"description": "Title for the merged goal produced by action 'merge'."
+				},
+				"merged_chapter_summary": {
+					"type": "string",
+					"description": "Optional chapter summary for the merged goal produced by action 'merge' (up to 2,000 characters)."
 				},
 				"merged_description": {
 					"type": "string",

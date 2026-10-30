@@ -799,7 +799,20 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// record_implementation and record_completed_work. No verb added or removed; verbs 84
 		// model / 12 pump / 1 never-model, families and hot set unchanged. Benchmark before/after:
 		// initial surface 55,367 -> 55,655 estimated tokens; every budget still passes.
-		"426f9b05986bf6044224ea741cdb32c8a687401c570cc7a12f30433928d3c165",
+		// Rebaselined 2026-10-30 for DevSpec items 86b9c293 and afef574a, regenerated against
+		// server staging plus both changes. Compared old/new generated objects by
+		// name/inputSchema: 84 -> 85 model verbs. Added: manage_goals (goal and outcome
+		// writes from the goals change eb28968d), assigned to the full-read family like
+		// get_goals because its outcomes and links must reach the model whole. Inputs:
+		// create_task gains optional suggest_no_code; create_task, update_task and
+		// record_implementation drop goal_ids (goal links moved to manage_goals). No
+		// required field or type changed. Descriptions: create_task (suggest_human_only no
+		// longer says off-platform; suggest_no_code), verify_task (a person can sign off
+		// work they did themselves), and goals-change text on get_goals,
+		// get_project_goals, get_project_summary, get_resource and update_task. Hot set
+		// unchanged. Benchmark before/after: initial surface 55,655 -> 57,234 estimated
+		// tokens; every budget still passes.
+		"645294dcc81c5a1497536895ad065482be8d61d15424b6c863efd5f344a72a8c",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

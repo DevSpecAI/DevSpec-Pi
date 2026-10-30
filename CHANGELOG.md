@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.5 - 2026-10-30
+
+- The tool catalogue is regenerated against DevSpec's current tools. When your agent creates a task whose work won't produce any commits (research, a setting changed in a dashboard, an errand), it can now flag it as involving no code, so the task finishes once it is verified instead of waiting for code. Signing off now also covers work a person did themselves that nobody handed in. Goals and their outcomes are managed with the new goals tool rather than a goal list on each task. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.10.4 - 2026-10-27
 
 - Added `pi.image` (`https://devspec.ai/logo-icon.png`), `homepage` (`https://devspec.ai`), and discovery keywords in `package.json` for the Pi package gallery (`pi.dev/packages`).

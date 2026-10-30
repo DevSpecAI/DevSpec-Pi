@@ -819,7 +819,15 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// is manage_goals gaining optional merged_chapter_summary for atomic chapter merges.
 		// Benchmark before/after: initial surface 57,234 -> 57,273 estimated tokens; every
 		// budget still passes.
-		"175a058c099ca2afa209548bae5e14d0853271f7e26819802afd406beb4e9555",
+		// Rebaselined 2026-10-30 for DevSpec item 2c67e682, regenerated against DevSpecV2
+		// PR #903. Compared old/new generated objects by name/inputSchema: 85 model / 12 pump /
+		// 1 never-model unchanged, none added or removed, no required field or projection
+		// family changed. Inputs: create_task's optional suggest_human_only / suggest_no_code
+		// become human_only / no_code (set directly, no confirmation), and update_task gains
+		// optional human_only / no_code. Descriptions: update_task names both flags. Hot set
+		// unchanged. Benchmark before/after: initial surface 57,324 -> 57,534 estimated
+		// tokens; every budget still passes.
+		"0402cf5b068f3a6a61277d568067ccb040fe38a55cbd34038874679a9a8cf1a3",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: a5c404992cd17c4ade8399dbf57811cfab89d1780dd009b3cc39b3aa0c095e7f
- * Description fingerprint: ef0458c53ade8a5167fdad64f431e487d27c58653f6b6e19106767f4eb039eaa
- * Regenerated: 2026-10-30T18:39:23.249Z
+ * Schema fingerprint: 640f1834511cb221f1bbadd2735301c3ce2b0a1392d9b878d83f7ddff77d0cd0
+ * Description fingerprint: c4be1f906d2f4138a634ed029c5f284a1f4903ee1b2c43da54c78ee2e7fbb325
+ * Regenerated: 2026-10-30T20:56:52.003Z
  */
-export const MCP_CATALOG_FINGERPRINT = "a5c404992cd17c4ade8399dbf57811cfab89d1780dd009b3cc39b3aa0c095e7f";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "ef0458c53ade8a5167fdad64f431e487d27c58653f6b6e19106767f4eb039eaa";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-30T18:39:23.249Z";
-export const TOOL_CATALOG_VERSION = "7f44ba4a9723b8f27f5d69732ec3be01788a76471d31c995c2ba8f1fd99e4410";
+export const MCP_CATALOG_FINGERPRINT = "640f1834511cb221f1bbadd2735301c3ce2b0a1392d9b878d83f7ddff77d0cd0";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "c4be1f906d2f4138a634ed029c5f284a1f4903ee1b2c43da54c78ee2e7fbb325";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-30T20:56:52.004Z";
+export const TOOL_CATALOG_VERSION = "3455b10aa13c87c6127f13e8a4e8a28f1bb795b4d138535fd6f14b18c0525a55";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -236,7 +236,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_tasks",
 		"name": "get tasks",
-		"description": "List and count tasks by lifecycle, priority, type, tag, assignee, requester or review signal. Report how many from summary, not from the page length, and follow page.next_offset for more; for items about a topic, use search_tasks. lifecycle defaults to open (not started), and to all when you filter by a review signal. Briefs are left off the page unless include_briefs is true, and the response's briefs are the parents of this page's items, not a project inventory; to list one brief's children, pass its id as parent_id. Read an item in full with get_task.",
+		"description": "List and count tasks by lifecycle, priority, type, tag, assignee, requester or review signal. Report how many from summary, not from the page length, and follow page.next_offset for more; for items about a topic, use search_tasks. lifecycle defaults to open (not started), and to all when you filter by a review signal. Non-veto dismissals (duplicate, replaced, outdated) leave default counts and all listings; pass lifecycle: dismissed (and optional dismissal_category) to inspect them. Briefs are left off the page unless include_briefs is true, and the response's briefs are the parents of this page's items, not a project inventory; to list one brief's children, pass its id as parent_id. Read an item in full with get_task.",
 		"intent": "browse list count backlog tasks work lifecycle blocked priority chronological oldest assignee"
 	},
 	{
@@ -974,7 +974,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_tasks",
 		"label": "DevSpec: Get Tasks",
-		"description": "List and count tasks by lifecycle, priority, type, tag, assignee, requester or review signal. Report how many from summary, not from the page length, and follow page.next_offset for more; for items about a topic, use search_tasks. lifecycle defaults to open (not started), and to all when you filter by a review signal. Briefs are left off the page unless include_briefs is true, and the response's briefs are the parents of this page's items, not a project inventory; to list one brief's children, pass its id as parent_id. Read an item in full with get_task.",
+		"description": "List and count tasks by lifecycle, priority, type, tag, assignee, requester or review signal. Report how many from summary, not from the page length, and follow page.next_offset for more; for items about a topic, use search_tasks. lifecycle defaults to open (not started), and to all when you filter by a review signal. Non-veto dismissals (duplicate, replaced, outdated) leave default counts and all listings; pass lifecycle: dismissed (and optional dismissal_category) to inspect them. Briefs are left off the page unless include_briefs is true, and the response's briefs are the parents of this page's items, not a project inventory; to list one brief's children, pass its id as parent_id. Read an item in full with get_task.",
 		"searchIntent": "browse list count backlog tasks work lifecycle blocked priority chronological oldest assignee",
 		"modelInputSchema": {
 			"type": "object",
@@ -992,7 +992,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"active",
 						"all"
 					],
-					"description": "Stored state to list: open = not started, implemented = delivered and awaiting verification, active = open, in_progress, implemented and blocked, all = everything. Defaults to open, or to all when signal_type, signal_bucket or flagged is set. summary.ui_buckets counts every bucket whatever this is."
+					"description": "Stored state to list: open = not started, implemented = delivered and awaiting verification, active = open, in_progress, implemented and blocked, all = everything except non-veto dismissals (duplicate, replaced, outdated), dismissed = dismissed items (narrow with dismissal_category). Defaults to open, or to all when signal_type, signal_bucket or flagged is set. summary.ui_buckets counts every bucket whatever this is."
+				},
+				"dismissal_category": {
+					"type": "string",
+					"enum": [
+						"duplicate",
+						"replaced",
+						"outdated",
+						"not_wanted"
+					],
+					"description": "Only dismissed items in this category (duplicate, replaced, outdated, or not_wanted); implies lifecycle: dismissed when lifecycle is omitted. Omitted: any category."
 				},
 				"fields": {
 					"type": "string",
@@ -1156,7 +1166,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"active",
 						"all"
 					],
-					"description": "Stored state to list: open = not started, implemented = delivered and awaiting verification, active = open, in_progress, implemented and blocked, all = everything. Defaults to open, or to all when signal_type, signal_bucket or flagged is set. summary.ui_buckets counts every bucket whatever this is."
+					"description": "Stored state to list: open = not started, implemented = delivered and awaiting verification, active = open, in_progress, implemented and blocked, all = everything except non-veto dismissals (duplicate, replaced, outdated), dismissed = dismissed items (narrow with dismissal_category). Defaults to open, or to all when signal_type, signal_bucket or flagged is set. summary.ui_buckets counts every bucket whatever this is."
+				},
+				"dismissal_category": {
+					"type": "string",
+					"enum": [
+						"duplicate",
+						"replaced",
+						"outdated",
+						"not_wanted"
+					],
+					"description": "Only dismissed items in this category (duplicate, replaced, outdated, or not_wanted); implies lifecycle: dismissed when lifecycle is omitted. Omitted: any category."
 				},
 				"fields": {
 					"type": "string",
@@ -1339,7 +1359,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"active",
 						"all"
 					],
-					"description": "Stored state to search. Defaults to all, so finished work is found too. open = not started, implemented = delivered and awaiting verification, active = open, in_progress, implemented and blocked."
+					"description": "Stored state to search. Defaults to all (which excludes non-veto dismissals: duplicate, replaced, outdated, while keeping not_wanted rejections visible). Pass dismissed to search dismissed items explicitly. open = not started, implemented = delivered and awaiting verification, active = open, in_progress, implemented and blocked."
 				},
 				"limit": {
 					"type": "number",
@@ -1411,7 +1431,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"active",
 						"all"
 					],
-					"description": "Stored state to search. Defaults to all, so finished work is found too. open = not started, implemented = delivered and awaiting verification, active = open, in_progress, implemented and blocked."
+					"description": "Stored state to search. Defaults to all (which excludes non-veto dismissals: duplicate, replaced, outdated, while keeping not_wanted rejections visible). Pass dismissed to search dismissed items explicitly. open = not started, implemented = delivered and awaiting verification, active = open, in_progress, implemented and blocked."
 				},
 				"limit": {
 					"type": "number",
@@ -4567,7 +4587,21 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"dismissed",
 						"blocked"
 					],
-					"description": "deferred parks the item (reversible), blocked marks it waiting on something outside DevSpec, dismissed means it will not be done, and open resumes a deferred, dismissed or blocked item. Deferring or dismissing clears the item's agent branch and commit. Implemented and done items refuse deferred, blocked and dismissed, and refuse open: reopen finished work with reopen_task, which records a new round. On an item an agent has claimed, deferred and dismissed are refused until the claim is handed back with release_work_item. A refused call changes nothing. Omitted: unchanged."
+					"description": "deferred parks the item (reversible), blocked marks it waiting on something outside DevSpec, dismissed closes it under a required dismissal_category (duplicate, replaced, outdated, or not_wanted), and open resumes a deferred, dismissed or blocked item. Merged or verified work refuses deferred, blocked, dismissed and open (reopen finished work with reopen_task, which records a new round); unmerged built work whose commits never merged into any repository's tracking branch can be dismissed under any category while keeping its historical commit merge record. On an item an agent has claimed, deferred and dismissed are refused until the claim is handed back with release_work_item. A refused call changes nothing. Omitted: unchanged."
+				},
+				"dismissal_category": {
+					"type": "string",
+					"enum": [
+						"duplicate",
+						"replaced",
+						"outdated",
+						"not_wanted"
+					],
+					"description": "Required when lifecycle is dismissed; choose one of four categories: duplicate (already covered by another task — requires target_task_id; leaves default search, recall, and future conflict checks), replaced (superseded by another task — requires target_task_id; stays pending as a held replacement until the replacing task merges into the tracking branch, then leaves default search, recall, and future conflict checks), outdated (circumstances changed and no longer needed — optional note; leaves default search, recall, and future conflict checks so similar future work is not blocked), or not_wanted (explicit rejection — requires a written rejection reason in note; leaves open task counts, Goal progress, Delivery, and duplicate screening, while remaining eligible as protected intent in future conflict checks when human-requested or adopted so attempts to reintroduce the rejected idea are flagged). Omitted when not dismissing."
+				},
+				"target_task_id": {
+					"type": "string",
+					"description": "With lifecycle: dismissed and dismissal_category duplicate or replaced: the covering or replacing task in this project (UUID or 8-character short code). Required for duplicate and replaced; refused on outdated and not_wanted."
 				},
 				"intent": {
 					"type": "string",
@@ -4794,7 +4828,21 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"dismissed",
 						"blocked"
 					],
-					"description": "deferred parks the item (reversible), blocked marks it waiting on something outside DevSpec, dismissed means it will not be done, and open resumes a deferred, dismissed or blocked item. Deferring or dismissing clears the item's agent branch and commit. Implemented and done items refuse deferred, blocked and dismissed, and refuse open: reopen finished work with reopen_task, which records a new round. On an item an agent has claimed, deferred and dismissed are refused until the claim is handed back with release_work_item. A refused call changes nothing. Omitted: unchanged."
+					"description": "deferred parks the item (reversible), blocked marks it waiting on something outside DevSpec, dismissed closes it under a required dismissal_category (duplicate, replaced, outdated, or not_wanted), and open resumes a deferred, dismissed or blocked item. Merged or verified work refuses deferred, blocked, dismissed and open (reopen finished work with reopen_task, which records a new round); unmerged built work whose commits never merged into any repository's tracking branch can be dismissed under any category while keeping its historical commit merge record. On an item an agent has claimed, deferred and dismissed are refused until the claim is handed back with release_work_item. A refused call changes nothing. Omitted: unchanged."
+				},
+				"dismissal_category": {
+					"type": "string",
+					"enum": [
+						"duplicate",
+						"replaced",
+						"outdated",
+						"not_wanted"
+					],
+					"description": "Required when lifecycle is dismissed; choose one of four categories: duplicate (already covered by another task — requires target_task_id; leaves default search, recall, and future conflict checks), replaced (superseded by another task — requires target_task_id; stays pending as a held replacement until the replacing task merges into the tracking branch, then leaves default search, recall, and future conflict checks), outdated (circumstances changed and no longer needed — optional note; leaves default search, recall, and future conflict checks so similar future work is not blocked), or not_wanted (explicit rejection — requires a written rejection reason in note; leaves open task counts, Goal progress, Delivery, and duplicate screening, while remaining eligible as protected intent in future conflict checks when human-requested or adopted so attempts to reintroduce the rejected idea are flagged). Omitted when not dismissing."
+				},
+				"target_task_id": {
+					"type": "string",
+					"description": "With lifecycle: dismissed and dismissal_category duplicate or replaced: the covering or replacing task in this project (UUID or 8-character short code). Required for duplicate and replaced; refused on outdated and not_wanted."
 				},
 				"intent": {
 					"type": "string",

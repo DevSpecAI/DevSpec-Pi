@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.10 - 2026-10-30
+
+- Regenerated the tool catalogue and updated always-on task instructions for required task dismissal categories (`duplicate`, `replaced`, `outdated`, and `not_wanted`): `update_task` requires `dismissal_category` when dismissing (`target_task_id` for `duplicate` and `replaced`, optional `note` for `outdated`, and a required rejection `note` for `not_wanted`), and `get_tasks` supports filtering dismissed tasks by `dismissal_category`. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.10.9 - 2026-10-30
 
 - The tool catalogue is regenerated against DevSpec's current tools. Your agent now sets Human-only and No code directly, when it creates a task or at any time after with the task-update tool, either way, instead of suggesting them for someone to confirm. When an agent finishes a task that turned out to need no code, it can mark it No code itself, so the task stops waiting for code. Linking a commit to a task switches No code off. Update with `pi update --extensions`, then restart Pi.

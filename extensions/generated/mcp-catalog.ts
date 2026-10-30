@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: cbc74d3afc8527799adb5e8a8dcc7ae494b12bddcbe9440a25ad6e8ad642a33c
- * Description fingerprint: 3073906e6d35c3261b5e4146174bb6f9a68c149c6994f6c9d4dcaf48be1e2092
- * Regenerated: 2026-10-27T12:31:03.841Z
+ * Schema fingerprint: 2e94824b071588ee6d331c6ae2a024f2a409aabe6273e1fdf25047f141c242bf
+ * Description fingerprint: 78f277e12ff7116740c48bf84f165789c1327c38744dd926584898e52796962b
+ * Regenerated: 2026-10-30T10:51:17.937Z
  */
-export const MCP_CATALOG_FINGERPRINT = "cbc74d3afc8527799adb5e8a8dcc7ae494b12bddcbe9440a25ad6e8ad642a33c";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "3073906e6d35c3261b5e4146174bb6f9a68c149c6994f6c9d4dcaf48be1e2092";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-27T12:31:03.841Z";
-export const TOOL_CATALOG_VERSION = "31780944a5df9ae6d6d465e657d5091065521e1830c3545fa5990921ffa7aaa4";
+export const MCP_CATALOG_FINGERPRINT = "2e94824b071588ee6d331c6ae2a024f2a409aabe6273e1fdf25047f141c242bf";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "78f277e12ff7116740c48bf84f165789c1327c38744dd926584898e52796962b";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-30T10:51:17.937Z";
+export const TOOL_CATALOG_VERSION = "bd3ba20e6951b5920d54d4b60f786af7ce69ad4fd014ae970715f02b70f3eea1";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -146,8 +146,8 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_goals",
 		"name": "get goals",
-		"description": "Read the project's goals. Without goal_id: the goals (current by default) with counts of their linked work: total, done, in progress and open. With goal_id: that goal and every task counting toward it, directly or through a linked brief, up to 500 per page (pass items_page.next_offset as items_offset). A progress of null means it could not be read: unknown, not zero. For the vision alongside current goals, use get_project_goals. Read-only: link work to a goal with goal_ids on create_task, update_task or record_implementation.",
-		"intent": "project goals progress linked work remaining items goal details"
+		"description": "Read the project's goals and their outcomes. Without goal_id: the goals (current by default) with each goal's chapter_summary, outcomes_summary (active_now and up_next outcomes, plus any ready_to_confirm outcomes awaiting human sign-off), and linked task counts. With goal_id: that goal, its hydrated outcomes (each outcome's progress, linked briefs and tasks, excluded child tasks, supporting documents, and discussion points), and every task counting toward it up to 500 per page (pass items_page.next_offset as items_offset). A progress of null means it could not be read: unknown, not zero. For the vision and concise 'Where we are now' orientation together, use get_project_goals. Read-only: shape goals, outcomes, and multi-corpus outcome links with manage_goals.",
+		"intent": "project goals outcomes active_now up_next linked work remaining items goal details"
 	},
 	{
 		"id": "get_memory",
@@ -164,8 +164,8 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_project_goals",
 		"name": "get project goals",
-		"description": "Read the project's vision and its current goals together, for orientation before work. It leaves out progress counts and achieved or dismissed goals: use get_goals for those, or for the items counting toward one goal. A task's own intent and criteria still come from get_task.",
-		"intent": "project vision current goals overview what we are working toward"
+		"description": "Read the project's vision and its 'Where we are now' chapter-and-outcomes orientation together before work: each active goal's chapter summary, which outcomes are active_now vs up_next, and which outcomes are ready_to_confirm awaiting human sign-off. For achieved or dismissed goals, or one goal's full linked items, documents, and discussion points, use get_goals; to create, reshape, confirm, or link goals and outcomes, use manage_goals. A task's own intent and criteria come from get_task.",
+		"intent": "project vision current goals outcomes orientation where we are now what we are working toward"
 	},
 	{
 		"id": "get_project_instruction_rules",
@@ -176,8 +176,8 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_project_summary",
 		"name": "get project summary",
-		"description": "Orient on one project before working in it. It returns the team rules every coding agent follows (execution.custom_instructions = principles, execution.agent_rules = agent mechanics), your own personal agent rules (owner_agent_rules), the push, merge, branch-prefix, commit-prefix and protected-path settings, each repo's target_branch, connected database targets for migrations, current goals with progress, members (ids and names), the total task count, and the number of rooms you can open (stats.sessions, the same total get_recent_sessions reports; null when a count could not be read); to list them, use get_recent_sessions. It returns no integrations list or activity feed. To pick a project use list_projects; for topic context use the search tools.",
-		"intent": "project overview team rules agent rules personal rules target branch push merge settings database targets members goals orientation before working"
+		"description": "Orient on one project before working in it. It returns the team rules every coding agent follows (execution.custom_instructions = principles, execution.agent_rules = agent mechanics), your own personal agent rules (owner_agent_rules), the push, merge, branch-prefix, commit-prefix and protected-path settings, each repo's target_branch, connected database targets for migrations, a concise 'Where we are now' chapter-and-outcomes orientation (where_we_are_now and goals: active chapters, active_now vs up_next outcomes, and outcomes awaiting human confirmation), members (ids and names), the total task count, and the number of rooms you can open (stats.sessions, the same total get_recent_sessions reports; null when a count could not be read); to list them, use get_recent_sessions. It returns no integrations list or activity feed. To pick a project use list_projects; for topic context use the search tools.",
+		"intent": "project overview team rules agent rules personal rules target branch push merge settings database targets members goals outcomes where we are now orientation before working"
 	},
 	{
 		"id": "get_pull_request",
@@ -194,7 +194,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_resource",
 		"name": "get resource",
-		"description": "Read one uploaded document or AI-written artifact in full, by id or 8-character short code, with its review flags and total_lines. For a long document, pass start_line/end_line for a range, or search to get only the matching lines with context. An uploaded file also comes with a short-lived download_url: fetch it now and never store it. A file attached to a session is readable only from that session. is_archived: true means it was retired or replaced; if replaced, superseded_by names the current version.",
+		"description": "Read one uploaded document or AI-written artifact in full, by id or 8-character short code, with its review flags and total_lines. For a long document, pass start_line/end_line for a range, or search to get only the matching lines with context. An uploaded file also comes with a short-lived download_url: fetch it now and never store it. A file attached to any session you can access in this project is readable by id, without joining that session: use the resource_id from get_session_transcript. This does not add other sessions' uploads to search or lists. is_archived: true means it was retired or replaced; if replaced, superseded_by names the current version.",
 		"intent": "read full document artifact uploaded file download attachment"
 	},
 	{
@@ -280,6 +280,12 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"name": "manage discussion point",
 		"description": "Add, edit, strike (mark discussed), reopen, watch or unwatch a Still to Discuss point, only when the person asks. add puts the point on the project list, or on a room's list when you pass scope:\"room\" with that room's session_id. A point records an unsettled topic, not work (create_task) or a settled decision (record_memory). Watching only adds the point to your mine:true results in search_discussion_points. The reply returns the changed point and its list: a room's whole list, or the project list's first 20 open points with rows_page.next_call to read on.",
 		"intent": "add update strike reopen watch still to discuss discussion topic"
+	},
+	{
+		"id": "manage_goals",
+		"name": "manage goals",
+		"description": "Create, reshape, reorder, confirm, and close project goals and their outcomes, or manage explicit outcome links across briefs, tasks, documents (resources), and discussion points. A goal is an active chapter with outcomes in active_now and up_next horizons. Each outcome is either product_shipped (moves to ready_to_confirm when all non-dismissed linked tasks finish; a person then confirms it met) or human_confirmed (person sign-off only). Completing tasks never auto-achieves a goal, and closing, achieving, or reshaping a goal succeeds cleanly regardless of open or parked tasks. Explicit links and exclusions managed here are sticky when human-directed so background matching respects them; routine task work does not pass goal_ids on create_task, update_task, or record_implementation.",
+		"intent": "create update reshape close achieve dismiss goals outcomes reorder confirm reopen link unlink briefs tasks documents discussion points"
 	},
 	{
 		"id": "manage_knowledge_links",
@@ -494,7 +500,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "update_task",
 		"name": "update task",
-		"description": "Edit an existing task's details (title, description, intent, criteria, guidance, notes, type, priority, tags, due date, assignee, brief, goals) or park, block, dismiss or resume it. Keep each task atomic around one primary subject or cohesive deliverable; when work spans independent deliverables, unrelated subjects, or separate carve-outs, create separate tasks (or child tasks under a parent brief) and connect them with parent_task_id, follow_up_from_task_id, or link_tasks instead of bundling them into one task. Writes that violate field placement (code/paths/CSS in prose), substance or self-contained intent completeness, or single-subject atomicity are rejected at write time. Prefer description_edits for local changes, keep criterion ids, and pass expected_version from your last read so a stale edit is refused instead of overwriting someone else's. Before changing lifecycle, tell the person which change you are making and why. Claiming, delivering, failing and releasing work, and reopening finished work, have their own tools: claim_work_item, record_implementation, fail_work_item, release_work_item and reopen_task. A change to the title, description, intent or criteria can come back queued_for_review with a proposal_id; it changes nothing until a Maintainer accepts it.",
+		"description": "Edit an existing task's details (title, description, intent, criteria, guidance, notes, type, priority, tags, due date, assignee, brief) or park, block, dismiss or resume it. Keep each task atomic around one primary subject or cohesive deliverable; when work spans independent deliverables, unrelated subjects, or separate carve-outs, create separate tasks (or child tasks under a parent brief) and connect them with parent_task_id, follow_up_from_task_id, or link_tasks instead of bundling them into one task. Writes that violate field placement (code/paths/CSS in prose), substance or self-contained intent completeness, or single-subject atomicity are rejected at write time. Prefer description_edits for local changes, keep criterion ids, and pass expected_version from your last read so a stale edit is refused instead of overwriting someone else's. Before changing lifecycle, tell the person which change you are making and why. Claiming, delivering, failing and releasing work, and reopening finished work, have their own tools: claim_work_item, record_implementation, fail_work_item, release_work_item and reopen_task. A change to the title, description, intent or criteria can come back queued_for_review with a proposal_id; it changes nothing until a Maintainer accepts it.",
 		"intent": "edit update existing task task specification criteria priority tags assignee park defer dismiss block resume"
 	},
 	{
@@ -506,7 +512,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "verify_task",
 		"name": "verify task",
-		"description": "Record a person's decision on one implemented task: passed: true signs it off, passed: false requests changes and flags it for attention. Who may decide, and when you may relay a decision, is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, callers who are not allowed verifiers, and passed: true while a required follow-up step is open or an OK is still waiting. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. With passed: true the response gives the lifecycle the item ended up in (an item still waiting for something done requires records the sign-off and stays implemented, and its done_blocker says what it waits for), and says so if the sign-off landed on an older round of work and does not count.",
+		"description": "Record a person's decision on one task: passed: true signs it off, passed: false requests changes and flags it for attention. A person can also sign off work they did themselves that nobody handed in; the sign-off records the work in their name, and every wait for done still applies. Who may decide, and when you may relay a decision, is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, unfinished work an agent is working on, callers who are not allowed verifiers, and passed: true while a required follow-up step is open or an OK is still waiting. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. With passed: true the response gives the lifecycle the item ended up in (an item still waiting for something done requires records the sign-off and stays implemented, and its done_blocker says what it waits for), and says so if the sign-off landed on an older round of work and does not count.",
 		"intent": "person signs off verifies implemented item request changes"
 	},
 	{
@@ -606,6 +612,7 @@ export const MODEL_VERB_NAMES = [
 	"record_criterion_verdicts",
 	"classify_criterion",
 	"add_commit_reference",
+	"manage_goals",
 	"record_duplicate_nonmatch",
 	"resolve_duplicate",
 	"manage_protected_intent",
@@ -838,8 +845,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_project_summary",
 		"label": "DevSpec: Get Project Summary",
-		"description": "Orient on one project before working in it. It returns the team rules every coding agent follows (execution.custom_instructions = principles, execution.agent_rules = agent mechanics), your own personal agent rules (owner_agent_rules), the push, merge, branch-prefix, commit-prefix and protected-path settings, each repo's target_branch, connected database targets for migrations, current goals with progress, members (ids and names), the total task count, and the number of rooms you can open (stats.sessions, the same total get_recent_sessions reports; null when a count could not be read); to list them, use get_recent_sessions. It returns no integrations list or activity feed. To pick a project use list_projects; for topic context use the search tools.",
-		"searchIntent": "project overview team rules agent rules personal rules target branch push merge settings database targets members goals orientation before working",
+		"description": "Orient on one project before working in it. It returns the team rules every coding agent follows (execution.custom_instructions = principles, execution.agent_rules = agent mechanics), your own personal agent rules (owner_agent_rules), the push, merge, branch-prefix, commit-prefix and protected-path settings, each repo's target_branch, connected database targets for migrations, a concise 'Where we are now' chapter-and-outcomes orientation (where_we_are_now and goals: active chapters, active_now vs up_next outcomes, and outcomes awaiting human confirmation), members (ids and names), the total task count, and the number of rooms you can open (stats.sessions, the same total get_recent_sessions reports; null when a count could not be read); to list them, use get_recent_sessions. It returns no integrations list or activity feed. To pick a project use list_projects; for topic context use the search tools.",
+		"searchIntent": "project overview team rules agent rules personal rules target branch push merge settings database targets members goals outcomes where we are now orientation before working",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -2235,14 +2242,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_goals",
 		"label": "DevSpec: Get Goals",
-		"description": "Read the project's goals. Without goal_id: the goals (current by default) with counts of their linked work: total, done, in progress and open. With goal_id: that goal and every task counting toward it, directly or through a linked brief, up to 500 per page (pass items_page.next_offset as items_offset). A progress of null means it could not be read: unknown, not zero. For the vision alongside current goals, use get_project_goals. Read-only: link work to a goal with goal_ids on create_task, update_task or record_implementation.",
-		"searchIntent": "project goals progress linked work remaining items goal details",
+		"description": "Read the project's goals and their outcomes. Without goal_id: the goals (current by default) with each goal's chapter_summary, outcomes_summary (active_now and up_next outcomes, plus any ready_to_confirm outcomes awaiting human sign-off), and linked task counts. With goal_id: that goal, its hydrated outcomes (each outcome's progress, linked briefs and tasks, excluded child tasks, supporting documents, and discussion points), and every task counting toward it up to 500 per page (pass items_page.next_offset as items_offset). A progress of null means it could not be read: unknown, not zero. For the vision and concise 'Where we are now' orientation together, use get_project_goals. Read-only: shape goals, outcomes, and multi-corpus outcome links with manage_goals.",
+		"searchIntent": "project goals outcomes active_now up_next linked work remaining items goal details",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
 				"goal_id": {
 					"type": "string",
-					"description": "One goal's UUID (no short codes), from a call without it. Returns that goal, its progress and its items instead of the list; status is then ignored."
+					"description": "One goal's UUID (no short codes), from a call without it. Returns that goal, its hydrated outcomes, its progress and its items instead of the list; status is then ignored."
 				},
 				"status": {
 					"type": "string",
@@ -2281,7 +2288,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"goal_id": {
 					"type": "string",
-					"description": "One goal's UUID (no short codes), from a call without it. Returns that goal, its progress and its items instead of the list; status is then ignored."
+					"description": "One goal's UUID (no short codes), from a call without it. Returns that goal, its hydrated outcomes, its progress and its items instead of the list; status is then ignored."
 				},
 				"status": {
 					"type": "string",
@@ -2320,8 +2327,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_project_goals",
 		"label": "DevSpec: Get Project Goals",
-		"description": "Read the project's vision and its current goals together, for orientation before work. It leaves out progress counts and achieved or dismissed goals: use get_goals for those, or for the items counting toward one goal. A task's own intent and criteria still come from get_task.",
-		"searchIntent": "project vision current goals overview what we are working toward",
+		"description": "Read the project's vision and its 'Where we are now' chapter-and-outcomes orientation together before work: each active goal's chapter summary, which outcomes are active_now vs up_next, and which outcomes are ready_to_confirm awaiting human sign-off. For achieved or dismissed goals, or one goal's full linked items, documents, and discussion points, use get_goals; to create, reshape, confirm, or link goals and outcomes, use manage_goals. A task's own intent and criteria come from get_task.",
+		"searchIntent": "project vision current goals outcomes orientation where we are now what we are working toward",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -3240,14 +3247,14 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_resource",
 		"label": "DevSpec: Get Resource",
-		"description": "Read one uploaded document or AI-written artifact in full, by id or 8-character short code, with its review flags and total_lines. For a long document, pass start_line/end_line for a range, or search to get only the matching lines with context. An uploaded file also comes with a short-lived download_url: fetch it now and never store it. A file attached to a session is readable only from that session. is_archived: true means it was retired or replaced; if replaced, superseded_by names the current version.",
+		"description": "Read one uploaded document or AI-written artifact in full, by id or 8-character short code, with its review flags and total_lines. For a long document, pass start_line/end_line for a range, or search to get only the matching lines with context. An uploaded file also comes with a short-lived download_url: fetch it now and never store it. A file attached to any session you can access in this project is readable by id, without joining that session: use the resource_id from get_session_transcript. This does not add other sessions' uploads to search or lists. is_archived: true means it was retired or replaced; if replaced, superseded_by names the current version.",
 		"searchIntent": "read full document artifact uploaded file download attachment",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id; files attached to the session it is attached to are readable. Omitted: the one session your live connections in this project are attached to, if there is exactly one; otherwise only project documents are readable. A connection that is not live or not yours is refused."
+					"description": "Your connection id, used to validate caller identity and select the project. Direct reads check access to the file's original session, not which session this connection is attached to. Omitted: reads still check your access to the original session. A connection that is not live or not yours is refused."
 				},
 				"id": {
 					"type": "string",
@@ -3279,7 +3286,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"properties": {
 				"connection_id": {
 					"type": "string",
-					"description": "Your connection id; files attached to the session it is attached to are readable. Omitted: the one session your live connections in this project are attached to, if there is exactly one; otherwise only project documents are readable. A connection that is not live or not yours is refused."
+					"description": "Your connection id, used to validate caller identity and select the project. Direct reads check access to the file's original session, not which session this connection is attached to. Omitted: reads still check your access to the original session. A connection that is not live or not yours is refused."
 				},
 				"id": {
 					"type": "string",
@@ -4502,7 +4509,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "update_task",
 		"label": "DevSpec: Update Task",
-		"description": "Edit an existing task's details (title, description, intent, criteria, guidance, notes, type, priority, tags, due date, assignee, brief, goals) or park, block, dismiss or resume it. Keep each task atomic around one primary subject or cohesive deliverable; when work spans independent deliverables, unrelated subjects, or separate carve-outs, create separate tasks (or child tasks under a parent brief) and connect them with parent_task_id, follow_up_from_task_id, or link_tasks instead of bundling them into one task. Writes that violate field placement (code/paths/CSS in prose), substance or self-contained intent completeness, or single-subject atomicity are rejected at write time. Prefer description_edits for local changes, keep criterion ids, and pass expected_version from your last read so a stale edit is refused instead of overwriting someone else's. Before changing lifecycle, tell the person which change you are making and why. Claiming, delivering, failing and releasing work, and reopening finished work, have their own tools: claim_work_item, record_implementation, fail_work_item, release_work_item and reopen_task. A change to the title, description, intent or criteria can come back queued_for_review with a proposal_id; it changes nothing until a Maintainer accepts it.",
+		"description": "Edit an existing task's details (title, description, intent, criteria, guidance, notes, type, priority, tags, due date, assignee, brief) or park, block, dismiss or resume it. Keep each task atomic around one primary subject or cohesive deliverable; when work spans independent deliverables, unrelated subjects, or separate carve-outs, create separate tasks (or child tasks under a parent brief) and connect them with parent_task_id, follow_up_from_task_id, or link_tasks instead of bundling them into one task. Writes that violate field placement (code/paths/CSS in prose), substance or self-contained intent completeness, or single-subject atomicity are rejected at write time. Prefer description_edits for local changes, keep criterion ids, and pass expected_version from your last read so a stale edit is refused instead of overwriting someone else's. Before changing lifecycle, tell the person which change you are making and why. Claiming, delivering, failing and releasing work, and reopening finished work, have their own tools: claim_work_item, record_implementation, fail_work_item, release_work_item and reopen_task. A change to the title, description, intent or criteria can come back queued_for_review with a proposal_id; it changes nothing until a Maintainer accepts it.",
 		"searchIntent": "edit update existing task task specification criteria priority tags assignee park defer dismiss block resume",
 		"modelInputSchema": {
 			"type": "object",
@@ -4706,13 +4713,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"null"
 					]
 				},
-				"goal_ids": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					},
-					"description": "The complete set of goals this item serves directly (UUIDs): it replaces the current direct links, and an empty list removes them all. Goals inherited from the parent brief are separate. Links that cannot be stored are listed under not_stored, and goal_ids is echoed only when every link was stored. Sending the same set again changes nothing, so a retry is safe, and a call with only goal_ids is a real update. Omitted: unchanged."
-				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
 					"type": "string"
@@ -4932,13 +4932,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"null"
 					]
 				},
-				"goal_ids": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					},
-					"description": "The complete set of goals this item serves directly (UUIDs): it replaces the current direct links, and an empty list removes them all. Goals inherited from the parent brief are separate. Links that cannot be stored are listed under not_stored, and goal_ids is echoed only when every link was stored. Sending the same set again changes nothing, so a retry is safe, and a call with only goal_ids is a real update. Omitted: unchanged."
-				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
 					"type": "string"
@@ -5063,7 +5056,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"suggest_human_only": {
 					"type": "boolean",
-					"description": "true suggests the item is off-platform work no coding agent could do (call the lawyer, buy the domain); a person confirms it in the app. Default false."
+					"description": "true suggests only a person can do this work, so agents never take it (call the lawyer, buy the domain); a person confirms it in the app. A human-only item never involves code: work with code in it is not human-only, and a person's part of it is a manual follow-up step. Default false."
+				},
+				"suggest_no_code": {
+					"type": "boolean",
+					"description": "true suggests the work will produce no commits to any repository (a research or decision item, a setting changed through a provider's API, a human-only errand); a person confirms it in the app. An item without it is expected to involve code: once handed in, it waits until code is linked and has landed before it can be done. Default false."
 				},
 				"is_brief": {
 					"type": "boolean",
@@ -5096,13 +5093,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"follow_up_from_task_id": {
 					"type": "string",
 					"description": "The full UUID of the item whose work surfaced this distinct new scope. Records a caused_by link from the new item to it, so no separate link is needed; it is not the parent brief. If the link cannot be stored, the item is still created and warning says so. Omitted: no follow-up link."
-				},
-				"goal_ids": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					},
-					"description": "Goal UUIDs this item serves (read them with get_goals), linked as agent-authored so the item counts toward their progress. Links that cannot be stored are listed under not_stored. Omitted: none beyond any inherited from the parent brief."
 				},
 				"idempotency_key": {
 					"type": "string",
@@ -5234,7 +5224,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"suggest_human_only": {
 					"type": "boolean",
-					"description": "true suggests the item is off-platform work no coding agent could do (call the lawyer, buy the domain); a person confirms it in the app. Default false."
+					"description": "true suggests only a person can do this work, so agents never take it (call the lawyer, buy the domain); a person confirms it in the app. A human-only item never involves code: work with code in it is not human-only, and a person's part of it is a manual follow-up step. Default false."
+				},
+				"suggest_no_code": {
+					"type": "boolean",
+					"description": "true suggests the work will produce no commits to any repository (a research or decision item, a setting changed through a provider's API, a human-only errand); a person confirms it in the app. An item without it is expected to involve code: once handed in, it waits until code is linked and has landed before it can be done. Default false."
 				},
 				"is_brief": {
 					"type": "boolean",
@@ -5267,13 +5261,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"follow_up_from_task_id": {
 					"type": "string",
 					"description": "The full UUID of the item whose work surfaced this distinct new scope. Records a caused_by link from the new item to it, so no separate link is needed; it is not the parent brief. If the link cannot be stored, the item is still created and warning says so. Omitted: no follow-up link."
-				},
-				"goal_ids": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					},
-					"description": "Goal UUIDs this item serves (read them with get_goals), linked as agent-authored so the item counts toward their progress. Links that cannot be stored are listed under not_stored. Omitted: none beyond any inherited from the parent brief."
 				},
 				"idempotency_key": {
 					"type": "string",
@@ -6551,13 +6538,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "The changed files, from `git diff --name-only`. They are recorded on this implementation round, which the item's file list comes from. Omitted: this round records none, and the item keeps its current file list."
 				},
-				"goal_ids": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					},
-					"description": "The complete set of goal UUIDs this item should link to directly. It replaces the existing direct links, including ones people added: include every goal to keep, pass [] to remove all, or omit it to leave them unchanged. Find the UUIDs with get_goals. An unknown goal id refuses the call before anything is written; the links are applied after the work is recorded, and goal_links in the response reports them."
-				},
 				"completion_note": {
 					"type": "string",
 					"description": "What you did, for the implementation record. It is stored as this round's summary and added as an implementation note; if the note cannot be stored, the implementation still stands and the response lists it under not_stored with the add_implementation_note call that adds it. Omitted, the earlier completion note is kept. Shown to people as formatted markdown. Say everything you would anyway, then lay it out so it's easy to scan: short headings when there are several parts, bullets for separate points, `code` for file and function names, and a blank line between sections."
@@ -6739,13 +6719,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"type": "string"
 					},
 					"description": "The changed files, from `git diff --name-only`. They are recorded on this implementation round, which the item's file list comes from. Omitted: this round records none, and the item keeps its current file list."
-				},
-				"goal_ids": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					},
-					"description": "The complete set of goal UUIDs this item should link to directly. It replaces the existing direct links, including ones people added: include every goal to keep, pass [] to remove all, or omit it to leave them unchanged. Find the UUIDs with get_goals. An unknown goal id refuses the call before anything is written; the links are applied after the work is recorded, and goal_links in the response reports them."
 				},
 				"completion_note": {
 					"type": "string",
@@ -7364,7 +7337,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "verify_task",
 		"label": "DevSpec: Verify Task",
-		"description": "Record a person's decision on one implemented task: passed: true signs it off, passed: false requests changes and flags it for attention. Who may decide, and when you may relay a decision, is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, callers who are not allowed verifiers, and passed: true while a required follow-up step is open or an OK is still waiting. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. With passed: true the response gives the lifecycle the item ended up in (an item still waiting for something done requires records the sign-off and stays implemented, and its done_blocker says what it waits for), and says so if the sign-off landed on an older round of work and does not count.",
+		"description": "Record a person's decision on one task: passed: true signs it off, passed: false requests changes and flags it for attention. A person can also sign off work they did themselves that nobody handed in; the sign-off records the work in their name, and every wait for done still applies. Who may decide, and when you may relay a decision, is set by devspec://product/implementation-contract; for observations you made yourself, use record_criterion_verdicts. It refuses briefs (settle their children), items not awaiting sign-off, unfinished work an agent is working on, callers who are not allowed verifiers, and passed: true while a required follow-up step is open or an OK is still waiting. It signs off only the item named: an item this one came from, or that came from it, is decided on its own. With passed: true the response gives the lifecycle the item ended up in (an item still waiting for something done requires records the sign-off and stays implemented, and its done_blocker says what it waits for), and says so if the sign-off landed on an older round of work and does not count.",
 		"searchIntent": "person signs off verifies implemented item request changes",
 		"modelInputSchema": {
 			"type": "object",
@@ -7884,6 +7857,436 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			},
 			"required": [
 				"commit_sha"
+			]
+		},
+		"kind": "model"
+	},
+	{
+		"name": "manage_goals",
+		"label": "DevSpec: Manage Goals",
+		"description": "Create, reshape, reorder, confirm, and close project goals and their outcomes, or manage explicit outcome links across briefs, tasks, documents (resources), and discussion points. A goal is an active chapter with outcomes in active_now and up_next horizons. Each outcome is either product_shipped (moves to ready_to_confirm when all non-dismissed linked tasks finish; a person then confirms it met) or human_confirmed (person sign-off only). Completing tasks never auto-achieves a goal, and closing, achieving, or reshaping a goal succeeds cleanly regardless of open or parked tasks. Explicit links and exclusions managed here are sticky when human-directed so background matching respects them; routine task work does not pass goal_ids on create_task, update_task, or record_implementation.",
+		"searchIntent": "create update reshape close achieve dismiss goals outcomes reorder confirm reopen link unlink briefs tasks documents discussion points",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"action": {
+					"type": "string",
+					"enum": [
+						"create",
+						"update",
+						"achieve",
+						"dismiss",
+						"reactivate",
+						"split",
+						"merge",
+						"create_outcome",
+						"update_outcome",
+						"reorder_outcomes",
+						"confirm_outcome",
+						"reopen_outcome",
+						"drop_outcome",
+						"delete_outcome",
+						"link_outcome",
+						"unlink_outcome",
+						"restore_outcome_target"
+					],
+					"description": "Operation to perform: create/update/achieve/dismiss/reactivate/split/merge for goal chapters; create_outcome/update_outcome/reorder_outcomes/confirm_outcome/reopen_outcome/drop_outcome/delete_outcome for outcomes; link_outcome/unlink_outcome/restore_outcome_target for explicit links across briefs, tasks, documents, and discussion points."
+				},
+				"goal_id": {
+					"type": "string",
+					"description": "Goal UUID. Required for every action except create and merge."
+				},
+				"goal_ids": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Goal UUIDs to merge (required for action 'merge', at least 2)."
+				},
+				"title": {
+					"type": "string",
+					"description": "Goal title (required for create, optional for update; up to 500 characters) or outcome title (required for create_outcome, optional for update_outcome; up to 300 characters)."
+				},
+				"chapter_summary": {
+					"description": "Concise framing of what this chapter is about and why now (optional for create/update, up to 2,000 characters; null or '' clears on update).",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"description": {
+					"description": "Goal description (optional for create/update, up to 2,000 characters; null clears) or outcome description (optional for create_outcome/update_outcome, up to 2,000 characters; null clears).",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"success_criteria": {
+					"description": "Optional freeform goal notes (up to 2,000 characters; null clears on update). Structured outcomes are preferred.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"target_date": {
+					"description": "Optional YYYY-MM-DD target date (null clears on update).",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"sort_order": {
+					"type": "number",
+					"description": "Display order for the goal (create/update) or outcome (create_outcome/update_outcome). Omitted on create: appended at the end."
+				},
+				"depends_on_goal_id": {
+					"description": "UUID of another goal in this project that this goal depends on (null clears; circular chains are refused).",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"outcomes": {
+					"maxItems": 30,
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"title": {
+								"type": "string",
+								"description": "Outcome title (non-blank, up to 300 characters)."
+							},
+							"description": {
+								"type": "string",
+								"description": "Optional outcome description (up to 2,000 characters)."
+							},
+							"horizon": {
+								"type": "string",
+								"enum": [
+									"active_now",
+									"up_next"
+								],
+								"description": "Horizon: active_now (default) or up_next."
+							},
+							"completion_kind": {
+								"type": "string",
+								"enum": [
+									"product_shipped",
+									"human_confirmed"
+								],
+								"description": "Completion kind: product_shipped (default) or human_confirmed."
+							}
+						},
+						"required": [
+							"title"
+						]
+					},
+					"description": "Optional initial outcomes created alongside a new goal on action 'create'."
+				},
+				"outcome_id": {
+					"type": "string",
+					"description": "Outcome UUID. Required for update_outcome, confirm_outcome, reopen_outcome, drop_outcome, delete_outcome, link_outcome, unlink_outcome, and restore_outcome_target."
+				},
+				"outcome_ids": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Ordered outcome UUIDs for action 'reorder_outcomes' (at least 1, all belonging to goal_id)."
+				},
+				"horizon": {
+					"type": "string",
+					"enum": [
+						"active_now",
+						"up_next"
+					],
+					"description": "Outcome horizon for create_outcome, update_outcome, or reorder_outcomes: active_now or up_next."
+				},
+				"completion_kind": {
+					"type": "string",
+					"enum": [
+						"product_shipped",
+						"human_confirmed"
+					],
+					"description": "Outcome completion kind for create_outcome or update_outcome: product_shipped or human_confirmed."
+				},
+				"target_type": {
+					"type": "string",
+					"enum": [
+						"task",
+						"resource",
+						"discussion_point"
+					],
+					"description": "Target record corpus for link_outcome, unlink_outcome, or restore_outcome_target: 'task' (brief or standalone/child task), 'resource' (project document), or 'discussion_point' (Still to Discuss item)."
+				},
+				"target_id": {
+					"type": "string",
+					"description": "Target UUID (or 8-character short code for tasks and documents) for link_outcome, unlink_outcome, or restore_outcome_target."
+				},
+				"rationale": {
+					"type": "string",
+					"description": "Optional short explanation recorded on link_outcome (up to 500 characters)."
+				},
+				"reason": {
+					"type": "string",
+					"description": "Required non-empty dismissal reason for action 'dismiss' (up to 500 characters)."
+				},
+				"new_titles": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Titles for the new goals produced by action 'split' (at least 2, each up to 500 characters)."
+				},
+				"merged_title": {
+					"type": "string",
+					"description": "Title for the merged goal produced by action 'merge'."
+				},
+				"merged_description": {
+					"type": "string",
+					"description": "Optional description for the merged goal produced by action 'merge'."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"action"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"action": {
+					"type": "string",
+					"enum": [
+						"create",
+						"update",
+						"achieve",
+						"dismiss",
+						"reactivate",
+						"split",
+						"merge",
+						"create_outcome",
+						"update_outcome",
+						"reorder_outcomes",
+						"confirm_outcome",
+						"reopen_outcome",
+						"drop_outcome",
+						"delete_outcome",
+						"link_outcome",
+						"unlink_outcome",
+						"restore_outcome_target"
+					],
+					"description": "Operation to perform: create/update/achieve/dismiss/reactivate/split/merge for goal chapters; create_outcome/update_outcome/reorder_outcomes/confirm_outcome/reopen_outcome/drop_outcome/delete_outcome for outcomes; link_outcome/unlink_outcome/restore_outcome_target for explicit links across briefs, tasks, documents, and discussion points."
+				},
+				"goal_id": {
+					"type": "string",
+					"description": "Goal UUID. Required for every action except create and merge."
+				},
+				"goal_ids": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Goal UUIDs to merge (required for action 'merge', at least 2)."
+				},
+				"title": {
+					"type": "string",
+					"description": "Goal title (required for create, optional for update; up to 500 characters) or outcome title (required for create_outcome, optional for update_outcome; up to 300 characters)."
+				},
+				"chapter_summary": {
+					"description": "Concise framing of what this chapter is about and why now (optional for create/update, up to 2,000 characters; null or '' clears on update).",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"description": {
+					"description": "Goal description (optional for create/update, up to 2,000 characters; null clears) or outcome description (optional for create_outcome/update_outcome, up to 2,000 characters; null clears).",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"success_criteria": {
+					"description": "Optional freeform goal notes (up to 2,000 characters; null clears on update). Structured outcomes are preferred.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"target_date": {
+					"description": "Optional YYYY-MM-DD target date (null clears on update).",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"sort_order": {
+					"type": "number",
+					"description": "Display order for the goal (create/update) or outcome (create_outcome/update_outcome). Omitted on create: appended at the end."
+				},
+				"depends_on_goal_id": {
+					"description": "UUID of another goal in this project that this goal depends on (null clears; circular chains are refused).",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"outcomes": {
+					"maxItems": 30,
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"title": {
+								"type": "string",
+								"description": "Outcome title (non-blank, up to 300 characters)."
+							},
+							"description": {
+								"type": "string",
+								"description": "Optional outcome description (up to 2,000 characters)."
+							},
+							"horizon": {
+								"type": "string",
+								"enum": [
+									"active_now",
+									"up_next"
+								],
+								"description": "Horizon: active_now (default) or up_next."
+							},
+							"completion_kind": {
+								"type": "string",
+								"enum": [
+									"product_shipped",
+									"human_confirmed"
+								],
+								"description": "Completion kind: product_shipped (default) or human_confirmed."
+							}
+						},
+						"required": [
+							"title"
+						]
+					},
+					"description": "Optional initial outcomes created alongside a new goal on action 'create'."
+				},
+				"outcome_id": {
+					"type": "string",
+					"description": "Outcome UUID. Required for update_outcome, confirm_outcome, reopen_outcome, drop_outcome, delete_outcome, link_outcome, unlink_outcome, and restore_outcome_target."
+				},
+				"outcome_ids": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Ordered outcome UUIDs for action 'reorder_outcomes' (at least 1, all belonging to goal_id)."
+				},
+				"horizon": {
+					"type": "string",
+					"enum": [
+						"active_now",
+						"up_next"
+					],
+					"description": "Outcome horizon for create_outcome, update_outcome, or reorder_outcomes: active_now or up_next."
+				},
+				"completion_kind": {
+					"type": "string",
+					"enum": [
+						"product_shipped",
+						"human_confirmed"
+					],
+					"description": "Outcome completion kind for create_outcome or update_outcome: product_shipped or human_confirmed."
+				},
+				"target_type": {
+					"type": "string",
+					"enum": [
+						"task",
+						"resource",
+						"discussion_point"
+					],
+					"description": "Target record corpus for link_outcome, unlink_outcome, or restore_outcome_target: 'task' (brief or standalone/child task), 'resource' (project document), or 'discussion_point' (Still to Discuss item)."
+				},
+				"target_id": {
+					"type": "string",
+					"description": "Target UUID (or 8-character short code for tasks and documents) for link_outcome, unlink_outcome, or restore_outcome_target."
+				},
+				"rationale": {
+					"type": "string",
+					"description": "Optional short explanation recorded on link_outcome (up to 500 characters)."
+				},
+				"reason": {
+					"type": "string",
+					"description": "Required non-empty dismissal reason for action 'dismiss' (up to 500 characters)."
+				},
+				"new_titles": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Titles for the new goals produced by action 'split' (at least 2, each up to 500 characters)."
+				},
+				"merged_title": {
+					"type": "string",
+					"description": "Title for the merged goal produced by action 'merge'."
+				},
+				"merged_description": {
+					"type": "string",
+					"description": "Optional description for the merged goal produced by action 'merge'."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"request_ref": {
+					"type": "string",
+					"x-devspec-host-only": true,
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"action"
 			]
 		},
 		"kind": "model"
@@ -15804,8 +16207,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 97,
-	model: 84,
+	total: 98,
+	model: 85,
 	pump: 12,
 	never_model: 1,
 } as const;

@@ -63,6 +63,10 @@ const FULL_READ_VERBS = new Set([
 	"get_automation",
 	"get_goals",
 	"get_project_goals",
+	// Goal and outcome writes return the goal with its outcomes and links, and its
+	// list/get read is the same shape as get_goals; a dropped outcome or link reads
+	// as "not there", so it stays whole like the other revisioned ledgers.
+	"manage_goals",
 	"claim_work_item",
 	"get_session_transcript",
 	"get_discussion_point",

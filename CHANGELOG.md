@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.7 - 2026-10-30
+
+- Regenerated the tool catalogue for `manage_goals` (`merged_chapter_summary` when merging goals) and added status-line labels and privacy-safe Activity trail projections for `get_project_goals`, `get_goals`, and `manage_goals`. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.10.6 - 2026-10-30
 
 - Fixed a loop that could use up all of your computer's memory. DevSpec's plugins for Pi, Claude Code and Antigravity each put a stand-in for `git` in front of the real one, so they can tag and report commits. When two of them were on the same PATH, for example a Pi session or Pi's tests started from a Claude Code agent, each took the other for git and they passed every git command back and forth, starting a new process each time. Pi's stand-in now recognises any DevSpec plugin's stand-in and always runs the real git. If an older version of another plugin still sends a command round in a loop, the command stops at once with a message saying so, instead of exhausting memory.

@@ -682,8 +682,32 @@ test("structured Activity excludes assistant speech and captures nested subagent
 	assert.equal(events[1]?.kind, "subagent");
 	if (events[1]?.kind === "subagent") {
 		assert.equal(events[1].children.length, 2);
-		assert.equal(events[1].children[0]?.agent, "contracts");
 		assert.equal(events[1].children[0]?.model, "gpt-5.6-sol");
+		assert.equal(events[1].children[0]?.agent, "contracts");
 		assert.equal(events[1].summary, "1 of 2 agents active");
 	}
+});
+
+test("manage_goals trail projections expose safe action/ids and status without leaking goal or outcome prose", () => {
+	const goalId = "74000000-0000-4000-8000-000000000010";
+	const outcomeId = "74000000-0000-4000-8000-000000000011";
+	const secret = "GOAL_CHAPTER_SUMMARY_PRIVATE_SENTINEL";
+	assert.equal(
+		summarizeArgs("manage_goals", {
+			action: "confirm_outcome",
+			goal_id: goalId,
+			outcome_id: outcomeId,
+			title: secret,
+		}),
+		`action=confirm_outcome; goal_id=${goalId}; outcome_id=${outcomeId}`,
+	);
+	const mergedSummary = summarizeResult("manage_goals", {
+		details: {
+			merged: true,
+			outcomes_moved: 3,
+			goal: { id: goalId, status: "active", chapter_summary: secret },
+		},
+	});
+	assert.equal(mergedSummary, "status=active; outcomes_moved=3");
+	assert.ok(!String(mergedSummary).includes(secret));
 });

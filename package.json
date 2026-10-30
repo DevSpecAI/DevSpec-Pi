@@ -1,6 +1,6 @@
 {
   "name": "@devspecai/pi-plugin",
-  "version": "0.10.7",
+  "version": "0.10.8",
   "description": "DevSpec for Pi — shared team memory, live remote control from phone or web, and task provenance for the Pi coding agent.",
   "homepage": "https://devspec.ai",
   "type": "module",

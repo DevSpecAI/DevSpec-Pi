@@ -10,7 +10,7 @@
  */
 
 /** Bump when the block changes materially; handy for debugging drift reports. */
-export const INSTRUCTIONS_VERSION = 27;
+export const INSTRUCTIONS_VERSION = 28;
 
 /**
  * `commitTagging`: whether Pi's git stand-in can tag commits here (df71ab6c). Where it
@@ -23,6 +23,7 @@ This project is connected to DevSpec, and every DevSpec tool this connection may
 
 - The loaded implementation contract alone chooses task/session-plan tracking and the plan threshold. If it selects a task, search/reuse/create one and claim via claim_work_item. A missing claim never blocks edits, execution, tests, worktrees, delegation, or follow-through.
 - When creating or updating a task (create_task requires title, intent, and description; update_task), keep each task atomic around one primary subject or cohesive deliverable — never bundle unrelated subjects, independent deliverables, or separate carve-outs into one task; create separate tasks (or child tasks under a parent brief) and connect them via parent_task_id, follow_up_from_task_id, or link_tasks. Partition fields cleanly: intent records the underlying problem, who raised it and their synthesized rationale (never conversational go-ahead quotes), and the desired outcome; description states the complete product behaviour, rules, edge cases, and the architectural or technical mechanism in natural English (screening reads title, intent, description, and acceptance_criteria — never ai_instructions — so never strip the technical mechanism out of description or dump raw file paths, line numbers, code snippets, or CSS classes into it); acceptance_criteria lists plain-prose checkable conditions; ai_instructions holds file paths, symbols, code snippets, and CSS classes. Writes violating field placement, substance/intent, or single-subject atomicity are rejected at write time.
+- Dismissing a task (update_task with lifecycle:"dismissed") requires dismissal_category: "duplicate" or "replaced" with target_task_id (held pending until an unmerged replacement merges), "outdated" with an optional note, or "not_wanted" with a required rejection note that stays eligible in protected-intent conflict checks.
 - Read the canonical product contract when needed via get_workflow_rules with include_implementation_contract:true; work entry loads it for you. Nothing is ever sent work — reserve the items you were asked to work (reserve_work_items), then claim them in order when available.
 ${commitTagging
 		? "- When exactly one task is claimed, Pi adds its full [devspec:<id>] tag to your commit messages itself and says so under the command's output. Write the tag yourself only when Pi says it did not add it, for example because several tasks are claimed (the served contract's commit_provenance_contract)."

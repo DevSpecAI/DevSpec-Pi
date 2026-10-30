@@ -827,7 +827,16 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// optional human_only / no_code. Descriptions: update_task names both flags. Hot set
 		// unchanged. Benchmark before/after: initial surface 57,324 -> 57,534 estimated
 		// tokens; every budget still passes.
-		"0402cf5b068f3a6a61277d568067ccb040fe38a55cbd34038874679a9a8cf1a3",
+		// Rebaselined 2026-10-30 for DevSpec item e86ea044, regenerated against DevSpecV2
+		// devspecv2-e86ea044. Compared old/new generated objects by name/inputSchema: 85 model /
+		// 12 pump / 1 never-model unchanged, none added or removed, no required field or
+		// projection family changed. Inputs: update_task gains optional dismissal_category and
+		// target_task_id (required conditionally when lifecycle="dismissed"), and get_tasks gains
+		// optional dismissal_category filter. Descriptions: update_task and get_tasks name the
+		// four dismissal categories (duplicate, replaced, outdated, not_wanted). Hot set
+		// unchanged. Benchmark before/after: initial surface 57,534 -> 58,161 estimated
+		// tokens; every budget still passes.
+		"cf67900aa7b03a28426f44436a1824c2f547001595fdd76523a7d6b516d546e4",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

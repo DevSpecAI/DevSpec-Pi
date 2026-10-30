@@ -471,6 +471,7 @@ function card(raw: unknown, index: number): string {
 	const metadata: string[] = [];
 	for (const keys of [
 		["lifecycle", "lifecycle_state"],
+		["dismissal_category"],
 		["state", "status"],
 		["type", "item_type", "memory_type", "resource_type"],
 		["priority"],

@@ -114,6 +114,7 @@ const DOMAIN_BY_NAME: Record<string, DomainSpec> = {
 	update_memory: { domain: "memory", action: "updated" },
 	resolve_memory_flag: { domain: "memory", action: "reviewed" },
 	resolve_resource_flag: { domain: "resource", action: "reviewed" },
+	resolve_task_flag: { domain: "task", action: "reviewed" },
 	supersede_memory: { domain: "memory", action: "superseded" },
 	retract_memory: { domain: "memory", action: "retracted" },
 	create_resource: { domain: "resource", action: "created" },

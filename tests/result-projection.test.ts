@@ -836,7 +836,13 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// four dismissal categories (duplicate, replaced, outdated, not_wanted). Hot set
 		// unchanged. Benchmark before/after: initial surface 57,534 -> 58,161 estimated
 		// tokens; every budget still passes.
-		"cf67900aa7b03a28426f44436a1824c2f547001595fdd76523a7d6b516d546e4",
+		// Rebaselined 2026-10-31 for DevSpec item b05e070c (restore built-in possibly-outdated
+		// flagging on open tasks; DevSpecV2 #919), regenerated against devspecv2-b05e070c.
+		// Verbs 85 -> 86 model / 12 pump / 1 never-model. Added: resolve_task_flag (task_id,
+		// signal_type, verdict, basis, note) in the ack family alongside resolve_memory_flag
+		// and resolve_resource_flag. Inputs: get_tasks restores possibly_stale on signal_type
+		// and risk on signal_bucket; get_review_queue restores task under possibly_outdated.
+		"ef0b8d862427b3dfe566b7224846efb5a5dab262e23e96aaf61e9b5c3af4c996",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

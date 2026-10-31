@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 640f1834511cb221f1bbadd2735301c3ce2b0a1392d9b878d83f7ddff77d0cd0
- * Description fingerprint: c4be1f906d2f4138a634ed029c5f284a1f4903ee1b2c43da54c78ee2e7fbb325
- * Regenerated: 2026-10-30T20:56:52.003Z
+ * Schema fingerprint: 8e30944ff0af381b8de294e429113e2cfb06c0a67f83f28f9a2fd8343ee0d871
+ * Description fingerprint: cba9ff89903bf301217b47a4dd1e1e83bf6a71e78252239415fbf4439a705841
+ * Regenerated: 2026-10-31T02:21:21.582Z
  */
-export const MCP_CATALOG_FINGERPRINT = "640f1834511cb221f1bbadd2735301c3ce2b0a1392d9b878d83f7ddff77d0cd0";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "c4be1f906d2f4138a634ed029c5f284a1f4903ee1b2c43da54c78ee2e7fbb325";
-export const MCP_CATALOG_GENERATED_AT = "2026-10-30T20:56:52.004Z";
-export const TOOL_CATALOG_VERSION = "3455b10aa13c87c6127f13e8a4e8a28f1bb795b4d138535fd6f14b18c0525a55";
+export const MCP_CATALOG_FINGERPRINT = "8e30944ff0af381b8de294e429113e2cfb06c0a67f83f28f9a2fd8343ee0d871";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "cba9ff89903bf301217b47a4dd1e1e83bf6a71e78252239415fbf4439a705841";
+export const MCP_CATALOG_GENERATED_AT = "2026-10-31T02:21:21.583Z";
+export const TOOL_CATALOG_VERSION = "a791de92950110909a41adaf63d62b3465d054812583bef0c09cd0a6a4f95b73";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -206,7 +206,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_review_queue",
 		"name": "get review queue",
-		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. counts gives the project-wide totals for each Review view (waitingOnYou, raisedByYou, allWaiting, possiblyOutdated, questions, proposals) whatever filters you pass, and active waiting decisions sort ahead of possibly_stale flags by default so real decisions appear at the top of the first page. Pass view (waiting_on_you, raised_by_you, all_waiting, possibly_outdated) to match a specific Review tab. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Work that would undo someone's decision waits for an OK; each question shows, per reversing record, where it stands and who it waits on, as DevSpec decides it. Filter questions by involvement (awaiting_me: waiting for your OK, which leaves out an experiment until it asks to land; raised_by_me; involving_me; involving_others; can_resolve: you can answer it now), state (waiting, declined, landed: reached the tracking branch without its OK, putting_back, settled), person, or record_type. Answers and experiments use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id is a change waiting to be accepted: decide_proposal accepts or declines it for the person asking you, with its proposal_id and proposal_revision. you_can is judged for you, the token's owner; decide_proposal judges the person asking you, and its refusal says who can. A request to confirm (confirmation) waits on one named person: they, or the project lead, confirm or decline it in Review, or through an agent on their own instruction (decide_proposal, or manage_protected_intent confirm_request / decline_request). If incomplete is true, part of the queue could not be read, so say the list is partial. To list tasks by review signal (blocked, failed verification and the rest), use get_tasks with signal_type, signal_bucket or flagged.",
+		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records and open tasks possibly out of date, and queued proposals. counts gives the project-wide totals for each Review view (waitingOnYou, raisedByYou, allWaiting, possiblyOutdated, questions, proposals) whatever filters you pass, and active waiting decisions sort ahead of possibly_stale flags by default so real decisions appear at the top of the first page. Pass view (waiting_on_you, raised_by_you, all_waiting, possibly_outdated) to match a specific Review tab. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Work that would undo someone's decision waits for an OK; each question shows, per reversing record, where it stands and who it waits on, as DevSpec decides it. Filter questions by involvement (awaiting_me: waiting for your OK, which leaves out an experiment until it asks to land; raised_by_me; involving_me; involving_others; can_resolve: you can answer it now), state (waiting, declined, landed: reached the tracking branch without its OK, putting_back, settled), person, or record_type. Answers and experiments use manage_protected_intent. Only descriptive accuracy and possibly-outdated task flags use resolve_memory_flag, resolve_resource_flag, or resolve_task_flag. An entry with a proposal_id is a change waiting to be accepted: decide_proposal accepts or declines it for the person asking you, with its proposal_id and proposal_revision. you_can is judged for you, the token's owner; decide_proposal judges the person asking you, and its refusal says who can. A request to confirm (confirmation) waits on one named person: they, or the project lead, confirm or decline it in Review, or through an agent on their own instruction (decide_proposal, or manage_protected_intent confirm_request / decline_request). If incomplete is true, part of the queue could not be read, so say the list is partial. To list tasks by review signal (blocked, failed verification and the rest), use get_tasks with signal_type, signal_bucket or flagged.",
 		"intent": "review inbox out of date flags proposed changes waiting for a ruling or acceptance"
 	},
 	{
@@ -394,6 +394,12 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"name": "resolve resource flag",
 		"description": "Rule that an AI-written artifact flagged possibly_stale is still accurate, and clear the flag. Read the document in full first (get_resource) and check what it describes; settle it yourself when the facts are plain. If the document really is out of date, do not rule: change it with update_resource, supersede_resource or archive_resource. committed: true means the ruling is recorded and the flag will not be raised again for the same reason unless what it was judged against changes; outcome queued_for_review carries a proposal_id, and the flag stays lit until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. For a flag on a memory, use resolve_memory_flag.",
 		"intent": "resolve rule on document artifact stale review flag still accurate"
+	},
+	{
+		"id": "resolve_task_flag",
+		"name": "resolve task flag",
+		"description": "Rule that an open task flagged possibly_stale is still valid despite the overtaking evidence, and clear the flag. Read the task in full first (get_task) and verify its specification against the overtaking record or change; settle it when the facts are plain. If the task is genuinely obsolete or needs changing, do not rule: dismiss it with update_task (lifecycle: dismissed and the right dismissal_category) or update its specification instead. committed: true means the ruling is recorded with your written basis and the flag will not be raised again for the same compared evidence unless new overtaking evidence lands or the task changes; outcome queued_for_review carries a proposal_id, and the flag stays lit until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. For flags on memories or documents, use resolve_memory_flag or resolve_resource_flag.",
+		"intent": "resolve rule on task possibly outdated stale review flag still valid clear flag"
 	},
 	{
 		"id": "retract_memory",
@@ -601,6 +607,7 @@ export const MODEL_VERB_NAMES = [
 	"reopen_task",
 	"surface_session_tasks",
 	"add_implementation_note",
+	"resolve_task_flag",
 	"reserve_work_items",
 	"claim_work_item",
 	"release_work_item",
@@ -1100,6 +1107,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"agent_run_failed",
 						"deployment_failed",
 						"verification_failed",
+						"possibly_stale",
 						"blocked",
 						"implemented_unverified",
 						"superseded_pending",
@@ -1111,9 +1119,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"enum": [
 						"action",
+						"risk",
 						"state"
 					],
-					"description": "Only items carrying any signal in this family. action: follow-up required, agent run failed, deployment failed, verification failed. state: blocked, implemented but unverified, will be superseded, supersedes when it ships. Takes precedence over flagged. Omitted: no family filter unless flagged is set."
+					"description": "Only items carrying any signal in this family. action: follow-up required, agent run failed, deployment failed, verification failed. risk: possibly outdated. state: blocked, implemented but unverified, will be superseded, supersedes when it ships. Takes precedence over flagged. Omitted: no family filter unless flagged is set."
 				},
 				"flagged": {
 					"type": "boolean",
@@ -1274,6 +1283,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"agent_run_failed",
 						"deployment_failed",
 						"verification_failed",
+						"possibly_stale",
 						"blocked",
 						"implemented_unverified",
 						"superseded_pending",
@@ -1285,9 +1295,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"enum": [
 						"action",
+						"risk",
 						"state"
 					],
-					"description": "Only items carrying any signal in this family. action: follow-up required, agent run failed, deployment failed, verification failed. state: blocked, implemented but unverified, will be superseded, supersedes when it ships. Takes precedence over flagged. Omitted: no family filter unless flagged is set."
+					"description": "Only items carrying any signal in this family. action: follow-up required, agent run failed, deployment failed, verification failed. risk: possibly outdated. state: blocked, implemented but unverified, will be superseded, supersedes when it ships. Takes precedence over flagged. Omitted: no family filter unless flagged is set."
 				},
 				"flagged": {
 					"type": "boolean",
@@ -1749,7 +1760,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_review_queue",
 		"label": "DevSpec: Get Review Queue",
-		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records possibly out of date, and queued proposals. counts gives the project-wide totals for each Review view (waitingOnYou, raisedByYou, allWaiting, possiblyOutdated, questions, proposals) whatever filters you pass, and active waiting decisions sort ahead of possibly_stale flags by default so real decisions appear at the top of the first page. Pass view (waiting_on_you, raised_by_you, all_waiting, possibly_outdated) to match a specific Review tab. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Work that would undo someone's decision waits for an OK; each question shows, per reversing record, where it stands and who it waits on, as DevSpec decides it. Filter questions by involvement (awaiting_me: waiting for your OK, which leaves out an experiment until it asks to land; raised_by_me; involving_me; involving_others; can_resolve: you can answer it now), state (waiting, declined, landed: reached the tracking branch without its OK, putting_back, settled), person, or record_type. Answers and experiments use manage_protected_intent. Only descriptive accuracy flags use resolve_memory_flag or resolve_resource_flag. An entry with a proposal_id is a change waiting to be accepted: decide_proposal accepts or declines it for the person asking you, with its proposal_id and proposal_revision. you_can is judged for you, the token's owner; decide_proposal judges the person asking you, and its refusal says who can. A request to confirm (confirmation) waits on one named person: they, or the project lead, confirm or decline it in Review, or through an agent on their own instruction (decide_proposal, or manage_protected_intent confirm_request / decline_request). If incomplete is true, part of the queue could not be read, so say the list is partial. To list tasks by review signal (blocked, failed verification and the rest), use get_tasks with signal_type, signal_bucket or flagged.",
+		"description": "List what in this project waits on a ruling or an acceptance: one record-owned question per protected intent with its reversing changes as evidence, descriptive records and open tasks possibly out of date, and queued proposals. counts gives the project-wide totals for each Review view (waitingOnYou, raisedByYou, allWaiting, possiblyOutdated, questions, proposals) whatever filters you pass, and active waiting decisions sort ahead of possibly_stale flags by default so real decisions appear at the top of the first page. Pass view (waiting_on_you, raised_by_you, all_waiting, possibly_outdated) to match a specific Review tab. you_can says what this caller may do. intent_question carries the exact accessible records, versions, ownership and question revision, and labelled_records shows the actual record texts with labels (Protected record / Reversing record) rather than generated summaries. Work that would undo someone's decision waits for an OK; each question shows, per reversing record, where it stands and who it waits on, as DevSpec decides it. Filter questions by involvement (awaiting_me: waiting for your OK, which leaves out an experiment until it asks to land; raised_by_me; involving_me; involving_others; can_resolve: you can answer it now), state (waiting, declined, landed: reached the tracking branch without its OK, putting_back, settled), person, or record_type. Answers and experiments use manage_protected_intent. Only descriptive accuracy and possibly-outdated task flags use resolve_memory_flag, resolve_resource_flag, or resolve_task_flag. An entry with a proposal_id is a change waiting to be accepted: decide_proposal accepts or declines it for the person asking you, with its proposal_id and proposal_revision. you_can is judged for you, the token's owner; decide_proposal judges the person asking you, and its refusal says who can. A request to confirm (confirmation) waits on one named person: they, or the project lead, confirm or decline it in Review, or through an agent on their own instruction (decide_proposal, or manage_protected_intent confirm_request / decline_request). If incomplete is true, part of the queue could not be read, so say the list is partial. To list tasks by review signal (blocked, failed verification and the rest), use get_tasks with signal_type, signal_bucket or flagged.",
 		"searchIntent": "review inbox out of date flags proposed changes waiting for a ruling or acceptance",
 		"modelInputSchema": {
 			"type": "object",
@@ -4587,7 +4598,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"dismissed",
 						"blocked"
 					],
-					"description": "deferred parks the item (reversible), blocked marks it waiting on something outside DevSpec, dismissed closes it under a required dismissal_category (duplicate, replaced, outdated, or not_wanted), and open resumes a deferred, dismissed or blocked item. Merged or verified work refuses deferred, blocked, dismissed and open (reopen finished work with reopen_task, which records a new round); unmerged built work whose commits never merged into any repository's tracking branch can be dismissed under any category while keeping its historical commit merge record. On an item an agent has claimed, deferred and dismissed are refused until the claim is handed back with release_work_item. A refused call changes nothing. Omitted: unchanged."
+					"description": "deferred parks the item (reversible), blocked marks it waiting on something outside DevSpec, dismissed closes it under a required dismissal_category (duplicate, replaced, outdated, or not_wanted), and open resumes a deferred, dismissed or blocked item. Implemented and done items refuse deferred and blocked (and merged implemented and done items refuse dismissed; reopen finished work with reopen_task, which records a new round); unmerged built work whose commits never merged into any repository's tracking branch can be dismissed under any category while keeping its historical commit merge record. On an item an agent has claimed, deferred and dismissed are refused until the claim is handed back with release_work_item. A refused call changes nothing. Omitted: unchanged."
 				},
 				"dismissal_category": {
 					"type": "string",
@@ -4754,6 +4765,34 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"string",
 						"null"
 					]
+				},
+				"reconcile_chore_outcome": {
+					"type": "object",
+					"properties": {
+						"chore_id": {
+							"type": "string",
+							"description": "Full UUID of the open reconciliation chore involving this task (from get_task reconciliation_chores or the chore wake brief)."
+						},
+						"disposition": {
+							"type": "string",
+							"enum": [
+								"transferred",
+								"nothing_needed",
+								"reconciled"
+							],
+							"description": "transferred when unique criteria, notes, commits, or links were carried over onto the kept task; nothing_needed when inspection confirmed nothing needed carrying over; reconciled for a mixed outcome."
+						},
+						"summary": {
+							"type": "string",
+							"description": "Plain-language summary of what was transferred, merged, or intentionally left behind. Required and must not be blank."
+						}
+					},
+					"required": [
+						"chore_id",
+						"disposition",
+						"summary"
+					],
+					"description": "Close an open Duplicate/Replaced reconciliation chore involving this task by recording its outcome after inspecting the detected differences and applying any needed attributed edits. Can be sent alongside kept-task edits or on its own when no edits were needed. Omitted: no reconciliation chore is closed."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -4828,7 +4867,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"dismissed",
 						"blocked"
 					],
-					"description": "deferred parks the item (reversible), blocked marks it waiting on something outside DevSpec, dismissed closes it under a required dismissal_category (duplicate, replaced, outdated, or not_wanted), and open resumes a deferred, dismissed or blocked item. Merged or verified work refuses deferred, blocked, dismissed and open (reopen finished work with reopen_task, which records a new round); unmerged built work whose commits never merged into any repository's tracking branch can be dismissed under any category while keeping its historical commit merge record. On an item an agent has claimed, deferred and dismissed are refused until the claim is handed back with release_work_item. A refused call changes nothing. Omitted: unchanged."
+					"description": "deferred parks the item (reversible), blocked marks it waiting on something outside DevSpec, dismissed closes it under a required dismissal_category (duplicate, replaced, outdated, or not_wanted), and open resumes a deferred, dismissed or blocked item. Implemented and done items refuse deferred and blocked (and merged implemented and done items refuse dismissed; reopen finished work with reopen_task, which records a new round); unmerged built work whose commits never merged into any repository's tracking branch can be dismissed under any category while keeping its historical commit merge record. On an item an agent has claimed, deferred and dismissed are refused until the claim is handed back with release_work_item. A refused call changes nothing. Omitted: unchanged."
 				},
 				"dismissal_category": {
 					"type": "string",
@@ -4995,6 +5034,34 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"string",
 						"null"
 					]
+				},
+				"reconcile_chore_outcome": {
+					"type": "object",
+					"properties": {
+						"chore_id": {
+							"type": "string",
+							"description": "Full UUID of the open reconciliation chore involving this task (from get_task reconciliation_chores or the chore wake brief)."
+						},
+						"disposition": {
+							"type": "string",
+							"enum": [
+								"transferred",
+								"nothing_needed",
+								"reconciled"
+							],
+							"description": "transferred when unique criteria, notes, commits, or links were carried over onto the kept task; nothing_needed when inspection confirmed nothing needed carrying over; reconciled for a mixed outcome."
+						},
+						"summary": {
+							"type": "string",
+							"description": "Plain-language summary of what was transferred, merged, or intentionally left behind. Required and must not be blank."
+						}
+					},
+					"required": [
+						"chore_id",
+						"disposition",
+						"summary"
+					],
+					"description": "Close an open Duplicate/Replaced reconciliation chore involving this task by recording its outcome after inspecting the detected differences and applying any needed attributed edits. Can be sent alongside kept-task edits or on its own when no edits were needed. Omitted: no reconciliation chore is closed."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -6097,6 +6164,116 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"required": [
 				"content",
 				"task_id"
+			]
+		},
+		"kind": "model"
+	},
+	{
+		"name": "resolve_task_flag",
+		"label": "DevSpec: Resolve Task Flag",
+		"description": "Rule that an open task flagged possibly_stale is still valid despite the overtaking evidence, and clear the flag. Read the task in full first (get_task) and verify its specification against the overtaking record or change; settle it when the facts are plain. If the task is genuinely obsolete or needs changing, do not rule: dismiss it with update_task (lifecycle: dismissed and the right dismissal_category) or update its specification instead. committed: true means the ruling is recorded with your written basis and the flag will not be raised again for the same compared evidence unless new overtaking evidence lands or the task changes; outcome queued_for_review carries a proposal_id, and the flag stays lit until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract. For flags on memories or documents, use resolve_memory_flag or resolve_resource_flag.",
+		"searchIntent": "resolve rule on task possibly outdated stale review flag still valid clear flag",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"task_id": {
+					"type": "string",
+					"description": "The flagged task: its UUID or 8-character short code."
+				},
+				"signal_type": {
+					"type": "string",
+					"enum": [
+						"possibly_stale"
+					],
+					"description": "Which flag to rule on."
+				},
+				"verdict": {
+					"type": "string",
+					"enum": [
+						"not_a_conflict"
+					],
+					"description": "not_a_conflict: the open task is still valid despite the overtaking evidence."
+				},
+				"note": {
+					"type": "string",
+					"description": "Required: written basis tied to the compared evidence explaining why the task remains valid (the facts checked, or the person's own words, quoted). Recorded with the ruling."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"task_id",
+				"signal_type",
+				"verdict",
+				"note"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"task_id": {
+					"type": "string",
+					"description": "The flagged task: its UUID or 8-character short code."
+				},
+				"signal_type": {
+					"type": "string",
+					"enum": [
+						"possibly_stale"
+					],
+					"description": "Which flag to rule on."
+				},
+				"verdict": {
+					"type": "string",
+					"enum": [
+						"not_a_conflict"
+					],
+					"description": "not_a_conflict: the open task is still valid despite the overtaking evidence."
+				},
+				"note": {
+					"type": "string",
+					"description": "Required: written basis tied to the compared evidence explaining why the task remains valid (the facts checked, or the person's own words, quoted). Recorded with the ruling."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"request_ref": {
+					"type": "string",
+					"x-devspec-host-only": true,
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"task_id",
+				"signal_type",
+				"verdict",
+				"note"
 			]
 		},
 		"kind": "model"
@@ -16279,8 +16456,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 98,
-	model: 85,
+	total: 99,
+	model: 86,
 	pump: 12,
 	never_model: 1,
 } as const;

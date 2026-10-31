@@ -148,6 +148,7 @@ const ACK_VERBS = new Set([
 	"archive_resource",
 	"resolve_resource_flag",
 	"resolve_memory_flag",
+	"resolve_task_flag",
 	// An explicit not-a-duplicate ruling returns a receipt, like the flag rulings (fce58a2f).
 	"record_duplicate_nonmatch",
 	"surface_session_tasks",

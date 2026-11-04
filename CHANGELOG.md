@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.13 - 2026-11-04
+
+- When your agent changes the wording of a decision, convention or requirement, DevSpec accepts the change at once but keeps the current version in force until the change's checks are ruled. The new version then takes effect by itself, or, if it clashes with someone else's decision, waits for that person's OK. Pi's activity trail now shows such a change as accepted and waiting for its checks, where it used to say "not applied", and your agent is told what the result means and pointed at DevSpec's own note about it. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.10.12 - 2026-11-04
 
 - Your Pi agent can now rule DevSpec's checks itself. When DevSpec checks a change for conflicts with other tasks, with your decisions, conventions and requirements, for duplicates, or for being out of date, it can send the check to the agent, your agent's own changes included, instead of always ruling it on its own. The agent is woken with one line saying which record the check is about, takes the check, reads any supporting document or uploaded file a decision or requirement relies on, rules every entry, and carries on with what it was doing. A check it can't rule goes back to the next in line. Automation runs arrive exactly as before.

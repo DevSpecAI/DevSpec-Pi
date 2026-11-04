@@ -96,6 +96,17 @@ export function queuedForReviewRelay(details: unknown): string | null {
 }
 
 /**
+ * A new wording of a decision, convention or requirement the server accepted as a
+ * pending version (DevSpec item 590fe543). It is neither live nor failed; the
+ * result's own note says what stays in force and who, if anyone, it waits on.
+ */
+export function pendingChecksRelay(details: unknown): string | null {
+	if (details === null || typeof details !== "object" || Array.isArray(details)) return null;
+	if ((details as Record<string, unknown>).outcome !== "pending_checks") return null;
+	return "ACCEPTED — not yet in effect: the version in force stays until this change's checks are ruled, then the new one takes effect by itself, or waits for the OK of the person the result names if it clashes with their decision. The result's note says where it stands (the served contract's authority_contract).";
+}
+
+/**
  * Unwrap and project a DevSpec result, retaining complete data in details.
  * `hostNote` is Pi's own note about the call (never server data), appended last.
  * `modelArgs` are the arguments the model sent, so a receipt can name the fields
@@ -103,7 +114,7 @@ export function queuedForReviewRelay(details: unknown): string | null {
  */
 export function unwrapOrThrow(name: string, raw: unknown, hostNote?: string, modelArgs?: Record<string, unknown>) {
 	const unwrapped = unwrapMcpResult(raw);
-	const relay = unwrapped.isError ? null : queuedForReviewRelay(unwrapped.details);
+	const relay = unwrapped.isError ? null : queuedForReviewRelay(unwrapped.details) ?? pendingChecksRelay(unwrapped.details);
 	const { details, isError } = unwrapped;
 	const text = relay ? `${relay}\n\n${unwrapped.text}` : unwrapped.text;
 	// Errors intentionally stay full rather than passing through a size-oriented

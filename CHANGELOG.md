@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.15 - 2026-11-04
+
+- When DevSpec's check finds that a task your Pi agent just wrote duplicates one that already exists, the agent now sorts it out there and then instead of leaving a flag for later. If the existing task is yours, or one you're allowed to change, it adds anything new to it, closes the new one as its duplicate and tells you. If it's someone else's, it asks you whether to add to it, which waits for that person's OK, or to keep yours separate, recorded as not a duplicate with your reason. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.10.14 - 2026-11-04
 
 - The tool catalogue is regenerated against DevSpec's current tools, so your agent now hears what DevSpec's checks mean wherever it meets them. When it reads or searches your decisions and conventions, it is told that one marked as waiting for its checks is not in force yet, and not to treat it as governing other work. When it records a new decision or convention, it is told the decision is saved but takes effect only once its checks are ruled. When it rewords or replaces a decision, it is told the change is accepted but the current version stays in force until the checks are ruled, and to report it as waiting for its checks. When it reads a task, it is told to follow a task's waiting-for-its-checks note as well as any request for someone's OK. Update with `pi update --extensions`, then restart Pi.

@@ -383,36 +383,71 @@ function agreementLine(row: Row, outer: Row): string | null {
  * core.waiting-work-stays-on-its-branch; ADR "Protecting intent" §6.2, §6.9).
  * DevSpec writes the label ("Experiment", or "Waiting for <name>'s OK") and the
  * instruction; Pi shows them as sent. Required wherever it appears: dropping it
- * would let an agent merge waiting work into the tracking branch. The done
- * blocker follows in the same required lines (see doneBlockerLine).
+ * would let an agent merge waiting work into the tracking branch. Work pending
+ * its checks follows (see checksPendingLine), then the done blocker, in the same
+ * required lines (see doneBlockerLine).
  */
 function waitingLines(row: Row, outer: Row = row): string[] {
 	const waiting = record(row.waiting_for_ok) ?? record(outer.waiting_for_ok);
 	const lines: string[] = [];
+	const okShown = Boolean(waiting) || row.is_experiment === true || outer.is_experiment === true || row.badge === "Experiment" || outer.badge === "Experiment";
 	if (waiting) {
 		const label = whole(waiting.label) ?? "Waiting for an OK";
 		const on = whole(waiting.waiting_on);
 		const instruction = whole(waiting.instruction);
 		lines.push(`\u26a0 ${label}${on && on !== label ? ` (${on})` : ""}${instruction ? ` — ${instruction}` : ""}`);
-	} else if (row.is_experiment === true || outer.is_experiment === true || row.badge === "Experiment" || outer.badge === "Experiment") {
+	} else if (okShown) {
 		const branch = oneLine(first(row, ["experiment_branch"]) ?? first(outer, ["experiment_branch"]), 160);
 		lines.push(`\u26a0 Experiment${branch ? ` (branch ${branch})` : ""}: build and push it on its own branch; never merge it into the tracking branch until it has the OK.`);
 	}
-	const blocker = doneBlockerLine(row, outer, lines.length > 0);
+	const checks = checksPendingLine(row, outer);
+	if (checks) lines.push(checks.line);
+	const blocker = doneBlockerLine(row, outer, { ok: okShown, checks: checks?.readable === true });
 	if (blocker) lines.push(blocker);
 	return lines;
 }
 
 /**
- * What still stands between the work and done: an OK, a merge into a Tracking
- * branch (`not_landed`), or, once merged, a database change or a tracked
- * deployment (`awaiting_delivery`, with what is `outstanding`). DevSpec writes the
- * label ("Waiting to deploy to <target>"); Pi shows it as sent, plus the parts.
- * When done follows is devspec://product/implementation-contract's to say, not
- * Pi's. Required wherever it appears: dropping it let an agent report waiting
- * work as done.
+ * Work pending its checks (decision d436bf15, the served contract's
+ * core.pending-checks-hold-the-merge): DevSpec has not ruled its conflict,
+ * decisions or duplicate checks yet. It is not a wait for an OK. DevSpec writes
+ * the label ("Waiting for its checks") and the instruction, which already names
+ * the checks and says what not to do yet; Pi shows them as sent and never words
+ * the rule itself, so a server change cannot leave Pi saying something false. The
+ * instruction opens with the label, so the label is said once. `stuck` (one of the
+ * checks cannot run just now) is marked as well. A state DevSpec could not read
+ * (`unknown`) is shown with its own instruction, never as "not pending". Required
+ * wherever it appears: dropping it would let an agent merge pending work.
  */
-function doneBlockerLine(row: Row, outer: Row, waitingShown: boolean): string | null {
+function checksPendingLine(row: Row, outer: Row): { line: string; readable: boolean } | null {
+	const pending = record(row.checks_pending) ?? record(outer.checks_pending);
+	if (!pending) return null;
+	const unknown = pending.unknown === true;
+	const label = whole(pending.label) ?? (unknown ? "Its checks could not be read" : "Waiting for its checks");
+	const stuck = pending.stuck === true ? " (stuck)" : "";
+	const instruction = whole(pending.instruction);
+	let said = instruction?.startsWith(label) ? instruction.slice(label.length).replace(/^[\s:\u2014-]+/, "") : instruction;
+	if (!said) {
+		// No instruction arrived: name the checks and point at the served rule, never restate it.
+		const jobs = (Array.isArray(pending.jobs) ? pending.jobs : [])
+			.map((job) => oneLine(job, 40))
+			.filter((job): job is string => Boolean(job));
+		said = `${jobs.length ? `checks: ${jobs.join(", ")}. ` : ""}Follow the served contract's core.pending-checks-hold-the-merge rule.`;
+	}
+	return { line: `\u26a0 ${label}${stuck} \u2014 ${said}`, readable: !unknown };
+}
+
+/**
+ * What still stands between the work and done: an OK, its checks
+ * (`checks_pending`, with the unruled `jobs` and whether one is `stuck`), a merge
+ * into a Tracking branch (`not_landed`), or, once merged, a database change or a
+ * tracked deployment (`awaiting_delivery`, with what is `outstanding`). DevSpec
+ * writes the label ("Waiting to deploy to <target>"); Pi shows it as sent, plus
+ * the parts. When done follows is devspec://product/implementation-contract's to
+ * say, not Pi's. Required wherever it appears: dropping it let an agent report
+ * waiting work as done.
+ */
+function doneBlockerLine(row: Row, outer: Row, shown: { ok: boolean; checks: boolean }): string | null {
 	const blocker = record(row.done_blocker) ?? record(outer.done_blocker);
 	if (!blocker) return null;
 	const layer = oneLine(blocker.layer, 40);
@@ -420,7 +455,16 @@ function doneBlockerLine(row: Row, outer: Row, waitingShown: boolean): string | 
 	const parts: string[] = [];
 	if (layer === "waiting_for_ok") {
 		// The waiting line above already says this, unless it merged before the OK.
-		if (blocker.merged !== true && waitingShown) return null;
+		if (blocker.merged !== true && shown.ok) return null;
+		if (blocker.merged === true) parts.push(`merged into ${oneLine(blocker.tracking_branch, 80) ?? "the tracking branch"}`);
+	} else if (layer === "checks_pending") {
+		// The checks line above already says this, unless it merged before its checks were ruled.
+		if (blocker.merged !== true && shown.checks) return null;
+		const jobs = (Array.isArray(blocker.jobs) ? blocker.jobs : [])
+			.map((job) => oneLine(job, 40))
+			.filter((job): job is string => Boolean(job));
+		if (jobs.length) parts.push(`checks: ${jobs.join(", ")}`);
+		if (blocker.stuck === true) parts.push("stuck");
 		if (blocker.merged === true) parts.push(`merged into ${oneLine(blocker.tracking_branch, 80) ?? "the tracking branch"}`);
 	} else if (layer === "not_landed") {
 		const repos = Array.isArray(blocker.unmerged_repos) ? blocker.unmerged_repos : [];

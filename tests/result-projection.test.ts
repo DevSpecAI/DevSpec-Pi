@@ -1196,6 +1196,79 @@ test("a blocker that only repeats the waiting-for-OK line is not shown twice", (
 	assert.match(merged, /⚠ done_blocker \(waiting_for_ok\): Waiting for Dana's OK — merged into trunk/);
 });
 
+// Work pending its checks (DevSpec item a67dfd95), as DevSpecV2's
+// `checksPendingToolFields` and the done rule's `checks_pending` layer send it. The
+// instruction is DevSpec's own sentence: Pi passes it through, never its own wording.
+const pendingInstruction = "Waiting for its checks: DevSpec is still checking this change for conflicts with other tasks and duplicates. Build it on its own branch and don't merge it into the tracking branch until its checks are ruled; it can't reach done before then. Nobody needs to give an OK: it clears by itself. One of its checks can't run just now; DevSpec runs it again by itself.";
+const checksPending = {
+	label: "Waiting for its checks",
+	jobs: ["conflict", "duplicate"],
+	job_states: { conflict: "queued", duplicate: "needs_attention" },
+	stuck: true,
+	since: "2026-11-04T09:00:00Z",
+	check_id: "33333333-3333-4333-8333-333333333333",
+	instruction: pendingInstruction,
+};
+const checksBlocker = { layer: "checks_pending", label: "Waiting for its checks", jobs: ["conflict", "duplicate"], stuck: true, merged: false, tracking_branch: "trunk" };
+const checksLine = "⚠ Waiting for its checks (stuck) — DevSpec is still checking this change for conflicts with other tasks and duplicates. Build it on its own branch and don't merge it into the tracking branch until its checks are ruled; it can't reach done before then. Nobody needs to give an OK: it clears by itself. One of its checks can't run just now; DevSpec runs it again by itself.";
+
+test("work pending its checks says so in DevSpec's own words, once, beside any wait for an OK", () => {
+	for (const name of ["create_task", "update_task", "record_implementation"]) {
+		const text = visible(projectedToolResult(name, unwrapMcpResult(mcpJson({
+			id: "item-pend", title: "Add the lookup index", lifecycle: "in_progress", checks_pending: checksPending, done_blocker: checksBlocker,
+		}))));
+		// The label once, stuck, and the whole instruction; the done blocker only
+		// repeats that line, so it is not shown twice.
+		assert.deepEqual(text.split("\n").filter((line) => line.startsWith("⚠ ")), [checksLine], name);
+		assert.match(text, /"checks_pending": \{\n\s+"label": "Waiting for its checks"/, `${name} keeps the field in its receipt`);
+	}
+	// reopen_task nests the item; its pending state still reaches the model.
+	const reopened = visible(projectedToolResult("reopen_task", unwrapMcpResult(mcpJson({ reopened: true, task: { id: "item-pend", title: "Add the lookup index", lifecycle: "open", checks_pending: checksPending } }))));
+	assert.ok(reopened.split("\n").includes(checksLine));
+	// Work that also waits for an OK says both, the OK first, as the done rule orders them.
+	const both = visible(projectedToolResult("update_task", unwrapMcpResult(mcpJson({
+		id: "item-pend", title: "Undo the cache", lifecycle: "in_progress",
+		waiting_for_ok: { label: "Waiting for Dana's OK", instruction: "Waiting for Dana's OK: build it on its own branch and don't merge it." },
+		checks_pending: { ...checksPending, stuck: false, instruction: pendingInstruction.replace(/ One of its checks.*$/, "") },
+		done_blocker: { layer: "waiting_for_ok", label: "Waiting for Dana's OK", merged: false },
+	}))));
+	const warnings = both.split("\n").filter((line) => line.startsWith("⚠ "));
+	assert.equal(warnings.length, 2);
+	assert.match(warnings[0], /^⚠ Waiting for Dana's OK — /);
+	assert.match(warnings[1], /^⚠ Waiting for its checks — DevSpec is still checking this change/);
+	assert.doesNotMatch(both, /\(stuck\)/, "stuck is marked only when DevSpec says so");
+});
+
+test("a checks_pending done blocker shows its checks, stuck and a merge that came first", () => {
+	// List rows carry the done blocker without the checks_pending field: the blocker line is the only word.
+	const list = visible(projectedToolResult("get_tasks", unwrapMcpResult(mcpJson({ items: [{ id: "item-pend", title: "Add the lookup index", lifecycle: "implemented", done_blocker: checksBlocker }], total: 1 }))));
+	assert.match(list, /⚠ done_blocker \(checks_pending\): Waiting for its checks — checks: conflict, duplicate; stuck/);
+	// Merged before its checks were ruled is news the checks line does not carry.
+	const merged = visible(projectedToolResult("record_implementation", unwrapMcpResult(mcpJson({
+		id: "item-pend", title: "Add the lookup index", lifecycle: "implemented", checks_pending: checksPending, done_blocker: { ...checksBlocker, stuck: false, merged: true },
+	}))));
+	assert.ok(merged.split("\n").includes(checksLine));
+	assert.match(merged, /⚠ done_blocker \(checks_pending\): Waiting for its checks — checks: conflict, duplicate; merged into trunk/);
+});
+
+test("pending checks DevSpec could not read are said to be unreadable, never left out", () => {
+	const unreadable = { label: "Its checks could not be read", unknown: true, instruction: "Whether this change's checks are ruled could not be read just now. Don't merge it into the tracking branch until it can be read and nothing is pending." };
+	const text = visible(projectedToolResult("update_task", unwrapMcpResult(mcpJson({
+		id: "item-pend", title: "Add the lookup index", lifecycle: "in_progress", checks_pending: unreadable, done_blocker: checksBlocker,
+	}))));
+	assert.match(text, /^⚠ Its checks could not be read — Whether this change's checks are ruled could not be read just now\. Don't merge it into the tracking branch until it can be read and nothing is pending\.$/m);
+	// The unreadable line says nothing about the checks, so the blocker that can still says them.
+	assert.match(text, /⚠ done_blocker \(checks_pending\): Waiting for its checks — checks: conflict, duplicate; stuck/);
+	// Without an instruction Pi names the checks and points at the served rule; it never words the rule itself.
+	const bare = visible(projectedToolResult("update_task", unwrapMcpResult(mcpJson({
+		id: "item-pend", title: "Add the lookup index", lifecycle: "in_progress", checks_pending: { label: "Waiting for its checks", jobs: ["conflict_decisions"], stuck: false },
+	}))));
+	assert.match(bare, /^⚠ Waiting for its checks — checks: conflict_decisions\. Follow the served contract's core\.pending-checks-hold-the-merge rule\.$/m);
+	// Ordinary work gains no line.
+	const plain = visible(projectedToolResult("update_task", unwrapMcpResult(mcpJson({ id: "item-plain", title: "Plain", lifecycle: "open" }))));
+	assert.doesNotMatch(plain, /⚠|checks/);
+});
+
 test("task search renders a compact card for every returned row, with an exact fetch path", () => {
 	const items = Array.from({ length: 20 }, (_, index) => ({
 		id: `item-${String(index + 1).padStart(2, "0")}`,

@@ -842,7 +842,27 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// signal_type, verdict, basis, note) in the ack family alongside resolve_memory_flag
 		// and resolve_resource_flag. Inputs: get_tasks restores possibly_stale on signal_type
 		// and risk on signal_bucket; get_review_queue restores task under possibly_outdated.
-		"ef0b8d862427b3dfe566b7224846efb5a5dab262e23e96aaf61e9b5c3af4c996",
+		// Rebaselined 2026-11-04 for DevSpec item 55d71b0c (check jobs on the wake channel,
+		// DevSpecV2 #1047; Pi item d28fb9f1), regenerated against
+		// devspecv2-worktrees/agent-check-jobs-55d71b0c (4691925bc, staging plus #1047).
+		// Verbs 86 -> 88 model / 12 pump / 1 never-model. Added: claim_check_job (check_job_id,
+		// connection_id) in the full-read family like claim_automation_run, because its packet
+		// carries every entry's exact text and a dropped entry would go unruled; and
+		// record_check_rulings (check_job_id, connection_id, rulings[{entry_id,
+		// candidate_version, verdict, reason}], hand_back) in the ack family beside
+		// record_criterion_verdicts. Existing verbs: no input added or removed, no required
+		// field or type changed; record_memory and supersede_memory companion_links and
+		// manage_knowledge_links id descriptions now name uploaded project files (#1037).
+		// Outside this fingerprint: description changes on manage_knowledge_links (an
+		// uploaded file links only to a memory, #1037), the four document tools
+		// create_resource, update_resource, supersede_resource and archive_resource (#1039)
+		// and manage_protected_intent (adopt names agent-recorded tasks, decisions and
+		// conventions); the pump-only
+		// poll_connection gains check_job_version and get_connection_dispatch names check
+		// jobs. Hot set is every eligible model verb, so it gains the two new ones. Benchmark
+		// before/after: initial surface 59,054 -> 60,131 estimated tokens; every budget
+		// still passes.
+		"fc398632865357c49128dbd8035cb2ca7842bcafc4e387aa4c59928bc9289bde",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

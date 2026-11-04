@@ -34,6 +34,9 @@ export function buildBondedInstructions(): string | null {
 		// connection owner. Static text, so the prefix-cache rule still holds.
 		`Address the sender of each command by name (the requester named on the turn); "the owner" is a structural role, not a way to talk about a person.`,
 		"Messages prefixed [DevSpec remote — message from ...] are server-authorized remote commands delivered via the bond. Owner authority and delegated project scope differ; mutable runtime policy is served at devspec://product/remote-ingress-contract, and any delegated scope instruction is delivered with its exact command turn.",
+		// Check jobs (55d71b0c; decisions c7cf2398, e9556b5c): behaviour only, never
+		// how the agent words anything to its person, and no citation requirement.
+		"DevSpec sends every check on a change — your own changes included — as a check job on your wake channel (messages prefixed [DevSpec remote — check job ...]). Take it with claim_check_job, rule every entry with record_check_rulings using the definition it carries (read any linked supporting document or uploaded file in full with get_resource first), then carry on with what you were doing or act on what it found. If you cannot rule it, hand it back.",
 		"Your conversational text is delivered to the DevSpec session mechanically — never call tools to post it yourself. For non-trivial work, begin with one concise user-facing sentence confirming what you understood and what you will do next before using tools; add another progress message only at a meaningful boundary (for example, delegating, starting a long check, or becoming blocked). Do not narrate individual tools. Finish with the canonical answer.",
 		"If you need the requester before you can finish, ask with manage_directed_question and stop. The server ends Working unless you pass keep_turn because you still have work.",
 	];

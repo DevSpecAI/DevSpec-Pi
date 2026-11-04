@@ -23,18 +23,33 @@ test("remote stop revokes automation authority before clearing the pump", () => 
 	assert.ok(clearAt > invalidateAt, "queue authority must be revoked before the pump is cleared");
 });
 
-test("non-automation transport entries are inert before queueing or injection", () => {
-	const enqueue = bodyBetween("function enqueueAutomationRun", "async function pumpLoop");
-	const rejectAt = enqueue.indexOf("if (!isAutomationRunEnvelope(value)) return");
-	const keyAt = enqueue.indexOf("const key = automationRunId(value)");
+test("transport entries that are neither an automation run nor a check job are inert before queueing or injection", () => {
+	const enqueue = bodyBetween("function enqueueDispatch", "async function pumpLoop");
+	const rejectAt = enqueue.indexOf("if (!isDispatchEnvelope(value)) return");
+	const keyAt = enqueue.indexOf("const key = dispatchId(value)");
 	const queueAt = enqueue.indexOf("active.automationQueue.enqueue");
 	assert.ok(rejectAt >= 0 && rejectAt < keyAt && keyAt < queueAt);
 	assert.doesNotMatch(enqueue.slice(0, queueAt), /pi_send|sendUserMessage|noteWork|recordActiveDelivery/);
 
-	const delivery = bodyBetween("async function deliverAutomationRun", "async function loadCurrentAutomationInbox");
+	const delivery = bodyBetween("async function deliverAutomationRun", "async function deliverCheckJob");
 	assert.match(delivery, /if \(!isAutomationRunEnvelope\(value\)\) return/);
 	assert.match(delivery, /formatAutomationRunMessage/);
 	assert.doesNotMatch(delivery, /implementation|assignment|noteWork|recordActiveDelivery/);
+
+	// A check job (55d71b0c) wakes the agent and nothing else: no work, no automation state.
+	const checkJob = bodyBetween("async function deliverCheckJob", "async function loadCurrentAutomationInbox");
+	assert.match(checkJob, /if \(!isCheckJobEnvelope\(value\)\) return/);
+	assert.match(checkJob, /formatCheckJobMessage/);
+	assert.doesNotMatch(checkJob, /implementation|assignment|noteWork|noteAutomation|recordActiveDelivery/);
+});
+
+test("every dispatches[] batch is routed item by item through the one validator (55d71b0c)", () => {
+	// A bad item stays inert on its own, exactly as before check jobs: the rest of
+	// the batch is still delivered. Both poll sites go through enqueueDispatch.
+	const loops = source.match(/for \(const dispatch of dispatches\) (\w+)\(active, token, dispatch, ctx\);/g) ?? [];
+	assert.equal(loops.length, 2);
+	for (const loop of loops) assert.match(loop, /enqueueDispatch/);
+	assert.doesNotMatch(source, /enqueueAutomationRun/);
 });
 
 test("retry re-reads the exact server-owned automation inbox target", () => {
@@ -46,11 +61,11 @@ test("retry re-reads the exact server-owned automation inbox target", () => {
 });
 
 test("failed automation delivery retries only current exact server authority", () => {
-	const retry = bodyBetween("function scheduleAutomationRetry", "function enqueueAutomationRun");
+	const retry = bodyBetween("function scheduleAutomationRetry", "function enqueueDispatch");
 	assert.match(retry, /revalidateAutomationRunRetry\(\{/);
 	assert.match(retry, /loadCurrentInbox: \(\) => loadCurrentAutomationInbox\(active, key, token, ctx\)/);
-	assert.match(retry, /identity: automationRunId/);
+	assert.match(retry, /identity: dispatchId/);
 	assert.match(retry, /withdrawCurrent: \(\) => active\.automationQueue\.invalidateKey\(key\)/);
-	assert.match(retry, /enqueueCurrent: \(currentRun\) => enqueueAutomationRun\(active, token, currentRun, ctx\)/);
-	assert.doesNotMatch(retry, /enqueueAutomationRun\(active, token, value, ctx\)/, "captured envelopes are not retry authority");
+	assert.match(retry, /enqueueCurrent: \(currentRun\) => enqueueDispatch\(active, token, currentRun, ctx\)/);
+	assert.doesNotMatch(retry, /enqueueDispatch\(active, token, value, ctx\)/, "captured envelopes are not retry authority");
 });

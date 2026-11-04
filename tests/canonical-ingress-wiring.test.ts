@@ -136,7 +136,7 @@ test("awaited transcript writes revalidate immutable pump authority before posti
 });
 
 test("automation retry revalidation cannot cross recovered connection authority", () => {
-	const retry = bodyBetween("function scheduleAutomationRetry", "function enqueueAutomationRun");
+	const retry = bodyBetween("function scheduleAutomationRetry", "function enqueueDispatch");
 	assert.match(retry, /capturePumpAuthority\([^]*const authorityIsCurrent/);
 	assert.match(retry, /if \(!authorityIsCurrent\(\)\) return[^]*assertCurrent: \(\) => \{[^]*!authorityIsCurrent\(\)/);
 	assert.match(retry, /if \(authorityIsCurrent\(\)\) scheduleAutomationRetry/);
@@ -147,7 +147,7 @@ test("canonical parser output stays independent from automation dispatch and con
 	assert.match(pump, /parsePollPayload\(payload, active\.connectionIdentity, \{ systemNoticeNegotiated, senderStyleNegotiated, roomContextNegotiated, sessionEventsNegotiated: roomContextNegotiated && roomWatch\.session_events_version === 1, noticeReplyNegotiated: roomContextNegotiated && roomWatch\.notice_reply_version === 1 \}\)/);
 	assert.match(pump, /pkg\.ownerBundle/);
 	assert.match(pump, /pkg\.control/);
-	assert.match(pump, /for \(const dispatch of dispatches\) enqueueAutomationRun/);
+	assert.match(pump, /for \(const dispatch of dispatches\) enqueueDispatch/);
 	// The offer controller receives the raw availability sidecar PLUS already-
 	// validated pkg commands; it must never read legacy payload.commands itself.
 	assert.doesNotMatch(pump, /\bpayload\s*(?:\??\.|\[)\s*["']?commands\b|\(\s*payload\s+as[^)\n]*\)\s*\??\.commands\b|buildRoomDigest|owner_ambient|\.room_context\b/);

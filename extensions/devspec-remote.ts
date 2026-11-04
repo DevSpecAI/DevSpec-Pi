@@ -132,9 +132,13 @@ import {
 	type WakeKey,
 } from "./core/request-chain.ts";
 import {
+	CHECK_JOB_VERSION,
+	dispatchId,
 	formatAutomationRunMessage,
+	formatCheckJobMessage,
 	isAutomationRunEnvelope,
-	automationRunId,
+	isCheckJobEnvelope,
+	isDispatchEnvelope,
 } from "./core/dispatch.ts";
 import {
 	firstTextPreview,
@@ -712,7 +716,8 @@ function refreshServeTool(chain: RequestChain | null): void {
  * was woken for; later input joins it. A command opens its requests; a prompt
  * the owner typed opens theirs; a wake continues the request its launch was
  * made for; an automation run is positively nobody's ("none", which DevSpec
- * records as the running automation); a system notice, a command message with
+ * records as the running automation), and so is a check job DevSpec sent this
+ * agent to rule (55d71b0c); a system notice, a command message with
  * no binding, or a wake nothing here launched, names nothing. Context
  * injections are not input and change nothing. Returns the kind of input, or
  * null when the message is not input.
@@ -746,6 +751,12 @@ function bindSegmentForMessage(input: {
 		} else if (userKind === "automation") {
 			ledger.dropForMessage(text);
 			kind = "automation";
+			chain?.arriveNobody();
+		} else if (userKind === "check_job") {
+			// Nobody asked for a check: DevSpec sent it. Never a typed prompt, never
+			// mirrored, and not an automation (no sessionless trail).
+			ledger.dropForMessage(text);
+			kind = "none";
 			chain?.arriveNobody();
 		} else if (userKind !== "local") {
 			// A command message with no binding (a replay, a stray) or another
@@ -2219,6 +2230,8 @@ async function acknowledgeInteractionApplication(run: ExactInteractionRun): Prom
 	try {
 		const raw = await callDevspec(resolved.token, "poll_connection", {
 			connection_id: run.authority.connectionId,
+			// Every poll states it: a poll without it clears it on the connection (55d71b0c).
+			check_job_version: CHECK_JOB_VERSION,
 			interaction_event_version: 1,
 			question_dismissal_event_version: 1,
 			...interactionEventAckArgs(interactionEventAck(run.details.event)),
@@ -2373,6 +2386,7 @@ function startPushChannel(active: PumpState, token: string, endpoint: string): v
 		connectionId: active.bond.connectionId,
 		connectionCapability: active.bond.connectionCapability,
 		systemNoticeVersion: SYSTEM_NOTICE_CHANNEL_VERSION,
+		checkJobVersion: CHECK_JOB_VERSION,
 		...(active.pushInteractionAware ? { interactionEventVersion: 1 as const, questionDismissalEventVersion: 1 as const } : {}),
 		signal: controller.signal,
 		handlers: {
@@ -2450,6 +2464,20 @@ async function deliverAutomationRun(
 	pi_send(message, ctx.isIdle() ? "now" : "followUp");
 }
 
+/** Wake the agent for one check job; the job itself is taken with claim_check_job. */
+async function deliverCheckJob(
+	active: PumpState,
+	value: unknown,
+	ctx: ExtensionContext,
+	lease: DeliveryLease,
+): Promise<void> {
+	assertDeliveryAuthority(active, lease);
+	if (!isCheckJobEnvelope(value)) return;
+	const message = formatCheckJobMessage(value, active.bond.codename ?? "this agent");
+	assertDeliveryAuthority(active, lease);
+	pi_send(message, ctx.isIdle() ? "now" : "followUp");
+}
+
 async function loadCurrentAutomationInbox(
 	active: PumpState,
 	key: string,
@@ -2479,6 +2507,7 @@ function scheduleAutomationRetry(
 	ctx: ExtensionContext,
 	error: unknown,
 	quiet = false,
+	what = "automation run",
 ): void {
 	if (active.stop || pump !== active) return;
 	const authority = capturePumpAuthority({ generation: active.generation, connectionId: active.bond.connectionId });
@@ -2497,51 +2526,59 @@ function scheduleAutomationRetry(
 			void revalidateAutomationRunRetry({
 				key,
 				loadCurrentInbox: () => loadCurrentAutomationInbox(active, key, token, ctx),
-				identity: automationRunId,
+				identity: dispatchId,
 				assertCurrent: () => {
 					if (!authorityIsCurrent()) throw new StaleDeliveryError();
 				},
 				withdrawCurrent: () => active.automationQueue.invalidateKey(key),
-				enqueueCurrent: (currentRun) => enqueueAutomationRun(active, token, currentRun, ctx),
+				enqueueCurrent: (currentRun) => enqueueDispatch(active, token, currentRun, ctx),
 			}).then((outcome) => {
 				if (!authorityIsCurrent()) return;
 				if (outcome === "withdrawn") {
 					active.automationRetryAttempts.delete(key);
 				} else if (outcome === "retry") {
-					scheduleAutomationRetry(active, key, token, ctx, "automation run authority is not yet confirmable", true);
+					scheduleAutomationRetry(active, key, token, ctx, `${what} authority is not yet confirmable`, true, what);
 				}
 			}).catch((retryError) => {
-				if (authorityIsCurrent()) scheduleAutomationRetry(active, key, token, ctx, retryError);
+				if (authorityIsCurrent()) scheduleAutomationRetry(active, key, token, ctx, retryError, false, what);
 			});
 		}, delayMs);
 		if (typeof timer.unref === "function") timer.unref();
 		active.automationRetryTimers.set(key, timer);
 	}
 	if (!quiet) {
-		notify(ctx, `DevSpec remote: failed to deliver automation run: ${reason}. Revalidating in ${Math.ceil(delayMs / 1_000)}s.`, "warning");
+		notify(ctx, `DevSpec remote: failed to deliver ${what}: ${reason}. Revalidating in ${Math.ceil(delayMs / 1_000)}s.`, "warning");
 	}
 }
 
-function enqueueAutomationRun(
+/**
+ * Queue one wake-channel item, in arrival order and once per id: an automation
+ * run or a check job (55d71b0c). Any other shape is inert, as before. Both share
+ * one queue and one retry path, which rechecks the exact id with DevSpec.
+ */
+function enqueueDispatch(
 	active: PumpState,
 	token: string,
 	value: unknown,
 	ctx: ExtensionContext,
 ): void {
-	if (!isAutomationRunEnvelope(value)) return;
-	const key = automationRunId(value);
+	if (!isDispatchEnvelope(value)) return;
+	const key = dispatchId(value);
 	if (!key) return;
+	const checkJob = isCheckJobEnvelope(value);
+	const what = checkJob ? "check job" : "automation run";
 	active.automationQueue.enqueue(
 		key,
 		async (lease) => {
-			await deliverAutomationRun(active, value, ctx, lease);
+			if (checkJob) await deliverCheckJob(active, value, ctx, lease);
+			else await deliverAutomationRun(active, value, ctx, lease);
 			active.automationRetryAttempts.delete(key);
 			const timer = active.automationRetryTimers.get(key);
 			if (timer) clearTimeout(timer);
 			active.automationRetryTimers.delete(key);
-			if (!active.stop && pump === active) notify(ctx, "DevSpec remote: automation run delivered.");
+			if (!active.stop && pump === active) notify(ctx, `DevSpec remote: ${what} delivered.`);
 		},
-		(error) => scheduleAutomationRetry(active, key, token, ctx, error),
+		(error) => scheduleAutomationRetry(active, key, token, ctx, error, false, what),
 	);
 }
 
@@ -2742,7 +2779,7 @@ async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: s
 					raw = await callDevspec(token, "poll_connection", {
 						connection_id: scope.connectionId, ingress_version: 1, delegated_scope_version: 1,
 						active_plan_projection_version: 1, system_notice_version: SYSTEM_NOTICE_CHANNEL_VERSION, sender_style_version: 1,
-						room_context_version: 1, session_polls_projection_version: 2, wait_ms: 0, ...args,
+						room_context_version: 1, session_polls_projection_version: 2, check_job_version: CHECK_JOB_VERSION, wait_ms: 0, ...args,
 					}, { timeoutMs: POLL_TIMEOUT_MS, cwd: ctx.cwd, lane: "pump", beforeSend: () => { if (!current()) throw new DevspecToolError("Room history attachment changed before send."); }, ...(capability ? { connectionCapability: capability } : {}) });
 				} catch (error) {
 					// The embedded client raises MCP refusals before unwrapMcpResult.
@@ -2894,6 +2931,10 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					// Item bba35976: the poll inventory that is never dropped when the room
 					// has more polls than fit; it carries the totals and where the rest are.
 					session_polls_projection_version: 2,
+					// Item 55d71b0c: this host reads check jobs in dispatches[]. Sent on every
+					// poll (one without it clears it on the connection), and only because
+					// busy below is truthful: DevSpec drops an untaken job when a turn ends.
+					check_job_version: CHECK_JOB_VERSION,
 					...(commandOfferNegotiated ? { command_offer_version: 1,
 						...(commandHandoffReady ? { command_handoff_ready: commandHandoffReady } : {}) } : {}),
 					...(systemNoticeNegotiated ? {
@@ -3167,7 +3208,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			// has no executable or contextual meaning. Keep the canonical cursor
 			// unchanged so a corrected response can be retried.
 			const dispatches = (payload as { dispatches?: unknown[] } | null)?.dispatches ?? [];
-			for (const dispatch of dispatches) enqueueAutomationRun(active, token, dispatch, ctx);
+			for (const dispatch of dispatches) enqueueDispatch(active, token, dispatch, ctx);
 			if (pkg.dispatchCursor) active.dispatchCursor = pkg.dispatchCursor;
 			active.errors += 1;
 			debug("canonical ingress rejected", { errors: active.errors, errorPresent: Boolean(pkg.canonicalError) });
@@ -3488,7 +3529,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		}
 		active.roomSync?.schedule();
 		const dispatches = (payload as { dispatches?: unknown[] } | null)?.dispatches ?? [];
-		for (const dispatch of dispatches) enqueueAutomationRun(active, token, dispatch, ctx);
+		for (const dispatch of dispatches) enqueueDispatch(active, token, dispatch, ctx);
 		if (pkg.dispatchCursor) active.dispatchCursor = pkg.dispatchCursor;
 		if (commandRetryDelayMs > 0 && pump === active && !active.stop) {
 			await new Promise((resolve) => setTimeout(resolve, commandRetryDelayMs));

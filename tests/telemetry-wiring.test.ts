@@ -118,4 +118,7 @@ test("control ACK invokes only the non-consuming server path and validates its e
 	assert.equal(calls[0]!.control_ack, "control");
 	assert.equal(calls[0]!.cursor_v2, undefined);
 	assert.equal(calls[0]!.system_notice_version, undefined);
+	// DevSpec answers an ACK-only poll before reading or recording any negotiation,
+	// so it neither needs nor clears check_job_version (55d71b0c).
+	assert.equal(calls[0]!.check_job_version, undefined);
 });

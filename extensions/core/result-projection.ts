@@ -85,6 +85,10 @@ const FULL_READ_VERBS = new Set([
 	// briefing, permission, previews, resulting text, or mandatory instructions.
 	"create_session",
 	"claim_automation_run",
+	// A claimed check job's packet (55d71b0c): the kind's definition, the change and
+	// every entry's exact text, risk and supporting documents. A dropped entry would
+	// go unruled, so it reaches the model whole.
+	"claim_check_job",
 	// Every review-queue entry is a decision waiting on a person; a dropped row
 	// reads as "nothing outstanding", so the whole queue survives projection.
 	"get_review_queue",
@@ -138,6 +142,9 @@ const ACK_VERBS = new Set([
 	"unlink_tasks",
 	"verify_task",
 	"record_criterion_verdicts",
+	// Check rulings return a receipt: recorded, not_recorded (with why), remaining,
+	// settled, and waiting_for_ok when a ruling raised a hold (55d71b0c).
+	"record_check_rulings",
 	"classify_criterion",
 	"record_memory",
 	"manage_discussion_point",

@@ -181,6 +181,8 @@ const VERB_LABELS: Record<string, string> = {
 	reserve_work_items: "reserving work",
 	claim_automation_run: "claiming automation",
 	record_automation_run: "recording automation",
+	claim_check_job: "taking a check",
+	record_check_rulings: "ruling a check",
 	get_automation: "reading automation",
 	get_automations: "listing automations",
 	get_automation_runs: "listing automation runs",

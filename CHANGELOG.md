@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.12 - 2026-11-04
+
+- Your Pi agent can now rule DevSpec's checks itself. When DevSpec checks a change for conflicts with other tasks, with your decisions, conventions and requirements, for duplicates, or for being out of date, it can send the check to the agent, your agent's own changes included, instead of always ruling it on its own. The agent is woken with one line saying which record the check is about, takes the check, reads any supporting document or uploaded file a decision or requirement relies on, rules every entry, and carries on with what it was doing. A check it can't rule goes back to the next in line. Automation runs arrive exactly as before.
+- The tool catalogue is regenerated against DevSpec's current tools: the two tools for taking and ruling a check, and updated wording on the memory, knowledge-link and document tools (an uploaded project file can now be linked to the decision or requirement that relies on it). Update with `pi update --extensions`, then restart Pi.
+
 ## 0.10.11 - 2026-11-04
 
 - While DevSpec is still checking a change to a task for conflicts with other tasks, with your decisions, conventions and requirements, or for duplicates, the task is waiting for its checks. Pi now shows your agent DevSpec's own note about it whenever a task result carries one, and says when one of the checks can't run just now, so the agent keeps the work on its own branch and doesn't merge it into the tracking branch until the checks are ruled. Nobody needs to give an OK: it clears by itself. A task that can't be done yet because of its checks says so too. Update with `pi update --extensions`, then restart Pi.

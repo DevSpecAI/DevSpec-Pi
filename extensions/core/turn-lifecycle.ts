@@ -4,10 +4,12 @@
 import { hasAssistantSpeech } from "./assistant-speech.ts";
 import { INTERACTION_EVENT_CUSTOM_TYPE } from "./interaction-events.ts";
 
-export type UserKind = "remote" | "automation" | "interaction" | "local" | "harness";
+export type UserKind = "remote" | "automation" | "check_job" | "interaction" | "local" | "harness";
 
 export const REMOTE_PREFIX = "[DevSpec remote — message from";
 export const AUTOMATION_RUN_PREFIX = "[DevSpec remote — automation run";
+/** A check job DevSpec sent this agent to rule (55d71b0c): DevSpec's input, nobody's request. */
+export const CHECK_JOB_PREFIX = "[DevSpec remote — check job";
 export const INTERACTION_CONTINUATION_PREFIX = "[DevSpec directed-question workflow continuation]";
 const CONTEXT_TEXT_PREFIXES = [
 	"### DevSpec memory — auto-recall",
@@ -32,7 +34,7 @@ export function isSubagentAsyncNotification(text: string, _customType?: string |
 }
 
 export function isHarnessOrigin(text: string, customType?: string | null): boolean {
-	if (text.startsWith(REMOTE_PREFIX) || text.startsWith(AUTOMATION_RUN_PREFIX) ||
+	if (text.startsWith(REMOTE_PREFIX) || text.startsWith(AUTOMATION_RUN_PREFIX) || text.startsWith(CHECK_JOB_PREFIX) ||
 		text.startsWith(INTERACTION_CONTINUATION_PREFIX) || customType === INTERACTION_EVENT_CUSTOM_TYPE) return false;
 	if (typeof customType === "string" && customType.trim()) return true;
 	const t = text.trim();
@@ -49,6 +51,7 @@ export function isHarnessOrigin(text: string, customType?: string | null): boole
 export function classifyUserKind(text: string, customType?: string | null): UserKind {
 	if (text.startsWith(REMOTE_PREFIX)) return "remote";
 	if (text.startsWith(AUTOMATION_RUN_PREFIX)) return "automation";
+	if (text.startsWith(CHECK_JOB_PREFIX)) return "check_job";
 	if (text.startsWith(INTERACTION_CONTINUATION_PREFIX) || customType === INTERACTION_EVENT_CUSTOM_TYPE) return "interaction";
 	if (isHarnessOrigin(text, customType)) return "harness";
 	return "local";
@@ -91,7 +94,7 @@ export class TurnTracker {
 		const kind = classifyUserKind(text, origin?.customType);
 		// A leftover wake may replay the last typed prompt as a user message.
 		// Once this segment is harness, stay harness — do not remirror that prompt.
-		if (this.userKind === "harness" && kind !== "remote" && kind !== "automation") {
+		if (this.userKind === "harness" && kind !== "remote" && kind !== "automation" && kind !== "check_job") {
 			// A second completion arriving ON a harness wake segment must still
 			// resolve its task — the early return leaked B2's id live on
 			// 2026-09-17 (session ea7704f4), parking Working at a stuck timer long

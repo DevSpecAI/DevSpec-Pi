@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.14 - 2026-11-04
+
+- The tool catalogue is regenerated against DevSpec's current tools, so your agent now hears what DevSpec's checks mean wherever it meets them. When it reads or searches your decisions and conventions, it is told that one marked as waiting for its checks is not in force yet, and not to treat it as governing other work. When it records a new decision or convention, it is told the decision is saved but takes effect only once its checks are ruled. When it rewords or replaces a decision, it is told the change is accepted but the current version stays in force until the checks are ruled, and to report it as waiting for its checks. When it reads a task, it is told to follow a task's waiting-for-its-checks note as well as any request for someone's OK. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.10.13 - 2026-11-04
 
 - When your agent changes the wording of a decision, convention or requirement, DevSpec accepts the change at once but keeps the current version in force until the change's checks are ruled. The new version then takes effect by itself, or, if it clashes with someone else's decision, waits for that person's OK. Pi's activity trail now shows such a change as accepted and waiting for its checks, where it used to say "not applied", and your agent is told what the result means and pointed at DevSpec's own note about it. Update with `pi update --extensions`, then restart Pi.

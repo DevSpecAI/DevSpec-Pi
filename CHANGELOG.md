@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.11 - 2026-11-04
+
+- While DevSpec is still checking a change to a task for conflicts with other tasks, with your decisions, conventions and requirements, or for duplicates, the task is waiting for its checks. Pi now shows your agent DevSpec's own note about it whenever a task result carries one, and says when one of the checks can't run just now, so the agent keeps the work on its own branch and doesn't merge it into the tracking branch until the checks are ruled. Nobody needs to give an OK: it clears by itself. A task that can't be done yet because of its checks says so too. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.10.10 - 2026-10-30
 
 - Regenerated the tool catalogue and updated always-on task instructions for required task dismissal categories (`duplicate`, `replaced`, `outdated`, and `not_wanted`): `update_task` requires `dismissal_category` when dismissing (`target_task_id` for `duplicate` and `replaced`, optional `note` for `outdated`, and a required rejection `note` for `not_wanted`), and `get_tasks` supports filtering dismissed tasks by `dismissal_category`. Update with `pi update --extensions`, then restart Pi.

@@ -170,7 +170,7 @@ export function classifyDomainTool(name: string, _args?: unknown): DomainSpec | 
 }
 
 /** Fixed public dispositions only; receipt bodies and arbitrary outcome strings stay private. */
-export type TrailWriteOutcome = "committed" | "queued_for_review" | "pending" | "not_applied" | "failed";
+export type TrailWriteOutcome = "committed" | "pending_checks" | "queued_for_review" | "pending" | "not_applied" | "failed";
 
 /** The boolean receipts a write sets: false means it did not apply, true that it did. */
 const WRITE_MARKERS = [
@@ -189,6 +189,10 @@ export function writeOutcomeFromResult(result: unknown): TrailWriteOutcome | und
 	// Queued creates explicitly say recorded/created=false. Keep the proposal
 	// distinct from a write that did not apply or failed, without borrowing its source ID.
 	if (row.outcome === "queued_for_review") return "queued_for_review";
+	// A new wording of a decision, convention or requirement accepted as a pending
+	// version: the version in force stays until its checks are ruled. Neither live
+	// nor refused, so never "not applied" (DevSpec item 590fe543).
+	if (row.outcome === "pending_checks") return "pending_checks";
 	if (row.closure === "pending" || row.tense === "pending") return "pending";
 	if (WRITE_MARKERS.some((key) => row[key] === false)) return "not_applied";
 	if (row.outcome === "committed" || (row.outcome === "duplicate" && row.original_outcome === "committed")) return "committed";
@@ -207,6 +211,7 @@ export function writeOutcomeFromResult(result: unknown): TrailWriteOutcome | und
 export function domainAction(spec: DomainSpec, outcome?: TrailWriteOutcome): string {
 	if (outcome === undefined) return "outcome unknown";
 	if (outcome === "pending") return "pending";
+	if (outcome === "pending_checks") return "accepted, waiting for its checks";
 	if (outcome === "not_applied") return "not applied";
 	if (outcome === "failed") return "failed";
 	return outcome === "queued_for_review" ? "proposed" : spec.action;

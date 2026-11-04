@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 77793f4d90baad8462ab4e501a1192d68893fb4e705c13a3473b2514a552a4e4
- * Description fingerprint: 29086a19cfb8aea3396cdca337af63de1aa21002cbaafc7441b98d455dc84aad
- * Regenerated: 2026-11-04T05:24:58.971Z
+ * Schema fingerprint: ffa3ed95e6534f09ed549722c4a8441a82b0b5aa04a21a2f3abc37863d21fdb9
+ * Description fingerprint: fca6f4d436c4e9a675ef6e92c6187f502d94558229ec071caed83e70598642ef
+ * Regenerated: 2026-11-04T09:05:58.903Z
  */
-export const MCP_CATALOG_FINGERPRINT = "77793f4d90baad8462ab4e501a1192d68893fb4e705c13a3473b2514a552a4e4";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "29086a19cfb8aea3396cdca337af63de1aa21002cbaafc7441b98d455dc84aad";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-04T05:24:58.971Z";
-export const TOOL_CATALOG_VERSION = "e56cb4267a4eb79484a1ee8a35ed1a65b6c4ee127c422a1d406a441e098ca7fa";
+export const MCP_CATALOG_FINGERPRINT = "ffa3ed95e6534f09ed549722c4a8441a82b0b5aa04a21a2f3abc37863d21fdb9";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "fca6f4d436c4e9a675ef6e92c6187f502d94558229ec071caed83e70598642ef";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-04T09:05:58.903Z";
+export const TOOL_CATALOG_VERSION = "46c3b7cf5984aadb73d3846e9a1b7c6834637deceae13fc4ff60985559ba542e";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -200,7 +200,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_resource",
 		"name": "get resource",
-		"description": "Read one uploaded document or AI-written artifact in full, by id or 8-character short code, with its review flags and total_lines. For a long document, pass start_line/end_line for a range, or search to get only the matching lines with context. An uploaded file also comes with a short-lived download_url: fetch it now and never store it. A file attached to any session you can access in this project is readable by id, without joining that session: use the resource_id from get_session_transcript. This does not add other sessions' uploads to search or lists. is_archived: true means it was retired or replaced; if replaced, superseded_by names the current version.",
+		"description": "Read one uploaded document or AI-written artifact in full, by id or 8-character short code, with its review flags and total_lines. For a long document, pass start_line/end_line for a range, or search to get only the matching lines with context. An uploaded file also comes with a short-lived download_url: fetch it now and never store it. A file attached to any session you can access in this project is readable by id, without joining that session: use the resource_id from get_session_transcript. This does not add other sessions' uploads to search or lists. is_archived: true means it was retired or replaced; if replaced, superseded_by names the current version. A living document also comes with its change history, newest first: who made and asked for each change and which version it replaced, where each entry's resultRowId is that version's id, to pass here. For older history, pass history_next_before as history_before.",
 		"intent": "read full document artifact uploaded file download attachment"
 	},
 	{
@@ -3292,7 +3292,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_resource",
 		"label": "DevSpec: Get Resource",
-		"description": "Read one uploaded document or AI-written artifact in full, by id or 8-character short code, with its review flags and total_lines. For a long document, pass start_line/end_line for a range, or search to get only the matching lines with context. An uploaded file also comes with a short-lived download_url: fetch it now and never store it. A file attached to any session you can access in this project is readable by id, without joining that session: use the resource_id from get_session_transcript. This does not add other sessions' uploads to search or lists. is_archived: true means it was retired or replaced; if replaced, superseded_by names the current version.",
+		"description": "Read one uploaded document or AI-written artifact in full, by id or 8-character short code, with its review flags and total_lines. For a long document, pass start_line/end_line for a range, or search to get only the matching lines with context. An uploaded file also comes with a short-lived download_url: fetch it now and never store it. A file attached to any session you can access in this project is readable by id, without joining that session: use the resource_id from get_session_transcript. This does not add other sessions' uploads to search or lists. is_archived: true means it was retired or replaced; if replaced, superseded_by names the current version. A living document also comes with its change history, newest first: who made and asked for each change and which version it replaced, where each entry's resultRowId is that version's id, to pass here. For older history, pass history_next_before as history_before.",
 		"searchIntent": "read full document artifact uploaded file download attachment",
 		"modelInputSchema": {
 			"type": "object",
@@ -3316,6 +3316,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"search": {
 					"type": "string",
 					"description": "Return only the lines containing this text (case-insensitive), each with 5 lines of context either side, 30 matches per page. Omitted: the whole body, or the start_line to end_line range."
+				},
+				"history_before": {
+					"type": "string",
+					"format": "uuid",
+					"description": "history_next_before from the previous response, to read older changes to this same living document. Omitted: the newest changes. The body is returned either way."
+				},
+				"history_limit": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100,
+					"description": "Changes per history page, 1-100. Default 10."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -3348,6 +3359,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"search": {
 					"type": "string",
 					"description": "Return only the lines containing this text (case-insensitive), each with 5 lines of context either side, 30 matches per page. Omitted: the whole body, or the start_line to end_line range."
+				},
+				"history_before": {
+					"type": "string",
+					"format": "uuid",
+					"description": "history_next_before from the previous response, to read older changes to this same living document. Omitted: the newest changes. The body is returned either way."
+				},
+				"history_limit": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100,
+					"description": "Changes per history page, 1-100. Default 10."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",

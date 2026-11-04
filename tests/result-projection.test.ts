@@ -862,7 +862,16 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// jobs. Hot set is every eligible model verb, so it gains the two new ones. Benchmark
 		// before/after: initial surface 59,054 -> 60,131 estimated tokens; every budget
 		// still passes.
-		"fc398632865357c49128dbd8035cb2ca7842bcafc4e387aa4c59928bc9289bde",
+		// Rebaselined 2026-11-04 for DevSpec item d4224525 round 2 (a living document's
+		// paged change history, DevSpecV2 #1069), regenerated against
+		// devspecv2-worktrees/document-history-d4224525 (bebe4172e, staging plus #1069).
+		// Verbs 88 model / 12 pump / 1 never-model unchanged, none added or removed, no
+		// required field or projection family changed. Inputs: get_resource gains optional
+		// history_before (uuid) and history_limit (1-100), exactly as get_memory has them.
+		// Descriptions: get_resource says a living document comes with its change history and
+		// how to page it. Hot set unchanged. Benchmark before/after: initial surface
+		// 60,574 -> 60,727 estimated tokens; every budget still passes.
+		"54d10db9cd93ebba9e13549240ddcafa44546cedb14b37146a4ad9d68bd86e1b",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

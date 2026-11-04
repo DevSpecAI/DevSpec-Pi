@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.16 - 2026-11-04
+
+- When your agent reads a guide, reference or runbook, it now sees the document's change history: who made each change, who asked for it and which version it replaced. It can page back through all of it, as it already could for a decision. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.10.15 - 2026-11-04
 
 - When DevSpec's check finds that a task your Pi agent just wrote duplicates one that already exists, the agent now sorts it out there and then instead of leaving a flag for later. If the existing task is yours, or one you're allowed to change, it adds anything new to it, closes the new one as its duplicate and tells you. If it's someone else's, it asks you whether to add to it, which waits for that person's OK, or to keep yours separate, recorded as not a duplicate with your reason. Update with `pi update --extensions`, then restart Pi.

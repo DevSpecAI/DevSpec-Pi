@@ -29,6 +29,8 @@ export interface PushChannelOptions {
 	connectionCapability?: string;
 	/** Main intake capability only; side polls never inherit this negotiation. */
 	systemNoticeVersion?: typeof SYSTEM_NOTICE_CHANNEL_VERSION;
+	/** Check jobs in dispatches[] (55d71b0c): the stream records it, so its wake can be for one. */
+	checkJobVersion?: 1;
 	/** Durable interaction events share this one stream's wake marker. */
 	interactionEventVersion?: 1;
 	questionDismissalEventVersion?: 1;
@@ -216,9 +218,10 @@ export function nextPushReconnectDelayMs(
  * (non-2xx, network) so the caller can choose fallback BEFORE any frames
  * flowed.
  */
-export function pushChannelUrl(opts: Pick<PushChannelOptions, "mcpUrl" | "connectionId" | "systemNoticeVersion" | "interactionEventVersion" | "questionDismissalEventVersion">): string {
+export function pushChannelUrl(opts: Pick<PushChannelOptions, "mcpUrl" | "connectionId" | "systemNoticeVersion" | "checkJobVersion" | "interactionEventVersion" | "questionDismissalEventVersion">): string {
 	const query = new URLSearchParams({ connection_id: opts.connectionId });
 	if (opts.systemNoticeVersion === SYSTEM_NOTICE_CHANNEL_VERSION) query.set("system_notice_version", String(SYSTEM_NOTICE_CHANNEL_VERSION));
+	if (opts.checkJobVersion === 1) query.set("check_job_version", "1");
 	if (opts.interactionEventVersion === 1) query.set("interaction_event_version", "1");
 	if (opts.questionDismissalEventVersion === 1) {
 		if (opts.interactionEventVersion !== 1) throw new Error("Dismissal requires answer negotiation");

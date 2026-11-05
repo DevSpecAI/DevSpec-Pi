@@ -58,6 +58,8 @@ test("instructions carry the load-bearing rules", () => {
 	// waited on a merge would strand approved work on its branch (5a9eaa57).
 	assert.match(text, /never merge it into the tracking branch until it has the OK/);
 	assert.match(text, /reversal_rule/);
+	// Pending its checks (a67dfd95) is not a wait for an OK: the result's own instruction and the served rule are pointed at, never restated.
+	assert.match(text, /checks_pending \("Waiting for its checks"\) needs nobody's OK: follow its instruction \(the served contract's core\.pending-checks-hold-the-merge rule\)/);
 	// The capture bar (ADR "Protecting intent" §11): only the person's answer makes a decision.
 	assert.match(text, /only their answer makes it their decision/);
 	assert.match(text, /never report the change as done/i);

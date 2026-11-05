@@ -799,7 +799,79 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// record_implementation and record_completed_work. No verb added or removed; verbs 84
 		// model / 12 pump / 1 never-model, families and hot set unchanged. Benchmark before/after:
 		// initial surface 55,367 -> 55,655 estimated tokens; every budget still passes.
-		"426f9b05986bf6044224ea741cdb32c8a687401c570cc7a12f30433928d3c165",
+		// Rebaselined 2026-10-30 for DevSpec items 86b9c293 and afef574a, regenerated against
+		// server staging plus both changes. Compared old/new generated objects by
+		// name/inputSchema: 84 -> 85 model verbs. Added: manage_goals (goal and outcome
+		// writes from the goals change eb28968d), assigned to the full-read family like
+		// get_goals because its outcomes and links must reach the model whole. Inputs:
+		// create_task gains optional suggest_no_code; create_task, update_task and
+		// record_implementation drop goal_ids (goal links moved to manage_goals). No
+		// required field or type changed. Descriptions: create_task (suggest_human_only no
+		// longer says off-platform; suggest_no_code), verify_task (a person can sign off
+		// work they did themselves), and goals-change text on get_goals,
+		// get_project_goals, get_project_summary, get_resource and update_task. Hot set
+		// unchanged. Benchmark before/after: initial surface 55,655 -> 57,234 estimated
+		// tokens; every budget still passes.
+		// Rebaselined 2026-10-30 for DevSpec items 5339d7b7 and 2f6797e2, regenerated against
+		// DevSpecV2 .worktrees/goals-audit-fixes. Compared old/new generated objects by
+		// name/inputSchema: 85 model / 12 pump / 1 never-model unchanged, none added or
+		// removed, no required field or projection family changed. The single inputSchema diff
+		// is manage_goals gaining optional merged_chapter_summary for atomic chapter merges.
+		// Benchmark before/after: initial surface 57,234 -> 57,273 estimated tokens; every
+		// budget still passes.
+		// Rebaselined 2026-10-30 for DevSpec item 2c67e682, regenerated against DevSpecV2
+		// PR #903. Compared old/new generated objects by name/inputSchema: 85 model / 12 pump /
+		// 1 never-model unchanged, none added or removed, no required field or projection
+		// family changed. Inputs: create_task's optional suggest_human_only / suggest_no_code
+		// become human_only / no_code (set directly, no confirmation), and update_task gains
+		// optional human_only / no_code. Descriptions: update_task names both flags. Hot set
+		// unchanged. Benchmark before/after: initial surface 57,324 -> 57,534 estimated
+		// tokens; every budget still passes.
+		// Rebaselined 2026-10-30 for DevSpec item e86ea044, regenerated against DevSpecV2
+		// devspecv2-e86ea044. Compared old/new generated objects by name/inputSchema: 85 model /
+		// 12 pump / 1 never-model unchanged, none added or removed, no required field or
+		// projection family changed. Inputs: update_task gains optional dismissal_category and
+		// target_task_id (required conditionally when lifecycle="dismissed"), and get_tasks gains
+		// optional dismissal_category filter. Descriptions: update_task and get_tasks name the
+		// four dismissal categories (duplicate, replaced, outdated, not_wanted). Hot set
+		// unchanged. Benchmark before/after: initial surface 57,534 -> 58,161 estimated
+		// tokens; every budget still passes.
+		// Rebaselined 2026-10-31 for DevSpec item b05e070c (restore built-in possibly-outdated
+		// flagging on open tasks; DevSpecV2 #919), regenerated against devspecv2-b05e070c.
+		// Verbs 85 -> 86 model / 12 pump / 1 never-model. Added: resolve_task_flag (task_id,
+		// signal_type, verdict, basis, note) in the ack family alongside resolve_memory_flag
+		// and resolve_resource_flag. Inputs: get_tasks restores possibly_stale on signal_type
+		// and risk on signal_bucket; get_review_queue restores task under possibly_outdated.
+		// Rebaselined 2026-11-04 for DevSpec item 55d71b0c (check jobs on the wake channel,
+		// DevSpecV2 #1047; Pi item d28fb9f1), regenerated against
+		// devspecv2-worktrees/agent-check-jobs-55d71b0c (4691925bc, staging plus #1047).
+		// Verbs 86 -> 88 model / 12 pump / 1 never-model. Added: claim_check_job (check_job_id,
+		// connection_id) in the full-read family like claim_automation_run, because its packet
+		// carries every entry's exact text and a dropped entry would go unruled; and
+		// record_check_rulings (check_job_id, connection_id, rulings[{entry_id,
+		// candidate_version, verdict, reason}], hand_back) in the ack family beside
+		// record_criterion_verdicts. Existing verbs: no input added or removed, no required
+		// field or type changed; record_memory and supersede_memory companion_links and
+		// manage_knowledge_links id descriptions now name uploaded project files (#1037).
+		// Outside this fingerprint: description changes on manage_knowledge_links (an
+		// uploaded file links only to a memory, #1037), the four document tools
+		// create_resource, update_resource, supersede_resource and archive_resource (#1039)
+		// and manage_protected_intent (adopt names agent-recorded tasks, decisions and
+		// conventions); the pump-only
+		// poll_connection gains check_job_version and get_connection_dispatch names check
+		// jobs. Hot set is every eligible model verb, so it gains the two new ones. Benchmark
+		// before/after: initial surface 59,054 -> 60,131 estimated tokens; every budget
+		// still passes.
+		// Rebaselined 2026-11-04 for DevSpec item d4224525 round 2 (a living document's
+		// paged change history, DevSpecV2 #1069), regenerated against
+		// devspecv2-worktrees/document-history-d4224525 (bebe4172e, staging plus #1069).
+		// Verbs 88 model / 12 pump / 1 never-model unchanged, none added or removed, no
+		// required field or projection family changed. Inputs: get_resource gains optional
+		// history_before (uuid) and history_limit (1-100), exactly as get_memory has them.
+		// Descriptions: get_resource says a living document comes with its change history and
+		// how to page it. Hot set unchanged. Benchmark before/after: initial surface
+		// 60,574 -> 60,727 estimated tokens; every budget still passes.
+		"54d10db9cd93ebba9e13549240ddcafa44546cedb14b37146a4ad9d68bd86e1b",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -1151,6 +1223,79 @@ test("a blocker that only repeats the waiting-for-OK line is not shown twice", (
 		done_blocker: { layer: "waiting_for_ok", label: "Waiting for Dana's OK", merged: true, tracking_branch: "trunk" },
 	}))));
 	assert.match(merged, /⚠ done_blocker \(waiting_for_ok\): Waiting for Dana's OK — merged into trunk/);
+});
+
+// Work pending its checks (DevSpec item a67dfd95), as DevSpecV2's
+// `checksPendingToolFields` and the done rule's `checks_pending` layer send it. The
+// instruction is DevSpec's own sentence: Pi passes it through, never its own wording.
+const pendingInstruction = "Waiting for its checks: DevSpec is still checking this change for conflicts with other tasks and duplicates. Build it on its own branch and don't merge it into the tracking branch until its checks are ruled; it can't reach done before then. Nobody needs to give an OK: it clears by itself. One of its checks can't run just now; DevSpec runs it again by itself.";
+const checksPending = {
+	label: "Waiting for its checks",
+	jobs: ["conflict", "duplicate"],
+	job_states: { conflict: "queued", duplicate: "needs_attention" },
+	stuck: true,
+	since: "2026-11-04T09:00:00Z",
+	check_id: "33333333-3333-4333-8333-333333333333",
+	instruction: pendingInstruction,
+};
+const checksBlocker = { layer: "checks_pending", label: "Waiting for its checks", jobs: ["conflict", "duplicate"], stuck: true, merged: false, tracking_branch: "trunk" };
+const checksLine = "⚠ Waiting for its checks (stuck) — DevSpec is still checking this change for conflicts with other tasks and duplicates. Build it on its own branch and don't merge it into the tracking branch until its checks are ruled; it can't reach done before then. Nobody needs to give an OK: it clears by itself. One of its checks can't run just now; DevSpec runs it again by itself.";
+
+test("work pending its checks says so in DevSpec's own words, once, beside any wait for an OK", () => {
+	for (const name of ["create_task", "update_task", "record_implementation"]) {
+		const text = visible(projectedToolResult(name, unwrapMcpResult(mcpJson({
+			id: "item-pend", title: "Add the lookup index", lifecycle: "in_progress", checks_pending: checksPending, done_blocker: checksBlocker,
+		}))));
+		// The label once, stuck, and the whole instruction; the done blocker only
+		// repeats that line, so it is not shown twice.
+		assert.deepEqual(text.split("\n").filter((line) => line.startsWith("⚠ ")), [checksLine], name);
+		assert.match(text, /"checks_pending": \{\n\s+"label": "Waiting for its checks"/, `${name} keeps the field in its receipt`);
+	}
+	// reopen_task nests the item; its pending state still reaches the model.
+	const reopened = visible(projectedToolResult("reopen_task", unwrapMcpResult(mcpJson({ reopened: true, task: { id: "item-pend", title: "Add the lookup index", lifecycle: "open", checks_pending: checksPending } }))));
+	assert.ok(reopened.split("\n").includes(checksLine));
+	// Work that also waits for an OK says both, the OK first, as the done rule orders them.
+	const both = visible(projectedToolResult("update_task", unwrapMcpResult(mcpJson({
+		id: "item-pend", title: "Undo the cache", lifecycle: "in_progress",
+		waiting_for_ok: { label: "Waiting for Dana's OK", instruction: "Waiting for Dana's OK: build it on its own branch and don't merge it." },
+		checks_pending: { ...checksPending, stuck: false, instruction: pendingInstruction.replace(/ One of its checks.*$/, "") },
+		done_blocker: { layer: "waiting_for_ok", label: "Waiting for Dana's OK", merged: false },
+	}))));
+	const warnings = both.split("\n").filter((line) => line.startsWith("⚠ "));
+	assert.equal(warnings.length, 2);
+	assert.match(warnings[0], /^⚠ Waiting for Dana's OK — /);
+	assert.match(warnings[1], /^⚠ Waiting for its checks — DevSpec is still checking this change/);
+	assert.doesNotMatch(both, /\(stuck\)/, "stuck is marked only when DevSpec says so");
+});
+
+test("a checks_pending done blocker shows its checks, stuck and a merge that came first", () => {
+	// List rows carry the done blocker without the checks_pending field: the blocker line is the only word.
+	const list = visible(projectedToolResult("get_tasks", unwrapMcpResult(mcpJson({ items: [{ id: "item-pend", title: "Add the lookup index", lifecycle: "implemented", done_blocker: checksBlocker }], total: 1 }))));
+	assert.match(list, /⚠ done_blocker \(checks_pending\): Waiting for its checks — checks: conflict, duplicate; stuck/);
+	// Merged before its checks were ruled is news the checks line does not carry.
+	const merged = visible(projectedToolResult("record_implementation", unwrapMcpResult(mcpJson({
+		id: "item-pend", title: "Add the lookup index", lifecycle: "implemented", checks_pending: checksPending, done_blocker: { ...checksBlocker, stuck: false, merged: true },
+	}))));
+	assert.ok(merged.split("\n").includes(checksLine));
+	assert.match(merged, /⚠ done_blocker \(checks_pending\): Waiting for its checks — checks: conflict, duplicate; merged into trunk/);
+});
+
+test("pending checks DevSpec could not read are said to be unreadable, never left out", () => {
+	const unreadable = { label: "Its checks could not be read", unknown: true, instruction: "Whether this change's checks are ruled could not be read just now. Don't merge it into the tracking branch until it can be read and nothing is pending." };
+	const text = visible(projectedToolResult("update_task", unwrapMcpResult(mcpJson({
+		id: "item-pend", title: "Add the lookup index", lifecycle: "in_progress", checks_pending: unreadable, done_blocker: checksBlocker,
+	}))));
+	assert.match(text, /^⚠ Its checks could not be read — Whether this change's checks are ruled could not be read just now\. Don't merge it into the tracking branch until it can be read and nothing is pending\.$/m);
+	// The unreadable line says nothing about the checks, so the blocker that can still says them.
+	assert.match(text, /⚠ done_blocker \(checks_pending\): Waiting for its checks — checks: conflict, duplicate; stuck/);
+	// Without an instruction Pi names the checks and points at the served rule; it never words the rule itself.
+	const bare = visible(projectedToolResult("update_task", unwrapMcpResult(mcpJson({
+		id: "item-pend", title: "Add the lookup index", lifecycle: "in_progress", checks_pending: { label: "Waiting for its checks", jobs: ["conflict_decisions"], stuck: false },
+	}))));
+	assert.match(bare, /^⚠ Waiting for its checks — checks: conflict_decisions\. Follow the served contract's core\.pending-checks-hold-the-merge rule\.$/m);
+	// Ordinary work gains no line.
+	const plain = visible(projectedToolResult("update_task", unwrapMcpResult(mcpJson({ id: "item-plain", title: "Plain", lifecycle: "open" }))));
+	assert.doesNotMatch(plain, /⚠|checks/);
 });
 
 test("task search renders a compact card for every returned row, with an exact fetch path", () => {
@@ -1833,4 +1978,26 @@ test("a list relays everything the server said beside its rows", () => {
 	for (const phrase of ["Found by keywords alone while the project is paused.", "call get_memory with an id for its full body", "A disagreement is not a ruling.", "\"word_matches\": 0"]) {
 		assert.ok(text.includes(phrase), phrase);
 	}
+});
+
+test("manage_goals stays lossless so merged goals, outcomes_moved, and outcome links reach the model whole", () => {
+	assert.equal(projectionFamily("manage_goals"), "full");
+	assert.equal(projectionFamily("get_goals"), "full");
+	assert.equal(projectionFamily("get_project_goals"), "full");
+	const payload = {
+		merged: true,
+		outcomes_moved: 2,
+		goal: {
+			id: "goal-merged-1",
+			title: "Unified Goals Chapter",
+			chapter_summary: "Why this unified chapter matters right now.",
+			outcomes: [
+				{ id: "out-1", title: "First outcome", horizon: "active_now", state: "ready_to_confirm" },
+				{ id: "out-2", title: "Second outcome", horizon: "up_next", state: "active" },
+			],
+		},
+	};
+	const raw = JSON.stringify(payload, null, 2);
+	const text = projectModelText({ toolName: "manage_goals", text: raw, details: payload });
+	assert.equal(text, raw);
 });

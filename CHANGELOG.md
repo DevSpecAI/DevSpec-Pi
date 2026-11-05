@@ -1,5 +1,63 @@
 # Changelog
 
+## 0.10.18 - 2026-11-05
+
+- Updated `README.md` to match Pi's shipped command surface (`/devspec.remote`, `--project`, `--session`, `stop`, `reconnect`, `auto`, `preempt`, `/devspec.work`, `/devspec.help`, `/devspec.project`, `pi --devspec-project`, `/devspec.pin`, `/devspec.reload`, and `/devspec.review`), automatic startup connection on the **Agents** page, check-ruling and automation wake behavior, single-claim commit tagging across linked repositories and pinned folders, observed criterion verification, Protected intent holds, and GitHub pull-request checks.
+- Regenerated the built-in tool catalogue against DevSpec's updated pull-request check and runtime telemetry definitions so `search_devspec_tools` stays aligned with the server. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.10.17 - 2026-11-05
+
+- When your agent looks for the right DevSpec tool, it gets DevSpec's full search again instead of plain keyword matching. DevSpec changed how it describes the checks it sends to a busy agent, and Pi's built-in copy of DevSpec's tools has to match DevSpec's exactly for the full search to answer. Pi now carries the new description: a check sent while your agent is busy stays with it as earlier work finishes, and moves to someone else only after your agent has been idle for about a minute, hands it back or stops listening. Update with `pi update --extensions`, then restart Pi.
+
+## 0.10.16 - 2026-11-04
+
+- When your agent reads a guide, reference or runbook, it now sees the document's change history: who made each change, who asked for it and which version it replaced. It can page back through all of it, as it already could for a decision. Update with `pi update --extensions`, then restart Pi.
+
+## 0.10.15 - 2026-11-04
+
+- When DevSpec's check finds that a task your Pi agent just wrote duplicates one that already exists, the agent now sorts it out there and then instead of leaving a flag for later. If the existing task is yours, or one you're allowed to change, it adds anything new to it, closes the new one as its duplicate and tells you. If it's someone else's, it asks you whether to add to it, which waits for that person's OK, or to keep yours separate, recorded as not a duplicate with your reason. Update with `pi update --extensions`, then restart Pi.
+
+## 0.10.14 - 2026-11-04
+
+- The tool catalogue is regenerated against DevSpec's current tools, so your agent now hears what DevSpec's checks mean wherever it meets them. When it reads or searches your decisions and conventions, it is told that one marked as waiting for its checks is not in force yet, and not to treat it as governing other work. When it records a new decision or convention, it is told the decision is saved but takes effect only once its checks are ruled. When it rewords or replaces a decision, it is told the change is accepted but the current version stays in force until the checks are ruled, and to report it as waiting for its checks. When it reads a task, it is told to follow a task's waiting-for-its-checks note as well as any request for someone's OK. Update with `pi update --extensions`, then restart Pi.
+
+## 0.10.13 - 2026-11-04
+
+- When your agent changes the wording of a decision, convention or requirement, DevSpec accepts the change at once but keeps the current version in force until the change's checks are ruled. The new version then takes effect by itself, or, if it clashes with someone else's decision, waits for that person's OK. Pi's activity trail now shows such a change as accepted and waiting for its checks, where it used to say "not applied", and your agent is told what the result means and pointed at DevSpec's own note about it. Update with `pi update --extensions`, then restart Pi.
+
+## 0.10.12 - 2026-11-04
+
+- Your Pi agent can now rule DevSpec's checks itself. When DevSpec checks a change for conflicts with other tasks, with your decisions, conventions and requirements, for duplicates, or for being out of date, it can send the check to the agent, your agent's own changes included, instead of always ruling it on its own. The agent is woken with one line saying which record the check is about, takes the check, reads any supporting document or uploaded file a decision or requirement relies on, rules every entry, and carries on with what it was doing. A check it can't rule goes back to the next in line. Automation runs arrive exactly as before.
+- The tool catalogue is regenerated against DevSpec's current tools: the two tools for taking and ruling a check, and updated wording on the memory, knowledge-link and document tools (an uploaded project file can now be linked to the decision or requirement that relies on it). Update with `pi update --extensions`, then restart Pi.
+
+## 0.10.11 - 2026-11-04
+
+- While DevSpec is still checking a change to a task for conflicts with other tasks, with your decisions, conventions and requirements, or for duplicates, the task is waiting for its checks. Pi now shows your agent DevSpec's own note about it whenever a task result carries one, and says when one of the checks can't run just now, so the agent keeps the work on its own branch and doesn't merge it into the tracking branch until the checks are ruled. Nobody needs to give an OK: it clears by itself. A task that can't be done yet because of its checks says so too. Update with `pi update --extensions`, then restart Pi.
+
+## 0.10.10 - 2026-10-30
+
+- Regenerated the tool catalogue and updated always-on task instructions for required task dismissal categories (`duplicate`, `replaced`, `outdated`, and `not_wanted`): `update_task` requires `dismissal_category` when dismissing (`target_task_id` for `duplicate` and `replaced`, optional `note` for `outdated`, and a required rejection `note` for `not_wanted`), and `get_tasks` supports filtering dismissed tasks by `dismissal_category`. Update with `pi update --extensions`, then restart Pi.
+
+## 0.10.9 - 2026-10-30
+
+- The tool catalogue is regenerated against DevSpec's current tools. Your agent now sets Human-only and No code directly, when it creates a task or at any time after with the task-update tool, either way, instead of suggesting them for someone to confirm. When an agent finishes a task that turned out to need no code, it can mark it No code itself, so the task stops waiting for code. Linking a commit to a task switches No code off. Update with `pi update --extensions`, then restart Pi.
+
+## 0.10.8 - 2026-10-30
+
+- The tool catalogue is regenerated against DevSpec's current tools. A person signing off work they did themselves, before anyone handed it in, now applies only to tasks that involve no code. A task that involves code is signed off once its commits are linked and the work is handed in, including work an agent handed in with nothing linked, and your agent is told so if it asks to sign one off early. Update with `pi update --extensions`, then restart Pi.
+
+## 0.10.7 - 2026-10-30
+
+- Regenerated the tool catalogue for `manage_goals` (`merged_chapter_summary` when merging goals) and added status-line labels and privacy-safe Activity trail projections for `get_project_goals`, `get_goals`, and `manage_goals`. Update with `pi update --extensions`, then restart Pi.
+
+## 0.10.6 - 2026-10-30
+
+- Fixed a loop that could use up all of your computer's memory. DevSpec's plugins for Pi, Claude Code and Antigravity each put a stand-in for `git` in front of the real one, so they can tag and report commits. When two of them were on the same PATH, for example a Pi session or Pi's tests started from a Claude Code agent, each took the other for git and they passed every git command back and forth, starting a new process each time. Pi's stand-in now recognises any DevSpec plugin's stand-in and always runs the real git. If an older version of another plugin still sends a command round in a loop, the command stops at once with a message saying so, instead of exhausting memory.
+
+## 0.10.5 - 2026-10-30
+
+- The tool catalogue is regenerated against DevSpec's current tools. When your agent creates a task whose work won't produce any commits (research, a setting changed in a dashboard, an errand), it can now flag it as involving no code, so the task finishes once it is verified instead of waiting for code. Signing off now also covers work a person did themselves that nobody handed in. Goals and their outcomes are managed with the new goals tool rather than a goal list on each task. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.10.4 - 2026-10-27
 
 - Added `pi.image` (`https://devspec.ai/logo-icon.png`), `homepage` (`https://devspec.ai`), and discovery keywords in `package.json` for the Pi package gallery (`pi.dev/packages`).

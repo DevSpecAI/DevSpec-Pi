@@ -29,6 +29,23 @@ test("main SSE URL advertises additive capabilities only when dynamically reques
 	);
 });
 
+test("main SSE URL says it reads check jobs, as every poll does (55d71b0c)", () => {
+	assert.equal(
+		pushChannelUrl({
+			mcpUrl: "https://devspec.test/api/mcp",
+			connectionId: "plain",
+			systemNoticeVersion: 2,
+			checkJobVersion: 1,
+			interactionEventVersion: 1,
+		}),
+		"https://devspec.test/api/mcp/connection-stream?connection_id=plain&system_notice_version=2&check_job_version=1&interaction_event_version=1",
+	);
+	assert.equal(
+		pushChannelUrl({ mcpUrl: "https://devspec.test/api/mcp", connectionId: "plain", checkJobVersion: 1 }),
+		"https://devspec.test/api/mcp/connection-stream?connection_id=plain&check_job_version=1",
+	);
+});
+
 test("interaction-aware SSE carries the hidden exact-connection capability header", async () => {
 	const originalFetch = globalThis.fetch;
 	let captured: RequestInit | undefined;

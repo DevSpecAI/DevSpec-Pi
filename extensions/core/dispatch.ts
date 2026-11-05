@@ -1,13 +1,18 @@
 /**
- * DevSpec Pi — owner-scoped automation-run envelopes (pure, unit-tested).
+ * DevSpec Pi — wake-channel envelopes (pure, unit-tested).
  *
  * `poll_connection.dispatches[]` and `get_connection_dispatch` are transport
- * names retained by the server API. Their only executable payload in Pi is a
- * typed automation run. Task work is selected and reserved locally; it
- * never enters this path.
+ * names retained by the server API. Each item is exactly one of two typed
+ * envelopes: an automation run, or (once Pi negotiates CHECK_JOB_VERSION) a
+ * check job, which asks this agent to rule a check DevSpec ran on a change
+ * (DevSpec item 55d71b0c, decision c7cf2398). Anything else is inert. Task
+ * work is selected and reserved locally; it never enters this path.
  */
 
-import { AUTOMATION_RUN_PREFIX } from "./turn-lifecycle.ts";
+import { AUTOMATION_RUN_PREFIX, CHECK_JOB_PREFIX } from "./turn-lifecycle.ts";
+
+/** The check-job wake-channel version Pi sends on every poll and the stream. */
+export const CHECK_JOB_VERSION = 1;
 
 const WAKE_KEYS = [
 	"id",
@@ -67,11 +72,86 @@ export function isAutomationRunEnvelope(value: unknown): boolean {
 		requesterOk;
 }
 
+/** The exact keys of a check job envelope: inbox metadata only, never record text (CHECK_JOB_WAKE_KEYS). */
+const CHECK_JOB_WAKE_KEYS = [
+	"id",
+	"kind",
+	"check_job_id",
+	"check_kind",
+	"record",
+	"entries",
+	"high_risk",
+	"yours",
+	"offered_at",
+	"delivery_connection_id",
+] as const;
+const CHECK_KINDS = new Set(["conflict", "conflict_decisions", "duplicate", "staleness"]);
+const CHECK_RECORD_TYPES = new Set(["task", "memory", "artifact", "proposal"]);
+
+function exactKeys(root: Record<string, unknown>, keys: readonly string[]): boolean {
+	return Object.keys(root).length === keys.length && keys.every((key) => Object.hasOwn(root, key));
+}
+
+function count(value: unknown): boolean {
+	return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+/** A check job: exactly its wake keys, `kind` check_job and `id` equal to `check_job_id`. */
+export function isCheckJobEnvelope(value: unknown): boolean {
+	const root = asRecord(value);
+	if (!root || !exactKeys(root, CHECK_JOB_WAKE_KEYS)) return false;
+	const record = asRecord(root.record);
+	return root.kind === "check_job" &&
+		Boolean(text(root.id)) &&
+		root.check_job_id === root.id &&
+		typeof root.check_kind === "string" && CHECK_KINDS.has(root.check_kind) &&
+		Boolean(record && exactKeys(record, ["type", "id", "title"]) &&
+			typeof record.type === "string" && CHECK_RECORD_TYPES.has(record.type) &&
+			text(record.id) && typeof record.title === "string") &&
+		count(root.entries) &&
+		count(root.high_risk) &&
+		typeof root.yours === "boolean" &&
+		Boolean(text(root.offered_at)) &&
+		Boolean(text(root.delivery_connection_id));
+}
+
+/** One wake-channel item Pi accepts: an automation run (unchanged) or a check job. */
+export function isDispatchEnvelope(value: unknown): boolean {
+	return isAutomationRunEnvelope(value) || isCheckJobEnvelope(value);
+}
+
 /** Exact server-owned retry identity for a typed automation run. */
 export function automationRunId(value: unknown): string | undefined {
 	if (!isAutomationRunEnvelope(value)) return undefined;
 	const root = asRecord(value);
 	return text(root?.run_id) ?? text(root?.id);
+}
+
+/** Exact server-owned identity (dedupe and retry key) of either envelope; undefined for anything else. */
+export function dispatchId(value: unknown): string | undefined {
+	if (isCheckJobEnvelope(value)) return text(asRecord(value)?.id);
+	return automationRunId(value);
+}
+
+/**
+ * The wake for one check job: the contract's one line, then the envelope so the
+ * agent has the job's id. How to rule it is in the bonded instructions; this
+ * never words what the agent tells its person.
+ */
+export function formatCheckJobMessage(value: unknown, codename: string): string {
+	if (!isCheckJobEnvelope(value)) throw new Error("check job envelope required");
+	const root = asRecord(value) ?? {};
+	const record = asRecord(root.record) ?? {};
+	const on = text(record.title) ?? `${String(record.type)} ${String(record.id)}`;
+	return [
+		`${CHECK_JOB_PREFIX} to ${codename}]`,
+		`A check is waiting on ${on}: take it with claim_check_job, rule every entry with record_check_rulings, then carry on.`,
+		"",
+		"Check job envelope:",
+		"```json",
+		JSON.stringify(value, null, 2),
+		"```",
+	].join("\n");
 }
 
 export function formatAutomationRunMessage(value: unknown, codename: string): string {

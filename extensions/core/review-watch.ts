@@ -56,7 +56,7 @@ export function extractFlags(toolName: string, details: unknown, scope = "legacy
 	return flags;
 }
 
-const FLAG_RULINGS = new Set(["resolve_memory_flag", "resolve_resource_flag"]);
+const FLAG_RULINGS = new Set(["resolve_memory_flag", "resolve_resource_flag", "resolve_task_flag"]);
 
 /** Only exact successful rulings discharge their own observation. */
 export function observeReviewResult(tool: string, details: unknown, args: Record<string, unknown>, scope: string, observed: readonly ReviewObservation[] = []): void {
@@ -64,9 +64,9 @@ export function observeReviewResult(tool: string, details: unknown, args: Record
 	if (!d) return;
 	if (writeOutcomeFromResult(d) === "committed") {
 		const unchanged = () => listFlags(scope).filter((f) => observed.some((old) => old.key === f.key && old.revision === f.revision));
-		// A memory or document flag ruling names one record and one flag; only the
+		// A memory, document, or task flag ruling names one record and one flag; only the
 		// observation of exactly that flag on exactly that record is discharged.
-		const subject = text(args.id);
+		const subject = text(args.id ?? args.task_id);
 		const marks = row(d.marks_cleared);
 		const cleared = marks && Object.values(marks).some((value) => typeof value === "number" && value > 0);
 		if (FLAG_RULINGS.has(tool) && subject && cleared) {

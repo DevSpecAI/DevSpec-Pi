@@ -23,6 +23,7 @@ const DEVSPEC_ID_KEYS = [
 	"brief_id",
 	"criterion_id",
 	"goal_id",
+	"outcome_id",
 	"id",
 	"memory_id",
 	"plan_id",
@@ -247,12 +248,14 @@ function devspecArgs(name: string, args: Record<string, unknown>): string | unde
 		const id = safeTrailId(args[key]);
 		if (id) parts.push(`${key}=${id}`);
 	}
-	if (name === "manage_plan" || name === "manage_poll" || name === "manage_directed_question") {
+	if (name === "manage_plan" || name === "manage_poll" || name === "manage_directed_question" || name === "manage_goals") {
 		const actionPattern = name === "manage_plan"
 			? /^(?:create|list|get|update|start_step|complete_step|skip_step|fail_step|advance|complete|abandon|adopt)$/
 			: name === "manage_poll"
 				? /^(?:create|list|get|update|end|retract|supersede)$/
-				: /^(?:create|list|get|cancel)$/;
+				: name === "manage_directed_question"
+					? /^(?:create|list|get|cancel)$/
+					: /^(?:create|update|achieve|dismiss|reactivate|split|merge|create_outcome|update_outcome|reorder_outcomes|confirm_outcome|reopen_outcome|drop_outcome|delete_outcome|link_outcome|unlink_outcome|restore_outcome_target)$/;
 		const action = typeof args.action === "string" && actionPattern.test(args.action)
 			? args.action
 			: undefined;
@@ -322,6 +325,8 @@ function wrappedEntity(parsed: Record<string, unknown>): Record<string, unknown>
 	return asRecord(parsed.task)
 		?? asRecord(parsed.resource)
 		?? asRecord(parsed.memory)
+		?? asRecord(parsed.goal)
+		?? asRecord(parsed.outcome)
 		?? asRecord(parsed.plan)
 		?? asRecord(parsed.poll)
 		?? asRecord(parsed.question)
@@ -338,9 +343,9 @@ function safeOutcome(result: unknown): string | undefined {
 	const nested = wrappedEntity(parsed);
 	const parts: string[] = [];
 	const allowedStates = new Set([
-		"accepted", "active", "achieved", "archived", "blocked", "cancelled", "claimed", "deferred", "dismissed",
-		"diverged", "done", "error", "failed", "finished", "healthy", "idle", "implemented", "implementing",
-		"in_progress", "merged", "open", "passed", "pending", "recorded", "reporting", "resolved", "retracted",
+		"accepted", "active", "achieved", "archived", "blocked", "cancelled", "claimed", "confirmed", "deferred", "dismissed",
+		"diverged", "done", "dropped", "error", "failed", "finished", "healthy", "idle", "implemented", "implementing",
+		"in_progress", "merged", "open", "passed", "pending", "ready_to_confirm", "recorded", "reporting", "resolved", "retracted",
 		"skipped", "staged", "success", "superseded", "verified",
 	]);
 	for (const key of ["lifecycle", "state", "status"] as const) {
@@ -351,7 +356,7 @@ function safeOutcome(result: unknown): string | undefined {
 		const value = parsed[key] ?? nested[key];
 		if (typeof value === "boolean") parts.push(`${key}=${String(value)}`);
 	}
-	for (const key of ["affected_items", "created_count", "updated_count", "count", "revision"] as const) {
+	for (const key of ["affected_items", "created_count", "updated_count", "outcomes_moved", "count", "revision"] as const) {
 		const value = parsed[key] ?? nested[key];
 		if (typeof value === "number" && Number.isFinite(value)) parts.push(`${key}=${value}`);
 	}
@@ -361,7 +366,7 @@ function safeOutcome(result: unknown): string | undefined {
 /** Select safe output metadata. Raw tool text is never copied into the trail. */
 export function projectTrailResult(name: string, result: unknown): string | undefined {
 	if (!DEVSPEC_TOOLS.has(name)) return undefined;
-	if (name === "manage_plan" || name === "manage_poll" || name === "manage_directed_question" || /^(?:create_|update_|claim_|record_|resolve_|supersede_|retract_|archive_)/.test(name)) {
+	if (name === "manage_plan" || name === "manage_poll" || name === "manage_directed_question" || name === "manage_goals" || /^(?:create_|update_|claim_|record_|resolve_|supersede_|retract_|archive_)/.test(name)) {
 		return safeOutcome(result);
 	}
 	if (name.startsWith("search_") || name.startsWith("list_")) {

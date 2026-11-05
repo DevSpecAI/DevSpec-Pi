@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { projectedToolResult, unwrapMcpResult } from "../extensions/core/result.ts";
-import { unwrapOrThrow } from "../extensions/devspec-tools.ts";
+import { pendingChecksRelay, unwrapOrThrow } from "../extensions/devspec-tools.ts";
 
 const mcp = (...blocks: unknown[]) => ({ content: blocks.map((block) => ({ type: "text", text: JSON.stringify(block) })) });
 const seen = (name: string, raw: unknown) => projectedToolResult(name, unwrapMcpResult(raw)).content[0].text;
@@ -64,6 +64,23 @@ test("a queued knowledge change says who it waits on, and the inferred tags of a
 		auto_tagged: { tags: ["billing", "retries"], note: "DevSpec added these tags; correct them with update_task if the topic is wrong." } }));
 	assert.match(created, /"auto_tagged"/);
 	assert.match(created, /correct them with update_task if the topic is wrong/);
+});
+
+test("a pending_checks revision reaches the model as accepted, with the result's own note, never as queued", () => {
+	const receipt = { id: "mem-1", in_force_id: "mem-1", outcome: "pending_checks", effect: "pending", proposal_id: "prop-2",
+		proposal_state: "proposed", waiting_on: "Brandon Smith",
+		note: "Accepted. mem-1 stays the version in force until this new version's checks are ruled; then it takes effect by itself." };
+	const relay = pendingChecksRelay(receipt);
+	assert.ok(relay, "a pending_checks result carries its own relay line");
+	for (const name of ["update_memory", "supersede_memory"]) {
+		const text = unwrapOrThrow(name, mcp(receipt)).content[0].text;
+		assert.ok(text.startsWith(relay), `${name} leads with the relay`);
+		assert.ok(text.includes(receipt.note), `${name} keeps the result's own note`);
+		assert.match(text, /"proposal_id": "prop-2"/);
+		assert.match(text, /"waiting_on": "Brandon Smith"/);
+		assert.doesNotMatch(text, /QUEUED/);
+	}
+	for (const outcome of ["committed", "queued_for_review"]) assert.equal(pendingChecksRelay({ ...receipt, outcome }), null);
 });
 
 test("a requirement is labelled as one on its card, apart from ordinary knowledge", () => {

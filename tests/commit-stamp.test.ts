@@ -182,6 +182,14 @@ test("several claims, no stamping armed, or a value inherited from an enclosing 
 	assert.equal(unarmed[0]?.stamp, undefined);
 });
 
+test("inside another git stand-in's work, the commit is neither tagged nor recorded: that one owns it (80bceb2c)", (t) => {
+	const cwd = repo(fixture(t), "project");
+	// What another DevSpec plugin's stand-in, or a git hook under one, hands Pi's.
+	const rows = bash(`cd '${cwd}' && git commit -q --allow-empty -m 'Nested'`, scope(), { DEVSPEC_GIT_STAND_IN_DEPTH: "1" });
+	assert.equal(message(cwd), "Nested\n");
+	assert.equal(rows.length, 0);
+});
+
 test("the argv reader finds the message source in every form git accepts and refuses what it does not know", () => {
 	const source = (args: string[]) => readCommitMessageSource(args);
 	assert.equal(source(["-m", "x"]).values[0], "x");

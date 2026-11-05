@@ -15,6 +15,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
+import { STAND_IN_MARKER, isMarkedStandIn } from "../../runtime/git-stand-in.mjs";
 
 const GLOBAL_KEY = "__devspecPiGitObserver";
 const MAX_JOURNAL_BYTES = 1024 * 1024;
@@ -101,9 +102,14 @@ function findRealGit(): string | null {
 		}).trim().split(/\r?\n/u);
 		// Skip our own observer shims: with a stale shim dir on PATH, plain
 		// `which git` returns the shim and delegation recurses without bound
-		// (item 8729992e). The first non-shim candidate is the real Git.
+		// (item 8729992e). Skip every other DevSpec plugin's too: run from a Claude
+		// Code agent's shell, Pi found Claude Code's stand-in first, and the two
+		// called each other until the machine ran out of memory (item 80bceb2c).
+		// The first candidate that is neither is the real Git.
 		for (const candidate of candidates) {
-			if (candidate && !basename(dirname(candidate)).startsWith("devspec-pi-git-") && existsSync(candidate)) return candidate;
+			if (!candidate || basename(dirname(candidate)).startsWith("devspec-pi-git-") || !existsSync(candidate)) continue;
+			if (isMarkedStandIn(candidate)) continue;
+			return candidate;
 		}
 		return null;
 	} catch {
@@ -187,11 +193,16 @@ export function initializeGitObserver(piSessionId: string, preserveReload = fals
 		const stampModulePath = join(dir, "commit-stamp.mjs");
 		copyFileSync(fileURLToPath(new URL("../../runtime/commit-stamp.mjs", import.meta.url)), stampModulePath);
 		chmodSync(stampModulePath, 0o600);
+		// And what every DevSpec stand-in agrees on (80bceb2c).
+		const standInModulePath = join(dir, "git-stand-in.mjs");
+		copyFileSync(fileURLToPath(new URL("../../runtime/git-stand-in.mjs", import.meta.url)), standInModulePath);
+		chmodSync(standInModulePath, 0o600);
 		// Use the exact host runtime, never /usr/bin/env node or the mutated PATH.
 		// On Windows the same sh script is what Git Bash runs for `git`.
 		const runtime = process.platform === "win32" ? windowsPathForShell(process.execPath) : process.execPath;
 		const shimModule = process.platform === "win32" ? windowsPathForShell(modulePath) : modulePath;
-		writeFileSync(shimPath, `#!/bin/sh\nexec ${shellQuote(runtime)} ${shellQuote(shimModule)} "$@"\n`, { mode: 0o700 });
+		// The marker line tells every DevSpec stand-in, whichever plugin's, that this is not git.
+		writeFileSync(shimPath, `#!/bin/sh\n${STAND_IN_MARKER}: DevSpec for Pi notes the commits this session makes, then runs the real git.\nexec ${shellQuote(runtime)} ${shellQuote(shimModule)} "$@"\n`, { mode: 0o700 });
 		chmodSync(shimPath, 0o700);
 		const journalPath = join(dir, "observations.jsonl");
 		writeFileSync(journalPath, "", { mode: 0o600 });

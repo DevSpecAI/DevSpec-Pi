@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { TrailBuilder } from "../extensions/core/trail.ts";
 import { toolErrorResult } from "../extensions/core/result.ts";
-import { domainIdentity, writeOutcomeFromResult } from "../extensions/core/trail-events.ts";
+import { classifyDomainTool, domainIdentity, writeOutcomeFromResult } from "../extensions/core/trail-events.ts";
 
 const SOURCE = "74000000-0000-4000-8000-000000000001";
 const RETURNED = "74000000-0000-4000-8000-000000000002";
@@ -62,6 +62,24 @@ for (const [wrapperName, wrap] of Object.entries(wrappers)) {
 			assert.equal(event.action, "proposed");
 			assert.equal(event.id, undefined);
 			assert.match(event.result ?? "", /outcome=queued_for_review/);
+		});
+	}
+
+	for (const name of ["update_memory", "supersede_memory"]) {
+		test(`${name}: ${wrapperName} pending_checks is accepted and waiting for its checks, not applied, failed, proposed or live`, () => {
+			const spec = classifyDomainTool(name);
+			assert.ok(spec);
+			// The server's receipt: the version in force keeps its id; the new one waits.
+			const receipt = { outcome: "pending_checks", effect: "pending", id: SOURCE, in_force_id: SOURCE,
+				proposal_id: PROPOSAL, proposal_state: "proposed", note: PRIVATE };
+			for (const result of [wrap(receipt), wrap({ ...receipt, updated: false, superseded: false })]) {
+				assert.equal(writeOutcomeFromResult(result), "pending_checks");
+				const event = completed(name, result);
+				assert.equal(event.status, "ok");
+				for (const other of ["not applied", "failed", "proposed", "pending", spec.action]) assert.notEqual(event.action, other);
+				assert.equal(event.id, undefined, "the version in force is not linked as an applied change");
+				assert.match(event.result ?? "", /outcome=pending_checks/);
+			}
 		});
 	}
 
@@ -155,10 +173,12 @@ test("native error classification uses the structured string marker, not message
 });
 
 test("transport failure overrides an apparent successful receipt", () => {
-	const event = completed("supersede_resource", { outcome: "committed", id: RETURNED }, false);
-	assert.equal(event.status, "error");
-	assert.equal(event.action, "failed");
-	assert.equal(event.id, undefined);
+	for (const [name, outcome] of [["supersede_resource", "committed"], ["supersede_memory", "pending_checks"]]) {
+		const event = completed(name, { outcome, id: RETURNED }, false);
+		assert.equal(event.status, "error");
+		assert.equal(event.action, "failed");
+		assert.equal(event.id, undefined);
+	}
 });
 
 test("unknown dispositions are not projected verbatim or treated as applied writes", () => {

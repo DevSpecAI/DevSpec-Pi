@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: d4de95429bc7e81f8db882097a0199d1af932078d3db026e0fb2ac87a1d2c560
- * Description fingerprint: fca6f4d436c4e9a675ef6e92c6187f502d94558229ec071caed83e70598642ef
- * Regenerated: 2026-11-05T08:22:09.368Z
+ * Schema fingerprint: 8340be81ccff670549178de378f5cd9caaf70e901fb11eb3af1b6b70b0678dbd
+ * Description fingerprint: 92c34cc4ad2bfd7fc13b76499459296f454890fd7cb931ea52ed14db8a09ec1d
+ * Regenerated: 2026-11-05T15:07:37.722Z
  */
-export const MCP_CATALOG_FINGERPRINT = "d4de95429bc7e81f8db882097a0199d1af932078d3db026e0fb2ac87a1d2c560";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "fca6f4d436c4e9a675ef6e92c6187f502d94558229ec071caed83e70598642ef";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-05T08:22:09.368Z";
-export const TOOL_CATALOG_VERSION = "46c3b7cf5984aadb73d3846e9a1b7c6834637deceae13fc4ff60985559ba542e";
+export const MCP_CATALOG_FINGERPRINT = "8340be81ccff670549178de378f5cd9caaf70e901fb11eb3af1b6b70b0678dbd";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "92c34cc4ad2bfd7fc13b76499459296f454890fd7cb931ea52ed14db8a09ec1d";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-05T15:07:37.722Z";
+export const TOOL_CATALOG_VERSION = "2dc435cc4c302ffe6e9916375fa9616713d353b31ffc9df4fbef5b72b1b5681f";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -188,7 +188,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_pull_request",
 		"name": "get pull request",
-		"description": "Read one pull request as DevSpec last synced it: state, review, checks, branches, changed files, commits, and the tasks and knowledge linked to it by recorded evidence, plus anything still awaiting a maintainer. A link with nothing behind it is reported in absent, never guessed. Pass number (with repo when the project tracks several repositories) or pull_request_id; a pull request not yet synced comes back not found. Read-only: DevSpec never approves, merges or gates a pull request.",
+		"description": "Read one pull request as DevSpec last synced it: state, review, checks, branches, changed files, commits, and the tasks and knowledge linked to it by recorded evidence, plus anything still awaiting a maintainer. A link with nothing behind it is reported in absent, never guessed. Pass number (with repo when the project tracks several repositories) or pull_request_id; a pull request not yet synced comes back not found. Read-only: DevSpec publishes its check on pull requests to reflect pending checks and holds, and never approves or merges a pull request on GitHub or changes branch protection.",
 		"intent": "read pull request changes commits linked tasks knowledge review state"
 	},
 	{
@@ -2206,7 +2206,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_pull_request",
 		"label": "DevSpec: Get Pull Request",
-		"description": "Read one pull request as DevSpec last synced it: state, review, checks, branches, changed files, commits, and the tasks and knowledge linked to it by recorded evidence, plus anything still awaiting a maintainer. A link with nothing behind it is reported in absent, never guessed. Pass number (with repo when the project tracks several repositories) or pull_request_id; a pull request not yet synced comes back not found. Read-only: DevSpec never approves, merges or gates a pull request.",
+		"description": "Read one pull request as DevSpec last synced it: state, review, checks, branches, changed files, commits, and the tasks and knowledge linked to it by recorded evidence, plus anything still awaiting a maintainer. A link with nothing behind it is reported in absent, never guessed. Pass number (with repo when the project tracks several repositories) or pull_request_id; a pull request not yet synced comes back not found. Read-only: DevSpec publishes its check on pull requests to reflect pending checks and holds, and never approves or merges a pull request on GitHub or changes branch protection.",
 		"searchIntent": "read pull request changes commits linked tasks knowledge review state",
 		"modelInputSchema": {
 			"type": "object",
@@ -15066,6 +15066,19 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"description": "Runtime telemetry riding this call, stored as the connection's last known report: {v: 1, model {provider, id}, thinkingLevel, supportedThinkingLevels (at most 7 of off|minimal|low|medium|high|xhigh|max), context {tokens, window, percent}, contextBudget (numeric counts and generated tool-verb ids only, never prompt text, arguments, results or credentials), turn and session usage {input, output, cacheRead, cacheWrite, costUsd, messages|turns}, at (ISO time)}. Read leniently: a report that is not a v1 shape is dropped silently and the call still succeeds."
 				},
+				"usage_refused_until": {
+					"x-devspec-host-only": true,
+					"oneOf": [
+						{
+							"type": "string",
+							"format": "date-time"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Host-only. With status live: the time (ISO) until which your model provider refuses this agent for usage, sent only after an actual refusal (a rate-limit stop, an exhausted quota, a provider's usage 429): the time the refusal said it lifts, or a short bounded cool-off when it gave none. Never send it for a usage percentage alone; an account can keep working past 100%. Send it with each status update while it stands and null once a turn succeeds. While it is ahead DevSpec offers this agent no check job and hands back any it holds; the agent still shows online. A time already past clears it, one more than 7 days ahead is held to 7 days, and a value that is not a time is ignored. Omitted: unchanged."
+				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
@@ -16069,6 +16082,19 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"at"
 					],
 					"description": "Runtime telemetry riding this call, stored as the connection's last known report: {v: 1, model {provider, id}, thinkingLevel, supportedThinkingLevels (at most 7 of off|minimal|low|medium|high|xhigh|max), context {tokens, window, percent}, contextBudget (numeric counts and generated tool-verb ids only, never prompt text, arguments, results or credentials), turn and session usage {input, output, cacheRead, cacheWrite, costUsd, messages|turns}, at (ISO time)}. Read leniently: a report that is not a v1 shape is dropped silently and the call still succeeds."
+				},
+				"usage_refused_until": {
+					"x-devspec-host-only": true,
+					"oneOf": [
+						{
+							"type": "string",
+							"format": "date-time"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Host-only. The time (ISO) until which your model provider refuses this agent for usage, sent only after an actual refusal (a rate-limit stop, an exhausted quota, a provider's usage 429): the time the refusal said it lifts, or a short bounded cool-off when it gave none. Never send it for a usage percentage alone; an account can keep working past 100%. Send it with each status update while it stands and null once a turn succeeds. While it is ahead DevSpec offers this agent no check job and hands back any it holds; the agent still shows online. A time already past clears it, one more than 7 days ahead is held to 7 days, and a value that is not a time is ignored. Omitted: unchanged."
 				},
 				"agent_name": {
 					"type": "string",

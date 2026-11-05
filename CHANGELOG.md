@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.17 - 2026-11-05
+
+- When your agent looks for the right DevSpec tool, it gets DevSpec's full search again instead of plain keyword matching. DevSpec changed how it describes the checks it sends to a busy agent, and Pi's built-in copy of DevSpec's tools has to match DevSpec's exactly for the full search to answer. Pi now carries the new description: a check sent while your agent is busy stays with it as earlier work finishes, and moves to someone else only after your agent has been idle for about a minute, hands it back or stops listening. Update with `pi update --extensions`, then restart Pi.
+
 ## 0.10.16 - 2026-11-04
 
 - When your agent reads a guide, reference or runbook, it now sees the document's change history: who made each change, who asked for it and which version it replaced. It can page back through all of it, as it already could for a decision. Update with `pi update --extensions`, then restart Pi.

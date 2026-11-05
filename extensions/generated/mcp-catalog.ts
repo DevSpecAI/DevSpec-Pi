@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: ffa3ed95e6534f09ed549722c4a8441a82b0b5aa04a21a2f3abc37863d21fdb9
+ * Schema fingerprint: d4de95429bc7e81f8db882097a0199d1af932078d3db026e0fb2ac87a1d2c560
  * Description fingerprint: fca6f4d436c4e9a675ef6e92c6187f502d94558229ec071caed83e70598642ef
- * Regenerated: 2026-11-04T09:05:58.903Z
+ * Regenerated: 2026-11-05T08:22:09.368Z
  */
-export const MCP_CATALOG_FINGERPRINT = "ffa3ed95e6534f09ed549722c4a8441a82b0b5aa04a21a2f3abc37863d21fdb9";
+export const MCP_CATALOG_FINGERPRINT = "d4de95429bc7e81f8db882097a0199d1af932078d3db026e0fb2ac87a1d2c560";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "fca6f4d436c4e9a675ef6e92c6187f502d94558229ec071caed83e70598642ef";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-04T09:05:58.903Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-05T08:22:09.368Z";
 export const TOOL_CATALOG_VERSION = "46c3b7cf5984aadb73d3846e9a1b7c6834637deceae13fc4ff60985559ba542e";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -15153,7 +15153,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						1
 					],
-					"description": "1 says this host understands check jobs: dispatches[] then also carries kind check_job, a check DevSpec sends this agent to rule (inbox metadata only; take it with claim_check_job). Send it on every call: a connection that does not is never sent a check job, and DevSpec rules its checks. Send it only if you report busy truthfully, true while working a turn and false when it ends: an offered job you did not claim is dropped when a turn that started after it arrived ends, and a claimed one when your turn ends. Unknown versions are refused before anything is delivered."
+					"description": "1 says this host understands check jobs: dispatches[] then also carries kind check_job, a check DevSpec sends this agent to rule (inbox metadata only; take it with claim_check_job). Send it on every call: a connection that does not is never sent a check job, and DevSpec rules its checks. Send it only if you report busy truthfully, true while working a turn and false when it ends, because DevSpec reads busy to decide when a job has been left: an offered job you have not claimed stays with you across the endings of earlier turns while it waits behind your active one, and goes to the next in line only once you have been idle for about a minute, hand it back, or stop listening; a job you claimed goes on if your own turn ends without ruling it. The served contract (devspec://product/remote-ingress-contract) has the rules. Unknown versions are refused before anything is delivered."
 				},
 				"sender_style_version": {
 					"type": "integer",
@@ -15660,7 +15660,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"enum": [
 						1
 					],
-					"description": "1 says this host understands check jobs: dispatches[] then also carries kind check_job, a check DevSpec sends this agent to rule (inbox metadata only; take it with claim_check_job). Send it on every call: a connection that does not is never sent a check job, and DevSpec rules its checks. Send it only if you report busy truthfully, true while working a turn and false when it ends: an offered job you did not claim is dropped when a turn that started after it arrived ends, and a claimed one when your turn ends. Unknown versions are refused before anything is delivered."
+					"description": "1 says this host understands check jobs: dispatches[] then also carries kind check_job, a check DevSpec sends this agent to rule (inbox metadata only; take it with claim_check_job). Send it on every call: a connection that does not is never sent a check job, and DevSpec rules its checks. Send it only if you report busy truthfully, true while working a turn and false when it ends, because DevSpec reads busy to decide when a job has been left: an offered job you have not claimed stays with you across the endings of earlier turns while it waits behind your active one, and goes to the next in line only once you have been idle for about a minute, hand it back, or stop listening; a job you claimed goes on if your own turn ends without ruling it. The served contract (devspec://product/remote-ingress-contract) has the rules. Unknown versions are refused before anything is delivered."
 				},
 				"sender_style_version": {
 					"type": "integer",

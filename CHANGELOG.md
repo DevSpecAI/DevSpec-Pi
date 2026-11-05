@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.18 - 2026-11-05
+
+- Updated `README.md` to match Pi's shipped command surface (`/devspec.remote`, `--project`, `--session`, `stop`, `reconnect`, `auto`, `preempt`, `/devspec.work`, `/devspec.help`, `/devspec.project`, `pi --devspec-project`, `/devspec.pin`, `/devspec.reload`, and `/devspec.review`), automatic startup connection on the **Agents** page, check-ruling and automation wake behavior, single-claim commit tagging across linked repositories and pinned folders, observed criterion verification, Protected intent holds, and GitHub pull-request checks.
+- Regenerated the built-in tool catalogue against DevSpec's updated pull-request check and runtime telemetry definitions so `search_devspec_tools` stays aligned with the server. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.10.17 - 2026-11-05
 
 - When your agent looks for the right DevSpec tool, it gets DevSpec's full search again instead of plain keyword matching. DevSpec changed how it describes the checks it sends to a busy agent, and Pi's built-in copy of DevSpec's tools has to match DevSpec's exactly for the full search to answer. Pi now carries the new description: a check sent while your agent is busy stays with it as earlier work finishes, and moves to someone else only after your agent has been idle for about a minute, hands it back or stops listening. Update with `pi update --extensions`, then restart Pi.

@@ -3,13 +3,13 @@
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
  * Schema fingerprint: 8340be81ccff670549178de378f5cd9caaf70e901fb11eb3af1b6b70b0678dbd
- * Description fingerprint: 92c34cc4ad2bfd7fc13b76499459296f454890fd7cb931ea52ed14db8a09ec1d
- * Regenerated: 2026-11-05T15:07:37.722Z
+ * Description fingerprint: bd97e2c0a98e3c0f2375f3e6d462280c5d38445ddaf753f4e25543e0710aebbf
+ * Regenerated: 2026-11-06T11:07:20.721Z
  */
 export const MCP_CATALOG_FINGERPRINT = "8340be81ccff670549178de378f5cd9caaf70e901fb11eb3af1b6b70b0678dbd";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "92c34cc4ad2bfd7fc13b76499459296f454890fd7cb931ea52ed14db8a09ec1d";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-05T15:07:37.722Z";
-export const TOOL_CATALOG_VERSION = "2dc435cc4c302ffe6e9916375fa9616713d353b31ffc9df4fbef5b72b1b5681f";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "bd97e2c0a98e3c0f2375f3e6d462280c5d38445ddaf753f4e25543e0710aebbf";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-06T11:07:20.722Z";
+export const TOOL_CATALOG_VERSION = "28a18e3839764d41d1044194e1e109b4755e9e26dad63e6836c42bc7b331affe";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -188,7 +188,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_pull_request",
 		"name": "get pull request",
-		"description": "Read one pull request as DevSpec last synced it: state, review, checks, branches, changed files, commits, and the tasks and knowledge linked to it by recorded evidence, plus anything still awaiting a maintainer. A link with nothing behind it is reported in absent, never guessed. Pass number (with repo when the project tracks several repositories) or pull_request_id; a pull request not yet synced comes back not found. Read-only: DevSpec publishes its check on pull requests to reflect pending checks and holds, and never approves or merges a pull request on GitHub or changes branch protection.",
+		"description": "Read one pull request as DevSpec last synced it: state, review, checks, branches, changed files, commits, and the tasks and knowledge linked to it by recorded evidence, plus anything still awaiting a maintainer. A link with nothing behind it is reported in absent, never guessed. Pass number (with repo when the project tracks several repositories) or pull_request_id; a pull request not yet synced comes back not found. Read-only. DevSpec publishes its check on pull requests: into the tracking branch it reflects pending checks and holds on the work, into the release branch it holds only for what is being released, into any other branch it reports Not checked here, and one still running when the pull request merges or closes is finished as neutral. DevSpec never approves or merges a pull request on GitHub or changes branch protection.",
 		"intent": "read pull request changes commits linked tasks knowledge review state"
 	},
 	{
@@ -2206,7 +2206,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_pull_request",
 		"label": "DevSpec: Get Pull Request",
-		"description": "Read one pull request as DevSpec last synced it: state, review, checks, branches, changed files, commits, and the tasks and knowledge linked to it by recorded evidence, plus anything still awaiting a maintainer. A link with nothing behind it is reported in absent, never guessed. Pass number (with repo when the project tracks several repositories) or pull_request_id; a pull request not yet synced comes back not found. Read-only: DevSpec publishes its check on pull requests to reflect pending checks and holds, and never approves or merges a pull request on GitHub or changes branch protection.",
+		"description": "Read one pull request as DevSpec last synced it: state, review, checks, branches, changed files, commits, and the tasks and knowledge linked to it by recorded evidence, plus anything still awaiting a maintainer. A link with nothing behind it is reported in absent, never guessed. Pass number (with repo when the project tracks several repositories) or pull_request_id; a pull request not yet synced comes back not found. Read-only. DevSpec publishes its check on pull requests: into the tracking branch it reflects pending checks and holds on the work, into the release branch it holds only for what is being released, into any other branch it reports Not checked here, and one still running when the pull request merges or closes is finished as neutral. DevSpec never approves or merges a pull request on GitHub or changes branch protection.",
 		"searchIntent": "read pull request changes commits linked tasks knowledge review state",
 		"modelInputSchema": {
 			"type": "object",

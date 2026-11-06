@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.19 - 2026-11-06
+
+- When your agent looks up a pull request, it now hears what DevSpec's check on it means for where the pull request is going. Into your tracking branch, the check reflects the work's pending checks and holds. Into your release branch, it holds only for what is being released. Into any other branch, it reports Not checked here. A check still running when the pull request merges or closes is finished as neutral. Pi's built-in copy of DevSpec's tools carries the new description, so `search_devspec_tools` stays aligned with the server. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.10.18 - 2026-11-05
 
 - Updated `README.md` to match Pi's shipped command surface (`/devspec.remote`, `--project`, `--session`, `stop`, `reconnect`, `auto`, `preempt`, `/devspec.work`, `/devspec.help`, `/devspec.project`, `pi --devspec-project`, `/devspec.pin`, `/devspec.reload`, and `/devspec.review`), automatic startup connection on the **Agents** page, check-ruling and automation wake behavior, single-claim commit tagging across linked repositories and pinned folders, observed criterion verification, Protected intent holds, and GitHub pull-request checks.

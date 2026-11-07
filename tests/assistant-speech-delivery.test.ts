@@ -9,12 +9,15 @@ import { extractAssistantParts, TrailBuilder } from "../extensions/core/trail.ts
 import { unwrapMcpResult } from "../extensions/core/result.ts";
 import { parsePostSessionReceipt, TrailDeliveryState } from "../extensions/core/post-session-receipt.ts";
 import { formatSenderStyleRepair, REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE, senderStyleRepairNeeded } from "../extensions/core/remote-payload.ts";
+import { runSpeaks, wakeIsQuiet } from "../extensions/core/run-voice.ts";
 
 const source = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 const speech = source.slice(source.indexOf("const assistantSpeechQueue ="), source.indexOf("// Per-turn telemetry"));
 const contextHook = source.slice(source.indexOf('\tpi.on("context"'), source.indexOf('\tpi.on("turn_start"'));
 const endHook = source.slice(source.indexOf('\tpi.on("message_end"'), source.indexOf('\tpi.on("tool_execution_start"'));
 const segment = source.slice(source.indexOf("async function postSegmentAnswer("), source.indexOf("/**\n * Settle the run"));
+// What woke a segment decides whether it speaks (a868f41f): the real helpers, sliced.
+const voice = source.slice(source.indexOf("function segmentWake("), source.indexOf("function isCommandTurnUnbound("));
 const envelope = (details: unknown) => ({ content: [{ type: "text", text: JSON.stringify(details) }] });
 const message = (text: string, stopReason = "stop", tools = false) => ({ role: "assistant", stopReason, content: [
 	{ type: "thinking", thinking: "private thinking" }, { type: "text", text }, ...(tools ? [{ type: "toolCall", name: "bash" }] : []),
@@ -31,7 +34,7 @@ function harness(gate?: Promise<void>, receipt?: (args: Record<string, unknown>)
 	t.tracker.userMessage("[DevSpec remote — message from Ali] continue");
 	const ctx = { hasUI: true };
 	const sandbox = {
-		AssistantSpeechSource, AssistantSpeechQueue, assistantSpeechWithinBudget, unwrapMcpResult, parsePostSessionReceipt,
+		AssistantSpeechSource, AssistantSpeechQueue, assistantSpeechWithinBudget, unwrapMcpResult, parsePostSessionReceipt, runSpeaks, wakeIsQuiet,
 		TurnTracker, shouldSplitSpeech, isClosedAnswer, extractAssistantParts, turn: t, pump: { bond, generation: 1, stop: false }, lastCtx: ctx,
 		getBond: () => bond, resolveToken: async () => ({ token: "private-bearer" }), ensureTurn() {}, replyModelArgs: () => ({ model: { providerID: "test", modelID: "model" } }),
 		interactionIdentity: () => undefined, exactInteractionContinuationArgs: (value: unknown) => value,
@@ -56,7 +59,7 @@ function harness(gate?: Promise<void>, receipt?: (args: Record<string, unknown>)
 		},
 		pi: { on: (name: string, fn: typeof hooks[string]) => hooks[name] = fn, appendEntry: (type: string, data: unknown) => journal.push({ type, data }) },
 	};
-	const api = runInNewContext(stripTypeScriptTypes(`${speech}\n${segment}\n${contextHook}\n${endHook}\n({ prepareAssistantSpeech, postSegmentAnswer })`), sandbox);
+	const api = runInNewContext(stripTypeScriptTypes(`${voice}\n${speech}\n${segment}\n${contextHook}\n${endHook}\n({ prepareAssistantSpeech, postSegmentAnswer })`), sandbox);
 	return { hooks, ctx, t, bond, sandbox, requests, journal, warnings, api, drain: () => Promise.all(posts) };
 }
 

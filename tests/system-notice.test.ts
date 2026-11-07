@@ -70,6 +70,10 @@ test("a notice that does not match its version, vocabulary, bounds or contract U
 		(value) => { value.allowed_outcomes = ["confirm_item_correct"]; },
 		(value) => { value.allowed_tools = ["bash"]; },
 		(value) => { value.extra = true; },
+		// Channel version 3 (a868f41f): the label is part of the exact shape.
+		(value) => { delete value.audience; },
+		(value) => { value.audience = "nobody"; },
+		(value) => { value.audience = null; },
 	];
 	for (const mutate of mutations) {
 		const payload = noticePoll();
@@ -100,8 +104,8 @@ test("a notice that does not match its version, vocabulary, bounds or contract U
 });
 
 test("unknown negotiation and spoofed or mismatched exact addressees fail closed", () => {
-	// The channel asked for version 2 (1e25f0f0); any other echo is not what it negotiated.
-	for (const echoed of [1, 3]) {
+	// The channel asked for version 3 (a868f41f); any other echo is not what it negotiated.
+	for (const echoed of [1, 2, 4]) {
 		const unknownTop = noticePoll();
 		unknownTop.system_notice_version = echoed;
 		assert.equal(parsePollPayload(unknownTop, TEST_CONNECTION).canonicalState, "invalid", `echo ${echoed}`);
@@ -126,13 +130,14 @@ test("unknown negotiation and spoofed or mismatched exact addressees fail closed
 	assert.equal(parsePollPayload(canonicalSpoof, TEST_CONNECTION).canonicalState, "invalid");
 });
 
-// DevSpec sends server_notice only to a channel that negotiated version 2, and
-// records the last version asked for on the connection, so the poll and the push
-// stream ask for the same one. Version 2 adds kinds and changes none: a
-// server_notice still arrives as a version-1 body and is read in full (1e25f0f0).
-test("the channel asks for notice version 2 and still reads a version-1 server_notice body in full", () => {
-	assert.equal(SYSTEM_NOTICE_CHANNEL_VERSION, 2);
-	assert.match(pushChannelUrl({ mcpUrl: "https://devspec.test/api/mcp", connectionId: "c", systemNoticeVersion: SYSTEM_NOTICE_CHANNEL_VERSION }), /[?&]system_notice_version=2(&|$)/);
+// DevSpec sends server_notice only to a channel that negotiated version 2 or
+// later, and records the last version asked for on the connection, so the poll and
+// the push stream ask for the same one. Version 3 adds DevSpec's label, audience,
+// to every notice and changes nothing else: a server_notice still arrives as a
+// version-1 body and is read in full (1e25f0f0, a868f41f).
+test("the channel asks for notice version 3 and still reads a version-1 server_notice body in full, label included", () => {
+	assert.equal(SYSTEM_NOTICE_CHANNEL_VERSION, 3);
+	assert.match(pushChannelUrl({ mcpUrl: "https://devspec.test/api/mcp", connectionId: "c", systemNoticeVersion: SYSTEM_NOTICE_CHANNEL_VERSION }), /[?&]system_notice_version=3(&|$)/);
 	const outcome = {
 		version: 1 as const,
 		kind: "server_notice" as const,
@@ -145,6 +150,7 @@ test("the channel asks for notice version 2 and still reads a version-1 server_n
 		records: [{ label: "Target record", record_type: "memory", record_id: IDS.project, title: "Release notes", text: "Release notes are written for customers.", url: null }],
 		allowed_outcomes: ["keep_current_decision", "revise_and_resubmit"],
 		allowed_tools: ["get_memory", "update_memory", "supersede_memory"],
+		audience: "needs_person" as const,
 	};
 	const payload = canonicalPoll({ wakeKind: "system_notice", systemNotices: [outcome as never] });
 	assert.equal(payload.system_notice_version, SYSTEM_NOTICE_CHANNEL_VERSION, "DevSpec echoes the version the poll asked for");
@@ -359,7 +365,7 @@ test("ruling outcomes and write-quality notices are introduced as what they are"
 		version: 1 as const, kind: "server_notice" as const, notice_id: IDS.notice, notice_type: "x",
 		summary: "s", prompt: "Correct the affected content.", contract_uri: "devspec://product/remote-ingress-contract" as const,
 		records: [{ label: "Record requiring correction", record_type: "task", record_id: IDS.project, title: "T", text: "t", url: null }],
-		allowed_outcomes: ["correct_record"], allowed_tools: ["get_task", "update_task"],
+		allowed_outcomes: ["correct_record"], allowed_tools: ["get_task", "update_task"], audience: "for_the_record" as const,
 	};
 	assert.match(formatSystemNoticeMessage([{ ...base, topic: "write_quality" }]), /A record this agent wrote needs a content correction\./);
 	assert.match(formatSystemNoticeMessage([{ ...base, topic: "intent_ruling_outcome" }]), /Someone answered on work of this agent's that waited for an OK, or on an experiment of its own\./);
@@ -387,6 +393,7 @@ test("the outcome of a request to confirm is introduced as that, not as a findin
 		],
 		allowed_outcomes: ["acknowledge_outcome"],
 		allowed_tools: ["get_review_queue", "manage_protected_intent"],
+		audience: "needs_person" as const,
 	};
 	const parsed = parsePollPayload(canonicalPoll({ wakeKind: "system_notice", systemNotices: [outcome as never] }), TEST_CONNECTION);
 	assert.equal(parsed.canonicalState, "valid");
@@ -426,6 +433,7 @@ test("general server_notice envelope parses, validates labelled records, and for
 		],
 		allowed_outcomes: ["retract_memory", "supersede_memory", "request_amendment"],
 		allowed_tools: ["get_memory", "retract_memory", "supersede_memory", "update_memory"],
+		audience: "needs_person" as const,
 	};
 	const payload = canonicalPoll({ wakeKind: "system_notice", systemNotices: [findingNotice as never] });
 	(payload as Record<string, unknown>).session_id = null;

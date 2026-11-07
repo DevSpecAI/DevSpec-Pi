@@ -31,21 +31,21 @@ async function scenario(name) {
 	const now = new Date().toISOString();
 	const session = join(temp, "session.jsonl");
 	writeFileSync(session, JSON.stringify({ type: "session", version: 3, id: native, cwd: temp, timestamp: now }) + "\n", { mode: 0o600 });
-	const notice = { version: 1, kind: "server_notice", notice_id: IDS.notice, topic: "coherence_finding", notice_type: "duplicate", summary: "Confirmed duplicate: \"A\" duplicates \"B\".", prompt: "Tell your person in plain words unless they already know.", contract_uri: "devspec://product/remote-ingress-contract", records: [{ label: "Duplicate record", record_type: "task", record_id: uid(20), title: "B", text: "B", url: null }], allowed_outcomes: ["acknowledge_finding"], allowed_tools: ["get_task"] };
+	const notice = { version: 1, kind: "server_notice", notice_id: IDS.notice, topic: "coherence_finding", notice_type: "duplicate", summary: "Confirmed duplicate: \"A\" duplicates \"B\".", prompt: "Tell your person in plain words unless they already know.", contract_uri: "devspec://product/remote-ingress-contract", records: [{ label: "Duplicate record", record_type: "task", record_id: uid(20), title: "B", text: "B", url: null }], allowed_outcomes: ["acknowledge_finding"], allowed_tools: ["get_task"], audience: "needs_person" };
 	const calls = [], events = [], errors = [], notifications = [], streams = new Set();
 	let phase = "startup", noticePending = false, noticeOffered = false, ownerPending = false, ownerOffered = false, child;
 	const response = (data) => ({ content: [{ type: "text", text: JSON.stringify(data) }] });
 	const base = (args = {}) => ({ connection_id: conn, session_id: attached ? room : null, attached_at: attached ? now : null, speech_attachment_id: attached ? attachment : null, changed: false, cursor_v2: null, dispatch_cursor: null, dispatches: [],
-		...(args.system_notice_version === 2 ? { system_notice_version: 2, system_notice_cursor: null, system_notices: [] } : {}),
+		...(args.system_notice_version === 3 ? { system_notice_version: 3, system_notice_cursor: null, system_notices: [] } : {}),
 		...(args.interaction_event_version === 1 ? { interaction_event_version: 1, interaction_events: [], question_dismissal_event_version: 1, question_dismissal_events: [] } : {}) });
 	const contract = { kind: "devspec.product.remote_ingress_contract", schema_version: 1, contract_version: "1.5.0", policy: { policy_version: "2026-09-18.1" } };
 	function poll(args) {
 		const style = args.sender_style_version === 1;
 		if (ownerPending && !ownerOffered) {
 			ownerOffered = true;
-			return { ...base(args), ...canonicalPoll({ body: "OWNER-COMMAND-BODY", senderStyleNegotiated: style, systemNoticeNegotiated: args.system_notice_version === 2 }) };
+			return { ...base(args), ...canonicalPoll({ body: "OWNER-COMMAND-BODY", senderStyleNegotiated: style, systemNoticeNegotiated: args.system_notice_version === 3 }) };
 		}
-		if (noticePending && !noticeOffered && args.system_notice_version === 2) {
+		if (noticePending && !noticeOffered && args.system_notice_version === 3) {
 			noticeOffered = true;
 			return { ...base(args), ...canonicalPoll({ wakeKind: "system_notice", systemNotices: [notice], senderStyleNegotiated: style, context: { human_context: [], agent_context: [], ai_context: [], system_context: [] } }) };
 		}

@@ -9,6 +9,7 @@ import { extractAssistantParts, TrailBuilder } from "../extensions/core/trail.ts
 import { unwrapMcpResult } from "../extensions/core/result.ts";
 import { parsePostSessionReceipt, TrailDeliveryState } from "../extensions/core/post-session-receipt.ts";
 import { formatSenderStyleRepair, REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE, senderStyleRepairNeeded } from "../extensions/core/remote-payload.ts";
+import { runSpeaks, wakeIsQuiet } from "../extensions/core/run-voice.ts";
 
 // Item e99d158b: a run dying on a terminal provider error (402 out-of-credit,
 // auth, exhausted retries) must post its reason to the room instead of closing
@@ -19,6 +20,8 @@ const speech = source.slice(source.indexOf("const assistantSpeechQueue ="), sour
 const contextHook = source.slice(source.indexOf('\tpi.on("context"'), source.indexOf('\tpi.on("turn_start"'));
 const endHook = source.slice(source.indexOf('\tpi.on("message_end"'), source.indexOf('\tpi.on("tool_execution_start"'));
 const segment = source.slice(source.indexOf("async function postSegmentAnswer("), source.indexOf("/**\n * Settle the run"));
+// What woke a segment decides whether it speaks (a868f41f): the real helpers, sliced.
+const voice = source.slice(source.indexOf("function segmentWake("), source.indexOf("function isCommandTurnUnbound("));
 const terminalError = source
 	.slice(source.indexOf("const TERMINAL_ERROR_PROVIDER_CHARS"), source.indexOf("/** Start the exact event/claim-bound activity"))
 	.replace("export function renderTerminalErrorPost", "function renderTerminalErrorPost");
@@ -31,7 +34,7 @@ function captureHarness() {
 		trailDelivery: new TrailDeliveryState(), commandTurnId: "command", commandMessageId: "input", completionNeutral: false, canPost: () => true } as Record<string, unknown>;
 	const ctx = { hasUI: true };
 	const sandbox = {
-		AssistantSpeechSource, AssistantSpeechQueue, assistantSpeechWithinBudget, unwrapMcpResult, parsePostSessionReceipt,
+		AssistantSpeechSource, AssistantSpeechQueue, assistantSpeechWithinBudget, unwrapMcpResult, parsePostSessionReceipt, runSpeaks, wakeIsQuiet,
 		TurnTracker, shouldSplitSpeech, isClosedAnswer, extractAssistantParts, turn: t, pump: { bond, generation: 1, stop: false }, lastCtx: ctx,
 		getBond: () => bond, resolveToken: async () => ({ token: "private-bearer" }), ensureTurn() {}, replyModelArgs: () => ({}),
 		interactionIdentity: () => undefined, exactInteractionContinuationArgs: (value: unknown) => value,
@@ -47,7 +50,7 @@ function captureHarness() {
 			envelope({ connection_id: args.connection_id, session_id: bond.sessionId, phase: "answer", assistant_source_id: args.assistant_source_id, message_id: "row", delivery: { status: "stored", message_id: "row" } }),
 		pi: { on: (name: string, fn: typeof hooks[string]) => hooks[name] = fn, appendEntry: () => {} },
 	};
-	runInNewContext(stripTypeScriptTypes(`${speech}\n${segment}\n${contextHook}\n${endHook}`), sandbox);
+	runInNewContext(stripTypeScriptTypes(`${voice}\n${speech}\n${segment}\n${contextHook}\n${endHook}`), sandbox);
 	return { hooks, ctx, t };
 }
 
@@ -58,6 +61,8 @@ function reportHarness(postResults: Array<{ receipt?: "stored" | "skipped" | "re
 	const styles = new Map([["command", [{ id: "x", responseStyleNotes: [] }]]]);
 	const t = {
 		terminalError: '402 {"error":{"message":"Insufficient balance"}}',
+		tracker: new TurnTracker(),
+		completionNeutral: false,
 		trail: new TrailBuilder(),
 		commandTurnId: "command", commandMessageId: "input",
 		interaction: undefined, canPost: () => true,
@@ -68,7 +73,7 @@ function reportHarness(postResults: Array<{ receipt?: "stored" | "skipped" | "re
 	t.trail.toolStart("call-1", "bash", { command: "npm test" });
 	t.trail.toolEnd("call-1", "bash", true, { content: [] });
 	const sandbox = {
-		FINAL_TRAIL_CHARS: 100000,
+		FINAL_TRAIL_CHARS: 100000, runSpeaks, wakeIsQuiet,
 		isCommandTurnUnbound: () => false,
 		interactionIdentity: () => undefined,
 		postToSession: async (message: string, opts: Record<string, unknown>) => {
@@ -82,7 +87,7 @@ function reportHarness(postResults: Array<{ receipt?: "stored" | "skipped" | "re
 		noteCommandTurnClosed: (id: unknown) => closed.push(id),
 	};
 	const api = runInNewContext(
-		stripTypeScriptTypes(`${terminalError}\n({ reportTerminalError, renderTerminalErrorPost })`),
+		stripTypeScriptTypes(`${voice}\n${terminalError}\n({ reportTerminalError, renderTerminalErrorPost })`),
 		sandbox,
 	) as { reportTerminalError: (t: unknown, stats: null) => Promise<void>; renderTerminalErrorPost: (m: string) => string };
 	return { api, posts, forgotten, closed, styles, t };

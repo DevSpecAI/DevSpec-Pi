@@ -230,10 +230,23 @@ test("bonded instructions say to resolve a duplicate of a task the agent wrote o
 	}
 });
 
+test("bonded instructions point at the served contract for what stays out of the room, never restating it (a868f41f)", () => {
+	setBond({ connectionId: "11111111-1111-4111-8111-111111111111", codename: "Amber Hawk" });
+	try {
+		const lines = buildBondedInstructions()!.split("\n").filter((line) => line.includes("delivered to the DevSpec session mechanically"));
+		assert.equal(lines.length, 1);
+		assert.match(lines[0]!, /A run woken by a check job, or only by notices DevSpec labels for the record, posts nothing there \(the served contract's check_job\.room and semantics\.notice_audience\) unless one of its writes comes back carrying tell_person\./);
+		// Nothing asks an agent to post about ruling a check, or to report what happened after one.
+		assert.doesNotMatch(buildBondedInstructions()!, /post what happened|post (?:about|a summary of) (?:the )?(?:check|ruling)/i);
+	} finally {
+		setBond(null);
+	}
+});
+
 test("bonded instructions say how to take and rule a check job, behaviour only", () => {
 	setBond({ connectionId: "11111111-1111-4111-8111-111111111111", codename: "Amber Hawk" });
 	try {
-		const lines = buildBondedInstructions()!.split("\n").filter((line) => line.includes("check job"));
+		const lines = buildBondedInstructions()!.split("\n").filter((line) => line.includes("claim_check_job"));
 		assert.equal(lines.length, 1, "one line, in the bonded block");
 		const line = lines[0]!;
 		assert.match(line, /^DevSpec sends every check on a change — your own changes included — as a check job on your wake channel/);

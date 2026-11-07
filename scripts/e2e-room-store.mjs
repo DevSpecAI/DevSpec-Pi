@@ -49,7 +49,7 @@ const contract = { kind: "devspec.product.remote_ingress_contract", schema_versi
 function poll(args) {
 	const room = args.room_context_version === 1;
 	if (room) roomLanePolls.push(args.notice_reply_version === 1);
-	const noticeVersion = args.system_notice_version === 1 || args.system_notice_version === 2 ? args.system_notice_version : null;
+	const noticeVersion = [1, 2, 3].includes(args.system_notice_version) ? args.system_notice_version : null;
 	const notices = noticeVersion !== null;
 	const style = args.sender_style_version === 1;
 	const version = room ? "1.6.0" : style ? "1.5.0" : notices ? "1.4.0" : "1.3.0";

@@ -242,6 +242,8 @@ import {
 	postNoticeReply,
 	type NoticeReplyCapture,
 } from "./core/notice-reply.ts";
+import { runSpeaks, wakeIsQuiet, type RunWake } from "./core/run-voice.ts";
+import { takeTellPerson } from "./core/tell-person.ts";
 
 class StaleCommandHandoffError extends DevspecToolError {}
 
@@ -447,6 +449,12 @@ interface TurnState {
 	 * as their reply when the segment closes (6aad2b46). Never carried to the next segment.
 	 */
 	noticeReply?: NoticeReplyCapture;
+	/**
+	 * A write in this segment came back with DevSpec's tell_person mark: it changed
+	 * someone else's record (a868f41f). A segment that is quiet by what woke it
+	 * speaks from then on (run-voice.ts). Never carried to the next segment.
+	 */
+	tellPerson?: boolean;
 	/**
 	 * Terminal provider failure reason for this run (item e99d158b): a
 	 * stopReason "error" assistant message is never speech and never settles
@@ -943,6 +951,10 @@ function deliverAssistantSpeech(t: TurnState, message: unknown, append: (type: s
 	// used to end in a false "storage not confirmed". Its final message reaches the
 	// room through the notice reply instead (6aad2b46).
 	if (t.completionNeutral) return;
+	// A check-job run is quiet (a868f41f): its text stays in this session, unless
+	// one of its writes changed someone else's record (tell_person), after which its
+	// messages are delivered like any other run's.
+	if (!runSpeaks(segmentWake(t), t.tellPerson === true)) return;
 	const captured = t.assistantSpeech;
 	const record = captured?.source.finalize(message);
 	if (!record) return;
@@ -1177,6 +1189,23 @@ function trackTerminalPost(post: Promise<void>): void {
 	);
 }
 
+/**
+ * What woke this segment (a868f41f, criterion f9caa4fa): a notice batch, a check
+ * job, or anything else. With DevSpec's tell_person mark it decides whether the
+ * segment's text reaches the room (run-voice.ts), never the text itself.
+ */
+function segmentWake(t: TurnState): RunWake {
+	if (t.completionNeutral && t.noticeReply) {
+		return t.noticeReply.noticeIds.length > 0 ? "notice_needs_person" : "notice_for_the_record";
+	}
+	return t.tracker.userKind === "check_job" ? "check_job" : "person";
+}
+
+/** Quiet by what woke it: no speech, answer, trail or error notice in the room. */
+function segmentIsQuiet(t: TurnState): boolean {
+	return wakeIsQuiet(segmentWake(t));
+}
+
 function isCommandTurnUnbound(t: TurnState): boolean {
 	// Every actionable remote command now has BOTH ids (extractor fails closed).
 	// Interaction continuations are exact source-less generations too.
@@ -1196,6 +1225,9 @@ function resetDirectedQuestionReceiptBatch(): void {
 
 function trailTick(): void {
 	if (!turn || !remoteRunActivityPolicy(turn.completionNeutral).reportTranscript) return;
+	// A quiet segment posts no work trail: a finished trail-only row is drawn in the
+	// conversation, which is exactly what a check job must not reach (a868f41f).
+	if (segmentIsQuiet(turn)) return;
 	if (turn.receiptBatch.deferTrail(turn.revision)) return;
 	const now = Date.now();
 	if (turn.interaction && now - (turn.lastInteractionKeepaliveAt ?? 0) >= 60_000) {
@@ -1311,6 +1343,8 @@ export function renderTerminalErrorPost(errorMessage: string): string {
  */
 async function reportTerminalError(t: TurnState, agentStats: AgentStatsReport | null): Promise<void> {
 	if (!t.terminalError) return;
+	// Nobody in the room asked for a quiet run; the provider's error stays in Pi (a868f41f).
+	if (segmentIsQuiet(t)) return;
 	const finalTrail = t.trail.render(FINAL_TRAIL_CHARS, false);
 	const finalEvents = t.trail.events();
 	const activityTrail = finalEvents.length > 0 ? finalTrail : undefined;
@@ -1431,10 +1465,13 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 	// message goes to the room as their reply and it reports no transcript,
 	// trail or completion, so it never closes a turn (6aad2b46).
 	if (t.completionNeutral) {
-		if (t.noticeReply) await deliverNoticeReply(t.noticeReply, agentStats);
+		if (t.noticeReply) await deliverNoticeReply(t.noticeReply, agentStats, t.tellPerson === true);
 		return false;
 	}
 	if (!remoteRunActivityPolicy(t.completionNeutral).reportTranscript) return false;
+	// A quiet segment (a check job) posts no answer and no trail. If a write of its
+	// own was marked tell_person, its messages already went out as speech (a868f41f).
+	if (segmentIsQuiet(t)) return false;
 	// The final render rides the answer post (item 9b7455df): the server
 	// REPLACES the fold-merged accumulation with this canonical final render —
 	// every tool closed, the whole segment's thinking — so the preserved
@@ -1478,8 +1515,25 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
  * local-turn or background-completion writers. Anything that keeps it out of the
  * room is said in the terminal, with DevSpec's own reason when DevSpec refused it.
  */
-async function deliverNoticeReply(capture: NoticeReplyCapture, agentStats: AgentStatsReport | null): Promise<void> {
+async function deliverNoticeReply(capture: NoticeReplyCapture, agentStats: AgentStatsReport | null, tellPerson: boolean): Promise<void> {
 	const ctx = lastCtx;
+	if (capture.noticeIds.length === 0) {
+		// Every notice was for the record (a868f41f): nothing is posted, not even to
+		// acknowledge it, unless a write of this run changed someone else's record.
+		// Then the person must hear what changed, in an ordinary message, because a
+		// reply naming only for-the-record notices is refused (notice_reply.only_when_needed).
+		if (!tellPerson || capture.finalText === null) {
+			debug("notice reply", { forTheRecord: capture.forTheRecordIds.length, posted: false });
+			return;
+		}
+		const told = await postTellPersonAnswer(capture.connectionId, capture.finalText);
+		debug("notice reply", { forTheRecord: capture.forTheRecordIds.length, tellPerson: true, posted: told === "posted" });
+		if (told !== "failed") return;
+		const message = "DevSpec: your agent changed someone else's record while handling a DevSpec notice, and its message saying so may not have reached the room. It stays here in the terminal.";
+		if (safeHasUI(ctx)) notify(ctx, message, "warning");
+		else console.error(message);
+		return;
+	}
 	const current = () => {
 		const active = pump;
 		const bond = getBond();
@@ -1510,6 +1564,40 @@ async function deliverNoticeReply(capture: NoticeReplyCapture, agentStats: Agent
 	if (!message) return;
 	if (safeHasUI(ctx)) notify(ctx, message, "warning");
 	else console.error(message);
+}
+
+/**
+ * A quiet notice run's final message, when one of its writes changed someone
+ * else's record (tell_person, a868f41f). It goes to the room as an ordinary
+ * message on the same append-only speech lane as every other Pi message: no
+ * command, turn or attempt identity, so it changes no Working, Pending or idle.
+ * "not_attached": there is no room, and the text stays in the terminal anyway.
+ */
+async function postTellPersonAnswer(connectionId: string, text: string): Promise<"posted" | "not_attached" | "failed"> {
+	const active = pump;
+	const bond = getBond();
+	const sessionId = bond?.sessionId;
+	const capability = bond?.connectionCapability;
+	if (!active || active.stop || bond?.connectionId !== connectionId) return "failed";
+	if (!sessionId) return "not_attached";
+	if (!capability || !assistantSpeechWithinBudget(text)) return "failed";
+	const current = () => pump === active && !active.stop &&
+		getBond()?.connectionId === connectionId && getBond()?.sessionId === sessionId;
+	const assistantSourceId = randomUUID();
+	try {
+		const resolved = await resolveToken();
+		if (!resolved || !current()) return "failed";
+		const raw = await callDevspec(resolved.token, "post_session_message", {
+			connection_id: connectionId, ingest_version: 2, assistant_source_id: assistantSourceId,
+			message: text, phase: "answer", complete_turn: false, ...replyModelArgs(),
+		}, { lane: "pump", retry: "never", connectionCapability: capability,
+			beforeSend: () => { if (!current()) throw new DevspecToolError("Speech scope changed."); } });
+		const receipt = parsePostSessionReceipt(raw, { connectionId, sessionId, phase: "answer", assistantSourceId });
+		if ("messageId" in receipt) noteOwnRoomMessage(receipt.messageId);
+		return receipt.status === "stored" || receipt.status === "idempotently_stored" ? "posted" : "failed";
+	} catch {
+		return "failed";
+	}
 }
 
 /**
@@ -4602,13 +4690,16 @@ export default function (pi: ExtensionAPI) {
 				turn.completionNeutral = true;
 				// The notices this run answers, for the reply its final message becomes
 				// (6aad2b46): only the connection they were delivered to may name them.
-				const noticeIds = noticeIdsFromDelivery(msg?.details);
+				// Only the notices that need a person are named in it; a batch of notices
+				// that are all for the record leaves the run quiet (a868f41f).
+				const { needsPerson, forTheRecord } = noticeIdsFromDelivery(msg?.details);
 				const connectionId = getBond()?.connectionId;
-				if (noticeIds.length > 0 && connectionId) {
-					const held = turn.noticeReply?.connectionId === connectionId ? turn.noticeReply.noticeIds : [];
+				if (needsPerson.length + forTheRecord.length > 0 && connectionId) {
+					const held = turn.noticeReply?.connectionId === connectionId ? turn.noticeReply : undefined;
 					turn.noticeReply = {
 						connectionId,
-						noticeIds: [...new Set([...held, ...noticeIds])],
+						noticeIds: [...new Set([...(held?.noticeIds ?? []), ...needsPerson])],
+						forTheRecordIds: [...new Set([...(held?.forTheRecordIds ?? []), ...forTheRecord])],
 						roomPromised: (msg?.details as { roomAttached?: unknown } | undefined)?.roomAttached === true,
 						finalText: null,
 					};
@@ -4676,6 +4767,7 @@ export default function (pi: ExtensionAPI) {
 				turn.speechBinding = undefined;
 				turn.speechScopeCaptured = false;
 				turn.localActivityReady = undefined;
+				turn.tellPerson = undefined;
 				turn.requestKind = segmentKind ?? "untyped";
 				turn.tracker.userMessage(text, { customType });
 				// Only a prompt the owner typed here is mirrored as a local prompt.
@@ -4860,6 +4952,10 @@ export default function (pi: ExtensionAPI) {
 		const launch = launchRequests.get(event.toolCallId);
 		launchRequests.delete(event.toolCallId);
 		recordLaunchedWork(event.toolName, launch, event.result, event.isError);
+		// DevSpec marked this write as changing someone else's record (a868f41f): a
+		// segment quiet by what woke it speaks from here on. Taken even with no turn.
+		const tellPerson = takeTellPerson(event.toolCallId);
+		if (tellPerson && turn) turn.tellPerson = true;
 		pi_syncBackgroundScope();
 		if (launchScope && observationScope && launchScope === backgroundScopeKey(observationScope)) {
 			const task = backgroundTaskFromLaunch(event.toolName, event.result, event.isError);

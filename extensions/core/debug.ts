@@ -58,7 +58,7 @@ const DEBUG_FIELDS = {
 	"interaction authority revoked before agent start": [],
 	"stale tool receipt abort": [],
 	"message_end: no turn": [],
-	"notice reply": ["posted", "idempotent", "refused", "unconfirmed", "skipped", "notices"],
+	"notice reply": ["posted", "idempotent", "refused", "unconfirmed", "skipped", "notices", "forTheRecord", "tellPerson"],
 	"optional room state rejected": ["sessionPolls", "stillToDiscuss", "sessionActivity", "noticeReply"],
 	"room storage unavailable": ["errorPresent"],
 	"poll recoverable": ["errors", "errorPresent"],

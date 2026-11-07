@@ -9,11 +9,14 @@ import { safeHasUI } from "../extensions/core/ctx-guard.ts";
 import { TrailPostFence } from "../extensions/core/question-receipt-lifecycle.ts";
 import { setProjectChoice } from "../extensions/core/project-choice.ts";
 import { resolveEndpoint } from "../extensions/core/auth-store.ts";
+import { runSpeaks, wakeIsQuiet } from "../extensions/core/run-voice.ts";
 
 const source = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 const postSource = source.slice(source.indexOf("function capturePostAuthority()"), source.indexOf("function trackTerminalPost("));
 const segmentSource = source.slice(source.indexOf("async function postSegmentAnswer("), source.indexOf("/**\n * Settle the run"));
 const tickSource = source.slice(source.indexOf("function trailTick()"), source.indexOf("/**\n * Explicitly close this connection"));
+// What woke a segment decides whether it speaks (a868f41f): the real helpers, sliced.
+const voice = source.slice(source.indexOf("function segmentWake("), source.indexOf("function isCommandTurnUnbound("));
 const envelope = (data: unknown) => ({ content: [{ type: "text", text: JSON.stringify(data) }] });
 const stored = (phase = "answer") => envelope({ session_id: "session", connection_id: "connection", phase, message_id: "row", delivery: { status: "stored", message_id: "row" } });
 function deferred<T>() {
@@ -47,10 +50,10 @@ function harness(call: (args: Record<string, unknown>) => Promise<unknown>) {
 		AGENT_NAME: "Pi", replyModelArgs: () => ({}),
 		exactInteractionContinuationArgs: (identity: Record<string, unknown>) => identity,
 		remoteRunActivityPolicy: () => ({ reportTranscript: true }),
-		nextTrailDelayMs: () => 0, isCommandTurnUnbound: () => false,
+		nextTrailDelayMs: () => 0, isCommandTurnUnbound: () => false, runSpeaks, wakeIsQuiet,
 		interactionIdentity: () => undefined, console: { error: (message: string) => warnings.push(message) },
 	};
-	const api = runInNewContext(stripTypeScriptTypes(`${postSource}\n${tickSource}\n${segmentSource}\n({postSegmentAnswer, postToSession, capturePostAuthority, trailTick, setTurn: value => { turn = value; }, setPump: value => { pump = value; }})`), context);
+	const api = runInNewContext(stripTypeScriptTypes(`${voice}\n${postSource}\n${tickSource}\n${segmentSource}\n({postSegmentAnswer, postToSession, capturePostAuthority, trailTick, setTurn: value => { turn = value; }, setPump: value => { pump = value; }})`), context);
 	return { ...api, active, requests, sent: sent.promise, warnings, logs, context };
 }
 
@@ -141,7 +144,7 @@ test("failed dirty trail stays pending without timer replay or resurrecting a re
 	const h = harness(async () => response.promise);
 	const makeTurn = () => ({ trailDelivery: new TrailDeliveryState(), canPost: h.capturePostAuthority(),
 		trailPostFence: new TrailPostFence(), receiptBatch: { deferTrail: () => false },
-		trail: { events: () => [{ type: "tool" }], render: () => "private work" },
+		trail: { events: () => [{ type: "tool" }], render: () => "private work" }, tracker: { userKind: "remote" },
 		commandTurnId: "command", commandMessageId: "source", posts: 0, lastPostAt: 0 });
 	const previous = makeTurn(); previous.trailDelivery.markDirty();
 	h.setTurn(previous); h.trailTick(); h.trailTick();

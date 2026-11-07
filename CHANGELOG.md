@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.20 - 2026-11-07
+
+- When your agent takes a check DevSpec sent it, the check now stays with it until it finishes or hands it back. Before, a check your agent had already started could be passed to another agent just because your agent's turn ended, and the other agent did the same check again. It now moves on only if your agent disconnects, goes quiet, or makes no progress on it for 15 minutes while idle. Pi's built-in copy of DevSpec's tools carries the new description, so `search_devspec_tools` stays aligned with the server. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.10.19 - 2026-11-06
 
 - When your agent looks up a pull request, it now hears what DevSpec's check on it means for where the pull request is going. Into your tracking branch, the check reflects the work's pending checks and holds. Into your release branch, it holds only for what is being released. Into any other branch, it reports Not checked here. A check still running when the pull request merges or closes is finished as neutral. Pi's built-in copy of DevSpec's tools carries the new description, so `search_devspec_tools` stays aligned with the server. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.

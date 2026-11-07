@@ -10,6 +10,7 @@
 
 import { pluginHeaders } from "./client-versions.ts";
 import { SYSTEM_NOTICE_CHANNEL_VERSION } from "./remote-payload.ts";
+import { CHECK_JOB_VERSION } from "./dispatch.ts";
 
 export interface PushChannelHandlers {
 	/** A wake frame arrived — something moved; fetch now. */
@@ -29,8 +30,8 @@ export interface PushChannelOptions {
 	connectionCapability?: string;
 	/** Main intake capability only; side polls never inherit this negotiation. */
 	systemNoticeVersion?: typeof SYSTEM_NOTICE_CHANNEL_VERSION;
-	/** Check jobs in dispatches[] (55d71b0c): the stream records it, so its wake can be for one. */
-	checkJobVersion?: 1;
+	/** Check jobs in dispatches[] (55d71b0c, version 2: 1d89fe56): the stream records it, so its wake can be for one. */
+	checkJobVersion?: typeof CHECK_JOB_VERSION;
 	/** Durable interaction events share this one stream's wake marker. */
 	interactionEventVersion?: 1;
 	questionDismissalEventVersion?: 1;
@@ -221,7 +222,7 @@ export function nextPushReconnectDelayMs(
 export function pushChannelUrl(opts: Pick<PushChannelOptions, "mcpUrl" | "connectionId" | "systemNoticeVersion" | "checkJobVersion" | "interactionEventVersion" | "questionDismissalEventVersion">): string {
 	const query = new URLSearchParams({ connection_id: opts.connectionId });
 	if (opts.systemNoticeVersion === SYSTEM_NOTICE_CHANNEL_VERSION) query.set("system_notice_version", String(SYSTEM_NOTICE_CHANNEL_VERSION));
-	if (opts.checkJobVersion === 1) query.set("check_job_version", "1");
+	if (opts.checkJobVersion === CHECK_JOB_VERSION) query.set("check_job_version", String(CHECK_JOB_VERSION));
 	if (opts.interactionEventVersion === 1) query.set("interaction_event_version", "1");
 	if (opts.questionDismissalEventVersion === 1) {
 		if (opts.interactionEventVersion !== 1) throw new Error("Dismissal requires answer negotiation");

@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import authExtension, { principalFrom } from "../extensions/devspec-auth.ts";
 import { setLaneClientFactoryForTests, resetClientCache } from "../extensions/core/client.ts";
-import { loginState, saveLogin } from "../extensions/core/auth-store.ts";
+import { authFilePath, loginState, saveLogin } from "../extensions/core/auth-store.ts";
 import { mcpUrl } from "../extensions/core/config.ts";
 
 const result = (payload: unknown) => ({ content: [{ type: "text", text: JSON.stringify(payload, null, 2) }] });
@@ -57,7 +57,23 @@ test("login, status and startup say plainly where the credential comes from", { 
     } as unknown as ExtensionAPI);
 
     await commands.get("devspec.status")!("", ctx);
-    assert.match(notices.at(-1)!, /\(production\): not signed in\. Run \/devspec\.login\./);
+    assert.match(notices.at(-1)!, /\(production\): not signed in\. Run \/devspec\.login to sign in through your browser\./);
+    assert.doesNotMatch(notices.at(-1)!, /pasted token/i);
+
+    await events.get("session_start")!({}, ctx);
+    assert.match(notices.at(-1)!, /Welcome to DevSpec \(production\)! Run \/devspec\.login to sign in through your browser\./);
+    assert.doesNotMatch(notices.at(-1)!, /pasted token/i);
+
+    // Even when a legacy token file exists, signed-out notices welcome the user without mentioning pasted tokens.
+    await mkdir(join(directory, "devspec"), { recursive: true });
+    await writeFile(authFilePath(), JSON.stringify({ token: "dvs_legacy" }), "utf8");
+    assert.deepEqual(await loginState(), { kind: "none", legacyToken: true });
+    await commands.get("devspec.status")!("", ctx);
+    assert.match(notices.at(-1)!, /\(production\): not signed in\. Run \/devspec\.login to sign in through your browser\./);
+    assert.doesNotMatch(notices.at(-1)!, /pasted token/i);
+    await events.get("session_start")!({}, ctx);
+    assert.match(notices.at(-1)!, /Welcome to DevSpec \(production\)! Run \/devspec\.login to sign in through your browser\./);
+    assert.doesNotMatch(notices.at(-1)!, /pasted token/i);
 
     // A saved browser login is used, verified once, and its name remembered.
     await seed(24 * 3_600_000);

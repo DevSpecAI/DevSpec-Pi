@@ -32,7 +32,7 @@ Inside `pi` run:
 /devspec.login
 ```
 
-Your browser opens DevSpec's approval page. Click **Allow**, and Pi is signed in as you, across all of your DevSpec projects. Pi keeps the sign-in on this computer, readable only by you, and renews it by itself, so you stay signed in until you sign out or disconnect Pi on your [Agent setup](https://app.devspec.ai/settings/agents) page.
+Your browser opens DevSpec's approval page. Click **Allow**, and Pi is signed in as you, across all of your DevSpec projects. Restart `pi` once so your status bar and agent connection load cleanly. Pi keeps the sign-in on this computer, readable only by you, and renews it by itself, so you stay signed in until you sign out or disconnect Pi on your [Agent setup](https://app.devspec.ai/settings/agents) page.
 
 - **Working over SSH, or on a machine your browser cannot reach?** Run `/devspec.login --code`. Open the link in any browser, approve, and paste the code the page shows back into Pi. Pi does this by itself in an SSH session.
 - **Staging and production** are signed in separately and side by side. Pi uses production unless `DEVSPEC_ENV=staging` (or a full `DEVSPEC_MCP_URL`) is set when it starts, and switching never needs a new sign-in.

@@ -258,10 +258,58 @@ export function browserCanReachThisMachine(env: NodeJS.ProcessEnv = process.env)
 	return !env.SSH_CONNECTION && !env.SSH_TTY && !env.SSH_CLIENT;
 }
 
-const PAGE_STYLE = "font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem;line-height:1.5;color:#1f2933";
+function escapeHtml(text: string): string {
+	return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
 
-function page(title: string, body: string): string {
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>${title}</title></head><body style="${PAGE_STYLE}"><h1 style="font-size:1.4rem">${title}</h1><p>${body}</p></body></html>`;
+function logoUrlForResource(resource: string): string {
+	try {
+		const u = new URL(resource);
+		if (u.protocol === "https:") {
+			if (u.hostname.startsWith("api.")) u.hostname = `app.${u.hostname.slice(4)}`;
+			return `${u.origin}/logo-icon.png`;
+		}
+	} catch {
+		// fall through to default production icon
+	}
+	return "https://app.devspec.ai/logo-icon.png";
+}
+
+function page(title: string, body: string, logoUrl = "https://app.devspec.ai/logo-icon.png"): string {
+	const safeTitle = escapeHtml(title);
+	const safeBody = escapeHtml(body);
+	const safeLogo = escapeHtml(logoUrl);
+	return [
+		"<!doctype html>",
+		'<html lang="en">',
+		"<head>",
+		'<meta charset="utf-8">',
+		'<meta name="viewport" content="width=device-width,initial-scale=1">',
+		'<meta name="referrer" content="no-referrer">',
+		'<meta name="color-scheme" content="light dark">',
+		`<title>${safeTitle} — DevSpec</title>`,
+		"<style>",
+		":root{color-scheme:light dark;--bg:#f9f7f2;--card:#fdfcfa;--fg:#18202c;--muted:#5c6573;--border:#e3dfd6;--primary:#2e548a;--shadow:0 1px 3px rgba(24,32,44,.06)}",
+		"@media (prefers-color-scheme:dark){:root{--bg:#0c1017;--card:#141b26;--fg:#eae7df;--muted:#939ba8;--border:#232c3b;--primary:#7aa5e8;--shadow:0 2px 8px rgba(0,0,0,.35)}}",
+		"*{box-sizing:border-box}",
+		"body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.5rem;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.5;background:var(--bg);color:var(--fg)}",
+		"main{width:100%;max-width:28rem;background:var(--card);border:1px solid var(--border);border-radius:.75rem;padding:1.75rem;box-shadow:var(--shadow)}",
+		".brand{display:inline-flex;align-items:center;gap:.5rem;margin-bottom:1.25rem}",
+		".brand img{width:1.5rem;height:1.5rem;display:block}",
+		".brand span{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:.75rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--primary)}",
+		"h1{font-size:1.125rem;font-weight:600;margin:0 0 .5rem;color:var(--fg)}",
+		"p{font-size:.875rem;margin:0;color:var(--muted)}",
+		"</style>",
+		"</head>",
+		"<body>",
+		"<main>",
+		`<div class="brand"><img src="${safeLogo}" alt="DevSpec" width="24" height="24"><span>DevSpec</span></div>`,
+		`<h1>${safeTitle}</h1>`,
+		`<p>${safeBody}</p>`,
+		"</main>",
+		"</body>",
+		"</html>",
+	].join("");
 }
 
 function reply(res: ServerResponse, status: number, html: string): void {
@@ -297,43 +345,44 @@ export async function startLoopbackSignIn(input: {
 	let redirectUri = "";
 	let timer: NodeJS.Timeout | undefined;
 
+	const logoUrl = logoUrlForResource(input.discovery.resource);
 	const server = createServer((req: IncomingMessage, res: ServerResponse) => {
 		const requestUrl = new URL(req.url ?? "/", "http://127.0.0.1");
 		if (requestUrl.pathname !== "/callback" || finished) {
-			reply(res, 404, page("Not found", "This address is only used to finish signing in to DevSpec."));
+			reply(res, 404, page("Not found", "This address is only used to finish signing in to DevSpec.", logoUrl));
 			return;
 		}
 		const params = requestUrl.searchParams;
 		if (params.get("state") !== state) {
 			// Not our request (or a replay): never exchange a code we did not ask for.
-			reply(res, 400, page("Sign-in not recognised", "This sign-in was not started by this Pi. Start again with /devspec.login."));
+			reply(res, 400, page("Sign-in not recognised", "This sign-in was not started by this Pi. Start again with /devspec.login.", logoUrl));
 			return;
 		}
 		const iss = params.get("iss");
 		if (iss !== null && iss.replace(/\/+$/, "") !== input.discovery.issuer) {
-			reply(res, 400, page("Sign-in not recognised", "This sign-in came back from a different server. Start again with /devspec.login."));
+			reply(res, 400, page("Sign-in not recognised", "This sign-in came back from a different server. Start again with /devspec.login.", logoUrl));
 			finish(new SignInError("The sign-in came back from a different server."));
 			return;
 		}
 		const error = params.get("error");
 		if (error) {
-			reply(res, 200, page("Sign-in canceled", "Nothing was connected. You can close this tab."));
+			reply(res, 200, page("Sign-in canceled", "Nothing was connected. You can close this tab.", logoUrl));
 			finish(new SignInError(error === "access_denied" ? "Sign-in was canceled in the browser." : `Sign-in failed (${error}).`));
 			return;
 		}
 		const code = params.get("code");
 		if (!code) {
-			reply(res, 400, page("Sign-in incomplete", "The browser did not bring back a sign-in. Start again with /devspec.login."));
+			reply(res, 400, page("Sign-in incomplete", "The browser did not bring back a sign-in. Start again with /devspec.login.", logoUrl));
 			return;
 		}
 		finished = true;
 		exchangeCode({ discovery: input.discovery, clientId: input.clientId, code, redirectUri, verifier }, fetchImpl).then(
 			(tokens) => {
-				reply(res, 200, page("Signed in to DevSpec", "You can close this tab and go back to Pi."));
+				reply(res, 200, page("Signed in to DevSpec", "You can close this tab and return to Pi. Restart Pi to finish connecting.", logoUrl));
 				finish(tokens);
 			},
 			(err: unknown) => {
-				reply(res, 500, page("Sign-in failed", "Pi could not finish signing in. Go back to Pi for details."));
+				reply(res, 500, page("Sign-in failed", "Pi could not finish signing in. Go back to Pi for details.", logoUrl));
 				finish(err instanceof Error ? err : new SignInError(String(err)));
 			},
 		);

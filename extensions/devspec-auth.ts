@@ -92,8 +92,6 @@ function signInEndedNotice(): string {
 		"Run /devspec.login to sign in again.";
 }
 
-const LEGACY_TOKEN_NOTICE = "DevSpec for Pi now signs in through your browser instead of a pasted token. Run /devspec.login to sign in.";
-
 async function finishSignIn(
 	ctx: ExtensionContext,
 	endpoint: string,
@@ -123,7 +121,10 @@ async function finishSignIn(
 	verifiedConnection = true;
 	setStatus(ctx, undefined);
 	const extra = getAdapterGuardState().suppressed.length > 0 ? ` ${SUPPRESSION_NOTICE}` : "";
-	ctx.ui.notify(`Signed in to DevSpec (${environmentLabel(endpoint)})${principal ? ` as ${principal}` : ""}.${extra}`, "info");
+	ctx.ui.notify(
+		`Signed in to DevSpec (${environmentLabel(endpoint)})${principal ? ` as ${principal}` : ""}. Restart Pi to finish connecting.${extra}`,
+		"info",
+	);
 }
 
 function failureText(err: unknown): string {
@@ -165,7 +166,10 @@ async function login(args: string, ctx: ExtensionContext): Promise<void> {
 	if (copyCode) {
 		const flow = startCopyCodeSignIn({ discovery, clientId, codePageUrl: signInCodePageUrl(endpoint) });
 		if (browserCanReachThisMachine()) openInBrowser(flow.url);
-		ctx.ui.notify(`Sign in to DevSpec (${label}): open this link in a browser, approve, then copy the code it shows.\n${flow.url}`, "info");
+		ctx.ui.notify(
+			`Sign in to DevSpec (${label}): open this link in a browser, approve, then copy the code it shows:\n\n${flow.url}`,
+			"info",
+		);
 		const pasted = (await ctx.ui.input("Paste the code from the DevSpec page", "code"))?.trim();
 		if (!pasted) {
 			ctx.ui.notify("DevSpec sign-in canceled.", "info");
@@ -189,8 +193,8 @@ async function login(args: string, ctx: ExtensionContext): Promise<void> {
 	pendingSignIn = pending;
 	openInBrowser(pending.url);
 	ctx.ui.notify(
-		`Approve DevSpec (${label}) in your browser. If it did not open, open this link:\n${pending.url}\n` +
-			"On a machine your browser cannot reach, run /devspec.login --code instead.",
+		`Approve DevSpec (${label}) in your browser. If it did not open, open this link:\n\n${pending.url}\n\n` +
+			"Running Pi on a remote machine where a browser cannot open locally? Run /devspec.login --code instead.",
 		"info",
 	);
 	// Wait in the background so Pi stays usable; the result arrives through the browser.
@@ -260,10 +264,7 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 			if (state.kind === "none") {
-				ctx.ui.notify(
-					state.legacyToken ? `DevSpec (${label}): ${LEGACY_TOKEN_NOTICE}` : `DevSpec (${label}): not signed in. Run /devspec.login.`,
-					"warning",
-				);
+				ctx.ui.notify(`DevSpec (${label}): not signed in. Run /devspec.login to sign in through your browser.`, "warning");
 				return;
 			}
 			const who = verifiedPrincipal ?? state.login.signedInAs ?? "signed in";
@@ -280,9 +281,9 @@ export default function (pi: ExtensionAPI) {
 			if (interactive) {
 				const state = await loginState(endpoint);
 				ctx.ui.notify(
-					state.kind === "ended" ? `DevSpec: ${signInEndedNotice()}`
-						: state.kind === "none" && state.legacyToken ? `DevSpec: ${LEGACY_TOKEN_NOTICE}`
-						: `DevSpec (${environmentLabel(endpoint)}): not signed in — /devspec.login`,
+					state.kind === "ended"
+						? `DevSpec: ${signInEndedNotice()}`
+						: `Welcome to DevSpec (${environmentLabel(endpoint)})! Run /devspec.login to sign in through your browser.`,
 					"warning",
 				);
 			}

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.2 - 2026-11-08
+
+- **Browser sign-in polish.** Startup and `/devspec.status` now welcome signed-out users directly (`Welcome to DevSpec! Run /devspec.login to sign in through your browser.`) without mentioning the retired token setup. The local browser callback page renders with the DevSpec logo and adapts to light and dark mode, `/devspec.login` places the browser link on its own line with a clearer remote-machine `--code` hint, and sign-in confirmation prompts you to restart Pi so the status bar and agent connection load cleanly.
+
 ## 0.12.1 - 2026-11-08
 
 - **Pi agents can quietly fold their owner's duplicate task from a DevSpec duplicate notice.** Regenerated the checked-in DevSpec tool catalogue so `resolve_duplicate` exposes `notice_id`, allowing a Pi agent acting on a for-the-record duplicate notice about its owner's own task to pass that notice's ID on preview and resolve and fold the duplicate into the kept task without a command turn. Also picks up the updated `claim_check_job` tool description.

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.0 - 2026-11-07
+
+- Your Pi agent can now rule three more kinds of out-of-date check that DevSpec sends it: whether open tasks are out of date because a discussion point was settled, because a Goal or one of its outcomes changed, and the whole-backlog out-of-date scan started from the Tasks page. The line that wakes your agent says which one it is. Checks no longer carry a count of high-risk entries.
+- Pi now follows DevSpec's label on every notice it sends your agent. A notice that needs you is still answered in your room, under a header DevSpec writes saying which record, what happened and what you need to do. A notice that is only for the record, such as a pending edit going live or a duplicate of your own task, is handled quietly and nothing is posted about it. Ruling a check is quiet too: your agent's working text stays in Pi instead of appearing as messages in the room, because the rulings already show on the record and in Review. If handling either one changes someone else's record, your agent still tells the room what it changed.
+- Pi's built-in copy of DevSpec's tools is regenerated so `search_devspec_tools` stays aligned with the server: the tool for recording check rulings now says never to post about ruling a check, and the room-posting tool says to reply only to notices that need a person. This version needs DevSpec's matching server update. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.10.20 - 2026-11-07
 
 - When your agent takes a check DevSpec sent it, the check now stays with it until it finishes or hands it back. Before, a check your agent had already started could be passed to another agent just because your agent's turn ended, and the other agent did the same check again. It now moves on only if your agent disconnects, goes quiet, or makes no progress on it for 15 minutes while idle. Pi's built-in copy of DevSpec's tools carries the new description, so `search_devspec_tools` stays aligned with the server. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.

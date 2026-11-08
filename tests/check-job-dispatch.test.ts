@@ -1,7 +1,7 @@
 /**
- * Check jobs on the wake channel (DevSpec item 55d71b0c, Pi item d28fb9f1):
- * the validator union, the wake line, how the wake classifies as a turn, and
- * the negotiation every poll and the stream carry.
+ * Check jobs on the wake channel (DevSpec item 55d71b0c, Pi item d28fb9f1;
+ * version 2: 1d89fe56): the validator union, the wake line, how the wake
+ * classifies as a turn, and the negotiation every poll and the stream carry.
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -9,6 +9,7 @@ import { test } from "node:test";
 import {
 	CHECK_JOB_VERSION,
 	automationRunId,
+	describeCheckJob,
 	dispatchId,
 	formatCheckJobMessage,
 	isAutomationRunEnvelope,
@@ -41,7 +42,6 @@ const checkJob = {
 	check_kind: "conflict_decisions",
 	record: { type: "task", id: "9b2d6c1e-1111-4222-8333-444455556666", title: "Ship the export button" },
 	entries: 3,
-	high_risk: 1,
 	yours: true,
 	offered_at: "2026-11-04T02:00:00.000Z",
 	delivery_connection_id: "conn-1",
@@ -70,11 +70,30 @@ test("a check job in its exact shape is accepted and keyed by its id", () => {
 	}
 	// A record with no stored title still arrives (the server sends "").
 	assert.equal(isCheckJobEnvelope({ ...checkJob, record: { ...checkJob.record, title: "" } }), true);
-	assert.equal(isCheckJobEnvelope({ ...checkJob, entries: 0, high_risk: 0, yours: false }), true);
+	assert.equal(isCheckJobEnvelope({ ...checkJob, entries: 0, yours: false }), true);
+});
+
+test("version 2's three records arrive as out-of-date checks, and only as those", () => {
+	for (const type of ["discussion_point", "goal", "backlog_scan"]) {
+		const job = { ...checkJob, check_kind: "staleness", record: { ...checkJob.record, type } };
+		assert.equal(isCheckJobEnvelope(job), true, type);
+		assert.equal(dispatchId(job), JOB_ID, type);
+		// The served contract: each is a staleness check ruled with the out-of-date verdicts.
+		for (const check_kind of ["conflict", "conflict_decisions", "duplicate"]) {
+			assert.equal(isCheckJobEnvelope({ ...job, check_kind }), false, `${type} as ${check_kind}`);
+		}
+	}
+});
+
+test("a version-1 envelope is refused: version 2 never sends high_risk", () => {
+	assert.equal(isCheckJobEnvelope({ ...checkJob, high_risk: 1 }), false);
+	assert.equal(isCheckJobEnvelope({ ...checkJob, high_risk: 0 }), false);
+	assert.equal(isDispatchEnvelope({ ...checkJob, high_risk: 0 }), false);
+	assert.equal(dispatchId({ ...checkJob, high_risk: 0 }), undefined);
 });
 
 test("unknown shapes and near-miss check jobs are rejected", () => {
-	const { high_risk: _dropped, ...missingKey } = checkJob;
+	const { yours: _dropped, ...missingKey } = checkJob;
 	const rejected: Array<[string, unknown]> = [
 		["legacy assignment", { id: "legacy-envelope", kind: "assignment", members: [{ task_id: "item-1" }] }],
 		["null", null],
@@ -87,10 +106,11 @@ test("unknown shapes and near-miss check jobs are rejected", () => {
 		["unknown check kind", { ...checkJob, check_kind: "spelling" }],
 		["record extra key", { ...checkJob, record: { ...checkJob.record, text: "the whole record" } }],
 		["record missing title", { ...checkJob, record: { type: "task", id: checkJob.record.id } }],
-		["unknown record type", { ...checkJob, record: { ...checkJob.record, type: "goal" } }],
+		["unknown record type", { ...checkJob, check_kind: "staleness", record: { ...checkJob.record, type: "outcome" } }],
+		["a Goal as a conflict check", { ...checkJob, record: { ...checkJob.record, type: "goal" } }],
 		["record id blank", { ...checkJob, record: { ...checkJob.record, id: "" } }],
 		["fractional entries", { ...checkJob, entries: 1.5 }],
-		["negative high_risk", { ...checkJob, high_risk: -1 }],
+		["negative entries", { ...checkJob, entries: -1 }],
 		["entries as text", { ...checkJob, entries: "3" }],
 		["yours as text", { ...checkJob, yours: "true" }],
 		["blank offered_at", { ...checkJob, offered_at: "" }],
@@ -122,6 +142,22 @@ test("the wake is the contract's one line plus the envelope that carries the job
 	assert.throws(() => formatCheckJobMessage(automation, "Wary Wolf"), /check job envelope required/);
 });
 
+test("the wake line says what a version-2 record is", () => {
+	const job = (type: string, title: string) => ({ ...checkJob, check_kind: "staleness", record: { type, id: "5c1d2e3f-1111-4222-8333-444455556666", title } });
+	assert.equal(describeCheckJob(job("discussion_point", "Who rules checks")), "An out-of-date check is waiting on the settled discussion point “Who rules checks”");
+	assert.equal(describeCheckJob(job("goal", "Launch to customers")), "An out-of-date check is waiting on the Goal “Launch to customers”");
+	assert.equal(describeCheckJob(job("backlog_scan", "Out-of-date scan, 7 Nov")), "The whole-backlog out-of-date scan “Out-of-date scan, 7 Nov” is waiting");
+	// No stored title: the point and the Goal fall back to their id; the scan to its kind.
+	assert.equal(describeCheckJob(job("discussion_point", "")), "An out-of-date check is waiting on the settled discussion point 5c1d2e3f-1111-4222-8333-444455556666");
+	assert.equal(describeCheckJob(job("goal", " ")), "An out-of-date check is waiting on the Goal 5c1d2e3f-1111-4222-8333-444455556666");
+	assert.equal(describeCheckJob(job("backlog_scan", "")), "The whole-backlog out-of-date scan is waiting");
+	const lines = formatCheckJobMessage(job("goal", "Launch to customers"), "Wary Wolf").split("\n");
+	assert.equal(lines[1], "An out-of-date check is waiting on the Goal “Launch to customers”: take it with claim_check_job, rule every entry with record_check_rulings, then carry on.");
+	// Earlier records read exactly as before.
+	assert.equal(describeCheckJob(checkJob), "A check is waiting on Ship the export button");
+	assert.doesNotMatch(formatCheckJobMessage(checkJob, "Wary Wolf"), /high.risk/i);
+});
+
 test("a check-job wake is DevSpec's input: never harness, never the person's typed prompt, never mirrored", () => {
 	const message = formatCheckJobMessage(checkJob, "Wary Wolf");
 	assert.equal(classifyUserKind(message), "check_job");
@@ -140,8 +176,8 @@ test("a check-job wake is DevSpec's input: never harness, never the person's typ
 
 const remote = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 
-test("every poll that reads or records the inbox says it reads check jobs, version 1", () => {
-	assert.equal(CHECK_JOB_VERSION, 1);
+test("every poll that reads or records the inbox says it reads check jobs, version 2", () => {
+	assert.equal(CHECK_JOB_VERSION, 2);
 	const calls = [...remote.matchAll(/callDevspec\(\s*[\w.]+,\s*"poll_connection",/g)];
 	assert.equal(calls.length, 4, "main pump, room history, interaction ACK and control ACK");
 	let controlAcks = 0;
@@ -194,10 +230,23 @@ test("bonded instructions say to resolve a duplicate of a task the agent wrote o
 	}
 });
 
+test("bonded instructions point at the served contract for what stays out of the room, never restating it (a868f41f)", () => {
+	setBond({ connectionId: "11111111-1111-4111-8111-111111111111", codename: "Amber Hawk" });
+	try {
+		const lines = buildBondedInstructions()!.split("\n").filter((line) => line.includes("delivered to the DevSpec session mechanically"));
+		assert.equal(lines.length, 1);
+		assert.match(lines[0]!, /A run woken by a check job, or only by notices DevSpec labels for the record, posts nothing there \(the served contract's check_job\.room and semantics\.notice_audience\) unless one of its writes comes back carrying tell_person\./);
+		// Nothing asks an agent to post about ruling a check, or to report what happened after one.
+		assert.doesNotMatch(buildBondedInstructions()!, /post what happened|post (?:about|a summary of) (?:the )?(?:check|ruling)/i);
+	} finally {
+		setBond(null);
+	}
+});
+
 test("bonded instructions say how to take and rule a check job, behaviour only", () => {
 	setBond({ connectionId: "11111111-1111-4111-8111-111111111111", codename: "Amber Hawk" });
 	try {
-		const lines = buildBondedInstructions()!.split("\n").filter((line) => line.includes("check job"));
+		const lines = buildBondedInstructions()!.split("\n").filter((line) => line.includes("claim_check_job"));
 		assert.equal(lines.length, 1, "one line, in the bonded block");
 		const line = lines[0]!;
 		assert.match(line, /^DevSpec sends every check on a change — your own changes included — as a check job on your wake channel/);

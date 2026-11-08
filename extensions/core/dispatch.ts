@@ -11,8 +11,13 @@
 
 import { AUTOMATION_RUN_PREFIX, CHECK_JOB_PREFIX } from "./turn-lifecycle.ts";
 
-/** The check-job wake-channel version Pi sends on every poll and the stream. */
-export const CHECK_JOB_VERSION = 1;
+/**
+ * The check-job wake-channel version Pi sends on every poll and the stream
+ * (served contract: check_job.negotiation). Version 2 (DevSpec item 1d89fe56)
+ * drops high_risk from the envelope and adds three record types. Pi negotiates 2
+ * only: the server then sends version-2 envelopes and nothing else.
+ */
+export const CHECK_JOB_VERSION = 2;
 
 const WAKE_KEYS = [
 	"id",
@@ -72,7 +77,10 @@ export function isAutomationRunEnvelope(value: unknown): boolean {
 		requesterOk;
 }
 
-/** The exact keys of a check job envelope: inbox metadata only, never record text (CHECK_JOB_WAKE_KEYS). */
+/**
+ * The exact keys of a version-2 check job envelope: inbox metadata only, never
+ * record text (served contract: check_job.envelope).
+ */
 const CHECK_JOB_WAKE_KEYS = [
 	"id",
 	"kind",
@@ -80,13 +88,15 @@ const CHECK_JOB_WAKE_KEYS = [
 	"check_kind",
 	"record",
 	"entries",
-	"high_risk",
 	"yours",
 	"offered_at",
 	"delivery_connection_id",
 ] as const;
 const CHECK_KINDS = new Set(["conflict", "conflict_decisions", "duplicate", "staleness"]);
-const CHECK_RECORD_TYPES = new Set(["task", "memory", "artifact", "proposal"]);
+/** What a check job may name (served contract: check_job.records). */
+const CHECK_RECORD_TYPES = new Set(["task", "memory", "artifact", "proposal", "discussion_point", "goal", "backlog_scan"]);
+/** The record types version 2 added: each is only ever an out-of-date check. */
+const STALENESS_ONLY_RECORD_TYPES = new Set(["discussion_point", "goal", "backlog_scan"]);
 
 function exactKeys(root: Record<string, unknown>, keys: readonly string[]): boolean {
 	return Object.keys(root).length === keys.length && keys.every((key) => Object.hasOwn(root, key));
@@ -107,9 +117,9 @@ export function isCheckJobEnvelope(value: unknown): boolean {
 		typeof root.check_kind === "string" && CHECK_KINDS.has(root.check_kind) &&
 		Boolean(record && exactKeys(record, ["type", "id", "title"]) &&
 			typeof record.type === "string" && CHECK_RECORD_TYPES.has(record.type) &&
+			(!STALENESS_ONLY_RECORD_TYPES.has(record.type) || root.check_kind === "staleness") &&
 			text(record.id) && typeof record.title === "string") &&
 		count(root.entries) &&
-		count(root.high_risk) &&
 		typeof root.yours === "boolean" &&
 		Boolean(text(root.offered_at)) &&
 		Boolean(text(root.delivery_connection_id));
@@ -134,18 +144,38 @@ export function dispatchId(value: unknown): string | undefined {
 }
 
 /**
+ * What a check job is about, in the wake line. A task, memory, document or
+ * proposal is named by its title. The three version-2 records are always
+ * out-of-date checks and say what they are: a settled discussion point, a Goal,
+ * or the manual whole-backlog scan.
+ */
+export function describeCheckJob(value: unknown): string {
+	if (!isCheckJobEnvelope(value)) throw new Error("check job envelope required");
+	const record = asRecord(asRecord(value)?.record) ?? {};
+	const title = text(record.title);
+	const named = (what: string) => title ? `${what} “${title}”` : `${what} ${String(record.id)}`;
+	switch (record.type) {
+		case "discussion_point":
+			return `An out-of-date check is waiting on ${named("the settled discussion point")}`;
+		case "goal":
+			return `An out-of-date check is waiting on ${named("the Goal")}`;
+		case "backlog_scan":
+			return title ? `The whole-backlog out-of-date scan “${title}” is waiting` : "The whole-backlog out-of-date scan is waiting";
+		default:
+			return `A check is waiting on ${title ?? `${String(record.type)} ${String(record.id)}`}`;
+	}
+}
+
+/**
  * The wake for one check job: the contract's one line, then the envelope so the
  * agent has the job's id. How to rule it is in the bonded instructions; this
  * never words what the agent tells its person.
  */
 export function formatCheckJobMessage(value: unknown, codename: string): string {
 	if (!isCheckJobEnvelope(value)) throw new Error("check job envelope required");
-	const root = asRecord(value) ?? {};
-	const record = asRecord(root.record) ?? {};
-	const on = text(record.title) ?? `${String(record.type)} ${String(record.id)}`;
 	return [
 		`${CHECK_JOB_PREFIX} to ${codename}]`,
-		`A check is waiting on ${on}: take it with claim_check_job, rule every entry with record_check_rulings, then carry on.`,
+		`${describeCheckJob(value)}: take it with claim_check_job, rule every entry with record_check_rulings, then carry on.`,
 		"",
 		"Check job envelope:",
 		"```json",

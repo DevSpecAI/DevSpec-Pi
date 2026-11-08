@@ -58,6 +58,7 @@ import {
 } from "./core/activation-recovery.ts";
 import { debugRemote } from "./core/debug.ts";
 import { projectedToolResult, toolErrorResult, toolTextResult, unwrapMcpResult } from "./core/result.ts";
+import { carriesTellPerson, noteTellPerson } from "./core/tell-person.ts";
 import {
 	noteModelToolResult,
 	registerContextBudgetToolNames,
@@ -334,7 +335,7 @@ export function stampKnownScope(params: Record<string, unknown>, name?: string):
 	return stamped;
 }
 
-async function executeVerb(name: string, params: Record<string, unknown>, ctx: CallCtx) {
+async function executeVerb(name: string, params: Record<string, unknown>, ctx: CallCtx, toolCallId = "") {
 	// The provenance-ref guard (item a03ba7ab): a ref this process was never
 	// dealt is a transcription error — refuse it locally, before any network.
 	// Omission is always allowed: the server attributes to the open turn.
@@ -372,6 +373,9 @@ async function executeVerb(name: string, params: Record<string, unknown>, ctx: C
 				: {}),
 		});
 		const projected = unwrapOrThrow(name, raw, unstamped ? unstampedNote(unstamped) : undefined, params);
+		// DevSpec marked this write as changing someone else's record (a868f41f): the
+		// remote extension reads it by tool call id to let a quiet run speak.
+		if (carriesTellPerson(unwrapMcpResult(raw).appended)) noteTellPerson(toolCallId);
 		const result = shouldTerminateAfterDirectedQuestionCreate(name, args, projected)
 			? { ...projected, terminate: true as const }
 			: projected;
@@ -391,8 +395,8 @@ function registerCatalogTool(pi: ExtensionAPI, def: CatalogEntry): void {
 		// Deferred tools must not mutate the system prompt when activated.
 		...hotToolPromptMetadata(def),
 		parameters: jsonSchemaToTypebox(def.inputSchema),
-		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			return executeVerb(def.name, params as Record<string, unknown>, ctx);
+		async execute(toolCallId, params, _signal, _onUpdate, ctx) {
+			return executeVerb(def.name, params as Record<string, unknown>, ctx, toolCallId);
 		},
 	});
 }

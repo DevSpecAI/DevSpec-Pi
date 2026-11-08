@@ -33,7 +33,7 @@ const stored = (ids: string[], overrides: Record<string, unknown> = {}) => envel
 });
 const refusal = (reason: string, error: string) => JSON.stringify({ delivery: { status: "rejected", reason, retryable: false }, error });
 const capture = (overrides: Partial<NoticeReplyCapture> = {}): NoticeReplyCapture => ({
-	connectionId: IDS.connection, noticeIds: [IDS.notice], roomPromised: true, finalText: "Your duplicate is closed.", ...overrides,
+	connectionId: IDS.connection, noticeIds: [IDS.notice], forTheRecordIds: [], roomPromised: true, finalText: "Your duplicate is closed.", ...overrides,
 });
 const attached = () => ({ connectionId: IDS.connection, sessionId: ROOM });
 const snapshot = () => ({
@@ -118,15 +118,60 @@ test("the final reply is the run's last message, only when the model finished it
 	assert.equal(noticeReplyFinalText({ text: "Cut short", stopReason: "length" }), "Cut short");
 	for (const stopReason of ["toolUse", "error", "aborted", null, undefined]) assert.equal(noticeReplyFinalText({ text: "partial", stopReason }), null, String(stopReason));
 	assert.equal(noticeReplyFinalText({ text: " \n​", stopReason: "stop" }), null);
-	assert.deepEqual(noticeIdsFromDelivery({ notices: [{ notice_id: IDS.notice }, { notice_id: IDS.notice }, { notice_id: "not-an-id" }, { notice_id: OTHER }], roomAttached: true }), [IDS.notice, OTHER]);
-	assert.deepEqual(noticeIdsFromDelivery(undefined), []);
+	assert.deepEqual(noticeIdsFromDelivery({ notices: [{ notice_id: IDS.notice }, { notice_id: IDS.notice }, { notice_id: "not-an-id" }, { notice_id: OTHER }], roomAttached: true }), { needsPerson: [IDS.notice, OTHER], forTheRecord: [] });
+	assert.deepEqual(noticeIdsFromDelivery(undefined), { needsPerson: [], forTheRecord: [] });
+});
+
+test("a reply names only the notices that need a person; DevSpec's label decides, and nothing else is quiet (a868f41f)", () => {
+	const delivered = { roomAttached: true, notices: [
+		{ notice_id: IDS.notice, kind: "server_notice", audience: "for_the_record" },
+		{ notice_id: OTHER, kind: "server_notice", audience: "needs_person" },
+		// Unreadable, or a label Pi does not know: the person is told, never left out.
+		{ notice_id: ROOM, kind: "unreadable" },
+		{ notice_id: "20202020-2020-4202-8202-202020202020", kind: "server_notice", audience: "someday" },
+	] };
+	assert.deepEqual(noticeIdsFromDelivery(delivered), { needsPerson: [OTHER, ROOM, "20202020-2020-4202-8202-202020202020"], forTheRecord: [IDS.notice] });
+});
+
+test("for-the-record notices are never posted about, and a refusal saying so stays quiet (a868f41f)", async () => {
+	// Every notice was for the record: nothing is sent at all.
+	const never = scripted([]);
+	const quiet = await postNoticeReply({ capture: capture({ noticeIds: [], forTheRecordIds: [IDS.notice] }), current: attached, call: never.call });
+	assert.deepEqual(quiet, { kind: "for_the_record" });
+	assert.equal(never.sent.length, 0);
+	assert.equal(noticeReplyTerminalMessage(quiet, capture()), null, "an expected outcome, never an error to surface");
+	// DevSpec read the named notices as for the record after all: quiet, and never retried another way.
+	const words = "Nothing was posted, and nothing needs to be: every notice this reply names is for the record.";
+	const refusedOnce = scripted([{ refusal: refusal("for_the_record", words) }]);
+	const refused = await postNoticeReply({ capture: capture(), current: attached, call: refusedOnce.call });
+	assert.deepEqual(refused, { kind: "for_the_record" });
+	assert.equal(refusedOnce.sent.length, 1, "sent once, not again");
+	assert.equal(noticeReplyTerminalMessage(refused, capture()), null);
 });
 
 test("the notice framing says where the final message goes", () => {
-	const notice = systemNotice();
+	const notice = systemNotice({ audience: "needs_person" });
 	assert.match(formatSystemNoticeMessage([notice as never], { roomAttached: true }), /Your final message at the end of this run is posted to your DevSpec room as your reply to this notice; people there see it marked as a reply to a DevSpec notice, not to a person\. Write it to the person, briefly, as the notice's prompt asks, and say only what they need\./);
+	assert.doesNotMatch(formatSystemNoticeMessage([notice as never], { roomAttached: true }), /for the record/);
 	assert.match(formatSystemNoticeMessage([notice as never], { roomAttached: false }), /You are not attached to a DevSpec room, so your final message stays in this terminal\./);
 	assert.doesNotMatch(formatSystemNoticeMessage([notice as never]), /posted to your DevSpec room/);
+	assert.ok(formatSystemNoticeMessage([notice as never]).includes(`audience=${JSON.stringify("needs_person")}`));
+});
+
+test("the notice framing follows DevSpec's label: for the record posts nothing, a mix answers only the notices that need a person (a868f41f)", () => {
+	const record = systemNotice({ audience: "for_the_record" });
+	const quiet = formatSystemNoticeMessage([record as never], { roomAttached: true });
+	assert.match(quiet, /Every notice here is for the record \(the served contract's semantics\.notice_audience\): nothing from this run is posted to your DevSpec room\. If a write's result carries tell_person, your final message is posted there as an ordinary message instead\./);
+	assert.doesNotMatch(quiet, /reply to this notice/);
+	assert.ok(quiet.includes(`audience=${JSON.stringify("for_the_record")}`));
+	const mixed = formatSystemNoticeMessage([record as never, systemNotice({ notice_id: OTHER, audience: "needs_person" }) as never], { roomAttached: true });
+	assert.match(mixed, /posted to your DevSpec room as your reply to this notice/);
+	assert.match(mixed, /It answers only the notices that need a person; those for the record are never posted about \(semantics\.notice_audience\)\./);
+	// An unreadable notice is told to the person, so it is never a quiet batch.
+	const unreadable = formatSystemNoticeMessage([{ version: 1, kind: "unreadable", notice_id: OTHER, received_kind: "future", received_version: "1" }], { roomAttached: true });
+	assert.match(unreadable, /posted to your DevSpec room as your reply to this notice/);
+	// Not attached, the label changes nothing: the final message stays in the terminal.
+	assert.match(formatSystemNoticeMessage([record as never], { roomAttached: false }), /You are not attached to a DevSpec room, so your final message stays in this terminal\./);
 });
 
 test("the snapshot reads exactly what the server's schema accepts", () => {

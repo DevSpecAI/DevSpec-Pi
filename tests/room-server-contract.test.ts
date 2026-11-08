@@ -80,6 +80,31 @@ test("Pi's system notice bounds are exactly the served wire schema's", async t =
 	assert.equal(serverNotice.properties.allowed_outcomes.items.maxLength, bounds.listItemChars);
 });
 
+// a868f41f: at channel version 3 every notice of every kind carries DevSpec's label.
+// Pi negotiates that version, requires the field, and knows exactly its two values.
+test("Pi's notice label is exactly the served one, on every kind, at the version Pi negotiates", async t => {
+	if (!root || !existsSync(resolve(root, relative))) {
+		if (explicit) assert.fail("DEVSPEC_V2_ROOT does not contain the ingress contract");
+		t.skip("paired server checkout unavailable; set DEVSPEC_V2_ROOT"); return;
+	}
+	const { NOTICE_AUDIENCES, SYSTEM_NOTICE_CHANNEL_VERSION } = await import("../extensions/core/remote-payload.ts");
+	const require = createRequire(resolve(root, "package.json"));
+	const { createJiti } = require("jiti");
+	const jiti = createJiti(resolve(root, "pi-room-contract-probe.mjs"), { fsCache: false, moduleCache: false, alias: { "@devspec/core": resolve(root, "packages/core/src"), "@": resolve(root, "apps/web") } });
+	const server = await jiti.import(resolve(root, relative));
+	const served = JSON.parse(JSON.stringify(server.REMOTE_INGRESS_CONTRACT));
+	const table = served.wire_schema.system_notice;
+	assert.deepEqual(table.audience, { from_negotiated_version: SYSTEM_NOTICE_CHANNEL_VERSION, field: "audience", values: [...NOTICE_AUDIENCES] });
+	assert.deepEqual(table.kinds_by_negotiated_version[String(SYSTEM_NOTICE_CHANNEL_VERSION)], ["unlinked_commit_item_review", "server_notice"]);
+	for (const kind of served.wire_schema.json_schema.system_notice_envelope_v1.properties.system_notices.items.oneOf) {
+		assert.deepEqual(kind.properties.audience.enum, [...NOTICE_AUDIENCES]);
+	}
+	// The rule itself is served, not restated here: Pi only points at it.
+	assert.equal(typeof served.semantics.notice_audience.rule, "string");
+	assert.equal(typeof served.semantics.check_job.room, "string");
+	assert.equal(typeof served.semantics.notice_reply.only_when_needed, "string");
+});
+
 // 6aad2b46: a reply to a DevSpec notice carries the server's snapshot on the room
 // lane. Pi must read exactly what the served schema accepts: stricter would drop a
 // valid snapshot, looser would keep one DevSpec never sends.

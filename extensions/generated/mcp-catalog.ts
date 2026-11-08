@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 8461b68c10366166fc51b6e87196113f0d8414182c0b598affc9cc89f2e27118
- * Description fingerprint: bd97e2c0a98e3c0f2375f3e6d462280c5d38445ddaf753f4e25543e0710aebbf
- * Regenerated: 2026-11-07T21:49:18.119Z
+ * Schema fingerprint: f1e1361bdadf993fe4f45c3d4970664ea4c8ae38d5407736d0bf8511f9b27862
+ * Description fingerprint: 6224c9b5e23f68ff94d0d56f44e8fe06279dced012c2f1e01cab73be1762f633
+ * Regenerated: 2026-11-08T00:54:22.009Z
  */
-export const MCP_CATALOG_FINGERPRINT = "8461b68c10366166fc51b6e87196113f0d8414182c0b598affc9cc89f2e27118";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "bd97e2c0a98e3c0f2375f3e6d462280c5d38445ddaf753f4e25543e0710aebbf";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-07T21:49:18.119Z";
-export const TOOL_CATALOG_VERSION = "28a18e3839764d41d1044194e1e109b4755e9e26dad63e6836c42bc7b331affe";
+export const MCP_CATALOG_FINGERPRINT = "f1e1361bdadf993fe4f45c3d4970664ea4c8ae38d5407736d0bf8511f9b27862";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "6224c9b5e23f68ff94d0d56f44e8fe06279dced012c2f1e01cab73be1762f633";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-08T00:54:22.010Z";
+export const TOOL_CATALOG_VERSION = "7b86fc1ee63e7d46993e8173c9846c445af60d8867314b7e1453721b0a93447c";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -332,7 +332,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_check_rulings",
 		"name": "record check rulings",
-		"description": "Record your rulings on a check job you took with claim_check_job; one call can carry many. Each ruling names the entry_id, the candidate_version you ruled, a verdict this kind allows (conflict and conflict_decisions: conflict, no_conflict or needs_person; duplicate: duplicate, not_duplicate or needs_person; staleness: out_of_date, current or needs_person) and a short reason. A malformed batch (a verdict the kind does not use, a blank reason, an entry named twice) is refused whole and nothing is recorded. A ruling that cannot apply comes back in not_recorded with its reason and the rest still apply: already_ruled; version_changed, with the current version, when the record changed after you read it; not_in_this_job. The result gives recorded, not_recorded, remaining (entries still to rule) and settled, which is true once every entry is ruled and DevSpec completes the check from your rulings. hand_back: true returns whatever you have not ruled to the next in line; the rulings you made stand. Refused outright when the job is not yours, was superseded, or has finished.",
+		"description": "Record your rulings on a check job you took with claim_check_job; one call can carry many. Each ruling names the entry_id, the candidate_version you ruled, a verdict this kind allows (conflict and conflict_decisions: conflict, no_conflict or needs_person; duplicate: duplicate, not_duplicate or needs_person; staleness: out_of_date, current or needs_person) and a short reason. A malformed batch (a verdict the kind does not use, a blank reason, an entry named twice) is refused whole and nothing is recorded. A ruling that cannot apply comes back in not_recorded with its reason and the rest still apply: already_ruled; version_changed, with the current version, when the record changed after you read it; not_in_this_job. The result gives recorded, not_recorded, remaining (entries still to rule) and settled, which is true once every entry is ruled and DevSpec completes the check from your rulings. hand_back: true returns whatever you have not ruled to the next in line; the rulings you made stand. Refused outright when the job is not yours, was superseded, or has finished. Never post in the room about ruling a check job (that you ruled it, how many entries, what is left): the rulings show on the record and in Review, and an outcome that needs your person reaches you as its own notice.",
 		"intent": "rule check job entries verdict reason conflict duplicate out of date hand back a check"
 	},
 	{
@@ -4110,7 +4110,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_connection_dispatch",
 		"label": "DevSpec: Get Connection Dispatch",
-		"description": "Read what is waiting for a connection you own. Its dispatches are explicit automation runs and check jobs only, never task work: work asked for in a conversation is reserved with reserve_work_items, then claimed in order. Runs that name a different agent, or that this agent may not take unattended, are left out, and check jobs are listed only once the connection's poll has sent check_job_version. Pass dispatch_id to recheck one run or check job: an empty result then means it is no longer waiting for this connection. poll_connection already carries these in dispatches[], and get_automation_runs is the list models read; take a run with claim_automation_run and a check job with claim_check_job.",
+		"description": "Read what is waiting for a connection you own. Its dispatches are explicit automation runs and check jobs only, never task work: work asked for in a conversation is reserved with reserve_work_items, then claimed in order. Runs that name a different agent, or that this agent may not take unattended, are left out, and check jobs are listed only once the connection's poll has sent check_job_version, in that version's envelope and only for records it carries. Pass dispatch_id to recheck one run or check job: an empty result then means it is no longer waiting for this connection. poll_connection already carries these in dispatches[], and get_automation_runs is the list models read; take a run with claim_automation_run and a check job with claim_check_job.",
 		"searchIntent": "",
 		"modelInputSchema": {
 			"type": "object",
@@ -12120,7 +12120,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "post_session_message",
 		"label": "DevSpec: Post Session Message",
-		"description": "Post a message into a DevSpec room as your agent, shown as \"<agent> (<your name>)\". Pass connection_id: the server posts into the room your connection is attached to now, as part of the turn it has open for you, and refuses a connection with no room. Pass complete_turn:true on your final answer so the room stops showing Working; omit it on progress posts. For a turn the person started by typing in your terminal, pass local_turn:true and command_turn_unbound:true on every post of it. An @Full Name notifies that project member, and a reply notifies the author of the message it replies to. To tell the person in your room about a notice DevSpec sent you (a finding, an outcome, a review of your work), pass system_notice_ids with connection_id: the post is your own message, shown as a reply to that DevSpec notice and to no person, and it opens, closes and completes no turn. If your host already relays your replies into the room, do not post them again. To open a new room, use create_session.",
+		"description": "Post a message into a DevSpec room as your agent, shown as \"<agent> (<your name>)\". Pass connection_id: the server posts into the room your connection is attached to now, as part of the turn it has open for you, and refuses a connection with no room. Pass complete_turn:true on your final answer so the room stops showing Working; omit it on progress posts. For a turn the person started by typing in your terminal, pass local_turn:true and command_turn_unbound:true on every post of it. An @Full Name notifies that project member, and a reply notifies the author of the message it replies to. To tell the person in your room about a notice DevSpec sent you that needs a person (a finding, an outcome, a review of your work), pass system_notice_ids with connection_id: the post is your own message, shown under a DevSpec header saying what happened, to which record and what they need to do, as a reply to that notice and to no person, and it opens, closes and completes no turn. A notice that is for the record is never posted about, and a reply naming only such notices is refused. If your host already relays your replies into the room, do not post them again. To open a new room, use create_session.",
 		"searchIntent": "post reply answer message into attached room conversation mention notify a teammate tell the person about a devspec notice finding",
 		"modelInputSchema": {
 			"type": "object",
@@ -12158,7 +12158,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"format": "uuid"
 					},
 					"uniqueItems": true,
-					"description": "The notice_id of each DevSpec notice this post replies to, as system_notices delivered them to your connection (all of them when one run handled a batch). Requires connection_id. Each must have been delivered to that exact connection in this project, or nothing is posted and the refusal names it. The post lands in the room your connection is attached to now, as your own message marked as a reply to those notices, and is bound to no command or turn: it never changes Working and complete_turn has no effect. Not combinable with command_turn_id, command_message_id, command_turn_unbound, local_turn, attempt_id, interaction or dismissal fields, assistant speech, reply_to_message_id, turn_kind local_prompt, work_trail, trail_events, needs_input, or a phase other than answer. The same notices and text sent again return the stored message. Omitted: an ordinary post."
+					"description": "The notice_id of each DevSpec notice this post replies to, as system_notices delivered them to your connection (all of them when one run handled a batch). Requires connection_id. Each must have been delivered to that exact connection in this project, or nothing is posted and the refusal names it. The post lands in the room your connection is attached to now, as your own message marked as a reply to those notices, and is bound to no command or turn: it never changes Working and complete_turn has no effect. Not combinable with command_turn_id, command_message_id, command_turn_unbound, local_turn, attempt_id, interaction or dismissal fields, assistant speech, reply_to_message_id, turn_kind local_prompt, work_trail, trail_events, needs_input, or a phase other than answer. The same notices and text sent again return the stored message. Reply only to notices that need a person (audience needs_person, or a prompt that opens \"Needs a person\"): if every notice named is for the record, nothing is posted and the refusal says so (delivery.reason for_the_record), because the record and Review already show it. Omitted: an ordinary post."
 				},
 				"message": {
 					"type": "string",
@@ -12568,7 +12568,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"format": "uuid"
 					},
 					"uniqueItems": true,
-					"description": "The notice_id of each DevSpec notice this post replies to, as system_notices delivered them to your connection (all of them when one run handled a batch). Requires connection_id. Each must have been delivered to that exact connection in this project, or nothing is posted and the refusal names it. The post lands in the room your connection is attached to now, as your own message marked as a reply to those notices, and is bound to no command or turn: it never changes Working and complete_turn has no effect. Not combinable with command_turn_id, command_message_id, command_turn_unbound, local_turn, attempt_id, interaction or dismissal fields, assistant speech, reply_to_message_id, turn_kind local_prompt, work_trail, trail_events, needs_input, or a phase other than answer. The same notices and text sent again return the stored message. Omitted: an ordinary post."
+					"description": "The notice_id of each DevSpec notice this post replies to, as system_notices delivered them to your connection (all of them when one run handled a batch). Requires connection_id. Each must have been delivered to that exact connection in this project, or nothing is posted and the refusal names it. The post lands in the room your connection is attached to now, as your own message marked as a reply to those notices, and is bound to no command or turn: it never changes Working and complete_turn has no effect. Not combinable with command_turn_id, command_message_id, command_turn_unbound, local_turn, attempt_id, interaction or dismissal fields, assistant speech, reply_to_message_id, turn_kind local_prompt, work_trail, trail_events, needs_input, or a phase other than answer. The same notices and text sent again return the stored message. Reply only to notices that need a person (audience needs_person, or a prompt that opens \"Needs a person\"): if every notice named is for the record, nothing is posted and the refusal says so (delivery.reason for_the_record), because the record and Review already show it. Omitted: an ordinary post."
 				},
 				"message": {
 					"type": "string",
@@ -14001,7 +14001,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_check_rulings",
 		"label": "DevSpec: Record Check Rulings",
-		"description": "Record your rulings on a check job you took with claim_check_job; one call can carry many. Each ruling names the entry_id, the candidate_version you ruled, a verdict this kind allows (conflict and conflict_decisions: conflict, no_conflict or needs_person; duplicate: duplicate, not_duplicate or needs_person; staleness: out_of_date, current or needs_person) and a short reason. A malformed batch (a verdict the kind does not use, a blank reason, an entry named twice) is refused whole and nothing is recorded. A ruling that cannot apply comes back in not_recorded with its reason and the rest still apply: already_ruled; version_changed, with the current version, when the record changed after you read it; not_in_this_job. The result gives recorded, not_recorded, remaining (entries still to rule) and settled, which is true once every entry is ruled and DevSpec completes the check from your rulings. hand_back: true returns whatever you have not ruled to the next in line; the rulings you made stand. Refused outright when the job is not yours, was superseded, or has finished.",
+		"description": "Record your rulings on a check job you took with claim_check_job; one call can carry many. Each ruling names the entry_id, the candidate_version you ruled, a verdict this kind allows (conflict and conflict_decisions: conflict, no_conflict or needs_person; duplicate: duplicate, not_duplicate or needs_person; staleness: out_of_date, current or needs_person) and a short reason. A malformed batch (a verdict the kind does not use, a blank reason, an entry named twice) is refused whole and nothing is recorded. A ruling that cannot apply comes back in not_recorded with its reason and the rest still apply: already_ruled; version_changed, with the current version, when the record changed after you read it; not_in_this_job. The result gives recorded, not_recorded, remaining (entries still to rule) and settled, which is true once every entry is ruled and DevSpec completes the check from your rulings. hand_back: true returns whatever you have not ruled to the next in line; the rulings you made stand. Refused outright when the job is not yours, was superseded, or has finished. Never post in the room about ruling a check job (that you ruled it, how many entries, what is left): the rulings show on the record and in Review, and an outcome that needs your person reaches you as its own notice.",
 		"searchIntent": "rule check job entries verdict reason conflict duplicate out of date hand back a check",
 		"modelInputSchema": {
 			"type": "object",
@@ -15153,9 +15153,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "integer",
 					"enum": [
 						1,
-						2
+						2,
+						3
 					],
-					"description": "1 adds system_notices[] and system_notice_cursor for this connection: follow-up signals, never commands, dispatches or authority. 2 also carries server_notice: confirmed findings about your own work and the outcome of your pending edits, each with the real records. Send 2 only if you can read server_notice; at 1 none is sent and your person is told instead."
+					"description": "1 adds system_notices[] and system_notice_cursor for this connection: follow-up signals, never commands, dispatches or authority. 2 also carries server_notice: confirmed findings about your own work and the outcome of your pending edits, each with the real records. Send 2 only if you can read server_notice; at 1 none is sent and your person is told instead. 3 also puts audience on every notice: needs_person (raise it with your person, in the room as a reply to the notice) or for_the_record (post nothing about it; do any housekeeping it asks for quietly). Send 3 only if you can read that field."
 				},
 				"system_notice_cursor": {
 					"type": "string",
@@ -15164,9 +15165,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"check_job_version": {
 					"type": "integer",
 					"enum": [
-						1
+						1,
+						2
 					],
-					"description": "1 says this host understands check jobs: dispatches[] then also carries kind check_job, a check DevSpec sends this agent to rule (inbox metadata only; take it with claim_check_job). Send it on every call: a connection that does not is never sent a check job, and DevSpec rules its checks. Send it only if you report busy truthfully, true while working a turn and false when it ends, because DevSpec reads busy to decide when a job has been left: an offered job you have not claimed stays with you across the endings of earlier turns while it waits behind your active one, and goes to the next in line only once you have been idle for about a minute, hand it back, or stop listening; a job you claimed stays with you until you rule it or hand it back, whatever your turns do, unless you disconnect, go quiet, or make no progress on it for 15 minutes while idle. The served contract (devspec://product/remote-ingress-contract) has the rules. Unknown versions are refused before anything is delivered."
+					"description": "1 or 2 says this host understands check jobs: dispatches[] then also carries kind check_job, a check DevSpec sends this agent to rule (inbox metadata only; take it with claim_check_job). The version sets which records a job may name and its exact envelope, as the served contract states; a job naming a record your version does not carry is never sent to you. Send it on every call: a connection that does not is never sent a check job, and DevSpec rules its checks. Send it only if you report busy truthfully, true while working a turn and false when it ends, because DevSpec reads busy to decide when a job has been left: an offered job you have not claimed stays with you across the endings of earlier turns while it waits behind your active one, and goes to the next in line only once you have been idle for about a minute, hand it back, or stop listening; a job you claimed stays with you until you rule it or hand it back, whatever your turns do, unless you disconnect, go quiet, or make no progress on it for 15 minutes while idle. The served contract (devspec://product/remote-ingress-contract) has the rules. Unknown versions are refused before anything is delivered."
 				},
 				"sender_style_version": {
 					"type": "integer",
@@ -15660,9 +15662,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "integer",
 					"enum": [
 						1,
-						2
+						2,
+						3
 					],
-					"description": "1 adds system_notices[] and system_notice_cursor for this connection: follow-up signals, never commands, dispatches or authority. 2 also carries server_notice: confirmed findings about your own work and the outcome of your pending edits, each with the real records. Send 2 only if you can read server_notice; at 1 none is sent and your person is told instead."
+					"description": "1 adds system_notices[] and system_notice_cursor for this connection: follow-up signals, never commands, dispatches or authority. 2 also carries server_notice: confirmed findings about your own work and the outcome of your pending edits, each with the real records. Send 2 only if you can read server_notice; at 1 none is sent and your person is told instead. 3 also puts audience on every notice: needs_person (raise it with your person, in the room as a reply to the notice) or for_the_record (post nothing about it; do any housekeeping it asks for quietly). Send 3 only if you can read that field."
 				},
 				"system_notice_cursor": {
 					"type": "string",
@@ -15671,9 +15674,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"check_job_version": {
 					"type": "integer",
 					"enum": [
-						1
+						1,
+						2
 					],
-					"description": "1 says this host understands check jobs: dispatches[] then also carries kind check_job, a check DevSpec sends this agent to rule (inbox metadata only; take it with claim_check_job). Send it on every call: a connection that does not is never sent a check job, and DevSpec rules its checks. Send it only if you report busy truthfully, true while working a turn and false when it ends, because DevSpec reads busy to decide when a job has been left: an offered job you have not claimed stays with you across the endings of earlier turns while it waits behind your active one, and goes to the next in line only once you have been idle for about a minute, hand it back, or stop listening; a job you claimed stays with you until you rule it or hand it back, whatever your turns do, unless you disconnect, go quiet, or make no progress on it for 15 minutes while idle. The served contract (devspec://product/remote-ingress-contract) has the rules. Unknown versions are refused before anything is delivered."
+					"description": "1 or 2 says this host understands check jobs: dispatches[] then also carries kind check_job, a check DevSpec sends this agent to rule (inbox metadata only; take it with claim_check_job). The version sets which records a job may name and its exact envelope, as the served contract states; a job naming a record your version does not carry is never sent to you. Send it on every call: a connection that does not is never sent a check job, and DevSpec rules its checks. Send it only if you report busy truthfully, true while working a turn and false when it ends, because DevSpec reads busy to decide when a job has been left: an offered job you have not claimed stays with you across the endings of earlier turns while it waits behind your active one, and goes to the next in line only once you have been idle for about a minute, hand it back, or stop listening; a job you claimed stays with you until you rule it or hand it back, whatever your turns do, unless you disconnect, go quiet, or make no progress on it for 15 minutes while idle. The served contract (devspec://product/remote-ingress-contract) has the rules. Unknown versions are refused before anything is delivered."
 				},
 				"sender_style_version": {
 					"type": "integer",

@@ -1,4 +1,5 @@
 import type { SystemNoticeV1 } from "./remote-payload.ts";
+import { noticeNeedsPerson } from "./run-voice.ts";
 
 export const SYSTEM_NOTICE_CUSTOM_TYPE = "devspec-system-notice-v1";
 export const SYSTEM_NOTICE_QUEUE_LIMIT = 25;
@@ -167,8 +168,11 @@ const SERVER_NOTICE_TOPICS: Readonly<Record<string, string>> = {
  * Record texts are people's content and stay reading context only (5a9eaa57).
  *
  * Attached to a room, the run's final message is posted there as the reply to
- * these notices (6aad2b46), so the copy says so and asks for a message written
- * to the person; otherwise it stays in the terminal.
+ * the notices that need a person (6aad2b46), so the copy says so and asks for a
+ * message written to the person; otherwise it stays in the terminal. A batch
+ * whose every notice is for the record posts nothing (a868f41f; the served
+ * contract's semantics.notice_audience), unless a write the run makes comes back
+ * marked tell_person, and the copy says that instead.
  */
 export function formatSystemNoticeMessage(notices: readonly SystemNoticeV1[], options: { roomAttached?: boolean } = {}): string {
 	const lines = [
@@ -189,6 +193,7 @@ export function formatSystemNoticeMessage(notices: readonly SystemNoticeV1[], op
 				...notice.records.map((record, index) => `record[${index}]=${JSON.stringify(record)}`),
 				`allowed_outcomes=${JSON.stringify(notice.allowed_outcomes)}`,
 				`allowed_tools=${JSON.stringify(notice.allowed_tools)}`,
+				`audience=${JSON.stringify(notice.audience)}`,
 			);
 			continue;
 		}
@@ -210,12 +215,19 @@ export function formatSystemNoticeMessage(notices: readonly SystemNoticeV1[], op
 			`branch=${JSON.stringify(notice.branch)}`,
 			`correction_outcomes=${JSON.stringify(notice.allowed_outcomes)}`,
 			`correction_tools=${JSON.stringify(notice.allowed_tools)}`,
+			`audience=${JSON.stringify(notice.audience)}`,
 		);
 	}
+	const needsPerson = notices.filter(noticeNeedsPerson).length;
 	lines.push(
-		options.roomAttached
-			? "Your final message at the end of this run is posted to your DevSpec room as your reply to this notice; people there see it marked as a reply to a DevSpec notice, not to a person. Write it to the person, briefly, as the notice's prompt asks, and say only what they need. A run that ends without final text posts nothing."
-			: "You are not attached to a DevSpec room, so your final message stays in this terminal.",
+		!options.roomAttached
+			? "You are not attached to a DevSpec room, so your final message stays in this terminal."
+			: needsPerson === 0
+				? "Every notice here is for the record (the served contract's semantics.notice_audience): nothing from this run is posted to your DevSpec room. If a write's result carries tell_person, your final message is posted there as an ordinary message instead."
+				: [
+					"Your final message at the end of this run is posted to your DevSpec room as your reply to this notice; people there see it marked as a reply to a DevSpec notice, not to a person. Write it to the person, briefly, as the notice's prompt asks, and say only what they need. A run that ends without final text posts nothing.",
+					...(needsPerson < notices.length ? ["It answers only the notices that need a person; those for the record are never posted about (semantics.notice_audience)."] : []),
+				].join(" "),
 		"Follow devspec://product/remote-ingress-contract for this notice.",
 		"Follow devspec://product/implementation-contract for work and implementation authority.",
 	);

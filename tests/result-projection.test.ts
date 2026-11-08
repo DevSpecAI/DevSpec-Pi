@@ -871,7 +871,19 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// Descriptions: get_resource says a living document comes with its change history and
 		// how to page it. Hot set unchanged. Benchmark before/after: initial surface
 		// 60,574 -> 60,727 estimated tokens; every budget still passes.
-		"54d10db9cd93ebba9e13549240ddcafa44546cedb14b37146a4ad9d68bd86e1b",
+		// Rebaselined 2026-11-08 for DevSpec item e07d4406 (quiet duplicate fold from a
+		// DevSpec duplicate notice, item 4e5a2432 / DevSpecV2 #1197, plus check-job tool
+		// description updates from item ec2372c5 / DevSpecV2 #1187), regenerated against
+		// DevSpecV2 origin/staging (629c04136). Verbs 88 model / 12 pump / 1 never-model
+		// unchanged, none added or removed, no required field or projection family changed.
+		// Inputs: resolve_duplicate gains optional notice_id (uuid) on modelInputSchema and
+		// inputSchema so an agent acting on a DevSpec duplicate notice can pass that notice's
+		// id on preview and resolve to fold its owner's own duplicate without a command turn.
+		// Outside this model schema fingerprint: claim_check_job's tool and search-document
+		// description updates how check definitions and entry facts/ties are described
+		// (#1187). Hot set unchanged. Benchmark before/after: initial surface 60,870 ->
+		// 61,082 estimated tokens; every budget still passes.
+		"a76512e4a9edb630a810037ff5274ba4623723d908e02a1fcfd9cc457b33a2e5",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

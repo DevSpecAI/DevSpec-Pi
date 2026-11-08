@@ -197,8 +197,8 @@ export function consumeResultMechanics(
 }
 
 const NOT_CONNECTED =
-	`Not connected to DevSpec. Run /devspec.login, or set ${TOKEN_ENV_VAR}. ` +
-	`Tokens are minted at ${agentsSettingsUrl()}.`;
+	"Not signed in to DevSpec. Run /devspec.login to sign in through your browser " +
+	`(for a run with no browser, set ${TOKEN_ENV_VAR} to an access token from ${agentsSettingsUrl()}).`;
 
 type CallCtx = { sessionManager: { getSessionId(): string }; cwd: string };
 

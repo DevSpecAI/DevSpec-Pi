@@ -24,15 +24,19 @@ Installing `@devspecai/pi-plugin` connects Pi directly to your DevSpec projects 
 pi install npm:@devspecai/pi-plugin
 ```
 
-### 2. Sign in with your DevSpec token
+### 2. Sign in
 
-Create a **Read & write** access token on your [Agent setup](https://app.devspec.ai/settings/agents) page, then inside `pi` run:
+Inside `pi` run:
 
 ```text
-/devspec.login dvs_your_token_here
+/devspec.login
 ```
 
-Your token is stored locally (`~/.pi/agent/devspec/auth.json`) with owner-only permissions and works across all of your DevSpec projects.
+Your browser opens DevSpec's approval page. Click **Allow**, and Pi is signed in as you, across all of your DevSpec projects. Pi keeps the sign-in on this computer, readable only by you, and renews it by itself, so you stay signed in until you sign out or disconnect Pi on your [Agent setup](https://app.devspec.ai/settings/agents) page.
+
+- **Working over SSH, or on a machine your browser cannot reach?** Run `/devspec.login --code`. Open the link in any browser, approve, and paste the code the page shows back into Pi. Pi does this by itself in an SSH session.
+- **Staging and production** are signed in separately and side by side. Pi uses production unless `DEVSPEC_ENV=staging` (or a full `DEVSPEC_MCP_URL`) is set when it starts, and switching never needs a new sign-in.
+- **No browser at all** (CI, a cloud worker)? Set `DEVSPEC_MCP_TOKEN` to an access token from your Agent setup page. It takes precedence over a browser sign-in, and `/devspec.login` and `/devspec.status` tell you when it is set.
 
 ### 3. Connect to your project
 
@@ -52,9 +56,9 @@ The package also adds these slash commands and launch flags:
 
 | Command | What it does |
 |---|---|
-| `/devspec.login <token>` | Signs Pi in to DevSpec with your `dvs_…` access token. |
-| `/devspec.logout` | Removes your stored DevSpec token from this machine. |
-| `/devspec.status` | Shows your connection status, active user, project, and attached session room. |
+| `/devspec.login` | Signs Pi in to DevSpec through your browser (`--code` on a machine your browser cannot reach). |
+| `/devspec.logout` | Signs Pi out of the DevSpec server it is using (staging and production are separate). |
+| `/devspec.status` | Shows which DevSpec server Pi uses, who it is signed in as, and where its credential comes from. |
 | `/devspec.work [item]` | Lists open tasks in your project or claims a task by ID or title to start building. |
 | `/devspec.help` | Shows a quick summary of DevSpec commands inside Pi. |
 | `/devspec.remote` | Connects this Pi conversation to DevSpec and waits on the **Agents** page outside any session room. |

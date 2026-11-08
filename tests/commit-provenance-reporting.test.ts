@@ -6,7 +6,7 @@ import {
 	flushCommitReports,
 	reportCapturedCommit,
 	resetCommitReportQueueForTests,
-	commitTokenHash,
+	commitPrincipalHash,
 	captureCommitTransport,
 	captureCommitRepository,
 	type FrozenCommitAttribution,
@@ -30,7 +30,7 @@ const ENDPOINT = "https://devspec.test/api/mcp";
 function attribution(observationId?: string, overrides: Partial<FrozenCommitAttribution> = {}): FrozenCommitAttribution {
 	return {
 		connectionId: CONNECTION, projectId: PROJECT, connectionCapability: "fixture-capability",
-		transport: { tokenHash: commitTokenHash("token"), endpoint: ENDPOINT },
+		transport: { tokenHash: commitPrincipalHash({ token: "token" }), endpoint: ENDPOINT },
 		repository: { remote: null, pin: PROJECT },
 		...(observationId ? { observationId } : {}), ...overrides,
 	};
@@ -163,7 +163,7 @@ test("queued retry never adopts a changed token or repository", async (t) => {
 		call: async () => { throw new Error("fetch failed"); },
 	});
 	enqueueCommitReport(commit(), "/repo", attribution(OBSERVATION, {
-		transport: { tokenHash: commitTokenHash("original-account"), endpoint: ENDPOINT },
+		transport: { tokenHash: commitPrincipalHash({ token: "original-account" }), endpoint: ENDPOINT },
 		repository: { remote: "git@github.com:fixture/original.git", pin: PROJECT },
 	}));
 	await flushCommitReports(Date.now(), first.value);
@@ -178,7 +178,7 @@ test("queued retry never adopts a changed token or repository", async (t) => {
 test("capture keeps tokens out of source facts and validates repository scope", async () => {
 	const { value } = deps();
 	const transport = await captureCommitTransport(value);
-	assert.deepEqual(transport, { tokenHash: commitTokenHash("token"), endpoint: ENDPOINT });
+	assert.deepEqual(transport, { tokenHash: commitPrincipalHash({ token: "token" }), endpoint: ENDPOINT });
 	assert.equal(JSON.stringify(transport).includes('"token"'), false);
 	assert.deepEqual(await captureCommitRepository("/repo", PROJECT, value), { remote: null, pin: PROJECT });
 	assert.equal(await captureCommitRepository("/repo", PROJECT, deps({ resolveProjectPin: async () => "foreign-project" }).value), null);

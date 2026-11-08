@@ -1,24 +1,38 @@
 /**
- * DevSpec Pi — authentication extension.
+ * DevSpec Pi — sign-in extension.
  *
  * Commands:
- *   /devspec.login [token]   — verify + store a token (paste from DevSpec's
- *                              Agent setup page), or use DEVSPEC_MCP_TOKEN
- *   /devspec.logout          — remove the stored token
- *   /devspec.status          — show connection state
+ *   /devspec.login [--code]  — sign in through the browser. `--code` (and any
+ *                              SSH session) uses the copy-a-code page instead
+ *                              of a local listener.
+ *   /devspec.logout          — sign out of the current DevSpec server only
+ *   /devspec.status          — show which server, who, and where the credential
+ *                              comes from
  *
- * On session start: resolves the token, shows connection state in the footer,
- * and verifies once per process (never on a timer — rate budget matters).
+ * On session start: resolves the credential, says plainly when a sign-in is
+ * missing, has ended, or is overridden by DEVSPEC_MCP_TOKEN, and verifies once
+ * per process (never on a timer — rate budget matters).
  *
- * Headless (print/json modes): no prompts, no status line; login explains the
- * env-var path instead. See VISION.md principle 2 (headless-first).
+ * Headless (print/json modes): no prompts; login explains the env-var path.
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAdapterGuardState, SUPPRESSION_NOTICE } from "./core/adapter-overlap.ts";
-import { clearAuth, resolveEndpoint, resolveToken, saveAuth } from "./core/auth-store.ts";
-import { agentsSettingsUrl, mcpUrl, TOKEN_ENV_VAR } from "./core/config.ts";
+import { loginState, removeLogin, resolveToken, saveLogin, setSignedInAs } from "./core/auth-store.ts";
+import { agentsSettingsUrl, environmentLabel, mcpUrl, signInCodePageUrl, TOKEN_ENV_VAR } from "./core/config.ts";
 import { DevspecAuthError, resetClientCache, verifyToken } from "./core/client.ts";
+import {
+	browserCanReachThisMachine,
+	clientIdFor,
+	discoverSignIn,
+	openInBrowser,
+	revokeRefreshToken,
+	startCopyCodeSignIn,
+	startLoopbackSignIn,
+	type PendingSignIn,
+	type SignInDiscovery,
+	type TokenSet,
+} from "./core/oauth.ts";
 import { unwrapMcpResult } from "./core/result.ts";
 
 const STATUS_KEY = "devspec";
@@ -27,6 +41,9 @@ const STATUS_KEY = "devspec";
 let verifiedPrincipal: string | null = null;
 let verifyAttempted = false;
 let verifiedConnection = false;
+
+/** At most one browser sign-in waits at a time; a new /devspec.login replaces it. */
+let pendingSignIn: PendingSignIn | null = null;
 
 function setStatus(ctx: ExtensionContext, text: string | undefined): void {
 	if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY, text);
@@ -61,110 +78,218 @@ export function principalFrom(result: unknown): string | null {
 	return null;
 }
 
-async function doLogin(token: string, ctx: ExtensionContext): Promise<boolean> {
-	try {
-		const result = await verifyToken(token);
-		const { isError, text } = unwrapMcpResult(result);
-		if (isError) {
-			ctx.ui.notify(`DevSpec login failed: ${text}`, "error");
-			return false;
-		}
-		const principal = principalFrom(result);
-		verifiedPrincipal = principal;
-		verifyAttempted = true;
-		verifiedConnection = true;
-		await saveAuth({ token, url: mcpUrl(), principal: principal ?? undefined, verifiedAt: new Date().toISOString() });
-		setStatus(ctx, undefined); // Successful identity is available in /devspec.status, not the footer.
-		const extra = getAdapterGuardState().suppressed.length > 0 ? ` ${SUPPRESSION_NOTICE}` : "";
-		ctx.ui.notify(`Connected to DevSpec${principal ? ` as ${principal}` : ""}.${extra}`, "info");
-		return true;
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		ctx.ui.notify(`DevSpec login failed: ${message}`, "error");
-		return false;
+/** Plain words for a token set in the environment, which always wins over a browser sign-in. */
+export function envTokenNotice(): string {
+	const where = process.platform === "win32"
+		? "System Properties → Environment Variables, and any terminal profile that sets it"
+		: "your shell profile (for example ~/.zshrc or ~/.bashrc) and this terminal (`unset " + TOKEN_ENV_VAR + "`)";
+	return `${TOKEN_ENV_VAR} is set in this environment, so Pi uses that token and ignores a browser sign-in. ` +
+		`To use your browser sign-in, remove ${TOKEN_ENV_VAR} from ${where}, then restart Pi.`;
+}
+
+function signInEndedNotice(): string {
+	return `Your DevSpec sign-in has ended, for example because Pi was disconnected on ${agentsSettingsUrl()}. ` +
+		"Run /devspec.login to sign in again.";
+}
+
+const LEGACY_TOKEN_NOTICE = "DevSpec for Pi now signs in through your browser instead of a pasted token. Run /devspec.login to sign in.";
+
+async function finishSignIn(
+	ctx: ExtensionContext,
+	endpoint: string,
+	discovery: SignInDiscovery,
+	clientId: string,
+	tokens: TokenSet,
+): Promise<void> {
+	// Confirm DevSpec accepts the new sign-in at the very server it was approved
+	// for before saving it, so a saved login is always one that worked.
+	const result = await verifyToken(tokens.accessToken, endpoint);
+	const { isError, text } = unwrapMcpResult(result);
+	if (isError) throw new Error(text || "DevSpec did not accept the sign-in.");
+	const principal = principalFrom(result);
+	await saveLogin({
+		endpoint,
+		tokens,
+		issuer: discovery.issuer,
+		tokenEndpoint: discovery.tokenEndpoint,
+		revocationEndpoint: discovery.revocationEndpoint,
+		clientId,
+		resource: discovery.resource,
+		signedInAs: principal ?? undefined,
+	});
+	resetClientCache();
+	verifiedPrincipal = principal;
+	verifyAttempted = true;
+	verifiedConnection = true;
+	setStatus(ctx, undefined);
+	const extra = getAdapterGuardState().suppressed.length > 0 ? ` ${SUPPRESSION_NOTICE}` : "";
+	ctx.ui.notify(`Signed in to DevSpec (${environmentLabel(endpoint)})${principal ? ` as ${principal}` : ""}.${extra}`, "info");
+}
+
+function failureText(err: unknown): string {
+	return err instanceof Error ? err.message : String(err);
+}
+
+async function login(args: string, ctx: ExtensionContext): Promise<void> {
+	// One server for the whole sign-in: discovered, approved, verified and saved
+	// under the same address, so a login can never land under another server.
+	const endpoint = mcpUrl();
+	const label = environmentLabel(endpoint);
+
+	if (process.env[TOKEN_ENV_VAR]?.trim()) {
+		ctx.ui.notify(envTokenNotice(), "warning");
+		return;
 	}
+	if (!ctx.hasUI) {
+		ctx.ui.notify(
+			`DevSpec sign-in needs a browser. For a run without one, set ${TOKEN_ENV_VAR} to an access token from ${agentsSettingsUrl()}.`,
+			"warning",
+		);
+		return;
+	}
+
+	pendingSignIn?.cancel();
+	pendingSignIn = null;
+
+	let discovery: SignInDiscovery;
+	let clientId: string;
+	try {
+		discovery = await discoverSignIn(endpoint);
+		clientId = clientIdFor(discovery.issuer);
+	} catch (err) {
+		ctx.ui.notify(`DevSpec sign-in unavailable: ${failureText(err)}`, "error");
+		return;
+	}
+
+	const copyCode = args.trim() === "--code" || !browserCanReachThisMachine();
+	if (copyCode) {
+		const flow = startCopyCodeSignIn({ discovery, clientId, codePageUrl: signInCodePageUrl(endpoint) });
+		if (browserCanReachThisMachine()) openInBrowser(flow.url);
+		ctx.ui.notify(`Sign in to DevSpec (${label}): open this link in a browser, approve, then copy the code it shows.\n${flow.url}`, "info");
+		const pasted = (await ctx.ui.input("Paste the code from the DevSpec page", "code"))?.trim();
+		if (!pasted) {
+			ctx.ui.notify("DevSpec sign-in canceled.", "info");
+			return;
+		}
+		try {
+			await finishSignIn(ctx, endpoint, discovery, clientId, await flow.complete(pasted));
+		} catch (err) {
+			ctx.ui.notify(`DevSpec sign-in failed: ${failureText(err)}`, "error");
+		}
+		return;
+	}
+
+	let pending: PendingSignIn;
+	try {
+		pending = await startLoopbackSignIn({ discovery, clientId });
+	} catch (err) {
+		ctx.ui.notify(`DevSpec sign-in failed: ${failureText(err)}`, "error");
+		return;
+	}
+	pendingSignIn = pending;
+	openInBrowser(pending.url);
+	ctx.ui.notify(
+		`Approve DevSpec (${label}) in your browser. If it did not open, open this link:\n${pending.url}\n` +
+			"On a machine your browser cannot reach, run /devspec.login --code instead.",
+		"info",
+	);
+	// Wait in the background so Pi stays usable; the result arrives through the browser.
+	void pending.done.then(
+		(tokens) => {
+			if (pendingSignIn !== pending) return;
+			pendingSignIn = null;
+			return finishSignIn(ctx, endpoint, discovery, clientId, tokens);
+		},
+		(err: unknown) => {
+			if (pendingSignIn !== pending) return;
+			pendingSignIn = null;
+			ctx.ui.notify(`DevSpec sign-in did not finish: ${failureText(err)}`, "warning");
+		},
+	).catch((err: unknown) => ctx.ui.notify(`DevSpec sign-in failed: ${failureText(err)}`, "error"));
 }
 
 export default function (pi: ExtensionAPI) {
 	pi.registerCommand("devspec.login", {
-		description: `Connect to DevSpec. Paste an access token from ${agentsSettingsUrl()} (or set ${TOKEN_ENV_VAR}).`,
+		description: "Sign in to DevSpec through your browser (add --code on a machine your browser cannot reach).",
 		handler: async (args, ctx) => {
-			const envToken = process.env[TOKEN_ENV_VAR];
-			let token = args.trim();
-
-			if (!token && envToken) {
-				token = envToken.trim();
-				ctx.ui.notify(`Using token from ${TOKEN_ENV_VAR}.`, "info");
-			}
-
-			if (!token) {
-				if (!ctx.hasUI) {
-					// Headless: no prompt possible. Tell the operator the env path.
-					ctx.ui.notify(
-						`DevSpec login: set ${TOKEN_ENV_VAR} (mint one at ${agentsSettingsUrl()}) and re-run.`,
-						"warning",
-					);
-					return;
-				}
-				const entered = await ctx.ui.input(
-					"Connect to DevSpec",
-					`Paste an access token from ${agentsSettingsUrl()}`,
-				);
-				token = (entered ?? "").trim();
-				if (!token) {
-					ctx.ui.notify("DevSpec login cancelled.", "info");
-					return;
-				}
-			}
-
-			await doLogin(token, ctx);
+			await login(args, ctx);
 		},
 	});
 
 	pi.registerCommand("devspec.logout", {
-		description: "Remove the stored DevSpec token from this machine.",
+		description: "Sign out of the current DevSpec server (staging and production are separate).",
 		handler: async (_args, ctx) => {
-			await clearAuth();
+			const endpoint = mcpUrl();
+			pendingSignIn?.cancel();
+			pendingSignIn = null;
+			const removed = await removeLogin(endpoint);
+			if (removed) {
+				await revokeRefreshToken({
+					revocationEndpoint: removed.revocationEndpoint,
+					clientId: removed.clientId,
+					refreshToken: removed.refreshToken,
+				});
+			}
 			resetClientCache();
 			verifiedPrincipal = null;
 			verifyAttempted = false;
 			verifiedConnection = false;
 			setStatus(ctx, undefined);
+			const label = environmentLabel(endpoint);
+			const envNote = process.env[TOKEN_ENV_VAR]?.trim() ? ` ${envTokenNotice()}` : "";
 			ctx.ui.notify(
-				`DevSpec token removed.${process.env[TOKEN_ENV_VAR] ? ` Note: ${TOKEN_ENV_VAR} is still set in the environment.` : ""}`,
+				`${removed ? `Signed out of DevSpec (${label}).` : `Pi was not signed in to DevSpec (${label}).`}${envNote}`,
 				"info",
 			);
 		},
 	});
 
 	pi.registerCommand("devspec.status", {
-		description: "Show DevSpec connection state (token source, principal, endpoint).",
+		description: "Show which DevSpec server Pi uses, who it is signed in as, and where its credential comes from.",
 		handler: async (_args, ctx) => {
-			const resolved = await resolveToken();
-			if (!resolved) {
+			const endpoint = mcpUrl();
+			const label = environmentLabel(endpoint);
+			if (process.env[TOKEN_ENV_VAR]?.trim()) {
+				const who = verifiedPrincipal ?? (verifiedConnection ? "connected" : "not verified this session");
+				ctx.ui.notify(`DevSpec (${label}): using the token in ${TOKEN_ENV_VAR} · ${who} · ${endpoint}\n${envTokenNotice()}`, "info");
+				return;
+			}
+			const state = await loginState(endpoint);
+			if (state.kind === "ended") {
+				ctx.ui.notify(`DevSpec (${label}): ${signInEndedNotice()}`, "warning");
+				return;
+			}
+			if (state.kind === "none") {
 				ctx.ui.notify(
-					`DevSpec: not connected. Run /devspec.login or set ${TOKEN_ENV_VAR}. Tokens: ${agentsSettingsUrl()}`,
+					state.legacyToken ? `DevSpec (${label}): ${LEGACY_TOKEN_NOTICE}` : `DevSpec (${label}): not signed in. Run /devspec.login.`,
 					"warning",
 				);
 				return;
 			}
-			const who = verifiedPrincipal ?? (verifiedConnection ? "connected" : "not verified this session");
-			const endpoint = await resolveEndpoint();
-			ctx.ui.notify(
-				`DevSpec: token from ${resolved.source === "env" ? TOKEN_ENV_VAR : "login store"} · ${who} · ${endpoint}`,
-				"info",
-			);
+			const who = verifiedPrincipal ?? state.login.signedInAs ?? "signed in";
+			ctx.ui.notify(`DevSpec (${label}): signed in through the browser as ${who} · ${endpoint}`, "info");
 		},
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
+		const interactive = ctx.hasUI && ctx.mode === "tui";
+		const endpoint = mcpUrl();
 		const resolved = await resolveToken();
 		if (!resolved) {
 			setStatus(ctx, undefined);
-			if (ctx.hasUI && ctx.mode === "tui") {
-				ctx.ui.notify(`DevSpec: not connected — /devspec.login (tokens: ${agentsSettingsUrl()})`, "warning");
+			if (interactive) {
+				const state = await loginState(endpoint);
+				ctx.ui.notify(
+					state.kind === "ended" ? `DevSpec: ${signInEndedNotice()}`
+						: state.kind === "none" && state.legacyToken ? `DevSpec: ${LEGACY_TOKEN_NOTICE}`
+						: `DevSpec (${environmentLabel(endpoint)}): not signed in — /devspec.login`,
+					"warning",
+				);
 			}
 			return;
+		}
+		if (resolved.source === "env" && interactive && (await loginState(endpoint)).kind !== "none") {
+			ctx.ui.notify(`DevSpec: ${envTokenNotice()}`, "warning");
 		}
 
 		setStatus(ctx, "DevSpec: …");
@@ -174,14 +299,24 @@ export default function (pi: ExtensionAPI) {
 		if (!verifyAttempted) {
 			verifyAttempted = true;
 			void verifyToken(resolved.token)
-				.then((result) => {
-					const { isError } = unwrapMcpResult(result);
-					if (isError) throw new DevspecAuthError("verify returned error");
+				.then(async (result) => {
+					const { isError, text } = unwrapMcpResult(result);
+					if (isError) throw new DevspecAuthError(text || "DevSpec did not accept the credential.");
 					verifiedPrincipal = principalFrom(result);
 					verifiedConnection = true;
 					setStatus(ctx, undefined);
+					const state = resolved.source === "login" ? await loginState(endpoint) : null;
+					if (verifiedPrincipal && state?.kind === "active" && state.login.signedInAs !== verifiedPrincipal) {
+						await setSignedInAs(endpoint, state.login.loginId, verifiedPrincipal).catch(() => {});
+					}
 				})
-				.catch(() => {
+				.catch((err: unknown) => {
+					if (err instanceof DevspecAuthError) {
+						// A refused credential is said plainly, with what to do next.
+						setStatus(ctx, "DevSpec: sign in again");
+						if (interactive) ctx.ui.notify(`DevSpec: ${err.message}`, "warning");
+						return;
+					}
 					setStatus(ctx, "DevSpec: offline?");
 				});
 		} else {

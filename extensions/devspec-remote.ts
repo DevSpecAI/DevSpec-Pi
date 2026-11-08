@@ -49,7 +49,7 @@ import { repositoryContextMessage } from "./core/repository-context.ts";
 import { applyConnectionContext } from "./core/connection-context.ts";
 import { installProjectSelection } from "./core/project-selection-ui.ts";
 import { getProjectChoice, projectFromRegistration, projectRemoteArgs, type ProjectCandidate, type ProjectChoice, type ProjectChoiceRequired } from "./core/project-choice.ts";
-import { openRoomStore, roomPrincipalFingerprint, type RoomStoreScope } from "./core/room-store.ts";
+import { openRoomStore, type RoomStoreScope } from "./core/room-store.ts";
 import { readRoomForContext, roomUnreadBoundary, roomUnreadForContext } from "./core/room-tools.ts";
 import { observeRoomAccess } from "./core/room-access.ts";
 import { compactRoomAwareness, roomScopeFromEntries, ROOM_READ_TOOL, ROOM_SCOPE_ENTRY } from "./core/room-reader.ts";
@@ -214,7 +214,7 @@ import {
 	type DirectedQuestionEventV1,
 	type SessionEntryLike,
 } from "./core/interaction-events.ts";
-import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
+import { principalOf, resolveEndpoint, resolveToken } from "./core/auth-store.ts";
 import { loadSettings, saveSettings } from "./core/settings.ts";
 import { decideInteractionDelivery, decideOwnerDelivery, shouldClearStrandedBusyAfterAbort, waitUntil } from "./core/preempt.ts";
 import {
@@ -293,6 +293,12 @@ interface PendingInteractionReleaseRetry {
 interface PumpState {
 	/** Monotonic authority generation; async work may commit only while this pump remains current. */
 	generation: number;
+	/**
+	 * Who the pump runs as (`principalOf`): stable across a browser sign-in's
+	 * renewals, so long-lived work can take the renewed token without ever
+	 * switching to another person's credential.
+	 */
+	credentialPrincipal?: string;
 	bond: BondState;
 	cursor?: string;
 	dispatchCursor?: string;
@@ -2430,6 +2436,19 @@ function waitForWake(active: PumpState, safetyMs: number): Promise<void> {
  * grace-guarded liveness clear (10s) gives these retries their window: a
  * reconnect that lands in time re-stamps presence and defeats the clear.
  */
+/**
+ * The credential to use now. A browser sign-in renews its access token about
+ * once a day, so work that outlives a moment (reconnects, retries, room history)
+ * asks for the current token instead of keeping the one it started with. It
+ * never switches identity: if someone else is now signed in, the held token is
+ * kept and DevSpec decides.
+ */
+async function currentPumpToken(active: PumpState, held: string): Promise<string> {
+	const fresh = await resolveToken().catch(() => null);
+	if (!fresh || !active.credentialPrincipal || principalOf(fresh) !== active.credentialPrincipal) return held;
+	return fresh.token;
+}
+
 function schedulePushReconnect(
 	active: PumpState,
 	token: string,
@@ -2451,10 +2470,14 @@ function schedulePushReconnect(
 		active.pushReconnectTimer = undefined;
 		if (active.stop || active.pushEnded !== undefined ||
 			!active.pushGenerationFence.isCurrent(streamGeneration)) return;
-		startPushChannel(active, token, endpoint);
-		// A re-opened stream's first marker read always wakes (fresh baseline),
-		// so nothing that moved during the outage is missed.
-		signalWake(active);
+		void currentPumpToken(active, token).then((current) => {
+			if (active.stop || active.pushEnded !== undefined ||
+				!active.pushGenerationFence.isCurrent(streamGeneration)) return;
+			startPushChannel(active, current, endpoint);
+			// A re-opened stream's first marker read always wakes (fresh baseline),
+			// so nothing that moved during the outage is missed.
+			signalWake(active);
+		});
 	}, delay);
 	if (typeof active.pushReconnectTimer.unref === "function") active.pushReconnectTimer.unref();
 }
@@ -2608,7 +2631,7 @@ function scheduleAutomationRetry(
 	const delayMs = nextDeliveryRetryDelayMs(failures);
 	const reason = error instanceof Error ? error.message : String(error);
 	if (!active.automationRetryTimers.has(key)) {
-		const timer = setTimeout(() => {
+		const timer = setTimeout(() => void currentPumpToken(active, token).then((token) => {
 			active.automationRetryTimers.delete(key);
 			if (!authorityIsCurrent()) return;
 			void revalidateAutomationRunRetry({
@@ -2630,7 +2653,7 @@ function scheduleAutomationRetry(
 			}).catch((retryError) => {
 				if (authorityIsCurrent()) scheduleAutomationRetry(active, key, token, ctx, retryError, false, what);
 			});
-		}, delayMs);
+		}), delayMs);
 		if (typeof timer.unref === "function") timer.unref();
 		active.automationRetryTimers.set(key, timer);
 	}
@@ -2827,7 +2850,8 @@ async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: s
 	const effective = await resolveToken();
 	const effectiveEndpoint = await resolveEndpoint();
 	if (pump !== active || active.stop) return;
-	if (effective?.token !== token || effectiveEndpoint !== endpoint) {
+	// Same person and server as the pump: a renewed token is the same principal.
+	if (!effective || principalOf(effective) !== active.credentialPrincipal || effectiveEndpoint !== endpoint) {
 		active.roomSync?.close(true); active.roomSync = undefined; pi_appendRoomScope(null, active.localSessionId); return;
 	}
 	const b = active.bond;
@@ -2852,7 +2876,7 @@ async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: s
 		// Rows this connection posted before this copy existed are its own too; a
 		// bare "Pi" without a codename would also match the owner's other Pis.
 		const identity = active.connectionIdentity;
-		const store = await openRoomStore(scope, { current, principalFingerprint: roomPrincipalFingerprint(token), selfLabel: identity.connection_id === scope.connectionId && identity.codename ? identity.label : null });
+		const store = await openRoomStore(scope, { current, principalFingerprint: principalOf(effective), selfLabel: identity.connection_id === scope.connectionId && identity.codename ? identity.label : null });
 		if (!current()) { store.close(true); return; }
 		const sessionEventsNegotiated = advertisesSessionEvents(advertised);
 		const noticeReplyNegotiated = advertisesNoticeReply(advertised);
@@ -2863,8 +2887,9 @@ async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: s
 			fetchHistory: async (args) => {
 				if (!current()) throw new Error("room attachment changed");
 				let raw: unknown;
+				const pollToken = await currentPumpToken(active, token);
 				try {
-					raw = await callDevspec(token, "poll_connection", {
+					raw = await callDevspec(pollToken, "poll_connection", {
 						connection_id: scope.connectionId, ingress_version: 1, delegated_scope_version: 1,
 						active_plan_projection_version: 1, system_notice_version: SYSTEM_NOTICE_CHANNEL_VERSION, sender_style_version: 1,
 						room_context_version: 1, session_polls_projection_version: 2, check_job_version: CHECK_JOB_VERSION, wait_ms: 0, ...args,
@@ -2911,7 +2936,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 	if (!active) return;
 	const resolved = await resolveToken();
 	if (!resolved) return;
-	const token = resolved.token;
+	active.credentialPrincipal = principalOf(resolved);
+	// Renewed each lap (currentPumpToken): a browser sign-in's token changes daily.
+	let token = resolved.token;
 
 	// Push mode: SSE wakes us; we fetch the package with a no-hold poll.
 	// Falls back to the held long-poll if the channel stays unavailable.
@@ -2927,6 +2954,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 
 	while (pump === active && !active.stop) {
 		lastCtx = ctx;
+		token = await currentPumpToken(active, token);
+		if (pump !== active || active.stop) return;
 		ensurePushInteractionNegotiation(active, token, endpoint);
 		if (active.stop || pump !== active) return;
 		// Server told us the bond ended — only a human End / local stop is sticky.

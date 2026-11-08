@@ -9,9 +9,8 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { resolveToken, resolveEndpoint } from "./core/auth-store.ts";
+import { principalOf, resolveToken, resolveEndpoint } from "./core/auth-store.ts";
 import { getBond } from "./core/bond-state.ts";
 import {
 	DevspecAuthError,
@@ -76,7 +75,7 @@ export interface FrozenCommitAttribution {
 }
 
 interface ReporterDeps {
-	resolveToken(): Promise<{ token: string } | null>;
+	resolveToken(): Promise<{ token: string; principal?: string } | null>;
 	resolveEndpoint(): Promise<string>;
 	resolveGitRemote(cwd: string): Promise<string | null>;
 	resolveProjectPin(cwd: string): Promise<string | null>;
@@ -98,8 +97,14 @@ const reporterDeps: ReporterDeps = {
 
 export type CommitReportOutcome = "sent" | "permanent_rejection" | "transient_failure";
 
-export function commitTokenHash(token: string): string {
-	return createHash("sha256").update(token).digest("hex");
+/**
+ * Who a commit observation was made as. For a pasted token this is the
+ * token's sha256, as it always was; a browser login keeps one identity across
+ * its daily renewals, so an observation is not rejected just because the
+ * access token was renewed before it was reported.
+ */
+export function commitPrincipalHash(auth: { token: string; principal?: string }): string {
+	return principalOf(auth);
 }
 
 /** Capture host auth before execution. A later login cannot adopt its observations. */
@@ -107,7 +112,7 @@ export async function captureCommitTransport(deps: ReporterDeps = reporterDeps):
 	try {
 		const [auth, endpoint] = await Promise.all([deps.resolveToken(), deps.resolveEndpoint()]);
 		if (!auth?.token || !endpoint) return null;
-		return Object.freeze({ tokenHash: commitTokenHash(auth.token), endpoint });
+		return Object.freeze({ tokenHash: commitPrincipalHash(auth), endpoint });
 	} catch { return null; }
 }
 
@@ -139,7 +144,7 @@ export async function reportCapturedCommit(
 	if (!resolved?.token) return "transient_failure";
 	const endpoint = await deps.resolveEndpoint().catch(() => null);
 	if (!endpoint) return "transient_failure";
-	if (commitTokenHash(resolved.token) !== attribution.transport.tokenHash || endpoint !== attribution.transport.endpoint) return "permanent_rejection";
+	if (commitPrincipalHash(resolved) !== attribution.transport.tokenHash || endpoint !== attribution.transport.endpoint) return "permanent_rejection";
 
 	try {
 		const repository = await captureCommitRepository(cwd, attribution.projectId, deps);

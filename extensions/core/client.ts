@@ -87,11 +87,13 @@ export interface StructuredServerFailure {
 	code: string | null;
 	retryable: boolean | null;
 	credentialType: "api_token" | "connection_capability" | null;
+	/** The server's own sentence (`error`), when its body could be read. */
+	message: string | null;
 }
 
 /** Extract status / machine code / retry verdict from an SDK-shaped error. Exported for tests. */
 export function readStructuredFailure(err: unknown): StructuredServerFailure {
-	const out: StructuredServerFailure = { status: null, code: null, retryable: null, credentialType: null };
+	const out: StructuredServerFailure = { status: null, code: null, retryable: null, credentialType: null, message: null };
 	if (typeof err === "object" && err !== null) {
 		const rec = err as Record<string, unknown>;
 		for (const key of ["code", "status", "statusCode"]) {
@@ -114,6 +116,7 @@ export function readStructuredFailure(err: unknown): StructuredServerFailure {
 		}
 		if (body && typeof body === "object") {
 			if (typeof body.code === "string") out.code = body.code;
+			if (typeof body.error === "string") out.message = body.error;
 			if (typeof body.retryable === "boolean") out.retryable = body.retryable;
 			if (body.credential_type === "api_token" || body.credential_type === "connection_capability") {
 				out.credentialType = body.credential_type;
@@ -359,6 +362,14 @@ export function mapClientError(err: unknown): Error {
 	}
 	if (structured.code === "invalid_api_token") {
 		return new DevspecAuthError("DevSpec rejected the token (invalid or revoked). Run /devspec.login.");
+	}
+	// A browser sign-in for a tool the person disconnected on the Agents page.
+	// DevSpec's own sentence says where to reconnect; signing in again follows.
+	if (structured.code === "signed_out") {
+		const said = typeof structured.message === "string" && structured.message.trim()
+			? structured.message.trim()
+			: "Pi was disconnected from your DevSpec account. You can reconnect it from Agent setup in your DevSpec settings.";
+		return new DevspecAuthError(`${said} Then run /devspec.login.`);
 	}
 	if (structured.code === "invalid_connection_capability") {
 		return new DevspecAuthError(
@@ -699,6 +710,7 @@ export async function readDevspecResource(
  * Verify a token and return the server's identity payload (unwrapMcpResult
  * shape). Used by /devspec.login and the session-start status check.
  */
-export async function verifyToken(token: string): Promise<unknown> {
-	return callDevspec(token, "verify_agent_connection", {}, { lane: "work", timeoutMs: 15_000 });
+/** `endpoint` pins the check to one server (a new sign-in is verified where it was approved). */
+export async function verifyToken(token: string, endpoint?: string): Promise<unknown> {
+	return callDevspec(token, "verify_agent_connection", {}, { lane: "work", timeoutMs: 15_000, ...(endpoint ? { endpoint } : {}) });
 }

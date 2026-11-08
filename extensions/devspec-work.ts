@@ -14,10 +14,9 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
-import { createHash } from "node:crypto";
 import { getAdapterGuardState, SUPPRESSION_NOTICE } from "./core/adapter-overlap.ts";
 import { markTypedSend, unmarkTypedSend } from "./core/request-chain.ts";
-import { resolveToken } from "./core/auth-store.ts";
+import { principalOf, resolveToken } from "./core/auth-store.ts";
 import { callDevspec, MODEL_TIMEOUT_MS } from "./core/client.ts";
 import { agentsSettingsUrl } from "./core/config.ts";
 import {
@@ -40,8 +39,9 @@ interface ItemSummary {
 let cacheCwd = process.cwd();
 let itemCache: { at: number; scope: string; items: ItemSummary[] } = { at: 0, scope: "", items: [] };
 
-function itemCacheScope(token: string, cwd: string): string {
-	return `${createHash("sha256").update(token, "utf8").digest("hex").slice(0, 24)}:${cwd}`;
+/** Keyed by who is signed in (stable across a browser login's renewals), never the raw token. */
+function itemCacheScope(auth: { token: string; principal?: string }, cwd: string): string {
+	return `${principalOf(auth).slice(0, 24)}:${cwd}`;
 }
 
 async function refreshItemCache(cwd = cacheCwd): Promise<boolean> {
@@ -50,7 +50,7 @@ async function refreshItemCache(cwd = cacheCwd): Promise<boolean> {
 		itemCache = { at: 0, scope: "", items: [] };
 		return false;
 	}
-	const scope = itemCacheScope(resolved.token, cwd);
+	const scope = itemCacheScope(resolved, cwd);
 	try {
 		const raw = await callDevspec(
 			resolved.token,
@@ -186,7 +186,7 @@ export default function (pi: ExtensionAPI) {
 				const [target, implementationContext] = await Promise.all([
 					fetchItemById(id),
 					loadImplementationContext({
-						loader: createImplementationContractLoader(resolved.token),
+						loader: createImplementationContractLoader(resolved),
 					}),
 				]);
 				const kickoff = buildImplementationKickoff({

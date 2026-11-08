@@ -10,33 +10,40 @@ delete process.env.DEVSPEC_MCP_TOKEN;
 delete process.env.DEVSPEC_MCP_URL;
 delete process.env.DEVSPEC_ENV;
 
-const { resolveEndpoint, saveAuth, clearAuth } = await import("../extensions/core/auth-store.ts");
+const { resolveEndpoint, saveLogin, removeLogin } = await import("../extensions/core/auth-store.ts");
 const { DEFAULT_MCP_URL, STAGING_MCP_URL } = await import("../extensions/core/config.ts");
 
-test("defaults to production with no env and no store", async () => {
+test("defaults to production with no env and no login", async () => {
 	assert.equal(await resolveEndpoint(), DEFAULT_MCP_URL);
 });
 
-test("stored login URL beats the production default", async () => {
-	await saveAuth({ token: "tok", url: STAGING_MCP_URL });
-	assert.equal(await resolveEndpoint(), STAGING_MCP_URL);
-	await clearAuth();
+test("a saved login never chooses the server: only the environment does", async () => {
+	const now = Date.now();
+	await saveLogin({
+		endpoint: STAGING_MCP_URL,
+		tokens: { accessToken: "oat_s", refreshToken: "rt_s", issuedAt: now, expiresAt: now + 3_600_000 },
+		issuer: "https://issuer.test",
+		tokenEndpoint: "https://issuer.test/oauth/token",
+		clientId: "pi-client",
+		resource: STAGING_MCP_URL,
+	});
+	try {
+		assert.equal(await resolveEndpoint(), DEFAULT_MCP_URL);
+		process.env.DEVSPEC_ENV = "staging";
+		assert.equal(await resolveEndpoint(), STAGING_MCP_URL);
+	} finally {
+		delete process.env.DEVSPEC_ENV;
+		await removeLogin(STAGING_MCP_URL);
+	}
 });
 
-test("DEVSPEC_ENV=staging beats the stored URL", async () => {
-	await saveAuth({ token: "tok", url: DEFAULT_MCP_URL });
-	process.env.DEVSPEC_ENV = "staging";
-	assert.equal(await resolveEndpoint(), STAGING_MCP_URL);
-	delete process.env.DEVSPEC_ENV;
-	await clearAuth();
-});
-
-test("explicit DEVSPEC_MCP_URL beats everything", async () => {
-	await saveAuth({ token: "tok", url: STAGING_MCP_URL });
+test("explicit DEVSPEC_MCP_URL beats DEVSPEC_ENV", async () => {
 	process.env.DEVSPEC_ENV = "staging";
 	process.env.DEVSPEC_MCP_URL = "http://localhost:3000/api/mcp";
-	assert.equal(await resolveEndpoint(), "http://localhost:3000/api/mcp");
-	delete process.env.DEVSPEC_MCP_URL;
-	delete process.env.DEVSPEC_ENV;
-	await clearAuth();
+	try {
+		assert.equal(await resolveEndpoint(), "http://localhost:3000/api/mcp");
+	} finally {
+		delete process.env.DEVSPEC_ENV;
+		delete process.env.DEVSPEC_MCP_URL;
+	}
 });

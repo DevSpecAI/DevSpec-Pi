@@ -61,3 +61,21 @@ export function mcpUrl(): string {
 export function agentsSettingsUrl(): string {
 	return mcpUrl() === STAGING_MCP_URL ? STAGING_AGENTS_SETTINGS_URL : AGENTS_SETTINGS_URL;
 }
+
+/**
+ * DevSpec's "copy this code" page for a sign-in on a machine the browser cannot
+ * reach. It lives on the app host matching the endpoint; a DevSpec run locally
+ * serves the app and the API from one origin.
+ */
+export function signInCodePageUrl(endpoint: string): string {
+	if (endpoint === DEFAULT_MCP_URL) return "https://app.devspec.ai/oauth-code";
+	if (endpoint === STAGING_MCP_URL) return "https://app.devspecstaging.com/oauth-code";
+	return `${new URL(endpoint).origin}/oauth-code`;
+}
+
+/** "staging", "production", or the address itself for any other DevSpec. */
+export function environmentLabel(endpoint: string): string {
+	if (endpoint === DEFAULT_MCP_URL) return "production";
+	if (endpoint === STAGING_MCP_URL) return "staging";
+	return new URL(endpoint).origin;
+}

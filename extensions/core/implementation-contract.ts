@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { resolveEndpoint } from "./auth-store.ts";
+import { principalOf, resolveEndpoint } from "./auth-store.ts";
 import { callDevspec, MODEL_TIMEOUT_MS, readDevspecResource } from "./client.ts";
 import { unwrapMcpResult } from "./result.ts";
 import { UPDATE_EXTENSION_INSTRUCTION } from "./version-mismatch.ts";
@@ -625,10 +625,12 @@ export async function loadImplementationContext(input: {
 	);
 }
 
-export function createImplementationContractLoader(token: string): ImplementationContractLoader {
-	const tokenFingerprint = createHash("sha256").update(token, "utf8").digest("hex").slice(0, 24);
+export function createImplementationContractLoader(auth: { token: string; principal?: string }): ImplementationContractLoader {
+	const { token } = auth;
+	// Who is signed in, not the raw token: a browser login keeps its identity across renewals.
+	const principalFingerprint = principalOf(auth).slice(0, 24);
 	return {
-		cacheScope: async () => `${await resolveEndpoint()}#${tokenFingerprint}`,
+		cacheScope: async () => `${await resolveEndpoint()}#${principalFingerprint}`,
 		readResource: (uri) => readDevspecResource(token, uri, {
 			lane: "work",
 			timeoutMs: MODEL_TIMEOUT_MS,

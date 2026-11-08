@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.0 - 2026-11-08
+
+- Pi now signs in to DevSpec through your browser. Run `/devspec.login`, click **Allow** on DevSpec's approval page, and you are signed in; nothing is pasted. The approval page and your Agent setup page show Pi by name, and disconnecting Pi there signs out Pi and nothing else. Pi renews the sign-in by itself, so it lasts until you sign out or disconnect it. In an SSH session, or with `/devspec.login --code`, you approve in any browser and paste back the code the page shows.
+- Staging and production sign-ins are kept side by side. Pi uses production unless `DEVSPEC_ENV=staging` or `DEVSPEC_MCP_URL` is set when it starts, and switching never needs a new sign-in or overwrites the other one. A sign-in is always saved for the server it was approved on.
+- `DEVSPEC_MCP_TOKEN` is now only for runs with no browser. When it is set, `/devspec.login`, `/devspec.status` and startup say that it takes precedence and how to remove it, and `/devspec.login` no longer reports a sign-in that the next start would ignore.
+- If DevSpec ends your sign-in, for example because Pi was disconnected on the Agent setup page, Pi says so the next time it is used and tells you to run `/devspec.login`.
+- A token pasted with an earlier version is no longer used: run `/devspec.login` once to sign in through your browser. Browser sign-in needs DevSpec's matching server update. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.11.0 - 2026-11-07
 
 - Your Pi agent can now rule three more kinds of out-of-date check that DevSpec sends it: whether open tasks are out of date because a discussion point was settled, because a Goal or one of its outcomes changed, and the whole-backlog out-of-date scan started from the Tasks page. The line that wakes your agent says which one it is. Checks no longer carry a count of high-risk entries.

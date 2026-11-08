@@ -41,7 +41,24 @@ test("structured 503 unavailable-validation is retryable, never credential rejec
 		code: "auth_validation_unavailable",
 		retryable: true,
 		credentialType: "api_token",
+		message: "Authentication is temporarily unavailable. Please try again.",
 	});
+});
+
+test("a disconnected browser sign-in is a credential rejection that says where to reconnect, then to sign in", () => {
+	const sdkError = Object.assign(
+		new Error(
+			'Streamable HTTP error: Error POSTing to endpoint: {"error":"This tool was disconnected from your DevSpec account. You can reconnect it from Agent setup in your DevSpec settings.","code":"signed_out","retryable":false}',
+		),
+		{ code: 401 },
+	);
+	const mapped = mapClientError(sdkError);
+	assert.ok(mapped instanceof DevspecAuthError);
+	assert.equal(
+		mapped.message,
+		"This tool was disconnected from your DevSpec account. You can reconnect it from Agent setup in your DevSpec settings. Then run /devspec.login.",
+	);
+	assert.equal(isRecoverableTransportError(mapped), false);
 });
 
 test("a 503 that mentions 401 in prose is still unavailable, not revoked", () => {

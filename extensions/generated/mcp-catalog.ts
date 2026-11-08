@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: f1e1361bdadf993fe4f45c3d4970664ea4c8ae38d5407736d0bf8511f9b27862
- * Description fingerprint: 6224c9b5e23f68ff94d0d56f44e8fe06279dced012c2f1e01cab73be1762f633
- * Regenerated: 2026-11-08T00:54:22.009Z
+ * Schema fingerprint: 2f1ee446674b586f6f87e520fb5ef710b857864ea63b681dea0afee5802a7f76
+ * Description fingerprint: e664b15243cfa94a59ca4e002be176b0380adcf0bc552e4b0355eb74ea858e3f
+ * Regenerated: 2026-11-08T12:52:49.726Z
  */
-export const MCP_CATALOG_FINGERPRINT = "f1e1361bdadf993fe4f45c3d4970664ea4c8ae38d5407736d0bf8511f9b27862";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "6224c9b5e23f68ff94d0d56f44e8fe06279dced012c2f1e01cab73be1762f633";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-08T00:54:22.010Z";
-export const TOOL_CATALOG_VERSION = "7b86fc1ee63e7d46993e8173c9846c445af60d8867314b7e1453721b0a93447c";
+export const MCP_CATALOG_FINGERPRINT = "2f1ee446674b586f6f87e520fb5ef710b857864ea63b681dea0afee5802a7f76";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "e664b15243cfa94a59ca4e002be176b0380adcf0bc552e4b0355eb74ea858e3f";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-08T12:52:49.726Z";
+export const TOOL_CATALOG_VERSION = "cd6d2158d0aa23e9dc607c2ff65d92f7679d1073ace92d356583871899b18004";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -38,7 +38,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "claim_check_job",
 		"name": "claim check job",
-		"description": "Take a check job DevSpec sent to your wake channel (a dispatch of kind check_job) before ruling it. Only the agent it was sent to can take it, and taking it again is harmless: you get the same job back with what is still to rule. The reply carries the kind's definition (the instructions DevSpec's own check rules by), the change, with a written account of it when you did not make it, and every entry still to rule: its entry_id, the record (type, id, version, title), its exact text, its owner, its risk band, why it is listed, and for a decision or requirement the supporting documents it links. Rule every entry, using the definition the job carries; read any linked supporting document or uploaded file in full with get_resource first. verdicts lists the verdict words this kind allows, and also_waiting lists your other check jobs. Record the rulings with record_check_rulings. A refusal names its reason: not_yours means it was sent to another agent, so leave it; superseded means the change was replaced, and its new check comes as its own job; finished means it was already ruled or went back to the next in line, so there is nothing to take.",
+		"description": "Take a check job DevSpec sent to your wake channel (a dispatch of kind check_job) before ruling it. Only the agent it was sent to can take it, and taking it again is harmless: you get the same job back with what is still to rule. The reply carries the definition to rule this kind of check by, the change, with a written account of it when you did not make it, and every entry still to rule: its entry_id, the record (type, id, version, title), its exact text, its owner, its facts, how it is tied to the change or another entry, and for a decision or requirement the supporting documents it links. Rule every entry, using the definition the job carries; read any linked supporting document or uploaded file in full with get_resource first. verdicts lists the verdict words this kind allows, and also_waiting lists your other check jobs. Record the rulings with record_check_rulings. A refusal names its reason: not_yours means it was sent to another agent, so leave it; superseded means the change was replaced, and its new check comes as its own job; finished means it was already ruled or went back to the next in line, so there is nothing to take.",
 		"intent": "take a waiting check job on a change to rule conflicts duplicates out of date records"
 	},
 	{
@@ -8891,6 +8891,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"minLength": 1,
 					"description": "How any unique detail from the duplicate record was preserved in the kept record."
 				},
+				"notice_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "The notice_id of the DevSpec duplicate notice this resolution answers, exactly as the notice was delivered to your connection. Pass it on both the preview and the resolve whenever you are acting on that notice. When DevSpec cannot tell who asked, it closes the duplicate only as the answer to that notice: judged as your owner, only for the two tasks the notice names (keeping the existing task), and only when your owner asked for both and may close it. Otherwise it refuses and says why. It never makes anyone the requester. Omitted: no notice; a resolution whose requester DevSpec cannot tell is refused."
+				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
@@ -9009,6 +9015,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"minLength": 1,
 					"description": "How any unique detail from the duplicate record was preserved in the kept record."
+				},
+				"notice_id": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "The notice_id of the DevSpec duplicate notice this resolution answers, exactly as the notice was delivered to your connection. Pass it on both the preview and the resolve whenever you are acting on that notice. When DevSpec cannot tell who asked, it closes the duplicate only as the answer to that notice: judged as your owner, only for the two tasks the notice names (keeping the existing task), and only when your owner asked for both and may close it. Otherwise it refuses and says why. It never makes anyone the requester. Omitted: no notice; a resolution whose requester DevSpec cannot tell is refused."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -13938,7 +13950,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "claim_check_job",
 		"label": "DevSpec: Claim Check Job",
-		"description": "Take a check job DevSpec sent to your wake channel (a dispatch of kind check_job) before ruling it. Only the agent it was sent to can take it, and taking it again is harmless: you get the same job back with what is still to rule. The reply carries the kind's definition (the instructions DevSpec's own check rules by), the change, with a written account of it when you did not make it, and every entry still to rule: its entry_id, the record (type, id, version, title), its exact text, its owner, its risk band, why it is listed, and for a decision or requirement the supporting documents it links. Rule every entry, using the definition the job carries; read any linked supporting document or uploaded file in full with get_resource first. verdicts lists the verdict words this kind allows, and also_waiting lists your other check jobs. Record the rulings with record_check_rulings. A refusal names its reason: not_yours means it was sent to another agent, so leave it; superseded means the change was replaced, and its new check comes as its own job; finished means it was already ruled or went back to the next in line, so there is nothing to take.",
+		"description": "Take a check job DevSpec sent to your wake channel (a dispatch of kind check_job) before ruling it. Only the agent it was sent to can take it, and taking it again is harmless: you get the same job back with what is still to rule. The reply carries the definition to rule this kind of check by, the change, with a written account of it when you did not make it, and every entry still to rule: its entry_id, the record (type, id, version, title), its exact text, its owner, its facts, how it is tied to the change or another entry, and for a decision or requirement the supporting documents it links. Rule every entry, using the definition the job carries; read any linked supporting document or uploaded file in full with get_resource first. verdicts lists the verdict words this kind allows, and also_waiting lists your other check jobs. Record the rulings with record_check_rulings. A refusal names its reason: not_yours means it was sent to another agent, so leave it; superseded means the change was replaced, and its new check comes as its own job; finished means it was already ruled or went back to the next in line, so there is nothing to take.",
 		"searchIntent": "take a waiting check job on a change to rule conflicts duplicates out of date records",
 		"modelInputSchema": {
 			"type": "object",

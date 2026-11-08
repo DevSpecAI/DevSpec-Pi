@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.1 - 2026-11-08
+
+- **Pi agents can quietly fold their owner's duplicate task from a DevSpec duplicate notice.** Regenerated the checked-in DevSpec tool catalogue so `resolve_duplicate` exposes `notice_id`, allowing a Pi agent acting on a for-the-record duplicate notice about its owner's own task to pass that notice's ID on preview and resolve and fold the duplicate into the kept task without a command turn. Also picks up the updated `claim_check_job` tool description.
+
 ## 0.12.0 - 2026-11-08
 
 - Pi now signs in to DevSpec through your browser. Run `/devspec.login`, click **Allow** on DevSpec's approval page, and you are signed in; nothing is pasted. The approval page and your Agent setup page show Pi by name, and disconnecting Pi there signs out Pi and nothing else. Pi renews the sign-in by itself, so it lasts until you sign out or disconnect it. In an SSH session, or with `/devspec.login --code`, you approve in any browser and paste back the code the page shows.

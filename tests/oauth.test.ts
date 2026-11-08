@@ -128,7 +128,7 @@ test("Deny in the browser ends the sign-in plainly", async () => {
 	const back = new URL(request.searchParams.get("redirect_uri")!);
 	back.searchParams.set("error", "access_denied");
 	back.searchParams.set("state", request.searchParams.get("state")!);
-	const outcome = assert.rejects(pending.done, /cancelled in the browser/);
+	const outcome = assert.rejects(pending.done, /canceled in the browser/);
 	await fetch(back);
 	await outcome;
 });

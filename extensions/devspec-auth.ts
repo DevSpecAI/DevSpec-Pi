@@ -168,7 +168,7 @@ async function login(args: string, ctx: ExtensionContext): Promise<void> {
 		ctx.ui.notify(`Sign in to DevSpec (${label}): open this link in a browser, approve, then copy the code it shows.\n${flow.url}`, "info");
 		const pasted = (await ctx.ui.input("Paste the code from the DevSpec page", "code"))?.trim();
 		if (!pasted) {
-			ctx.ui.notify("DevSpec sign-in cancelled.", "info");
+			ctx.ui.notify("DevSpec sign-in canceled.", "info");
 			return;
 		}
 		try {

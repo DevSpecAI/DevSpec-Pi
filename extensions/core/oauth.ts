@@ -272,7 +272,7 @@ function reply(res: ServerResponse, status: number, html: string): void {
 export interface PendingSignIn {
 	/** The page to open; also shown so the person can click it themselves. */
 	url: string;
-	/** Settles with the new sign-in, or rejects when cancelled, refused or timed out. */
+	/** Settles with the new sign-in, or rejects when canceled, refused or timed out. */
 	done: Promise<TokenSet>;
 	cancel(): void;
 }
@@ -291,7 +291,7 @@ export async function startLoopbackSignIn(input: {
 	const state = base64url(randomBytes(24));
 	let settle!: { resolve(tokens: TokenSet): void; reject(error: Error): void };
 	const done = new Promise<TokenSet>((resolve, reject) => { settle = { resolve, reject }; });
-	// A replaced or cancelled sign-in may have no listener left; never crash Pi over it.
+	// A replaced or canceled sign-in may have no listener left; never crash Pi over it.
 	done.catch(() => {});
 	let finished = false;
 	let redirectUri = "";
@@ -317,8 +317,8 @@ export async function startLoopbackSignIn(input: {
 		}
 		const error = params.get("error");
 		if (error) {
-			reply(res, 200, page("Sign-in cancelled", "Nothing was connected. You can close this tab."));
-			finish(new SignInError(error === "access_denied" ? "Sign-in was cancelled in the browser." : `Sign-in failed (${error}).`));
+			reply(res, 200, page("Sign-in canceled", "Nothing was connected. You can close this tab."));
+			finish(new SignInError(error === "access_denied" ? "Sign-in was canceled in the browser." : `Sign-in failed (${error}).`));
 			return;
 		}
 		const code = params.get("code");
@@ -363,7 +363,7 @@ export async function startLoopbackSignIn(input: {
 	return {
 		url: authorizationUrl({ discovery: input.discovery, clientId: input.clientId, redirectUri, state, challenge }),
 		done,
-		cancel: () => finish(new SignInError("Sign-in cancelled.")),
+		cancel: () => finish(new SignInError("Sign-in canceled.")),
 	};
 }
 

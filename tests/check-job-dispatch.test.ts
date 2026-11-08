@@ -213,16 +213,17 @@ test("a check-job segment is nobody's request and gets no sessionless automation
 	assert.match(remote, /if \(!turn && segmentKind === "automation"\) ensureTurn\(\);/);
 });
 
-test("bonded instructions say to resolve a duplicate of a task the agent wrote on the spot, behaviour only", () => {
+test("bonded instructions say to resolve a duplicate of a task the agent wrote on the spot, pointing at the served contract for how", () => {
 	setBond({ connectionId: "11111111-1111-4111-8111-111111111111", codename: "Amber Hawk" });
 	try {
 		const lines = buildBondedInstructions()!.split("\n").filter((line) => line.includes("duplicates an existing one"));
 		assert.equal(lines.length, 1, "one line, in the bonded block");
 		const line = lines[0]!;
-		assert.match(line, /resolve it then and there instead of leaving it as a flag \(the served contract's core\.resolve-duplicates-on-the-spot\)/);
-		assert.match(line, /If the existing task is your requester's own, or one they may change, add anything new from yours to it, close yours as its duplicate, and tell them\./);
-		assert.match(line, /If it is someone else's, ask your requester whether to add to it, which waits for that owner's OK/);
-		assert.match(line, /recorded as not a duplicate with their reason\.$/);
+		assert.match(line, /resolve it then and there instead of leaving it as a flag, as the served contract's core\.resolve-duplicates-on-the-spot says/);
+		assert.match(line, /whether the room hears about it is semantics\.notice_audience\.$/);
+		// a868f41f: whose task it is, when to ask first and who is told are the served
+		// contract's to say; a restatement here contradicted it the moment it changed.
+		assert.doesNotMatch(line, /requester's own|may change|someone else's|tell them|owner's OK/);
 		// Decision e9556b5c: no wording scripts.
 		assert.doesNotMatch(line, /\bcite\b|citation|say to|word(?:ing)? it/i);
 	} finally {

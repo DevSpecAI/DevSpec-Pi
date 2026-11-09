@@ -441,6 +441,12 @@ const LOCAL_SAFETY_RULES: readonly ImplementationRule[] = [
 		enforcement: "agent",
 	},
 	{
+		id: "pi-fallback.push-safely",
+		phase: "delivery",
+		requirement: "Build every change on its own branch, open a pull request into the repository's tracking branch wherever pull requests are supported, switch on DevSpec's Merge when cleared (get_pull_request with merge_when_cleared:true), never merge before DevSpec's check passes, and end the turn rather than polling checks.",
+		enforcement: "agent",
+	},
+	{
 		id: "pi-fallback.waiting-work-stays-on-its-branch",
 		phase: "delivery",
 		requirement: "When the claim or the item carries waiting_for_ok (\"Experiment\", or \"Waiting for <name>'s OK\"), build and push the work on its own branch and never merge it into the tracking branch until it has the OK; tell the person plainly.",

@@ -158,6 +158,7 @@ const SERVER_NOTICE_TOPICS: Readonly<Record<string, string>> = {
 	confirmation_outcome: "How a request to confirm, which this agent saved for someone, was decided.",
 	intent_ruling_outcome: "Someone answered on work of this agent's that waited for an OK, or on an experiment of its own.",
 	write_quality: "A record this agent wrote needs a content correction.",
+	pr_ready_to_merge: "A pull request with DevSpec's Merge when cleared has passed DevSpec's check and all GitHub checks/approvals on its current head commit, and the GitHub App cannot merge it directly. Merge that cleared commit now using your owner's GitHub credentials.",
 };
 
 /**

@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 2f1ee446674b586f6f87e520fb5ef710b857864ea63b681dea0afee5802a7f76
+ * Schema fingerprint: ca440a4f0be6acaf4db6da5f5bc110690ecc5c2e1a5c1a89039b454f480bf570
  * Description fingerprint: e664b15243cfa94a59ca4e002be176b0380adcf0bc552e4b0355eb74ea858e3f
- * Regenerated: 2026-11-08T12:52:49.726Z
+ * Regenerated: 2026-11-09T21:25:36.962Z
  */
-export const MCP_CATALOG_FINGERPRINT = "2f1ee446674b586f6f87e520fb5ef710b857864ea63b681dea0afee5802a7f76";
+export const MCP_CATALOG_FINGERPRINT = "ca440a4f0be6acaf4db6da5f5bc110690ecc5c2e1a5c1a89039b454f480bf570";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "e664b15243cfa94a59ca4e002be176b0380adcf0bc552e4b0355eb74ea858e3f";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-08T12:52:49.726Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-09T21:25:36.962Z";
 export const TOOL_CATALOG_VERSION = "cd6d2158d0aa23e9dc607c2ff65d92f7679d1073ace92d356583871899b18004";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -6808,6 +6808,26 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "boolean",
 					"description": "true if the branch was merged into its target, false if it was only pushed. Omitted, the stored value is unchanged."
 				},
+				"merge_when_cleared": {
+					"type": "boolean",
+					"description": "Switch on or off DevSpec's Merge when cleared on the open pull request carrying this task's work (or named by pull_request_number), so DevSpec's GitHub App merges the pull request automatically once DevSpec's check, any required pull-request approval in DevSpec, and every other required check on the current commit have passed."
+				},
+				"pull_request_number": {
+					"anyOf": [
+						{
+							"type": "integer",
+							"exclusiveMinimum": 0
+						},
+						{
+							"type": "string"
+						}
+					],
+					"description": "Optional pull request number (e.g. 42 or '#42') when switching on or off merge_when_cleared. Omitted, DevSpec resolves the open pull request linked to this task or its work branch."
+				},
+				"pull_request_repo": {
+					"type": "string",
+					"description": "Optional repository ('owner/name' or repository UUID) for pull_request_number when the project tracks multiple repositories."
+				},
 				"affected_files": {
 					"type": "array",
 					"items": {
@@ -6989,6 +7009,26 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"agent_merged": {
 					"type": "boolean",
 					"description": "true if the branch was merged into its target, false if it was only pushed. Omitted, the stored value is unchanged."
+				},
+				"merge_when_cleared": {
+					"type": "boolean",
+					"description": "Switch on or off DevSpec's Merge when cleared on the open pull request carrying this task's work (or named by pull_request_number), so DevSpec's GitHub App merges the pull request automatically once DevSpec's check, any required pull-request approval in DevSpec, and every other required check on the current commit have passed."
+				},
+				"pull_request_number": {
+					"anyOf": [
+						{
+							"type": "integer",
+							"exclusiveMinimum": 0
+						},
+						{
+							"type": "string"
+						}
+					],
+					"description": "Optional pull request number (e.g. 42 or '#42') when switching on or off merge_when_cleared. Omitted, DevSpec resolves the open pull request linked to this task or its work branch."
+				},
+				"pull_request_repo": {
+					"type": "string",
+					"description": "Optional repository ('owner/name' or repository UUID) for pull_request_number when the project tracks multiple repositories."
 				},
 				"affected_files": {
 					"type": "array",

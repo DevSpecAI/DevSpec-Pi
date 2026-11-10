@@ -883,7 +883,14 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// description updates how check definitions and entry facts/ties are described
 		// (#1187). Hot set unchanged. Benchmark before/after: initial surface 60,870 ->
 		// 61,082 estimated tokens; every budget still passes.
-		"a76512e4a9edb630a810037ff5274ba4623723d908e02a1fcfd9cc457b33a2e5",
+		// Rebaselined 2026-11-09 for DevSpec item d667abff (universal pull-request delivery
+		// and Merge when cleared, item 55a69a08 / DevSpecV2 #1241), regenerated against
+		// devspecv2-worktrees/track-1-pr-workflow. Verbs 88 model / 12 pump / 1 never-model
+		// unchanged, none added or removed, no required field or projection family changed.
+		// Inputs: record_implementation gains optional merge_when_cleared (boolean),
+		// pull_request_number (number|string) and pull_request_repo (string). Hot set
+		// unchanged; every budget still passes.
+		"3bf264167d5634fcb15009418fd4c67e8f1b125da0c10974a7802b36f8f85811",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

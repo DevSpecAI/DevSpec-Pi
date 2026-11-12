@@ -184,6 +184,37 @@ export function formatCheckJobMessage(value: unknown, codename: string): string 
 	].join("\n");
 }
 
+export interface QueuedCheckJobInbox {
+	readonly dispatches: readonly unknown[];
+	readonly identityComplete?: boolean;
+}
+
+/**
+ * Revalidate a queued check job right before waking Pi (DevSpec item e6985316).
+ * Returns `false` when the live connection dispatch inbox confirms the check job
+ * is no longer pending; fails open (`true`) when still pending or on transient
+ * lookup failure so real checks are never dropped.
+ */
+export async function shouldDeliverQueuedCheckJob(options: {
+	key: string;
+	loadCurrentInbox: () => Promise<QueuedCheckJobInbox>;
+	identity?: (value: unknown) => string | undefined;
+}): Promise<boolean> {
+	const identityOf = options.identity ?? ((value: unknown) => {
+		const root = asRecord(value);
+		return text(root?.check_job_id) ?? text(root?.id);
+	});
+	try {
+		const inbox = await options.loadCurrentInbox();
+		if (!Array.isArray(inbox?.dispatches)) return true;
+		if (inbox.dispatches.some((entry) => identityOf(entry) === options.key)) return true;
+		if (inbox.identityComplete === false && inbox.dispatches.length > 0) return true;
+		return false;
+	} catch {
+		return true;
+	}
+}
+
 export function formatAutomationRunMessage(value: unknown, codename: string): string {
 	const runId = automationRunId(value);
 	if (!runId) throw new Error("automation run envelope requires a run id");

@@ -5,17 +5,25 @@
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { stripTypeScriptTypes } from "node:module";
+import { runInNewContext } from "node:vm";
 import { test } from "node:test";
 import {
 	CHECK_JOB_VERSION,
 	automationRunId,
 	describeCheckJob,
 	dispatchId,
+	formatAutomationRunMessage,
 	formatCheckJobMessage,
 	isAutomationRunEnvelope,
 	isCheckJobEnvelope,
 	isDispatchEnvelope,
+	shouldDeliverQueuedCheckJob,
 } from "../extensions/core/dispatch.ts";
+import { DeliveryQueue, StaleDeliveryError, nextDeliveryRetryDelayMs } from "../extensions/core/delivery-queue.ts";
+import { revalidateAutomationRunRetry } from "../extensions/core/automation-run-retry.ts";
+import { capturePumpAuthority, isPumpAuthorityCurrent } from "../extensions/core/bond-recovery.ts";
+import { unwrapMcpResult } from "../extensions/core/result.ts";
 import { CHECK_JOB_PREFIX, classifyUserKind, isHarnessOrigin, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 import { buildBondedInstructions } from "../extensions/devspec-context.ts";
 import { setBond } from "../extensions/core/bond-state.ts";
@@ -257,4 +265,182 @@ test("bonded instructions say how to take and rule a check job, behaviour only",
 	} finally {
 		setBond(null);
 	}
+});
+
+test("shouldDeliverQueuedCheckJob skips settled check jobs and fails open on pending or transient errors", async () => {
+	assert.equal(
+		await shouldDeliverQueuedCheckJob({
+			key: JOB_ID,
+			loadCurrentInbox: async () => ({ dispatches: [], identityComplete: true }),
+			identity: dispatchId,
+		}),
+		false,
+		"empty dispatches array confirms the queued check job is already settled",
+	);
+
+	assert.equal(
+		await shouldDeliverQueuedCheckJob({
+			key: JOB_ID,
+			loadCurrentInbox: async () => ({ dispatches: [automation], identityComplete: true }),
+			identity: dispatchId,
+		}),
+		false,
+		"exact-id lookup returning only another dispatch confirms target check job is settled",
+	);
+
+	assert.equal(
+		await shouldDeliverQueuedCheckJob({
+			key: JOB_ID,
+			loadCurrentInbox: async () => ({ dispatches: [automation], identityComplete: false }),
+			identity: dispatchId,
+		}),
+		true,
+		"unconfirmed capped window fails open rather than dropping a pending check job",
+	);
+
+	assert.equal(
+		await shouldDeliverQueuedCheckJob({
+			key: JOB_ID,
+			loadCurrentInbox: async () => ({ dispatches: [checkJob], identityComplete: true }),
+			identity: dispatchId,
+		}),
+		true,
+		"still-pending check job is delivered",
+	);
+
+	assert.equal(
+		await shouldDeliverQueuedCheckJob({
+			key: JOB_ID,
+			loadCurrentInbox: async () => {
+				throw new Error("MCP HTTP 503: upstream unavailable");
+			},
+			identity: dispatchId,
+		}),
+		true,
+		"transient lookup failure fails open so real check jobs are delivered",
+	);
+});
+
+test("real enqueueDispatch waits for foreground idle, skips already-settled check jobs without sending a prompt turn, and delivers on transient lookup failure", async () => {
+	const dispatchSlice = remote.slice(
+		remote.indexOf("function automationRecord("),
+		remote.indexOf("/**\n * Revive a recoverably-ended server bond in place"),
+	);
+	assert.ok(dispatchSlice.includes("async function deliverCheckJob("), "isolated real check-job delivery slice");
+
+	const settledId = "3f0c1e9a-6b1d-4d55-9a0e-2a7c4b8d1e11";
+	const transientFailId = "4f0c1e9a-6b1d-4d55-9a0e-2a7c4b8d1e22";
+	const settledJob = { ...checkJob, id: settledId, check_job_id: settledId };
+	const transientFailJob = { ...checkJob, id: transientFailId, check_job_id: transientFailId };
+
+	const sent: Array<{ message: string; mode: string }> = [];
+	const notices: string[] = [];
+	const lookups: string[] = [];
+	let idle = false;
+	let activeRun = true;
+
+	const active = {
+		generation: 1,
+		stop: false,
+		bond: { connectionId: "conn-1", codename: "Wary Wolf" },
+		runtimeOccupancy: { isBusy: () => activeRun },
+		automationQueue: new DeliveryQueue(),
+		automationRetryAttempts: new Map<string, number>(),
+		automationRetryTimers: new Map<string, ReturnType<typeof setTimeout>>(),
+	};
+
+	const sandbox: Record<string, unknown> = {
+		setTimeout,
+		clearTimeout,
+		Date,
+		Math,
+		Promise,
+		Set,
+		Error,
+		StaleDeliveryError,
+		nextDeliveryRetryDelayMs,
+		revalidateAutomationRunRetry,
+		capturePumpAuthority,
+		isPumpAuthorityCurrent,
+		unwrapMcpResult,
+		isAutomationRunEnvelope,
+		isCheckJobEnvelope,
+		isDispatchEnvelope,
+		dispatchId,
+		formatAutomationRunMessage,
+		formatCheckJobMessage,
+		shouldDeliverQueuedCheckJob,
+		MODEL_TIMEOUT_MS: 5_000,
+		pump: active,
+		get runActive() {
+			return activeRun;
+		},
+		noteAutomation() {},
+		paintStatus() {},
+		notify: (_ctx: unknown, msg: string) => notices.push(msg),
+		currentPumpToken: async (_active: unknown, held: string) => held,
+		pi_send: (message: string, mode: string) => {
+			sent.push({ message, mode });
+			// Starting a turn marks Pi occupied until that run settles.
+			idle = false;
+			activeRun = true;
+		},
+		callDevspec: async (_token: string, name: string, args: Record<string, unknown>) => {
+			assert.equal(name, "get_connection_dispatch");
+			const id = String(args.dispatch_id);
+			lookups.push(id);
+			if (id === settledId) {
+				return {
+					content: [
+						{
+							type: "text",
+							text: JSON.stringify({
+								connection_id: "conn-1",
+								dispatches: [],
+								count: 0,
+								dispatch_id: id,
+								identity_complete: true,
+							}),
+						},
+					],
+				};
+			}
+			throw new Error("MCP HTTP 503: upstream unavailable");
+		},
+	};
+
+	const compiled = stripTypeScriptTypes(
+		`${dispatchSlice}\n;globalThis.__api = { enqueueDispatch, notifyCheckJobIdleWaiters };`,
+	);
+	runInNewContext(compiled, sandbox);
+	const api = sandbox.__api as {
+		enqueueDispatch: (a: unknown, token: string, value: unknown, ctx: unknown) => void;
+		notifyCheckJobIdleWaiters: () => void;
+	};
+	const ctx = {
+		cwd: "/tmp",
+		isIdle: () => idle,
+		hasPendingMessages: () => false,
+	};
+
+	// Enqueue both check jobs while Pi is busy running an active foreground turn.
+	api.enqueueDispatch(active, "tok-1", settledJob, ctx);
+	api.enqueueDispatch(active, "tok-1", transientFailJob, ctx);
+	await new Promise((r) => setTimeout(r, 50));
+	assert.equal(sent.length, 0, "busy Pi does not push queued check jobs into followUp ahead of settle");
+	assert.deepEqual(lookups, [], "revalidation waits until delivery time");
+
+	// Settle the foreground turn: settledJob is skipped without sending a prompt turn,
+	// and transientFailJob immediately fails open and delivers as a fresh 'now' turn!
+	idle = true;
+	activeRun = false;
+	api.notifyCheckJobIdleWaiters();
+	await active.automationQueue.idle();
+
+	assert.deepEqual(lookups, [settledId, transientFailId]);
+	assert.equal(sent.length, 1, "settled check job sent no prompt turn; transient failure still delivered");
+	assert.equal(sent[0]!.mode, "now");
+	assert.ok(sent[0]!.message.includes(transientFailId));
+	assert.ok(!sent[0]!.message.includes(settledId));
+	assert.deepEqual(notices, ["DevSpec remote: check job delivered."], "skipped check job emits no delivered toast");
 });

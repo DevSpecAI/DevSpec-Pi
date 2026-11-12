@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.3 - 2026-11-12
+
+- **Align tool catalogue and Review instructions with `unlinked_work` incidents (`devspec://product/implementation-contract`).** Regenerated `extensions/generated/mcp-catalog.ts` without the retired `take_ownership` and `move_commit` actions on `manage_protected_intent`, and updated `extensions/core/instructions.ts` accordingly. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.13.2 - 2026-11-12
 
 - **Passive project-incident awareness and incident tools.** Changed `poll_connection` packages carrying `project_incidents` are strictly validated and surfaced as passive advisory read-awareness (`== PROJECT INCIDENTS ==`) on ordinary turns without ever waking an idle Pi session on their own. Workflow and bonded instructions point to `core.respect-incidents-and-escalate-delivery-blockers` (`devspec://product/implementation-contract`) and `semantics.project_incidents` (`devspec://product/remote-ingress-contract`).

@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 944bcae10bbf880028fd86c0ed98f40d51a890bfd91c859b2e566c65786e6383
- * Description fingerprint: ba1d6753ee250a8cc79f684cf20ce38d2cb4ef09d28f5e42b9c2c2d81c06d48e
- * Regenerated: 2026-11-12T02:33:13.330Z
+ * Schema fingerprint: d519e2942ac6fddd9b91fe176c8bea5f24aac1e2bdc021ac145b7f1ab76b8948
+ * Description fingerprint: b1159571b97ca25f0ba28866702180a01e72cc90ac8528be015148689486ccd5
+ * Regenerated: 2026-11-12T10:32:30.074Z
  */
-export const MCP_CATALOG_FINGERPRINT = "944bcae10bbf880028fd86c0ed98f40d51a890bfd91c859b2e566c65786e6383";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "ba1d6753ee250a8cc79f684cf20ce38d2cb4ef09d28f5e42b9c2c2d81c06d48e";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-12T02:33:13.330Z";
-export const TOOL_CATALOG_VERSION = "3b03c63f5ddc8af5fb96bef098242518f6a37f40803518cf03853a533817374a";
+export const MCP_CATALOG_FINGERPRINT = "d519e2942ac6fddd9b91fe176c8bea5f24aac1e2bdc021ac145b7f1ab76b8948";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "b1159571b97ca25f0ba28866702180a01e72cc90ac8528be015148689486ccd5";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-12T10:32:30.075Z";
+export const TOOL_CATALOG_VERSION = "e13f4552fdf2e6175c90bd43ca50742003d153cfb4f881e3db3fb267105e09c4";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -332,8 +332,8 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "manage_protected_intent",
 		"name": "manage protected intent",
-		"description": "Answer for the person asking you on work that would undo someone's decision, and act on experiments and ownership: the same answers they could give in Review or on the record. Work that would undo someone else's protected decision waits for an OK: it can be claimed and built on its own branch, but it doesn't merge into the tracking branch or reach done until it has one. Answers on a question (issue_id, from get_review_queue, the record, or a waiting item's waiting_for_ok): go_ahead; decline, with a reason (the work stays on its branch); not_a_reversal (\"this doesn't undo my decision\", which counts as go ahead); and, when waiting work reached the tracking branch anyway, keep (the same as an OK) or undo (a follow-up puts the decision back). Only a Maintainer reopens a settled question. Experiments: make_experiment, ask_to_land, then go_ahead or decline with the experiment's id (no issue_id). Also adopt (make an agent-recorded task, decision or convention their decision), take_ownership and move_commit for untagged commits. Who may give which answer is DevSpec's rule (devspec://product/implementation-contract, reversal_rule); a refusal names who can. You act only for the person asking you, on their own instruction: DevSpec takes who that is from the command it delivered to you, or the prompt your owner typed at your terminal, never from a message you cite. When their request is clear and they evidently know what it does, act straight away without asking them to confirm it; ask only when it is unclear (manage_directed_question for one person, manage_poll when several must agree), and if they seem unaware of a significant consequence, say so once, up front. Never record someone else's agreement: request_confirmation (issue_id or an experiment's id, and answer; confirmer_user_id defaults to the person the question waits on) asks them to confirm it themselves in Review, and records nothing until they do. confirm_request or decline_request (request_id; a no needs a reason) decides a request waiting on the person asking you. When DevSpec can't tell who asked you, an answer or ownership choice is saved as a request for your owner to confirm (outcome awaiting_confirmation), never done for them. Read the question first (get_review_queue with its key): results show the actual record texts, labelled Protected record and Reversing record. Each result says what happened (summary) and what the person can do next (next); a refused or stale result changed nothing.",
-		"intent": "ok go ahead decline not a reversal waiting for ok undo keep landed anyway reopen experiment ask to land adopt agent initiated decision take ownership move commit protected intent request to confirm agreement confirm decline waiting on you"
+		"description": "Answer for the person asking you on work that would undo someone's decision, and act on experiments and adoption: the same answers they could give in Review or on the record. Work that would undo someone else's protected decision waits for an OK: it can be claimed and built on its own branch, but it doesn't merge into the tracking branch or reach done until it has one. Answers on a question (issue_id, from get_review_queue, the record, or a waiting item's waiting_for_ok): go_ahead; decline, with a reason (the work stays on its branch); not_a_reversal (\"this doesn't undo my decision\", which counts as go ahead); and, when waiting work reached the tracking branch anyway, keep (the same as an OK) or undo (a follow-up puts the decision back). Only a Maintainer reopens a settled question. Experiments: make_experiment, ask_to_land, then go_ahead or decline with the experiment's id (no issue_id). Also adopt (make an agent-recorded task, decision or convention their decision). Who may give which answer is DevSpec's rule (devspec://product/implementation-contract, reversal_rule); a refusal names who can. You act only for the person asking you, on their own instruction: DevSpec takes who that is from the command it delivered to you, or the prompt your owner typed at your terminal, never from a message you cite. When their request is clear and they evidently know what it does, act straight away without asking them to confirm it; ask only when it is unclear (manage_directed_question for one person, manage_poll when several must agree), and if they seem unaware of a significant consequence, say so once, up front. Never record someone else's agreement: request_confirmation (issue_id or an experiment's id, and answer; confirmer_user_id defaults to the person the question waits on) asks them to confirm it themselves in Review, and records nothing until they do. confirm_request or decline_request (request_id; a no needs a reason) decides a request waiting on the person asking you. When DevSpec can't tell who asked you, an answer or adoption choice is saved as a request for your owner to confirm (outcome awaiting_confirmation), never done for them. Read the question first (get_review_queue with its key): results show the actual record texts, labelled Protected record and Reversing record. Each result says what happened (summary) and what the person can do next (next); a refused or stale result changed nothing.",
+		"intent": "ok go ahead decline not a reversal waiting for ok undo keep landed anyway reopen experiment ask to land adopt agent initiated decision protected intent request to confirm agreement confirm decline waiting on you"
 	},
 	{
 		"id": "preview_supersession",
@@ -344,8 +344,8 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_automation_run",
 		"name": "record automation run",
-		"description": "Report the outcome of an automation run you claimed, or correct one already reported. Give a verdict for each acceptance criterion: met, not_met and intent_met need evidence (what you ran and what came back); if any lacks it, the whole report is refused and nothing is recorded. Use unknown for anything you did not check. Criteria a first report leaves out are recorded as unknown. A first report must come from the agent that claimed the run; any other agent needs force with a reason, as does correcting a report whose agent is gone. Calling it again on a finished run corrects that run: your verdicts merge over the stored ones, fields you omit keep their values, and the correction is stamped on the run. A report that says the run committed or pushed beyond its permission is recorded as failed and returns an error; any failed run alerts you. List what the run produced in artifacts; an empty list is a fine answer for a run that only looked. Write summary as a short plain-English lead for a person glancing at the Automations page (what ran, outcome, what is fine, what still needs a person); put command dumps, version hashes and long technical narrative in captured_output. Checks stay the proof; summary is the story, not a second dump of the checks.",
-		"intent": "report correct automation run outcome results criterion verdicts evidence"
+		"description": "Report the outcome of an automation run you claimed, or correct one already reported. Give a verdict for each acceptance criterion: met, not_met and intent_met need evidence (what you ran and what came back); if any lacks it, the whole report is refused and nothing is recorded. Use unknown for anything you did not check. Criteria a first report leaves out are recorded as unknown. When a run encounters a breaking change, genuine code conflict, non-obvious test failure, or product trade-off that requires a human call, pass status \"escalated\" with incident_escalation: DevSpec opens or escalates an Incident on Delivery in Needs your decision state with your structured findings and alerts affected people and Maintainers without triggering recursive incident automations. A first report must come from the agent that claimed the run; any other agent needs force with a reason, as does correcting a report whose agent is gone. Calling it again on a finished run corrects that run: your verdicts merge over the stored ones, fields you omit keep their values, and the correction is stamped on the run. A report that says the run committed or pushed beyond its permission is recorded as failed and returns an error; any failed run alerts you. List what the run produced in artifacts; an empty list is a fine answer for a run that only looked. Write summary as a short plain-English lead for a person glancing at the Automations page (what ran, outcome, what is fine, what still needs a person); put command dumps, version hashes and long technical narrative in captured_output. Checks stay the proof; summary is the story, not a second dump of the checks.",
+		"intent": "report correct automation run outcome results criterion verdicts evidence escalate incident"
 	},
 	{
 		"id": "record_check_rulings",
@@ -5501,6 +5501,29 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "The full UUID of the item whose work surfaced this distinct new scope. Records a caused_by link from the new item to it, so no separate link is needed; it is not the parent brief. If the link cannot be stored, the item is still created and warning says so. Omitted: no follow-up link."
 				},
+				"source_incident_id": {
+					"type": "string",
+					"description": "Originating incident UUID or 8-character short code when this task is created to fix, document, or follow up on an incident. Omitted on normal human-requested tasks."
+				},
+				"source_pull_request_id": {
+					"type": "string",
+					"description": "Originating pull_requests UUID when this task is created from a dependency-bot or incident pull request. Omitted on normal human-requested tasks."
+				},
+				"source_automation_run_id": {
+					"type": "string",
+					"description": "Originating automation_runs UUID when this task is created by an automation run (stamped automatically when omitted on a running automation). Omitted on normal human-requested tasks."
+				},
+				"origin_reason": {
+					"type": "string",
+					"enum": [
+						"incident_fix",
+						"unlinked_commits",
+						"security_advisory",
+						"dependency_pr",
+						"automation_run"
+					],
+					"description": "Why this task was created automatically or from an incident/dependency flow. Derived automatically from the linked source when omitted; omit on normal human-requested tasks."
+				},
 				"idempotency_key": {
 					"type": "string",
 					"description": "One UUID you choose per intended create; send one on every create. A retry with the same key returns the original item (deduplicated: true) instead of a duplicate, with or without a room. Omitted: when your role saves creates as suggested work, the call is refused and nothing is created; otherwise only a create in the same room identical in every field returns the earlier item."
@@ -5669,6 +5692,29 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "The full UUID of the item whose work surfaced this distinct new scope. Records a caused_by link from the new item to it, so no separate link is needed; it is not the parent brief. If the link cannot be stored, the item is still created and warning says so. Omitted: no follow-up link."
 				},
+				"source_incident_id": {
+					"type": "string",
+					"description": "Originating incident UUID or 8-character short code when this task is created to fix, document, or follow up on an incident. Omitted on normal human-requested tasks."
+				},
+				"source_pull_request_id": {
+					"type": "string",
+					"description": "Originating pull_requests UUID when this task is created from a dependency-bot or incident pull request. Omitted on normal human-requested tasks."
+				},
+				"source_automation_run_id": {
+					"type": "string",
+					"description": "Originating automation_runs UUID when this task is created by an automation run (stamped automatically when omitted on a running automation). Omitted on normal human-requested tasks."
+				},
+				"origin_reason": {
+					"type": "string",
+					"enum": [
+						"incident_fix",
+						"unlinked_commits",
+						"security_advisory",
+						"dependency_pr",
+						"automation_run"
+					],
+					"description": "Why this task was created automatically or from an incident/dependency flow. Derived automatically from the linked source when omitted; omit on normal human-requested tasks."
+				},
 				"idempotency_key": {
 					"type": "string",
 					"description": "One UUID you choose per intended create; send one on every create. A retry with the same key returns the original item (deduplicated: true) instead of a duplicate, with or without a room. Omitted: when your role saves creates as suggested work, the call is refused and nothing is created; otherwise only a create in the same room identical in every field returns the earlier item."
@@ -5727,6 +5773,29 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "boolean",
 					"description": "true, the default, also parks the item as deferred and clears its agent branch and commit; refused for an implemented, done or claimed item. false detaches it and leaves its lifecycle as it is."
 				},
+				"source_incident_id": {
+					"type": "string",
+					"description": "Optional originating incident UUID or 8-character short code when spinning off work surfaced by an incident."
+				},
+				"source_pull_request_id": {
+					"type": "string",
+					"description": "Optional originating pull_requests UUID when spinning off work surfaced by a dependency-bot or incident pull request."
+				},
+				"source_automation_run_id": {
+					"type": "string",
+					"description": "Optional originating automation_runs UUID when spinning off work during an automation run."
+				},
+				"origin_reason": {
+					"type": "string",
+					"enum": [
+						"incident_fix",
+						"unlinked_commits",
+						"security_advisory",
+						"dependency_pr",
+						"automation_run"
+					],
+					"description": "Optional automatic/incident origin reason when spinning off incident, dependency-PR, or automation work."
+				},
 				"connection_id": {
 					"type": "string",
 					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
@@ -5758,6 +5827,29 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"defer": {
 					"type": "boolean",
 					"description": "true, the default, also parks the item as deferred and clears its agent branch and commit; refused for an implemented, done or claimed item. false detaches it and leaves its lifecycle as it is."
+				},
+				"source_incident_id": {
+					"type": "string",
+					"description": "Optional originating incident UUID or 8-character short code when spinning off work surfaced by an incident."
+				},
+				"source_pull_request_id": {
+					"type": "string",
+					"description": "Optional originating pull_requests UUID when spinning off work surfaced by a dependency-bot or incident pull request."
+				},
+				"source_automation_run_id": {
+					"type": "string",
+					"description": "Optional originating automation_runs UUID when spinning off work during an automation run."
+				},
+				"origin_reason": {
+					"type": "string",
+					"enum": [
+						"incident_fix",
+						"unlinked_commits",
+						"security_advisory",
+						"dependency_pr",
+						"automation_run"
+					],
+					"description": "Optional automatic/incident origin reason when spinning off incident, dependency-PR, or automation work."
 				},
 				"connection_id": {
 					"type": "string",
@@ -7577,6 +7669,29 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"description": "What you did: implemented a fix, found the code already correct, made a partial fix, or used a workaround. Defaults to implemented."
 				},
+				"source_incident_id": {
+					"type": "string",
+					"description": "Originating incident UUID or 8-character short code when recording completed work for an incident (such as unlinked commits or an incident fix). Omitted on normal human-requested work."
+				},
+				"source_pull_request_id": {
+					"type": "string",
+					"description": "Originating pull_requests UUID when recording completed work for a dependency-bot or incident pull request. Omitted on normal human-requested work."
+				},
+				"source_automation_run_id": {
+					"type": "string",
+					"description": "Originating automation_runs UUID when recording completed work during an automation run (stamped automatically when omitted on a running automation). Omitted on normal human-requested work."
+				},
+				"origin_reason": {
+					"type": "string",
+					"enum": [
+						"incident_fix",
+						"unlinked_commits",
+						"security_advisory",
+						"dependency_pr",
+						"automation_run"
+					],
+					"description": "Why this task was created automatically or from an incident/dependency flow. Derived automatically from the linked source when omitted; omit on normal human-requested work."
+				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
@@ -7748,6 +7863,29 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"workaround"
 					],
 					"description": "What you did: implemented a fix, found the code already correct, made a partial fix, or used a workaround. Defaults to implemented."
+				},
+				"source_incident_id": {
+					"type": "string",
+					"description": "Originating incident UUID or 8-character short code when recording completed work for an incident (such as unlinked commits or an incident fix). Omitted on normal human-requested work."
+				},
+				"source_pull_request_id": {
+					"type": "string",
+					"description": "Originating pull_requests UUID when recording completed work for a dependency-bot or incident pull request. Omitted on normal human-requested work."
+				},
+				"source_automation_run_id": {
+					"type": "string",
+					"description": "Originating automation_runs UUID when recording completed work during an automation run (stamped automatically when omitted on a running automation). Omitted on normal human-requested work."
+				},
+				"origin_reason": {
+					"type": "string",
+					"enum": [
+						"incident_fix",
+						"unlinked_commits",
+						"security_advisory",
+						"dependency_pr",
+						"automation_run"
+					],
+					"description": "Why this task was created automatically or from an incident/dependency flow. Derived automatically from the linked source when omitted; omit on normal human-requested work."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -9341,8 +9479,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "manage_protected_intent",
 		"label": "DevSpec: Manage Protected Intent",
-		"description": "Answer for the person asking you on work that would undo someone's decision, and act on experiments and ownership: the same answers they could give in Review or on the record. Work that would undo someone else's protected decision waits for an OK: it can be claimed and built on its own branch, but it doesn't merge into the tracking branch or reach done until it has one. Answers on a question (issue_id, from get_review_queue, the record, or a waiting item's waiting_for_ok): go_ahead; decline, with a reason (the work stays on its branch); not_a_reversal (\"this doesn't undo my decision\", which counts as go ahead); and, when waiting work reached the tracking branch anyway, keep (the same as an OK) or undo (a follow-up puts the decision back). Only a Maintainer reopens a settled question. Experiments: make_experiment, ask_to_land, then go_ahead or decline with the experiment's id (no issue_id). Also adopt (make an agent-recorded task, decision or convention their decision), take_ownership and move_commit for untagged commits. Who may give which answer is DevSpec's rule (devspec://product/implementation-contract, reversal_rule); a refusal names who can. You act only for the person asking you, on their own instruction: DevSpec takes who that is from the command it delivered to you, or the prompt your owner typed at your terminal, never from a message you cite. When their request is clear and they evidently know what it does, act straight away without asking them to confirm it; ask only when it is unclear (manage_directed_question for one person, manage_poll when several must agree), and if they seem unaware of a significant consequence, say so once, up front. Never record someone else's agreement: request_confirmation (issue_id or an experiment's id, and answer; confirmer_user_id defaults to the person the question waits on) asks them to confirm it themselves in Review, and records nothing until they do. confirm_request or decline_request (request_id; a no needs a reason) decides a request waiting on the person asking you. When DevSpec can't tell who asked you, an answer or ownership choice is saved as a request for your owner to confirm (outcome awaiting_confirmation), never done for them. Read the question first (get_review_queue with its key): results show the actual record texts, labelled Protected record and Reversing record. Each result says what happened (summary) and what the person can do next (next); a refused or stale result changed nothing.",
-		"searchIntent": "ok go ahead decline not a reversal waiting for ok undo keep landed anyway reopen experiment ask to land adopt agent initiated decision take ownership move commit protected intent request to confirm agreement confirm decline waiting on you",
+		"description": "Answer for the person asking you on work that would undo someone's decision, and act on experiments and adoption: the same answers they could give in Review or on the record. Work that would undo someone else's protected decision waits for an OK: it can be claimed and built on its own branch, but it doesn't merge into the tracking branch or reach done until it has one. Answers on a question (issue_id, from get_review_queue, the record, or a waiting item's waiting_for_ok): go_ahead; decline, with a reason (the work stays on its branch); not_a_reversal (\"this doesn't undo my decision\", which counts as go ahead); and, when waiting work reached the tracking branch anyway, keep (the same as an OK) or undo (a follow-up puts the decision back). Only a Maintainer reopens a settled question. Experiments: make_experiment, ask_to_land, then go_ahead or decline with the experiment's id (no issue_id). Also adopt (make an agent-recorded task, decision or convention their decision). Who may give which answer is DevSpec's rule (devspec://product/implementation-contract, reversal_rule); a refusal names who can. You act only for the person asking you, on their own instruction: DevSpec takes who that is from the command it delivered to you, or the prompt your owner typed at your terminal, never from a message you cite. When their request is clear and they evidently know what it does, act straight away without asking them to confirm it; ask only when it is unclear (manage_directed_question for one person, manage_poll when several must agree), and if they seem unaware of a significant consequence, say so once, up front. Never record someone else's agreement: request_confirmation (issue_id or an experiment's id, and answer; confirmer_user_id defaults to the person the question waits on) asks them to confirm it themselves in Review, and records nothing until they do. confirm_request or decline_request (request_id; a no needs a reason) decides a request waiting on the person asking you. When DevSpec can't tell who asked you, an answer or adoption choice is saved as a request for your owner to confirm (outcome awaiting_confirmation), never done for them. Read the question first (get_review_queue with its key): results show the actual record texts, labelled Protected record and Reversing record. Each result says what happened (summary) and what the person can do next (next); a refused or stale result changed nothing.",
+		"searchIntent": "ok go ahead decline not a reversal waiting for ok undo keep landed anyway reopen experiment ask to land adopt agent initiated decision protected intent request to confirm agreement confirm decline waiting on you",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -9356,15 +9494,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"keep",
 						"undo",
 						"reopen",
-						"take_ownership",
-						"move_commit",
 						"make_experiment",
 						"ask_to_land",
 						"request_confirmation",
 						"confirm_request",
 						"decline_request"
 					],
-					"description": "adopt: make active agent-initiated intent your decision. go_ahead: give the OK, on a question (issue_id) for work that would undo a decision, or on an experiment (id) to let it land. decline: say no, with a required reason; the work stays on its own branch. not_a_reversal: \"this doesn't undo my decision\"; counts as go ahead. keep / undo: after waiting work reached the tracking branch without its OK, keep it (the same as an OK) or undo it, which marks the question Being put back and triggers any bound undo automation (or returns undo_brief to revert it directly, without creating a Task). reopen: a Maintainer reopens a settled question. take_ownership: take ownership of an untagged commit item. move_commit: move an untagged commit onto an existing item. make_experiment: try an item on its own branch first (your own item, or any item if you are a Maintainer). ask_to_land: ask for an experiment to land, which is when whoever can give the OK is asked. request_confirmation: when you judge from the conversation that someone OTHER than the person asking you agrees (with issue_id, or an experiment's id, and answer), ask them to confirm it themselves; it records nothing until they do, and waits for them in Review with no agent needed. confirm_request / decline_request (request_id): the person a request to confirm waits on confirms it, or says no with a reason."
+					"description": "adopt: make active agent-initiated intent your decision. go_ahead: give the OK, on a question (issue_id) for work that would undo a decision, or on an experiment (id) to let it land. decline: say no, with a required reason; the work stays on its own branch. not_a_reversal: \"this doesn't undo my decision\"; counts as go ahead. keep / undo: after waiting work reached the tracking branch without its OK, keep it (the same as an OK) or undo it, which marks the question Being put back and triggers any bound undo automation (or returns undo_brief to revert it directly, without creating a Task). reopen: a Maintainer reopens a settled question. make_experiment: try an item on its own branch first (your own item, or any item if you are a Maintainer). ask_to_land: ask for an experiment to land, which is when whoever can give the OK is asked. request_confirmation: when you judge from the conversation that someone OTHER than the person asking you agrees (with issue_id, or an experiment's id, and answer), ask them to confirm it themselves; it records nothing until they do, and waits for them in Review with no agent needed. confirm_request / decline_request (request_id): the person a request to confirm waits on confirms it, or says no with a reason."
 				},
 				"record_type": {
 					"type": "string",
@@ -9379,12 +9515,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"format": "uuid",
 					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "The record UUID: required for adopt, take_ownership, make_experiment and ask_to_land, and for go_ahead or decline on an experiment."
+					"description": "The record UUID: required for adopt, make_experiment and ask_to_land, and for go_ahead or decline on an experiment."
 				},
 				"expected_version": {
 					"type": "integer",
 					"exclusiveMinimum": 0,
-					"description": "Required for adopt and take_ownership (and an optional version guard on move_commit): the version you read. If it changed, nothing is written."
+					"description": "Required for adopt: the version you read. If it changed, nothing is written."
 				},
 				"issue_id": {
 					"type": "string",
@@ -9411,7 +9547,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"note": {
 					"type": "string",
 					"minLength": 1,
-					"description": "Optional note for make_experiment, ask_to_land or move_commit (and an alias for reason)."
+					"description": "Optional note for make_experiment or ask_to_land (and an alias for reason)."
 				},
 				"event_ids": {
 					"minItems": 1,
@@ -9432,29 +9568,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"session_id": {
 					"type": "string",
 					"description": "Optional: the room you were instructed in, as its UUID or 8-character short code. DevSpec takes the room from the command it delivered to you and refuses any other. Omitted: that room, or the room your connection is attached to when the action needs no instruction."
-				},
-				"intent": {
-					"type": "string",
-					"minLength": 1,
-					"description": "For take_ownership: the confirmed intent text."
-				},
-				"auto_item_id": {
-					"type": "string",
-					"format": "uuid",
-					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Required for move_commit: the auto-tracked untagged-commit task UUID."
-				},
-				"target_item_id": {
-					"type": "string",
-					"format": "uuid",
-					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Required for move_commit: the existing task UUID to move the commit onto."
-				},
-				"resolution_id": {
-					"type": "string",
-					"format": "uuid",
-					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Optional for move_commit: idempotency/resolution UUID."
 				},
 				"experiment_branch": {
 					"type": "string",
@@ -9526,15 +9639,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"keep",
 						"undo",
 						"reopen",
-						"take_ownership",
-						"move_commit",
 						"make_experiment",
 						"ask_to_land",
 						"request_confirmation",
 						"confirm_request",
 						"decline_request"
 					],
-					"description": "adopt: make active agent-initiated intent your decision. go_ahead: give the OK, on a question (issue_id) for work that would undo a decision, or on an experiment (id) to let it land. decline: say no, with a required reason; the work stays on its own branch. not_a_reversal: \"this doesn't undo my decision\"; counts as go ahead. keep / undo: after waiting work reached the tracking branch without its OK, keep it (the same as an OK) or undo it, which marks the question Being put back and triggers any bound undo automation (or returns undo_brief to revert it directly, without creating a Task). reopen: a Maintainer reopens a settled question. take_ownership: take ownership of an untagged commit item. move_commit: move an untagged commit onto an existing item. make_experiment: try an item on its own branch first (your own item, or any item if you are a Maintainer). ask_to_land: ask for an experiment to land, which is when whoever can give the OK is asked. request_confirmation: when you judge from the conversation that someone OTHER than the person asking you agrees (with issue_id, or an experiment's id, and answer), ask them to confirm it themselves; it records nothing until they do, and waits for them in Review with no agent needed. confirm_request / decline_request (request_id): the person a request to confirm waits on confirms it, or says no with a reason."
+					"description": "adopt: make active agent-initiated intent your decision. go_ahead: give the OK, on a question (issue_id) for work that would undo a decision, or on an experiment (id) to let it land. decline: say no, with a required reason; the work stays on its own branch. not_a_reversal: \"this doesn't undo my decision\"; counts as go ahead. keep / undo: after waiting work reached the tracking branch without its OK, keep it (the same as an OK) or undo it, which marks the question Being put back and triggers any bound undo automation (or returns undo_brief to revert it directly, without creating a Task). reopen: a Maintainer reopens a settled question. make_experiment: try an item on its own branch first (your own item, or any item if you are a Maintainer). ask_to_land: ask for an experiment to land, which is when whoever can give the OK is asked. request_confirmation: when you judge from the conversation that someone OTHER than the person asking you agrees (with issue_id, or an experiment's id, and answer), ask them to confirm it themselves; it records nothing until they do, and waits for them in Review with no agent needed. confirm_request / decline_request (request_id): the person a request to confirm waits on confirms it, or says no with a reason."
 				},
 				"record_type": {
 					"type": "string",
@@ -9549,12 +9660,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"format": "uuid",
 					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "The record UUID: required for adopt, take_ownership, make_experiment and ask_to_land, and for go_ahead or decline on an experiment."
+					"description": "The record UUID: required for adopt, make_experiment and ask_to_land, and for go_ahead or decline on an experiment."
 				},
 				"expected_version": {
 					"type": "integer",
 					"exclusiveMinimum": 0,
-					"description": "Required for adopt and take_ownership (and an optional version guard on move_commit): the version you read. If it changed, nothing is written."
+					"description": "Required for adopt: the version you read. If it changed, nothing is written."
 				},
 				"issue_id": {
 					"type": "string",
@@ -9581,7 +9692,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"note": {
 					"type": "string",
 					"minLength": 1,
-					"description": "Optional note for make_experiment, ask_to_land or move_commit (and an alias for reason)."
+					"description": "Optional note for make_experiment or ask_to_land (and an alias for reason)."
 				},
 				"event_ids": {
 					"minItems": 1,
@@ -9602,29 +9713,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"session_id": {
 					"type": "string",
 					"description": "Optional: the room you were instructed in, as its UUID or 8-character short code. DevSpec takes the room from the command it delivered to you and refuses any other. Omitted: that room, or the room your connection is attached to when the action needs no instruction."
-				},
-				"intent": {
-					"type": "string",
-					"minLength": 1,
-					"description": "For take_ownership: the confirmed intent text."
-				},
-				"auto_item_id": {
-					"type": "string",
-					"format": "uuid",
-					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Required for move_commit: the auto-tracked untagged-commit task UUID."
-				},
-				"target_item_id": {
-					"type": "string",
-					"format": "uuid",
-					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Required for move_commit: the existing task UUID to move the commit onto."
-				},
-				"resolution_id": {
-					"type": "string",
-					"format": "uuid",
-					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-					"description": "Optional for move_commit: idempotency/resolution UUID."
 				},
 				"experiment_branch": {
 					"type": "string",
@@ -13237,8 +13325,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_automation_run",
 		"label": "DevSpec: Record Automation Run",
-		"description": "Report the outcome of an automation run you claimed, or correct one already reported. Give a verdict for each acceptance criterion: met, not_met and intent_met need evidence (what you ran and what came back); if any lacks it, the whole report is refused and nothing is recorded. Use unknown for anything you did not check. Criteria a first report leaves out are recorded as unknown. A first report must come from the agent that claimed the run; any other agent needs force with a reason, as does correcting a report whose agent is gone. Calling it again on a finished run corrects that run: your verdicts merge over the stored ones, fields you omit keep their values, and the correction is stamped on the run. A report that says the run committed or pushed beyond its permission is recorded as failed and returns an error; any failed run alerts you. List what the run produced in artifacts; an empty list is a fine answer for a run that only looked. Write summary as a short plain-English lead for a person glancing at the Automations page (what ran, outcome, what is fine, what still needs a person); put command dumps, version hashes and long technical narrative in captured_output. Checks stay the proof; summary is the story, not a second dump of the checks.",
-		"searchIntent": "report correct automation run outcome results criterion verdicts evidence",
+		"description": "Report the outcome of an automation run you claimed, or correct one already reported. Give a verdict for each acceptance criterion: met, not_met and intent_met need evidence (what you ran and what came back); if any lacks it, the whole report is refused and nothing is recorded. Use unknown for anything you did not check. Criteria a first report leaves out are recorded as unknown. When a run encounters a breaking change, genuine code conflict, non-obvious test failure, or product trade-off that requires a human call, pass status \"escalated\" with incident_escalation: DevSpec opens or escalates an Incident on Delivery in Needs your decision state with your structured findings and alerts affected people and Maintainers without triggering recursive incident automations. A first report must come from the agent that claimed the run; any other agent needs force with a reason, as does correcting a report whose agent is gone. Calling it again on a finished run corrects that run: your verdicts merge over the stored ones, fields you omit keep their values, and the correction is stamped on the run. A report that says the run committed or pushed beyond its permission is recorded as failed and returns an error; any failed run alerts you. List what the run produced in artifacts; an empty list is a fine answer for a run that only looked. Write summary as a short plain-English lead for a person glancing at the Automations page (what ran, outcome, what is fine, what still needs a person); put command dumps, version hashes and long technical narrative in captured_output. Checks stay the proof; summary is the story, not a second dump of the checks.",
+		"searchIntent": "report correct automation run outcome results criterion verdicts evidence escalate incident",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -13254,9 +13342,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"enum": [
 						"succeeded",
-						"failed"
+						"failed",
+						"escalated"
 					],
-					"description": "Did the job succeed?"
+					"description": "Did the job succeed, fail, or escalate findings into an Incident needing a human decision?"
 				},
 				"summary": {
 					"type": "string",
@@ -13384,6 +13473,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 									"memory",
 									"resource",
 									"session",
+									"incident",
 									"external",
 									"commit"
 								],
@@ -13412,6 +13502,132 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						]
 					},
 					"description": "What the run produced, as links. A commit artifact is linked to the run as a commit and counts as committing for the permission check. Omitted on a first report: none; on a correction: the stored list stands, and a list you send replaces it."
+				},
+				"incident_escalation": {
+					"type": "object",
+					"properties": {
+						"incident_id": {
+							"type": "string",
+							"maxLength": 200,
+							"description": "Existing open Incident UUID to escalate to Needs your decision. Omitted on an incident-triggered run: escalates the triggering incident; omitted on a scheduled run: opens or joins by kind and fingerprint."
+						},
+						"kind": {
+							"type": "string",
+							"enum": [
+								"deploy_failed",
+								"checks_failing",
+								"security_advisory",
+								"unlinked_work",
+								"undo_requested",
+								"followup_failed",
+								"reported"
+							],
+							"description": "Incident kind when opening or joining an Incident from a scheduled run (defaults to reported)."
+						},
+						"fingerprint": {
+							"type": "string",
+							"maxLength": 500,
+							"description": "Deduplication fingerprint so repeated runs join the same Incident instead of opening duplicates. Omitted: derived deterministically from kind and blocked PR/task ids."
+						},
+						"title": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 300,
+							"description": "Short plain-English Incident title shown on Delivery when opening a new Incident."
+						},
+						"affected_or_reachable": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 2000,
+							"description": "What code path, branch, pull request, or dependency is affected or runtime-reachable."
+						},
+						"checked_or_attempted": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 2000,
+							"description": "What checks, reachability analysis, compatibility tests, or mechanical fixes were run."
+						},
+						"decision_needed": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 2000,
+							"description": "What human decision, breaking-change trade-off, or conflict prevents an unattended fix."
+						},
+						"findings": {
+							"maxItems": 20,
+							"type": "array",
+							"items": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 1000
+							},
+							"description": "Optional additional factual bullets (e.g. conflicting file paths or failing check names)."
+						},
+						"options": {
+							"maxItems": 10,
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"id": {
+										"type": "string",
+										"maxLength": 120,
+										"description": "Short stable option key."
+									},
+									"label": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 300,
+										"description": "Option label shown on the Incident card."
+									},
+									"tradeoff": {
+										"type": "string",
+										"maxLength": 1000,
+										"description": "Practical trade-off for this option."
+									}
+								},
+								"required": [
+									"label"
+								]
+							},
+							"description": "Concrete options and trade-offs for the person deciding."
+						},
+						"signal_context": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {},
+							"description": "Optional structured context such as conflicting files, failing checks, pullRequestId, or advisory details."
+						},
+						"blocked_pull_request_ids": {
+							"maxItems": 50,
+							"type": "array",
+							"items": {
+								"type": "string"
+							},
+							"description": "Pull request UUIDs blocked by this Incident."
+						},
+						"blocked_task_ids": {
+							"maxItems": 50,
+							"type": "array",
+							"items": {
+								"type": "string"
+							},
+							"description": "Task UUIDs blocked by this Incident."
+						},
+						"block_reason": {
+							"type": "string",
+							"maxLength": 1000,
+							"description": "Short reason displayed on blocked pull requests or tasks."
+						}
+					},
+					"required": [
+						"affected_or_reachable",
+						"checked_or_attempted",
+						"decision_needed"
+					],
+					"description": "Required when status is escalated: opens or escalates an Incident to Needs your decision with structured findings, never firing recursive incident_opened automations."
 				},
 				"local_session_id": {
 					"type": "string",
@@ -13462,9 +13678,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"enum": [
 						"succeeded",
-						"failed"
+						"failed",
+						"escalated"
 					],
-					"description": "Did the job succeed?"
+					"description": "Did the job succeed, fail, or escalate findings into an Incident needing a human decision?"
 				},
 				"summary": {
 					"type": "string",
@@ -13592,6 +13809,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 									"memory",
 									"resource",
 									"session",
+									"incident",
 									"external",
 									"commit"
 								],
@@ -13620,6 +13838,132 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						]
 					},
 					"description": "What the run produced, as links. A commit artifact is linked to the run as a commit and counts as committing for the permission check. Omitted on a first report: none; on a correction: the stored list stands, and a list you send replaces it."
+				},
+				"incident_escalation": {
+					"type": "object",
+					"properties": {
+						"incident_id": {
+							"type": "string",
+							"maxLength": 200,
+							"description": "Existing open Incident UUID to escalate to Needs your decision. Omitted on an incident-triggered run: escalates the triggering incident; omitted on a scheduled run: opens or joins by kind and fingerprint."
+						},
+						"kind": {
+							"type": "string",
+							"enum": [
+								"deploy_failed",
+								"checks_failing",
+								"security_advisory",
+								"unlinked_work",
+								"undo_requested",
+								"followup_failed",
+								"reported"
+							],
+							"description": "Incident kind when opening or joining an Incident from a scheduled run (defaults to reported)."
+						},
+						"fingerprint": {
+							"type": "string",
+							"maxLength": 500,
+							"description": "Deduplication fingerprint so repeated runs join the same Incident instead of opening duplicates. Omitted: derived deterministically from kind and blocked PR/task ids."
+						},
+						"title": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 300,
+							"description": "Short plain-English Incident title shown on Delivery when opening a new Incident."
+						},
+						"affected_or_reachable": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 2000,
+							"description": "What code path, branch, pull request, or dependency is affected or runtime-reachable."
+						},
+						"checked_or_attempted": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 2000,
+							"description": "What checks, reachability analysis, compatibility tests, or mechanical fixes were run."
+						},
+						"decision_needed": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 2000,
+							"description": "What human decision, breaking-change trade-off, or conflict prevents an unattended fix."
+						},
+						"findings": {
+							"maxItems": 20,
+							"type": "array",
+							"items": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 1000
+							},
+							"description": "Optional additional factual bullets (e.g. conflicting file paths or failing check names)."
+						},
+						"options": {
+							"maxItems": 10,
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"id": {
+										"type": "string",
+										"maxLength": 120,
+										"description": "Short stable option key."
+									},
+									"label": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 300,
+										"description": "Option label shown on the Incident card."
+									},
+									"tradeoff": {
+										"type": "string",
+										"maxLength": 1000,
+										"description": "Practical trade-off for this option."
+									}
+								},
+								"required": [
+									"label"
+								]
+							},
+							"description": "Concrete options and trade-offs for the person deciding."
+						},
+						"signal_context": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {},
+							"description": "Optional structured context such as conflicting files, failing checks, pullRequestId, or advisory details."
+						},
+						"blocked_pull_request_ids": {
+							"maxItems": 50,
+							"type": "array",
+							"items": {
+								"type": "string"
+							},
+							"description": "Pull request UUIDs blocked by this Incident."
+						},
+						"blocked_task_ids": {
+							"maxItems": 50,
+							"type": "array",
+							"items": {
+								"type": "string"
+							},
+							"description": "Task UUIDs blocked by this Incident."
+						},
+						"block_reason": {
+							"type": "string",
+							"maxLength": 1000,
+							"description": "Short reason displayed on blocked pull requests or tasks."
+						}
+					},
+					"required": [
+						"affected_or_reachable",
+						"checked_or_attempted",
+						"decision_needed"
+					],
+					"description": "Required when status is escalated: opens or escalates an Incident to Needs your decision with structured findings, never firing recursive incident_opened automations."
 				},
 				"local_session_id": {
 					"type": "string",

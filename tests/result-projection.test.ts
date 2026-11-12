@@ -898,7 +898,11 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// holder refusals reach the model lossless. report_incident and manage_incident carry
 		// host-only request_ref (x-devspec-host-only) hidden from modelInputSchema. Every
 		// benchmark passes (initial surface: 64,322 estimated tokens).
-		"b56fa575145821c50ea802016d180d9a3233963b248cab6bc803643082e85196",
+		// Rebaselined 2026-11-12 for DevSpec item 210fc045 (unlinked_work incident
+		// replaces auto-made unlinked-commit tasks): manage_protected_intent drops
+		// take_ownership, move_commit, auto_item_id, target_item_id, resolution_id,
+		// and intent.
+		"7f0a595ffd4eafd6b95c5b5f0862ec633637044d903a1104008c8e16a1dda8d0",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

@@ -445,7 +445,8 @@ interface TurnState {
 	speechManaged?: boolean;
 	speechScopeCaptured?: boolean;
 	speechBinding?: SpeechBinding;
-	assistantSpeech?: { source: AssistantSpeechSource; binding?: SpeechBinding; model: Record<string, unknown> };
+	/** sessionBound: the connection was attached to a room session when this turn's speech was prepared (0ba072df). */
+	assistantSpeech?: { source: AssistantSpeechSource; binding?: SpeechBinding; model: Record<string, unknown>; sessionBound: boolean };
 
 	/** Monotonic segment revision; protects awaited settle reconciliation. */
 	revision: number;
@@ -954,7 +955,7 @@ function prepareAssistantSpeech(t: TurnState): Promise<void> {
 		})();
 		t.speechBinding = Object.freeze({ args, current, capability, sessionId, ready });
 	}
-	t.assistantSpeech = { source, binding: t.speechBinding, model: replyModelArgs() };
+	t.assistantSpeech = { source, binding: t.speechBinding, model: replyModelArgs(), sessionBound: Boolean(sessionId) };
 	return (t.speechBinding?.ready ?? Promise.resolve(null)).then(() => undefined);
 }
 
@@ -969,6 +970,12 @@ function deliverAssistantSpeech(t: TurnState, message: unknown, append: (type: s
 	// messages are delivered like any other run's.
 	if (!runSpeaks(segmentWake(t), t.tellPerson === true)) return;
 	const captured = t.assistantSpeech;
+	// A connection attached to no room (a standalone terminal answering local
+	// prompts or claiming unattended automation runs) has no transcript to mirror
+	// speech into, so there is nothing to store and nothing unconfirmed (0ba072df).
+	// Only a turn that was attached to a room, or has been attached since, can fail
+	// to store its speech, and that failure keeps its warning.
+	if (captured && !captured.sessionBound && !getBond()?.sessionId) return;
 	const record = captured?.source.finalize(message);
 	if (!record) return;
 	const binding = captured?.binding;

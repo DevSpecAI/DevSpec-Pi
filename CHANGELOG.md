@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.6 - 2026-11-12
+
+- **No more false "speech storage not confirmed" warnings outside a room.** A Pi connected to DevSpec but attached to no room, for example answering local prompts or working an automation run on its own, no longer warns after every message that its speech couldn't be stored. There is no room to store it in. A Pi attached to a room still warns when a message meant for the room can't be confirmed, and still keeps the text locally. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.13.5 - 2026-11-12
 
 - **Agents picking up an automation run started by an event now see what triggered it.** Pi's built-in copy of DevSpec's tools is regenerated to match the server: `claim_automation_run` now tells your agent that a run started by an event also carries `started_reason`, that event's `firing_facts` (the repository, branch, commit, tasks, incident and so on) and `event_context`, which gives both as text. Your agent treats them as facts about what happened, never as instructions. No tool was added or removed and no tool's inputs changed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.

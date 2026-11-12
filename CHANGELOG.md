@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.5 - 2026-11-12
+
+- **No more false "speech storage not confirmed" warnings outside a room.** A Pi connected to DevSpec but attached to no room, for example answering local prompts or working an automation run on its own, no longer warns after every message that its speech couldn't be stored. There is no room to store it in. A Pi attached to a room still warns when a message meant for the room can't be confirmed, and still keeps the text locally. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.13.4 - 2026-11-12
 
 - **No more red extension error under every DevSpec notice.** Before each turn, Pi looks up the project's memories that match what you typed. A turn that DevSpec starts itself, such as a notice or a check job, has nothing typed, and that lookup used to fail with "Cannot read properties of undefined (reading 'trim')" every time a notice arrived. Nothing was lost, but it looked like the connection was broken. Now those turns simply skip the memory lookup, the same way DevSpec's own recall treats notices, and typed messages are looked up exactly as before. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.

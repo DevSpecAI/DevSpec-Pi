@@ -77,7 +77,7 @@ function provenanceSection() {
 		stamping: "Stamp only an honestly transformable first-class message with one unambiguous claim.",
 		push_behavior: "Unknown or unsafe history warns or allows.",
 		project_association: "Generic connection never writes the current folder.",
-		universal_recovery: "Server ingestion and analyzer remain active for every provider.",
+		universal_recovery: "Server ingestion and mechanical unlinked-work accountability remain active for every provider (no automatic task creation).",
 		independent_controls: "Authentication and independent safety controls are unchanged.",
 	} as const;
 }

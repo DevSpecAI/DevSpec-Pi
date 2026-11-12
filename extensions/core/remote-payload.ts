@@ -25,6 +25,10 @@ import {
 	parseStillToDiscussProjection,
 	type StillToDiscussProjectionV1,
 } from "./still-to-discuss.ts";
+import {
+	parseProjectIncidentsProjection,
+	type ProjectIncidentsProjectionV1,
+} from "./project-incidents.ts";
 
 import { createHash } from "node:crypto";
 import { ROOM_CONTEXT_LANE, parseRoomContext, parseActivityIndex, type RoomContext, type ActivityIndex } from "./room-context.ts";
@@ -330,10 +334,12 @@ export interface PollPackage {
 	sessionPolls?: SessionPollsProjection;
 	/** Changed packages: null means unavailable, rows:[] means empty. Idle: undefined. */
 	stillToDiscuss?: StillToDiscussProjectionV1 | null;
+	/** Changed packages: null when omitted (no active/recent incidents), parsed when present, undefined on malformed rejection or idle. */
+	projectIncidents?: ProjectIncidentsProjectionV1 | null;
 	/** Server history only; null marks missing/unavailable advisory data. */
 	sessionEvents?: SessionEvents | null;
 	/** Closed section names only; never raw payloads or parser error text. */
-	advisoryRejections?: Array<"session_polls" | "still_to_discuss" | "session_activity" | "session_events" | "notice_reply">;
+	advisoryRejections?: Array<"session_polls" | "still_to_discuss" | "session_activity" | "session_events" | "notice_reply" | "project_incidents">;
 	/** Sections this Pi skipped because it does not implement them; delivery still succeeded. */
 	unknownEnvelopeSections?: string[];
 	canonicalState: "idle" | "valid" | "invalid";
@@ -1098,6 +1104,7 @@ export function parsePollPayload(
 			if (topLevelNotices.length !== 0) fail("system_notices", "idle response cannot carry notices");
 			if (outer.session_polls !== undefined) fail("session_polls", "idle response cannot carry session polls");
 			if (outer.still_to_discuss !== undefined) fail("still_to_discuss", "idle response cannot carry still to discuss");
+			if (outer.project_incidents !== undefined) fail("project_incidents", "idle response cannot carry project incidents");
 			return {
 				changed: false,
 				cursorV2: typeof outer.cursor_v2 === "string" && outer.cursor_v2.length > 0 ? outer.cursor_v2 : undefined,
@@ -1147,6 +1154,9 @@ export function parsePollPayload(
 		const stillToDiscuss = outer.still_to_discuss === undefined
 			? null
 			: tryParseAdvisory(outer.still_to_discuss, parseStillToDiscussProjection, () => advisoryRejections.push("still_to_discuss")) ?? null;
+		const projectIncidents = outer.project_incidents === undefined || outer.project_incidents === null
+			? null
+			: tryParseAdvisory(outer.project_incidents, parseProjectIncidentsProjection, () => advisoryRejections.push("project_incidents"));
 		return {
 			changed: true,
 			cursorV2,
@@ -1160,6 +1170,7 @@ export function parsePollPayload(
 			activeSessionPlans: envelope.activeSessionPlans,
 			...(sessionPolls ? { sessionPolls } : {}),
 			stillToDiscuss,
+			...(projectIncidents !== undefined ? { projectIncidents } : {}),
 			...(advisoryRejections.length > 0 ? { advisoryRejections } : {}),
 			...(envelope.unknownSections ? { unknownEnvelopeSections: envelope.unknownSections } : {}),
 			...(envelope.unboundSenderStyleIds.length > 0 ? { unboundSenderStyleIds: envelope.unboundSenderStyleIds } : {}),

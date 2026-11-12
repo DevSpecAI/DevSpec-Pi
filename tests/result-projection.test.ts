@@ -890,7 +890,37 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// Inputs: record_implementation gains optional merge_when_cleared (boolean),
 		// pull_request_number (number|string) and pull_request_repo (string). Hot set
 		// unchanged; every budget still passes.
-		"3bf264167d5634fcb15009418fd4c67e8f1b125da0c10974a7802b36f8f85811",
+		// Rebaselined 2026-11-12 for DevSpec item 7115301e (passive incident context and
+		// incident MCP tools), regenerated against DevSpecV2 .worktrees/7115301e-incident-agent-tools.
+		// Verbs 88 -> 92 model / 12 pump / 1 never-model. Added: get_incidents, get_incident,
+		// report_incident, and manage_incident, all assigned to the full-read family so
+		// open/resolved incident summaries, linked blocked pull requests/tasks, and second-claim
+		// holder refusals reach the model lossless. report_incident and manage_incident carry
+		// host-only request_ref (x-devspec-host-only) hidden from modelInputSchema. Every
+		// benchmark passes (initial surface: 64,322 estimated tokens).
+		// Rebaselined 2026-11-12 for DevSpec item 210fc045 (unlinked_work incident
+		// replaces auto-made unlinked-commit tasks): manage_protected_intent drops
+		// take_ownership, move_commit, auto_item_id, target_item_id, resolution_id,
+		// and intent.
+		// Rebaselined 2026-11-12 for item 210fc045: merged Pi origin/staging (0.13.2) into the
+		// PR and regenerated the catalog against DevSpecV2 origin/staging (831dfaac7).
+		// Verbs 92 -> 99 model / 12 pump / 1 never-model. Added: search_requirements,
+		// get_requirements, get_requirement, record_requirement, update_requirement,
+		// supersede_requirement and retract_requirement, all assigned to the full-read family
+		// (versions, pending proposals, companions and requirement evidence stay lossless, as
+		// they already do through get_memory); no existing verb's family changed. Inputs:
+		// create_task and record_memory gain optional preview_ack (uuid, an overlap preview's
+		// receipt); report_incident and manage_incident drop lease_seconds (a claim now lapses
+		// after 15 minutes without a heartbeat, said in claim_immediately/action), report_incident's
+		// kind narrows to reported|checks_failing|deploy_failed and opened_reason to
+		// contributor_escalated|reported, and both tools' run_id descriptions changed. No required
+		// field changed. Outside this model fingerprint: post_session_message (never-model) takes
+		// staging's notice-reply description, and the pump-only poll_connection gains host-only
+		// turn_recall_version and seen_recall_versions plus a new system_notice_version
+		// description. Hot set is every eligible model verb, so it gains the seven requirements
+		// verbs (88 -> 95). Benchmark before/after: initial surface 65,553 (PR head; Pi staging
+		// 61,546) -> 70,898 estimated tokens; every check still passes.
+		"b28580b85f611902ca5346c098c6fa75feb6dd4bce0b14069255b76288084b2a",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -939,6 +969,9 @@ test("verb projections use explicit, loss-aware families", () => {
 		"get_task", "claim_work_item", "get_session_transcript", "preview_supersession",
 		"get_project_instruction_rules", "get_personal_instructions", "get_workflow_rules", "get_database_schema",
 		"get_goals", "get_project_goals", "create_session", "claim_automation_run",
+		"get_incidents", "get_incident", "report_incident", "manage_incident",
+		"search_requirements", "get_requirements", "get_requirement", "record_requirement",
+		"update_requirement", "supersede_requirement", "retract_requirement",
 		"import_instruction_rules", "update_personal_instructions", "manage_plan", "manage_poll", "manage_directed_question",
 	]) assert.equal(projectionFamily(verb), "full", verb);
 	assert.equal(projectionFamily("some_future_verb"), "fallback");

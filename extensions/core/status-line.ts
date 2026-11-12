@@ -186,6 +186,10 @@ const VERB_LABELS: Record<string, string> = {
 	get_automation: "reading automation",
 	get_automations: "listing automations",
 	get_automation_runs: "listing automation runs",
+	get_incidents: "listing incidents",
+	get_incident: "reading incident",
+	report_incident: "reporting incident",
+	manage_incident: "updating incident",
 };
 
 export function verbLabel(verb: string): string {

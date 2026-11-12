@@ -90,3 +90,36 @@ test("a recalled card keeps its state, delivery label and companions", () => {
 	assert.match(out, /"version": 3/);
 	assert.doesNotMatch(out, /"tags"/);
 });
+
+test("shouldRecall treats a turn with no typed message as not a recall turn", () => {
+	assert.equal(shouldRecall(undefined), false);
+});
+
+test("a run started by a DevSpec notice does no recall and raises no error (task a4b24107)", async () => {
+	const { default: registerMemory } = await import("../extensions/devspec-memory.ts");
+	const handlers = new Map<string, (event: unknown, ctx: unknown) => Promise<unknown>>();
+	let searches = 0;
+	registerMemory(
+		{ on: (name: string, handler: (event: unknown, ctx: unknown) => Promise<unknown>) => handlers.set(name, handler), registerCommand() {} } as never,
+		{
+			resolveToken: async () => ({ token: "account-a", source: "env" }),
+			getBond: () => null,
+			callDevspec: async () => { searches++; return { content: [{ type: "text", text: JSON.stringify({ memories: [] }) }] }; },
+		} as never,
+	);
+	const handler = handlers.get("before_agent_start")!;
+	const ctx = { cwd: "/project", sessionManager: { getSessionId: () => "notice-session" } };
+	// Pi 1.5's shape for a run started by pi.sendMessage(..., { triggerTurn: true }): no prompt.
+	const noticeRun = {
+		type: "before_agent_start",
+		messageType: "custom",
+		message: { customType: "devspec-system-notice", content: "[DevSpec system notice v1]", display: true },
+		systemPrompt: "",
+		systemPromptOptions: {},
+	};
+	assert.equal(await handler(noticeRun, ctx), undefined);
+	assert.equal(searches, 0, "no memory search for a turn nobody typed");
+
+	await handler({ type: "before_agent_start", messageType: "user", prompt: "Review the existing memory that explains project access and permissions." }, ctx);
+	assert.equal(searches, 1, "a typed substantive prompt still recalls");
+});

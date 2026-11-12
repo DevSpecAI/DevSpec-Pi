@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.4 - 2026-11-12
+
+- **No more red extension error under every DevSpec notice.** Before each turn, Pi looks up the project's memories that match what you typed. A turn that DevSpec starts itself, such as a notice or a check job, has nothing typed, and that lookup used to fail with "Cannot read properties of undefined (reading 'trim')" every time a notice arrived. Nothing was lost, but it looked like the connection was broken. Now those turns simply skip the memory lookup, the same way DevSpec's own recall treats notices, and typed messages are looked up exactly as before. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.13.3 - 2026-11-12
 
 - **Pi now keeps your agent aware of open incidents on your project.** When DevSpec has open incidents on the project, such as a failed deploy, failing checks, a security advisory or work that landed without a task, Pi shows them to your agent as background on its ordinary turns (under `== PROJECT INCIDENTS ==`), so it can take them into account. They never wake an idle Pi session on their own and are never treated as a request to fix something nobody asked for. Your agent can also look up, report, claim, hand back and resolve incidents with the new `get_incidents`, `get_incident`, `report_incident` and `manage_incident` tools, and their results reach it in full. It follows DevSpec's rules for respecting incidents and escalating blocked delivery (`core.respect-incidents-and-escalate-delivery-blockers` in `devspec://product/implementation-contract`, and `semantics.project_incidents` in `devspec://product/remote-ingress-contract`).

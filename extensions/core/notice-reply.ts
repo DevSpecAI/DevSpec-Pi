@@ -133,6 +133,8 @@ export type NoticeReplyCallResult = { raw: unknown } | { refusal: string };
 
 export type NoticeReplyOutcome =
 	| { kind: "posted"; messageId: string; sessionId: string; idempotent: boolean }
+	/** Every named notice was resolved during the run and routed into room housekeeping: quiet, never an error or chat bubble. */
+	| { kind: "settled_housekeeping"; housekeepingMessageId: string | null }
 	/** Nothing needs a person: nothing is posted, and nothing is said about it. */
 	| { kind: "for_the_record" }
 	| { kind: "no_final_text" }
@@ -159,6 +161,25 @@ export function readNoticeReplyReceipt(raw: unknown, expected: { connectionId: s
 	if (!Array.isArray(answered) || !answered.every((id) => typeof id === "string")) return null;
 	if (JSON.stringify(canonical(answered as string[])) !== JSON.stringify(canonical(expected.noticeIds))) return null;
 	return { messageId, sessionId, idempotent: delivery.status === "idempotently_stored" };
+}
+
+/** A settled-housekeeping receipt from either a refusal text or a non-error MCP payload, or null. */
+export function readSettledHousekeepingReceipt(value: unknown): { housekeepingMessageId: string | null } | null {
+	let data: Row | null = null;
+	if (typeof value === "string") {
+		try { data = row(JSON.parse(value)); } catch { data = null; }
+	} else {
+		data = row(unwrapMcpResult(value).details);
+	}
+	if (!data) return null;
+	const delivery = row(data.delivery);
+	if (data.settled_housekeeping !== true && delivery?.reason !== "settled_housekeeping" && delivery?.status !== "settled_housekeeping") {
+		return null;
+	}
+	const hkId = typeof data.housekeeping_message_id === "string" && data.housekeeping_message_id.trim()
+		? data.housekeeping_message_id.trim()
+		: null;
+	return { housekeepingMessageId: hkId };
 }
 
 /** The server's refusal: its delivery reason and its own words, verbatim. */
@@ -200,6 +221,8 @@ export async function postNoticeReply(input: {
 		try { result = await input.call(args); }
 		catch (error) { return { kind: "unconfirmed", detail: error instanceof Error ? error.message : String(error) }; }
 		if ("refusal" in result) {
+			const settled = readSettledHousekeepingReceipt(result.refusal);
+			if (settled) return { kind: "settled_housekeeping", ...settled };
 			const refusal = readNoticeReplyRefusal(result.refusal);
 			if (refusal.reason === "room_changed" && attempt === 0) continue;
 			// DevSpec read every named notice as for the record: an expected, quiet
@@ -208,7 +231,13 @@ export async function postNoticeReply(input: {
 			return { kind: "refused", ...refusal };
 		}
 		const receipt = readNoticeReplyReceipt(result.raw, { connectionId: capture.connectionId, noticeIds: capture.noticeIds });
-		return receipt ? { kind: "posted", ...receipt } : { kind: "unconfirmed", detail: "DevSpec's receipt did not confirm this reply" };
+		if (receipt) return { kind: "posted", ...receipt };
+		const settled = readSettledHousekeepingReceipt(result.raw);
+		if (settled) return { kind: "settled_housekeeping", ...settled };
+		if (row(row(unwrapMcpResult(result.raw).details)?.delivery)?.reason === "for_the_record") {
+			return { kind: "for_the_record" };
+		}
+		return { kind: "unconfirmed", detail: "DevSpec's receipt did not confirm this reply" };
 	}
 }
 
@@ -217,6 +246,7 @@ export function noticeReplyTerminalMessage(outcome: NoticeReplyOutcome, capture:
 	const what = capture.noticeIds.length === 1 ? "The reply to the DevSpec notice" : `The reply to ${capture.noticeIds.length} DevSpec notices`;
 	switch (outcome.kind) {
 		case "posted":
+		case "settled_housekeeping":
 		case "for_the_record":
 		case "no_final_text":
 			return null;

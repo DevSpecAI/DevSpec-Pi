@@ -23,14 +23,15 @@ const NOTICE = "17171717-1717-4171-8171-171717171717";
 const envelope = (details: unknown) => ({ content: [{ type: "text", text: JSON.stringify(details) }] });
 const assistant = (text: string, stopReason: string, tools = false) => ({ role: "assistant", stopReason, content: [{ type: "text", text }, ...(tools ? [{ type: "toolCall", name: "get_task" }] : [])] });
 
-function harness(options: { refuse?: string } = {}) {
+function harness(options: { refuse?: string; customRefusal?: Record<string, unknown>; customRaw?: Record<string, unknown>; tellPerson?: boolean } = {}) {
 	const hooks: Record<string, (event: any, ctx: any) => Promise<void> | void> = {};
 	const requests: Array<{ name: string; args: Record<string, unknown> }> = [];
 	const other: string[] = [], warnings: string[] = [], posts: Promise<void>[] = [];
 	const bond = { connectionId: "11111111-1111-4111-8111-111111111111", sessionId: "room", connectionCapability: "cap" };
 	const t: Record<string, unknown> = { revision: 1, tracker: new TurnTracker(), trail: new TrailBuilder(), receiptBatch: { noteAssistantText() {}, suppressEmptyFallback() { return false; } },
 		trailDelivery: new TrailDeliveryState(), completionNeutral: true, canPost: () => true, speechManaged: true,
-		noticeReply: { connectionId: bond.connectionId, noticeIds: [NOTICE], roomPromised: true, finalText: null } };
+		tellPerson: options.tellPerson === true,
+		noticeReply: { connectionId: bond.connectionId, noticeIds: [NOTICE], forTheRecordIds: [], roomPromised: true, finalText: null } };
 	class DevspecToolError extends Error {}
 	const sandbox = {
 		AssistantSpeechSource, AssistantSpeechQueue, assistantSpeechWithinBudget, unwrapMcpResult, parsePostSessionReceipt, TurnTracker, shouldSplitSpeech, isClosedAnswer, extractAssistantParts,
@@ -43,11 +44,13 @@ function harness(options: { refuse?: string } = {}) {
 		INTERACTION_EVENT_CUSTOM_TYPE: "interaction", QUESTION_DISMISSAL_EVENT_CUSTOM_TYPE: "dismissal", FINAL_TRAIL_CHARS: 100000,
 		planSettle() { other.push("planSettle"); return { kind: "none" }; }, isCommandTurnUnbound: () => true, interactionIdentity: () => undefined,
 		postToSession: async () => { other.push("postToSession"); return true; },
-		callDevspec: async (_token: string, name: string, args: Record<string, unknown>, opts: { beforeSend?: () => void }) => {
-			opts.beforeSend?.();
+		callDevspec: async (_token: string, name: string, args: Record<string, unknown>, opts?: { beforeSend?: () => void }) => {
+			opts?.beforeSend?.();
 			requests.push({ name, args });
-			if (options.refuse) throw new DevspecToolError(JSON.stringify({ delivery: { status: "rejected", reason: options.refuse, retryable: false }, error: `Refused: ${options.refuse}.` }));
-			return envelope({ delivery: { status: "stored", message_id: "row" }, message_id: "row", session_id: "room", connection_id: args.connection_id, phase: "answer", notice_reply: { notice_ids: args.system_notice_ids }, turn_effect: "none", complete_turn: false });
+			if (args.system_notice_ids && options.customRefusal) throw new DevspecToolError(JSON.stringify(options.customRefusal));
+			if (args.system_notice_ids && options.customRaw) return envelope(options.customRaw);
+			if (args.system_notice_ids && options.refuse) throw new DevspecToolError(JSON.stringify({ delivery: { status: "rejected", reason: options.refuse, retryable: false }, error: `Refused: ${options.refuse}.` }));
+			return envelope({ delivery: { status: "stored", message_id: "row" }, message_id: "row", session_id: "room", connection_id: args.connection_id, phase: "answer", ...(args.system_notice_ids ? { notice_reply: { notice_ids: args.system_notice_ids } } : {}), turn_effect: "none", complete_turn: false });
 		},
 		pi: { on: (name: string, fn: typeof hooks[string]) => hooks[name] = fn, appendEntry: () => other.push("journal") },
 	};
@@ -83,4 +86,34 @@ test("a refused notice reply is shown in the terminal with DevSpec's reason", as
 	await h.hooks.message_end({ message: assistant("Your duplicate is closed.", "stop") }, {});
 	await h.api.postSegmentAnswer(h.t, null, "run_end", true);
 	assert.deepEqual(h.warnings, ["DevSpec: The reply to the DevSpec notice was not posted to the room (not_attached). Refused: not_attached."]);
+});
+
+test("settled-housekeeping notice receipts emit no fallback chat bubble and no warning when all findings were resolved", async () => {
+	for (const options of [
+		{
+			customRefusal: {
+				delivery: { status: "rejected", reason: "for_the_record", retryable: false },
+				error: "Settled in housekeeping.",
+				notice_ids: [NOTICE],
+				settled_housekeeping: true,
+				housekeeping_message_id: "hk-row",
+			},
+		},
+		{
+			customRaw: {
+				delivery: { status: "skipped", reason: "settled_housekeeping" },
+				notice_ids: [NOTICE],
+				settled_housekeeping: true,
+				housekeeping_message_id: "hk-row",
+			},
+		},
+	]) {
+		const h = harness(options);
+		await h.hooks.message_end({ message: assistant("Settled the own-decision clash.", "stop") }, {});
+		await h.drain();
+		assert.equal(await h.api.postSegmentAnswer(h.t, null, "run_end", true), false);
+		assert.equal(h.requests.length, 1, "only the single notice-reply call, no fallback chat post");
+		assert.deepEqual(h.other, ["own:hk-row"], "housekeeping row marked own; no postToSession fallback bubble");
+		assert.deepEqual(h.warnings, [], "no terminal error or warning");
+	}
 });

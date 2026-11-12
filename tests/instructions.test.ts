@@ -103,6 +103,10 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /create_task requires title, intent, and description/);
 	assert.match(text, /synthesized rationale \(never conversational go-ahead quotes\)/);
 	assert.match(text, /rejected at write time/);
+	assert.match(text, /semantics\.notice_audience/);
+	assert.match(text, /semantics\.notice_reply/);
+	assert.match(text, /unresolved choice, hold, rejection, or block/);
+	assert.doesNotMatch(text, /tell the person in plain words what you did/i);
 });
 
 test("bonded remote prose distinguishes delegated scope and points to served policy", () => {

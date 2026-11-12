@@ -10,6 +10,7 @@ import {
 	noticeReplyTerminalMessage,
 	parseNoticeReplySnapshot,
 	postNoticeReply,
+	readSettledHousekeepingReceipt,
 	type NoticeReplyCallResult,
 	type NoticeReplyCapture,
 } from "../extensions/core/notice-reply.ts";
@@ -149,9 +150,37 @@ test("for-the-record notices are never posted about, and a refusal saying so sta
 	assert.equal(noticeReplyTerminalMessage(refused, capture()), null);
 });
 
+test("settled-housekeeping notice-reply receipts stay quiet across both refusal and non-error shapes", async () => {
+	const refusalReceipt = JSON.stringify({
+		delivery: { status: "rejected", reason: "for_the_record", retryable: false },
+		error: "Every finding in this notice reply is already settled; the outcome was recorded in the room's housekeeping row instead of posting a chat bubble.",
+		notice_ids: [IDS.notice],
+		settled_housekeeping: true,
+		housekeeping_message_id: "hk-row-1",
+	});
+	assert.deepEqual(readSettledHousekeepingReceipt(refusalReceipt), { housekeepingMessageId: "hk-row-1" });
+	const viaRefusal = scripted([{ refusal: refusalReceipt }]);
+	const settledRefusal = await postNoticeReply({ capture: capture(), current: attached, call: viaRefusal.call });
+	assert.deepEqual(settledRefusal, { kind: "settled_housekeeping", housekeepingMessageId: "hk-row-1" });
+	assert.equal(viaRefusal.sent.length, 1);
+	assert.equal(noticeReplyTerminalMessage(settledRefusal, capture()), null);
+
+	const rawReceipt = envelope({
+		delivery: { status: "skipped", reason: "settled_housekeeping" },
+		notice_ids: [IDS.notice],
+		settled_housekeeping: true,
+		housekeeping_message_id: "hk-row-2",
+	});
+	assert.deepEqual(readSettledHousekeepingReceipt(rawReceipt), { housekeepingMessageId: "hk-row-2" });
+	const viaRaw = scripted([{ raw: rawReceipt }]);
+	const settledRaw = await postNoticeReply({ capture: capture(), current: attached, call: viaRaw.call });
+	assert.deepEqual(settledRaw, { kind: "settled_housekeeping", housekeepingMessageId: "hk-row-2" });
+	assert.equal(noticeReplyTerminalMessage(settledRaw, capture()), null);
+});
+
 test("the notice framing says where the final message goes", () => {
 	const notice = systemNotice({ audience: "needs_person" });
-	assert.match(formatSystemNoticeMessage([notice as never], { roomAttached: true }), /Your final message at the end of this run is posted to your DevSpec room as your reply to this notice; people there see it marked as a reply to a DevSpec notice, not to a person\. Write it to the person, briefly, as the notice's prompt asks, and say only what they need\./);
+	assert.match(formatSystemNoticeMessage([notice as never], { roomAttached: true }), /Your final message at the end of this run is posted to your DevSpec room as your reply to this notice when an unresolved choice, hold, rejection, or block still needs a person after you act \(semantics\.notice_audience, semantics\.notice_reply\); people there see it marked as a reply to a DevSpec notice, not to a person\. If you settle every finding under clear conversation intent with nothing left for a person \(and no write carries tell_person\), end the run without final text so nothing is posted as a chat bubble\./);
 	assert.doesNotMatch(formatSystemNoticeMessage([notice as never], { roomAttached: true }), /for the record/);
 	assert.match(formatSystemNoticeMessage([notice as never], { roomAttached: false }), /You are not attached to a DevSpec room, so your final message stays in this terminal\./);
 	assert.doesNotMatch(formatSystemNoticeMessage([notice as never]), /posted to your DevSpec room/);

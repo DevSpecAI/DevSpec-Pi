@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.2 - 2026-11-12
+
+- **Post-action room silence and settled-housekeeping notice receipts.** Pi's workflow instructions, bonded remote context, and system-notice framing now align with `semantics.notice_audience` and `semantics.notice_reply` in `devspec://product/remote-ingress-contract`: findings covered by explicit conversation intent are settled quietly in place, and a room notice reply is posted only when an unresolved choice, hold, rejection, or block still needs a person after acting (or when a write carries `tell_person`). Pi's mechanical notice-run handler (`postNoticeReply` and `deliverNoticeReply`) now accepts settled-housekeeping notice-reply receipts cleanly — recording the housekeeping row ID as own without emitting any fallback chat bubble or terminal warning when the agent resolved all findings during the run. Regenerated the checked-in DevSpec tool catalogue (`extensions/generated/mcp-catalog.ts`) for the updated `post_session_message` notice-reply schema description. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.13.1 - 2026-11-12
 
 - **Skip settled queued check jobs before waking Pi.** Check jobs arriving while a Pi turn is running now wait for the foreground turn to settle before entering Pi's message queue, then revalidate against `get_connection_dispatch` right at delivery time. If DevSpec confirms the check job is already settled or withdrawn, Pi drops it without sending a prompt turn or delivery toast; transient lookup failures still deliver the check job so real checks are never lost. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.

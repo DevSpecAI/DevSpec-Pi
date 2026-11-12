@@ -28,8 +28,15 @@ const MIN_PROMPT_CHARS = 40;
  */
 const MAX_CARDS = 4;
 
-/** Only substantive prompts are worth a recall search (and its ~300ms). */
-export function shouldRecall(prompt: string): boolean {
+/**
+ * Only substantive prompts are worth a recall search (and its ~300ms). A run the
+ * extension starts itself (a DevSpec notice or check job, delivered as a custom
+ * message; Pi 1.5 reports it as `messageType: "custom"`) has no typed prompt at
+ * all, and is not a recall turn: DevSpec's server-side recall skips notices too.
+ * It once crashed here on `undefined.trim()` under every notice (task a4b24107).
+ */
+export function shouldRecall(prompt: string | undefined): boolean {
+	if (typeof prompt !== "string") return false;
 	const p = prompt.trim();
 	if (p.length < MIN_PROMPT_CHARS) return false;
 	if (p.startsWith("/")) return false; // slash commands aren't topics

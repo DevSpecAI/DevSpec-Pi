@@ -226,7 +226,7 @@ export function formatSystemNoticeMessage(notices: readonly SystemNoticeV1[], op
 			: needsPerson === 0
 				? "Every notice here is for the record (the served contract's semantics.notice_audience): nothing from this run is posted to your DevSpec room. If a write's result carries tell_person, your final message is posted there as an ordinary message instead."
 				: [
-					"Your final message at the end of this run is posted to your DevSpec room as your reply to this notice; people there see it marked as a reply to a DevSpec notice, not to a person. Write it to the person, briefly, as the notice's prompt asks, and say only what they need. A run that ends without final text posts nothing.",
+					"Your final message at the end of this run is posted to your DevSpec room as your reply to this notice when an unresolved choice, hold, rejection, or block still needs a person after you act (semantics.notice_audience, semantics.notice_reply); people there see it marked as a reply to a DevSpec notice, not to a person. If you settle every finding under clear conversation intent with nothing left for a person (and no write carries tell_person), end the run without final text so nothing is posted as a chat bubble.",
 					...(needsPerson < notices.length ? ["It answers only the notices that need a person; those for the record are never posted about (semantics.notice_audience)."] : []),
 				].join(" "),
 		"Follow devspec://product/remote-ingress-contract for this notice.",

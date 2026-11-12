@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: d519e2942ac6fddd9b91fe176c8bea5f24aac1e2bdc021ac145b7f1ab76b8948
- * Description fingerprint: b1159571b97ca25f0ba28866702180a01e72cc90ac8528be015148689486ccd5
- * Regenerated: 2026-11-12T10:32:30.074Z
+ * Schema fingerprint: 73922a713225c2f21a45d313f9b2141bcc11d5e3b496023e79845043cb9ba69a
+ * Description fingerprint: 59a2eca43fc26a1b940b410ba183d4363294d55487324a3ba2fc6371501075fa
+ * Regenerated: 2026-11-12T23:11:29.475Z
  */
-export const MCP_CATALOG_FINGERPRINT = "d519e2942ac6fddd9b91fe176c8bea5f24aac1e2bdc021ac145b7f1ab76b8948";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "b1159571b97ca25f0ba28866702180a01e72cc90ac8528be015148689486ccd5";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-12T10:32:30.075Z";
-export const TOOL_CATALOG_VERSION = "e13f4552fdf2e6175c90bd43ca50742003d153cfb4f881e3db3fb267105e09c4";
+export const MCP_CATALOG_FINGERPRINT = "73922a713225c2f21a45d313f9b2141bcc11d5e3b496023e79845043cb9ba69a";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "59a2eca43fc26a1b940b410ba183d4363294d55487324a3ba2fc6371501075fa";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-12T23:11:29.475Z";
+export const TOOL_CATALOG_VERSION = "6b71e6676a29fabd6b6d683e2d6bdc38b861c6b9d30aaadbf16d03d6d3cb6c83";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -210,6 +210,18 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"intent": "list browse recent conversations rooms sessions newest"
 	},
 	{
+		"id": "get_requirement",
+		"name": "get requirement",
+		"description": "Read one requirement in full: its trigger-oriented summary, readable behaviour, scope and exception detail (body), optional ai_instructions (implementation guidance), companions (linked companion documents and memories), state, lineage, pending_versions and full version history. Search and list tools return cards; read the full requirement here (and read any linked companion documents with get_resource) before relying on it, superseding it or changing it. If superseded_by is set, a newer version is current: read that one. Every earlier or retracted version stays readable in full: each history entry's resultRowId is that version's id, to pass here. Changes proposed and not yet agreed are in pending_versions, beside the effective requirement and never part of it; checks_pending, when present, says a new requirement is not in force yet, so don't treat it as blocking other work until its checks clear. Accepts the 8-character short code.",
+		"intent": "read full requirement body scope exceptions companions history versions"
+	},
+	{
+		"id": "get_requirements",
+		"name": "get requirements",
+		"description": "List the project's active requirements, most recently updated first, as cards with trigger-oriented summaries, versions, states and companion links. Current versions only. Read any requirement that bears on your change in full with get_requirement (and read its linked companion documents with get_resource); use search_requirements for a specific topic. page.total_matching counts the requirements matching your filters; pass page.next_offset as offset for the next page.",
+		"intent": "list browse active project requirements constraints invariants rules"
+	},
+	{
 		"id": "get_resource",
 		"name": "get resource",
 		"description": "Read one uploaded document or AI-written artifact in full, by id or 8-character short code, with its review flags and total_lines. For a long document, pass start_line/end_line for a range, or search to get only the matching lines with context. An uploaded file also comes with a short-lived download_url: fetch it now and never store it. A file attached to any session you can access in this project is readable by id, without joining that session: use the resource_id from get_session_transcript. This does not add other sessions' uploads to search or lists. is_archived: true means it was retired or replaced; if replaced, superseded_by names the current version. A living document also comes with its change history, newest first: who made and asked for each change and which version it replaced, where each entry's resultRowId is that version's id, to pass here. For older history, pass history_next_before as history_before.",
@@ -384,6 +396,12 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"intent": "record save capture remember new decision convention architecture insight risk"
 	},
 	{
+		"id": "record_requirement",
+		"name": "record requirement",
+		"description": "Record a project requirement: a standing obligation whose violation blocks work once its checks clear. Never save an unasked-for requirement silently: when you spot a candidate requirement, ask the person in conversation first after explaining that breaking a requirement blocks work; when a Maintainer or Project Lead explicitly asks for one or says yes in conversation, record it in one step. Keep each requirement atomic around one cohesive obligation: put a trigger-oriented summary (when the requirement applies) in summary, full readable behaviour, scope and exception detail in body, supporting reference or specification links in companion_links, and code-level implementation guidance (file paths, symbols, database columns, code snippets) in ai_instructions. Writes that put code/paths/CSS in body or bundle unrelated subjects are rejected at write time. A Contributor's or Reviewed Contributor's requirement is saved as a non-binding proposal (outcome queued_for_review) until a Maintainer or Project Lead accepts it; a Maintainer's or Project Lead's explicit creation commits (outcome committed) and carries checks_pending until its own conflict check clears.",
+		"intent": "record create save new project requirement obligation invariant must comply"
+	},
+	{
 		"id": "release_work_item",
 		"name": "release work item",
 		"description": "Hand back an item you claimed or reserved without delivering anything. The item returns to idle with no failure flag, and its reservation slot is freed. Use it for untouched or safely retryable work; use fail_work_item for a failed attempt and record_implementation for delivered work. Only the holder can release without force. To free a stale hold whose agent is gone, pass force with a reason; it is recorded as a forced release naming you. A failed item is returned to the pool with its failure flag cleared (cleared_failure: true): the agent whose attempt failed can do this, anyone else needs force and a reason. Any other item that is neither claimed nor reserved is left as it is, and the response says nothing was released (released: false).",
@@ -444,6 +462,12 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"intent": "retract retire withdraw incorrect no longer true memory"
 	},
 	{
+		"id": "retract_requirement",
+		"name": "retract requirement",
+		"description": "Retract a requirement that no longer stands and that nothing replaces. It is kept and marked retracted with full version history preserved: active lists stop returning it, and search excludes it unless include_superseded is set; get_requirement still reads it. Uses the shared Decision-memory ownership and authority rules: the requirement's owner or the Project Lead retracts directly (outcome committed), while a peer Maintainer retracting another Maintainer's requirement — or a Contributor or Reviewed Contributor — queues a proposal (outcome queued_for_review) waiting on that owner's or the Project Lead's OK.",
+		"intent": "retract retire end withdraw requirement no longer stands"
+	},
+	{
 		"id": "search_devspec_tools",
 		"name": "search devspec tools",
 		"description": "Ask which DevSpec tool fits a task when you are unsure; it returns recommended tools with their descriptions and never runs anything. It may return no match, and tools you already know can be called directly. For how DevSpec itself works (setup, integrations, billing), use devspec_help_search. degraded:true means the ranking fell back, and reason says why: the results are keyword-only, or there are none when the host's tool catalogue is out of date (catalog_mismatch). Pass page.next_offset as offset for more matches.",
@@ -460,6 +484,12 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"name": "search memories",
 		"description": "Find project memories (decisions, conventions, insights and risks) by meaning or keywords. Returns cards, not bodies: read a chosen record with get_memory before relying on it or changing it. To list decisions or conventions in full, use get_decisions or get_conventions; for open questions, search_discussion_points; for documents, search_resources. Every memory the filters allow is returned, best match first: the query orders them and excludes none. word_matches counts the ones containing your words, and page.total_matching counts the whole filtered set. With flagged or signal_type and no query, it lists the flagged memories, most recently updated first. A card with checks_pending is a new decision not in force yet. Pass page.next_offset as offset for the next page.",
 		"intent": "find search memory decision convention insight risk architecture rationale what did we decide topic"
+	},
+	{
+		"id": "search_requirements",
+		"name": "search requirements",
+		"description": "Find project requirements by meaning or keywords. Returns cards with each requirement's trigger-oriented summary, version, state and companion links — never full bodies: read a chosen requirement in full with get_requirement (and read any linked companion documents) before relying on it, implementing work governed by it, or changing it. To list all active requirements, use get_requirements. General memory tools (search_memories, get_memory, get_decisions, get_conventions) never return requirements. Every requirement the filters allow is returned, best match first: the query orders them and excludes none. With flagged or signal_type and no query, it lists the flagged requirements, most recently updated first. A card with checks_pending is a new requirement not in force yet. Pass page.next_offset as offset for the next page.",
+		"intent": "find search requirements binding invariants constraints rules must comply topic"
 	},
 	{
 		"id": "search_resources",
@@ -490,6 +520,12 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"name": "supersede memory",
 		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current (a decision's, convention's or requirement's once its checks are ruled: see pending_checks); the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. Keep each memory atomic around one primary decision, convention, insight or risk: never bundle distinct subjects, unrelated decisions, or a primary decision together with a separate operational carve-out or companion convention into a single memory — record separate memories and connect them with companion_links (or manage_knowledge_links). Put the human-readable substance and rationale in body and code-level pointers in ai_instructions. Writes that violate field placement (code/paths/CSS in body), substance completeness, or single-subject atomicity are rejected at write time. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. outcome committed is live. pending_checks is accepted but not live yet: the version in force stays, and keeps its id, until the new version's checks are ruled, then the new version takes effect by itself; if they find it clashes with someone else's decision you cannot overrule, it waits for that person's OK instead. Report it as accepted and waiting for its checks, with its proposal_id. Another new wording from you before it takes effect replaces that pending version (same proposal_id, replaced_pending_version: true) unless it is already waiting for someone's OK. queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "replace changed decision memory new agreed version supersede"
+	},
+	{
+		"id": "supersede_requirement",
+		"name": "supersede requirement",
+		"description": "Replace a requirement with a new version when the obligation, scope, or exceptions themselves have changed. Read the current requirement in full with get_requirement first. Updating, superseding, and retracting a requirement use the shared Decision-memory ownership and authority rules: the requirement's owner or the Project Lead applies changes (with wording changes accepted as pending_checks beside the effective requirement until its checks clear), while a peer Maintainer editing another Maintainer's requirement — or a Contributor or Reviewed Contributor — creates a pending version (outcome queued_for_review) waiting on that owner's or the Project Lead's OK, leaving the current effective requirement unchanged.",
+		"intent": "replace supersede requirement new version changed obligation scope exceptions"
 	},
 	{
 		"id": "supersede_resource",
@@ -532,6 +568,12 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"name": "update personal instructions",
 		"description": "Change your own personal agent rules (given only to your coding agents) or response style (also used by Dev, the in-app assistant) when the person asks. The text you pass is appended by default; every agent the person runs reads all of it, so add only what is new. To revise or remove existing text, read it with get_personal_instructions and send the complete revised tier with mode:\"replace\", which overwrites the whole tier. When you reword or rewrite their text yourself, show them the result first (dry_run:true returns it without saving), unless they told you to go ahead; when they gave you the words, save them. A change that would leave a tier over its length limit, and longer than before, is refused with the limit and length; nothing is saved. It is refused from an unattended run. Team-wide rules belong in write_project_instruction_rule.",
 		"intent": "change update own personal agent instructions response style preferences"
+	},
+	{
+		"id": "update_requirement",
+		"name": "update requirement",
+		"description": "Refine an existing requirement without replacing its intent: adjust its tags, confidence, affected_files, delivering_task_id, or ai_instructions in place, or refine its title, trigger-oriented summary, or body (which mints a new version in the thread while preserving full version history). Uses the shared Decision-memory ownership and authority rules: the requirement's owner or the Project Lead applies changes (with wording changes accepted as pending_checks beside the effective requirement until its checks clear), while a peer Maintainer editing another Maintainer's requirement — or a Contributor or Reviewed Contributor — creates a pending version (outcome queued_for_review) leaving the current effective requirement unchanged.",
+		"intent": "update edit refine wording summary tags ai_instructions existing requirement"
 	},
 	{
 		"id": "update_resource",
@@ -620,6 +662,9 @@ export const MODEL_VERB_NAMES = [
 	"get_memory",
 	"get_decisions",
 	"get_conventions",
+	"search_requirements",
+	"get_requirements",
+	"get_requirement",
 	"get_resources",
 	"search_resources",
 	"get_resource",
@@ -667,6 +712,10 @@ export const MODEL_VERB_NAMES = [
 	"update_memory",
 	"retract_memory",
 	"resolve_memory_flag",
+	"record_requirement",
+	"supersede_requirement",
+	"update_requirement",
+	"retract_requirement",
 	"manage_knowledge_links",
 	"create_resource",
 	"update_resource",
@@ -3002,6 +3051,347 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				}
 			}
+		},
+		"kind": "model"
+	},
+	{
+		"name": "search_requirements",
+		"label": "DevSpec: Search Requirements",
+		"description": "Find project requirements by meaning or keywords. Returns cards with each requirement's trigger-oriented summary, version, state and companion links — never full bodies: read a chosen requirement in full with get_requirement (and read any linked companion documents) before relying on it, implementing work governed by it, or changing it. To list all active requirements, use get_requirements. General memory tools (search_memories, get_memory, get_decisions, get_conventions) never return requirements. Every requirement the filters allow is returned, best match first: the query orders them and excludes none. With flagged or signal_type and no query, it lists the flagged requirements, most recently updated first. A card with checks_pending is a new requirement not in force yet. Pass page.next_offset as offset for the next page.",
+		"searchIntent": "find search requirements binding invariants constraints rules must comply topic",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id, if you are a connected agent: the usage a query incurs is attributed to it and its session in the organisation's usage view. The connection your client authenticated, if any, is used instead. Omitted, or not one of your token's live connections: your token's only live connection, if it has exactly one; otherwise no agent is named."
+				},
+				"query": {
+					"type": "string",
+					"description": "Words or a natural-language description of what you are looking for; matched against the whole requirement, by words and by meaning. Required unless flagged or signal_type is set."
+				},
+				"include_superseded": {
+					"type": "boolean",
+					"description": "Also return requirements that were superseded or retracted; each card's state says which. Default false: current requirements only."
+				},
+				"limit": {
+					"type": "number",
+					"description": "Cards per page, 1-100. Default 20."
+				},
+				"offset": {
+					"type": "number",
+					"description": "Where this page starts: page.next_offset from the previous page. Default 0."
+				},
+				"flagged": {
+					"type": "boolean",
+					"description": "Only requirements carrying a review flag (possibly_stale). Superseded and retracted requirements never match. Default false: no flag filter."
+				},
+				"signal_type": {
+					"type": "string",
+					"enum": [
+						"possibly_stale"
+					],
+					"description": "Only requirements carrying this review flag. Implies flagged. Omitted: no flag filter unless flagged is true."
+				},
+				"requested_by": {
+					"type": "string",
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
+				},
+				"request_origin": {
+					"type": "string",
+					"enum": [
+						"human_requested",
+						"agent_initiative",
+						"automatic",
+						"unattributed",
+						"nobody_asked",
+						"unrecorded",
+						"all"
+					],
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "The work_claim_ref claim_work_item returned for the work this search is for, when you hold more than one claim: the search's cost is then recorded against whoever asked for that work. It changes no results. Omitted: worked out from your connection, and your agent's owner when it cannot be."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				}
+			}
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id, if you are a connected agent: the usage a query incurs is attributed to it and its session in the organisation's usage view. The connection your client authenticated, if any, is used instead. Omitted, or not one of your token's live connections: your token's only live connection, if it has exactly one; otherwise no agent is named."
+				},
+				"query": {
+					"type": "string",
+					"description": "Words or a natural-language description of what you are looking for; matched against the whole requirement, by words and by meaning. Required unless flagged or signal_type is set."
+				},
+				"include_superseded": {
+					"type": "boolean",
+					"description": "Also return requirements that were superseded or retracted; each card's state says which. Default false: current requirements only."
+				},
+				"limit": {
+					"type": "number",
+					"description": "Cards per page, 1-100. Default 20."
+				},
+				"offset": {
+					"type": "number",
+					"description": "Where this page starts: page.next_offset from the previous page. Default 0."
+				},
+				"flagged": {
+					"type": "boolean",
+					"description": "Only requirements carrying a review flag (possibly_stale). Superseded and retracted requirements never match. Default false: no flag filter."
+				},
+				"signal_type": {
+					"type": "string",
+					"enum": [
+						"possibly_stale"
+					],
+					"description": "Only requirements carrying this review flag. Implies flagged. Omitted: no flag filter unless flagged is true."
+				},
+				"requested_by": {
+					"type": "string",
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
+				},
+				"request_origin": {
+					"type": "string",
+					"enum": [
+						"human_requested",
+						"agent_initiative",
+						"automatic",
+						"unattributed",
+						"nobody_asked",
+						"unrecorded",
+						"all"
+					],
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+				},
+				"work_claim_ref": {
+					"type": "string",
+					"description": "The work_claim_ref claim_work_item returned for the work this search is for, when you hold more than one claim: the search's cost is then recorded against whoever asked for that work. It changes no results. Omitted: worked out from your connection, and your agent's owner when it cannot be."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				}
+			}
+		},
+		"kind": "model"
+	},
+	{
+		"name": "get_requirements",
+		"label": "DevSpec: Get Requirements",
+		"description": "List the project's active requirements, most recently updated first, as cards with trigger-oriented summaries, versions, states and companion links. Current versions only. Read any requirement that bears on your change in full with get_requirement (and read its linked companion documents with get_resource); use search_requirements for a specific topic. page.total_matching counts the requirements matching your filters; pass page.next_offset as offset for the next page.",
+		"searchIntent": "list browse active project requirements constraints invariants rules",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Where this page starts: page.next_offset from the previous page. Default 0."
+				},
+				"limit": {
+					"type": "number",
+					"description": "Cards per page, 1-100. Default 20."
+				},
+				"flagged": {
+					"type": "boolean",
+					"description": "Only requirements carrying a review flag (possibly_stale). Superseded and retracted requirements never match. Default false: no flag filter."
+				},
+				"signal_type": {
+					"type": "string",
+					"enum": [
+						"possibly_stale"
+					],
+					"description": "Only requirements carrying this review flag. Implies flagged. Omitted: no flag filter unless flagged is true."
+				},
+				"requested_by": {
+					"type": "string",
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
+				},
+				"request_origin": {
+					"type": "string",
+					"enum": [
+						"human_requested",
+						"agent_initiative",
+						"automatic",
+						"unattributed",
+						"nobody_asked",
+						"unrecorded",
+						"all"
+					],
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				}
+			}
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"offset": {
+					"type": "number",
+					"description": "Where this page starts: page.next_offset from the previous page. Default 0."
+				},
+				"limit": {
+					"type": "number",
+					"description": "Cards per page, 1-100. Default 20."
+				},
+				"flagged": {
+					"type": "boolean",
+					"description": "Only requirements carrying a review flag (possibly_stale). Superseded and retracted requirements never match. Default false: no flag filter."
+				},
+				"signal_type": {
+					"type": "string",
+					"enum": [
+						"possibly_stale"
+					],
+					"description": "Only requirements carrying this review flag. Implies flagged. Omitted: no flag filter unless flagged is true."
+				},
+				"requested_by": {
+					"type": "string",
+					"description": "Filter by who ASKED for the record to exist — the person whose request caused it to be created, not whoever or whatever typed it in. Pass \"me\" or a user UUID. \"anyone\" or omitted: no filter."
+				},
+				"request_origin": {
+					"type": "string",
+					"enum": [
+						"human_requested",
+						"agent_initiative",
+						"automatic",
+						"unattributed",
+						"nobody_asked",
+						"unrecorded",
+						"all"
+					],
+					"description": "Filter by HOW the record came to exist, defaulting to \"all\". \"human_requested\" = a person asked; \"agent_initiative\" = an agent filed it unprompted; \"automatic\" = a background job produced it; \"nobody_asked\" = agent_initiative plus automatic; \"unattributed\" = requester could not be established, not evidence that nobody asked; \"unrecorded\" = written before this was recorded. For WHICH person asked, use requested_by instead."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				}
+			}
+		},
+		"kind": "model"
+	},
+	{
+		"name": "get_requirement",
+		"label": "DevSpec: Get Requirement",
+		"description": "Read one requirement in full: its trigger-oriented summary, readable behaviour, scope and exception detail (body), optional ai_instructions (implementation guidance), companions (linked companion documents and memories), state, lineage, pending_versions and full version history. Search and list tools return cards; read the full requirement here (and read any linked companion documents with get_resource) before relying on it, superseding it or changing it. If superseded_by is set, a newer version is current: read that one. Every earlier or retracted version stays readable in full: each history entry's resultRowId is that version's id, to pass here. Changes proposed and not yet agreed are in pending_versions, beside the effective requirement and never part of it; checks_pending, when present, says a new requirement is not in force yet, so don't treat it as blocking other work until its checks clear. Accepts the 8-character short code.",
+		"searchIntent": "read full requirement body scope exceptions companions history versions",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string",
+					"description": "The requirement's id or 8-character short code."
+				},
+				"history_before": {
+					"type": "string",
+					"format": "uuid",
+					"description": "history_next_before from the previous response, to read older changes to this same requirement. Omitted: the newest changes. The body is returned either way."
+				},
+				"history_limit": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100,
+					"description": "Changes per history page, 1-100. Default 10."
+				},
+				"evidence_before": {
+					"type": "string",
+					"format": "uuid",
+					"description": "When the response carries evidence: its nextBefore, to read older evidence for this version. Omitted: the first page."
+				},
+				"evidence_limit": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100,
+					"description": "Evidence entries per page, 1-100. Default 10."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"id"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string",
+					"description": "The requirement's id or 8-character short code."
+				},
+				"history_before": {
+					"type": "string",
+					"format": "uuid",
+					"description": "history_next_before from the previous response, to read older changes to this same requirement. Omitted: the newest changes. The body is returned either way."
+				},
+				"history_limit": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100,
+					"description": "Changes per history page, 1-100. Default 10."
+				},
+				"evidence_before": {
+					"type": "string",
+					"format": "uuid",
+					"description": "When the response carries evidence: its nextBefore, to read older evidence for this version. Omitted: the first page."
+				},
+				"evidence_limit": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100,
+					"description": "Evidence entries per page, 1-100. Default 10."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"id"
+			]
 		},
 		"kind": "model"
 	},
@@ -5528,6 +5918,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "One UUID you choose per intended create; send one on every create. A retry with the same key returns the original item (deduplicated: true) instead of a duplicate, with or without a room. Omitted: when your role saves creates as suggested work, the call is refused and nothing is created; otherwise only a create in the same room identical in every field returns the earlier item."
 				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"description": "The receipt_id from a preview_required overlap preview on create_task, confirming this exact task draft should still be created despite overlapping active, deferred, or not_wanted items. Any change to title, intent, description or acceptance_criteria invalidates the receipt. Omitted: overlapping drafts return preview_required without creating."
+				},
 				"agent_name": {
 					"type": "string",
 					"description": "The tool name to show on the room card when your connection has none recorded, for example Claude Code. Only used with session_id. Omitted: the name your client reports, else Local agent."
@@ -5718,6 +6113,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"idempotency_key": {
 					"type": "string",
 					"description": "One UUID you choose per intended create; send one on every create. A retry with the same key returns the original item (deduplicated: true) instead of a duplicate, with or without a room. Omitted: when your role saves creates as suggested work, the call is refused and nothing is created; otherwise only a create in the same room identical in every field returns the earlier item."
+				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"description": "The receipt_id from a preview_required overlap preview on create_task, confirming this exact task draft should still be created despite overlapping active, deferred, or not_wanted items. Any change to title, intent, description or acceptance_criteria invalidates the receipt. Omitted: overlapping drafts return preview_required without creating."
 				},
 				"agent_name": {
 					"type": "string",
@@ -10007,6 +10407,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Optional companion memories, AI-written documents or uploaded project files to link to this memory when it commits ('read these together'), each with a note saying why. Link the file a decision or requirement relies on, such as a standard it must comply with, so the decisions check reads that file whole with it. Omitted: no new companion links."
 				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"description": "The receipt_id from a preview_required overlap preview on record_memory, confirming this exact memory draft should still be saved as a standalone record. Any change to title, summary or body invalidates the receipt. Omitted: overlapping drafts return preview_required without saving."
+				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
@@ -10129,6 +10534,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						]
 					},
 					"description": "Optional companion memories, AI-written documents or uploaded project files to link to this memory when it commits ('read these together'), each with a note saying why. Link the file a decision or requirement relies on, such as a standard it must comply with, so the decisions check reads that file whole with it. Omitted: no new companion links."
+				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"description": "The receipt_id from a preview_required overlap preview on record_memory, confirming this exact memory draft should still be saved as a standalone record. Any change to title, summary or body invalidates the receipt. Omitted: overlapping drafts return preview_required without saving."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -10810,6 +11220,734 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"signal_type",
 				"verdict",
 				"basis"
+			]
+		},
+		"kind": "model"
+	},
+	{
+		"name": "record_requirement",
+		"label": "DevSpec: Record Requirement",
+		"description": "Record a project requirement: a standing obligation whose violation blocks work once its checks clear. Never save an unasked-for requirement silently: when you spot a candidate requirement, ask the person in conversation first after explaining that breaking a requirement blocks work; when a Maintainer or Project Lead explicitly asks for one or says yes in conversation, record it in one step. Keep each requirement atomic around one cohesive obligation: put a trigger-oriented summary (when the requirement applies) in summary, full readable behaviour, scope and exception detail in body, supporting reference or specification links in companion_links, and code-level implementation guidance (file paths, symbols, database columns, code snippets) in ai_instructions. Writes that put code/paths/CSS in body or bundle unrelated subjects are rejected at write time. A Contributor's or Reviewed Contributor's requirement is saved as a non-binding proposal (outcome queued_for_review) until a Maintainer or Project Lead accepts it; a Maintainer's or Project Lead's explicit creation commits (outcome committed) and carries checks_pending until its own conflict check clears.",
+		"searchIntent": "record create save new project requirement obligation invariant must comply",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id, if you are a connected agent. It records which agent made this change and the session it came from, and lets a teammate's command be attributed to, and judged as, the person who gave it. Omitted: the connection your client authenticated, if any; otherwise the write names no agent or session. Refused if the connection is not live, not yours, or not the one your client authenticated."
+				},
+				"title": {
+					"type": "string",
+					"description": "A concise, searchable single-line noun phrase naming the requirement's subject or surface and core obligation (at most 115 characters)."
+				},
+				"summary": {
+					"type": "string",
+					"description": "Optional trigger-oriented plain-language summary describing when this requirement applies and what triggers it (no short-character ration). Omitted: no summary."
+				},
+				"body": {
+					"type": "string",
+					"description": "Readable behaviour, scope, conditions, and exception detail in Markdown. Keep code-level pointers (file paths, function/symbol names, database columns, CSS classes, code snippets) out of body and in ai_instructions."
+				},
+				"ai_instructions": {
+					"description": "Optional code-level agent guidance in Markdown: file paths, function/symbol names, database tables/columns, CSS classes, and code snippets. Excluded from embeddings and intent screening. Omitted: none.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Topic tags for retrieval, at most 10. Omitted: none."
+				},
+				"confidence": {
+					"type": "number",
+					"description": "How sure this is, from 0 to 1. Default 0.9."
+				},
+				"affected_files": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Repository paths this requirement governs. Omitted: none."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"description": "A fresh UUID for each intended requirement. Required when the write is queued as a proposal, so send one every time."
+				},
+				"delivering_task_id": {
+					"description": "The task that will deliver compliance with this requirement while the code does not satisfy it yet: its id or 8-character short code. null removes the link. Omitted: none.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"companion_links": {
+					"maxItems": 10,
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string",
+								"description": "Full id or 8-character short code of the current companion memory, AI-written document, or uploaded project file this memory relies on."
+							},
+							"note": {
+								"type": "string",
+								"maxLength": 1000,
+								"description": "Why the two records belong together, in a sentence or two, for a reader who was not there."
+							}
+						},
+						"required": [
+							"id",
+							"note"
+						]
+					},
+					"description": "Optional companion AI-written documents, uploaded project files, or memories this requirement relies on ('read these together'), each with a note saying why. Linked documents are read in full during conflict checks. Omitted: no companion links."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"title",
+				"body"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id, if you are a connected agent. It records which agent made this change and the session it came from, and lets a teammate's command be attributed to, and judged as, the person who gave it. Omitted: the connection your client authenticated, if any; otherwise the write names no agent or session. Refused if the connection is not live, not yours, or not the one your client authenticated."
+				},
+				"title": {
+					"type": "string",
+					"description": "A concise, searchable single-line noun phrase naming the requirement's subject or surface and core obligation (at most 115 characters)."
+				},
+				"summary": {
+					"type": "string",
+					"description": "Optional trigger-oriented plain-language summary describing when this requirement applies and what triggers it (no short-character ration). Omitted: no summary."
+				},
+				"body": {
+					"type": "string",
+					"description": "Readable behaviour, scope, conditions, and exception detail in Markdown. Keep code-level pointers (file paths, function/symbol names, database columns, CSS classes, code snippets) out of body and in ai_instructions."
+				},
+				"ai_instructions": {
+					"description": "Optional code-level agent guidance in Markdown: file paths, function/symbol names, database tables/columns, CSS classes, and code snippets. Excluded from embeddings and intent screening. Omitted: none.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Topic tags for retrieval, at most 10. Omitted: none."
+				},
+				"confidence": {
+					"type": "number",
+					"description": "How sure this is, from 0 to 1. Default 0.9."
+				},
+				"affected_files": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Repository paths this requirement governs. Omitted: none."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"description": "A fresh UUID for each intended requirement. Required when the write is queued as a proposal, so send one every time."
+				},
+				"delivering_task_id": {
+					"description": "The task that will deliver compliance with this requirement while the code does not satisfy it yet: its id or 8-character short code. null removes the link. Omitted: none.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"companion_links": {
+					"maxItems": 10,
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string",
+								"description": "Full id or 8-character short code of the current companion memory, AI-written document, or uploaded project file this memory relies on."
+							},
+							"note": {
+								"type": "string",
+								"maxLength": 1000,
+								"description": "Why the two records belong together, in a sentence or two, for a reader who was not there."
+							}
+						},
+						"required": [
+							"id",
+							"note"
+						]
+					},
+					"description": "Optional companion AI-written documents, uploaded project files, or memories this requirement relies on ('read these together'), each with a note saying why. Linked documents are read in full during conflict checks. Omitted: no companion links."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"request_ref": {
+					"type": "string",
+					"x-devspec-host-only": true,
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"title",
+				"body"
+			]
+		},
+		"kind": "model"
+	},
+	{
+		"name": "supersede_requirement",
+		"label": "DevSpec: Supersede Requirement",
+		"description": "Replace a requirement with a new version when the obligation, scope, or exceptions themselves have changed. Read the current requirement in full with get_requirement first. Updating, superseding, and retracting a requirement use the shared Decision-memory ownership and authority rules: the requirement's owner or the Project Lead applies changes (with wording changes accepted as pending_checks beside the effective requirement until its checks clear), while a peer Maintainer editing another Maintainer's requirement — or a Contributor or Reviewed Contributor — creates a pending version (outcome queued_for_review) waiting on that owner's or the Project Lead's OK, leaving the current effective requirement unchanged.",
+		"searchIntent": "replace supersede requirement new version changed obligation scope exceptions",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id, if you are a connected agent. It records which agent made this change and the session it came from, and lets a teammate's command be attributed to, and judged as, the person who gave it. Omitted: the connection your client authenticated, if any; otherwise the write names no agent or session. Refused if the connection is not live, not yours, or not the one your client authenticated."
+				},
+				"id": {
+					"type": "string",
+					"description": "The requirement being replaced: its id or 8-character short code. It must be the current version."
+				},
+				"expected_version": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "The version read with get_requirement. Required with idempotency_key when this edit is saved for review; a changed version is refused rather than overwritten."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "One UUID for this intended edit. Required for a saved proposal. Keep the same key, expected_version and original fields after an uncertain response."
+				},
+				"title": {
+					"type": "string",
+					"description": "The new version's concise single-line noun phrase naming the subject and core obligation (at most 115 characters). Required even when unchanged."
+				},
+				"summary": {
+					"type": "string",
+					"description": "Trigger-oriented plain-language summary of when the new version applies (no short-character ration). Omitted: the current summary is kept."
+				},
+				"body": {
+					"type": "string",
+					"description": "The new version's readable behaviour, scope, and exception detail in Markdown. Keep code-level pointers in ai_instructions."
+				},
+				"ai_instructions": {
+					"description": "Optional code-level agent guidance for the new version in Markdown, or null to clear it. Omitted: the current ai_instructions are kept.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Replaces the tag list (at most 10). Omitted: the current tags are kept."
+				},
+				"confidence": {
+					"type": "number",
+					"description": "From 0 to 1. Omitted: the current confidence is kept."
+				},
+				"affected_files": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Replaces the affected-files list. Omitted: the current list is kept."
+				},
+				"delivering_task_id": {
+					"description": "The task delivering compliance with this requirement (id or 8-character short code), or null to clear. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"companion_links": {
+					"maxItems": 10,
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string",
+								"description": "Full id or 8-character short code of the current companion memory, AI-written document, or uploaded project file this memory relies on."
+							},
+							"note": {
+								"type": "string",
+								"maxLength": 1000,
+								"description": "Why the two records belong together, in a sentence or two, for a reader who was not there."
+							}
+						},
+						"required": [
+							"id",
+							"note"
+						]
+					},
+					"description": "Optional additional companion documents, uploaded project files, or memories to link when the new version commits. Existing thread companion links automatically carry forward. Omitted: no new companion links."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"id",
+				"title",
+				"body"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id, if you are a connected agent. It records which agent made this change and the session it came from, and lets a teammate's command be attributed to, and judged as, the person who gave it. Omitted: the connection your client authenticated, if any; otherwise the write names no agent or session. Refused if the connection is not live, not yours, or not the one your client authenticated."
+				},
+				"id": {
+					"type": "string",
+					"description": "The requirement being replaced: its id or 8-character short code. It must be the current version."
+				},
+				"expected_version": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "The version read with get_requirement. Required with idempotency_key when this edit is saved for review; a changed version is refused rather than overwritten."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "One UUID for this intended edit. Required for a saved proposal. Keep the same key, expected_version and original fields after an uncertain response."
+				},
+				"title": {
+					"type": "string",
+					"description": "The new version's concise single-line noun phrase naming the subject and core obligation (at most 115 characters). Required even when unchanged."
+				},
+				"summary": {
+					"type": "string",
+					"description": "Trigger-oriented plain-language summary of when the new version applies (no short-character ration). Omitted: the current summary is kept."
+				},
+				"body": {
+					"type": "string",
+					"description": "The new version's readable behaviour, scope, and exception detail in Markdown. Keep code-level pointers in ai_instructions."
+				},
+				"ai_instructions": {
+					"description": "Optional code-level agent guidance for the new version in Markdown, or null to clear it. Omitted: the current ai_instructions are kept.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Replaces the tag list (at most 10). Omitted: the current tags are kept."
+				},
+				"confidence": {
+					"type": "number",
+					"description": "From 0 to 1. Omitted: the current confidence is kept."
+				},
+				"affected_files": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Replaces the affected-files list. Omitted: the current list is kept."
+				},
+				"delivering_task_id": {
+					"description": "The task delivering compliance with this requirement (id or 8-character short code), or null to clear. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"companion_links": {
+					"maxItems": 10,
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string",
+								"description": "Full id or 8-character short code of the current companion memory, AI-written document, or uploaded project file this memory relies on."
+							},
+							"note": {
+								"type": "string",
+								"maxLength": 1000,
+								"description": "Why the two records belong together, in a sentence or two, for a reader who was not there."
+							}
+						},
+						"required": [
+							"id",
+							"note"
+						]
+					},
+					"description": "Optional additional companion documents, uploaded project files, or memories to link when the new version commits. Existing thread companion links automatically carry forward. Omitted: no new companion links."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"request_ref": {
+					"type": "string",
+					"x-devspec-host-only": true,
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"id",
+				"title",
+				"body"
+			]
+		},
+		"kind": "model"
+	},
+	{
+		"name": "update_requirement",
+		"label": "DevSpec: Update Requirement",
+		"description": "Refine an existing requirement without replacing its intent: adjust its tags, confidence, affected_files, delivering_task_id, or ai_instructions in place, or refine its title, trigger-oriented summary, or body (which mints a new version in the thread while preserving full version history). Uses the shared Decision-memory ownership and authority rules: the requirement's owner or the Project Lead applies changes (with wording changes accepted as pending_checks beside the effective requirement until its checks clear), while a peer Maintainer editing another Maintainer's requirement — or a Contributor or Reviewed Contributor — creates a pending version (outcome queued_for_review) leaving the current effective requirement unchanged.",
+		"searchIntent": "update edit refine wording summary tags ai_instructions existing requirement",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id, if you are a connected agent. It records which agent made this change and the session it came from, and lets a teammate's command be attributed to, and judged as, the person who gave it. Omitted: the connection your client authenticated, if any; otherwise the write names no agent or session. Refused if the connection is not live, not yours, or not the one your client authenticated."
+				},
+				"id": {
+					"type": "string",
+					"description": "The requirement to change: its id or 8-character short code."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "One UUID for this intended wording edit. Required, with expected_version, for a saved proposal."
+				},
+				"confidence": {
+					"type": "number",
+					"description": "From 0 to 1. Changed in place; with a wording change it goes on the new version instead. Omitted: unchanged."
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Replaces the tag list (at most 10). Changed in place; with a wording change it goes on the new version instead. Omitted: unchanged."
+				},
+				"affected_files": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Replaces the affected-files list. Changed in place; with a wording change it goes on the new version instead. Omitted: unchanged."
+				},
+				"ai_instructions": {
+					"description": "Optional code-level agent guidance in Markdown, or null to clear it. Changed in place without minting a new version; with a wording change it goes on the new version instead. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"title": {
+					"type": "string",
+					"description": "A corrected concise single-line noun phrase (at most 115 characters). Saves a new version. Omitted: unchanged."
+				},
+				"summary": {
+					"description": "A corrected trigger-oriented summary (no short-character ration), or null to clear it. Saves a new version. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"body": {
+					"type": "string",
+					"description": "Corrected readable behaviour, scope, and exception detail in Markdown. Keep code-level pointers in ai_instructions. Saves a new version. Omitted: unchanged."
+				},
+				"note": {
+					"type": "string",
+					"maxLength": 2000,
+					"description": "Why the change was made, when the person gave a reason (at most 2,000 characters). Stored with the change in the requirement's history. Omitted: no reason."
+				},
+				"expected_version": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "The version read with get_requirement. If the requirement has changed since, nothing is written and the answer is stale_context. Omitted: no version check."
+				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"description": "The receipt_id of a preview_required answer, confirming that exact previewed edit. Omitted: an edit that needs a preview answers preview_required and changes nothing."
+				},
+				"delivering_task_id": {
+					"description": "The task delivering compliance with this requirement (id or 8-character short code), or null to clear. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"id"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id, if you are a connected agent. It records which agent made this change and the session it came from, and lets a teammate's command be attributed to, and judged as, the person who gave it. Omitted: the connection your client authenticated, if any; otherwise the write names no agent or session. Refused if the connection is not live, not yours, or not the one your client authenticated."
+				},
+				"id": {
+					"type": "string",
+					"description": "The requirement to change: its id or 8-character short code."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "One UUID for this intended wording edit. Required, with expected_version, for a saved proposal."
+				},
+				"confidence": {
+					"type": "number",
+					"description": "From 0 to 1. Changed in place; with a wording change it goes on the new version instead. Omitted: unchanged."
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Replaces the tag list (at most 10). Changed in place; with a wording change it goes on the new version instead. Omitted: unchanged."
+				},
+				"affected_files": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Replaces the affected-files list. Changed in place; with a wording change it goes on the new version instead. Omitted: unchanged."
+				},
+				"ai_instructions": {
+					"description": "Optional code-level agent guidance in Markdown, or null to clear it. Changed in place without minting a new version; with a wording change it goes on the new version instead. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"title": {
+					"type": "string",
+					"description": "A corrected concise single-line noun phrase (at most 115 characters). Saves a new version. Omitted: unchanged."
+				},
+				"summary": {
+					"description": "A corrected trigger-oriented summary (no short-character ration), or null to clear it. Saves a new version. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"body": {
+					"type": "string",
+					"description": "Corrected readable behaviour, scope, and exception detail in Markdown. Keep code-level pointers in ai_instructions. Saves a new version. Omitted: unchanged."
+				},
+				"note": {
+					"type": "string",
+					"maxLength": 2000,
+					"description": "Why the change was made, when the person gave a reason (at most 2,000 characters). Stored with the change in the requirement's history. Omitted: no reason."
+				},
+				"expected_version": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "The version read with get_requirement. If the requirement has changed since, nothing is written and the answer is stale_context. Omitted: no version check."
+				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"description": "The receipt_id of a preview_required answer, confirming that exact previewed edit. Omitted: an edit that needs a preview answers preview_required and changes nothing."
+				},
+				"delivering_task_id": {
+					"description": "The task delivering compliance with this requirement (id or 8-character short code), or null to clear. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"request_ref": {
+					"type": "string",
+					"x-devspec-host-only": true,
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"id"
+			]
+		},
+		"kind": "model"
+	},
+	{
+		"name": "retract_requirement",
+		"label": "DevSpec: Retract Requirement",
+		"description": "Retract a requirement that no longer stands and that nothing replaces. It is kept and marked retracted with full version history preserved: active lists stop returning it, and search excludes it unless include_superseded is set; get_requirement still reads it. Uses the shared Decision-memory ownership and authority rules: the requirement's owner or the Project Lead retracts directly (outcome committed), while a peer Maintainer retracting another Maintainer's requirement — or a Contributor or Reviewed Contributor — queues a proposal (outcome queued_for_review) waiting on that owner's or the Project Lead's OK.",
+		"searchIntent": "retract retire end withdraw requirement no longer stands",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id, if you are a connected agent. It records which agent made this change and the session it came from, and lets a teammate's command be attributed to, and judged as, the person who gave it. Omitted: the connection your client authenticated, if any; otherwise the write names no agent or session. Refused if the connection is not live, not yours, or not the one your client authenticated."
+				},
+				"id": {
+					"type": "string",
+					"description": "The requirement to retract: its id or 8-character short code."
+				},
+				"reason": {
+					"type": "string",
+					"description": "Why it no longer stands. Stored with the retraction in the requirement's history, and shown to the reviewer when queued. Omitted: no reason."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"id"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id, if you are a connected agent. It records which agent made this change and the session it came from, and lets a teammate's command be attributed to, and judged as, the person who gave it. Omitted: the connection your client authenticated, if any; otherwise the write names no agent or session. Refused if the connection is not live, not yours, or not the one your client authenticated."
+				},
+				"id": {
+					"type": "string",
+					"description": "The requirement to retract: its id or 8-character short code."
+				},
+				"reason": {
+					"type": "string",
+					"description": "Why it no longer stands. Stored with the retraction in the requirement's history, and shown to the reviewer when queued. Omitted: no reason."
+				},
+				"project_id": {
+					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"request_ref": {
+					"type": "string",
+					"x-devspec-host-only": true,
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"id"
 			]
 		},
 		"kind": "model"
@@ -12500,7 +13638,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "post_session_message",
 		"label": "DevSpec: Post Session Message",
-		"description": "Post a message into a DevSpec room as your agent, shown as \"<agent> (<your name>)\". Pass connection_id: the server posts into the room your connection is attached to now, as part of the turn it has open for you, and refuses a connection with no room. Pass complete_turn:true on your final answer so the room stops showing Working; omit it on progress posts. For a turn the person started by typing in your terminal, pass local_turn:true and command_turn_unbound:true on every post of it. An @Full Name notifies that project member, and a reply notifies the author of the message it replies to. To tell the person in your room about a notice DevSpec sent you that needs a person (a finding, an outcome, a review of your work), pass system_notice_ids with connection_id: the post is your own message, shown under a DevSpec header saying what happened, to which record and what they need to do, as a reply to that notice and to no person, and it opens, closes and completes no turn. A notice that is for the record is never posted about, and a reply naming only such notices is refused. If your host already relays your replies into the room, do not post them again. To open a new room, use create_session.",
+		"description": "Post a message into a DevSpec room as your agent, shown as \"<agent> (<your name>)\". Pass connection_id: the server posts into the room your connection is attached to now, as part of the turn it has open for you, and refuses a connection with no room. Pass complete_turn:true on your final answer so the room stops showing Working; omit it on progress posts. For a turn the person started by typing in your terminal, pass local_turn:true and command_turn_unbound:true on every post of it. An @Full Name notifies that project member, and a reply notifies the author of the message it replies to. To tell the person in your room about a notice DevSpec sent you when an unresolved choice, hold waiting on approval, rejection, or block still needs a person, pass system_notice_ids with connection_id: the post is your own message, shown under a DevSpec live-status card as a follow-up to that notice and to no person, and it opens, closes and completes no turn. Findings you settle under clear conversation intent with nothing waiting on or declined against a person finish quietly without calling post_session_message (DevSpec records them in the room's housekeeping bar), and a notice that is for the record is never posted about. If your host already relays your replies into the room, do not post them again. To open a new room, use create_session.",
 		"searchIntent": "post reply answer message into attached room conversation mention notify a teammate tell the person about a devspec notice finding",
 		"modelInputSchema": {
 			"type": "object",
@@ -12538,7 +13676,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"format": "uuid"
 					},
 					"uniqueItems": true,
-					"description": "The notice_id of each DevSpec notice this post replies to, as system_notices delivered them to your connection (all of them when one run handled a batch). Requires connection_id. Each must have been delivered to that exact connection in this project, or nothing is posted and the refusal names it. The post lands in the room your connection is attached to now, as your own message marked as a reply to those notices, and is bound to no command or turn: it never changes Working and complete_turn has no effect. Not combinable with command_turn_id, command_message_id, command_turn_unbound, local_turn, attempt_id, interaction or dismissal fields, assistant speech, reply_to_message_id, turn_kind local_prompt, work_trail, trail_events, needs_input, or a phase other than answer. The same notices and text sent again return the stored message. Reply only to notices that need a person (audience needs_person, or a prompt that opens \"Needs a person\"): if every notice named is for the record, nothing is posted and the refusal says so (delivery.reason for_the_record), because the record and Review already show it. Omitted: an ordinary post."
+					"description": "The notice_id of each DevSpec notice this post replies to, as system_notices delivered them to your connection (all of them when one run handled a batch). Requires connection_id. Each must have been delivered to that exact connection in this project, or nothing is posted and the refusal names it. The post lands in the room your connection is attached to now, as your own message marked as a follow-up to those notices, and is bound to no command or turn: it never changes Working and complete_turn has no effect. Not combinable with command_turn_id, command_message_id, command_turn_unbound, local_turn, attempt_id, interaction or dismissal fields, assistant speech, reply_to_message_id, turn_kind local_prompt, work_trail, trail_events, needs_input, or a phase other than answer. The same notices and text sent again return the stored message. Reply only when at least one notice still needs a person (an unresolved choice, hold waiting on approval, declined change, or blocked failure): if you settled every named notice during the wake so nothing waits on or was declined against a person, DevSpec records a quiet housekeeping entry instead of a chat bubble (delivery.reason for_the_record, settled_housekeeping true), and if every notice is for_the_record nothing is posted at all. Omitted: an ordinary post."
 				},
 				"message": {
 					"type": "string",
@@ -12948,7 +14086,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"format": "uuid"
 					},
 					"uniqueItems": true,
-					"description": "The notice_id of each DevSpec notice this post replies to, as system_notices delivered them to your connection (all of them when one run handled a batch). Requires connection_id. Each must have been delivered to that exact connection in this project, or nothing is posted and the refusal names it. The post lands in the room your connection is attached to now, as your own message marked as a reply to those notices, and is bound to no command or turn: it never changes Working and complete_turn has no effect. Not combinable with command_turn_id, command_message_id, command_turn_unbound, local_turn, attempt_id, interaction or dismissal fields, assistant speech, reply_to_message_id, turn_kind local_prompt, work_trail, trail_events, needs_input, or a phase other than answer. The same notices and text sent again return the stored message. Reply only to notices that need a person (audience needs_person, or a prompt that opens \"Needs a person\"): if every notice named is for the record, nothing is posted and the refusal says so (delivery.reason for_the_record), because the record and Review already show it. Omitted: an ordinary post."
+					"description": "The notice_id of each DevSpec notice this post replies to, as system_notices delivered them to your connection (all of them when one run handled a batch). Requires connection_id. Each must have been delivered to that exact connection in this project, or nothing is posted and the refusal names it. The post lands in the room your connection is attached to now, as your own message marked as a follow-up to those notices, and is bound to no command or turn: it never changes Working and complete_turn has no effect. Not combinable with command_turn_id, command_message_id, command_turn_unbound, local_turn, attempt_id, interaction or dismissal fields, assistant speech, reply_to_message_id, turn_kind local_prompt, work_trail, trail_events, needs_input, or a phase other than answer. The same notices and text sent again return the stored message. Reply only when at least one notice still needs a person (an unresolved choice, hold waiting on approval, declined change, or blocked failure): if you settled every named notice during the wake so nothing waits on or was declined against a person, DevSpec records a quiet housekeeping entry instead of a chat bubble (delivery.reason for_the_record, settled_housekeeping true), and if every notice is for_the_record nothing is posted at all. Omitted: an ordinary post."
 				},
 				"message": {
 					"type": "string",
@@ -14582,15 +15720,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"kind": {
 					"type": "string",
 					"enum": [
-						"deploy_failed",
+						"reported",
 						"checks_failing",
-						"security_advisory",
-						"unlinked_work",
-						"undo_requested",
-						"followup_failed",
-						"reported"
+						"deploy_failed"
 					],
-					"description": "Incident kind: deploy_failed, checks_failing, security_advisory, unlinked_work, undo_requested, followup_failed, or reported (default \"reported\")."
+					"description": "Incident kind: reported (default), checks_failing, or deploy_failed. Security advisories, unlinked work, undo requests and follow-up failures open only from their own signals."
 				},
 				"title": {
 					"type": "string",
@@ -14611,13 +15745,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"opened_reason": {
 					"type": "string",
 					"enum": [
-						"no_online_contributor",
-						"followthrough_timed_out",
 						"contributor_escalated",
-						"project_wide_signal",
 						"reported"
 					],
-					"description": "How this incident was opened: contributor_escalated (default when escalating from follow-through), reported, project_wide_signal, no_online_contributor, or followthrough_timed_out."
+					"description": "How you came to open it: contributor_escalated (default when you link blocked work) or reported."
 				},
 				"repo": {
 					"type": "string",
@@ -14674,13 +15805,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"claim_immediately": {
 					"type": "boolean",
-					"description": "True to immediately claim handling of the incident if it is not already claimed by another handler."
-				},
-				"lease_seconds": {
-					"type": "integer",
-					"minimum": 60,
-					"maximum": 86400,
-					"description": "When claim_immediately is true: handler claim lease in seconds (60–86400, default 1800)."
+					"description": "True to immediately claim handling of the incident if it is not already claimed by another handler. A claim lapses after 15 minutes without a heartbeat."
 				},
 				"connection_id": {
 					"type": "string",
@@ -14688,7 +15813,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"run_id": {
 					"type": "string",
-					"description": "Optional claimed automation run UUID when reporting during an automation run."
+					"description": "The automation run you are running on this connection, when reporting during it."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -14721,15 +15846,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"kind": {
 					"type": "string",
 					"enum": [
-						"deploy_failed",
+						"reported",
 						"checks_failing",
-						"security_advisory",
-						"unlinked_work",
-						"undo_requested",
-						"followup_failed",
-						"reported"
+						"deploy_failed"
 					],
-					"description": "Incident kind: deploy_failed, checks_failing, security_advisory, unlinked_work, undo_requested, followup_failed, or reported (default \"reported\")."
+					"description": "Incident kind: reported (default), checks_failing, or deploy_failed. Security advisories, unlinked work, undo requests and follow-up failures open only from their own signals."
 				},
 				"title": {
 					"type": "string",
@@ -14750,13 +15871,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"opened_reason": {
 					"type": "string",
 					"enum": [
-						"no_online_contributor",
-						"followthrough_timed_out",
 						"contributor_escalated",
-						"project_wide_signal",
 						"reported"
 					],
-					"description": "How this incident was opened: contributor_escalated (default when escalating from follow-through), reported, project_wide_signal, no_online_contributor, or followthrough_timed_out."
+					"description": "How you came to open it: contributor_escalated (default when you link blocked work) or reported."
 				},
 				"repo": {
 					"type": "string",
@@ -14813,13 +15931,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"claim_immediately": {
 					"type": "boolean",
-					"description": "True to immediately claim handling of the incident if it is not already claimed by another handler."
-				},
-				"lease_seconds": {
-					"type": "integer",
-					"minimum": 60,
-					"maximum": 86400,
-					"description": "When claim_immediately is true: handler claim lease in seconds (60–86400, default 1800)."
+					"description": "True to immediately claim handling of the incident if it is not already claimed by another handler. A claim lapses after 15 minutes without a heartbeat."
 				},
 				"connection_id": {
 					"type": "string",
@@ -14827,7 +15939,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"run_id": {
 					"type": "string",
-					"description": "Optional claimed automation run UUID when reporting during an automation run."
+					"description": "The automation run you are running on this connection, when reporting during it."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -14887,7 +15999,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"link_blocked",
 						"unlink_blocked"
 					],
-					"description": "Operation: claim (take single-handler lease or renew your own), release (hand back to unhandled open), heartbeat (renew your active lease), awaiting_followup (fix landed; wait for live confirmation without blocking), escalate_needs_decision (pause for a human decision with decision_prompt), resolve (close incident and unblock linked PRs/tasks), link_blocked, or unlink_blocked."
+					"description": "Operation: claim (take the single-handler claim, or renew your own), release (hand back to unhandled open), heartbeat (renew your own active claim; refused if you do not hold it), awaiting_followup (fix landed; wait for live confirmation without blocking), escalate_needs_decision (pause for a human decision with decision_prompt), resolve (close incident and unblock linked PRs/tasks), link_blocked (anyone may link their own blocked work), or unlink_blocked (only the holder, a person, or whoever made the link). A claim lapses after 15 minutes without a heartbeat."
 				},
 				"connection_id": {
 					"type": "string",
@@ -14895,18 +16007,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"run_id": {
 					"type": "string",
-					"description": "Optional claimed automation run UUID when acting as an automation run."
+					"description": "The automation run you are running on this connection, when acting as it."
 				},
 				"handler_label": {
 					"type": "string",
 					"maxLength": 200,
 					"description": "Optional display label for the handler when claiming from an unattached CLI session."
-				},
-				"lease_seconds": {
-					"type": "integer",
-					"minimum": 60,
-					"maximum": 86400,
-					"description": "For claim or heartbeat: lease duration in seconds (60–86400, default 1800)."
 				},
 				"reason": {
 					"type": "string",
@@ -15004,7 +16110,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"link_blocked",
 						"unlink_blocked"
 					],
-					"description": "Operation: claim (take single-handler lease or renew your own), release (hand back to unhandled open), heartbeat (renew your active lease), awaiting_followup (fix landed; wait for live confirmation without blocking), escalate_needs_decision (pause for a human decision with decision_prompt), resolve (close incident and unblock linked PRs/tasks), link_blocked, or unlink_blocked."
+					"description": "Operation: claim (take the single-handler claim, or renew your own), release (hand back to unhandled open), heartbeat (renew your own active claim; refused if you do not hold it), awaiting_followup (fix landed; wait for live confirmation without blocking), escalate_needs_decision (pause for a human decision with decision_prompt), resolve (close incident and unblock linked PRs/tasks), link_blocked (anyone may link their own blocked work), or unlink_blocked (only the holder, a person, or whoever made the link). A claim lapses after 15 minutes without a heartbeat."
 				},
 				"connection_id": {
 					"type": "string",
@@ -15012,18 +16118,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"run_id": {
 					"type": "string",
-					"description": "Optional claimed automation run UUID when acting as an automation run."
+					"description": "The automation run you are running on this connection, when acting as it."
 				},
 				"handler_label": {
 					"type": "string",
 					"maxLength": 200,
 					"description": "Optional display label for the handler when claiming from an unattached CLI session."
-				},
-				"lease_seconds": {
-					"type": "integer",
-					"minimum": 60,
-					"maximum": 86400,
-					"description": "For claim or heartbeat: lease duration in seconds (60–86400, default 1800)."
 				},
 				"reason": {
 					"type": "string",
@@ -16328,7 +17428,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						2,
 						3
 					],
-					"description": "1 adds system_notices[] and system_notice_cursor for this connection: follow-up signals, never commands, dispatches or authority. 2 also carries server_notice: confirmed findings about your own work and the outcome of your pending edits, each with the real records. Send 2 only if you can read server_notice; at 1 none is sent and your person is told instead. 3 also puts audience on every notice: needs_person (raise it with your person, in the room as a reply to the notice) or for_the_record (post nothing about it; do any housekeeping it asks for quietly). Send 3 only if you can read that field."
+					"description": "1 adds system_notices[] and system_notice_cursor for this connection: follow-up signals, never commands, dispatches or authority. 2 also carries server_notice: confirmed findings about your own work and the outcome of your pending edits, each with the real records. Send 2 only if you can read server_notice; at 1 none is sent and your person is told instead. 3 also puts audience on every notice: needs_person (settle quietly without posting a chat bubble when clear conversation intent covers it; reply in the room only when an unresolved choice, hold, rejection, or block still needs your person) or for_the_record (post nothing about it; do any housekeeping it asks for quietly). Send 3 only if you can read that field."
 				},
 				"system_notice_cursor": {
 					"type": "string",
@@ -16837,7 +17937,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						2,
 						3
 					],
-					"description": "1 adds system_notices[] and system_notice_cursor for this connection: follow-up signals, never commands, dispatches or authority. 2 also carries server_notice: confirmed findings about your own work and the outcome of your pending edits, each with the real records. Send 2 only if you can read server_notice; at 1 none is sent and your person is told instead. 3 also puts audience on every notice: needs_person (raise it with your person, in the room as a reply to the notice) or for_the_record (post nothing about it; do any housekeeping it asks for quietly). Send 3 only if you can read that field."
+					"description": "1 adds system_notices[] and system_notice_cursor for this connection: follow-up signals, never commands, dispatches or authority. 2 also carries server_notice: confirmed findings about your own work and the outcome of your pending edits, each with the real records. Send 2 only if you can read server_notice; at 1 none is sent and your person is told instead. 3 also puts audience on every notice: needs_person (settle quietly without posting a chat bubble when clear conversation intent covers it; reply in the room only when an unresolved choice, hold, rejection, or block still needs your person) or for_the_record (post nothing about it; do any housekeeping it asks for quietly). Send 3 only if you can read that field."
 				},
 				"system_notice_cursor": {
 					"type": "string",
@@ -17342,6 +18442,23 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "boolean",
 					"x-devspec-host-only": true,
 					"description": "Host-only. true acknowledges the context wipe this response asked for (OpenCode), once the host has carried it out, unblocking the attach, archive or delete waiting on it. The string \"true\" is accepted."
+				},
+				"turn_recall_version": {
+					"type": "integer",
+					"enum": [
+						1
+					],
+					"x-devspec-host-only": true,
+					"description": "Host-only. 1 attaches server-formatted multi-lane proactive turn_recall cards when executable commands or automation runs are delivered; idle holds, controls, and system notices run zero recall."
+				},
+				"seen_recall_versions": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"maxLength": 120
+					},
+					"x-devspec-host-only": true,
+					"description": "Host-only. Already-seen record version keys (\"kind:id:vN\") in the host conversation window so unchanged records are suppressed across turns while bumped versions re-surface."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -17930,8 +19047,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 105,
-	model: 92,
+	total: 112,
+	model: 99,
 	pump: 12,
 	never_model: 1,
 } as const;

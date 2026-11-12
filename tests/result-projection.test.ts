@@ -902,7 +902,25 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// replaces auto-made unlinked-commit tasks): manage_protected_intent drops
 		// take_ownership, move_commit, auto_item_id, target_item_id, resolution_id,
 		// and intent.
-		"7f0a595ffd4eafd6b95c5b5f0862ec633637044d903a1104008c8e16a1dda8d0",
+		// Rebaselined 2026-11-12 for item 210fc045: merged Pi origin/staging (0.13.2) into the
+		// PR and regenerated the catalog against DevSpecV2 origin/staging (831dfaac7).
+		// Verbs 92 -> 99 model / 12 pump / 1 never-model. Added: search_requirements,
+		// get_requirements, get_requirement, record_requirement, update_requirement,
+		// supersede_requirement and retract_requirement, all assigned to the full-read family
+		// (versions, pending proposals, companions and requirement evidence stay lossless, as
+		// they already do through get_memory); no existing verb's family changed. Inputs:
+		// create_task and record_memory gain optional preview_ack (uuid, an overlap preview's
+		// receipt); report_incident and manage_incident drop lease_seconds (a claim now lapses
+		// after 15 minutes without a heartbeat, said in claim_immediately/action), report_incident's
+		// kind narrows to reported|checks_failing|deploy_failed and opened_reason to
+		// contributor_escalated|reported, and both tools' run_id descriptions changed. No required
+		// field changed. Outside this model fingerprint: post_session_message (never-model) takes
+		// staging's notice-reply description, and the pump-only poll_connection gains host-only
+		// turn_recall_version and seen_recall_versions plus a new system_notice_version
+		// description. Hot set is every eligible model verb, so it gains the seven requirements
+		// verbs (88 -> 95). Benchmark before/after: initial surface 65,553 (PR head; Pi staging
+		// 61,546) -> 70,898 estimated tokens; every check still passes.
+		"b28580b85f611902ca5346c098c6fa75feb6dd4bce0b14069255b76288084b2a",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -952,6 +970,8 @@ test("verb projections use explicit, loss-aware families", () => {
 		"get_project_instruction_rules", "get_personal_instructions", "get_workflow_rules", "get_database_schema",
 		"get_goals", "get_project_goals", "create_session", "claim_automation_run",
 		"get_incidents", "get_incident", "report_incident", "manage_incident",
+		"search_requirements", "get_requirements", "get_requirement", "record_requirement",
+		"update_requirement", "supersede_requirement", "retract_requirement",
 		"import_instruction_rules", "update_personal_instructions", "manage_plan", "manage_poll", "manage_directed_question",
 	]) assert.equal(projectionFamily(verb), "full", verb);
 	assert.equal(projectionFamily("some_future_verb"), "fallback");

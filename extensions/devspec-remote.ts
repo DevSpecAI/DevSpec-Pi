@@ -1571,8 +1571,22 @@ async function deliverNoticeReply(capture: NoticeReplyCapture, agentStats: Agent
 		},
 		extraArgs: { agent_name: AGENT_NAME, ...(agentStats ? { agent_stats: agentStats } : {}), ...replyModelArgs(agentStats ?? undefined) },
 	});
-	debug("notice reply", { notices: capture.noticeIds.length, posted: outcome.kind === "posted", idempotent: outcome.kind === "posted" && outcome.idempotent, refused: outcome.kind === "refused", unconfirmed: outcome.kind === "unconfirmed", skipped: outcome.kind === "no_final_text" || outcome.kind === "not_attached" || outcome.kind === "connection_changed" });
+	debug("notice reply", { notices: capture.noticeIds.length, posted: outcome.kind === "posted", idempotent: outcome.kind === "posted" && outcome.idempotent, refused: outcome.kind === "refused", unconfirmed: outcome.kind === "unconfirmed", skipped: outcome.kind === "no_final_text" || outcome.kind === "not_attached" || outcome.kind === "connection_changed" || outcome.kind === "settled_housekeeping" || outcome.kind === "for_the_record" });
 	if (outcome.kind === "posted") { noteOwnRoomMessage(outcome.messageId); return; }
+	if (outcome.kind === "settled_housekeeping" || outcome.kind === "for_the_record") {
+		if (outcome.kind === "settled_housekeeping" && outcome.housekeepingMessageId) {
+			noteOwnRoomMessage(outcome.housekeepingMessageId);
+		}
+		if (tellPerson && capture.finalText !== null) {
+			const told = await postTellPersonAnswer(capture.connectionId, capture.finalText);
+			if (told === "failed") {
+				const warn = "DevSpec: your agent changed someone else's record while handling a DevSpec notice, and its message saying so may not have reached the room. It stays here in the terminal.";
+				if (safeHasUI(ctx)) notify(ctx, warn, "warning");
+				else console.error(warn);
+			}
+		}
+		return;
+	}
 	const message = noticeReplyTerminalMessage(outcome, capture);
 	if (!message) return;
 	if (safeHasUI(ctx)) notify(ctx, message, "warning");

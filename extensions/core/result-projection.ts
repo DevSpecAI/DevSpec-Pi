@@ -60,6 +60,18 @@ const FULL_READ_VERBS = new Set([
 	"report_incident",
 	"manage_incident",
 	"get_memory",
+	// Requirements (DevSpecV2 requirements tools): every read and write carries the
+	// version, state, pending proposals, companions and recorded evidence that decide
+	// whether work is blocked, and a write can come back waiting for its checks or
+	// queued as a proposal. A dropped field would read as "no obligation" or "done", so all seven
+	// stay whole, as requirement evidence already does through get_memory.
+	"search_requirements",
+	"get_requirements",
+	"get_requirement",
+	"record_requirement",
+	"update_requirement",
+	"supersede_requirement",
+	"retract_requirement",
 	"get_resource",
 	"get_testing_brief",
 	"get_task_history",

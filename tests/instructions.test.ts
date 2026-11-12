@@ -103,6 +103,10 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /create_task requires title, intent, and description/);
 	assert.match(text, /synthesized rationale \(never conversational go-ahead quotes\)/);
 	assert.match(text, /rejected at write time/);
+	assert.match(text, /semantics\.notice_audience/);
+	assert.match(text, /semantics\.notice_reply/);
+	assert.match(text, /unresolved choice, hold, rejection, or block/);
+	assert.doesNotMatch(text, /tell the person in plain words what you did/i);
 });
 
 test("bonded remote prose distinguishes delegated scope and points to served policy", () => {
@@ -137,7 +141,10 @@ test("instructions stay compact (every line costs tokens per turn)", () => {
 	// squeezing it to a fragment and trimming two unrelated lines to stay under
 	// 2,200 (item 45588384). Quality of instruction beats a few hundred characters;
 	// the block is tiny relative to any model context.
-	const COMPACT_CEILING_CHARS = 9_000;
+	// Raised 9,000 -> 10,000 on 2026-11-12 (item 210fc045): staging's notice-reply
+	// sentence (0.13.2) and the incident rule (0.13.3) are each needed and each fit
+	// alone (8,909 and 8,943 chars); together the block is 9,177.
+	const COMPACT_CEILING_CHARS = 10_000;
 	assert.ok(
 		text.length < COMPACT_CEILING_CHARS,
 		`instructions bloated: ${text.length} chars (ceiling ${COMPACT_CEILING_CHARS})`,

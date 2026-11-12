@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.1 - 2026-11-12
+
+- **Skip settled queued check jobs before waking Pi.** Check jobs arriving while a Pi turn is running now wait for the foreground turn to settle before entering Pi's message queue, then revalidate against `get_connection_dispatch` right at delivery time. If DevSpec confirms the check job is already settled or withdrawn, Pi drops it without sending a prompt turn or delivery toast; transient lookup failures still deliver the check job so real checks are never lost. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.13.0 - 2026-11-09
 
 - **Universal pull-request delivery and Merge when cleared.** Pi's workflow instructions and local safety fallback now point at `core.push-safely` in `devspec://product/implementation-contract`: Pi builds every change on its own branch, opens a pull request into the repository's tracking branch wherever pull requests are supported (small changes and unprotected branches included), switches on DevSpec's Merge when cleared (`get_pull_request` with `merge_when_cleared: true`, or GitHub auto-merge where DevSpec's check is required), never merges before DevSpec's check passes, and ends its turn instead of polling checks so its main thread stays free to rule the pull request's check job.

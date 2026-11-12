@@ -139,6 +139,7 @@ import {
 	isAutomationRunEnvelope,
 	isCheckJobEnvelope,
 	isDispatchEnvelope,
+	shouldDeliverQueuedCheckJob,
 } from "./core/dispatch.ts";
 import {
 	firstTextPreview,
@@ -1935,6 +1936,7 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	systemNoticeRunActive = false;
 	revokeSystemNoticeState(active.systemNoticeKey);
 	active.automationQueue.invalidate();
+	notifyCheckJobIdleWaiters();
 	for (const timer of active.automationRetryTimers.values()) clearTimeout(timer);
 	active.automationRetryTimers.clear();
 	active.pushGenerationFence.invalidate();
@@ -2555,6 +2557,44 @@ function assertDeliveryAuthority(active: PumpState, lease: DeliveryLease): void 
 	}
 }
 
+const CHECK_JOB_PICKUP_HOLD_MS = 400;
+const CHECK_JOB_IDLE_POLL_MS = 200;
+let checkJobPickupHoldUntil = 0;
+const checkJobIdleWaiters = new Set<() => void>();
+
+function notifyCheckJobIdleWaiters(): void {
+	for (const wake of [...checkJobIdleWaiters]) wake();
+}
+
+function isCheckJobForegroundReady(active: PumpState, ctx: ExtensionContext): boolean {
+	const hasPending = typeof ctx.hasPendingMessages === "function" ? ctx.hasPendingMessages() : false;
+	return !runActive && !active.runtimeOccupancy.isBusy() && ctx.isIdle() && !hasPending && Date.now() >= checkJobPickupHoldUntil;
+}
+
+async function waitForCheckJobTurnSlot(
+	active: PumpState,
+	ctx: ExtensionContext,
+	lease: DeliveryLease,
+): Promise<void> {
+	while (!isCheckJobForegroundReady(active, ctx)) {
+		assertDeliveryAuthority(active, lease);
+		await new Promise<void>((resolve) => {
+			let settled = false;
+			const finish = () => {
+				if (settled) return;
+				settled = true;
+				clearTimeout(timer);
+				checkJobIdleWaiters.delete(finish);
+				resolve();
+			};
+			const timer = setTimeout(finish, CHECK_JOB_IDLE_POLL_MS);
+			if (typeof timer.unref === "function") timer.unref();
+			checkJobIdleWaiters.add(finish);
+		});
+	}
+	assertDeliveryAuthority(active, lease);
+}
+
 async function deliverAutomationRun(
 	active: PumpState,
 	value: unknown,
@@ -2578,15 +2618,28 @@ async function deliverAutomationRun(
 /** Wake the agent for one check job; the job itself is taken with claim_check_job. */
 async function deliverCheckJob(
 	active: PumpState,
+	key: string,
+	token: string,
 	value: unknown,
 	ctx: ExtensionContext,
 	lease: DeliveryLease,
-): Promise<void> {
+): Promise<boolean> {
 	assertDeliveryAuthority(active, lease);
-	if (!isCheckJobEnvelope(value)) return;
+	if (!isCheckJobEnvelope(value)) return false;
 	const message = formatCheckJobMessage(value, active.bond.codename ?? "this agent");
+	await waitForCheckJobTurnSlot(active, ctx, lease);
+	const liveToken = await currentPumpToken(active, token);
 	assertDeliveryAuthority(active, lease);
+	const pending = await shouldDeliverQueuedCheckJob({
+		key,
+		loadCurrentInbox: () => loadCurrentAutomationInbox(active, key, liveToken, ctx),
+		identity: dispatchId,
+	});
+	assertDeliveryAuthority(active, lease);
+	if (!pending) return false;
+	checkJobPickupHoldUntil = Date.now() + CHECK_JOB_PICKUP_HOLD_MS;
 	pi_send(message, ctx.isIdle() ? "now" : "followUp");
+	return true;
 }
 
 async function loadCurrentAutomationInbox(
@@ -2681,13 +2734,14 @@ function enqueueDispatch(
 	active.automationQueue.enqueue(
 		key,
 		async (lease) => {
-			if (checkJob) await deliverCheckJob(active, value, ctx, lease);
+			let delivered = true;
+			if (checkJob) delivered = await deliverCheckJob(active, key, token, value, ctx, lease);
 			else await deliverAutomationRun(active, value, ctx, lease);
 			active.automationRetryAttempts.delete(key);
 			const timer = active.automationRetryTimers.get(key);
 			if (timer) clearTimeout(timer);
 			active.automationRetryTimers.delete(key);
-			if (!active.stop && pump === active) notify(ctx, `DevSpec remote: ${what} delivered.`);
+			if (delivered && !active.stop && pump === active) notify(ctx, `DevSpec remote: ${what} delivered.`);
 		},
 		(error) => scheduleAutomationRetry(active, key, token, ctx, error, false, what),
 	);
@@ -4531,6 +4585,7 @@ export default function (pi: ExtensionAPI) {
 		// idle. The next custom run remains unbound from every owner generation.
 		if (completionNeutral) systemNoticeTurnPending = false;
 		systemNoticeRunActive = false;
+		notifyCheckJobIdleWaiters();
 		if (pump && !pump.busy && ctx.isIdle()) {
 			try { deliverQueuedSystemNotices(pump, ctx); } catch (error) {
 				debug("system notice settle drain failed", { errorPresent: Boolean(error) });

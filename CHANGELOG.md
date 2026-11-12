@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.13.2 - 2026-11-12
+
+- **Passive project-incident awareness and incident tools.** Changed `poll_connection` packages carrying `project_incidents` are strictly validated and surfaced as passive advisory read-awareness (`== PROJECT INCIDENTS ==`) on ordinary turns without ever waking an idle Pi session on their own. Workflow and bonded instructions point to `core.respect-incidents-and-escalate-delivery-blockers` (`devspec://product/implementation-contract`) and `semantics.project_incidents` (`devspec://product/remote-ingress-contract`).
+- Regenerated the checked-in DevSpec tool catalogue (`extensions/generated/mcp-catalog.ts`) with `get_incidents`, `get_incident`, `report_incident`, and `manage_incident`, and classified all four in Pi's lossless full-read result projection family. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.13.1 - 2026-11-12
 
 - **Skip settled queued check jobs before waking Pi.** Check jobs arriving while a Pi turn is running now wait for the foreground turn to settle before entering Pi's message queue, then revalidate against `get_connection_dispatch` right at delivery time. If DevSpec confirms the check job is already settled or withdrawn, Pi drops it without sending a prompt turn or delivery toast; transient lookup failures still deliver the check job so real checks are never lost. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.

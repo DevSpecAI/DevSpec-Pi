@@ -184,6 +184,9 @@ import {
 	serializeStillToDiscussProjection,
 } from "./core/still-to-discuss.ts";
 import {
+	serializeProjectIncidentsProjection,
+} from "./core/project-incidents.ts";
+import {
 	withDirectedQuestionToolActive,
 	withPlanToolActive,
 	withPollToolActive,
@@ -390,6 +393,9 @@ interface PumpState {
 	/** Latest validated this-session Still to Discuss tail. */
 	stillToDiscussTail: string;
 	pendingStillToDiscussTail: string;
+	/** Latest validated project-wide passive incident awareness tail. */
+	projectIncidentsTail: string;
+	pendingProjectIncidentsTail: string;
 }
 
 let pump: PumpState | null = null;
@@ -3286,6 +3292,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			active.sessionPollsTail = "";
 			active.pendingStillToDiscussTail = "";
 			active.stillToDiscussTail = "";
+			active.pendingProjectIncidentsTail = "";
+			active.projectIncidentsTail = "";
 			setBond(next);
 			pi_syncBackgroundScope();
 			pi_setPlanToolActive(Boolean(serverSessionId));
@@ -3420,6 +3428,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				...(pkg.advisoryRejections.includes("session_activity") ? { sessionActivity: true } : {}),
 				...(pkg.advisoryRejections.includes("session_events") ? { sessionEvents: true } : {}),
 				...(pkg.advisoryRejections.includes("notice_reply") ? { noticeReply: true } : {}),
+				...(pkg.advisoryRejections.includes("project_incidents") ? { projectIncidents: true } : {}),
 			});
 		}
 
@@ -3467,6 +3476,12 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (pollTail !== active.sessionPollsTail) active.pendingSessionPollsTail = pollTail;
 			active.sessionPollsTail = pollTail;
 			pi_setPollToolActive(Boolean(active.bond.sessionId && active.bond.connectionCapability));
+		}
+
+		if (pkg.projectIncidents !== undefined) {
+			const incidentsTail = serializeProjectIncidentsProjection(pkg.projectIncidents);
+			if (incidentsTail !== active.projectIncidentsTail) active.pendingProjectIncidentsTail = incidentsTail;
+			active.projectIncidentsTail = incidentsTail;
 		}
 
 		if (pkg.stillToDiscuss !== undefined) {
@@ -3870,6 +3885,8 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 		pendingSessionPollsTail: "",
 		stillToDiscussTail: "",
 		pendingStillToDiscussTail: "",
+		projectIncidentsTail: "",
+		pendingProjectIncidentsTail: "",
 	};
 	pi_syncBackgroundScope();
 	pi_setPlanToolActive(Boolean(bond.sessionId));
@@ -4686,12 +4703,21 @@ export default function (pi: ExtensionAPI) {
 			active?.pendingStillToDiscussTail ?? "",
 		);
 		if (active && discussTail) active.pendingStillToDiscussTail = "";
+		const incidentsTail = activePlanTailForDelivery(
+			Boolean(canonicalQueueItem),
+			active?.projectIncidentsTail ?? "",
+			active?.pendingProjectIncidentsTail ?? "",
+		);
+		if (active && incidentsTail) active.pendingProjectIncidentsTail = "";
 		let hiddenContent = appendActivePlanTail(
 			appendActivePlanTail(
-				appendActivePlanTail(canonicalQueueItem?.hiddenContent ?? "", planTail),
-				pollTail,
+				appendActivePlanTail(
+					appendActivePlanTail(canonicalQueueItem?.hiddenContent ?? "", planTail),
+					pollTail,
+				),
+				discussTail,
 			),
-			discussTail,
+			incidentsTail,
 		);
 		if (pi_roomReaderAvailable() && (active?.bond.sessionId || canonicalQueueItem || roomScopeFromEntries(ctx.sessionManager.getBranch()))) {
 			const expected = (canonicalQueueItem?.details as { local_room?: { session_id?: string; attachment_id?: string } } | undefined)?.local_room;

@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: ca440a4f0be6acaf4db6da5f5bc110690ecc5c2e1a5c1a89039b454f480bf570
- * Description fingerprint: e664b15243cfa94a59ca4e002be176b0380adcf0bc552e4b0355eb74ea858e3f
- * Regenerated: 2026-11-09T21:25:36.962Z
+ * Schema fingerprint: 944bcae10bbf880028fd86c0ed98f40d51a890bfd91c859b2e566c65786e6383
+ * Description fingerprint: ba1d6753ee250a8cc79f684cf20ce38d2cb4ef09d28f5e42b9c2c2d81c06d48e
+ * Regenerated: 2026-11-12T02:33:13.330Z
  */
-export const MCP_CATALOG_FINGERPRINT = "ca440a4f0be6acaf4db6da5f5bc110690ecc5c2e1a5c1a89039b454f480bf570";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "e664b15243cfa94a59ca4e002be176b0380adcf0bc552e4b0355eb74ea858e3f";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-09T21:25:36.962Z";
-export const TOOL_CATALOG_VERSION = "cd6d2158d0aa23e9dc607c2ff65d92f7679d1073ace92d356583871899b18004";
+export const MCP_CATALOG_FINGERPRINT = "944bcae10bbf880028fd86c0ed98f40d51a890bfd91c859b2e566c65786e6383";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "ba1d6753ee250a8cc79f684cf20ce38d2cb4ef09d28f5e42b9c2c2d81c06d48e";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-12T02:33:13.330Z";
+export const TOOL_CATALOG_VERSION = "3b03c63f5ddc8af5fb96bef098242518f6a37f40803518cf03853a533817374a";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -38,7 +38,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "claim_check_job",
 		"name": "claim check job",
-		"description": "Take a check job DevSpec sent to your wake channel (a dispatch of kind check_job) before ruling it. Only the agent it was sent to can take it, and taking it again is harmless: you get the same job back with what is still to rule. The reply carries the definition to rule this kind of check by, the change, with a written account of it when you did not make it, and every entry still to rule: its entry_id, the record (type, id, version, title), its exact text, its owner, its facts, how it is tied to the change or another entry, and for a decision or requirement the supporting documents it links. Rule every entry, using the definition the job carries; read any linked supporting document or uploaded file in full with get_resource first. verdicts lists the verdict words this kind allows, and also_waiting lists your other check jobs. Record the rulings with record_check_rulings. A refusal names its reason: not_yours means it was sent to another agent, so leave it; superseded means the change was replaced, and its new check comes as its own job; finished means it was already ruled or went back to the next in line, so there is nothing to take.",
+		"description": "Take a check job DevSpec sent to your wake channel (a dispatch of kind check_job) before ruling it. Only the agent it was sent to can take it, and taking it again is harmless: you get the same job back with what is still to rule. The reply carries the definition to rule this kind of check by, the change, with a written account of it when you did not make it, and every entry still to rule: its entry_id, the record (type, id, version, title), its exact text, its owner, its facts, how it is tied to the change or another entry, and for a decision or requirement the supporting documents it links. Rule every entry, using the definition the job carries; read any linked supporting document or uploaded file in full with get_resource first. verdicts lists the verdict words this kind allows. Record the rulings with record_check_rulings. A refusal names its reason: not_yours means it was sent to another agent, so leave it; superseded means the change was replaced, and its new check comes as its own job; finished means it was already ruled or went back to the next in line, so there is nothing to take.",
 		"intent": "take a waiting check job on a change to rule conflicts duplicates out of date records"
 	},
 	{
@@ -154,6 +154,18 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"name": "get goals",
 		"description": "Read the project's goals and their outcomes. Without goal_id: the goals (current by default) with each goal's chapter_summary, outcomes_summary (active_now and up_next outcomes, plus any ready_to_confirm outcomes awaiting human sign-off), and linked task counts. With goal_id: that goal, its hydrated outcomes (each outcome's progress, linked briefs and tasks, excluded child tasks, supporting documents, and discussion points), and every task counting toward it up to 500 per page (pass items_page.next_offset as items_offset). A progress of null means it could not be read: unknown, not zero. For the vision and concise 'Where we are now' orientation together, use get_project_goals. Read-only: shape goals, outcomes, and multi-corpus outcome links with manage_goals.",
 		"intent": "project goals outcomes active_now up_next linked work remaining items goal details"
+	},
+	{
+		"id": "get_incident",
+		"name": "get incident",
+		"description": "Read one project incident in full by incident_id (full UUID or 8-character short code), including its current state, active handler or decision prompt, timeline events, and all linked blocked pull requests, tasks, and agent connections.",
+		"intent": "read inspect one project incident details timeline handler blocked pull requests tasks"
+	},
+	{
+		"id": "get_incidents",
+		"name": "get incidents",
+		"description": "Query project incidents on demand: live incidents on shared ground (checks failing, deployment failures, security advisories, unlinked work, undo requests, follow-up failures, or reported external blockers), who is handling each one, and what pull requests or tasks each incident is blocking. Pass pull_request_number (plus repo when the project tracks several repositories) or pull_request_id to see active incidents blocking a pull request, or pass task_id (UUID or 8-char short code) to see active incidents holding up a task without changing its lifecycle. With neither, lists project incidents in the chosen scope (default \"active\").",
+		"intent": "list query open project incidents, what is blocking my pull request or task, merge blocker check failure deploy failure status"
 	},
 	{
 		"id": "get_memory",
@@ -294,6 +306,12 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"intent": "create update reshape close achieve dismiss goals outcomes reorder confirm reopen link unlink briefs tasks documents discussion points"
 	},
 	{
+		"id": "manage_incident",
+		"name": "manage incident",
+		"description": "Claim, hand back (release), heartbeat, mark awaiting live confirmation, escalate to a human decision, resolve, or link/unlink blocked work on an existing project incident — directly and without any automation being required. Exactly one active handler holds an incident at a time: if another live agent, automation run, or person already holds the incident, claiming or resolving it is refused with `already_claimed` and the current `holder` named so you do not duplicate their fix.",
+		"intent": "claim resolve release hand back project incident escalate needs decision link unlink blocked pull request"
+	},
+	{
 		"id": "manage_knowledge_links",
 		"name": "manage knowledge links",
 		"description": "Link two memories or AI-written documents, in any combination, as companions a reader should see together, with a note saying why (link). You can also change that note (set_note), remove the link (unlink), or list one record's companions (list). A link is an association only: it does not say the two agree, clear a review flag, supersede either record, make either more trusted or change who may edit them. An uploaded project file can be linked only to a memory, as the supporting reference of the decision or requirement that relies on it; the decisions check then reads the file whole with that record. A file attached inside a conversation cannot be linked. Tasks have their own links (link_tasks). Both records must be current versions, given by full id or 8-character short code; a code that matches both a memory and a document is refused as ambiguous.",
@@ -376,6 +394,12 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"name": "reopen task",
 		"description": "Reopen recorded work whose implementation does not do what was agreed, as an audited new round: the item returns to open and unclaimed (a brief to in progress), and the previous round's verifications and criterion verdicts are marked stale, except failed ones. Claim it again before working on it. New scope on finished work belongs in a follow-up (create_task with follow_up_from_task_id). To resume a deferred, dismissed or blocked item without opening a new round, use update_task (lifecycle open). Items already open or in progress are refused. Reopen versus follow-up is decided by work_entry_contract in devspec://product/implementation-contract.",
 		"intent": "reopen incomplete broken implemented done work new round"
+	},
+	{
+		"id": "report_incident",
+		"name": "report incident",
+		"description": "Open a project incident or join a matching active incident by fingerprint when shared breakage or an external delivery/merge blocker prevents progress. Use this during routine post-implementation follow-through when a pull request check failure, merge-queue removal, or deployment failure is caused by shared/external breakage you cannot fix on your own branch: link the blocked pull request and task here so the implemented task stays in `implemented` (never move an already-implemented task backward to `blocked`). Matching active incidents with the same (kind, fingerprint) deduplicate into one live record and attach your blocked pull request/task to it.",
+		"intent": "report escalate merge blocker failed check deployment failure open join project incident link blocked pull request"
 	},
 	{
 		"id": "report_progress",
@@ -607,6 +631,8 @@ export const MODEL_VERB_NAMES = [
 	"get_automation_runs",
 	"get_automations",
 	"get_automation",
+	"get_incidents",
+	"get_incident",
 	"write_project_instruction_rule",
 	"import_instruction_rules",
 	"update_personal_instructions",
@@ -657,6 +683,8 @@ export const MODEL_VERB_NAMES = [
 	"create_automation",
 	"update_automation",
 	"delete_automation",
+	"report_incident",
+	"manage_incident",
 	"claim_check_job",
 	"record_check_rulings"
 ] as const;
@@ -4089,6 +4117,218 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string"
 				}
 			}
+		},
+		"kind": "model"
+	},
+	{
+		"name": "get_incidents",
+		"label": "DevSpec: Get Incidents",
+		"description": "Query project incidents on demand: live incidents on shared ground (checks failing, deployment failures, security advisories, unlinked work, undo requests, follow-up failures, or reported external blockers), who is handling each one, and what pull requests or tasks each incident is blocking. Pass pull_request_number (plus repo when the project tracks several repositories) or pull_request_id to see active incidents blocking a pull request, or pass task_id (UUID or 8-char short code) to see active incidents holding up a task without changing its lifecycle. With neither, lists project incidents in the chosen scope (default \"active\").",
+		"searchIntent": "list query open project incidents, what is blocking my pull request or task, merge blocker check failure deploy failure status",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"scope": {
+					"type": "string",
+					"enum": [
+						"active",
+						"blocking",
+						"resolved",
+						"all"
+					],
+					"description": "Which incidents to list when not filtering by pull request or task: \"active\" (open, handled, awaiting_followup, needs_decision — default), \"blocking\" (open, handled, needs_decision), \"resolved\" (cleared, closed), or \"all\"."
+				},
+				"kind": {
+					"type": "string",
+					"enum": [
+						"deploy_failed",
+						"checks_failing",
+						"security_advisory",
+						"unlinked_work",
+						"undo_requested",
+						"followup_failed",
+						"reported"
+					],
+					"description": "Filter to one incident kind (deploy_failed, checks_failing, security_advisory, unlinked_work, undo_requested, followup_failed, or reported)."
+				},
+				"pull_request_id": {
+					"type": "string",
+					"description": "Return active blocking incidents linked to this pull request UUID."
+				},
+				"pull_request_number": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "Return active blocking incidents linked to this pull request number (pass repo when the project tracks more than one repository)."
+				},
+				"repo": {
+					"type": "string",
+					"maxLength": 200,
+					"description": "Repository name or owner/name when disambiguating pull_request_number."
+				},
+				"task_id": {
+					"type": "string",
+					"description": "Return active blocking incidents linked to this task (full UUID or 8-character short code)."
+				},
+				"include_recently_resolved": {
+					"type": "boolean",
+					"description": "When scope is \"active\", also return recently_resolved incidents from the last 60 minutes."
+				},
+				"offset": {
+					"type": "integer",
+					"minimum": 0,
+					"description": "Pagination offset when listing project incidents (default 0)."
+				},
+				"limit": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100,
+					"description": "Maximum incidents to return when listing project incidents (default 25, max 100)."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				}
+			}
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"scope": {
+					"type": "string",
+					"enum": [
+						"active",
+						"blocking",
+						"resolved",
+						"all"
+					],
+					"description": "Which incidents to list when not filtering by pull request or task: \"active\" (open, handled, awaiting_followup, needs_decision — default), \"blocking\" (open, handled, needs_decision), \"resolved\" (cleared, closed), or \"all\"."
+				},
+				"kind": {
+					"type": "string",
+					"enum": [
+						"deploy_failed",
+						"checks_failing",
+						"security_advisory",
+						"unlinked_work",
+						"undo_requested",
+						"followup_failed",
+						"reported"
+					],
+					"description": "Filter to one incident kind (deploy_failed, checks_failing, security_advisory, unlinked_work, undo_requested, followup_failed, or reported)."
+				},
+				"pull_request_id": {
+					"type": "string",
+					"description": "Return active blocking incidents linked to this pull request UUID."
+				},
+				"pull_request_number": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "Return active blocking incidents linked to this pull request number (pass repo when the project tracks more than one repository)."
+				},
+				"repo": {
+					"type": "string",
+					"maxLength": 200,
+					"description": "Repository name or owner/name when disambiguating pull_request_number."
+				},
+				"task_id": {
+					"type": "string",
+					"description": "Return active blocking incidents linked to this task (full UUID or 8-character short code)."
+				},
+				"include_recently_resolved": {
+					"type": "boolean",
+					"description": "When scope is \"active\", also return recently_resolved incidents from the last 60 minutes."
+				},
+				"offset": {
+					"type": "integer",
+					"minimum": 0,
+					"description": "Pagination offset when listing project incidents (default 0)."
+				},
+				"limit": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100,
+					"description": "Maximum incidents to return when listing project incidents (default 25, max 100)."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				}
+			}
+		},
+		"kind": "model"
+	},
+	{
+		"name": "get_incident",
+		"label": "DevSpec: Get Incident",
+		"description": "Read one project incident in full by incident_id (full UUID or 8-character short code), including its current state, active handler or decision prompt, timeline events, and all linked blocked pull requests, tasks, and agent connections.",
+		"searchIntent": "read inspect one project incident details timeline handler blocked pull requests tasks",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"incident_id": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 64,
+					"description": "Incident UUID or 8-character hex short code."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"incident_id"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"incident_id": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 64,
+					"description": "Incident UUID or 8-character hex short code."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"incident_id"
+			]
 		},
 		"kind": "model"
 	},
@@ -13988,9 +14228,545 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"kind": "model"
 	},
 	{
+		"name": "report_incident",
+		"label": "DevSpec: Report Incident",
+		"description": "Open a project incident or join a matching active incident by fingerprint when shared breakage or an external delivery/merge blocker prevents progress. Use this during routine post-implementation follow-through when a pull request check failure, merge-queue removal, or deployment failure is caused by shared/external breakage you cannot fix on your own branch: link the blocked pull request and task here so the implemented task stays in `implemented` (never move an already-implemented task backward to `blocked`). Matching active incidents with the same (kind, fingerprint) deduplicate into one live record and attach your blocked pull request/task to it.",
+		"searchIntent": "report escalate merge blocker failed check deployment failure open join project incident link blocked pull request",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"type": "string",
+					"enum": [
+						"deploy_failed",
+						"checks_failing",
+						"security_advisory",
+						"unlinked_work",
+						"undo_requested",
+						"followup_failed",
+						"reported"
+					],
+					"description": "Incident kind: deploy_failed, checks_failing, security_advisory, unlinked_work, undo_requested, followup_failed, or reported (default \"reported\")."
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 300,
+					"description": "Concise plain-English title naming what is broken on shared ground (at most 300 characters)."
+				},
+				"summary": {
+					"type": "string",
+					"maxLength": 4000,
+					"description": "Plain-English summary of what failed, what evidence you observed, and why it blocks delivery."
+				},
+				"fingerprint": {
+					"type": "string",
+					"maxLength": 240,
+					"description": "Optional deduplication key within the project. Omitted: derived deterministically from kind plus repo, branch, check_name, target_name, advisory_id, or title so concurrent escalations join the same open incident."
+				},
+				"opened_reason": {
+					"type": "string",
+					"enum": [
+						"no_online_contributor",
+						"followthrough_timed_out",
+						"contributor_escalated",
+						"project_wide_signal",
+						"reported"
+					],
+					"description": "How this incident was opened: contributor_escalated (default when escalating from follow-through), reported, project_wide_signal, no_online_contributor, or followthrough_timed_out."
+				},
+				"repo": {
+					"type": "string",
+					"maxLength": 200,
+					"description": "Repository name or owner/name (used to disambiguate blocked_pull_request_number and derive fingerprint)."
+				},
+				"branch": {
+					"type": "string",
+					"maxLength": 200,
+					"description": "Branch name affected by the shared failure (used in fingerprint derivation when fingerprint is omitted)."
+				},
+				"check_name": {
+					"type": "string",
+					"maxLength": 240,
+					"description": "Failing check or workflow name (used in fingerprint derivation when fingerprint is omitted)."
+				},
+				"target_name": {
+					"type": "string",
+					"maxLength": 200,
+					"description": "Deployment target or environment name when reporting a deployment or runtime failure."
+				},
+				"advisory_id": {
+					"type": "string",
+					"maxLength": 200,
+					"description": "Security advisory identifier (CVE or GHSA) when kind is security_advisory."
+				},
+				"blocked_pull_request_id": {
+					"type": "string",
+					"description": "Pull request UUID held up by this incident."
+				},
+				"blocked_pull_request_number": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "Pull request number held up by this incident (pass repo when the project tracks several repositories)."
+				},
+				"blocked_task_ids": {
+					"maxItems": 25,
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 64
+					},
+					"description": "Task UUIDs or 8-character short codes held up by this incident. Linking a task here NEVER moves an implemented task backward to blocked."
+				},
+				"block_reason": {
+					"type": "string",
+					"maxLength": 1000,
+					"description": "Short explanation of how this incident blocks the linked pull request or tasks."
+				},
+				"signal_context": {
+					"type": "object",
+					"description": "Optional structured diagnostic metadata (check URLs, commit SHAs, log snippets) stored on signal_context."
+				},
+				"claim_immediately": {
+					"type": "boolean",
+					"description": "True to immediately claim handling of the incident if it is not already claimed by another handler."
+				},
+				"lease_seconds": {
+					"type": "integer",
+					"minimum": 60,
+					"maximum": 86400,
+					"description": "When claim_immediately is true: handler claim lease in seconds (60–86400, default 1800)."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your agent connection UUID (stamped automatically when connected)."
+				},
+				"run_id": {
+					"type": "string",
+					"description": "Optional claimed automation run UUID when reporting during an automation run."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"title"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"type": "string",
+					"enum": [
+						"deploy_failed",
+						"checks_failing",
+						"security_advisory",
+						"unlinked_work",
+						"undo_requested",
+						"followup_failed",
+						"reported"
+					],
+					"description": "Incident kind: deploy_failed, checks_failing, security_advisory, unlinked_work, undo_requested, followup_failed, or reported (default \"reported\")."
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 300,
+					"description": "Concise plain-English title naming what is broken on shared ground (at most 300 characters)."
+				},
+				"summary": {
+					"type": "string",
+					"maxLength": 4000,
+					"description": "Plain-English summary of what failed, what evidence you observed, and why it blocks delivery."
+				},
+				"fingerprint": {
+					"type": "string",
+					"maxLength": 240,
+					"description": "Optional deduplication key within the project. Omitted: derived deterministically from kind plus repo, branch, check_name, target_name, advisory_id, or title so concurrent escalations join the same open incident."
+				},
+				"opened_reason": {
+					"type": "string",
+					"enum": [
+						"no_online_contributor",
+						"followthrough_timed_out",
+						"contributor_escalated",
+						"project_wide_signal",
+						"reported"
+					],
+					"description": "How this incident was opened: contributor_escalated (default when escalating from follow-through), reported, project_wide_signal, no_online_contributor, or followthrough_timed_out."
+				},
+				"repo": {
+					"type": "string",
+					"maxLength": 200,
+					"description": "Repository name or owner/name (used to disambiguate blocked_pull_request_number and derive fingerprint)."
+				},
+				"branch": {
+					"type": "string",
+					"maxLength": 200,
+					"description": "Branch name affected by the shared failure (used in fingerprint derivation when fingerprint is omitted)."
+				},
+				"check_name": {
+					"type": "string",
+					"maxLength": 240,
+					"description": "Failing check or workflow name (used in fingerprint derivation when fingerprint is omitted)."
+				},
+				"target_name": {
+					"type": "string",
+					"maxLength": 200,
+					"description": "Deployment target or environment name when reporting a deployment or runtime failure."
+				},
+				"advisory_id": {
+					"type": "string",
+					"maxLength": 200,
+					"description": "Security advisory identifier (CVE or GHSA) when kind is security_advisory."
+				},
+				"blocked_pull_request_id": {
+					"type": "string",
+					"description": "Pull request UUID held up by this incident."
+				},
+				"blocked_pull_request_number": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "Pull request number held up by this incident (pass repo when the project tracks several repositories)."
+				},
+				"blocked_task_ids": {
+					"maxItems": 25,
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 64
+					},
+					"description": "Task UUIDs or 8-character short codes held up by this incident. Linking a task here NEVER moves an implemented task backward to blocked."
+				},
+				"block_reason": {
+					"type": "string",
+					"maxLength": 1000,
+					"description": "Short explanation of how this incident blocks the linked pull request or tasks."
+				},
+				"signal_context": {
+					"type": "object",
+					"description": "Optional structured diagnostic metadata (check URLs, commit SHAs, log snippets) stored on signal_context."
+				},
+				"claim_immediately": {
+					"type": "boolean",
+					"description": "True to immediately claim handling of the incident if it is not already claimed by another handler."
+				},
+				"lease_seconds": {
+					"type": "integer",
+					"minimum": 60,
+					"maximum": 86400,
+					"description": "When claim_immediately is true: handler claim lease in seconds (60–86400, default 1800)."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your agent connection UUID (stamped automatically when connected)."
+				},
+				"run_id": {
+					"type": "string",
+					"description": "Optional claimed automation run UUID when reporting during an automation run."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"request_ref": {
+					"type": "string",
+					"x-devspec-host-only": true,
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"title"
+			]
+		},
+		"kind": "model"
+	},
+	{
+		"name": "manage_incident",
+		"label": "DevSpec: Manage Incident",
+		"description": "Claim, hand back (release), heartbeat, mark awaiting live confirmation, escalate to a human decision, resolve, or link/unlink blocked work on an existing project incident — directly and without any automation being required. Exactly one active handler holds an incident at a time: if another live agent, automation run, or person already holds the incident, claiming or resolving it is refused with `already_claimed` and the current `holder` named so you do not duplicate their fix.",
+		"searchIntent": "claim resolve release hand back project incident escalate needs decision link unlink blocked pull request",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"incident_id": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 64,
+					"description": "Incident UUID or 8-character hex short code."
+				},
+				"action": {
+					"type": "string",
+					"enum": [
+						"claim",
+						"release",
+						"heartbeat",
+						"awaiting_followup",
+						"escalate_needs_decision",
+						"resolve",
+						"link_blocked",
+						"unlink_blocked"
+					],
+					"description": "Operation: claim (take single-handler lease or renew your own), release (hand back to unhandled open), heartbeat (renew your active lease), awaiting_followup (fix landed; wait for live confirmation without blocking), escalate_needs_decision (pause for a human decision with decision_prompt), resolve (close incident and unblock linked PRs/tasks), link_blocked, or unlink_blocked."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your agent connection UUID (stamped automatically when connected)."
+				},
+				"run_id": {
+					"type": "string",
+					"description": "Optional claimed automation run UUID when acting as an automation run."
+				},
+				"handler_label": {
+					"type": "string",
+					"maxLength": 200,
+					"description": "Optional display label for the handler when claiming from an unattached CLI session."
+				},
+				"lease_seconds": {
+					"type": "integer",
+					"minimum": 60,
+					"maximum": 86400,
+					"description": "For claim or heartbeat: lease duration in seconds (60–86400, default 1800)."
+				},
+				"reason": {
+					"type": "string",
+					"maxLength": 2000,
+					"description": "For release, link_blocked, or unlink_blocked: optional note explaining why."
+				},
+				"summary": {
+					"type": "string",
+					"maxLength": 4000,
+					"description": "For resolve or awaiting_followup: plain-English summary of how the incident was resolved or what landed."
+				},
+				"decision_prompt": {
+					"type": "string",
+					"maxLength": 2000,
+					"description": "Required for escalate_needs_decision: clear plain-English question or choice a person needs to decide."
+				},
+				"fix_task_id": {
+					"type": "string",
+					"maxLength": 64,
+					"description": "For resolve or awaiting_followup: optional task UUID or 8-character short code of the fix task."
+				},
+				"blocked_pull_request_id": {
+					"type": "string",
+					"description": "For link_blocked or unlink_blocked: pull request UUID."
+				},
+				"blocked_pull_request_number": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "For link_blocked or unlink_blocked: pull request number (pass repo when needed)."
+				},
+				"repo": {
+					"type": "string",
+					"maxLength": 200,
+					"description": "Repository name or owner/name when disambiguating blocked_pull_request_number."
+				},
+				"blocked_task_ids": {
+					"maxItems": 25,
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 64
+					},
+					"description": "For link_blocked or unlink_blocked: task UUIDs or 8-character short codes."
+				},
+				"block_reason": {
+					"type": "string",
+					"maxLength": 1000,
+					"description": "For link_blocked: optional reason explaining how this incident blocks the linked work."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"incident_id",
+				"action"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"incident_id": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 64,
+					"description": "Incident UUID or 8-character hex short code."
+				},
+				"action": {
+					"type": "string",
+					"enum": [
+						"claim",
+						"release",
+						"heartbeat",
+						"awaiting_followup",
+						"escalate_needs_decision",
+						"resolve",
+						"link_blocked",
+						"unlink_blocked"
+					],
+					"description": "Operation: claim (take single-handler lease or renew your own), release (hand back to unhandled open), heartbeat (renew your active lease), awaiting_followup (fix landed; wait for live confirmation without blocking), escalate_needs_decision (pause for a human decision with decision_prompt), resolve (close incident and unblock linked PRs/tasks), link_blocked, or unlink_blocked."
+				},
+				"connection_id": {
+					"type": "string",
+					"description": "Your agent connection UUID (stamped automatically when connected)."
+				},
+				"run_id": {
+					"type": "string",
+					"description": "Optional claimed automation run UUID when acting as an automation run."
+				},
+				"handler_label": {
+					"type": "string",
+					"maxLength": 200,
+					"description": "Optional display label for the handler when claiming from an unattached CLI session."
+				},
+				"lease_seconds": {
+					"type": "integer",
+					"minimum": 60,
+					"maximum": 86400,
+					"description": "For claim or heartbeat: lease duration in seconds (60–86400, default 1800)."
+				},
+				"reason": {
+					"type": "string",
+					"maxLength": 2000,
+					"description": "For release, link_blocked, or unlink_blocked: optional note explaining why."
+				},
+				"summary": {
+					"type": "string",
+					"maxLength": 4000,
+					"description": "For resolve or awaiting_followup: plain-English summary of how the incident was resolved or what landed."
+				},
+				"decision_prompt": {
+					"type": "string",
+					"maxLength": 2000,
+					"description": "Required for escalate_needs_decision: clear plain-English question or choice a person needs to decide."
+				},
+				"fix_task_id": {
+					"type": "string",
+					"maxLength": 64,
+					"description": "For resolve or awaiting_followup: optional task UUID or 8-character short code of the fix task."
+				},
+				"blocked_pull_request_id": {
+					"type": "string",
+					"description": "For link_blocked or unlink_blocked: pull request UUID."
+				},
+				"blocked_pull_request_number": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "For link_blocked or unlink_blocked: pull request number (pass repo when needed)."
+				},
+				"repo": {
+					"type": "string",
+					"maxLength": 200,
+					"description": "Repository name or owner/name when disambiguating blocked_pull_request_number."
+				},
+				"blocked_task_ids": {
+					"maxItems": 25,
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 64
+					},
+					"description": "For link_blocked or unlink_blocked: task UUIDs or 8-character short codes."
+				},
+				"block_reason": {
+					"type": "string",
+					"maxLength": 1000,
+					"description": "For link_blocked: optional reason explaining how this incident blocks the linked work."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"request_ref": {
+					"type": "string",
+					"x-devspec-host-only": true,
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"incident_id",
+				"action"
+			]
+		},
+		"kind": "model"
+	},
+	{
 		"name": "claim_check_job",
 		"label": "DevSpec: Claim Check Job",
-		"description": "Take a check job DevSpec sent to your wake channel (a dispatch of kind check_job) before ruling it. Only the agent it was sent to can take it, and taking it again is harmless: you get the same job back with what is still to rule. The reply carries the definition to rule this kind of check by, the change, with a written account of it when you did not make it, and every entry still to rule: its entry_id, the record (type, id, version, title), its exact text, its owner, its facts, how it is tied to the change or another entry, and for a decision or requirement the supporting documents it links. Rule every entry, using the definition the job carries; read any linked supporting document or uploaded file in full with get_resource first. verdicts lists the verdict words this kind allows, and also_waiting lists your other check jobs. Record the rulings with record_check_rulings. A refusal names its reason: not_yours means it was sent to another agent, so leave it; superseded means the change was replaced, and its new check comes as its own job; finished means it was already ruled or went back to the next in line, so there is nothing to take.",
+		"description": "Take a check job DevSpec sent to your wake channel (a dispatch of kind check_job) before ruling it. Only the agent it was sent to can take it, and taking it again is harmless: you get the same job back with what is still to rule. The reply carries the definition to rule this kind of check by, the change, with a written account of it when you did not make it, and every entry still to rule: its entry_id, the record (type, id, version, title), its exact text, its owner, its facts, how it is tied to the change or another entry, and for a decision or requirement the supporting documents it links. Rule every entry, using the definition the job carries; read any linked supporting document or uploaded file in full with get_resource first. verdicts lists the verdict words this kind allows. Record the rulings with record_check_rulings. A refusal names its reason: not_yours means it was sent to another agent, so leave it; superseded means the change was replaced, and its new check comes as its own job; finished means it was already ruled or went back to the next in line, so there is nothing to take.",
 		"searchIntent": "take a waiting check job on a change to rule conflicts duplicates out of date records",
 		"modelInputSchema": {
 			"type": "object",
@@ -16810,8 +17586,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 101,
-	model: 88,
+	total: 105,
+	model: 92,
 	pump: 12,
 	never_model: 1,
 } as const;

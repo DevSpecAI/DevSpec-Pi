@@ -139,6 +139,7 @@ const ROOM_STATE_LABELS: Readonly<Record<string, string>> = {
 	session_activity: "what the session produced",
 	session_events: "recent changes to the session's records",
 	notice_reply: "details of replies to DevSpec notices",
+	project_incidents: "project incidents",
 };
 
 /**

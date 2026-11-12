@@ -59,7 +59,7 @@ const DEBUG_FIELDS = {
 	"stale tool receipt abort": [],
 	"message_end: no turn": [],
 	"notice reply": ["posted", "idempotent", "refused", "unconfirmed", "skipped", "notices", "forTheRecord", "tellPerson"],
-	"optional room state rejected": ["sessionPolls", "stillToDiscuss", "sessionActivity", "noticeReply"],
+	"optional room state rejected": ["sessionPolls", "stillToDiscuss", "sessionActivity", "noticeReply", "projectIncidents"],
 	"room storage unavailable": ["errorPresent"],
 	"poll recoverable": ["errors", "errorPresent"],
 	"poll recoverable server response": ["ended", "reasonPresent"],

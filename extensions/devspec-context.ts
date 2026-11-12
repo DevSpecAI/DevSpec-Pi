@@ -44,6 +44,7 @@ export function buildBondedInstructions(): string | null {
 		// a868f41f: what woke the run decides whether its text reaches the room; the rule is the served contract's.
 		"Your conversational text is delivered to the DevSpec session mechanically — never call tools to post it yourself. A run woken by a check job, or only by notices DevSpec labels for the record, posts nothing there (the served contract's check_job.room and semantics.notice_audience) unless one of its writes comes back carrying tell_person. For non-trivial work, begin with one concise user-facing sentence confirming what you understood and what you will do next before using tools; add another progress message only at a meaningful boundary (for example, delegating, starting a long check, or becoming blocked). Do not narrate individual tools. Finish with the canonical answer.",
 		"If you need the requester before you can finish, ask with manage_directed_question and stop. The server ends Working unless you pass keep_turn because you still have work.",
+		"Passive project-incident awareness on wakes is advisory read-awareness, never a wake trigger or unrequested fix assignment (semantics.project_incidents in devspec://product/remote-ingress-contract; follow core.respect-incidents-and-escalate-delivery-blockers in devspec://product/implementation-contract).",
 	];
 	// Mutable rule text is a persisted tail snapshot, not a rewritten system prefix.
 	// Sender response style remains on its own per-command lane.

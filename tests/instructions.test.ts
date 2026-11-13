@@ -125,6 +125,7 @@ test("instructions carry the load-bearing rules", () => {
 	// Retrieval-ready authoring (item 9436b548): summaries say when to reach for a record; search documents before a new runbook.
 	assert.match(text, /Write a summary as when to reach for the record and what it covers, not how it came about/);
 	assert.match(text, /look for an existing document on the same routine and update or supersede it/);
+	assert.match(text, /link a runbook to the convention or decision it carries out \(the served contract's core\.prefer-existing-records-on-overlap\)/);
 	assert.match(text, /rejected at write time/);
 	assert.match(text, /semantics\.notice_audience/);
 	assert.match(text, /semantics\.notice_reply/);
@@ -170,7 +171,7 @@ test("instructions stay compact (every line costs tokens per turn)", () => {
 	// Raised 10,000 -> 12,000 on 2026-11-13 (item cd12cbe2): contract 5.24.0 added
 	// requirements, overlap previews, the intent and capture bars, and what binds the
 	// work. Each is a short pointer at the served rule rather than a restatement; the
-	// block is 11,307 chars with them.
+	// block is 11,436 chars with them.
 	const COMPACT_CEILING_CHARS = 12_000;
 	assert.ok(
 		text.length < COMPACT_CEILING_CHARS,

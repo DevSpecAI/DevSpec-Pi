@@ -931,7 +931,7 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// create_task, link_tasks, claim_work_item, record_memory, supersede_memory,
 		// manage_knowledge_links and create_resource. No required field changed. Hot set unchanged
 		// (every eligible model verb). Benchmark before/after (with this item's instruction
-		// pointers): initial surface 70,956 -> 73,102 estimated tokens; every check still passes.
+		// pointers): initial surface 70,956 -> 73,134 estimated tokens; every check still passes.
 		"6c4a44c2ea14d3544da7009ad406af1126bee836bd90b6fa5812c1322d8a445e",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);

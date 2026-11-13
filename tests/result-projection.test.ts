@@ -1656,6 +1656,43 @@ test("update_memory preserves version identity, proposals and exact refusal/prev
 	}
 });
 
+test("an overlap preview on create_task or record_memory reaches the model as DevSpec rendered it, with its receipt", () => {
+	// Contract 5.24.0 core.prefer-existing-records-on-overlap (item cd12cbe2): nothing was
+	// saved, and the model needs the overlapping records, the guidance and the receipt_id
+	// to resend with preview_ack. The block must arrive as text, never as an escaped string.
+	const block = (heading: string) => [
+		heading,
+		"One or more existing in-force project records overlap this draft.",
+		"- [DECISION] Staging is the tracking branch (memory-1 · v2) — get_memory({ id: \"memory-1\" })",
+		"- [REQUIREMENT] Every change lands through a pull request (req-1 · v1) — get_requirement({ id: \"req-1\" })",
+		"Nothing was saved yet. Only if this draft is genuinely distinct, resend the exact same call with preview_ack: \"receipt-9\".",
+	].join("\n");
+	for (const [verb, marker] of [["record_memory", "recorded"], ["create_task", "created"]] as const) {
+		const formatted_block = block(`== PRE-SAVE ${verb === "create_task" ? "TASK" : "MEMORY"} OVERLAP PREVIEW ==`);
+		const details = {
+			[marker]: false, outcome: "preview_required", receipt_id: "receipt-9",
+			cards: [{ id: "memory-1", version: 2, renderedLine: "- [DECISION] Staging is the tracking branch" }, { id: "req-1", version: 1, renderedLine: "- [REQUIREMENT] Every change lands through a pull request" }],
+			formatted_block, guidance: "Nothing was saved yet. Review the overlapping project record(s) above.",
+		};
+		const text = projectModelText({ toolName: verb, text: JSON.stringify(details), details, args: { title: "A draft" } });
+		assert.ok(text.includes(formatted_block), `${verb}: the preview block arrives verbatim, newlines kept`);
+		assert.match(text, new RegExp(`${verb}: outcome=preview_required\\.`));
+		assert.match(text, /"receipt_id": "receipt-9"/);
+		assert.match(text, /"guidance": "Nothing was saved yet/);
+		assert.match(text, new RegExp(`"${marker}": false`));
+		assert.match(text, /with its 2 card\(s\)/, "the structured cards are named, not silently dropped");
+		assert.doesNotMatch(text, /"renderedLine"/, "each card is shown once, in DevSpec's block");
+		assert.doesNotMatch(text, /shows the stored record/, "a preview saved nothing, so no stored record is offered");
+	}
+	// A task created with records bearing on it shows that block the same way.
+	const boundaryBlock = "== RECORDS BEARING ON THIS WORK ==\n- [REQUIREMENT] Every change lands through a pull request (req-1 · v1)";
+	const created = { created: true, outcome: "committed", id: "item-3", title: "A draft", work_boundary: { cards: [{ id: "req-1", renderedLine: "x" }], formattedBlock: boundaryBlock } };
+	const createdText = projectModelText({ toolName: "create_task", text: JSON.stringify(created), details: created });
+	assert.ok(createdText.includes(boundaryBlock));
+	assert.match(createdText, /work_boundary shown above as DevSpec sent it, with its 1 card\(s\)/);
+	assert.doesNotMatch(createdText, /"formattedBlock"/);
+});
+
 test("reserve_work_items keeps what was reserved and why each item was skipped", () => {
 	// Live on 2026-10-04: a Reviewed Contributor asked Pi to start suggested work. The
 	// server skipped it as approval_required, but the card said only "see skipped for

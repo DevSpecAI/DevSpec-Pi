@@ -1,128 +1,208 @@
 /**
- * DevSpec Pi — proactive memory recall (pure helpers, unit-tested).
+ * DevSpec Pi — automatic turn recall (pure helpers, unit-tested).
  *
- * The flagship of the intelligence layer: recall happens BEFORE the model
- * thinks, not when it remembers to search. Each substantive turn's prompt is
- * searched against project memory mechanically; new snapshots append as tail
- * messages. Revision/finding-aware dedupe avoids repeating unchanged context
- * without hiding later changes or rewriting old message bytes.
+ * Recall happens BEFORE the model thinks, not when it remembers to search. Each
+ * substantive turn's prompt — typed here, or a command sent from DevSpec — goes
+ * to DevSpec's turn recall (`POST <mcp url>/turn-recall`, task 2e766aeb), which
+ * screens the project's requirements, documents, memories, plans, rejections and
+ * past shipped work against it and answers with one ready-made block of cards.
+ *
+ * The block is OPAQUE here (decision 3ea02bd2): Pi never parses, filters or
+ * re-renders a card by its kind, so a record kind DevSpec adds later reaches the
+ * model with no plugin release. Pi keeps only what DevSpec says was shown —
+ * `kind:id:vN` keys — on the hidden message itself (`details.dedupeKeys`), and
+ * sends the keys still in context back on the next turn, so an unchanged card
+ * appears once per conversation and an edited record (a new version) comes back.
+ *
+ * Host contract measured in task 7c87f509 (RECALL_TIMEOUT_BUDGETS in DevSpecV2
+ * apps/web/scripts/eval/recall-plugin-bench/host-delivery-contract.ts): an 18
+ * character floor, a 2.8 s client ceiling, at most 512 seen keys per request.
  */
 
-import { disagreementBlock, reviewData, snapshotHash } from "./review-context.ts";
+import { classifyUserKind } from "./turn-lifecycle.ts";
 
-export interface MemoryCard extends Record<string, unknown> {
-	id?: string;
-	title?: string;
-	summary?: string;
-	type?: string;
-	state?: string;
+/** Shortest prompt worth a recall (host contract minQueryChars; the server skips shorter ones too). */
+export const RECALL_MIN_QUERY_CHARS = 18;
+/** The client's whole budget for one recall: token, scope, request and reply (host contract clientHttpTimeoutMs). */
+export const RECALL_CLIENT_TIMEOUT_MS = 2_800;
+/** Seen keys DevSpec accepts on one request (server RECALL_LIMITS.seenKeysPerRequest); newest are kept. */
+export const RECALL_SEEN_KEYS_PER_REQUEST = 512;
+/** One seen key's longest form the server accepts (RECALL_LIMITS.seenKeyChars). */
+const SEEN_KEY_MAX_CHARS = 120;
+
+/** The hidden turn-tail message every recall (and the review nudge) rides on. */
+export const PROACTIVE_CUSTOM_TYPE = "devspec-proactive";
+
+export type RecallTurn =
+	| { recall: true; query: string; source: "local" | "remote" | "automation" }
+	| { recall: false; reason: string };
+
+/** What before_agent_start reports for the run being started (Pi 1.5 user or custom run). */
+export interface RecallTurnEvent {
+	messageType?: unknown;
+	prompt?: unknown;
 }
 
-/** A prompt shorter than this ("ok", "yes do it") is not worth the search a recall costs. */
-const MIN_PROMPT_CHARS = 40;
-/**
- * Automatic recall rides every substantive turn, so it injects only the few
- * highest-ranked agreed memories and says the rest of the ranking is one
- * search_memories call away. A bound on per-turn cost; the model's own searches
- * are not affected by it.
- */
-const MAX_CARDS = 4;
-
-/**
- * Only substantive prompts are worth a recall search (and its ~300ms). A run the
- * extension starts itself (a DevSpec notice or check job, delivered as a custom
- * message; Pi 1.5 reports it as `messageType: "custom"`) has no typed prompt at
- * all, and is not a recall turn: DevSpec's server-side recall skips notices too.
- * It once crashed here on `undefined.trim()` under every notice (task a4b24107).
- */
-export function shouldRecall(prompt: string | undefined): boolean {
-	if (typeof prompt !== "string") return false;
-	const p = prompt.trim();
-	if (p.length < MIN_PROMPT_CHARS) return false;
-	if (p.startsWith("/")) return false; // slash commands aren't topics
-	return true;
-}
-
-/** The whole prompt, on one line: what the person asked is the query, not its first few hundred characters. */
-export function recallQuery(prompt: string): string {
-	return prompt.replace(/\s+/g, " ").trim();
-}
-
-/**
- * Automatic context is agreed-only (DevSpec decision a9e001e7e): a memory still
- * in discussion is not recalled unasked. It stays one search_memories call away.
- */
-export function isAgreed(card: MemoryCard): boolean {
-	return card.state === "decided";
-}
-
-/** Extract cards from a search_memories payload, defensively. */
-export function extractCards(payload: unknown): MemoryCard[] {
-	const d = payload as { memories?: unknown; results?: unknown } | null;
-	const rows = (Array.isArray(d?.memories) ? d.memories : Array.isArray(d?.results) ? d.results : []) as MemoryCard[];
-	return rows.filter((r) => r && typeof r === "object");
-}
+const COMMAND_OPEN = /^--- command \d+\/\d+ · message:/;
+const COMMAND_CLOSE = /^--- end command:/;
+const SCOPE_OPEN = /^--- delegated project scope instruction for command:/;
+const SCOPE_CLOSE = /^--- end delegated project scope instruction for command:/;
 
 /**
- * Which of these cards have we not yet injected this session?
- * `seen` holds exact snapshot keys already injected in this account/project/session.
+ * The exact command bodies of a canonical remote turn (remote-payload.ts
+ * formatInboundBundleMessage): no framing line, no delegated scope instruction.
+ * A message without command fences falls back to everything after its header line.
  */
-export function unseenCards(cards: MemoryCard[], seen: Set<string>): MemoryCard[] {
-	const out: MemoryCard[] = [];
-	const selected = new Set(seen);
-	for (const c of cards) {
-		const key = cardKey(c);
-		if (!key || selected.has(key)) continue;
-		selected.add(key);
-		out.push(c);
-		if (out.length >= MAX_CARDS) break;
+export function remoteCommandText(text: string): string {
+	const lines = text.split("\n");
+	const bodies: string[] = [];
+	let current: string[] | null = null;
+	let inScope = false;
+	for (const line of lines) {
+		if (COMMAND_OPEN.test(line)) { current = []; inScope = false; continue; }
+		if (SCOPE_OPEN.test(line)) { inScope = true; continue; }
+		if (SCOPE_CLOSE.test(line)) { inScope = false; continue; }
+		if (COMMAND_CLOSE.test(line)) {
+			if (current) bodies.push(current.join("\n").trim());
+			current = null;
+			continue;
+		}
+		if (current && !inScope) current.push(line);
 	}
-	return out;
-}
-
-export function cardKey(c: MemoryCard): string | null {
-	if (!c.id && !c.title) return null;
-	// Includes version, assessment, permissions and proposal changes. A same-ID
-	// changed finding is a NEW tail snapshot, never an edit of an earlier message.
-	// updated_at is a row-maintenance clock (indexing, review stamps, flags),
-	// not a knowledge revision. Keep all other context, including nested finding
-	// evidence, so genuine changes still reinject. Follow-up 8effd88f.
-	const { updated_at: _maintenanceClock, ...snapshot } = c;
-	return `${c.id ?? c.title}:${snapshotHash(snapshot)}`;
-}
-
-/** Card fields rendered by their own blocks, or a row-maintenance clock that is not knowledge. */
-const CARD_KEYS_RENDERED_APART = new Set(["id", "title", "summary", "type", "unresolved_disagreements", "disagreements_not_shown", "pending_proposals", "updated_at"]);
-
-function cardDetails(c: MemoryCard): Record<string, unknown> {
-	const rest: Record<string, unknown> = {};
-	for (const [key, value] of Object.entries(c)) {
-		if (CARD_KEYS_RENDERED_APART.has(key) || value === null || value === undefined) continue;
-		if ((Array.isArray(value) && value.length === 0) || (typeof value === "string" && value.trim() === "")) continue;
-		rest[key] = value;
-	}
-	return rest;
+	if (bodies.length > 0) return bodies.filter(Boolean).join("\n\n");
+	return lines.slice(1).join("\n").trim();
 }
 
 /**
- * Each card as DevSpec sent it — its state, delivery label, companions, pending
- * versions — with only the row-maintenance clock left out. `notAgreed` counts the
- * ranked memories still in discussion that were left out of automatic recall.
+ * The automation's name from an automation-run wake (dispatch.ts
+ * formatAutomationRunMessage). The wake carries nothing else of the automation's
+ * own: its instruction is handed over only when the run is claimed.
  */
-export function formatRecallBlock(cards: MemoryCard[], notAgreed = 0): string {
-	const lines = cards.map((c) => {
-		const type = c.type ? `[${c.type}]` : "[memory]";
-		const summary = c.summary ? ` — ${c.summary}` : "";
-		const id = c.id ? ` (${c.id})` : "";
-		const disagreement = disagreementBlock(c);
-		const proposals = Array.isArray(c.pending_proposals) && c.pending_proposals.length
-			? reviewData({ pending_proposals: c.pending_proposals }) : "";
-		return [reviewData({ memory: `- ${type} ${c.title ?? "untitled"}${id}${summary}`, ...cardDetails(c) }), disagreement, proposals].filter(Boolean).join("\n");
-	});
-	return [
-		"### DevSpec memory — auto-recall",
-		"The project's agreed memories that rank highest against this turn's prompt. The ranking orders every memory by words and meaning; it does not judge that these apply, so decide which do. One that applies binds the work outside any disputed clause: read it in full with get_memory before relying on it. Disagreement data is not a ruling: preserve unaffected requirements and consult the served authority contract if this task depends on the disputed claim.",
-		...lines,
-		`${notAgreed > 0 ? `${notAgreed} more ranked memor${notAgreed === 1 ? "y is" : "ies are"} still in discussion and not recalled automatically. ` : ""}search_memories with your own query shows the rest of the ranking.`,
-	].join("\n");
+export function automationRunText(text: string): string {
+	const fenced = /```json\n([\s\S]*?)\n```/.exec(text)?.[1];
+	if (!fenced) return "";
+	try {
+		const envelope = JSON.parse(fenced) as Record<string, unknown>;
+		return typeof envelope.automation_name === "string" ? envelope.automation_name.trim() : "";
+	} catch {
+		return "";
+	}
+}
+
+/**
+ * Is this run a substantive turn, and what is its query? Only a person's prompt
+ * typed here, or a command or automation run DevSpec delivered, is recalled. A run
+ * the extension starts itself (a DevSpec notice or check job as a custom message;
+ * Pi 1.5 `messageType: "custom"`, no prompt — task a4b24107), a check job, a
+ * directed-question continuation, harness leftovers, slash commands and short
+ * acknowledgements make no call at all.
+ */
+export function recallTurn(event: RecallTurnEvent | null | undefined): RecallTurn {
+	if (!event || (event.messageType !== undefined && event.messageType !== "user")) return { recall: false, reason: "no_typed_prompt" };
+	if (typeof event.prompt !== "string") return { recall: false, reason: "no_typed_prompt" };
+	const raw = event.prompt.trim();
+	if (!raw) return { recall: false, reason: "empty_prompt" };
+	if (raw.startsWith("/")) return { recall: false, reason: "slash_command" };
+	const kind = classifyUserKind(raw);
+	let query: string;
+	let source: "local" | "remote" | "automation";
+	if (kind === "remote") { query = remoteCommandText(raw); source = "remote"; }
+	else if (kind === "automation") { query = automationRunText(raw); source = "automation"; }
+	else if (kind === "local") { query = raw; source = "local"; }
+	else return { recall: false, reason: `not_a_request_${kind}` };
+	query = query.trim();
+	if (query.startsWith("/")) return { recall: false, reason: "slash_command" };
+	if (query.length < RECALL_MIN_QUERY_CHARS) return { recall: false, reason: "below_min_chars" };
+	return { recall: true, query, source };
+}
+
+/** The slice of a Pi 1.5 session entry the seen-key scan reads. */
+export interface BranchEntryLike {
+	type?: unknown;
+	id?: unknown;
+	customType?: unknown;
+	firstKeptEntryId?: unknown;
+	details?: unknown;
+}
+
+function keysOf(entry: BranchEntryLike): string[] {
+	if (entry.type !== "custom_message" || entry.customType !== PROACTIVE_CUSTOM_TYPE) return [];
+	const details = entry.details as { dedupeKeys?: unknown } | null | undefined;
+	if (!details || !Array.isArray(details.dedupeKeys)) return [];
+	return details.dedupeKeys.filter((key): key is string =>
+		typeof key === "string" && key.length > 0 && key.length <= SEEN_KEY_MAX_CHARS);
+}
+
+/**
+ * The recall keys still in the model's context on this branch, newest first, at
+ * most RECALL_SEEN_KEYS_PER_REQUEST. Read from the session itself, so it follows a
+ * resumed session, /tree and /clear. Compaction (Phase 1, 7c87f509): what was
+ * summarised away is no longer in context, so its cards may surface again; the
+ * entries a compaction keeps (from its firstKeptEntryId) still count as seen.
+ */
+export function seenRecallKeys(branch: readonly BranchEntryLike[] | null | undefined): string[] {
+	if (!Array.isArray(branch)) return [];
+	const seen = new Set<string>();
+	let keepUntilId: string | null = null;
+	for (let i = branch.length - 1; i >= 0; i--) {
+		const entry = branch[i];
+		if (!entry || typeof entry !== "object") continue;
+		if (keepUntilId === null && entry.type === "compaction") {
+			if (typeof entry.firstKeptEntryId !== "string" || !entry.firstKeptEntryId) break;
+			keepUntilId = entry.firstKeptEntryId;
+			continue;
+		}
+		const keys = keysOf(entry);
+		for (let k = keys.length - 1; k >= 0; k--) seen.add(keys[k]!);
+		if (seen.size >= RECALL_SEEN_KEYS_PER_REQUEST) break;
+		if (keepUntilId !== null && entry.id === keepUntilId) break;
+	}
+	return Array.from(seen).slice(0, RECALL_SEEN_KEYS_PER_REQUEST);
+}
+
+/** DevSpec's turn recall endpoint beside the MCP endpoint this plugin talks to. */
+export function turnRecallUrl(mcpUrl: string): string {
+	const url = new URL(mcpUrl);
+	url.search = "";
+	url.hash = "";
+	url.pathname = `${url.pathname.replace(/\/+$/, "")}/turn-recall`;
+	return url.toString();
+}
+
+/** A usable recall answer: the block to inject verbatim and the keys DevSpec says it shows. */
+export interface TurnRecallAnswer {
+	block: string;
+	keys: string[];
+	cards: number;
+}
+
+/** Read DevSpec's answer without interpreting a card: nothing to inject is null. */
+export function readTurnRecall(payload: unknown): TurnRecallAnswer | null {
+	if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+	const body = payload as { formatted_block?: unknown; seen_keys?: unknown; cards?: unknown };
+	const block = typeof body.formatted_block === "string" ? body.formatted_block.trim() : "";
+	if (!block) return null;
+	const cards = Array.isArray(body.cards) ? body.cards : [];
+	const fromServer = Array.isArray(body.seen_keys) ? body.seen_keys : cards.map((card) =>
+		card && typeof card === "object" ? (card as { dedupe_key?: unknown; seenKey?: unknown }).dedupe_key ?? (card as { seenKey?: unknown }).seenKey : null);
+	const keys = Array.from(new Set(fromServer.filter((key): key is string => typeof key === "string" && key.length > 0)));
+	return { block, keys, cards: cards.length };
+}
+
+/**
+ * A 400 for one of these says DevSpec could not tell which project this turn is
+ * for from what was sent. Asking again with the same facts gets the same answer,
+ * so the conversation remembers it as a miss for that scope. A passing failure
+ * (`project_selection_unavailable`) or a malformed request is not about scope.
+ */
+export function isScopeMiss(status: number, code: unknown): boolean {
+	if (status !== 400) return false;
+	return typeof code === "string" && code !== "invalid_request" && code !== "project_selection_unavailable";
+}
+
+/** One fingerprint per project scope, so a different scope (a pin, a remote, a bond) asks again. */
+export function scopeFingerprint(endpoint: string, scope: Record<string, unknown>): string {
+	const fields = ["connection", "connection_id", "project_id", "pinned_project_id", "git_remote"]
+		.map((key) => `${key}=${typeof scope[key] === "string" ? scope[key] : ""}`);
+	return [endpoint, ...fields].join("|");
 }

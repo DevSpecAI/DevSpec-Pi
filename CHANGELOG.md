@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.0 - 2026-11-13
+
+- **Pi now brings in every kind of project record that bears on a turn, not only memories.** Before each turn, whether you typed it or sent it from DevSpec on your phone or the web, Pi asks DevSpec which of your project's records apply: requirements (with a pointer to any document you need to read in full), decisions and conventions, documents and runbooks, active and deferred plans, ideas your team turned down and why, and past shipped work. They are added out of sight at the end of the conversation, so earlier turns stay cached and your prompt is never changed. Each record appears once per conversation and comes back only when it is edited, nothing is added when nothing applies, and short replies like "ok", slash commands and DevSpec's own notices are never looked up. If DevSpec is slow or unreachable, Pi waits at most a few seconds and starts your turn without it. New kinds of record DevSpec adds later appear without a plugin update. This needs DevSpec's matching server update. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.13.6 - 2026-11-12
 
 - **No more false "speech storage not confirmed" warnings outside a room.** A Pi connected to DevSpec but attached to no room, for example answering local prompts or working an automation run on its own, no longer warns after every message that its speech couldn't be stored. There is no room to store it in. A Pi attached to a room still warns when a message meant for the room can't be confirmed, and still keeps the text locally. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.

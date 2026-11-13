@@ -42,12 +42,14 @@ import {
 	personEndClosesPi,
 	MODEL_TIMEOUT_MS,
 	DevspecToolError,
+	isRecoverableTransportError,
 	shouldEndBondOnPollFailure,
 } from "./core/client.ts";
 import { connectionCapabilityFromResult, getBond, setBond, type BondState } from "./core/bond-state.ts";
 import { repositoryContextMessage } from "./core/repository-context.ts";
 import { applyConnectionContext } from "./core/connection-context.ts";
-import { installProjectSelection } from "./core/project-selection-ui.ts";
+import { installProjectSelection, type ProjectBondOutcome, type ReachOptions } from "./core/project-selection-ui.ts";
+import { BackgroundConnect, DEVSPEC_REACHABLE_EVENT, DEVSPEC_UNREACHABLE_NOTICE, reachTiming } from "./core/startup-connect.ts";
 import { getProjectChoice, projectFromRegistration, projectRemoteArgs, type ProjectCandidate, type ProjectChoice, type ProjectChoiceRequired } from "./core/project-choice.ts";
 import { openRoomStore, type RoomStoreScope } from "./core/room-store.ts";
 import { readRoomForContext, roomUnreadBoundary, roomUnreadForContext } from "./core/room-tools.ts";
@@ -1757,6 +1759,14 @@ async function beatBusy(busy: boolean, agentStats?: AgentStatsReport | null): Pr
 function notify(ctx: ExtensionContext | null, message: string, level: "info" | "warning" | "error" = "info"): void {
 	if (!ctx) return;
 	withLiveUi(ctx, () => ctx.ui.notify(message, level));
+}
+
+function notifyAutoBonded(ctx: ExtensionContext, codename: string | undefined): void {
+	notify(ctx, `DevSpec remote: auto-bonded as ${codename ?? "agent"} — you're reachable from the Agents page. /devspec.remote stop to end.`);
+}
+
+function notifyAutoBondFailed(ctx: ExtensionContext, outcome: ProjectBondOutcome): void {
+	notify(ctx, outcome.cancelled ? `DevSpec remote: ${outcome.error}` : `DevSpec remote: auto-bond failed: ${outcome.error}`, outcome.cancelled ? "info" : outcome.errorKind === "auth" ? "warning" : "error");
 }
 
 /** Deliver only from an idle, current generation. Busy intake remains memory-only. */
@@ -3752,6 +3762,8 @@ interface BondOutcome {
 	codename?: string;
 	attached?: boolean;
 	projectChoice?: ProjectChoiceRequired;
+	/** DevSpec did not answer: trying again later can work (item dffdc30a). */
+	unreachable?: boolean;
 }
 
 /**
@@ -3775,9 +3787,12 @@ async function clearForOwner(ctx: ExtensionContext): Promise<void> {
 
 /**
  * Register/revive the bond and start the pump. Shared by /devspec.remote and
- * the auto-bond on session_start. Never throws.
+ * the auto-bond on session_start. Never throws. `reach.reachLimitMs` bounds the
+ * whole attempt's wait on DevSpec, from here (item dffdc30a).
  */
-async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: ProjectCandidate): Promise<BondOutcome> {
+async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: ProjectCandidate, reach?: ReachOptions): Promise<BondOutcome> {
+	const deadline = reach?.reachLimitMs === undefined ? undefined : Date.now() + reach.reachLimitMs;
+	const reachBy = deadline === undefined ? {} : { deadline };
 	const resolved = await resolveToken();
 	if (!resolved) return { ok: false, error: "Not connected to DevSpec — /devspec.login first.", errorKind: "auth" };
 
@@ -3796,7 +3811,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 			connection_capability_version: 1,
 			project_selection_version: 1,
 			...(project ? { project_id: project.id } : {}),
-		}, { cwd: ctx.cwd, lane: "pump" });
+		}, { cwd: ctx.cwd, lane: "pump", ...reachBy });
 		const reg = unwrapMcpResult(regRaw);
 		if (reg.isError) return { ok: false, error: `register failed: ${reg.text}`, errorKind: "api" };
 		regText = reg.text;
@@ -3806,6 +3821,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 		connectionCapability = negotiatedCapability;
 	} catch (err) {
 		return { ok: false, error: err instanceof Error ? err.message : String(err), errorKind: "api",
+			...(isRecoverableTransportError(err) ? { unreachable: true } : {}),
 			...(err instanceof DevspecToolError && err.projectChoice ? { projectChoice: err.projectChoice } : {}) };
 	}
 	const connectionId = (d.connection_id ?? d.connectionId) as string | undefined;
@@ -3844,7 +3860,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 			const attRaw = await callDevspec(resolved.token, "attach_connection", {
 				connection_id: connectionId,
 				session_id: sessionArg,
-			}, { cwd: ctx.cwd, lane: "pump" });
+			}, { cwd: ctx.cwd, lane: "pump", ...reachBy });
 			const att = unwrapMcpResult(attRaw);
 			if (att.isError) {
 				notify(ctx, `DevSpec remote: bonded but attach failed: ${att.text}`, "warning");
@@ -3861,6 +3877,10 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 		}
 	}
 
+	// Another connect in this conversation (a person's /devspec.project or
+	// /devspec.remote, or a background retry) finished while this one waited on
+	// DevSpec: it already runs the pump, so never start a second one.
+	if (pump) return { ok: true, codename: pump.bond.codename, attached: Boolean(pump.bond.sessionId) };
 	setBond(bond);
 	const generation = nextPumpGeneration++;
 	const connectionIdentity: RemoteConnectionIdentity = {
@@ -4014,6 +4034,35 @@ export default function (pi: ExtensionAPI) {
 		stop: async ctx => { if (pump) await stopPump(ctx, "local_stop"); },
 	});
 	pi_persistProjectChoice = projectSelection.persist;
+	// After start-up gave up on DevSpec, keep trying in the background until this
+	// conversation connects (item dffdc30a). Attempts are bounded like start-up's
+	// and never open a chooser nobody asked for; only connecting, or a refusal
+	// that waiting cannot fix, is said out loud.
+	let backgroundConnectCtx: ExtensionContext | null = null;
+	const backgroundConnect = new BackgroundConnect({
+		intervalMs: reachTiming().intervalMs,
+		attempt: async () => {
+			const ctx = backgroundConnectCtx;
+			if (!ctx || pump) return "done";
+			if (!await resolveToken()) return "done";
+			const startedAt = Date.now();
+			const outcome = await projectSelection.connect(ctx, undefined, undefined, { reachLimitMs: reachTiming().limitMs, pickProject: false });
+			debug("background connect", { connected: outcome.ok, unreachable: Boolean(outcome.unreachable), busy: Boolean(outcome.busy), ms: Date.now() - startedAt });
+			if (outcome.ok) {
+				lastCtx = ctx;
+				notifyAutoBonded(ctx, outcome.codename);
+				pi.events.emit(DEVSPEC_REACHABLE_EVENT, {});
+				return "done";
+			}
+			if (outcome.unreachable || outcome.busy) return "retry";
+			if (outcome.projectChoice) {
+				notify(ctx, "DevSpec can be reached again. Run /devspec.remote to choose this conversation's project and connect.", "info");
+				return "done";
+			}
+			notifyAutoBondFailed(ctx, outcome);
+			return "done";
+		},
+	});
 	const subagentFleet = new SubagentFleetClient(pi.events);
 	let observationScope: BackgroundWorkScope | null = null;
 	let restoringBackground = false;
@@ -5123,6 +5172,8 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", async () => {
+		backgroundConnect.cancel();
+		backgroundConnectCtx = null;
 		resetStatus(); // clear the dedicated row before this UI becomes stale
 		pi_backgroundInputPending();
 		backgroundObserver.dispose();
@@ -5230,7 +5281,10 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
-		if (!await projectSelection.prepare(ctx)) return;
+		// Pi takes no prompt until this handler returns, so every wait on DevSpec
+		// here is bounded by the reach limit (item dffdc30a).
+		const reach: ReachOptions = { reachLimitMs: reachTiming().limitMs };
+		if (!await projectSelection.prepare(ctx, reach)) return;
 		replaceInteractionJournal(InteractionEventJournal.reconstruct(
 			readPersistedActiveBranchEntries(ctx.sessionManager) ?? [],
 			ctx.sessionManager.getSessionId(),
@@ -5244,12 +5298,19 @@ export default function (pi: ExtensionAPI) {
 		if (!settings.autoBond && !explicitlyRequested) return;
 		const resolved = await resolveToken();
 		if (!resolved) return;
-		const outcome = await projectSelection.connect(ctx);
+		const startedAt = Date.now();
+		const outcome = await projectSelection.connect(ctx, undefined, undefined, reach);
+		debug("startup connect", { connected: outcome.ok, unreachable: Boolean(outcome.unreachable), ms: Date.now() - startedAt });
 		if (outcome.ok) {
 			lastCtx = ctx;
-			notify(ctx, `DevSpec remote: auto-bonded as ${outcome.codename ?? "agent"} — you're reachable from the Agents page. /devspec.remote stop to end.`);
+			notifyAutoBonded(ctx, outcome.codename);
+		} else if (outcome.unreachable) {
+			// Carry on without DevSpec: say so once, and keep trying in the background.
+			notify(ctx, DEVSPEC_UNREACHABLE_NOTICE, "warning");
+			backgroundConnectCtx = ctx;
+			backgroundConnect.start();
 		} else {
-			notify(ctx, outcome.cancelled ? `DevSpec remote: ${outcome.error}` : `DevSpec remote: auto-bond failed: ${outcome.error}`, outcome.cancelled ? "info" : outcome.errorKind === "auth" ? "warning" : "error");
+			notifyAutoBondFailed(ctx, outcome);
 		}
 	});
 
@@ -5285,6 +5346,11 @@ export default function (pi: ExtensionAPI) {
 
 			if (arg === "stop" || arg === "off" || arg === "end") {
 				if (!pump) {
+					if (backgroundConnect.active) {
+						backgroundConnect.cancel();
+						notify(ctx, "DevSpec remote: stopped trying to connect. /devspec.remote connects when you're ready.", "info");
+						return;
+					}
 					notify(ctx, "DevSpec remote: not bonded.", "info");
 					return;
 				}

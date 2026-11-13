@@ -34,6 +34,8 @@ import {
 	type TokenSet,
 } from "./core/oauth.ts";
 import { unwrapMcpResult } from "./core/result.ts";
+import { withLiveUi } from "./core/ctx-guard.ts";
+import { DEVSPEC_REACHABLE_EVENT } from "./core/startup-connect.ts";
 
 const STATUS_KEY = "devspec";
 
@@ -41,6 +43,9 @@ const STATUS_KEY = "devspec";
 let verifiedPrincipal: string | null = null;
 let verifyAttempted = false;
 let verifiedConnection = false;
+
+/** Where "DevSpec: offline?" is showing, so it can be cleared once DevSpec answers again. */
+let offlineCtx: ExtensionContext | null = null;
 
 /** At most one browser sign-in waits at a time; a new /devspec.login replaces it. */
 let pendingSignIn: PendingSignIn | null = null;
@@ -119,6 +124,7 @@ async function finishSignIn(
 	verifiedPrincipal = principal;
 	verifyAttempted = true;
 	verifiedConnection = true;
+	offlineCtx = null;
 	setStatus(ctx, undefined);
 	const extra = getAdapterGuardState().suppressed.length > 0 ? ` ${SUPPRESSION_NOTICE}` : "";
 	ctx.ui.notify(
@@ -213,6 +219,16 @@ async function login(args: string, ctx: ExtensionContext): Promise<void> {
 }
 
 export default function (pi: ExtensionAPI) {
+	// The one start-up check found DevSpec offline, and a later background
+	// connection proved it answers with this credential (item dffdc30a).
+	pi.events?.on(DEVSPEC_REACHABLE_EVENT, () => {
+		const ctx = offlineCtx;
+		offlineCtx = null;
+		if (!ctx) return;
+		verifiedConnection = true;
+		withLiveUi(ctx, () => setStatus(ctx, undefined));
+	});
+
 	pi.registerCommand("devspec.login", {
 		description: "Sign in to DevSpec through your browser (add --code on a machine your browser cannot reach).",
 		handler: async (args, ctx) => {
@@ -238,6 +254,7 @@ export default function (pi: ExtensionAPI) {
 			verifiedPrincipal = null;
 			verifyAttempted = false;
 			verifiedConnection = false;
+			offlineCtx = null;
 			setStatus(ctx, undefined);
 			const label = environmentLabel(endpoint);
 			const envNote = process.env[TOKEN_ENV_VAR]?.trim() ? ` ${envTokenNotice()}` : "";
@@ -319,6 +336,7 @@ export default function (pi: ExtensionAPI) {
 						return;
 					}
 					setStatus(ctx, "DevSpec: offline?");
+					offlineCtx = ctx;
 				});
 		} else {
 			setStatus(ctx, undefined);

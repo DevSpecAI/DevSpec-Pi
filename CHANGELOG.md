@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.14.2 - 2026-11-13
+
+- **Pi no longer holds your first prompt for minutes when DevSpec doesn't answer.** If DevSpec accepts the connection but never replies when Pi starts, for example because the server is hung, Pi now waits at most 30 seconds, then carries on without it and says once that DevSpec could not be reached. Your first prompt runs straight after. Before, it sat for up to two minutes and then showed "auto-bond failed: MCP error -32001: Request timed out". A server that refuses the connection outright is still handled at once.
+- **Pi keeps trying to connect in the background.** After start-up gives up, Pi tries again every 30 seconds without holding anything up, for as long as the session is open, and appears on your project's **Agents** page as soon as DevSpec answers, with no restart. `/devspec.remote stop` stops the retries. When DevSpec is healthy, start-up is unchanged: Pi connects automatically and recall works as before. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.14.1 - 2026-11-13
 
 - **Pi now follows DevSpec's updated rules for decisions, task intents and requirements.** Pi's built-in instructions point your agent at the matching rules DevSpec serves, instead of restating them. Your agent asks you before recording a decision and records nothing if you say no or don't answer. A task's intent gives the reason you actually gave, in your own everyday words, never one the agent made up. Decisions, conventions and requirements are what the work is held to, and a broken requirement keeps a task from being done; risks are things to weigh, and documents are for reference.

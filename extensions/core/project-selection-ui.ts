@@ -13,10 +13,28 @@ import {
 export interface ProjectBondOutcome {
 	ok: boolean; error?: string; errorKind?: "auth" | "api"; codename?: string; attached?: boolean; cancelled?: boolean;
 	projectChoice?: ProjectChoiceRequired;
+	/** DevSpec did not answer (no reply in time, refused, or unavailable): trying again later can work. */
+	unreachable?: boolean;
+	/** Another connection attempt in this conversation was already under way; nothing was tried. */
+	busy?: boolean;
+}
+/**
+ * Bounds how long a connection waits on DevSpec. Each attempt to reach DevSpec
+ * gets `reachLimitMs` from when it starts; time a person spends in a project
+ * choice is never counted against it (item dffdc30a).
+ */
+export interface ReachOptions { reachLimitMs?: number }
+export interface ConnectOptions extends ReachOptions {
+	/** false: return a project-choice refusal instead of opening the chooser (an attempt nobody is watching). Default true. */
+	pickProject?: boolean;
 }
 export interface ProjectSelectionDependencies {
-	attempt(ctx: ExtensionContext, room?: string, project?: ProjectCandidate): Promise<ProjectBondOutcome>;
+	attempt(ctx: ExtensionContext, room?: string, project?: ProjectCandidate, reach?: ReachOptions): Promise<ProjectBondOutcome>;
 	stop(ctx: ExtensionContext): Promise<void>;
+}
+
+function reachDeadline(reach: ReachOptions | undefined): number | undefined {
+	return reach?.reachLimitMs === undefined ? undefined : Date.now() + reach.reachLimitMs;
 }
 
 /** Native UI only; selection and transport logic remain testable without a model. */
@@ -45,10 +63,11 @@ export function installProjectSelection(pi: ExtensionAPI, deps: ProjectSelection
 		return index < 0 ? null : matches[index]!;
 	}
 
-	async function accessible(ctx: ExtensionContext, selector?: string): Promise<ProjectCandidate | null> {
+	async function accessible(ctx: ExtensionContext, selector?: string, reach?: ReachOptions): Promise<ProjectCandidate | null> {
+		const deadline = reachDeadline(reach);
 		const auth = await resolveToken();
 		if (!auth) throw new Error("Not connected to DevSpec — /devspec.login first.");
-		const raw = await callDevspec(auth.token, "list_projects", {}, { lane: "work" });
+		const raw = await callDevspec(auth.token, "list_projects", {}, { lane: "work", ...(deadline === undefined ? {} : { deadline }) });
 		const data = projectResultData(raw);
 		if (!Array.isArray(data?.projects)) throw new Error("DevSpec did not return a project list. Please retry.");
 		const projects = data.projects.map(readProjectCandidate);
@@ -81,23 +100,24 @@ export function installProjectSelection(pi: ExtensionAPI, deps: ProjectSelection
 		if (mode === "Remember for this folder") await remember(ctx, project);
 	}
 
-	async function connect(ctx: ExtensionContext, room?: string, selector?: string): Promise<ProjectBondOutcome> {
-		if (connecting) return { ok: false, error: "A DevSpec connection is already being selected. Finish that choice first.", errorKind: "api" };
+	async function connect(ctx: ExtensionContext, room?: string, selector?: string, options: ConnectOptions = {}): Promise<ProjectBondOutcome> {
+		if (connecting) return { ok: false, busy: true, error: "A DevSpec connection is already being selected. Finish that choice first.", errorKind: "api" };
 		connecting = true;
+		const reach: ReachOptions = { reachLimitMs: options.reachLimitMs };
 		try {
 			let project: ProjectCandidate | undefined;
 			if (selector !== undefined) {
-				const selected = await accessible(ctx, selector);
+				const selected = await accessible(ctx, selector, reach);
 				if (!selected) return { ok: false, cancelled: true, error: "Project selection cancelled; not connected." };
 				project = selected;
 				const current = getProjectChoice()?.project.id ?? getBond()?.projectId;
 				if (current && current !== project.id) return { ok: false, error: "This conversation already uses another project. Use /devspec.project choose to start a fresh conversation.", errorKind: "api" };
 			}
-			let outcome = await deps.attempt(ctx, room, project);
-			if (!outcome.ok && outcome.projectChoice && !project) {
+			let outcome = await deps.attempt(ctx, room, project, reach);
+			if (!outcome.ok && outcome.projectChoice && !project && options.pickProject !== false) {
 				const selected = await pick(ctx, outcome.projectChoice.candidates);
 				if (!selected) return { ok: false, cancelled: true, error: "Project selection cancelled; not connected." };
-				outcome = await deps.attempt(ctx, room, selected);
+				outcome = await deps.attempt(ctx, room, selected, reach);
 				if (outcome.ok) await offerRemember(ctx, selected);
 			}
 			return outcome;
@@ -106,7 +126,7 @@ export function installProjectSelection(pi: ExtensionAPI, deps: ProjectSelection
 	}
 
 	/** Runs before auto-bond, including in headless mode; never prompts there. */
-	async function prepare(ctx: ExtensionContext): Promise<boolean> {
+	async function prepare(ctx: ExtensionContext, reach?: ReachOptions): Promise<boolean> {
 		try {
 			const endpoint = await resolveEndpoint();
 			const entries = ctx.sessionManager.getEntries();
@@ -121,7 +141,7 @@ export function installProjectSelection(pi: ExtensionAPI, deps: ProjectSelection
 			const selector = consumeProjectLaunchFlag() ? pi.getFlag("devspec-project") : undefined;
 			if (selector !== undefined) {
 				if (typeof selector !== "string" || !selector.trim()) throw new Error("--devspec-project requires an exact project name or ID.");
-				const selected = await accessible(ctx, selector);
+				const selected = await accessible(ctx, selector, reach);
 				if (!selected) return false;
 				if (choice && choice.project.id !== selected.id) throw new Error("This resumed conversation belongs to another project. Start a new Pi conversation without --session/--resume to choose another project.");
 				persist(ctx, { version: 1, endpoint, project: selected, source: "explicit" });

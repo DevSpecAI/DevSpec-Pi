@@ -57,6 +57,8 @@ const DEBUG_FIELDS = {
 	"interaction apply deferred": ["busy", "occupancyBusy", "ctxIdle"],
 	"interaction authority revoked before agent start": [],
 	"stale tool receipt abort": [],
+	"startup connect": ["connected", "unreachable", "ms"],
+	"background connect": ["connected", "unreachable", "busy", "ms"],
 	"message_end: no turn": [],
 	"notice reply": ["posted", "idempotent", "refused", "unconfirmed", "skipped", "notices", "forTheRecord", "tellPerson"],
 	"optional room state rejected": ["sessionPolls", "stillToDiscuss", "sessionActivity", "noticeReply", "projectIncidents"],

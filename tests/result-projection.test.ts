@@ -920,7 +920,19 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// description. Hot set is every eligible model verb, so it gains the seven requirements
 		// verbs (88 -> 95). Benchmark before/after: initial surface 65,553 (PR head; Pi staging
 		// 61,546) -> 70,898 estimated tokens; every check still passes.
-		"b28580b85f611902ca5346c098c6fa75feb6dd4bce0b14069255b76288084b2a",
+		// Rebaselined 2026-11-13 for DevSpec item cd12cbe2 (requirement tools and contract
+		// 5.24.0/5.25.0 guidance in Pi), regenerated against DevSpecV2 origin/staging 74b252b07
+		// (includes #1310 f804f982, #1312 dcf6264f and #1314 9436b548). Verbs 99 model / 12 pump /
+		// 1 never-model unchanged, none added or removed, no projection family changed. Inputs:
+		// record_criterion_verdicts gains optional requirement_evidence (array of criterion_id,
+		// requirement_id, coverage, optional note). Description-only: the intent, preview_ack,
+		// summary and companion_links parameter descriptions on the task, memory, requirement and
+		// resource writes, and the tool descriptions of get_testing_brief, the requirement tools,
+		// create_task, link_tasks, claim_work_item, record_memory, supersede_memory,
+		// manage_knowledge_links and create_resource. No required field changed. Hot set unchanged
+		// (every eligible model verb). Benchmark before/after (with this item's instruction
+		// pointers): initial surface 70,956 -> 73,102 estimated tokens; every check still passes.
+		"6c4a44c2ea14d3544da7009ad406af1126bee836bd90b6fa5812c1322d8a445e",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

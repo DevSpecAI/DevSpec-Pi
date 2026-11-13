@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 73922a713225c2f21a45d313f9b2141bcc11d5e3b496023e79845043cb9ba69a
- * Description fingerprint: 023297215a790c32a10e685381a7caee884e98ce29a340f48636b12015f81fba
- * Regenerated: 2026-11-12T23:32:51.590Z
+ * Schema fingerprint: fd28705e8814506026787d36022ac1d11f6d3d99499b7b7a695edc8c7605ad17
+ * Description fingerprint: c1b907839fdd8b94449f4b843007cd20d0619edab49c89cf0dc4cca2056b8159
+ * Regenerated: 2026-11-13T12:05:30.310Z
  */
-export const MCP_CATALOG_FINGERPRINT = "73922a713225c2f21a45d313f9b2141bcc11d5e3b496023e79845043cb9ba69a";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "023297215a790c32a10e685381a7caee884e98ce29a340f48636b12015f81fba";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-12T23:32:51.591Z";
-export const TOOL_CATALOG_VERSION = "1d67008eebdf4d92d05287bda611e46ab17b06784faa88ba7a48e34692292d96";
+export const MCP_CATALOG_FINGERPRINT = "fd28705e8814506026787d36022ac1d11f6d3d99499b7b7a695edc8c7605ad17";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "c1b907839fdd8b94449f4b843007cd20d0619edab49c89cf0dc4cca2056b8159";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-13T12:05:30.310Z";
+export const TOOL_CATALOG_VERSION = "40fd50b049790c7d049a2efbab0f140bca6461679666af595310e5bcf3577a57";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -44,7 +44,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "claim_work_item",
 		"name": "claim work item",
-		"description": "Claim one task before you start implementing it. Read what comes back: intent, criteria, spec_changes, session_context, project instruction tiers, review signals, earlier attempts, and the project's decisions, conventions and documents that bear on the item (relevant_memories, relevant_artifacts; knowledge_unavailable names any that could not be read, which is not the same as none applying). A refused claim names the guard that stopped it: another holder or reservation, an assignee, an unfinished blocker, or overlapping files. It also refuses an item whose last attempt failed (release_work_item hands it back) or whose implementation is already recorded (reopen_task reopens it). force with a reason overrides these and is recorded; human-only items and work awaiting approval cannot be claimed at all. When to claim is set by work_entry_contract, and when an override is justified by core_implementation_contract, in devspec://product/implementation-contract.",
+		"description": "Claim one task before you start implementing it. Read what comes back: intent, criteria, spec_changes, session_context, project instruction tiers, review signals, earlier attempts, and the project's decisions, conventions, requirements, risks, environment facts and documents that bear on the item (relevant_memories, relevant_artifacts, relevant_requirements, relevant_environment, preflight_context; knowledge_unavailable names any that could not be read, which is not the same as none applying). Hold the work to the decisions, conventions and requirements, weigh the risks, read documents as reference, and read every document a requirement links in full before acting on it (core.hold-work-to-claimed-context). Waiting for someone's OK, or for the item's checks, never refuses a claim: when the result carries waiting_for_ok or checks_pending, build on the work's own branch and don't merge it into the tracking branch (core.waiting-work-stays-on-its-branch, core.pending-checks-hold-the-merge). A refused claim names the guard that stopped it: another holder or reservation, an assignee, an unfinished blocker, or overlapping files. It also refuses an item whose last attempt failed (release_work_item hands it back) or whose implementation is already recorded (reopen_task reopens it). force with a reason overrides these and is recorded; human-only items and work awaiting approval cannot be claimed at all. When to claim is set by work_entry_contract, and when an override is justified by core_implementation_contract, in devspec://product/implementation-contract.",
 		"intent": "claim start working on task before implementing"
 	},
 	{
@@ -62,7 +62,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "create_resource",
 		"name": "create resource",
-		"description": "Create a standing shared project document: a guide (how-to or developer guide), reference (architecture or API reference), or runbook (operational procedure). Documents are strictly for durable, long-form reference material that outlives a single task or session: never create a document for an implementation plan (use a Brief/Task via create_task or a shared room milestone plan via manage_plan), a session handoff, status summary or verification dump (use add_implementation_note or record_implementation), an individual decision or coding convention (use record_memory), or an agent operating rule (use write_project_instruction_rule). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for. A document is a supporting reference that can go out of date; a rule to enforce belongs in a decision, convention or requirement that links to it. outcome committed is live; queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Create a standing shared project document: a guide (how-to or developer guide), reference (architecture or API reference), or runbook (operational procedure). Documents are strictly for durable, long-form reference material that outlives a single task or session: never create a document for an implementation plan (use a Brief/Task via create_task or a shared room milestone plan via manage_plan), a session handoff, status summary or verification dump (use add_implementation_note or record_implementation), an individual decision or coding convention (use record_memory), or an agent operating rule (use write_project_instruction_rule). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for. Search existing documents first (search_resources): when one already covers the same routine or system, update or supersede it (update_resource, supersede_resource) rather than leaving two competing versions, and link a runbook to the convention or decision it carries out (manage_knowledge_links). A document is a supporting reference that can go out of date; a rule to enforce belongs in a decision, convention or requirement that links to it. outcome committed is live; queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "write save create standing shared document artifact guide reference runbook architecture API docs operational procedure"
 	},
 	{
@@ -74,7 +74,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "create_task",
 		"name": "create task",
-		"description": "Create a new task: a title, a complete plain-English description, the intent behind it and checkable acceptance criteria. Keep each task atomic around one primary subject or cohesive deliverable; when work spans independent deliverables, unrelated subjects, or separate carve-outs, create separate tasks (or child tasks under a parent brief) and connect them with parent_task_id, follow_up_from_task_id, or link_tasks instead of bundling them into one task. Writes that violate field placement (code/paths/CSS in prose), substance or self-contained intent completeness, or single-subject atomicity are rejected at write time. Search for an existing item first (search_tasks); whether work should be tracked at all is set by work_entry_contract in devspec://product/implementation-contract. For work already done, use record_completed_work; for new scope found while working on another item, pass follow_up_from_task_id. With session_id the item also gets a card in that room. It can come back queued_for_review with a proposal_id: the item is saved as suggested work, and nothing is authorised until a Maintainer accepts it.",
+		"description": "Create a new task: a title, a complete plain-English description, the intent behind it and checkable acceptance criteria. Keep each task atomic around one primary subject or cohesive deliverable; when work spans independent deliverables, unrelated subjects, or separate carve-outs, create separate tasks (or child tasks under a parent brief) and connect them with parent_task_id, follow_up_from_task_id, or link_tasks instead of bundling them into one task. Writes that violate field placement (code/paths/CSS in prose), substance or self-contained intent completeness, or single-subject atomicity are rejected at write time. Search for an existing item first (search_tasks); whether work should be tracked at all is set by work_entry_contract in devspec://product/implementation-contract. For work already done, use record_completed_work; for new scope found while working on another item, pass follow_up_from_task_id. With session_id the item also gets a card in that room. It can come back preview_required: nothing was created, and the response lists the active, deferred or rejected tasks and briefs the draft overlaps, with a receipt_id. Prefer extending the existing task or brief, and talk a prior rejection through with the person before reviving it; resend the same call with preview_ack only when a separate task is genuinely intended (core.prefer-existing-records-on-overlap). It can come back queued_for_review with a proposal_id: the item is saved as suggested work, and nothing is authorised until a Maintainer accepts it.",
 		"intent": "create capture requested new durable task feature bug work task"
 	},
 	{
@@ -212,13 +212,13 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_requirement",
 		"name": "get requirement",
-		"description": "Read one requirement in full: its trigger-oriented summary, readable behaviour, scope and exception detail (body), optional ai_instructions (implementation guidance), companions (linked companion documents and memories), state, lineage, pending_versions and full version history. Search and list tools return cards; read the full requirement here (and read any linked companion documents with get_resource) before relying on it, superseding it or changing it. If superseded_by is set, a newer version is current: read that one. Every earlier or retracted version stays readable in full: each history entry's resultRowId is that version's id, to pass here. Changes proposed and not yet agreed are in pending_versions, beside the effective requirement and never part of it; checks_pending, when present, says a new requirement is not in force yet, so don't treat it as blocking other work until its checks clear. Accepts the 8-character short code.",
+		"description": "Read one requirement in full: its trigger-oriented summary, readable behaviour, scope and exception detail (body), optional ai_instructions (implementation guidance), companions (linked companion documents and memories), state, lineage, pending_versions and full version history. Search and list tools return cards; read the full requirement here, and every document it links in full with get_resource, before relying on it, superseding it or changing it. When you check work against it, judge what the work actually produced: its code changes, or on work with no code, its written deliverables and completion summary (core.check-deliverables-against-requirements in devspec://product/implementation-contract). If superseded_by is set, a newer version is current: read that one. Every earlier or retracted version stays readable in full: each history entry's resultRowId is that version's id, to pass here. Changes proposed and not yet agreed are in pending_versions, beside the effective requirement and never part of it; checks_pending, when present, says a new requirement is not in force yet, so don't treat it as blocking other work until its checks clear. Accepts the 8-character short code.",
 		"intent": "read full requirement body scope exceptions companions history versions"
 	},
 	{
 		"id": "get_requirements",
 		"name": "get requirements",
-		"description": "List the project's active requirements, most recently updated first, as cards with trigger-oriented summaries, versions, states and companion links. Current versions only. Read any requirement that bears on your change in full with get_requirement (and read its linked companion documents with get_resource); use search_requirements for a specific topic. page.total_matching counts the requirements matching your filters; pass page.next_offset as offset for the next page.",
+		"description": "List the project's active requirements, most recently updated first, as cards with trigger-oriented summaries, versions, states and companion links. Current versions only. Read any requirement that bears on your change in full with get_requirement (and every document it links, in full, with get_resource); use search_requirements for a specific topic. page.total_matching counts the requirements matching your filters; pass page.next_offset as offset for the next page.",
 		"intent": "list browse active project requirements constraints invariants rules"
 	},
 	{
@@ -272,7 +272,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_testing_brief",
 		"name": "get testing brief",
-		"description": "Gather what testing one task needs: its description, completion summary, testing and usage notes, deployments and deployment evidence, connected database targets, AI test runs, commits, pull requests, implementation notes, every comment, recent activity, and the decisions and documents relevant to it. It includes the item's intent, its acceptance criteria with their ids and each line's promotion state, and when the round under test was delivered. Comments, deployments and test runs are complete; activity is the newest 50 events, and activity_page.older says how to read earlier ones. To work on or edit the item, read get_task; record what you observe with record_criterion_verdicts.",
+		"description": "Gather what testing one task needs: its description, completion summary, testing and usage notes, deployments and deployment evidence, connected database targets, AI test runs, commits, pull requests, implementation notes, every comment, recent activity, and the decisions, requirements and documents relevant to it. Check the delivered work against those requirements by what it actually produced (core.check-deliverables-against-requirements in devspec://product/implementation-contract). It includes the item's intent, its acceptance criteria with their ids and each line's promotion state, and when the round under test was delivered. Comments, deployments and test runs are complete; activity is the newest 50 events, and activity_page.older says how to read earlier ones. To work on or edit the item, read get_task; record what you observe with record_criterion_verdicts.",
 		"intent": "how to test verify feature testing brief deployments database targets implementation evidence"
 	},
 	{
@@ -290,7 +290,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "link_tasks",
 		"name": "link tasks",
-		"description": "Record a directed relationship between two tasks in this project: task_id <relationship> related_to_id. caused_by: the source was caused by the target. blocks: the source blocks the target, which cannot be claimed until the source is done or dismissed. related_to: they bear on each other. A link retires nothing: to record that one item replaces another, use supersede_task. From an unattended run nothing is recorded: the call returns the edge as a proposal (committed: false) for a person to make. When creating a follow-up, pass follow_up_from_task_id to create_task instead. For links between memories and documents, use manage_knowledge_links.",
+		"description": "Record a directed relationship between two tasks in this project: task_id <relationship> related_to_id. caused_by: the source was caused by the target. blocks: the source blocks the target, which cannot be claimed until the source is done or dismissed. related_to: they bear on each other. A link is only a relationship someone chose to record: it retires nothing, clears no flag and settles no conflict; to record that one item replaces another, use supersede_task. From an unattended run nothing is recorded: the call returns the edge as a proposal (committed: false) for a person to make. When creating a follow-up, pass follow_up_from_task_id to create_task instead. For links between memories and documents, use manage_knowledge_links.",
 		"intent": "link relationship between work tasks tasks blocking caused by related"
 	},
 	{
@@ -326,7 +326,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "manage_knowledge_links",
 		"name": "manage knowledge links",
-		"description": "Link two memories or AI-written documents, in any combination, as companions a reader should see together, with a note saying why (link). You can also change that note (set_note), remove the link (unlink), or list one record's companions (list). A link is an association only: it does not say the two agree, clear a review flag, supersede either record, make either more trusted or change who may edit them. An uploaded project file can be linked only to a memory, as the supporting reference of the decision or requirement that relies on it; the decisions check then reads the file whole with that record. A file attached inside a conversation cannot be linked. Tasks have their own links (link_tasks). Both records must be current versions, given by full id or 8-character short code; a code that matches both a memory and a document is refused as ambiguous.",
+		"description": "Link two memories or AI-written documents, in any combination, as companions a reader should see together, with a note saying why (link): typically a runbook or guide and the convention or decision it carries out, or a supporting document and the decision or requirement that relies on it. You can also change that note (set_note), remove the link (unlink), or list one record's companions (list). A link is an association only: it does not say the two agree, clear a review flag, supersede either record, make either more trusted or change who may edit them. An uploaded project file can be linked only to a memory, as the supporting reference of the decision or requirement that relies on it; the decisions check then reads the file whole with that record. A file attached inside a conversation cannot be linked. Tasks have their own links (link_tasks). Both records must be current versions, given by full id or 8-character short code; a code that matches both a memory and a document is refused as ambiguous.",
 		"intent": "link plan document artifact to its supporting decision memory companions read together unlink"
 	},
 	{
@@ -392,13 +392,13 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_memory",
 		"name": "record memory",
-		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Individual architecture decisions and team conventions belong here—never in create_resource. Keep each memory atomic around one primary decision, convention, insight or risk: never bundle distinct subjects, unrelated decisions, or a primary decision together with a separate operational carve-out or companion convention into a single memory — record separate memories and connect them with companion_links (or manage_knowledge_links). Put the human-readable substance and rationale (what the decision, convention, insight or risk is and why) in body, and put code-level mechanics (file paths, function/symbol names, database columns, CSS classes, code snippets) in ai_instructions. Writes that violate field placement (code/paths/CSS in body), substance completeness, or single-subject atomicity are rejected at write time. Work in progress and delivery evidence belong on the task (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a standing long-form guide, reference document or runbook is an artifact (create_resource). Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is saved; a new decision or convention also carries checks_pending and is not in force until its checks are ruled, then takes effect by itself. outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Individual architecture decisions and team conventions belong here—never in create_resource. Record a decision or convention only when all three hold: a real choice among alternatives, made for a reason; consequences that steer future work beyond this change; and not obvious from the code. Ask the person whether the choice was deliberate and why: only their answer creates a decision, and a no, or no answer, records nothing. Never infer a reason from the code, and never capture memories proactively during ordinary work. A choice that does not reach beyond the task stays in the task's intent instead (core.record-decisions-only-on-confirmation in devspec://product/implementation-contract). A create can come back preview_required: nothing was saved, and the response lists the existing memories the draft overlaps, with a receipt_id. Prefer updating or superseding the overlapping memory (update_memory, supersede_memory), or link a genuine companion with companion_links; resend the same call with preview_ack only when a separate memory is genuinely intended. Keep each memory atomic around one primary decision, convention, insight or risk: never bundle distinct subjects, unrelated decisions, or a primary decision together with a separate operational carve-out or companion convention into a single memory — record separate memories and connect them with companion_links (or manage_knowledge_links). Put the human-readable substance and rationale (what the decision, convention, insight or risk is and why) in body, and put code-level mechanics (file paths, function/symbol names, database columns, CSS classes, code snippets) in ai_instructions. Writes that violate field placement (code/paths/CSS in body), substance completeness, or single-subject atomicity are rejected at write time. Work in progress and delivery evidence belong on the task (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a standing long-form guide, reference document or runbook is an artifact (create_resource). Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is saved; a new decision or convention also carries checks_pending and is not in force until its checks are ruled, then takes effect by itself. outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "record save capture remember new decision convention architecture insight risk"
 	},
 	{
 		"id": "record_requirement",
 		"name": "record requirement",
-		"description": "Record a project requirement: a standing obligation whose violation blocks work once its checks clear. Never save an unasked-for requirement silently: when you spot a candidate requirement, ask the person in conversation first after explaining that breaking a requirement blocks work; when a Maintainer or Project Lead explicitly asks for one or says yes in conversation, record it in one step. Keep each requirement atomic around one cohesive obligation: put a trigger-oriented summary (when the requirement applies) in summary, full readable behaviour, scope and exception detail in body, supporting reference or specification links in companion_links, and code-level implementation guidance (file paths, symbols, database columns, code snippets) in ai_instructions. Writes that put code/paths/CSS in body or bundle unrelated subjects are rejected at write time. A Contributor's or Reviewed Contributor's requirement is saved as a non-binding proposal (outcome queued_for_review) until a Maintainer or Project Lead accepts it; a Maintainer's or Project Lead's explicit creation commits (outcome committed) and carries checks_pending until its own conflict check clears.",
+		"description": "Record a project requirement: a standing obligation whose violation blocks work once its checks clear. The bar is very high: a requirement is rare, a commitment that everything from now on is held to. Never save or propose an unasked-for requirement silently: when you spot a candidate requirement, ask the person in conversation first, explaining plainly what a requirement is, how it differs from a memory (a memory records a decision and its reason, which later work can revisit; a requirement is an obligation every later piece of work must meet, checked against what that work actually delivers: its code changes, or the written deliverables of work with no code), and that breaking a requirement blocks work. When a Maintainer or Project Lead explicitly asks for one or says yes in conversation, record it in one step (core.ask-before-recording-requirements in devspec://product/implementation-contract). Keep each requirement atomic around one cohesive obligation: put a trigger-oriented summary (when the requirement applies) in summary, full readable behaviour, scope and exception detail in body, supporting reference or specification links in companion_links, and code-level implementation guidance (file paths, symbols, database columns, code snippets) in ai_instructions. Writes that put code/paths/CSS in body or bundle unrelated subjects are rejected at write time. A Contributor's or Reviewed Contributor's requirement is saved as a non-binding proposal (outcome queued_for_review) until a Maintainer or Project Lead accepts it; a Maintainer's or Project Lead's explicit creation commits (outcome committed) and carries checks_pending until its own conflict check clears.",
 		"intent": "record create save new project requirement obligation invariant must comply"
 	},
 	{
@@ -488,7 +488,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "search_requirements",
 		"name": "search requirements",
-		"description": "Find project requirements by meaning or keywords. Returns cards with each requirement's trigger-oriented summary, version, state and companion links — never full bodies: read a chosen requirement in full with get_requirement (and read any linked companion documents) before relying on it, implementing work governed by it, or changing it. To list all active requirements, use get_requirements. General memory tools (search_memories, get_memory, get_decisions, get_conventions) never return requirements. Every requirement the filters allow is returned, best match first: the query orders them and excludes none. With flagged or signal_type and no query, it lists the flagged requirements, most recently updated first. A card with checks_pending is a new requirement not in force yet. Pass page.next_offset as offset for the next page.",
+		"description": "Find project requirements by meaning or keywords. Returns cards with each requirement's trigger-oriented summary, version, state and companion links — never full bodies: read a chosen requirement in full with get_requirement (and every document it links, in full) before relying on it, implementing work governed by it, or changing it. To list all active requirements, use get_requirements. General memory tools (search_memories, get_memory, get_decisions, get_conventions) never return requirements. Every requirement the filters allow is returned, best match first: the query orders them and excludes none. With flagged or signal_type and no query, it lists the flagged requirements, most recently updated first. A card with checks_pending is a new requirement not in force yet. Pass page.next_offset as offset for the next page.",
 		"intent": "find search requirements binding invariants constraints rules must comply topic"
 	},
 	{
@@ -518,7 +518,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "supersede_memory",
 		"name": "supersede memory",
-		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current (a decision's, convention's or requirement's once its checks are ruled: see pending_checks); the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. Keep each memory atomic around one primary decision, convention, insight or risk: never bundle distinct subjects, unrelated decisions, or a primary decision together with a separate operational carve-out or companion convention into a single memory — record separate memories and connect them with companion_links (or manage_knowledge_links). Put the human-readable substance and rationale in body and code-level pointers in ai_instructions. Writes that violate field placement (code/paths/CSS in body), substance completeness, or single-subject atomicity are rejected at write time. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. outcome committed is live. pending_checks is accepted but not live yet: the version in force stays, and keeps its id, until the new version's checks are ruled, then the new version takes effect by itself; if they find it clashes with someone else's decision you cannot overrule, it waits for that person's OK instead. Report it as accepted and waiting for its checks, with its proposal_id. Another new wording from you before it takes effect replaces that pending version (same proposal_id, replaced_pending_version: true) unless it is already waiting for someone's OK. queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current (a decision's, convention's or requirement's once its checks are ruled: see pending_checks); the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. Keep each memory atomic around one primary decision, convention, insight or risk: never bundle distinct subjects, unrelated decisions, or a primary decision together with a separate operational carve-out or companion convention into a single memory — record separate memories and connect them with companion_links (or manage_knowledge_links). Put the human-readable substance and rationale in body and code-level pointers in ai_instructions. Writes that violate field placement (code/paths/CSS in body), substance completeness, or single-subject atomicity are rejected at write time. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. A changed decision is the person's to state: record the reason they gave, never one inferred from the code. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. outcome committed is live. pending_checks is accepted but not live yet: the version in force stays, and keeps its id, until the new version's checks are ruled, then the new version takes effect by itself; if they find it clashes with someone else's decision you cannot overrule, it waits for that person's OK instead. Report it as accepted and waiting for its checks, with its proposal_id. Another new wording from you before it takes effect replaces that pending version (same proposal_id, replaced_pending_version: true) unless it is already waiting for someone's OK. queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"intent": "replace changed decision memory new agreed version supersede"
 	},
 	{
@@ -1723,7 +1723,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_testing_brief",
 		"label": "DevSpec: Get Testing Brief",
-		"description": "Gather what testing one task needs: its description, completion summary, testing and usage notes, deployments and deployment evidence, connected database targets, AI test runs, commits, pull requests, implementation notes, every comment, recent activity, and the decisions and documents relevant to it. It includes the item's intent, its acceptance criteria with their ids and each line's promotion state, and when the round under test was delivered. Comments, deployments and test runs are complete; activity is the newest 50 events, and activity_page.older says how to read earlier ones. To work on or edit the item, read get_task; record what you observe with record_criterion_verdicts.",
+		"description": "Gather what testing one task needs: its description, completion summary, testing and usage notes, deployments and deployment evidence, connected database targets, AI test runs, commits, pull requests, implementation notes, every comment, recent activity, and the decisions, requirements and documents relevant to it. Check the delivered work against those requirements by what it actually produced (core.check-deliverables-against-requirements in devspec://product/implementation-contract). It includes the item's intent, its acceptance criteria with their ids and each line's promotion state, and when the round under test was delivered. Comments, deployments and test runs are complete; activity is the newest 50 events, and activity_page.older says how to read earlier ones. To work on or edit the item, read get_task; record what you observe with record_criterion_verdicts.",
 		"searchIntent": "how to test verify feature testing brief deployments database targets implementation evidence",
 		"modelInputSchema": {
 			"type": "object",
@@ -3057,7 +3057,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "search_requirements",
 		"label": "DevSpec: Search Requirements",
-		"description": "Find project requirements by meaning or keywords. Returns cards with each requirement's trigger-oriented summary, version, state and companion links — never full bodies: read a chosen requirement in full with get_requirement (and read any linked companion documents) before relying on it, implementing work governed by it, or changing it. To list all active requirements, use get_requirements. General memory tools (search_memories, get_memory, get_decisions, get_conventions) never return requirements. Every requirement the filters allow is returned, best match first: the query orders them and excludes none. With flagged or signal_type and no query, it lists the flagged requirements, most recently updated first. A card with checks_pending is a new requirement not in force yet. Pass page.next_offset as offset for the next page.",
+		"description": "Find project requirements by meaning or keywords. Returns cards with each requirement's trigger-oriented summary, version, state and companion links — never full bodies: read a chosen requirement in full with get_requirement (and every document it links, in full) before relying on it, implementing work governed by it, or changing it. To list all active requirements, use get_requirements. General memory tools (search_memories, get_memory, get_decisions, get_conventions) never return requirements. Every requirement the filters allow is returned, best match first: the query orders them and excludes none. With flagged or signal_type and no query, it lists the flagged requirements, most recently updated first. A card with checks_pending is a new requirement not in force yet. Pass page.next_offset as offset for the next page.",
 		"searchIntent": "find search requirements binding invariants constraints rules must comply topic",
 		"modelInputSchema": {
 			"type": "object",
@@ -3202,7 +3202,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_requirements",
 		"label": "DevSpec: Get Requirements",
-		"description": "List the project's active requirements, most recently updated first, as cards with trigger-oriented summaries, versions, states and companion links. Current versions only. Read any requirement that bears on your change in full with get_requirement (and read its linked companion documents with get_resource); use search_requirements for a specific topic. page.total_matching counts the requirements matching your filters; pass page.next_offset as offset for the next page.",
+		"description": "List the project's active requirements, most recently updated first, as cards with trigger-oriented summaries, versions, states and companion links. Current versions only. Read any requirement that bears on your change in full with get_requirement (and every document it links, in full, with get_resource); use search_requirements for a specific topic. page.total_matching counts the requirements matching your filters; pass page.next_offset as offset for the next page.",
 		"searchIntent": "list browse active project requirements constraints invariants rules",
 		"modelInputSchema": {
 			"type": "object",
@@ -3315,7 +3315,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_requirement",
 		"label": "DevSpec: Get Requirement",
-		"description": "Read one requirement in full: its trigger-oriented summary, readable behaviour, scope and exception detail (body), optional ai_instructions (implementation guidance), companions (linked companion documents and memories), state, lineage, pending_versions and full version history. Search and list tools return cards; read the full requirement here (and read any linked companion documents with get_resource) before relying on it, superseding it or changing it. If superseded_by is set, a newer version is current: read that one. Every earlier or retracted version stays readable in full: each history entry's resultRowId is that version's id, to pass here. Changes proposed and not yet agreed are in pending_versions, beside the effective requirement and never part of it; checks_pending, when present, says a new requirement is not in force yet, so don't treat it as blocking other work until its checks clear. Accepts the 8-character short code.",
+		"description": "Read one requirement in full: its trigger-oriented summary, readable behaviour, scope and exception detail (body), optional ai_instructions (implementation guidance), companions (linked companion documents and memories), state, lineage, pending_versions and full version history. Search and list tools return cards; read the full requirement here, and every document it links in full with get_resource, before relying on it, superseding it or changing it. When you check work against it, judge what the work actually produced: its code changes, or on work with no code, its written deliverables and completion summary (core.check-deliverables-against-requirements in devspec://product/implementation-contract). If superseded_by is set, a newer version is current: read that one. Every earlier or retracted version stays readable in full: each history entry's resultRowId is that version's id, to pass here. Changes proposed and not yet agreed are in pending_versions, beside the effective requirement and never part of it; checks_pending, when present, says a new requirement is not in force yet, so don't treat it as blocking other work until its checks clear. Accepts the 8-character short code.",
 		"searchIntent": "read full requirement body scope exceptions companions history versions",
 		"modelInputSchema": {
 			"type": "object",
@@ -5282,7 +5282,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"intent": {
 					"type": "string",
-					"description": "Why: the underlying problem and rationale for wanting the outcome, who raised it and their reasoning (attribute the speaker and synthesize their rationale in clear prose when a person asked for it — never paste conversational go-aheads like 'yes please let's do option B' or procedural prompts), and the desired outcome itself — never a thin restatement of the title or a mere list of what files/surfaces to change without why, because reversal and conflict reviews judge later work against this recorded reasoning. Must not be blank. Omitted: unchanged."
+					"description": "Why: the person's intent and their reason, summarised faithfully in plain everyday words from what they said, never a reason they did not give (core.write-the-persons-intent). Beside any feature name, include the plain question or problem as a teammate would say it aloud ('where is the link to the live site?'): task cards, recall and overlap previews match later conversations against intent. Cover the underlying problem and rationale for wanting the outcome, who raised it and their reasoning (attribute the speaker and summarise their rationale when a person asked for it — never paste conversational go-aheads like 'yes please let's do option B' or procedural prompts), and the desired outcome itself — never a thin restatement of the title or a mere list of what files/surfaces to change without why, because reversal and conflict reviews judge later work against this recorded reasoning. Must not be blank. Omitted: unchanged."
 				},
 				"acceptance_criteria": {
 					"anyOf": [
@@ -5551,7 +5551,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"intent": {
 					"type": "string",
-					"description": "Why: the underlying problem and rationale for wanting the outcome, who raised it and their reasoning (attribute the speaker and synthesize their rationale in clear prose when a person asked for it — never paste conversational go-aheads like 'yes please let's do option B' or procedural prompts), and the desired outcome itself — never a thin restatement of the title or a mere list of what files/surfaces to change without why, because reversal and conflict reviews judge later work against this recorded reasoning. Must not be blank. Omitted: unchanged."
+					"description": "Why: the person's intent and their reason, summarised faithfully in plain everyday words from what they said, never a reason they did not give (core.write-the-persons-intent). Beside any feature name, include the plain question or problem as a teammate would say it aloud ('where is the link to the live site?'): task cards, recall and overlap previews match later conversations against intent. Cover the underlying problem and rationale for wanting the outcome, who raised it and their reasoning (attribute the speaker and summarise their rationale when a person asked for it — never paste conversational go-aheads like 'yes please let's do option B' or procedural prompts), and the desired outcome itself — never a thin restatement of the title or a mere list of what files/surfaces to change without why, because reversal and conflict reviews judge later work against this recorded reasoning. Must not be blank. Omitted: unchanged."
 				},
 				"acceptance_criteria": {
 					"anyOf": [
@@ -5756,7 +5756,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "create_task",
 		"label": "DevSpec: Create Task",
-		"description": "Create a new task: a title, a complete plain-English description, the intent behind it and checkable acceptance criteria. Keep each task atomic around one primary subject or cohesive deliverable; when work spans independent deliverables, unrelated subjects, or separate carve-outs, create separate tasks (or child tasks under a parent brief) and connect them with parent_task_id, follow_up_from_task_id, or link_tasks instead of bundling them into one task. Writes that violate field placement (code/paths/CSS in prose), substance or self-contained intent completeness, or single-subject atomicity are rejected at write time. Search for an existing item first (search_tasks); whether work should be tracked at all is set by work_entry_contract in devspec://product/implementation-contract. For work already done, use record_completed_work; for new scope found while working on another item, pass follow_up_from_task_id. With session_id the item also gets a card in that room. It can come back queued_for_review with a proposal_id: the item is saved as suggested work, and nothing is authorised until a Maintainer accepts it.",
+		"description": "Create a new task: a title, a complete plain-English description, the intent behind it and checkable acceptance criteria. Keep each task atomic around one primary subject or cohesive deliverable; when work spans independent deliverables, unrelated subjects, or separate carve-outs, create separate tasks (or child tasks under a parent brief) and connect them with parent_task_id, follow_up_from_task_id, or link_tasks instead of bundling them into one task. Writes that violate field placement (code/paths/CSS in prose), substance or self-contained intent completeness, or single-subject atomicity are rejected at write time. Search for an existing item first (search_tasks); whether work should be tracked at all is set by work_entry_contract in devspec://product/implementation-contract. For work already done, use record_completed_work; for new scope found while working on another item, pass follow_up_from_task_id. With session_id the item also gets a card in that room. It can come back preview_required: nothing was created, and the response lists the active, deferred or rejected tasks and briefs the draft overlaps, with a receipt_id. Prefer extending the existing task or brief, and talk a prior rejection through with the person before reviving it; resend the same call with preview_ack only when a separate task is genuinely intended (core.prefer-existing-records-on-overlap). It can come back queued_for_review with a proposal_id: the item is saved as suggested work, and nothing is authorised until a Maintainer accepts it.",
 		"searchIntent": "create capture requested new durable task feature bug work task",
 		"modelInputSchema": {
 			"type": "object",
@@ -5771,7 +5771,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"intent": {
 					"type": "string",
-					"description": "Why: the underlying problem and rationale for wanting the outcome, who raised it and their reasoning (attribute the speaker and synthesize their rationale in clear prose when a person asked for it — never paste conversational go-aheads like 'yes please let's do option B' or procedural prompts), and the desired outcome itself — never a thin restatement of the title or a mere list of what files/surfaces to change without why, because whoever picks the item up later and future reversal/conflict reviews rely on this recorded reasoning. Required and must not be blank: a create without it is refused and nothing is created."
+					"description": "Why: the person's intent and their reason, summarised faithfully in plain everyday words from what they said, never a reason they did not give (core.write-the-persons-intent). Beside any feature name, include the plain question or problem as a teammate would say it aloud ('where is the link to the live site?'): task cards, recall and overlap previews match later conversations against intent. Cover the underlying problem and rationale for wanting the outcome, who raised it and their reasoning (attribute the speaker and summarise their rationale when a person asked for it — never paste conversational go-aheads like 'yes please let's do option B' or procedural prompts), and the desired outcome itself — never a thin restatement of the title or a mere list of what files/surfaces to change without why, because whoever picks the item up later and future reversal/conflict reviews rely on this recorded reasoning. Required and must not be blank: a create without it is refused and nothing is created."
 				},
 				"acceptance_criteria": {
 					"anyOf": [
@@ -5921,7 +5921,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"preview_ack": {
 					"type": "string",
 					"format": "uuid",
-					"description": "The receipt_id from a preview_required overlap preview on create_task, confirming this exact task draft should still be created despite overlapping active, deferred, or not_wanted items. Any change to title, intent, description or acceptance_criteria invalidates the receipt. Omitted: overlapping drafts return preview_required without creating."
+					"description": "The receipt_id from a preview_required overlap preview on create_task, confirming this exact task draft should still be created despite overlapping active, deferred, or not_wanted items. Send it only when a separate task is genuinely intended; otherwise extend the task or brief the preview named. Any change to title, intent, description or acceptance_criteria invalidates the receipt. Omitted: overlapping drafts return preview_required without creating."
 				},
 				"agent_name": {
 					"type": "string",
@@ -5967,7 +5967,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"intent": {
 					"type": "string",
-					"description": "Why: the underlying problem and rationale for wanting the outcome, who raised it and their reasoning (attribute the speaker and synthesize their rationale in clear prose when a person asked for it — never paste conversational go-aheads like 'yes please let's do option B' or procedural prompts), and the desired outcome itself — never a thin restatement of the title or a mere list of what files/surfaces to change without why, because whoever picks the item up later and future reversal/conflict reviews rely on this recorded reasoning. Required and must not be blank: a create without it is refused and nothing is created."
+					"description": "Why: the person's intent and their reason, summarised faithfully in plain everyday words from what they said, never a reason they did not give (core.write-the-persons-intent). Beside any feature name, include the plain question or problem as a teammate would say it aloud ('where is the link to the live site?'): task cards, recall and overlap previews match later conversations against intent. Cover the underlying problem and rationale for wanting the outcome, who raised it and their reasoning (attribute the speaker and summarise their rationale when a person asked for it — never paste conversational go-aheads like 'yes please let's do option B' or procedural prompts), and the desired outcome itself — never a thin restatement of the title or a mere list of what files/surfaces to change without why, because whoever picks the item up later and future reversal/conflict reviews rely on this recorded reasoning. Required and must not be blank: a create without it is refused and nothing is created."
 				},
 				"acceptance_criteria": {
 					"anyOf": [
@@ -6117,7 +6117,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"preview_ack": {
 					"type": "string",
 					"format": "uuid",
-					"description": "The receipt_id from a preview_required overlap preview on create_task, confirming this exact task draft should still be created despite overlapping active, deferred, or not_wanted items. Any change to title, intent, description or acceptance_criteria invalidates the receipt. Omitted: overlapping drafts return preview_required without creating."
+					"description": "The receipt_id from a preview_required overlap preview on create_task, confirming this exact task draft should still be created despite overlapping active, deferred, or not_wanted items. Send it only when a separate task is genuinely intended; otherwise extend the task or brief the preview named. Any change to title, intent, description or acceptance_criteria invalidates the receipt. Omitted: overlapping drafts return preview_required without creating."
 				},
 				"agent_name": {
 					"type": "string",
@@ -6394,7 +6394,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "link_tasks",
 		"label": "DevSpec: Link Tasks",
-		"description": "Record a directed relationship between two tasks in this project: task_id <relationship> related_to_id. caused_by: the source was caused by the target. blocks: the source blocks the target, which cannot be claimed until the source is done or dismissed. related_to: they bear on each other. A link retires nothing: to record that one item replaces another, use supersede_task. From an unattended run nothing is recorded: the call returns the edge as a proposal (committed: false) for a person to make. When creating a follow-up, pass follow_up_from_task_id to create_task instead. For links between memories and documents, use manage_knowledge_links.",
+		"description": "Record a directed relationship between two tasks in this project: task_id <relationship> related_to_id. caused_by: the source was caused by the target. blocks: the source blocks the target, which cannot be claimed until the source is done or dismissed. related_to: they bear on each other. A link is only a relationship someone chose to record: it retires nothing, clears no flag and settles no conflict; to record that one item replaces another, use supersede_task. From an unattended run nothing is recorded: the call returns the edge as a proposal (committed: false) for a person to make. When creating a follow-up, pass follow_up_from_task_id to create_task instead. For links between memories and documents, use manage_knowledge_links.",
 		"searchIntent": "link relationship between work tasks tasks blocking caused by related",
 		"modelInputSchema": {
 			"type": "object",
@@ -7140,7 +7140,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "claim_work_item",
 		"label": "DevSpec: Claim Work Item",
-		"description": "Claim one task before you start implementing it. Read what comes back: intent, criteria, spec_changes, session_context, project instruction tiers, review signals, earlier attempts, and the project's decisions, conventions and documents that bear on the item (relevant_memories, relevant_artifacts; knowledge_unavailable names any that could not be read, which is not the same as none applying). A refused claim names the guard that stopped it: another holder or reservation, an assignee, an unfinished blocker, or overlapping files. It also refuses an item whose last attempt failed (release_work_item hands it back) or whose implementation is already recorded (reopen_task reopens it). force with a reason overrides these and is recorded; human-only items and work awaiting approval cannot be claimed at all. When to claim is set by work_entry_contract, and when an override is justified by core_implementation_contract, in devspec://product/implementation-contract.",
+		"description": "Claim one task before you start implementing it. Read what comes back: intent, criteria, spec_changes, session_context, project instruction tiers, review signals, earlier attempts, and the project's decisions, conventions, requirements, risks, environment facts and documents that bear on the item (relevant_memories, relevant_artifacts, relevant_requirements, relevant_environment, preflight_context; knowledge_unavailable names any that could not be read, which is not the same as none applying). Hold the work to the decisions, conventions and requirements, weigh the risks, read documents as reference, and read every document a requirement links in full before acting on it (core.hold-work-to-claimed-context). Waiting for someone's OK, or for the item's checks, never refuses a claim: when the result carries waiting_for_ok or checks_pending, build on the work's own branch and don't merge it into the tracking branch (core.waiting-work-stays-on-its-branch, core.pending-checks-hold-the-merge). A refused claim names the guard that stopped it: another holder or reservation, an assignee, an unfinished blocker, or overlapping files. It also refuses an item whose last attempt failed (release_work_item hands it back) or whose implementation is already recorded (reopen_task reopens it). force with a reason overrides these and is recorded; human-only items and work awaiting approval cannot be claimed at all. When to claim is set by work_entry_contract, and when an override is justified by core_implementation_contract, in devspec://product/implementation-contract.",
 		"searchIntent": "claim start working on task before implementing",
 		"modelInputSchema": {
 			"type": "object",
@@ -8591,6 +8591,36 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "One entry for each criterion you actually checked, at most one per criterion; at least one. Criteria you leave out stay as they are."
 				},
+				"requirement_evidence": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"criterion_id": {
+								"type": "string",
+								"description": "A criterion you record as met or intent_met in this same call. Its observation is the evidence."
+							},
+							"requirement_id": {
+								"type": "string",
+								"description": "The requirement version the observation shows the delivered work meets, as relevant_requirements on get_testing_brief or claim_work_item gave it. The evidence is bound to that exact version."
+							},
+							"coverage": {
+								"type": "string",
+								"description": "Which part of the requirement this observation shows is met, in a sentence: all of it, or which part."
+							},
+							"note": {
+								"type": "string",
+								"description": "Anything a later reader of the evidence should know."
+							}
+						},
+						"required": [
+							"criterion_id",
+							"requirement_id",
+							"coverage"
+						]
+					},
+					"description": "Requirements you checked the delivered work against and saw it meet. Each entry links one of this call's met or intent_met observations to one requirement version as dated evidence. A requirement the work breaks is not recorded here, because DevSpec's check of the delivered work raises that. Omitted: no evidence is linked."
+				},
 				"connection_id": {
 					"type": "string",
 					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
@@ -8704,6 +8734,36 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						]
 					},
 					"description": "One entry for each criterion you actually checked, at most one per criterion; at least one. Criteria you leave out stay as they are."
+				},
+				"requirement_evidence": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"criterion_id": {
+								"type": "string",
+								"description": "A criterion you record as met or intent_met in this same call. Its observation is the evidence."
+							},
+							"requirement_id": {
+								"type": "string",
+								"description": "The requirement version the observation shows the delivered work meets, as relevant_requirements on get_testing_brief or claim_work_item gave it. The evidence is bound to that exact version."
+							},
+							"coverage": {
+								"type": "string",
+								"description": "Which part of the requirement this observation shows is met, in a sentence: all of it, or which part."
+							},
+							"note": {
+								"type": "string",
+								"description": "Anything a later reader of the evidence should know."
+							}
+						},
+						"required": [
+							"criterion_id",
+							"requirement_id",
+							"coverage"
+						]
+					},
+					"description": "Requirements you checked the delivered work against and saw it meet. Each entry links one of this call's met or intent_met observations to one requirement version as dated evidence. A requirement the work breaks is not recorded here, because DevSpec's check of the delivered work raises that. Omitted: no evidence is linked."
 				},
 				"connection_id": {
 					"type": "string",
@@ -10309,7 +10369,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_memory",
 		"label": "DevSpec: Record Memory",
-		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Individual architecture decisions and team conventions belong here—never in create_resource. Keep each memory atomic around one primary decision, convention, insight or risk: never bundle distinct subjects, unrelated decisions, or a primary decision together with a separate operational carve-out or companion convention into a single memory — record separate memories and connect them with companion_links (or manage_knowledge_links). Put the human-readable substance and rationale (what the decision, convention, insight or risk is and why) in body, and put code-level mechanics (file paths, function/symbol names, database columns, CSS classes, code snippets) in ai_instructions. Writes that violate field placement (code/paths/CSS in body), substance completeness, or single-subject atomicity are rejected at write time. Work in progress and delivery evidence belong on the task (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a standing long-form guide, reference document or runbook is an artifact (create_resource). Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is saved; a new decision or convention also carries checks_pending and is not in force until its checks are ruled, then takes effect by itself. outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Record a durable piece of project knowledge: a decision, convention, insight or risk. Individual architecture decisions and team conventions belong here—never in create_resource. Record a decision or convention only when all three hold: a real choice among alternatives, made for a reason; consequences that steer future work beyond this change; and not obvious from the code. Ask the person whether the choice was deliberate and why: only their answer creates a decision, and a no, or no answer, records nothing. Never infer a reason from the code, and never capture memories proactively during ordinary work. A choice that does not reach beyond the task stays in the task's intent instead (core.record-decisions-only-on-confirmation in devspec://product/implementation-contract). A create can come back preview_required: nothing was saved, and the response lists the existing memories the draft overlaps, with a receipt_id. Prefer updating or superseding the overlapping memory (update_memory, supersede_memory), or link a genuine companion with companion_links; resend the same call with preview_ack only when a separate memory is genuinely intended. Keep each memory atomic around one primary decision, convention, insight or risk: never bundle distinct subjects, unrelated decisions, or a primary decision together with a separate operational carve-out or companion convention into a single memory — record separate memories and connect them with companion_links (or manage_knowledge_links). Put the human-readable substance and rationale (what the decision, convention, insight or risk is and why) in body, and put code-level mechanics (file paths, function/symbol names, database columns, CSS classes, code snippets) in ai_instructions. Writes that violate field placement (code/paths/CSS in body), substance completeness, or single-subject atomicity are rejected at write time. Work in progress and delivery evidence belong on the task (add_implementation_note, record_implementation), an open question is a Still to Discuss point (manage_discussion_point), and a standing long-form guide, reference document or runbook is an artifact (create_resource). Superseding or updating someone else's settled record overrules them, so ask first unless you were already told to go ahead. recorded: true means it is saved; a new decision or convention also carries checks_pending and is not in force until its checks are ruled, then takes effect by itself. outcome queued_for_review carries a proposal_id and records nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "record save capture remember new decision convention architecture insight risk",
 		"modelInputSchema": {
 			"type": "object",
@@ -10334,7 +10394,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"summary": {
 					"type": "string",
-					"description": "Optional one-sentence plain-language summary of the core substance that stands on its own (single line, at most 400 characters). Omitted: no summary."
+					"description": "Optional one-sentence plain-language summary of the core substance that stands on its own (single line, at most 400 characters). Recall shows memories as cards of title and summary, so say when someone should reach for this one and what rule, routine or risk it covers, not how it came about. Omitted: no summary."
 				},
 				"body": {
 					"type": "string",
@@ -10405,12 +10465,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"note"
 						]
 					},
-					"description": "Optional companion memories, AI-written documents or uploaded project files to link to this memory when it commits ('read these together'), each with a note saying why. Link the file a decision or requirement relies on, such as a standard it must comply with, so the decisions check reads that file whole with it. Omitted: no new companion links."
+					"description": "Optional companion memories, AI-written documents or uploaded project files to link to this memory when it commits ('read these together'), each with a note saying why. Link the runbook or guide that carries out a convention or decision, and the file a decision or requirement relies on (such as a standard it must comply with), so the decisions check reads that file whole with it. Omitted: no new companion links."
 				},
 				"preview_ack": {
 					"type": "string",
 					"format": "uuid",
-					"description": "The receipt_id from a preview_required overlap preview on record_memory, confirming this exact memory draft should still be saved as a standalone record. Any change to title, summary or body invalidates the receipt. Omitted: overlapping drafts return preview_required without saving."
+					"description": "The receipt_id from a preview_required overlap preview on record_memory, confirming this exact memory draft should still be saved as a standalone record. Send it only when a separate memory is genuinely intended; otherwise update or supersede the memory the preview named. Any change to title, summary or body invalidates the receipt. Omitted: overlapping drafts return preview_required without saving."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -10462,7 +10522,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"summary": {
 					"type": "string",
-					"description": "Optional one-sentence plain-language summary of the core substance that stands on its own (single line, at most 400 characters). Omitted: no summary."
+					"description": "Optional one-sentence plain-language summary of the core substance that stands on its own (single line, at most 400 characters). Recall shows memories as cards of title and summary, so say when someone should reach for this one and what rule, routine or risk it covers, not how it came about. Omitted: no summary."
 				},
 				"body": {
 					"type": "string",
@@ -10533,12 +10593,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"note"
 						]
 					},
-					"description": "Optional companion memories, AI-written documents or uploaded project files to link to this memory when it commits ('read these together'), each with a note saying why. Link the file a decision or requirement relies on, such as a standard it must comply with, so the decisions check reads that file whole with it. Omitted: no new companion links."
+					"description": "Optional companion memories, AI-written documents or uploaded project files to link to this memory when it commits ('read these together'), each with a note saying why. Link the runbook or guide that carries out a convention or decision, and the file a decision or requirement relies on (such as a standard it must comply with), so the decisions check reads that file whole with it. Omitted: no new companion links."
 				},
 				"preview_ack": {
 					"type": "string",
 					"format": "uuid",
-					"description": "The receipt_id from a preview_required overlap preview on record_memory, confirming this exact memory draft should still be saved as a standalone record. Any change to title, summary or body invalidates the receipt. Omitted: overlapping drafts return preview_required without saving."
+					"description": "The receipt_id from a preview_required overlap preview on record_memory, confirming this exact memory draft should still be saved as a standalone record. Send it only when a separate memory is genuinely intended; otherwise update or supersede the memory the preview named. Any change to title, summary or body invalidates the receipt. Omitted: overlapping drafts return preview_required without saving."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -10577,7 +10637,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "supersede_memory",
 		"label": "DevSpec: Supersede Memory",
-		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current (a decision's, convention's or requirement's once its checks are ruled: see pending_checks); the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. Keep each memory atomic around one primary decision, convention, insight or risk: never bundle distinct subjects, unrelated decisions, or a primary decision together with a separate operational carve-out or companion convention into a single memory — record separate memories and connect them with companion_links (or manage_knowledge_links). Put the human-readable substance and rationale in body and code-level pointers in ai_instructions. Writes that violate field placement (code/paths/CSS in body), substance completeness, or single-subject atomicity are rejected at write time. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. outcome committed is live. pending_checks is accepted but not live yet: the version in force stays, and keeps its id, until the new version's checks are ruled, then the new version takes effect by itself; if they find it clashes with someone else's decision you cannot overrule, it waits for that person's OK instead. Report it as accepted and waiting for its checks, with its proposal_id. Another new wording from you before it takes effect replaces that pending version (same proposal_id, replaced_pending_version: true) unless it is already waiting for someone's OK. queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Replace a memory with a new version when the decision itself has changed. The new version becomes current (a decision's, convention's or requirement's once its checks are ruled: see pending_checks); the old one stays readable as history, with superseded_by pointing to its successor. Read the current body with get_memory first. Keep each memory atomic around one primary decision, convention, insight or risk: never bundle distinct subjects, unrelated decisions, or a primary decision together with a separate operational carve-out or companion convention into a single memory — record separate memories and connect them with companion_links (or manage_knowledge_links). Put the human-readable substance and rationale in body and code-level pointers in ai_instructions. Writes that violate field placement (code/paths/CSS in body), substance completeness, or single-subject atomicity are rejected at write time. To mark a memory decided or correct its wording, use update_memory; when nothing should replace it, use retract_memory. A changed decision is the person's to state: record the reason they gave, never one inferred from the code. Replacing someone else's settled decision overrules them: say what you are changing and why, and ask unless you were already told to go ahead. outcome committed is live. pending_checks is accepted but not live yet: the version in force stays, and keeps its id, until the new version's checks are ruled, then the new version takes effect by itself; if they find it clashes with someone else's decision you cannot overrule, it waits for that person's OK instead. Report it as accepted and waiting for its checks, with its proposal_id. Another new wording from you before it takes effect replaces that pending version (same proposal_id, replaced_pending_version: true) unless it is already waiting for someone's OK. queued_for_review saves your full wording as a pending version beside the unchanged current one, with a proposal_id and waiting_on naming who it waits on; nothing changes until it is approved. Which a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "replace changed decision memory new agreed version supersede",
 		"modelInputSchema": {
 			"type": "object",
@@ -10607,7 +10667,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"summary": {
 					"type": "string",
-					"description": "One-sentence plain-language summary of the new version's core substance (single line, at most 400 characters). Omitted: the current summary is kept."
+					"description": "One-sentence plain-language summary of the new version's core substance: when to reach for it and what it covers, not how it came about (single line, at most 400 characters). Omitted: the current summary is kept."
 				},
 				"body": {
 					"type": "string",
@@ -10723,7 +10783,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"summary": {
 					"type": "string",
-					"description": "One-sentence plain-language summary of the new version's core substance (single line, at most 400 characters). Omitted: the current summary is kept."
+					"description": "One-sentence plain-language summary of the new version's core substance: when to reach for it and what it covers, not how it came about (single line, at most 400 characters). Omitted: the current summary is kept."
 				},
 				"body": {
 					"type": "string",
@@ -10878,7 +10938,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "A corrected concise single-line noun phrase naming the subject or surface and the core substance so it reads naturally on cards and aloud (at most 115 characters); move comma-separated extra details and conditions into summary or body. Saves a new version. Omitted: unchanged."
 				},
 				"summary": {
-					"description": "A corrected one-sentence plain-language summary of the core substance (at most 400 characters), or null to clear it. Saves a new version. Omitted: unchanged.",
+					"description": "A corrected one-sentence plain-language summary of the core substance: when to reach for it and what it covers (at most 400 characters), or null to clear it. Saves a new version. Omitted: unchanged.",
 					"type": [
 						"string",
 						"null"
@@ -10982,7 +11042,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "A corrected concise single-line noun phrase naming the subject or surface and the core substance so it reads naturally on cards and aloud (at most 115 characters); move comma-separated extra details and conditions into summary or body. Saves a new version. Omitted: unchanged."
 				},
 				"summary": {
-					"description": "A corrected one-sentence plain-language summary of the core substance (at most 400 characters), or null to clear it. Saves a new version. Omitted: unchanged.",
+					"description": "A corrected one-sentence plain-language summary of the core substance: when to reach for it and what it covers (at most 400 characters), or null to clear it. Saves a new version. Omitted: unchanged.",
 					"type": [
 						"string",
 						"null"
@@ -11227,7 +11287,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_requirement",
 		"label": "DevSpec: Record Requirement",
-		"description": "Record a project requirement: a standing obligation whose violation blocks work once its checks clear. Never save an unasked-for requirement silently: when you spot a candidate requirement, ask the person in conversation first after explaining that breaking a requirement blocks work; when a Maintainer or Project Lead explicitly asks for one or says yes in conversation, record it in one step. Keep each requirement atomic around one cohesive obligation: put a trigger-oriented summary (when the requirement applies) in summary, full readable behaviour, scope and exception detail in body, supporting reference or specification links in companion_links, and code-level implementation guidance (file paths, symbols, database columns, code snippets) in ai_instructions. Writes that put code/paths/CSS in body or bundle unrelated subjects are rejected at write time. A Contributor's or Reviewed Contributor's requirement is saved as a non-binding proposal (outcome queued_for_review) until a Maintainer or Project Lead accepts it; a Maintainer's or Project Lead's explicit creation commits (outcome committed) and carries checks_pending until its own conflict check clears.",
+		"description": "Record a project requirement: a standing obligation whose violation blocks work once its checks clear. The bar is very high: a requirement is rare, a commitment that everything from now on is held to. Never save or propose an unasked-for requirement silently: when you spot a candidate requirement, ask the person in conversation first, explaining plainly what a requirement is, how it differs from a memory (a memory records a decision and its reason, which later work can revisit; a requirement is an obligation every later piece of work must meet, checked against what that work actually delivers: its code changes, or the written deliverables of work with no code), and that breaking a requirement blocks work. When a Maintainer or Project Lead explicitly asks for one or says yes in conversation, record it in one step (core.ask-before-recording-requirements in devspec://product/implementation-contract). Keep each requirement atomic around one cohesive obligation: put a trigger-oriented summary (when the requirement applies) in summary, full readable behaviour, scope and exception detail in body, supporting reference or specification links in companion_links, and code-level implementation guidance (file paths, symbols, database columns, code snippets) in ai_instructions. Writes that put code/paths/CSS in body or bundle unrelated subjects are rejected at write time. A Contributor's or Reviewed Contributor's requirement is saved as a non-binding proposal (outcome queued_for_review) until a Maintainer or Project Lead accepts it; a Maintainer's or Project Lead's explicit creation commits (outcome committed) and carries checks_pending until its own conflict check clears.",
 		"searchIntent": "record create save new project requirement obligation invariant must comply",
 		"modelInputSchema": {
 			"type": "object",
@@ -11242,7 +11302,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"summary": {
 					"type": "string",
-					"description": "Optional trigger-oriented plain-language summary describing when this requirement applies and what triggers it (no short-character ration). Omitted: no summary."
+					"description": "Optional trigger-oriented plain-language summary: when this requirement applies and what it holds work to, not how it came about; it can run to several sentences. Recall shows requirements as cards, so this is what lets an agent see that one bears on its work. Omitted: no summary."
 				},
 				"body": {
 					"type": "string",
@@ -11346,7 +11406,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"summary": {
 					"type": "string",
-					"description": "Optional trigger-oriented plain-language summary describing when this requirement applies and what triggers it (no short-character ration). Omitted: no summary."
+					"description": "Optional trigger-oriented plain-language summary: when this requirement applies and what it holds work to, not how it came about; it can run to several sentences. Recall shows requirements as cards, so this is what lets an agent see that one bears on its work. Omitted: no summary."
 				},
 				"body": {
 					"type": "string",
@@ -11477,7 +11537,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"summary": {
 					"type": "string",
-					"description": "Trigger-oriented plain-language summary of when the new version applies (no short-character ration). Omitted: the current summary is kept."
+					"description": "Trigger-oriented plain-language summary of when the new version applies and what it holds work to; it can run to several sentences. Omitted: the current summary is kept."
 				},
 				"body": {
 					"type": "string",
@@ -11585,7 +11645,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"summary": {
 					"type": "string",
-					"description": "Trigger-oriented plain-language summary of when the new version applies (no short-character ration). Omitted: the current summary is kept."
+					"description": "Trigger-oriented plain-language summary of when the new version applies and what it holds work to; it can run to several sentences. Omitted: the current summary is kept."
 				},
 				"body": {
 					"type": "string",
@@ -11724,7 +11784,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "A corrected concise single-line noun phrase (at most 115 characters). Saves a new version. Omitted: unchanged."
 				},
 				"summary": {
-					"description": "A corrected trigger-oriented summary (no short-character ration), or null to clear it. Saves a new version. Omitted: unchanged.",
+					"description": "A corrected trigger-oriented summary: when the requirement applies and what it holds work to (it can run to several sentences), or null to clear it. Saves a new version. Omitted: unchanged.",
 					"type": [
 						"string",
 						"null"
@@ -11820,7 +11880,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "A corrected concise single-line noun phrase (at most 115 characters). Saves a new version. Omitted: unchanged."
 				},
 				"summary": {
-					"description": "A corrected trigger-oriented summary (no short-character ration), or null to clear it. Saves a new version. Omitted: unchanged.",
+					"description": "A corrected trigger-oriented summary: when the requirement applies and what it holds work to (it can run to several sentences), or null to clear it. Saves a new version. Omitted: unchanged.",
 					"type": [
 						"string",
 						"null"
@@ -11955,7 +12015,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "manage_knowledge_links",
 		"label": "DevSpec: Manage Knowledge Links",
-		"description": "Link two memories or AI-written documents, in any combination, as companions a reader should see together, with a note saying why (link). You can also change that note (set_note), remove the link (unlink), or list one record's companions (list). A link is an association only: it does not say the two agree, clear a review flag, supersede either record, make either more trusted or change who may edit them. An uploaded project file can be linked only to a memory, as the supporting reference of the decision or requirement that relies on it; the decisions check then reads the file whole with that record. A file attached inside a conversation cannot be linked. Tasks have their own links (link_tasks). Both records must be current versions, given by full id or 8-character short code; a code that matches both a memory and a document is refused as ambiguous.",
+		"description": "Link two memories or AI-written documents, in any combination, as companions a reader should see together, with a note saying why (link): typically a runbook or guide and the convention or decision it carries out, or a supporting document and the decision or requirement that relies on it. You can also change that note (set_note), remove the link (unlink), or list one record's companions (list). A link is an association only: it does not say the two agree, clear a review flag, supersede either record, make either more trusted or change who may edit them. An uploaded project file can be linked only to a memory, as the supporting reference of the decision or requirement that relies on it; the decisions check then reads the file whole with that record. A file attached inside a conversation cannot be linked. Tasks have their own links (link_tasks). Both records must be current versions, given by full id or 8-character short code; a code that matches both a memory and a document is refused as ambiguous.",
 		"searchIntent": "link plan document artifact to its supporting decision memory companions read together unlink",
 		"modelInputSchema": {
 			"type": "object",
@@ -12087,7 +12147,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "create_resource",
 		"label": "DevSpec: Create Resource",
-		"description": "Create a standing shared project document: a guide (how-to or developer guide), reference (architecture or API reference), or runbook (operational procedure). Documents are strictly for durable, long-form reference material that outlives a single task or session: never create a document for an implementation plan (use a Brief/Task via create_task or a shared room milestone plan via manage_plan), a session handoff, status summary or verification dump (use add_implementation_note or record_implementation), an individual decision or coding convention (use record_memory), or an agent operating rule (use write_project_instruction_rule). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for. A document is a supporting reference that can go out of date; a rule to enforce belongs in a decision, convention or requirement that links to it. outcome committed is live; queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
+		"description": "Create a standing shared project document: a guide (how-to or developer guide), reference (architecture or API reference), or runbook (operational procedure). Documents are strictly for durable, long-form reference material that outlives a single task or session: never create a document for an implementation plan (use a Brief/Task via create_task or a shared room milestone plan via manage_plan), a session handoff, status summary or verification dump (use add_implementation_note or record_implementation), an individual decision or coding convention (use record_memory), or an agent operating rule (use write_project_instruction_rule). Prefer it to a local Markdown file unless the file must ship in the repository or was asked for. Search existing documents first (search_resources): when one already covers the same routine or system, update or supersede it (update_resource, supersede_resource) rather than leaving two competing versions, and link a runbook to the convention or decision it carries out (manage_knowledge_links). A document is a supporting reference that can go out of date; a rule to enforce belongs in a decision, convention or requirement that links to it. outcome committed is live; queued_for_review carries a proposal_id and creates nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
 		"searchIntent": "write save create standing shared document artifact guide reference runbook architecture API docs operational procedure",
 		"modelInputSchema": {
 			"type": "object",
@@ -12111,7 +12171,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"summary": {
 					"type": "string",
-					"description": "A short synopsis shown on cards and in search results (at most 1,000 characters). Omitted: the title is used."
+					"description": "What recall and search show on the document's card (at most 1,000 characters): when someone should reach for it and what routine, procedure or system it covers, not how it came to be written. Omitted: the title is used."
 				},
 				"body": {
 					"type": "string",
@@ -12183,7 +12243,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"summary": {
 					"type": "string",
-					"description": "A short synopsis shown on cards and in search results (at most 1,000 characters). Omitted: the title is used."
+					"description": "What recall and search show on the document's card (at most 1,000 characters): when someone should reach for it and what routine, procedure or system it covers, not how it came to be written. Omitted: the title is used."
 				},
 				"body": {
 					"type": "string",
@@ -12273,7 +12333,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"summary": {
 					"type": "string",
-					"description": "A new synopsis (at most 1,000 characters). Saves a new version. Omitted: the current summary is kept."
+					"description": "A new card summary (at most 1,000 characters): when to reach for the document and what it covers. Saves a new version. Omitted: the current summary is kept."
 				},
 				"body": {
 					"type": "string",
@@ -12367,7 +12427,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"summary": {
 					"type": "string",
-					"description": "A new synopsis (at most 1,000 characters). Saves a new version. Omitted: the current summary is kept."
+					"description": "A new card summary (at most 1,000 characters): when to reach for the document and what it covers. Saves a new version. Omitted: the current summary is kept."
 				},
 				"body": {
 					"type": "string",
@@ -12473,7 +12533,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"summary": {
 					"type": "string",
-					"description": "The replacement's synopsis (at most 1,000 characters). Omitted: the replacement has no summary."
+					"description": "The replacement's card summary (at most 1,000 characters): when to reach for it and what it covers. Omitted: the replacement has no summary."
 				},
 				"body": {
 					"type": "string",
@@ -12549,7 +12609,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"summary": {
 					"type": "string",
-					"description": "The replacement's synopsis (at most 1,000 characters). Omitted: the replacement has no summary."
+					"description": "The replacement's card summary (at most 1,000 characters): when to reach for it and what it covers. Omitted: the replacement has no summary."
 				},
 				"body": {
 					"type": "string",

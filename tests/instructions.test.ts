@@ -101,7 +101,31 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /substance and rationale/);
 	assert.doesNotMatch(text, /rule and rationale/);
 	assert.match(text, /create_task requires title, intent, and description/);
-	assert.match(text, /synthesized rationale \(never conversational go-ahead quotes\)/);
+	// Intent is the person's own reason in their own words, never one the model made up
+	// (contract 5.24.0 core.write-the-persons-intent; item cd12cbe2).
+	assert.doesNotMatch(text, /synthesi[sz]ed rationale/i);
+	assert.match(text, /the reason they actually gave, in their own everyday words/);
+	assert.match(text, /never an invented reason or a conversational go-ahead quote \(the served contract's core\.write-the-persons-intent\)/);
+	// Requirements bind and hold Done; risks are weighed, documents are reference (core.hold-work-to-claimed-context).
+	assert.match(text, /Agreed decisions, conventions and requirements bind the work, and a confirmed break of a requirement holds Done/);
+	assert.match(text, /a risk is a hazard to weigh in how you build, not a rule the work is held to/);
+	assert.match(text, /core\.hold-work-to-claimed-context/);
+	assert.doesNotMatch(text, /Agreed project conventions and decisions are binding/);
+	assert.match(text, /core\.record-decisions-only-on-confirmation/);
+	assert.match(text, /core\.raise-reversals-of-surfaced-intent/);
+	// An overlap preview is answered, not treated as a failure (core.prefer-existing-records-on-overlap).
+	assert.match(text, /preview_required: nothing was saved/);
+	assert.match(text, /It is not an error/);
+	assert.match(text, /preview_ack set to its receipt_id only when a separate record is genuinely intended \(the served contract's core\.prefer-existing-records-on-overlap\)/);
+	// Requirements: ask first, record in one step, read linked documents, check delivered work, record met ones as evidence.
+	assert.match(text, /Requirements are rare and ask-first \(the served contract's core\.ask-before-recording-requirements\)/);
+	assert.match(text, /record it in one step with record_requirement/);
+	assert.match(text, /read the document in full/);
+	assert.match(text, /requirement_evidence on your criterion verdicts; never record a break there \(core\.check-deliverables-against-requirements\)/);
+	// Retrieval-ready authoring (item 9436b548): summaries say when to reach for a record; search documents before a new runbook.
+	assert.match(text, /Write a summary as when to reach for the record and what it covers, not how it came about/);
+	assert.match(text, /look for an existing document on the same routine and update or supersede it/);
+	assert.match(text, /link a runbook to the convention or decision it carries out \(the served contract's core\.prefer-existing-records-on-overlap\)/);
 	assert.match(text, /rejected at write time/);
 	assert.match(text, /semantics\.notice_audience/);
 	assert.match(text, /semantics\.notice_reply/);
@@ -144,7 +168,11 @@ test("instructions stay compact (every line costs tokens per turn)", () => {
 	// Raised 9,000 -> 10,000 on 2026-11-12 (item 210fc045): staging's notice-reply
 	// sentence (0.13.2) and the incident rule (0.13.3) are each needed and each fit
 	// alone (8,909 and 8,943 chars); together the block is 9,177.
-	const COMPACT_CEILING_CHARS = 10_000;
+	// Raised 10,000 -> 12,000 on 2026-11-13 (item cd12cbe2): contract 5.24.0 added
+	// requirements, overlap previews, the intent and capture bars, and what binds the
+	// work. Each is a short pointer at the served rule rather than a restatement; the
+	// block is 11,436 chars with them.
+	const COMPACT_CEILING_CHARS = 12_000;
 	assert.ok(
 		text.length < COMPACT_CEILING_CHARS,
 		`instructions bloated: ${text.length} chars (ceiling ${COMPACT_CEILING_CHARS})`,

@@ -54,7 +54,8 @@ test("only reliable first-class edit events can emit the one advisory nudge", as
 	assert.match(first.content, /Continue this edit—editing is never blocked/);
 	assert.match(first.content, /search_tasks/);
 	// create_task requires a substantive description and intent: never advise a thin item (5a9eaa57).
-	assert.match(first.content, /substantive description and the reason for the work/);
+	// The reason is the person's own (contract 5.24.0 core.write-the-persons-intent; item cd12cbe2).
+	assert.match(first.content, /substantive description and the reason the person gave for the work, never an invented one/);
 	assert.doesNotMatch(first.content, /thin|last-mile/);
 	// Pi tags commits itself once one task is claimed (df71ab6c); the model writes
 	// the tag only when Pi says it did not.

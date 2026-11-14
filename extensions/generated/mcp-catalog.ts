@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 8f04f1b48d68fe5f170634bfe553fc69af1b2238560f4423c2cbd74dcd823a97
- * Description fingerprint: 5871e949a824eb4297167241ecc42c1f7680e3ffc1bb7d042a9814e92501ef80
- * Regenerated: 2026-11-14T20:14:24.801Z
+ * Schema fingerprint: 32cc4285fddb29313bb1a6f212b521b274315f35a0a7251e8c214287a47b7ca2
+ * Description fingerprint: 3ee0145e4f5e7b3ad0bf180897e54ddadb5548f1119905522620a07434336a6a
+ * Regenerated: 2026-11-14T23:46:34.103Z
  */
-export const MCP_CATALOG_FINGERPRINT = "8f04f1b48d68fe5f170634bfe553fc69af1b2238560f4423c2cbd74dcd823a97";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "5871e949a824eb4297167241ecc42c1f7680e3ffc1bb7d042a9814e92501ef80";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-14T20:14:24.801Z";
-export const TOOL_CATALOG_VERSION = "75782ce23dce2cb5550ae1835a5aef2a8ff795fb0669343a53879fa35b6c83bd";
+export const MCP_CATALOG_FINGERPRINT = "32cc4285fddb29313bb1a6f212b521b274315f35a0a7251e8c214287a47b7ca2";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "3ee0145e4f5e7b3ad0bf180897e54ddadb5548f1119905522620a07434336a6a";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-14T23:46:34.103Z";
+export const TOOL_CATALOG_VERSION = "51bb0e4c72c1c0804c33688d9ead77da6e75476262206722a073e4f41f0114d1";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -392,7 +392,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_dependency_review",
 		"name": "record dependency review",
-		"description": "Record your review of a Dependabot or Renovate update on its pull request, and with it the green light for the commit you reviewed. Use it for an update that needs no change to project code: such a pull request needs no task, so what you found is kept on the pull request instead. Call it only after you have read the release notes for every version the update skips, checked changed requirements, and run the project's checks on the update, and say in findings what you read, what you ran and what came back. While the project's dependency review runs by itself for someone, DevSpec's check on the pull request waits for this record and clears once it is made; with merge_when_cleared the pull request then merges once everything else required has passed. The record covers one commit: after any push, review again and record again. Refused, with the reason and nothing recorded, when the pull request is not open, was not opened by Dependabot's or Renovate's own GitHub App, is no longer at head_sha, or changes more than dependency files (manifests, lockfiles, and version pins in workflow or container files): such a pull request is checked like any other change and its commits need a task. An update you are holding back is not recorded here: record why on its dependency with record_inventory_entry or revise_inventory_entry.",
+		"description": "Record your review of a Dependabot or Renovate update on its pull request, and with it the green light for the commit you reviewed. Use it for an update that needs no change to project code: such a pull request needs no task, so what you found is kept on the pull request instead. Call it only after you have read the release notes for every version the update skips, checked changed requirements, and run the project's checks on the update, and say in findings what you read, what you ran and what came back. While the project's dependency review runs by itself for someone, DevSpec's check on the pull request waits for this record and clears once it is made; with merge_when_cleared the pull request then merges once everything else required has passed. The record covers one commit: after any push, review again and record again. Refused, with the reason and nothing recorded, when the pull request is not open, was not opened by Dependabot's or Renovate's own GitHub App, is no longer at head_sha, or changes more than dependency files (manifests, lockfiles, and version pins in workflow or container files): such a pull request is checked like any other change and its commits need a task. The one pull request of your own it accepts is one you opened to carry a bot's update unchanged into the tracking branch because the bot's own could not be retargeted: pass carries_pull_request_number, and DevSpec compares the two changes and records the review only when they are identical, so a copy with anything added still needs a task. An update you are holding back is not recorded here: record why on its dependency with record_inventory_entry or revise_inventory_entry.",
 		"intent": "record dependency review green light dependabot renovate pull request update release notes compatibility"
 	},
 	{
@@ -9273,7 +9273,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_dependency_review",
 		"label": "DevSpec: Record Dependency Review",
-		"description": "Record your review of a Dependabot or Renovate update on its pull request, and with it the green light for the commit you reviewed. Use it for an update that needs no change to project code: such a pull request needs no task, so what you found is kept on the pull request instead. Call it only after you have read the release notes for every version the update skips, checked changed requirements, and run the project's checks on the update, and say in findings what you read, what you ran and what came back. While the project's dependency review runs by itself for someone, DevSpec's check on the pull request waits for this record and clears once it is made; with merge_when_cleared the pull request then merges once everything else required has passed. The record covers one commit: after any push, review again and record again. Refused, with the reason and nothing recorded, when the pull request is not open, was not opened by Dependabot's or Renovate's own GitHub App, is no longer at head_sha, or changes more than dependency files (manifests, lockfiles, and version pins in workflow or container files): such a pull request is checked like any other change and its commits need a task. An update you are holding back is not recorded here: record why on its dependency with record_inventory_entry or revise_inventory_entry.",
+		"description": "Record your review of a Dependabot or Renovate update on its pull request, and with it the green light for the commit you reviewed. Use it for an update that needs no change to project code: such a pull request needs no task, so what you found is kept on the pull request instead. Call it only after you have read the release notes for every version the update skips, checked changed requirements, and run the project's checks on the update, and say in findings what you read, what you ran and what came back. While the project's dependency review runs by itself for someone, DevSpec's check on the pull request waits for this record and clears once it is made; with merge_when_cleared the pull request then merges once everything else required has passed. The record covers one commit: after any push, review again and record again. Refused, with the reason and nothing recorded, when the pull request is not open, was not opened by Dependabot's or Renovate's own GitHub App, is no longer at head_sha, or changes more than dependency files (manifests, lockfiles, and version pins in workflow or container files): such a pull request is checked like any other change and its commits need a task. The one pull request of your own it accepts is one you opened to carry a bot's update unchanged into the tracking branch because the bot's own could not be retargeted: pass carries_pull_request_number, and DevSpec compares the two changes and records the review only when they are identical, so a copy with anything added still needs a task. An update you are holding back is not recorded here: record why on its dependency with record_inventory_entry or revise_inventory_entry.",
 		"searchIntent": "record dependency review green light dependabot renovate pull request update release notes compatibility",
 		"modelInputSchema": {
 			"type": "object",
@@ -9315,6 +9315,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"merge_when_cleared": {
 					"type": "boolean",
 					"description": "true switches on DevSpec's Merge when cleared for this pull request in the same call, so it merges once DevSpec's check and every other required check have passed on this commit; false switches it off. Omitted: left as it is."
+				},
+				"carries_pull_request_number": {
+					"anyOf": [
+						{
+							"type": "integer"
+						},
+						{
+							"type": "string",
+							"pattern": "^#?\\d+$"
+						}
+					],
+					"description": "Only on a pull request you opened to carry a bot's update unchanged: the number of the Dependabot or Renovate pull request, in the same repository, whose change it carries. DevSpec compares the two: every file must be a dependency file, and every manifest or version pin must change the same lines in both (lockfiles may differ). Identical: the review is recorded and the pull request needs no task. Anything else is refused naming the files. Omitted: the pull request must be the bot's own."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -9382,6 +9394,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"merge_when_cleared": {
 					"type": "boolean",
 					"description": "true switches on DevSpec's Merge when cleared for this pull request in the same call, so it merges once DevSpec's check and every other required check have passed on this commit; false switches it off. Omitted: left as it is."
+				},
+				"carries_pull_request_number": {
+					"anyOf": [
+						{
+							"type": "integer"
+						},
+						{
+							"type": "string",
+							"pattern": "^#?\\d+$"
+						}
+					],
+					"description": "Only on a pull request you opened to carry a bot's update unchanged: the number of the Dependabot or Renovate pull request, in the same repository, whose change it carries. DevSpec compares the two: every file must be a dependency file, and every manifest or version pin must change the same lines in both (lockfiles may differ). Identical: the review is recorded and the pull request needs no task. Anything else is refused naming the files. Omitted: the pull request must be the bot's own."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",

@@ -932,7 +932,22 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// manage_knowledge_links and create_resource. No required field changed. Hot set unchanged
 		// (every eligible model verb). Benchmark before/after (with this item's instruction
 		// pointers): initial surface 70,956 -> 73,134 estimated tokens; every check still passes.
-		"6c4a44c2ea14d3544da7009ad406af1126bee836bd90b6fa5812c1322d8a445e",
+		// Rebaselined 2026-11-14 for DevSpec items f721803f (dependency updates need no task) and
+		// 6714db51 (a security incident waits on its fix), regenerated against the DevSpecV2
+		// pull request 1346 head 8799c44bf (staging 2026-11-14 plus f721803f). Verbs 99 -> 105
+		// model / 12 pump / 1 never-model. Added: record_dependency_review (f721803f), and the
+		// five inventory verbs the server shipped in d4b78ada that Pi had not picked up
+		// (get_inventory, get_inventory_entry, record_inventory_entry, revise_inventory_entry,
+		// retract_inventory_entry). All six are assigned to the full-read family: an inventory
+		// read or write carries version, lifecycle, outcome and field-level refusals like a
+		// requirement's, and a dependency review's receipt carries the commit it covers and each
+		// refusal's reason. No existing verb's family changed. Inputs: manage_incident gains
+		// optional fix_pull_request_number (an integer: the pull request carrying the fix when
+		// the fix has no task), and its action and repo descriptions changed. Description-only:
+		// get_pull_request now says it returns dependency_review. No required field changed. Hot set
+		// is every eligible model verb, so it gains the six (95 -> 101). Benchmark before/after:
+		// initial surface 73,134 -> 77,604 estimated tokens; every check still passes.
+		"7516cb7db357ee2ed759945b8fba7a4ec87ce62506ae9fecd185a8a496b2e929",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.3 - 2026-11-14
+
+- **Your agent can land a routine Dependabot or Renovate update without creating a task for it.** DevSpec no longer asks for a task on a pull request that only bumps versions. Pi now has the tool your agent uses instead: once it has read the release notes and run your project's checks, it records what it found on the pull request, and that record is the green light DevSpec's check waits for. A task is still created when an upgrade needs your project's code changed.
+- **A security incident stays with its fix while the fix is on its way.** When the fix is a pull request with no task, your agent can now name that pull request so the incident shows as waiting on it, and DevSpec closes the incident when the fix merges.
+- **Pi can read and record your project's infrastructure inventory.** The five inventory tools DevSpec already offered (list, read, record, revise and retract an entry) are now in Pi too, so your agent can look up where something is deployed and record a dependency update it is holding back.
+- Pi's built-in copy of DevSpec's tools is regenerated to match the server.
+
 ## 0.14.2 - 2026-11-13
 
 - **Pi no longer holds your first prompt for minutes when DevSpec doesn't answer.** If DevSpec accepts the connection but never replies when Pi starts, for example because the server is hung, Pi now waits at most 30 seconds, then carries on without it and says once that DevSpec could not be reached. Your first prompt runs straight after. Before, it sat for up to two minutes and then showed "auto-bond failed: MCP error -32001: Request timed out". A server that refuses the connection outright is still handled at once.

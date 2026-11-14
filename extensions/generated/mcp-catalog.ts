@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: fd28705e8814506026787d36022ac1d11f6d3d99499b7b7a695edc8c7605ad17
- * Description fingerprint: c1b907839fdd8b94449f4b843007cd20d0619edab49c89cf0dc4cca2056b8159
- * Regenerated: 2026-11-13T12:05:30.310Z
+ * Schema fingerprint: 8f04f1b48d68fe5f170634bfe553fc69af1b2238560f4423c2cbd74dcd823a97
+ * Description fingerprint: 5871e949a824eb4297167241ecc42c1f7680e3ffc1bb7d042a9814e92501ef80
+ * Regenerated: 2026-11-14T20:14:24.801Z
  */
-export const MCP_CATALOG_FINGERPRINT = "fd28705e8814506026787d36022ac1d11f6d3d99499b7b7a695edc8c7605ad17";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "c1b907839fdd8b94449f4b843007cd20d0619edab49c89cf0dc4cca2056b8159";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-13T12:05:30.310Z";
-export const TOOL_CATALOG_VERSION = "40fd50b049790c7d049a2efbab0f140bca6461679666af595310e5bcf3577a57";
+export const MCP_CATALOG_FINGERPRINT = "8f04f1b48d68fe5f170634bfe553fc69af1b2238560f4423c2cbd74dcd823a97";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "5871e949a824eb4297167241ecc42c1f7680e3ffc1bb7d042a9814e92501ef80";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-14T20:14:24.801Z";
+export const TOOL_CATALOG_VERSION = "75782ce23dce2cb5550ae1835a5aef2a8ff795fb0669343a53879fa35b6c83bd";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -168,6 +168,18 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"intent": "list query open project incidents, what is blocking my pull request or task, merge blocker check failure deploy failure status"
 	},
 	{
+		"id": "get_inventory",
+		"name": "get inventory",
+		"description": "List the project's infrastructure inventory: where its apps, sites, builds, packages, repositories, databases and providers live, with each entry's environment, lifecycle and current version. Cards only: read one entry in full, with its versions, with get_inventory_entry. Current versions only; retired and replaced entries are listed unless you filter by lifecycle. An entry records a location: it is not proof the resource is healthy or up to date, and listing it grants no access. Suggested entries waiting for review are not listed. page.total_matching counts the entries matching your filters; pass page.next_offset as offset for the next page.",
+		"intent": "list infrastructure inventory environments urls production staging addresses where deployed hosted"
+	},
+	{
+		"id": "get_inventory_entry",
+		"name": "get inventory entry",
+		"description": "Read one infrastructure inventory entry in full: its name, purpose, resource type, environments, provider, location, host group and lifecycle (with the entry that replaced it, when replaced), the version you asked for, which version is current, and every earlier version with its own fields. Pass any version's id; when it is not the current version, current_id names the one that is. A retracted entry is still readable. Review flags are shown as found, never settled: no flag means none is known, not that the entry is verified.",
+		"intent": "read one inventory entry url environment history versions replaced"
+	},
+	{
 		"id": "get_memory",
 		"name": "get memory",
 		"description": "Read one memory in full: its body, optional ai_instructions (implementation guidance), companions (linked companion memories and documents), state, lineage and change history. Search and list tools return cards; read the body here before relying on a memory, superseding it or contradicting it. If superseded_by is set, a newer version is current: read that one. Every earlier version stays readable in full: each history entry's resultRowId is that version's id, to pass here. Changes proposed and not yet agreed are in pending_versions, beside the agreed text and never part of it; delivery, when present, says the decision is not implemented yet and which item delivers it; checks_pending, when present, says a new decision is not in force yet, so don't treat it as governing other work. Accepts the 8-character short code. For older history, pass history_next_before as history_before. If the response carries evidence, follow its evidence_guidance. A read that fails says unavailable, never not found: try again rather than concluding the memory does not exist.",
@@ -200,7 +212,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_pull_request",
 		"name": "get pull request",
-		"description": "Read one pull request as DevSpec last synced it: state, review, checks, branches, changed files, commits, and the tasks and knowledge linked to it by recorded evidence, plus anything still awaiting a maintainer. A link with nothing behind it is reported in absent, never guessed. Pass number (with repo when the project tracks several repositories) or pull_request_id; a pull request not yet synced comes back not found. Read-only. DevSpec publishes its check on pull requests: into the tracking branch it reflects pending checks and holds on the work, into the release branch it holds only for what is being released, into any other branch it reports Not checked here, and one still running when the pull request merges or closes is finished as neutral. DevSpec never approves or merges a pull request on GitHub or changes branch protection.",
+		"description": "Read one pull request as DevSpec last synced it: state, review, checks, branches, changed files, commits, and the tasks and knowledge linked to it by recorded evidence, plus anything still awaiting a maintainer, and for a Dependabot or Renovate update an agent has reviewed at its current commit, that review (dependency_review; record one with record_dependency_review). A link with nothing behind it is reported in absent, never guessed. Pass number (with repo when the project tracks several repositories) or pull_request_id; a pull request not yet synced comes back not found. Read-only. DevSpec publishes its check on pull requests: into the tracking branch it reflects pending checks and holds on the work, into the release branch it holds only for what is being released, into any other branch it reports Not checked here, and one still running when the pull request merges or closes is finished as neutral. DevSpec never approves or merges a pull request on GitHub or changes branch protection.",
 		"intent": "read pull request changes commits linked tasks knowledge review state"
 	},
 	{
@@ -378,6 +390,12 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"intent": "record observed acceptance criteria check results evidence met unknown"
 	},
 	{
+		"id": "record_dependency_review",
+		"name": "record dependency review",
+		"description": "Record your review of a Dependabot or Renovate update on its pull request, and with it the green light for the commit you reviewed. Use it for an update that needs no change to project code: such a pull request needs no task, so what you found is kept on the pull request instead. Call it only after you have read the release notes for every version the update skips, checked changed requirements, and run the project's checks on the update, and say in findings what you read, what you ran and what came back. While the project's dependency review runs by itself for someone, DevSpec's check on the pull request waits for this record and clears once it is made; with merge_when_cleared the pull request then merges once everything else required has passed. The record covers one commit: after any push, review again and record again. Refused, with the reason and nothing recorded, when the pull request is not open, was not opened by Dependabot's or Renovate's own GitHub App, is no longer at head_sha, or changes more than dependency files (manifests, lockfiles, and version pins in workflow or container files): such a pull request is checked like any other change and its commits need a task. An update you are holding back is not recorded here: record why on its dependency with record_inventory_entry or revise_inventory_entry.",
+		"intent": "record dependency review green light dependabot renovate pull request update release notes compatibility"
+	},
+	{
 		"id": "record_duplicate_nonmatch",
 		"name": "record duplicate nonmatch",
 		"description": "Record your explicit judgement that two current records do not describe the same overall outcome, after reading both in full. This suppresses that duplicate comparison only while the relevant content remains unchanged; it does not edit or close either record, settle an intent reversal, or suppress descriptive staleness. Do not call it merely because an automated check found no duplicate. Use the full record ids and versions you read, explain the difference, and reuse the same ruling_id after an uncertain reply.",
@@ -388,6 +406,12 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"name": "record implementation",
 		"description": "Record delivered work on an existing task, claimed or not: changed files, checks and an honest summary. You do not name the commit: DevSpec chooses it from what it observed, and the response's commit_sha_source says where it came from; only none asks you for one. If the item is claimed, only the claim's holder can record it, and the claim and its reservation close. The item moves to implemented, or to done once everything the implementation contract requires for done is in place; lifecycle and done_blocker in the response say where it landed and what it still waits for. Each call opens a new implementation round, so call it once per delivery; add later context with add_implementation_note. For work that has no item, use record_completed_work. Act on any returned own_criteria_follow_through or brief_follow_through before you report. Then report the commit, lifecycle and verification status exactly as returned. This is not human sign-off. Lifecycle and completion follow devspec://product/implementation-contract.",
 		"intent": "record report delivered implementation on an existing task claimed or unclaimed commit changed files checks completion"
+	},
+	{
+		"id": "record_inventory_entry",
+		"name": "record inventory entry",
+		"description": "Record where one of the project's resources lives: a deployed app or site, an app store listing or test build, a package, a repository, a database, a server, a provider account. Record only what the person said or confirmed; never infer an environment, an address or a provider from code, configuration or a conversation's guess. One entry per resource: a site, the server it runs on and the dashboard that manages it are separate entries (host_group groups entries on one box). A Contributor's or Maintainer's entry is recorded at once (outcome committed); a Reviewed Contributor's, and any unattended run's, is saved as a suggestion for a Maintainer (outcome queued_for_review) and nothing is recorded until then. Credentials are refused, never stored: the answer names the field and the rule, not the value.",
+		"intent": "record add infrastructure inventory entry url environment provider where deployed"
 	},
 	{
 		"id": "record_memory",
@@ -456,6 +480,12 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"intent": "resolve rule on task possibly outdated stale review flag still valid clear flag"
 	},
 	{
+		"id": "retract_inventory_entry",
+		"name": "retract inventory entry",
+		"description": "Retract an infrastructure inventory entry that was recorded by mistake. It stays readable with its full history, but stops being listed. A resource that existed and is no longer used is retired instead (revise_inventory_entry with lifecycle retired), so its old address stays findable. A Contributor's or Maintainer's retraction applies at once; a Reviewed Contributor's, and any unattended run's, waits for a Maintainer (outcome queued_for_review).",
+		"intent": "retract remove mistaken inventory entry"
+	},
+	{
 		"id": "retract_memory",
 		"name": "retract memory",
 		"description": "Retract a memory that is no longer true and that nothing replaces. It is kept and marked retracted: lists stop returning it, and so does search unless include_superseded is set; get_memory still reads it. Use supersede_memory when a newer decision should take its place. Retracting someone else's settled decision overrules them, so ask unless you were already told to go ahead. outcome committed is live; queued_for_review carries a proposal_id and changes nothing until a Maintainer accepts it. Which of the two a call gets is set by authority_contract in devspec://product/implementation-contract.",
@@ -466,6 +496,12 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"name": "retract requirement",
 		"description": "Retract a requirement that no longer stands and that nothing replaces. It is kept and marked retracted with full version history preserved: active lists stop returning it, and search excludes it unless include_superseded is set; get_requirement still reads it. Uses the shared Decision-memory ownership and authority rules: the requirement's owner or the Project Lead retracts directly (outcome committed), while a peer Maintainer retracting another Maintainer's requirement — or a Contributor or Reviewed Contributor — queues a proposal (outcome queued_for_review) waiting on that owner's or the Project Lead's OK.",
 		"intent": "retract retire end withdraw requirement no longer stands"
+	},
+	{
+		"id": "revise_inventory_entry",
+		"name": "revise inventory entry",
+		"description": "Change an infrastructure inventory entry: correct it, move it to a new address, retire it (lifecycle retired) or mark it replaced (lifecycle replaced, with replaced_by). Every change is a new version; earlier versions stay in its history. Send only what changes: omitted fields keep their values, null clears an optional one. Read the entry first with get_inventory_entry and pass its version as expected_version: if it has changed since, nothing is written (outcome stale). A Contributor's or Maintainer's change applies at once; a Reviewed Contributor's, and any unattended run's, waits for a Maintainer (outcome queued_for_review) and the entry is unchanged until then. To remove an entry recorded by mistake, use retract_inventory_entry instead.",
+		"intent": "update change move retire replace inventory entry url environment"
 	},
 	{
 		"id": "search_devspec_tools",
@@ -668,6 +704,8 @@ export const MODEL_VERB_NAMES = [
 	"get_resources",
 	"search_resources",
 	"get_resource",
+	"get_inventory",
+	"get_inventory_entry",
 	"get_session_transcript",
 	"get_recent_sessions",
 	"search_sessions",
@@ -702,6 +740,7 @@ export const MODEL_VERB_NAMES = [
 	"record_criterion_verdicts",
 	"classify_criterion",
 	"add_commit_reference",
+	"record_dependency_review",
 	"manage_goals",
 	"record_duplicate_nonmatch",
 	"resolve_duplicate",
@@ -722,6 +761,9 @@ export const MODEL_VERB_NAMES = [
 	"supersede_resource",
 	"archive_resource",
 	"resolve_resource_flag",
+	"record_inventory_entry",
+	"revise_inventory_entry",
+	"retract_inventory_entry",
 	"manage_discussion_point",
 	"manage_plan",
 	"manage_poll",
@@ -2283,7 +2325,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_pull_request",
 		"label": "DevSpec: Get Pull Request",
-		"description": "Read one pull request as DevSpec last synced it: state, review, checks, branches, changed files, commits, and the tasks and knowledge linked to it by recorded evidence, plus anything still awaiting a maintainer. A link with nothing behind it is reported in absent, never guessed. Pass number (with repo when the project tracks several repositories) or pull_request_id; a pull request not yet synced comes back not found. Read-only. DevSpec publishes its check on pull requests: into the tracking branch it reflects pending checks and holds on the work, into the release branch it holds only for what is being released, into any other branch it reports Not checked here, and one still running when the pull request merges or closes is finished as neutral. DevSpec never approves or merges a pull request on GitHub or changes branch protection.",
+		"description": "Read one pull request as DevSpec last synced it: state, review, checks, branches, changed files, commits, and the tasks and knowledge linked to it by recorded evidence, plus anything still awaiting a maintainer, and for a Dependabot or Renovate update an agent has reviewed at its current commit, that review (dependency_review; record one with record_dependency_review). A link with nothing behind it is reported in absent, never guessed. Pass number (with repo when the project tracks several repositories) or pull_request_id; a pull request not yet synced comes back not found. Read-only. DevSpec publishes its check on pull requests: into the tracking branch it reflects pending checks and holds on the work, into the release branch it holds only for what is being released, into any other branch it reports Not checked here, and one still running when the pull request merges or closes is finished as neutral. DevSpec never approves or merges a pull request on GitHub or changes branch protection.",
 		"searchIntent": "read pull request changes commits linked tasks knowledge review state",
 		"modelInputSchema": {
 			"type": "object",
@@ -3791,6 +3833,218 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"id"
+			]
+		},
+		"kind": "model"
+	},
+	{
+		"name": "get_inventory",
+		"label": "DevSpec: Get Inventory",
+		"description": "List the project's infrastructure inventory: where its apps, sites, builds, packages, repositories, databases and providers live, with each entry's environment, lifecycle and current version. Cards only: read one entry in full, with its versions, with get_inventory_entry. Current versions only; retired and replaced entries are listed unless you filter by lifecycle. An entry records a location: it is not proof the resource is healthy or up to date, and listing it grants no access. Suggested entries waiting for review are not listed. page.total_matching counts the entries matching your filters; pass page.next_offset as offset for the next page.",
+		"searchIntent": "list infrastructure inventory environments urls production staging addresses where deployed hosted",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"lifecycle": {
+					"type": "string",
+					"enum": [
+						"current",
+						"retired",
+						"replaced",
+						"all"
+					],
+					"description": "Only entries with this lifecycle. Default all."
+				},
+				"environment": {
+					"type": "string",
+					"enum": [
+						"production",
+						"staging",
+						"preview",
+						"development"
+					],
+					"description": "Only entries serving this environment (an entry spanning several matches each). Omitted: every environment."
+				},
+				"resource_type": {
+					"type": "string",
+					"enum": [
+						"web_app",
+						"website",
+						"api",
+						"mobile_app_listing",
+						"mobile_test_build",
+						"package",
+						"release",
+						"repository",
+						"database",
+						"server",
+						"hosting",
+						"dashboard",
+						"storage",
+						"observability",
+						"domain",
+						"service",
+						"other"
+					],
+					"description": "Only entries of this resource type. Omitted: every type."
+				},
+				"delivered_only": {
+					"type": "boolean",
+					"description": "Only delivered things with a web address (deployed apps and sites, store listings, test builds, packages, releases): what the project overview links. Default false."
+				},
+				"limit": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100,
+					"description": "Entries per page, 1-100. Default 50."
+				},
+				"offset": {
+					"type": "integer",
+					"minimum": 0,
+					"description": "Where this page starts: page.next_offset from the previous page. Default 0."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				}
+			}
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"lifecycle": {
+					"type": "string",
+					"enum": [
+						"current",
+						"retired",
+						"replaced",
+						"all"
+					],
+					"description": "Only entries with this lifecycle. Default all."
+				},
+				"environment": {
+					"type": "string",
+					"enum": [
+						"production",
+						"staging",
+						"preview",
+						"development"
+					],
+					"description": "Only entries serving this environment (an entry spanning several matches each). Omitted: every environment."
+				},
+				"resource_type": {
+					"type": "string",
+					"enum": [
+						"web_app",
+						"website",
+						"api",
+						"mobile_app_listing",
+						"mobile_test_build",
+						"package",
+						"release",
+						"repository",
+						"database",
+						"server",
+						"hosting",
+						"dashboard",
+						"storage",
+						"observability",
+						"domain",
+						"service",
+						"other"
+					],
+					"description": "Only entries of this resource type. Omitted: every type."
+				},
+				"delivered_only": {
+					"type": "boolean",
+					"description": "Only delivered things with a web address (deployed apps and sites, store listings, test builds, packages, releases): what the project overview links. Default false."
+				},
+				"limit": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100,
+					"description": "Entries per page, 1-100. Default 50."
+				},
+				"offset": {
+					"type": "integer",
+					"minimum": 0,
+					"description": "Where this page starts: page.next_offset from the previous page. Default 0."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				}
+			}
+		},
+		"kind": "model"
+	},
+	{
+		"name": "get_inventory_entry",
+		"label": "DevSpec: Get Inventory Entry",
+		"description": "Read one infrastructure inventory entry in full: its name, purpose, resource type, environments, provider, location, host group and lifecycle (with the entry that replaced it, when replaced), the version you asked for, which version is current, and every earlier version with its own fields. Pass any version's id; when it is not the current version, current_id names the one that is. A retracted entry is still readable. Review flags are shown as found, never settled: no flag means none is known, not that the entry is verified.",
+		"searchIntent": "read one inventory entry url environment history versions replaced",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string",
+					"description": "The entry version's id (from get_inventory or an earlier answer)."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"id"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string",
+					"description": "The entry version's id (from get_inventory or an earlier answer)."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
 					"type": "string"
 				}
 			},
@@ -9017,6 +9271,152 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"kind": "model"
 	},
 	{
+		"name": "record_dependency_review",
+		"label": "DevSpec: Record Dependency Review",
+		"description": "Record your review of a Dependabot or Renovate update on its pull request, and with it the green light for the commit you reviewed. Use it for an update that needs no change to project code: such a pull request needs no task, so what you found is kept on the pull request instead. Call it only after you have read the release notes for every version the update skips, checked changed requirements, and run the project's checks on the update, and say in findings what you read, what you ran and what came back. While the project's dependency review runs by itself for someone, DevSpec's check on the pull request waits for this record and clears once it is made; with merge_when_cleared the pull request then merges once everything else required has passed. The record covers one commit: after any push, review again and record again. Refused, with the reason and nothing recorded, when the pull request is not open, was not opened by Dependabot's or Renovate's own GitHub App, is no longer at head_sha, or changes more than dependency files (manifests, lockfiles, and version pins in workflow or container files): such a pull request is checked like any other change and its commits need a task. An update you are holding back is not recorded here: record why on its dependency with record_inventory_entry or revise_inventory_entry.",
+		"searchIntent": "record dependency review green light dependabot renovate pull request update release notes compatibility",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"number": {
+					"anyOf": [
+						{
+							"type": "integer"
+						},
+						{
+							"type": "string",
+							"pattern": "^#?\\d+$"
+						}
+					],
+					"description": "The pull request number on the provider. Either this or pull_request_id is required. If the number exists in more than one tracked repository, the call is refused and names them: add repo. Omitted: pull_request_id is used."
+				},
+				"repo": {
+					"type": "string",
+					"description": "Which tracked repository the number belongs to: owner/name, the bare name or DevSpec's repository id, case-insensitive. Needed only when the project tracks several. Ignored with pull_request_id."
+				},
+				"pull_request_id": {
+					"type": "string",
+					"description": "DevSpec's pull request UUID, as get_pull_request returns it. Takes precedence over number. Omitted: number is used."
+				},
+				"head_sha": {
+					"type": "string",
+					"pattern": "^[0-9a-fA-F]{40}$",
+					"description": "The full 40-character commit you reviewed: the pull request's head when you ran your checks (`gh pr view <number> --json headRefOid`). The call is refused when the pull request is no longer at this commit."
+				},
+				"findings": {
+					"type": "string",
+					"minLength": 1,
+					"description": "What you found, in plain words, as Markdown: which release notes you read and for which versions, any breaking change or deprecation and whether it touches this project, changed requirements, and which of the project's checks you ran with their results. It is kept on the pull request and shown to people."
+				},
+				"merge_when_cleared": {
+					"type": "boolean",
+					"description": "true switches on DevSpec's Merge when cleared for this pull request in the same call, so it merges once DevSpec's check and every other required check have passed on this commit; false switches it off. Omitted: left as it is."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"head_sha",
+				"findings"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your connection id, if you run as one; the connection your client signed in as is used instead when there is one. When that connection is carrying out someone's command, the write is judged by that person's role on the project, and while it works an automation run, as unattended. With no connection the write is judged as yours, and as unattended while any of your agents is working an automation run in this project. A connection that is not live, not yours or not on this project is refused."
+				},
+				"number": {
+					"anyOf": [
+						{
+							"type": "integer"
+						},
+						{
+							"type": "string",
+							"pattern": "^#?\\d+$"
+						}
+					],
+					"description": "The pull request number on the provider. Either this or pull_request_id is required. If the number exists in more than one tracked repository, the call is refused and names them: add repo. Omitted: pull_request_id is used."
+				},
+				"repo": {
+					"type": "string",
+					"description": "Which tracked repository the number belongs to: owner/name, the bare name or DevSpec's repository id, case-insensitive. Needed only when the project tracks several. Ignored with pull_request_id."
+				},
+				"pull_request_id": {
+					"type": "string",
+					"description": "DevSpec's pull request UUID, as get_pull_request returns it. Takes precedence over number. Omitted: number is used."
+				},
+				"head_sha": {
+					"type": "string",
+					"pattern": "^[0-9a-fA-F]{40}$",
+					"description": "The full 40-character commit you reviewed: the pull request's head when you ran your checks (`gh pr view <number> --json headRefOid`). The call is refused when the pull request is no longer at this commit."
+				},
+				"findings": {
+					"type": "string",
+					"minLength": 1,
+					"description": "What you found, in plain words, as Markdown: which release notes you read and for which versions, any breaking change or deprecation and whether it touches this project, changed requirements, and which of the project's checks you ran with their results. It is kept on the pull request and shown to people."
+				},
+				"merge_when_cleared": {
+					"type": "boolean",
+					"description": "true switches on DevSpec's Merge when cleared for this pull request in the same call, so it merges once DevSpec's check and every other required check have passed on this commit; false switches it off. Omitted: left as it is."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"request_ref": {
+					"type": "string",
+					"x-devspec-host-only": true,
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"head_sha",
+				"findings"
+			]
+		},
+		"kind": "model"
+	},
+	{
 		"name": "manage_goals",
 		"label": "DevSpec: Manage Goals",
 		"description": "Create, reshape, reorder, confirm, and close project goals and their outcomes, or manage explicit outcome links across briefs, tasks, documents (resources), and discussion points. A goal is an active chapter with outcomes in active_now and up_next horizons. Each outcome is either product_shipped (moves to ready_to_confirm when all non-dismissed linked tasks finish; a person then confirms it met) or human_confirmed (person sign-off only). Completing tasks never auto-achieves a goal, and closing, achieving, or reshaping a goal succeeds cleanly regardless of open or parked tasks. Explicit links and exclusions managed here are sticky when human-directed so background matching respects them; routine task work does not pass goal_ids on create_task, update_task, or record_implementation.",
@@ -12853,6 +13253,708 @@ export const MCP_CATALOG: CatalogEntry[] = [
 		"kind": "model"
 	},
 	{
+		"name": "record_inventory_entry",
+		"label": "DevSpec: Record Inventory Entry",
+		"description": "Record where one of the project's resources lives: a deployed app or site, an app store listing or test build, a package, a repository, a database, a server, a provider account. Record only what the person said or confirmed; never infer an environment, an address or a provider from code, configuration or a conversation's guess. One entry per resource: a site, the server it runs on and the dashboard that manages it are separate entries (host_group groups entries on one box). A Contributor's or Maintainer's entry is recorded at once (outcome committed); a Reviewed Contributor's, and any unattended run's, is saved as a suggestion for a Maintainer (outcome queued_for_review) and nothing is recorded until then. Credentials are refused, never stored: the answer names the field and the rule, not the value.",
+		"searchIntent": "record add infrastructure inventory entry url environment provider where deployed",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id, if you are a connected agent. It records which agent made this change and the session it came from, and lets a teammate's command be attributed to, and judged as, the person who gave it. Omitted: the connection your client authenticated, if any; otherwise the write names no agent or session. Refused if the connection is not live, not yours, or not the one your client authenticated."
+				},
+				"name": {
+					"type": "string",
+					"description": "A short, specific name for the resource (one line, at most 200 characters), such as \"Customer web app\" or \"Staging database\"."
+				},
+				"purpose": {
+					"type": "string",
+					"description": "What it is for, in a sentence or two of plain prose (at most 2,000 characters). Not a procedure, not credentials."
+				},
+				"resource_type": {
+					"type": "string",
+					"enum": [
+						"web_app",
+						"website",
+						"api",
+						"mobile_app_listing",
+						"mobile_test_build",
+						"package",
+						"release",
+						"repository",
+						"database",
+						"server",
+						"hosting",
+						"dashboard",
+						"storage",
+						"observability",
+						"domain",
+						"service",
+						"other"
+					],
+					"description": "What sort of resource it is: web_app, website, api, mobile_app_listing (an app store listing), mobile_test_build (TestFlight or internal testing), package (npm, PyPI…), release, repository, database, server, hosting, dashboard, storage, observability (logs, metrics), domain, service (another provider account) or other. A site, the server it runs on and the dashboard that manages it are separate entries."
+				},
+				"environments": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"production",
+							"staging",
+							"preview",
+							"development"
+						]
+					},
+					"description": "Which environments it serves: production, staging, preview and/or development. Several means it spans them; an empty list means it is not tied to one. Never guess: if nobody said which environment, ask."
+				},
+				"provider": {
+					"type": "string",
+					"description": "Who provides or hosts it (one line, at most 100 characters), such as \"Vercel\" or \"Apple App Store\". Omitted: none recorded."
+				},
+				"location_kind": {
+					"type": "string",
+					"enum": [
+						"url",
+						"identifier"
+					],
+					"description": "Whether location is a url or an identifier. Required with location."
+				},
+				"location": {
+					"type": "string",
+					"description": "Where it is: a web address (location_kind url; https or http only) or a non-secret identifier (location_kind identifier: a project reference, bucket or dataset name, repository). Never a password, token, key, signed link or connection string: those are refused and nothing is saved. Nothing is fetched to check it."
+				},
+				"host_group": {
+					"type": "string",
+					"description": "The box several distinct resources share, as a label (one line, at most 100 characters). It groups entries; it never makes them the same resource. Omitted: none."
+				},
+				"lifecycle": {
+					"type": "string",
+					"enum": [
+						"current",
+						"retired",
+						"replaced"
+					],
+					"description": "current (default), retired, or replaced (then name replaced_by). Recording an entry already retired keeps an old address findable."
+				},
+				"replaced_by": {
+					"type": "string",
+					"description": "With lifecycle replaced: the stable id (thread_id) of the inventory entry that replaced this one."
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Topic tags, at most 10. Omitted: none."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"description": "A fresh UUID for this intended entry; reuse it, with the same fields, to retry after an uncertain answer. Required when the entry is saved for review, so send one every time."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"name",
+				"purpose",
+				"resource_type"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id, if you are a connected agent. It records which agent made this change and the session it came from, and lets a teammate's command be attributed to, and judged as, the person who gave it. Omitted: the connection your client authenticated, if any; otherwise the write names no agent or session. Refused if the connection is not live, not yours, or not the one your client authenticated."
+				},
+				"name": {
+					"type": "string",
+					"description": "A short, specific name for the resource (one line, at most 200 characters), such as \"Customer web app\" or \"Staging database\"."
+				},
+				"purpose": {
+					"type": "string",
+					"description": "What it is for, in a sentence or two of plain prose (at most 2,000 characters). Not a procedure, not credentials."
+				},
+				"resource_type": {
+					"type": "string",
+					"enum": [
+						"web_app",
+						"website",
+						"api",
+						"mobile_app_listing",
+						"mobile_test_build",
+						"package",
+						"release",
+						"repository",
+						"database",
+						"server",
+						"hosting",
+						"dashboard",
+						"storage",
+						"observability",
+						"domain",
+						"service",
+						"other"
+					],
+					"description": "What sort of resource it is: web_app, website, api, mobile_app_listing (an app store listing), mobile_test_build (TestFlight or internal testing), package (npm, PyPI…), release, repository, database, server, hosting, dashboard, storage, observability (logs, metrics), domain, service (another provider account) or other. A site, the server it runs on and the dashboard that manages it are separate entries."
+				},
+				"environments": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"production",
+							"staging",
+							"preview",
+							"development"
+						]
+					},
+					"description": "Which environments it serves: production, staging, preview and/or development. Several means it spans them; an empty list means it is not tied to one. Never guess: if nobody said which environment, ask."
+				},
+				"provider": {
+					"type": "string",
+					"description": "Who provides or hosts it (one line, at most 100 characters), such as \"Vercel\" or \"Apple App Store\". Omitted: none recorded."
+				},
+				"location_kind": {
+					"type": "string",
+					"enum": [
+						"url",
+						"identifier"
+					],
+					"description": "Whether location is a url or an identifier. Required with location."
+				},
+				"location": {
+					"type": "string",
+					"description": "Where it is: a web address (location_kind url; https or http only) or a non-secret identifier (location_kind identifier: a project reference, bucket or dataset name, repository). Never a password, token, key, signed link or connection string: those are refused and nothing is saved. Nothing is fetched to check it."
+				},
+				"host_group": {
+					"type": "string",
+					"description": "The box several distinct resources share, as a label (one line, at most 100 characters). It groups entries; it never makes them the same resource. Omitted: none."
+				},
+				"lifecycle": {
+					"type": "string",
+					"enum": [
+						"current",
+						"retired",
+						"replaced"
+					],
+					"description": "current (default), retired, or replaced (then name replaced_by). Recording an entry already retired keeps an old address findable."
+				},
+				"replaced_by": {
+					"type": "string",
+					"description": "With lifecycle replaced: the stable id (thread_id) of the inventory entry that replaced this one."
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Topic tags, at most 10. Omitted: none."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"description": "A fresh UUID for this intended entry; reuse it, with the same fields, to retry after an uncertain answer. Required when the entry is saved for review, so send one every time."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"request_ref": {
+					"type": "string",
+					"x-devspec-host-only": true,
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"name",
+				"purpose",
+				"resource_type"
+			]
+		},
+		"kind": "model"
+	},
+	{
+		"name": "revise_inventory_entry",
+		"label": "DevSpec: Revise Inventory Entry",
+		"description": "Change an infrastructure inventory entry: correct it, move it to a new address, retire it (lifecycle retired) or mark it replaced (lifecycle replaced, with replaced_by). Every change is a new version; earlier versions stay in its history. Send only what changes: omitted fields keep their values, null clears an optional one. Read the entry first with get_inventory_entry and pass its version as expected_version: if it has changed since, nothing is written (outcome stale). A Contributor's or Maintainer's change applies at once; a Reviewed Contributor's, and any unattended run's, waits for a Maintainer (outcome queued_for_review) and the entry is unchanged until then. To remove an entry recorded by mistake, use retract_inventory_entry instead.",
+		"searchIntent": "update change move retire replace inventory entry url environment",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id, if you are a connected agent. It records which agent made this change and the session it came from, and lets a teammate's command be attributed to, and judged as, the person who gave it. Omitted: the connection your client authenticated, if any; otherwise the write names no agent or session. Refused if the connection is not live, not yours, or not the one your client authenticated."
+				},
+				"id": {
+					"type": "string",
+					"description": "The current version's id, from get_inventory or get_inventory_entry."
+				},
+				"expected_version": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "The version you read. A changed version is refused (outcome stale), never overwritten."
+				},
+				"name": {
+					"type": "string",
+					"description": "A new name. Omitted: unchanged."
+				},
+				"purpose": {
+					"type": "string",
+					"description": "A new purpose. Omitted: unchanged."
+				},
+				"resource_type": {
+					"type": "string",
+					"enum": [
+						"web_app",
+						"website",
+						"api",
+						"mobile_app_listing",
+						"mobile_test_build",
+						"package",
+						"release",
+						"repository",
+						"database",
+						"server",
+						"hosting",
+						"dashboard",
+						"storage",
+						"observability",
+						"domain",
+						"service",
+						"other"
+					],
+					"description": "What sort of resource it is: web_app, website, api, mobile_app_listing (an app store listing), mobile_test_build (TestFlight or internal testing), package (npm, PyPI…), release, repository, database, server, hosting, dashboard, storage, observability (logs, metrics), domain, service (another provider account) or other. A site, the server it runs on and the dashboard that manages it are separate entries. Omitted: unchanged."
+				},
+				"environments": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"production",
+							"staging",
+							"preview",
+							"development"
+						]
+					},
+					"description": "Which environments it serves: production, staging, preview and/or development. Several means it spans them; an empty list means it is not tied to one. Never guess: if nobody said which environment, ask. Omitted: unchanged."
+				},
+				"provider": {
+					"description": "A new provider; null clears it. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"location_kind": {
+					"anyOf": [
+						{
+							"type": "string",
+							"enum": [
+								"url",
+								"identifier"
+							]
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Send with location. Omitted: unchanged."
+				},
+				"location": {
+					"description": "Where it is: a web address (location_kind url; https or http only) or a non-secret identifier (location_kind identifier: a project reference, bucket or dataset name, repository). Never a password, token, key, signed link or connection string: those are refused and nothing is saved. Nothing is fetched to check it. null clears it. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"host_group": {
+					"description": "A new host group; null clears it. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"lifecycle": {
+					"type": "string",
+					"enum": [
+						"current",
+						"retired",
+						"replaced"
+					],
+					"description": "current, retired, or replaced (with replaced_by). Omitted: unchanged."
+				},
+				"replaced_by": {
+					"description": "With lifecycle replaced: the stable id (thread_id) of the entry that replaced this one. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Replace the tags, at most 10. Omitted: unchanged."
+				},
+				"note": {
+					"type": "string",
+					"description": "Why, when the person said; kept in the entry's history. Never invented."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"description": "A fresh UUID for this change; reuse it to retry. Required when the change is saved for review, so send one every time."
+				},
+				"preview_ack": {
+					"type": "string",
+					"description": "The receipt_id of a preview this project asked you to confirm (outcome preview_required). Omitted: none."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"id",
+				"expected_version"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id, if you are a connected agent. It records which agent made this change and the session it came from, and lets a teammate's command be attributed to, and judged as, the person who gave it. Omitted: the connection your client authenticated, if any; otherwise the write names no agent or session. Refused if the connection is not live, not yours, or not the one your client authenticated."
+				},
+				"id": {
+					"type": "string",
+					"description": "The current version's id, from get_inventory or get_inventory_entry."
+				},
+				"expected_version": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "The version you read. A changed version is refused (outcome stale), never overwritten."
+				},
+				"name": {
+					"type": "string",
+					"description": "A new name. Omitted: unchanged."
+				},
+				"purpose": {
+					"type": "string",
+					"description": "A new purpose. Omitted: unchanged."
+				},
+				"resource_type": {
+					"type": "string",
+					"enum": [
+						"web_app",
+						"website",
+						"api",
+						"mobile_app_listing",
+						"mobile_test_build",
+						"package",
+						"release",
+						"repository",
+						"database",
+						"server",
+						"hosting",
+						"dashboard",
+						"storage",
+						"observability",
+						"domain",
+						"service",
+						"other"
+					],
+					"description": "What sort of resource it is: web_app, website, api, mobile_app_listing (an app store listing), mobile_test_build (TestFlight or internal testing), package (npm, PyPI…), release, repository, database, server, hosting, dashboard, storage, observability (logs, metrics), domain, service (another provider account) or other. A site, the server it runs on and the dashboard that manages it are separate entries. Omitted: unchanged."
+				},
+				"environments": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"production",
+							"staging",
+							"preview",
+							"development"
+						]
+					},
+					"description": "Which environments it serves: production, staging, preview and/or development. Several means it spans them; an empty list means it is not tied to one. Never guess: if nobody said which environment, ask. Omitted: unchanged."
+				},
+				"provider": {
+					"description": "A new provider; null clears it. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"location_kind": {
+					"anyOf": [
+						{
+							"type": "string",
+							"enum": [
+								"url",
+								"identifier"
+							]
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Send with location. Omitted: unchanged."
+				},
+				"location": {
+					"description": "Where it is: a web address (location_kind url; https or http only) or a non-secret identifier (location_kind identifier: a project reference, bucket or dataset name, repository). Never a password, token, key, signed link or connection string: those are refused and nothing is saved. Nothing is fetched to check it. null clears it. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"host_group": {
+					"description": "A new host group; null clears it. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"lifecycle": {
+					"type": "string",
+					"enum": [
+						"current",
+						"retired",
+						"replaced"
+					],
+					"description": "current, retired, or replaced (with replaced_by). Omitted: unchanged."
+				},
+				"replaced_by": {
+					"description": "With lifecycle replaced: the stable id (thread_id) of the entry that replaced this one. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Replace the tags, at most 10. Omitted: unchanged."
+				},
+				"note": {
+					"type": "string",
+					"description": "Why, when the person said; kept in the entry's history. Never invented."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"description": "A fresh UUID for this change; reuse it to retry. Required when the change is saved for review, so send one every time."
+				},
+				"preview_ack": {
+					"type": "string",
+					"description": "The receipt_id of a preview this project asked you to confirm (outcome preview_required). Omitted: none."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"request_ref": {
+					"type": "string",
+					"x-devspec-host-only": true,
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"id",
+				"expected_version"
+			]
+		},
+		"kind": "model"
+	},
+	{
+		"name": "retract_inventory_entry",
+		"label": "DevSpec: Retract Inventory Entry",
+		"description": "Retract an infrastructure inventory entry that was recorded by mistake. It stays readable with its full history, but stops being listed. A resource that existed and is no longer used is retired instead (revise_inventory_entry with lifecycle retired), so its old address stays findable. A Contributor's or Maintainer's retraction applies at once; a Reviewed Contributor's, and any unattended run's, waits for a Maintainer (outcome queued_for_review).",
+		"searchIntent": "retract remove mistaken inventory entry",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id, if you are a connected agent. It records which agent made this change and the session it came from, and lets a teammate's command be attributed to, and judged as, the person who gave it. Omitted: the connection your client authenticated, if any; otherwise the write names no agent or session. Refused if the connection is not live, not yours, or not the one your client authenticated."
+				},
+				"id": {
+					"type": "string",
+					"description": "The current version's id."
+				},
+				"expected_version": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "The version you read. A changed version is refused (outcome stale)."
+				},
+				"reason": {
+					"type": "string",
+					"description": "Why it was a mistake, when the person said; kept in the entry's history."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"description": "A fresh UUID for this retraction; reuse it to retry. Required when it is saved for review, so send one every time."
+				},
+				"preview_ack": {
+					"type": "string",
+					"description": "The receipt_id of a preview this project asked you to confirm. Omitted: none."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"id",
+				"expected_version"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id, if you are a connected agent. It records which agent made this change and the session it came from, and lets a teammate's command be attributed to, and judged as, the person who gave it. Omitted: the connection your client authenticated, if any; otherwise the write names no agent or session. Refused if the connection is not live, not yours, or not the one your client authenticated."
+				},
+				"id": {
+					"type": "string",
+					"description": "The current version's id."
+				},
+				"expected_version": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "The version you read. A changed version is refused (outcome stale)."
+				},
+				"reason": {
+					"type": "string",
+					"description": "Why it was a mistake, when the person said; kept in the entry's history."
+				},
+				"idempotency_key": {
+					"type": "string",
+					"description": "A fresh UUID for this retraction; reuse it to retry. Required when it is saved for review, so send one every time."
+				},
+				"preview_ack": {
+					"type": "string",
+					"description": "The receipt_id of a preview this project asked you to confirm. Omitted: none."
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"request_ref": {
+					"type": "string",
+					"x-devspec-host-only": true,
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"id",
+				"expected_version"
+			]
+		},
+		"kind": "model"
+	},
+	{
 		"name": "manage_discussion_point",
 		"label": "DevSpec: Manage Discussion Point",
 		"description": "Add, edit, strike (mark discussed), reopen, watch or unwatch a Still to Discuss point, only when the person asks. add puts the point on the project list, or on a room's list when you pass scope:\"room\" with that room's session_id. A point records an unsettled topic, not work (create_task) or a settled decision (record_memory). Watching only adds the point to your mine:true results in search_discussion_points. The reply returns the changed point and its list: a room's whole list, or the project list's first 20 open points with rows_page.next_call to read on.",
@@ -16059,7 +17161,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"link_blocked",
 						"unlink_blocked"
 					],
-					"description": "Operation: claim (take the single-handler claim, or renew your own), release (hand back to unhandled open), heartbeat (renew your own active claim; refused if you do not hold it), awaiting_followup (fix landed; wait for live confirmation without blocking), escalate_needs_decision (pause for a human decision with decision_prompt), resolve (close incident and unblock linked PRs/tasks), link_blocked (anyone may link their own blocked work), or unlink_blocked (only the holder, a person, or whoever made the link). A claim lapses after 15 minutes without a heartbeat."
+					"description": "Operation: claim (take the single-handler claim, or renew your own), release (hand back to unhandled open: only for stepping off with no fix in flight), heartbeat (renew your own active claim; refused if you do not hold it), awaiting_followup (your fix is on its way: its pull request is waiting on checks or the merge queue, or it has landed and you are waiting for live confirmation. Name the fix with fix_task_id or fix_pull_request_number; the incident stays yours without heartbeats), escalate_needs_decision (pause for a human decision with decision_prompt), resolve (close incident and unblock linked PRs/tasks), link_blocked (anyone may link their own blocked work), or unlink_blocked (only the holder, a person, or whoever made the link). A claim lapses after 15 minutes without a heartbeat. While a pull request carrying your fix is waiting to merge, use awaiting_followup: never release the incident or unlink its fix task then, because that shows it as unhandled and leaves nothing for it to close on. A security incident opened by a Dependabot or Renovate pull request closes by itself when the fix it records merges into the tracked branch."
 				},
 				"connection_id": {
 					"type": "string",
@@ -16094,6 +17196,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"maxLength": 64,
 					"description": "For resolve or awaiting_followup: optional task UUID or 8-character short code of the fix task."
 				},
+				"fix_pull_request_number": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "For awaiting_followup: the pull request that carries the fix, when the fix has no task (one that only changes dependency files needs none). Pass repo when the number exists in several tracked repositories."
+				},
 				"blocked_pull_request_id": {
 					"type": "string",
 					"description": "For link_blocked or unlink_blocked: pull request UUID."
@@ -16106,7 +17213,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"repo": {
 					"type": "string",
 					"maxLength": 200,
-					"description": "Repository name or owner/name when disambiguating blocked_pull_request_number."
+					"description": "Repository name or owner/name when disambiguating blocked_pull_request_number or fix_pull_request_number."
 				},
 				"blocked_task_ids": {
 					"maxItems": 25,
@@ -16170,7 +17277,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"link_blocked",
 						"unlink_blocked"
 					],
-					"description": "Operation: claim (take the single-handler claim, or renew your own), release (hand back to unhandled open), heartbeat (renew your own active claim; refused if you do not hold it), awaiting_followup (fix landed; wait for live confirmation without blocking), escalate_needs_decision (pause for a human decision with decision_prompt), resolve (close incident and unblock linked PRs/tasks), link_blocked (anyone may link their own blocked work), or unlink_blocked (only the holder, a person, or whoever made the link). A claim lapses after 15 minutes without a heartbeat."
+					"description": "Operation: claim (take the single-handler claim, or renew your own), release (hand back to unhandled open: only for stepping off with no fix in flight), heartbeat (renew your own active claim; refused if you do not hold it), awaiting_followup (your fix is on its way: its pull request is waiting on checks or the merge queue, or it has landed and you are waiting for live confirmation. Name the fix with fix_task_id or fix_pull_request_number; the incident stays yours without heartbeats), escalate_needs_decision (pause for a human decision with decision_prompt), resolve (close incident and unblock linked PRs/tasks), link_blocked (anyone may link their own blocked work), or unlink_blocked (only the holder, a person, or whoever made the link). A claim lapses after 15 minutes without a heartbeat. While a pull request carrying your fix is waiting to merge, use awaiting_followup: never release the incident or unlink its fix task then, because that shows it as unhandled and leaves nothing for it to close on. A security incident opened by a Dependabot or Renovate pull request closes by itself when the fix it records merges into the tracked branch."
 				},
 				"connection_id": {
 					"type": "string",
@@ -16205,6 +17312,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"maxLength": 64,
 					"description": "For resolve or awaiting_followup: optional task UUID or 8-character short code of the fix task."
 				},
+				"fix_pull_request_number": {
+					"type": "integer",
+					"minimum": 1,
+					"description": "For awaiting_followup: the pull request that carries the fix, when the fix has no task (one that only changes dependency files needs none). Pass repo when the number exists in several tracked repositories."
+				},
 				"blocked_pull_request_id": {
 					"type": "string",
 					"description": "For link_blocked or unlink_blocked: pull request UUID."
@@ -16217,7 +17329,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"repo": {
 					"type": "string",
 					"maxLength": 200,
-					"description": "Repository name or owner/name when disambiguating blocked_pull_request_number."
+					"description": "Repository name or owner/name when disambiguating blocked_pull_request_number or fix_pull_request_number."
 				},
 				"blocked_task_ids": {
 					"maxItems": 25,
@@ -19107,8 +20219,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 112,
-	model: 99,
+	total: 118,
+	model: 105,
 	pump: 12,
 	never_model: 1,
 } as const;

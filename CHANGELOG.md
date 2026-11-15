@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.6 - 2026-11-15
+
+- **Your agent knows how to tell DevSpec it is still working on an automation run.** When DevSpec asks whether your agent is still on a run, for example while it waits for a long build or check to finish, your agent now answers by claiming the run it already holds. That takes nothing new and keeps the run with it. A run that stays quiet after that question is handed to another agent, and anything the first agent reports on it afterwards is refused.
+- **Handing an incident back is described in plain words.** `manage_incident` now tells your agent that releasing an incident leaves it open with nobody on it.
+- Pi's built-in copy of DevSpec's tools is regenerated to match the server. No tool was added or removed and no tool's inputs changed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.14.5 - 2026-11-15
 
 - **Your agent can land a routine Dependabot or Renovate update without creating a task for it.** DevSpec no longer asks for a task on a pull request that only bumps versions. Pi now has the tool your agent uses instead: once it has read the release notes and run your project's checks, it records what it found on the pull request, and that record is the green light DevSpec's check waits for. The same goes for a pull request your agent has to open itself to move a bot's update onto the right branch: DevSpec compares it with the bot's and, when nothing was added, it needs no task either. A task is still created when an upgrade needs your project's code changed.

@@ -953,7 +953,20 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// the bot's pull request the caller's own pull request carries), and its description says
 		// DevSpec compares the two changes. Verbs, families and hot set unchanged. Benchmark:
 		// initial surface 77,604 -> 77,841 estimated tokens; every check still passes.
-		"b22e0971a2a8d4f17670a043c0034ce3fb7194d719147bcec824e22caabcc39a",
+		// Rebaselined 2026-11-15 for item 014f794d (automation-run handover and the plain-words
+		// incident hand-back), regenerated against DevSpecV2 origin/staging 1155a646e. Verbs 105
+		// model / 12 pump / 1 never-model before and after, none added or removed. Inputs: none
+		// added or removed, no type, enum or required field changed. Description-only, and the
+		// one change this fingerprint sees: manage_incident's action description now says release
+		// is "hand back, so it is open with nobody on it" (it said "hand back to unhandled open").
+		// Outside this fingerprint: claim_automation_run's tool description now says that claiming
+		// a run you already hold takes nothing and answers DevSpec's "are you still on it?"
+		// (still_yours), and that a run left quiet after that question is handed to another agent
+		// and later reports on it are refused; the pump-only poll_connection's check_job_version
+		// description adds that a check job not started within 15 minutes goes back in line. No
+		// projection family changed and the hot set is unchanged (101 verbs). Benchmark
+		// before/after: initial surface 77,841 -> 77,929 estimated tokens; every check still passes.
+		"4c8f827b3f8e73282ac69bf2d3f62855daab6f8dde09f1f37b889dddde0e8216",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

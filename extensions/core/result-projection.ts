@@ -72,6 +72,20 @@ const FULL_READ_VERBS = new Set([
 	"update_requirement",
 	"supersede_requirement",
 	"retract_requirement",
+	// The infrastructure inventory (DevSpecV2 inventory tools): the same kind of record as
+	// a requirement. A read carries the entry's version, lifecycle and location; a write
+	// comes back committed, queued as a suggestion, or refused naming the field and the
+	// rule. A dropped field would read as "recorded" when nothing was, so all five stay whole.
+	"get_inventory",
+	"get_inventory_entry",
+	"record_inventory_entry",
+	"revise_inventory_entry",
+	"retract_inventory_entry",
+	// A dependency review's receipt (DevSpecV2 task f721803f): recorded for one commit, with
+	// what DevSpec knows of that commit's files and whether Merge when cleared was switched
+	// on, or refused with the reason (not the bot's pull request, moved on, other files).
+	// The agent decides what to do next from every one of those, so it stays whole.
+	"record_dependency_review",
 	"get_resource",
 	"get_testing_brief",
 	"get_task_history",

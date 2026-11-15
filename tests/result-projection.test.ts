@@ -932,7 +932,28 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// manage_knowledge_links and create_resource. No required field changed. Hot set unchanged
 		// (every eligible model verb). Benchmark before/after (with this item's instruction
 		// pointers): initial surface 70,956 -> 73,134 estimated tokens; every check still passes.
-		"6c4a44c2ea14d3544da7009ad406af1126bee836bd90b6fa5812c1322d8a445e",
+		// Rebaselined 2026-11-14 for DevSpec items f721803f (dependency updates need no task) and
+		// 6714db51 (a security incident waits on its fix), regenerated against the DevSpecV2
+		// pull request 1346 (head 21476968c at the second rebaseline below; staging 2026-11-14 plus f721803f). Verbs 99 -> 105
+		// model / 12 pump / 1 never-model. Added: record_dependency_review (f721803f), and the
+		// five inventory verbs the server shipped in d4b78ada that Pi had not picked up
+		// (get_inventory, get_inventory_entry, record_inventory_entry, revise_inventory_entry,
+		// retract_inventory_entry). All six are assigned to the full-read family: an inventory
+		// read or write carries version, lifecycle, outcome and field-level refusals like a
+		// requirement's, and a dependency review's receipt carries the commit it covers and each
+		// refusal's reason. No existing verb's family changed. Inputs: manage_incident gains
+		// optional fix_pull_request_number (an integer: the pull request carrying the fix when
+		// the fix has no task), and its action and repo descriptions changed. Description-only:
+		// get_pull_request now says it returns dependency_review. No required field changed. Hot set
+		// is every eligible model verb, so it gains the six (95 -> 101). Benchmark before/after:
+		// initial surface 73,134 -> 77,604 estimated tokens; every check still passes.
+		// Rebaselined again the same day for f721803f, before this was released: Ali Price chose
+		// that a pull request an agent opens to carry a bot's update unchanged also needs no task.
+		// record_dependency_review gains optional carries_pull_request_number (an integer or "#n":
+		// the bot's pull request the caller's own pull request carries), and its description says
+		// DevSpec compares the two changes. Verbs, families and hot set unchanged. Benchmark:
+		// initial surface 77,604 -> 77,841 estimated tokens; every check still passes.
+		"b22e0971a2a8d4f17670a043c0034ce3fb7194d719147bcec824e22caabcc39a",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

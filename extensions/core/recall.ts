@@ -16,15 +16,22 @@
  *
  * Host contract measured in task 7c87f509 (RECALL_TIMEOUT_BUDGETS in DevSpecV2
  * apps/web/scripts/eval/recall-plugin-bench/host-delivery-contract.ts): an 18
- * character floor, a 2.8 s client ceiling, at most 512 seen keys per request.
+ * character floor, a 4.8 s client ceiling (2.8 s until item b2b70df7), at most 512
+ * seen keys per request.
  */
 
 import { classifyUserKind } from "./turn-lifecycle.ts";
 
 /** Shortest prompt worth a recall (host contract minQueryChars; the server skips shorter ones too). */
 export const RECALL_MIN_QUERY_CHARS = 18;
-/** The client's whole budget for one recall: token, scope, request and reply (host contract clientHttpTimeoutMs). */
-export const RECALL_CLIENT_TIMEOUT_MS = 2_800;
+/**
+ * The client's whole budget for one recall: token, scope, request and reply (host
+ * contract clientHttpTimeoutMs). DevSpec gives up 400 ms sooner, counted from when
+ * the request reached it, so its answer is back before this. An answer that is ready
+ * sooner is used at once; the budget only gives the slow first lookup after an idle
+ * spell room to bring its cards (item b2b70df7).
+ */
+export const RECALL_CLIENT_TIMEOUT_MS = 4_800;
 /** Seen keys DevSpec accepts on one request (server RECALL_LIMITS.seenKeysPerRequest); newest are kept. */
 export const RECALL_SEEN_KEYS_PER_REQUEST = 512;
 /** One seen key's longest form the server accepts (RECALL_LIMITS.seenKeyChars). */

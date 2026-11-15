@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.14.4 - 2026-11-15
+
+- **Your first message after a quiet spell now gets its project records.** Before each substantive message, Pi asks DevSpec which of the project's requirements, documents, decisions and plans bear on it. After several idle minutes that first lookup can take over 2.5 seconds, and Pi used to stop waiting at 2.8 seconds, so that message went ahead with none of them. Pi now waits up to 4.8 seconds.
+- **Nothing else is slower.** A lookup that comes back in a second or two still lets your agent start straight away. If DevSpec is slow or unreachable, your message still goes ahead by itself, now after at most about 5 seconds instead of 3.
+
 ## 0.14.2 - 2026-11-13
 
 - **Pi no longer holds your first prompt for minutes when DevSpec doesn't answer.** If DevSpec accepts the connection but never replies when Pi starts, for example because the server is hung, Pi now waits at most 30 seconds, then carries on without it and says once that DevSpec could not be reached. Your first prompt runs straight after. Before, it sat for up to two minutes and then showed "auto-bond failed: MCP error -32001: Request timed out". A server that refuses the connection outright is still handled at once.

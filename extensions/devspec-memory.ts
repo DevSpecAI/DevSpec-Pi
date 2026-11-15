@@ -29,7 +29,8 @@
  * hidden message (`details.dedupeKeys`) and read back from the session branch, so
  * resume, /tree and /clear need no state of their own (core/recall.ts).
  *
- * FAILS OPEN: the whole recall (sign-in, scope, request, reply) has 2.8 s. Logged
+ * FAILS OPEN: the whole recall (sign-in, scope, request, reply) has 4.8 s
+ * (RECALL_CLIENT_TIMEOUT_MS). Logged
  * out, no project evident, a refusal, an error or the deadline: nothing is added,
  * and the person's turn starts as it would have.
  */
@@ -64,7 +65,7 @@ export interface MemoryDeps {
 	folderScope: (cwd: string) => Promise<{ git_remote?: string; pinned_project_id?: string }>;
 	fetch: (url: string, init: RequestInit) => Promise<Response>;
 	now: () => number;
-	/** The whole recall's budget; the host contract's 2.8 s outside tests. */
+	/** The whole recall's budget; RECALL_CLIENT_TIMEOUT_MS outside tests. */
 	timeoutMs: number;
 }
 

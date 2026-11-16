@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.7 - 2026-11-16
+
+- **A Pi that is not in a session now does what DevSpec asks of it straight away.** Stop, a model or thinking change, compact, reload and Start fresh used to wait until that Pi was next brought into a session, and until then every other control sent to it was refused as "still processing another control". Pi also showed "DevSpec sent this Pi a message it cannot read". Now it carries each one out at once and frees the slot. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.14.6 - 2026-11-15
 
 - **Your agent knows how to tell DevSpec it is still working on an automation run.** When DevSpec asks whether your agent is still on a run, for example while it waits for a long build or check to finish, your agent now answers by claiming the run it already holds. That takes nothing new and keeps the run with it. A run that stays quiet after that question is handed to another agent, and anything the first agent reports on it afterwards is refused.

@@ -1124,7 +1124,12 @@ export function parsePollPayload(
 		const actionableCommand = envelope.deliveryState === "live" && envelope.wakeActive && envelope.wakeKind === "conversational_command";
 		const actionableControl = envelope.deliveryState === "live" && envelope.wakeActive && envelope.wakeKind === "control";
 		const actionableNotices = envelope.deliveryState === "live" && envelope.wakeActive && envelope.wakeKind === "system_notice";
-		if ((actionableCommand || actionableControl) && !cursorV2) fail("cursor_v2", "actionable canonical delivery requires top-level cursor_v2");
+		// A command advances the transcript cursor, so it needs one. A control does
+		// not: it is acknowledged by connection and control id, and a connection in
+		// no room has no transcript and so no cursor at all. Requiring one there
+		// left every control sent to a Pi outside a session unread and holding the
+		// connection's one control slot (item 12dff17f).
+		if (actionableCommand && !cursorV2) fail("cursor_v2", "actionable canonical command delivery requires top-level cursor_v2");
 		if (actionableNotices && (!returnedNoticeCursor || envelope.systemNotices.length === 0)) fail("system_notice_cursor", "active notice delivery requires an independent returned cursor");
 		let ownerBundle: OwnerCommandBundle | undefined;
 		let rejectedBundle: OwnerCommandBundle | undefined;

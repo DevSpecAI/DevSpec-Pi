@@ -109,7 +109,7 @@ import { BackgroundWorkObserver, backgroundTaskFromLaunch, backgroundTasksFromMa
 import { BACKGROUND_WORK_ENTRY, backgroundScopeKey, backgroundWorkEntry, journaledFinishedTasks, restoreBackgroundWork, type BackgroundWorkScope } from "./core/background-journal.ts";
 import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
 import { takeContextBudgetReport, noteInjectedContext } from "./core/context-budget.ts";
-import { backgroundTaskNotificationId, classifyUserKind, isBackgroundCompletionOrigin, terminalBackgroundTaskIds, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitSpeech, isHarnessOrigin, isSubagentAsyncNotification, TurnTracker, noteProgressEvent, currentProgressMarker } from "./core/turn-lifecycle.ts";
+import { backgroundTaskNotificationId, classifyUserKind, isBackgroundCompletionOrigin, isBetweenStepDelivery, terminalBackgroundTaskIds, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitSpeech, isHarnessOrigin, isSubagentAsyncNotification, TurnTracker, noteProgressEvent, currentProgressMarker } from "./core/turn-lifecycle.ts";
 import {
 	activeRequestChain,
 	askedQuestionId,
@@ -134,15 +134,25 @@ import {
 	type WakeKey,
 } from "./core/request-chain.ts";
 import {
+	CHECK_JOB_CONTRACT_URI,
 	CHECK_JOB_VERSION,
 	dispatchId,
 	formatAutomationRunMessage,
-	formatCheckJobMessage,
+	formatCheckJobsMessage,
 	isAutomationRunEnvelope,
 	isCheckJobEnvelope,
 	isDispatchEnvelope,
+	servedCheckJobHelpers,
 	shouldDeliverQueuedCheckJob,
 } from "./core/dispatch.ts";
+import {
+	BETWEEN_STEP_CUSTOM_TYPE,
+	BetweenStepLedger,
+	betweenStepDeliveryId,
+	deliverIdleCheckJobs,
+	formatBetweenStepMessage,
+	type BetweenStepDetails,
+} from "./core/between-step.ts";
 import {
 	firstTextPreview,
 	isRealSessionTitle,
@@ -247,8 +257,16 @@ import {
 	noticeReplyTerminalMessage,
 	postNoticeReply,
 	type NoticeReplyCapture,
+	type NoticeReplyOutcome,
 } from "./core/notice-reply.ts";
-import { runSpeaks, wakeIsQuiet, type RunWake } from "./core/run-voice.ts";
+import { keptOutOfWorkTrail, noticeNeedsPerson, runSpeaks, wakeIsQuiet, type RunWake } from "./core/run-voice.ts";
+import {
+	NO_NOTICE_WAITING,
+	UNANSWERED_NOTICE_LINE,
+	installNoticeHandover,
+	noticeHandoverResult,
+	withNoticeReplyToolActive,
+} from "./core/notice-handover.ts";
 import { takeTellPerson } from "./core/tell-person.ts";
 
 class StaleCommandHandoffError extends DevspecToolError {}
@@ -376,6 +394,22 @@ interface PumpState {
 	lastSessionEnrichAt?: number;
 	/** Typed automation-run delivery stays ordered without blocking the pump. */
 	automationQueue: DeliveryQueue;
+	/** Check jobs waiting to reach the agent, and the steer Pi has not shown it yet (da5cfae5). */
+	betweenStep: BetweenStepLedger;
+	/** The credential the wake channel last listed a check job under. */
+	checkJobToken?: string;
+	/** Rechecks an idle Pi that could not take its waiting check jobs yet. */
+	checkJobIdleTimer?: ReturnType<typeof setTimeout>;
+	checkJobIdleDelivering?: boolean;
+	checkJobIdleAgain?: boolean;
+	checkJobIdleFailures?: number;
+	/**
+	 * DevSpec's served words on ruling a check job in a helper agent, read
+	 * mechanically because Pi's model cannot open a devspec:// resource (da5cfae5).
+	 * Undefined until a read has answered; null when the server serves none.
+	 */
+	checkJobHelpers?: string | null;
+	checkJobHelpersLoading?: Promise<void>;
 	/** Exact-target retry survives cursor advancement after a transient send failure. */
 	automationRetryAttempts: Map<string, number>;
 	automationRetryTimers: Map<string, ReturnType<typeof setTimeout>>;
@@ -465,6 +499,13 @@ interface TurnState {
 	 * as their reply when the segment closes (6aad2b46). Never carried to the next segment.
 	 */
 	noticeReply?: NoticeReplyCapture;
+	/**
+	 * Notices steered between the steps of a turn that answers someone (da5cfae5),
+	 * still waiting for a reply. That turn's messages stay the answer to the
+	 * person: what the agent says about these is handed over through the notice
+	 * reply tool, and whatever is left when the run ends is reported the same way.
+	 */
+	steeredNotices?: NoticeReplyCapture;
 	/**
 	 * A write in this segment came back with DevSpec's tell_person mark: it changed
 	 * someone else's record (a868f41f). A segment that is quiet by what woke it
@@ -1493,7 +1534,13 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 	if (!remoteRunActivityPolicy(t.completionNeutral).reportTranscript) return false;
 	// A quiet segment (a check job) posts no answer and no trail. If a write of its
 	// own was marked tell_person, its messages already went out as speech (a868f41f).
-	if (segmentIsQuiet(t)) return false;
+	if (segmentIsQuiet(t)) {
+		// A notice delivered between the steps of a check-job run has no other voice:
+		// the run's final message is its reply, as for a notice run (da5cfae5). Once
+		// tell_person made the run speak, that message already reached the room.
+		if (t.noticeReply && t.tellPerson !== true) await deliverNoticeReply(t.noticeReply, agentStats, false);
+		return false;
+	}
 	// The final render rides the answer post (item 9b7455df): the server
 	// REPLACES the fold-merged accumulation with this canonical final render —
 	// every tool closed, the whole segment's thinking — so the preserved
@@ -1556,30 +1603,7 @@ async function deliverNoticeReply(capture: NoticeReplyCapture, agentStats: Agent
 		else console.error(message);
 		return;
 	}
-	const current = () => {
-		const active = pump;
-		const bond = getBond();
-		if (!active || (active.stop && !active.closing) || !bond || active.bond.connectionId !== bond.connectionId) return null;
-		return { connectionId: bond.connectionId, sessionId: bond.sessionId ?? null };
-	};
-	const outcome = await postNoticeReply({
-		capture,
-		current,
-		call: async (args) => {
-			const resolved = await resolveToken();
-			if (!resolved) throw new Error("no DevSpec login is available");
-			try {
-				// The server stores the same notices and text once, so the client's
-				// ordinary transport retry cannot post it twice.
-				return { raw: await callDevspec(resolved.token, "post_session_message", args, { lane: "pump",
-					beforeSend: () => { if (current()?.connectionId !== capture.connectionId) throw new Error("this Pi's DevSpec connection changed before sending"); } }) };
-			} catch (error) {
-				if (error instanceof DevspecToolError) return { refusal: error.message };
-				throw error;
-			}
-		},
-		extraArgs: { agent_name: AGENT_NAME, ...(agentStats ? { agent_stats: agentStats } : {}), ...replyModelArgs(agentStats ?? undefined) },
-	});
+	const outcome = await postCapturedNoticeReply(capture, agentStats);
 	debug("notice reply", { notices: capture.noticeIds.length, posted: outcome.kind === "posted", idempotent: outcome.kind === "posted" && outcome.idempotent, refused: outcome.kind === "refused", unconfirmed: outcome.kind === "unconfirmed", skipped: outcome.kind === "no_final_text" || outcome.kind === "not_attached" || outcome.kind === "connection_changed" || outcome.kind === "settled_housekeeping" || outcome.kind === "for_the_record" });
 	if (outcome.kind === "posted") { noteOwnRoomMessage(outcome.messageId); return; }
 	if (outcome.kind === "settled_housekeeping" || outcome.kind === "for_the_record") {
@@ -1600,6 +1624,80 @@ async function deliverNoticeReply(capture: NoticeReplyCapture, agentStats: Agent
 	if (!message) return;
 	if (safeHasUI(ctx)) notify(ctx, message, "warning");
 	else console.error(message);
+}
+
+/**
+ * The one notice-reply post (semantics.notice_reply): the capture's text, naming
+ * its notices, from this Pi's connection. DevSpec's gate answers with what the
+ * room shows; nothing here decides that.
+ */
+async function postCapturedNoticeReply(capture: NoticeReplyCapture, agentStats: AgentStatsReport | null): Promise<NoticeReplyOutcome> {
+	const current = () => {
+		const active = pump;
+		const bond = getBond();
+		if (!active || (active.stop && !active.closing) || !bond || active.bond.connectionId !== bond.connectionId) return null;
+		return { connectionId: bond.connectionId, sessionId: bond.sessionId ?? null };
+	};
+	return postNoticeReply({
+		capture,
+		current,
+		call: async (args) => {
+			const resolved = await resolveToken();
+			if (!resolved) throw new Error("no DevSpec login is available");
+			try {
+				// The server stores the same notices and text once, so the client's
+				// ordinary transport retry cannot post it twice.
+				return { raw: await callDevspec(resolved.token, "post_session_message", args, { lane: "pump",
+					beforeSend: () => { if (current()?.connectionId !== capture.connectionId) throw new Error("this Pi's DevSpec connection changed before sending"); } }) };
+			} catch (error) {
+				if (error instanceof DevspecToolError) return { refusal: error.message };
+				throw error;
+			}
+		},
+		extraArgs: { agent_name: AGENT_NAME, ...(agentStats ? { agent_stats: agentStats } : {}), ...replyModelArgs(agentStats ?? undefined) },
+	});
+}
+
+/**
+ * The agent handed over what it has to say about the notices steered into the
+ * turn it is running (the notice reply tool, da5cfae5). The words were never one
+ * of the turn's messages, so they are no part of the command's speech: they go
+ * out as a notice reply naming those notices, and DevSpec's gate decides whether
+ * the room shows a reply with its card, a quiet housekeeping entry or nothing.
+ * The post binds to no command, turn or attempt, so the command is untouched.
+ */
+async function answerSteeredNotices(message: string): Promise<{ ok: boolean; text: string }> {
+	const capture = turn?.steeredNotices;
+	if (!capture || capture.noticeIds.length === 0) return { ok: false, text: NO_NOTICE_WAITING };
+	const noticeIds = [...capture.noticeIds];
+	// Kept, so a reply DevSpec could not confirm goes again with the agent's own words.
+	capture.finalText = message;
+	const outcome = await postCapturedNoticeReply({ ...capture, noticeIds, finalText: message }, null);
+	const result = noticeHandoverResult(outcome);
+	debug("notice reply", { notices: noticeIds.length, posted: outcome.kind === "posted", refused: outcome.kind === "refused", unconfirmed: outcome.kind === "unconfirmed", skipped: !result.done });
+	if (outcome.kind === "posted") noteOwnRoomMessage(outcome.messageId);
+	if (outcome.kind === "settled_housekeeping" && outcome.housekeepingMessageId) noteOwnRoomMessage(outcome.housekeepingMessageId);
+	if (result.done) {
+		// DevSpec has decided about these: nothing more is posted for them.
+		capture.noticeIds = capture.noticeIds.filter((id) => !noticeIds.includes(id));
+		capture.finalText = null;
+	}
+	return { ok: result.ok, text: result.text };
+}
+
+/**
+ * The run that notices were steered into has ended, its own answer and
+ * completion already posted. Any of those notices the agent handed nothing over
+ * for is reported through the same notice-reply path, so DevSpec's gate always
+ * runs and never waits on the agent: a settled notice becomes a quiet
+ * housekeeping entry, and one that still needs a person is shown to them with
+ * its card (da5cfae5).
+ */
+async function reportUnansweredSteeredNotices(t: TurnState, agentStats: AgentStatsReport | null): Promise<void> {
+	const capture = t.steeredNotices;
+	if (!capture || capture.noticeIds.length === 0) return;
+	t.steeredNotices = undefined;
+	await deliverNoticeReply({ ...capture, finalText: capture.finalText ?? UNANSWERED_NOTICE_LINE }, agentStats, false);
 }
 
 /**
@@ -1697,6 +1795,8 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 		localActivityReady: t.localActivityReady,
 		...(t.requestKind ? { requestKind: t.requestKind } : {}),
 		completionNeutral: t.completionNeutral,
+		// The run goes on, and so does the chance to answer what was steered into it.
+		...(t.steeredNotices ? { steeredNotices: t.steeredNotices } : {}),
 		interaction: t.interaction,
 		occupancy: t.occupancy,
 		lastInteractionKeepaliveAt: t.lastInteractionKeepaliveAt,
@@ -1769,7 +1869,12 @@ function notifyAutoBondFailed(ctx: ExtensionContext, outcome: ProjectBondOutcome
 	notify(ctx, outcome.cancelled ? `DevSpec remote: ${outcome.error}` : `DevSpec remote: auto-bond failed: ${outcome.error}`, outcome.cancelled ? "info" : outcome.errorKind === "auth" ? "warning" : "error");
 }
 
-/** Deliver only from an idle, current generation. Busy intake remains memory-only. */
+/**
+ * Start a notice run from an idle, current generation. Busy intake remains
+ * memory-only here: a running turn is handed what is queued when its current
+ * step ends (steerWaitingBetweenSteps, da5cfae5), and what is still queued when
+ * the run settles goes out through this.
+ */
 function deliverQueuedSystemNotices(active: PumpState, ctx: ExtensionContext): boolean {
 	if (pump !== active || active.stop || !shouldDeliverSystemNotices({ ctxIdle: ctx.isIdle(), pumpBusy: active.busy })) return false;
 	const notices = queuedSystemNotices(active.systemNoticeKey);
@@ -1973,7 +2078,7 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	systemNoticeRunActive = false;
 	revokeSystemNoticeState(active.systemNoticeKey);
 	active.automationQueue.invalidate();
-	notifyCheckJobIdleWaiters();
+	dropWaitingCheckJobs(active);
 	for (const timer of active.automationRetryTimers.values()) clearTimeout(timer);
 	active.automationRetryTimers.clear();
 	active.pushGenerationFence.invalidate();
@@ -2594,42 +2699,56 @@ function assertDeliveryAuthority(active: PumpState, lease: DeliveryLease): void 
 	}
 }
 
+/**
+ * Check jobs and notices reach a working agent between steps (item da5cfae5,
+ * decision b8abe2bb; this replaces the hold of d36ac887, decision ff1bcabe).
+ *
+ * "Busy" here is one thing: Pi is running a turn (agent_start to agent_settled),
+ * or is about to (a run is starting, a message is queued, a notice run is being
+ * started). Then nothing new starts a run. Whatever is waiting is steered into
+ * the running turn when its current step ends (steerWaitingBetweenSteps, from
+ * turn_end), or goes out idle once the run has settled. Idle, it goes out
+ * straight away, as before.
+ */
 const CHECK_JOB_PICKUP_HOLD_MS = 400;
 const CHECK_JOB_IDLE_POLL_MS = 200;
+/** A check-job wake was just handed to Pi: its run is starting, so a second wake must not race it. */
 let checkJobPickupHoldUntil = 0;
-const checkJobIdleWaiters = new Set<() => void>();
 
-function notifyCheckJobIdleWaiters(): void {
-	for (const wake of [...checkJobIdleWaiters]) wake();
-}
-
+/** Pi is idle and nothing is about to start a run: a check-job wake may start one. */
 function isCheckJobForegroundReady(active: PumpState, ctx: ExtensionContext): boolean {
 	const hasPending = typeof ctx.hasPendingMessages === "function" ? ctx.hasPendingMessages() : false;
-	return !runActive && !active.runtimeOccupancy.isBusy() && ctx.isIdle() && !hasPending && Date.now() >= checkJobPickupHoldUntil;
+	return !runActive && !systemNoticeTurnPending && !active.runtimeOccupancy.isBusy() && ctx.isIdle() && !hasPending && Date.now() >= checkJobPickupHoldUntil;
 }
 
-async function waitForCheckJobTurnSlot(
-	active: PumpState,
-	ctx: ExtensionContext,
-	lease: DeliveryLease,
-): Promise<void> {
-	while (!isCheckJobForegroundReady(active, ctx)) {
-		assertDeliveryAuthority(active, lease);
-		await new Promise<void>((resolve) => {
-			let settled = false;
-			const finish = () => {
-				if (settled) return;
-				settled = true;
-				clearTimeout(timer);
-				checkJobIdleWaiters.delete(finish);
-				resolve();
-			};
-			const timer = setTimeout(finish, CHECK_JOB_IDLE_POLL_MS);
-			if (typeof timer.unref === "function") timer.unref();
-			checkJobIdleWaiters.add(finish);
-		});
-	}
-	assertDeliveryAuthority(active, lease);
+/** This connection is ending or being replaced: its waiting check jobs go with it. */
+function dropWaitingCheckJobs(active: PumpState): void {
+	if (active.checkJobIdleTimer) clearTimeout(active.checkJobIdleTimer);
+	active.checkJobIdleTimer = undefined;
+	active.checkJobIdleAgain = false;
+	active.checkJobIdleFailures = 0;
+	active.betweenStep = new BetweenStepLedger();
+}
+
+/**
+ * Read what DevSpec serves on ruling a check job in a helper agent, so the text
+ * that announces a job can quote it beside the pointer (da5cfae5, decision
+ * 1d5a9c56). Read again whenever a job arrives, off Pi's loop, so the words are
+ * as current as the job. A failed read changes nothing: the pointer stands by
+ * itself, and every claim_check_job reply carries the same words.
+ */
+function refreshCheckJobHelpers(active: PumpState, token: string): Promise<void> {
+	active.checkJobHelpersLoading ??= (async () => {
+		try {
+			const resource = await readDevspecResource(token, CHECK_JOB_CONTRACT_URI, { lane: "work", timeoutMs: 5_000 });
+			if (pump === active && !active.stop) active.checkJobHelpers = servedCheckJobHelpers(resource);
+		} catch {
+			debug("check job helpers read failed", { errorPresent: true });
+		} finally {
+			active.checkJobHelpersLoading = undefined;
+		}
+	})();
+	return active.checkJobHelpersLoading;
 }
 
 async function deliverAutomationRun(
@@ -2652,31 +2771,174 @@ async function deliverAutomationRun(
 	pi_send(message, ctx.isIdle() ? "now" : "followUp");
 }
 
-/** Wake the agent for one check job; the job itself is taken with claim_check_job. */
-async function deliverCheckJob(
-	active: PumpState,
-	key: string,
-	token: string,
-	value: unknown,
-	ctx: ExtensionContext,
-	lease: DeliveryLease,
-): Promise<boolean> {
-	assertDeliveryAuthority(active, lease);
-	if (!isCheckJobEnvelope(value)) return false;
-	const message = formatCheckJobMessage(value, active.bond.codename ?? "this agent");
-	await waitForCheckJobTurnSlot(active, ctx, lease);
-	const liveToken = await currentPumpToken(active, token);
-	assertDeliveryAuthority(active, lease);
-	const pending = await shouldDeliverQueuedCheckJob({
-		key,
-		loadCurrentInbox: () => loadCurrentAutomationInbox(active, key, liveToken, ctx),
-		identity: dispatchId,
-	});
-	assertDeliveryAuthority(active, lease);
-	if (!pending) return false;
-	checkJobPickupHoldUntil = Date.now() + CHECK_JOB_PICKUP_HOLD_MS;
-	pi_send(message, ctx.isIdle() ? "now" : "followUp");
-	return true;
+/**
+ * Deliver every waiting check job to an idle Pi in ONE wake (da5cfae5): the
+ * one-job-per-turn pacing is gone. Each waiting job is rechecked with DevSpec
+ * first (e6985316). While a run is active this does nothing: that run's next
+ * step boundary takes the jobs (steerWaitingBetweenSteps), and its end calls this
+ * again. An idle Pi that cannot take them yet (a run is starting, a message is
+ * queued, compaction) is asked again shortly.
+ */
+function pumpWaitingCheckJobs(active: PumpState, ctx: ExtensionContext): void {
+	if (active.checkJobIdleTimer) clearTimeout(active.checkJobIdleTimer);
+	active.checkJobIdleTimer = undefined;
+	if (active.stop || pump !== active || !active.betweenStep.hasWaitingCheckJobs() || runActive) return;
+	if (active.checkJobIdleDelivering) { active.checkJobIdleAgain = true; return; }
+	active.checkJobIdleDelivering = true;
+	const ledger = active.betweenStep;
+	const current = () => !active.stop && pump === active && active.betweenStep === ledger;
+	void (async () => {
+		let retryMs = CHECK_JOB_IDLE_POLL_MS;
+		try {
+			const token = await currentPumpToken(active, active.checkJobToken ?? "");
+			// The first job on this connection waits for DevSpec's words on helpers
+			// (bounded by that read's own timeout); later ones use what was read last.
+			if (active.checkJobHelpers === undefined) await active.checkJobHelpersLoading;
+			const outcome = await deliverIdleCheckJobs({
+				ledger,
+				current,
+				ready: () => isCheckJobForegroundReady(active, ctx),
+				stillPending: (key) => shouldDeliverQueuedCheckJob({
+					key,
+					loadCurrentInbox: () => loadCurrentAutomationInbox(active, key, token, ctx),
+					identity: dispatchId,
+				}),
+				send: (jobs) => {
+					// The run this starts is not active yet: hold a second wake until it is.
+					checkJobPickupHoldUntil = Date.now() + CHECK_JOB_PICKUP_HOLD_MS;
+					pi_send(formatCheckJobsMessage(jobs.map((job) => job.envelope), active.bond.codename ?? "this agent", { helpers: active.checkJobHelpers }), "now");
+					notify(ctx, `DevSpec remote: ${jobs.length === 1 ? "check job" : `${jobs.length} check jobs`} delivered.`);
+				},
+			});
+			active.checkJobIdleFailures = 0;
+			if (outcome === "stale") return;
+		} catch (error) {
+			if (!current()) return;
+			const failures = (active.checkJobIdleFailures ?? 0) + 1;
+			active.checkJobIdleFailures = failures;
+			retryMs = nextDeliveryRetryDelayMs(failures);
+			const reason = error instanceof Error ? error.message : String(error);
+			notify(ctx, `DevSpec remote: failed to deliver check job: ${reason}. Trying again in ${Math.ceil(retryMs / 1_000)}s.`, "warning");
+		} finally {
+			active.checkJobIdleDelivering = false;
+		}
+		if (!current() || !ledger.hasWaitingCheckJobs() || runActive) return;
+		if (active.checkJobIdleAgain) {
+			active.checkJobIdleAgain = false;
+			pumpWaitingCheckJobs(active, ctx);
+			return;
+		}
+		const timer = setTimeout(() => {
+			if (active.checkJobIdleTimer === timer) active.checkJobIdleTimer = undefined;
+			pumpWaitingCheckJobs(active, ctx);
+		}, retryMs);
+		if (typeof timer.unref === "function") timer.unref();
+		active.checkJobIdleTimer = timer;
+	})();
+}
+
+/**
+ * A check-job run and a notice run answer nobody. A notice delivered into one is
+ * answered by its final message, as for any notice run; a notice delivered into
+ * a turn that answers someone leaves that turn's voice alone (da5cfae5).
+ */
+function segmentAnswersNobody(t: TurnState | null): boolean {
+	return Boolean(t && (t.completionNeutral || t.tracker.userKind === "check_job"));
+}
+
+/**
+ * A step of the running turn has ended: hand Pi everything waiting at this
+ * moment as ONE steer (da5cfae5). Pi shows it to the agent before the next step
+ * and never interrupts a step for it. Nothing is committed here: the steer is in
+ * flight until its message_start (noteBetweenStepDelivered). No network call is
+ * made, because this runs inside Pi's own loop.
+ */
+function steerWaitingBetweenSteps(active: PumpState, outcome: string): void {
+	// A step that was stopped or failed ends its run (or is retried): the run's
+	// next completed step, or its end, delivers what waits.
+	if (pump !== active || active.stop || outcome !== "completed") return;
+	const notices = queuedSystemNotices(active.systemNoticeKey);
+	const batch = active.betweenStep.beginSteer(notices.map((notice) => notice.notice_id));
+	if (!batch) return;
+	const roomAttached = Boolean(active.bond.sessionId);
+	const inRunningTurn = !segmentAnswersNobody(turn);
+	const details: BetweenStepDetails = {
+		delivery_id: batch.deliveryId,
+		check_job_ids: batch.checkJobs.map((job) => job.id),
+		notices,
+		roomAttached,
+	};
+	try {
+		pi_steerBetweenSteps(formatBetweenStepMessage({
+			codename: active.bond.codename ?? "this agent",
+			checkJobs: batch.checkJobs.map((job) => job.envelope),
+			notices,
+			roomAttached,
+			inRunningTurn,
+			helpers: active.checkJobHelpers,
+		}), details);
+		// The turn answers someone, so a reply about these notices cannot be one of
+		// its messages: show the agent the tool that hands it over. Set here, before
+		// Pi prepares the next step, so the tool is there when the steer is read.
+		if (inRunningTurn && roomAttached && notices.some(noticeNeedsPerson)) pi_setNoticeReplyToolActive(true);
+	} catch (error) {
+		active.betweenStep.abandonSteer(batch.deliveryId);
+		debug("between-step steer failed", { errorPresent: Boolean(error) });
+	}
+}
+
+/** One delivered batch's notices, joined to what the segment already holds. */
+function mergedNoticeCapture(held: NoticeReplyCapture | undefined, details: unknown): NoticeReplyCapture | undefined {
+	// Only the connection they were delivered to may name them. Only the notices
+	// that need a person are named in the reply; a batch of notices that are all
+	// for the record leaves the run quiet (a868f41f).
+	const { needsPerson, forTheRecord } = noticeIdsFromDelivery(details);
+	const connectionId = getBond()?.connectionId;
+	if (needsPerson.length + forTheRecord.length === 0 || !connectionId) return held;
+	const kept = held?.connectionId === connectionId ? held : undefined;
+	return {
+		connectionId,
+		noticeIds: [...new Set([...(kept?.noticeIds ?? []), ...needsPerson])],
+		forTheRecordIds: [...new Set([...(kept?.forTheRecordIds ?? []), ...forTheRecord])],
+		roomPromised: (details as { roomAttached?: unknown } | undefined)?.roomAttached === true,
+		finalText: kept?.finalText ?? null,
+	};
+}
+
+/** The notices a nobody's run answers, for the reply its final message becomes (6aad2b46). */
+function captureNoticeReply(t: TurnState, details: unknown): void {
+	const merged = mergedNoticeCapture(t.noticeReply, details);
+	if (merged) t.noticeReply = { ...merged, finalText: null };
+}
+
+/**
+ * Pi has shown the agent a between-step delivery (its message_start). This is
+ * the one place a steered batch is committed, exactly once: a repeat, or a steer
+ * this pump gave up on, changes nothing. The running turn is left exactly as it
+ * is: its kind, the request its writes are recorded for, its command identity,
+ * its Working state and its replies (da5cfae5).
+ */
+function noteBetweenStepDelivered(details: unknown, ctx: ExtensionContext): void {
+	const active = pump;
+	const deliveryId = betweenStepDeliveryId(details);
+	const batch = active && deliveryId ? active.betweenStep.observe(deliveryId) : null;
+	if (!active || !batch) return;
+	if (batch.noticeIds.length > 0) {
+		if (commitSystemNoticeDelivery(active.systemNoticeKey, batch.noticeIds)) {
+			// Capacity is available again: resume notice negotiation at once.
+			signalWake(active);
+		} else {
+			debug("between-step notice commit skipped", { notices: batch.noticeIds.length });
+		}
+		if (turn && segmentAnswersNobody(turn)) captureNoticeReply(turn, details);
+		// A turn that answers someone keeps its messages for that person. The
+		// notices wait for a reply handed over apart from them (answerSteeredNotices),
+		// and what is left when the run ends is reported the same way.
+		else if (turn) turn.steeredNotices = mergedNoticeCapture(turn.steeredNotices, details);
+	}
+	if (batch.checkJobs.length > 0) {
+		notify(ctx, `DevSpec remote: ${batch.checkJobs.length === 1 ? "check job" : `${batch.checkJobs.length} check jobs`} delivered.`);
+	}
 }
 
 async function loadCurrentAutomationInbox(
@@ -2771,14 +3033,23 @@ function enqueueDispatch(
 	active.automationQueue.enqueue(
 		key,
 		async (lease) => {
-			let delivered = true;
-			if (checkJob) delivered = await deliverCheckJob(active, key, token, value, ctx, lease);
-			else await deliverAutomationRun(active, value, ctx, lease);
+			if (checkJob) {
+				// A check job only starts waiting here (da5cfae5). An idle Pi takes it
+				// straight away; a running turn takes it when its current step ends.
+				assertDeliveryAuthority(active, lease);
+				active.checkJobToken = token;
+				if (active.betweenStep.admitCheckJob(key, value)) {
+					void refreshCheckJobHelpers(active, token);
+					pumpWaitingCheckJobs(active, ctx);
+				}
+				return;
+			}
+			await deliverAutomationRun(active, value, ctx, lease);
 			active.automationRetryAttempts.delete(key);
 			const timer = active.automationRetryTimers.get(key);
 			if (timer) clearTimeout(timer);
 			active.automationRetryTimers.delete(key);
-			if (delivered && !active.stop && pump === active) notify(ctx, `DevSpec remote: ${what} delivered.`);
+			if (!active.stop && pump === active) notify(ctx, `DevSpec remote: ${what} delivered.`);
 		},
 		(error) => scheduleAutomationRetry(active, key, token, ctx, error, false, what),
 	);
@@ -2893,6 +3164,8 @@ async function reviveRecoverableBond(
 			active.attachmentRetryAttempts.clear();
 			active.automationQueue.invalidate();
 			active.automationQueue = new DeliveryQueue();
+			// Another connection's check jobs are not this one's to rule.
+			dropWaitingCheckJobs(active);
 			for (const timer of active.automationRetryTimers.values()) clearTimeout(timer);
 			active.automationRetryTimers.clear();
 			active.automationRetryAttempts.clear();
@@ -3916,6 +4189,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 		queuedClears: new Set(),
 		wakeGate: new WakeGenerationGate(),
 		automationQueue: new DeliveryQueue(),
+		betweenStep: new BetweenStepLedger(),
 		automationRetryAttempts: new Map(),
 		automationRetryTimers: new Map(),
 		attachmentRetryAttempts: new Map(),
@@ -3949,6 +4223,9 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 // Late-bound so the loop can reference the ExtensionAPI closure.
 let pi_appendControlResult: (entry: ControlResultEntry) => void = () => { throw new Error("CONTROL journal unavailable"); };
 let pi_systemNoticeSend: (message: string, details: { notices: unknown[]; roomAttached: boolean }) => void = () => {};
+let pi_steerBetweenSteps: (message: string, details: BetweenStepDetails) => void = () => { throw new Error("Pi steering unavailable"); };
+/** Shows the notice reply tool only while a person's turn holds notices steered into it. */
+let pi_setNoticeReplyToolActive: (enabled: boolean) => void = () => {};
 let pi_appendInteractionEntry: (
 	state: "observed" | "applied" | "acknowledged",
 	details: InteractionEventApplicationDetails,
@@ -4390,6 +4667,11 @@ export default function (pi: ExtensionAPI) {
 		if (next.join("\0") !== pi.getActiveTools().join("\0")) pi.setActiveTools(next);
 	};
 	installServeToolSwitch(pi_setServeToolActive);
+	pi_setNoticeReplyToolActive = (enabled) => {
+		const next = withNoticeReplyToolActive(pi.getActiveTools(), enabled);
+		if (next.join("\0") !== pi.getActiveTools().join("\0")) pi.setActiveTools(next);
+	};
+	installNoticeHandover(answerSteeredNotices);
 	pi_appendInteractionEntry = (state, details) => {
 		pi.appendEntry(INTERACTION_EVENT_JOURNAL_TYPE, interactionEventJournalEntry(state, details));
 	};
@@ -4453,6 +4735,18 @@ export default function (pi: ExtensionAPI) {
 	};
 	pi_abort = () => {
 		if (lastCtx && !lastCtx.isIdle()) lastCtx.abort();
+	};
+	pi_steerBetweenSteps = (message, details) => {
+		// Pi's steer (da5cfae5): while a run is active, a custom message sent with
+		// deliverAs "steer" goes on the agent's steering queue, which Pi reads only
+		// between steps, never inside one. A custom message is context, never a user
+		// message, so it cannot start, rename or end the turn it lands in.
+		pi.sendMessage({
+			customType: BETWEEN_STEP_CUSTOM_TYPE,
+			content: message,
+			display: true,
+			details,
+		}, { deliverAs: "steer" });
 	};
 	pi_compact = () => {
 		lastCtx?.compact?.({});
@@ -4586,7 +4880,11 @@ export default function (pi: ExtensionAPI) {
 		segmentInputKind = undefined;
 		leafWake = null;
 		runActive = false;
+		// A steer Pi never showed the agent (the run was stopped and Pi dropped its
+		// queue) was never committed: it is still waiting and goes out below (da5cfae5).
+		pump?.betweenStep.runEnded();
 		pi_setServeToolActive(false);
+		pi_setNoticeReplyToolActive(false);
 		const activeAtSettle = pump;
 		const occupancyAtSettle = activeAtSettle?.runtimeOccupancy.capture() ?? null;
 		const turnAtSettle = turn;
@@ -4659,6 +4957,8 @@ export default function (pi: ExtensionAPI) {
 				}
 			}
 			retireInteractionForeground(interactionRun);
+			// After the command's own answer and completion, never before or instead.
+			if (settlingTurn) await reportUnansweredSteeredNotices(settlingTurn, agentStats);
 		})();
 		trackTerminalPost(terminalPost);
 		if (keepWorking && settlingTurn && activeAtSettle && observationScope) {
@@ -4672,12 +4972,14 @@ export default function (pi: ExtensionAPI) {
 		// idle. The next custom run remains unbound from every owner generation.
 		if (completionNeutral) systemNoticeTurnPending = false;
 		systemNoticeRunActive = false;
-		notifyCheckJobIdleWaiters();
 		if (pump && !pump.busy && ctx.isIdle()) {
 			try { deliverQueuedSystemNotices(pump, ctx); } catch (error) {
 				debug("system notice settle drain failed", { errorPresent: Boolean(error) });
 			}
 		}
+		// What arrived after the run's last step, or was never shown, goes out now.
+		// A notice run started above takes the check jobs at its first step boundary.
+		if (pump) pumpWaitingCheckJobs(pump, ctx);
 	});
 
 	// ---- Turn lifecycle events (mechanical trail + final answer) ------------
@@ -4731,11 +5033,19 @@ export default function (pi: ExtensionAPI) {
 	// model about: nothing new adds nothing. Directed commands keep their own
 	// interruption path; this never starts or extends a run. Only an attached
 	// copy can change mid-run; an offline one was fully presented at the wake.
+	//
+	// The same boundary is where a check job or notice that arrived during the
+	// step is steered in (da5cfae5): Pi reads its steering queue right after this
+	// handler returns, so the agent is shown it before its next step. It is the
+	// handler's last act, after every await, so nothing can slip in between.
 	pi.on("turn_end", async (event, ctx) => {
 		lastCtx = ctx;
-		if (!pump?.bond.sessionId || !pi_roomReaderAvailable()) return undefined;
-		const boundary = await roomUnreadBoundary(event, () => roomUnreadForContext(ctx, "fresh"));
+		const active = pump;
+		const boundary = active?.bond.sessionId && pi_roomReaderAvailable()
+			? await roomUnreadBoundary(event, () => roomUnreadForContext(ctx, "fresh"))
+			: undefined;
 		if (boundary) noteInjectedContext("roomDigest", boundary.entries.reduce((n, e) => n + e.content.length, 0));
+		if (active) steerWaitingBetweenSteps(active, event.outcome);
 		return boundary;
 	});
 
@@ -4851,6 +5161,15 @@ export default function (pi: ExtensionAPI) {
 		const customType = typeof msg?.customType === "string" ? msg.customType : null;
 		if (customType === SYSTEM_NOTICE_CUSTOM_TYPE) systemNoticeTurnPending = false;
 		const text = extractText(event.message);
+		// A between-step delivery is nobody's request (da5cfae5): it is counted as
+		// delivered and nothing else happens. It binds no request, opens no segment
+		// and leaves the running turn's kind, command identity, Working state and
+		// replies exactly as they are, attached to a room or not. Only Pi's own custom
+		// message is one: a person's message is never swallowed for how it opens.
+		if (msg?.role !== "user" && isBetweenStepDelivery(text, customType)) {
+			noteBetweenStepDelivered(msg?.details, ctx);
+			return;
+		}
 		const harness = isHarnessOrigin(text, customType);
 		const isInput = msg?.role === "user" || msg?.role === "custom" || harness;
 		const isRealUserMessage = msg?.role === "user" && !harness;
@@ -4868,22 +5187,7 @@ export default function (pi: ExtensionAPI) {
 			const previousInteraction = isRealUserMessage ? turn.interaction : undefined;
 			if (customType === SYSTEM_NOTICE_CUSTOM_TYPE) {
 				turn.completionNeutral = true;
-				// The notices this run answers, for the reply its final message becomes
-				// (6aad2b46): only the connection they were delivered to may name them.
-				// Only the notices that need a person are named in it; a batch of notices
-				// that are all for the record leaves the run quiet (a868f41f).
-				const { needsPerson, forTheRecord } = noticeIdsFromDelivery(msg?.details);
-				const connectionId = getBond()?.connectionId;
-				if (needsPerson.length + forTheRecord.length > 0 && connectionId) {
-					const held = turn.noticeReply?.connectionId === connectionId ? turn.noticeReply : undefined;
-					turn.noticeReply = {
-						connectionId,
-						noticeIds: [...new Set([...(held?.noticeIds ?? []), ...needsPerson])],
-						forTheRecordIds: [...new Set([...(held?.forTheRecordIds ?? []), ...forTheRecord])],
-						roomPromised: (msg?.details as { roomAttached?: unknown } | undefined)?.roomAttached === true,
-						finalText: null,
-					};
-				}
+				captureNoticeReply(turn, msg?.details);
 			}
 			const activityTransition = isRealUserMessage
 				? transitionToRealUserActivity({
@@ -5085,8 +5389,9 @@ export default function (pi: ExtensionAPI) {
 		// Mark synchronously before the first await. Timer ticks from this point on
 		// cannot open a pointer that overtakes canonical receipt takeover.
 		trackedTurn.receiptBatch.start(event.toolCallId, revision, potentialReceipt);
-		trackedTurn.trail.toolStart(event.toolCallId, event.toolName, event.args);
-		trackedTurn.trailDelivery.markDirty();
+		// Taking and ruling a check job, and replying to a notice, never enter a work
+		// trail (da5cfae5): steered into a person's command, they leave its trail its own.
+		if (trackedTurn.trail.toolStart(event.toolCallId, event.toolName, event.args)) trackedTurn.trailDelivery.markDirty();
 		if (event.toolName === "subagent_wait") refreshSubagentFleet(event.toolCallId, trackedTurn);
 		if (!potentialReceipt) return;
 
@@ -5115,6 +5420,7 @@ export default function (pi: ExtensionAPI) {
 		noteProgressEvent();
 		lastCtx = ctx;
 		if (!turn) return;
+		if (keptOutOfWorkTrail(event.toolName)) return;
 		turn.trail.toolUpdate(event.toolCallId, event.partialResult);
 		turn.trailDelivery.markDirty();
 		// Reuse the host tool's existing progress cadence; the client deduplicates
@@ -5167,6 +5473,7 @@ export default function (pi: ExtensionAPI) {
 			success: !event.isError,
 			terminatingReceipt,
 		}, turn.revision);
+		if (keptOutOfWorkTrail(event.toolName)) return;
 		turn.trail.toolEnd(event.toolCallId, event.toolName, !event.isError, event.result);
 		turn.trailDelivery.markDirty();
 	});
@@ -5180,6 +5487,7 @@ export default function (pi: ExtensionAPI) {
 		launchScopes.clear();
 		launchRequests.clear();
 		installServeToolSwitch(null);
+		installNoticeHandover(null);
 		pi_refreshBackgroundWork = async () => {};
 		void clearOffer();
 		pi_receiveCommandOffer = async () => {};

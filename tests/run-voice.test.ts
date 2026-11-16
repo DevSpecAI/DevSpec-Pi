@@ -17,7 +17,8 @@ import { parsePostSessionReceipt, TrailDeliveryState } from "../extensions/core/
 import { noticeReplyFinalText, noticeReplyTerminalMessage, postNoticeReply } from "../extensions/core/notice-reply.ts";
 import { remoteRunActivityPolicy } from "../extensions/core/system-notice.ts";
 import { formatCheckJobMessage } from "../extensions/core/dispatch.ts";
-import { noticeBatchWake, noticeNeedsPerson, runSpeaks, wakeIsQuiet, type RunWake } from "../extensions/core/run-voice.ts";
+import { NO_NOTICE_WAITING, NOTICE_REPLY_TOOL, UNANSWERED_NOTICE_LINE, noticeHandoverResult } from "../extensions/core/notice-handover.ts";
+import { isCheckOwnWorkTool, keptOutOfWorkTrail, noticeBatchWake, noticeNeedsPerson, runSpeaks, wakeIsQuiet, type RunWake } from "../extensions/core/run-voice.ts";
 import { carriesTellPerson, noteTellPerson, resetTellPersonForTests, takeTellPerson } from "../extensions/core/tell-person.ts";
 import { systemNotice } from "./canonical-ingress-fixture.ts";
 
@@ -109,12 +110,12 @@ test("the wiring: tools note the mark by tool call id, and a finished tool call 
 	// A new request in the same run starts without the previous one's mark.
 	assert.match(source, /turn\.localActivityReady = undefined;\n\t+turn\.tellPerson = undefined;/);
 	// A notice batch is captured split by DevSpec's label.
-	assert.match(source, /const \{ needsPerson, forTheRecord \} = noticeIdsFromDelivery\(msg\?\.details\);/);
+	assert.match(source, /const \{ needsPerson, forTheRecord \} = noticeIdsFromDelivery\(details\);/);
 });
 
 // ---- The real segment writers ---------------------------------------------
 
-function harness(turn: Record<string, unknown>) {
+function harness(turn: Record<string, unknown>, options: { notice?: "stored" | "settled" | "lost" } = {}) {
 	const hooks: Record<string, (event: any, ctx: any) => Promise<void> | void> = {};
 	const requests: Array<{ name: string; args: Record<string, unknown> }> = [];
 	const room: Array<{ message: string; opts: Record<string, unknown> }> = [];
@@ -124,6 +125,7 @@ function harness(turn: Record<string, unknown>) {
 	const sandbox = {
 		AssistantSpeechSource, AssistantSpeechQueue, assistantSpeechWithinBudget, unwrapMcpResult, parsePostSessionReceipt, TurnTracker, shouldSplitSpeech, isClosedAnswer, extractAssistantParts,
 		noticeReplyFinalText, noticeReplyTerminalMessage, postNoticeReply, remoteRunActivityPolicy, DevspecToolError, runSpeaks, wakeIsQuiet,
+		NO_NOTICE_WAITING, UNANSWERED_NOTICE_LINE, noticeHandoverResult,
 		turn, pump: { bond, generation: 1, stop: false }, lastCtx: { hasUI: true }, AGENT_NAME: "Pi",
 		getBond: () => bond, resolveToken: async () => ({ token: "private-bearer" }), replyModelArgs: () => ({}),
 		randomUUID: () => "20202020-2020-4202-8202-202020202020",
@@ -137,6 +139,11 @@ function harness(turn: Record<string, unknown>) {
 		callDevspec: async (_token: string, name: string, args: Record<string, unknown>, opts: { beforeSend?: () => void }) => {
 			opts.beforeSend?.();
 			requests.push({ name, args });
+			// DevSpec's gate, as it answers a notice reply (semantics.notice_reply.only_when_needed).
+			if (args.system_notice_ids && options.notice === "settled") {
+				throw new DevspecToolError(JSON.stringify({ delivery: { status: "skipped", reason: "for_the_record", retryable: false }, error: "No chat bubble was posted.", settled_housekeeping: true, housekeeping_message_id: "housekeeping-row" }));
+			}
+			if (args.system_notice_ids && options.notice === "lost") throw new Error("socket hang up");
 			if (args.system_notice_ids) {
 				return envelope({ delivery: { status: "stored", message_id: "row" }, message_id: "row", session_id: "room", connection_id: args.connection_id, phase: "answer", notice_reply: { notice_ids: args.system_notice_ids }, turn_effect: "none", complete_turn: false });
 			}
@@ -144,7 +151,9 @@ function harness(turn: Record<string, unknown>) {
 		},
 		pi: { on: (name: string, fn: typeof hooks[string]) => hooks[name] = fn, appendEntry: (type: string) => journal.push(type) },
 	};
-	const api = runInNewContext(stripTypeScriptTypes(`${voice}\n${speech}\n${tick}\n${terminalError}\n${segment}\n${endHook}\n({ postSegmentAnswer, trailTick, reportTerminalError, segmentWake })`), sandbox) as {
+	const api = runInNewContext(stripTypeScriptTypes(`${voice}\n${speech}\n${tick}\n${terminalError}\n${segment}\n${endHook}\n({ postSegmentAnswer, trailTick, reportTerminalError, segmentWake, answerSteeredNotices, reportUnansweredSteeredNotices })`), sandbox) as {
+		answerSteeredNotices: (message: string) => Promise<{ ok: boolean; text: string }>;
+		reportUnansweredSteeredNotices: (t: unknown, stats: null) => Promise<void>;
 		postSegmentAnswer: (t: unknown, stats: null, why: string, complete?: boolean) => Promise<boolean>;
 		trailTick: () => void;
 		reportTerminalError: (t: unknown, stats: null) => Promise<void>;
@@ -158,8 +167,9 @@ function liveSegment(wake: string, extra: Record<string, unknown> = {}): Record<
 	const tracker = new TurnTracker();
 	tracker.userMessage(wake);
 	const trail = new TrailBuilder();
-	trail.toolStart("call-1", "claim_check_job", { check_job_id: JOB });
-	trail.toolEnd("call-1", "claim_check_job", true, envelope({ ok: true }));
+	// A row that would post: the tools that take and rule a check never enter a trail at all.
+	trail.toolStart("call-1", "get_task", { item_id: JOB });
+	trail.toolEnd("call-1", "get_task", true, envelope({ ok: true }));
 	const trailDelivery = new TrailDeliveryState();
 	trailDelivery.markDirty();
 	const args = Object.freeze({ connection_id: CONNECTION, ingest_version: 2 });
@@ -269,4 +279,196 @@ test("a batch with a notice that needs a person replies, naming only that notice
 	await h.api.postSegmentAnswer(t, null, "run_end", true);
 	assert.deepEqual(h.requests.map((request) => request.args.system_notice_ids), [[NEEDS]]);
 	assert.deepEqual(h.room, []);
+});
+
+// ---- A notice delivered between the steps of a check-job run (da5cfae5) ------
+
+test("a notice steered into a check-job run is answered by the run's final message, as a notice reply and nothing else", async () => {
+	const t = liveSegment(checkJobWake, { noticeReply: { connectionId: CONNECTION, noticeIds: [NEEDS], forTheRecordIds: [RECORD], roomPromised: true, finalText: null } });
+	const h = harness(t);
+	assert.equal(h.api.segmentWake(t), "check_job", "it is still a check-job run: quiet by what woke it");
+	await say(h, t, "Taking the check.", "toolUse", true);
+	await say(h, t, "Your task clashes with Sam's decision; want me to revise it?");
+	h.api.trailTick();
+	await h.drain();
+	assert.deepEqual(h.requests, [], "no speech while it runs");
+	assert.equal(await h.api.postSegmentAnswer(t, null, "run_end", true), false, "it answers and completes no command turn");
+	assert.deepEqual(h.requests.map((request) => [request.name, request.args.message, request.args.system_notice_ids]), [
+		["post_session_message", "Your task clashes with Sam's decision; want me to revise it?", [NEEDS]],
+	]);
+	assert.deepEqual(h.room, [], "no trail and no answer post");
+	assert.deepEqual(h.warnings, []);
+});
+
+test("a check-job run steered only for-the-record notices, or ending on a tool call, still posts nothing", async () => {
+	const record = liveSegment(checkJobWake, { noticeReply: { connectionId: CONNECTION, noticeIds: [], forTheRecordIds: [RECORD], roomPromised: true, finalText: null } });
+	const quiet = harness(record);
+	await say(quiet, record, "Ruled all four entries and folded my duplicate.");
+	await quiet.drain();
+	assert.equal(await quiet.api.postSegmentAnswer(record, null, "run_end", true), false);
+	assert.deepEqual(quiet.requests, []);
+	assert.deepEqual(quiet.room, []);
+	const open = liveSegment(checkJobWake, { noticeReply: { connectionId: CONNECTION, noticeIds: [NEEDS], forTheRecordIds: [], roomPromised: true, finalText: null } });
+	const unfinished = harness(open);
+	await say(unfinished, open, "Still ruling.", "toolUse", true);
+	await unfinished.drain();
+	assert.equal(await unfinished.api.postSegmentAnswer(open, null, "run_end", true), false);
+	assert.deepEqual(unfinished.requests, [], "a run with no final message has no reply");
+});
+
+test("a check-job run that tell_person made speak says its final message once, never again as a notice reply", async () => {
+	const t = liveSegment(checkJobWake, { noticeReply: { connectionId: CONNECTION, noticeIds: [NEEDS], forTheRecordIds: [], roomPromised: true, finalText: null } });
+	const h = harness(t);
+	await say(h, t, "I'll fold the duplicate.", "toolUse", true);
+	t.tellPerson = true;
+	await say(h, t, "I closed Sam's task as a duplicate of yours.");
+	await h.drain();
+	assert.equal(await h.api.postSegmentAnswer(t, null, "run_end", true), false);
+	assert.deepEqual(h.requests.map((request) => [request.args.message, request.args.system_notice_ids]), [
+		["I closed Sam's task as a duplicate of yours.", undefined],
+	], "one ordinary message, as for any run a write made speak");
+});
+
+test("taking and ruling a check never enters a work trail, so a check steered into a command leaves that command's trail its own", () => {
+	assert.equal(isCheckOwnWorkTool("claim_check_job"), true);
+	assert.equal(isCheckOwnWorkTool("record_check_rulings"), true);
+	for (const other of ["get_task", "claim_work_item", "claim_automation_run", "subagent", "bash"]) assert.equal(isCheckOwnWorkTool(other), false, other);
+	// The command's own work, with a check ruled between two of its steps.
+	const trail = new TrailBuilder();
+	assert.equal(trail.toolStart("call-1", "get_task", { item_id: JOB }), true);
+	trail.toolEnd("call-1", "get_task", true, envelope({ ok: true }));
+	assert.equal(trail.toolStart("call-2", "claim_check_job", { check_job_id: JOB }), false);
+	trail.toolUpdate("call-2", { content: [] });
+	trail.toolEnd("call-2", "claim_check_job", true, envelope({ entries: [{ entry_id: "e1", text: "Someone else's decision" }] }));
+	assert.equal(trail.toolStart("call-3", "record_check_rulings", { check_job_id: JOB, rulings: [] }), false);
+	trail.toolEnd("call-3", "record_check_rulings", true, envelope({ remaining: 0 }));
+	assert.equal(trail.toolStart("call-4", "update_task", { item_id: JOB }), true);
+	trail.toolEnd("call-4", "update_task", true, envelope({ ok: true }));
+	const events = trail.events() as Array<{ name?: string; tool?: string }>;
+	const rendered = trail.render(100_000, false);
+	assert.doesNotMatch(JSON.stringify(events) + rendered, /claim_check_job|record_check_rulings|Someone else's decision/);
+	assert.match(rendered, /get_task/);
+	assert.match(rendered, /update_task/);
+});
+
+// ---- A notice steered into a person's running turn (da5cfae5) -----------------
+// Its reply is a notice reply naming the notice, so DevSpec's gate decides what the
+// room shows; the command keeps its own speech, answer and completion.
+
+const COMMAND = "[DevSpec remote — message from Ali Price] check the release";
+const steered = (extra: Record<string, unknown> = {}) => ({ connectionId: CONNECTION, noticeIds: [NEEDS], forTheRecordIds: [RECORD], roomPromised: true, finalText: null, ...extra });
+const commandSegment = (extra: Record<string, unknown> = {}) => liveSegment(COMMAND, { commandTurnId: "turn", commandMessageId: "message", ...extra });
+const noticePosts = (h: ReturnType<typeof harness>) => h.requests.filter((request) => request.args.system_notice_ids !== undefined);
+const commandPosts = (h: ReturnType<typeof harness>) => h.requests.filter((request) => request.args.system_notice_ids === undefined).map((request) => ({ ...request.args }));
+
+test("what the agent says about a notice steered into a person's turn goes out as a notice reply naming it, never as command speech", async () => {
+	const t = commandSegment({ steeredNotices: steered() });
+	const h = harness(t);
+	await say(h, t, "On it.", "toolUse", true);
+	const handed = await h.api.answerSteeredNotices("Your task clashes with Sam's decision; want me to revise it?");
+	assert.equal(handed.ok, true);
+	assert.match(handed.text, /^Posted to your room as your reply to the DevSpec notice, apart from the turn you are answering\./);
+	await say(h, t, "The release is green.");
+	await h.drain();
+	// One notice reply: the agent's words and the notice that needs a person, and nothing that binds it to the command.
+	assert.deepEqual(noticePosts(h).map((request) => ({ ...request.args })), [
+		{ agent_name: "Pi", connection_id: CONNECTION, message: "Your task clashes with Sam's decision; want me to revise it?", system_notice_ids: [NEEDS] },
+	]);
+	// The command's speech carries the command's messages and not a word of the notice reply.
+	assert.deepEqual(commandPosts(h).map((args) => args.message), ["On it.", "The release is green."]);
+	assert.ok(commandPosts(h).every((args) => args.ingest_version === 2 && args.assistant_source_id));
+	// DevSpec has decided: nothing more is posted for it when the turn ends.
+	assert.deepEqual([...(t.steeredNotices as { noticeIds: string[] }).noticeIds], []);
+	await h.api.reportUnansweredSteeredNotices(t, null);
+	assert.equal(noticePosts(h).length, 1);
+	assert.deepEqual(h.warnings, []);
+});
+
+test("a notice the agent settled during the turn still goes through the notice-reply path, where DevSpec records it quietly", async () => {
+	// Handed over: DevSpec answers that it is settled, and the agent is told no message was posted.
+	const told = commandSegment({ steeredNotices: steered() });
+	const h = harness(told, { notice: "settled" });
+	const handed = await h.api.answerSteeredNotices("I folded the duplicate into your task.");
+	assert.equal(handed.ok, true);
+	assert.match(handed.text, /^DevSpec posted no message: every notice was already settled with nothing left for a person, and it recorded that quietly in the room\./);
+	assert.deepEqual(noticePosts(h).map((request) => request.args.system_notice_ids), [[NEEDS]]);
+	assert.deepEqual([...(told.steeredNotices as { noticeIds: string[] }).noticeIds], []);
+	// Nothing handed over at all: the run's end reports the notice the same way, so the gate runs without the agent.
+	const silent = commandSegment({ steeredNotices: steered() });
+	const quiet = harness(silent, { notice: "settled" });
+	await say(quiet, silent, "The release is green.");
+	await quiet.drain();
+	await quiet.api.reportUnansweredSteeredNotices(silent, null);
+	assert.deepEqual(noticePosts(quiet).map((request) => ({ ...request.args })), [
+		{ agent_name: "Pi", connection_id: CONNECTION, message: UNANSWERED_NOTICE_LINE, system_notice_ids: [NEEDS] },
+	]);
+	assert.deepEqual(commandPosts(quiet).map((args) => args.message), ["The release is green."], "the command's speech is what it was");
+	assert.deepEqual(quiet.warnings, [], "a quiet housekeeping record is an expected outcome, never an error");
+	assert.equal(silent.steeredNotices, undefined);
+	await quiet.api.reportUnansweredSteeredNotices(silent, null);
+	assert.equal(noticePosts(quiet).length, 1, "reported once");
+});
+
+test("a notice that still needs a person is shown to them even when the agent handed nothing over", async () => {
+	const t = commandSegment({ steeredNotices: steered() });
+	const h = harness(t);
+	await h.api.reportUnansweredSteeredNotices(t, null);
+	// DevSpec stores it as a reply naming the notice, which is what gives it the follow-up card.
+	assert.deepEqual(noticePosts(h).map((request) => [request.args.message, request.args.system_notice_ids]), [[UNANSWERED_NOTICE_LINE, [NEEDS]]]);
+	assert.deepEqual(h.warnings, []);
+});
+
+test("the command's own speech, trail, answer and completion are the same with a notice steered into it as without", async () => {
+	const run = async (withNotice: boolean) => {
+		const t = commandSegment(withNotice ? { steeredNotices: steered() } : {});
+		const h = harness(t);
+		await say(h, t, "On it.", "toolUse", true);
+		if (withNotice) await h.api.answerSteeredNotices("Your task clashes with Sam's decision.");
+		await say(h, t, "The release is green.");
+		h.api.trailTick();
+		await h.drain();
+		const answered = await h.api.postSegmentAnswer(t, null, "run_end", true);
+		if (withNotice) await h.api.reportUnansweredSteeredNotices(t, null);
+		const speech = commandPosts(h).map(({ assistant_source_id: _source, ...args }) => args);
+		return { answered, speech, room: h.room.map((post) => ({ message: post.message, phase: post.opts.phase, completeTurn: post.opts.completeTurn, commandTurnId: post.opts.commandTurnId, commandMessageId: post.opts.commandMessageId })), notices: noticePosts(h).length, tracker: { ...(t.tracker as object) } };
+	};
+	const plain = await run(false);
+	const steeredInto = await run(true);
+	assert.equal(steeredInto.notices, 1);
+	assert.equal(plain.notices, 0);
+	assert.equal(steeredInto.answered, plain.answered);
+	assert.deepEqual(steeredInto.speech, plain.speech);
+	assert.deepEqual(steeredInto.room, plain.room);
+	assert.deepEqual(steeredInto.tracker, plain.tracker);
+});
+
+test("a reply DevSpec could not confirm is kept and goes again with the agent's own words when the turn ends", async () => {
+	const t = commandSegment({ steeredNotices: steered() });
+	const h = harness(t, { notice: "lost" });
+	const handed = await h.api.answerSteeredNotices("Your task clashes with Sam's decision.");
+	assert.equal(handed.ok, false);
+	assert.match(handed.text, /^The reply may not have reached the room/);
+	assert.deepEqual([...(t.steeredNotices as { noticeIds: string[] }).noticeIds], [NEEDS], "still waiting");
+	await h.api.reportUnansweredSteeredNotices(t, null);
+	assert.deepEqual(noticePosts(h).map((request) => request.args.message), ["Your task clashes with Sam's decision.", "Your task clashes with Sam's decision."], "never the stand-in line once the agent has spoken");
+});
+
+test("with no notice waiting, the reply tool posts nothing and says so", async () => {
+	for (const t of [commandSegment(), commandSegment({ steeredNotices: steered({ noticeIds: [] }) })]) {
+		const h = harness(t);
+		assert.deepEqual({ ...(await h.api.answerSteeredNotices("Anything.")) }, { ok: false, text: NO_NOTICE_WAITING });
+		await h.api.reportUnansweredSteeredNotices(t, null);
+		assert.deepEqual(h.requests, [], "a for-the-record notice is never posted about, by the tool or at the end");
+	}
+});
+
+test("the reply to a steered notice leaves no row in the command's work trail", () => {
+	assert.equal(keptOutOfWorkTrail(NOTICE_REPLY_TOOL), true);
+	assert.equal(keptOutOfWorkTrail("claim_check_job"), true);
+	assert.equal(keptOutOfWorkTrail("update_task"), false);
+	const trail = new TrailBuilder();
+	assert.equal(trail.toolStart("call-1", NOTICE_REPLY_TOOL, { message: "Your task clashes with Sam's decision." }), false);
+	trail.toolEnd("call-1", NOTICE_REPLY_TOOL, true, envelope({ ok: true }));
+	assert.ok(trail.isEmpty());
+	assert.equal(noticeHandoverResult({ kind: "for_the_record" }).done, true);
 });

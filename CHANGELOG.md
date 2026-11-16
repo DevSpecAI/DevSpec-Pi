@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.14.8 - 2026-11-16
+
+- **Checks, and what they find, now reach your agent while it is still working.** When your project sends your agent a check on a change, or DevSpec follows up on something your agent did, a busy Pi used to hear about it only after its whole turn had ended. Now your agent hears as soon as the step it is on finishes, deals with it there, and carries on with what it was doing. A step is never interrupted part-way through, and an idle Pi still hears straight away.
+- **Every check that is waiting is handed over together.** Your agent rules all of them in one pause. Before, each check waited for the one ahead of it to finish a turn of its own.
+- **The work your agent was doing is left exactly as it was.** A check or follow-up that arrives part-way through a turn is nobody's request. The command your agent is answering still shows as being worked on, and its answer still goes to the person who asked. Anything your agent has to say about a follow-up is posted apart from that answer, as its reply to the follow-up, so you see it with its own card. Whether you hear about what a check found is unchanged, and DevSpec decides it: only when something still needs you after your agent has acted. Your own messages, Stop and the other controls, and your answers to its questions reach Pi the same way as before.
+- **Helper agents for checks.** DevSpec asks your agent to rule each check in a short-lived helper agent, so the records being compared stay out of your main conversation. Pi now passes that guidance to your agent before it takes a check. On Pi, helper agents come from the `pi-subagents` add-on, so we recommend installing it: run `pi install npm:pi-subagents`, then restart Pi. Without it nothing breaks, and your agent rules each check itself.
+- Pi's built-in copy of DevSpec's tools is regenerated to match the server. No tool was added, removed or changed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.14.7 - 2026-11-16
 
 - **A Pi that is not in a session now does what DevSpec asks of it straight away.** Stop, a model or thinking change, compact, reload and Start fresh used to wait until that Pi was next brought into a session, and until then every other control sent to it was refused as "still processing another control". Pi also showed "DevSpec sent this Pi a message it cannot read". Now it carries each one out at once and frees the slot. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.

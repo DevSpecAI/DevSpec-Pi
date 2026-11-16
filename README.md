@@ -44,6 +44,14 @@ Your browser opens DevSpec's approval page. Click **Allow**, and Pi is signed in
 - **Join a session room:** Attach your connected Pi terminal to a new or existing session room from [devspec.ai](https://devspec.ai), or run `/devspec.remote --session <id>` inside Pi (and `/devspec.remote stop` when you want to disconnect this conversation).
 - **Switch or pin projects anywhere:** Run `/devspec.project` to inspect or change the active project for the current conversation or folder (or launch with `pi --devspec-project "Project Name"`).
 
+### 4. Add helper agents for checks (recommended)
+
+```bash
+pi install npm:pi-subagents
+```
+
+When your project sends your agent a check on a change, DevSpec asks it to do that check in a short-lived helper agent. The records being compared then stay out of your main conversation, and your agent keeps its place in the work it was doing. Pi starts helper agents through the `pi-subagents` add-on, so install it alongside DevSpec and restart `pi`. Without it nothing breaks: your agent does each check itself, in your main conversation.
+
 Sitting idle on the **Agents** page uses no tokens — Pi runs only when you or an authorized teammate asks it to do something, when your project routes a check on a change for it to rule, or when an automation you opted into runs.
 
 ---

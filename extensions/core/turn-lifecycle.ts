@@ -11,10 +11,19 @@ export const AUTOMATION_RUN_PREFIX = "[DevSpec remote — automation run";
 /** A check job DevSpec sent this agent to rule (55d71b0c): DevSpec's input, nobody's request. */
 export const CHECK_JOB_PREFIX = "[DevSpec remote — check job";
 export const INTERACTION_CONTINUATION_PREFIX = "[DevSpec directed-question workflow continuation]";
+/**
+ * Check jobs and notices DevSpec delivered between two steps of a running turn
+ * (item da5cfae5, decision b8abe2bb), steered in as one custom message. It is
+ * nobody's request: context for the turn that is already running, never input
+ * that starts, renames or ends one.
+ */
+export const BETWEEN_STEP_CUSTOM_TYPE = "devspec-between-step-v1";
+export const BETWEEN_STEP_PREFIX = "[DevSpec between steps";
 const CONTEXT_TEXT_PREFIXES = [
 	"### DevSpec memory — auto-recall",
 	"[DevSpec remote — bond context",
 	"[DevSpec remote — room orientation",
+	BETWEEN_STEP_PREFIX,
 ];
 const SUBAGENT_NOTIFICATION_PREFIX = /^(?:Background task (?:completed|failed|paused|stopped)|Detached foreground task (?:completed|failed|paused|stopped)): \*\*[^\n]+\*\*(?: \([^\n]*\))?\n\n/;
 const ASYNC_SUBAGENT_NOTIFICATION_PREFIX = /^Background task (?:completed|failed|paused|stopped): \*\*[^\n]+\*\*(?: \([^\n]*\))?\n\n/;
@@ -31,6 +40,11 @@ export function isSubagentAsyncNotification(text: string, _customType?: string |
 	const trimmed = text.trim();
 	return ASYNC_SUBAGENT_NOTIFICATION_PREFIX.test(trimmed)
 		|| GROUPED_SUBAGENT_NOTIFICATION_PREFIX.test(trimmed);
+}
+
+/** A between-step delivery, by its type or (for a host that drops customType) its opening words. */
+export function isBetweenStepDelivery(text: string, customType?: string | null): boolean {
+	return customType === BETWEEN_STEP_CUSTOM_TYPE || text.startsWith(BETWEEN_STEP_PREFIX);
 }
 
 export function isHarnessOrigin(text: string, customType?: string | null): boolean {
@@ -91,6 +105,10 @@ export class TurnTracker {
 	lastCloseWasProcess = false;
 
 	userMessage(text: string, origin?: { customType?: string | null; backgroundTaskId?: string | null }): void {
+		// A between-step delivery rides the running turn whatever that turn is, a
+		// fresh or harness segment included: the segment keeps its kind, its text,
+		// its first-answer state and its prompt mirror exactly as they were (da5cfae5).
+		if (isBetweenStepDelivery(text, origin?.customType)) return;
 		const kind = classifyUserKind(text, origin?.customType);
 		// A leftover wake may replay the last typed prompt as a user message.
 		// Once this segment is harness, stay harness — do not remirror that prompt.

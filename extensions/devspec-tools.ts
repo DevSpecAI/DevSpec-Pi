@@ -33,6 +33,7 @@ import {
 	stampRequestRef,
 	unstampedNote,
 } from "./core/request-chain.ts";
+import { NOTICE_REPLY_TOOL, NOTICE_REPLY_TOOL_DESCRIPTION, NOTICE_REPLY_TOOL_SCHEMA, handOverNoticeReply } from "./core/notice-handover.ts";
 import { directedQuestionTranscriptReceiptId } from "./core/question-receipt-lifecycle.ts";
 import {
 	catalogEntry,
@@ -474,6 +475,26 @@ function registerServeRequestTool(pi: ExtensionAPI): void {
 	});
 }
 
+/**
+ * The agent hands over its reply to DevSpec notices that were steered between
+ * the steps of a turn answering someone else (item da5cfae5). A host tool, not
+ * a DevSpec verb: post_session_message stays unregistered, and this posts only a
+ * notice reply for notices this Pi steered into the running turn. Active only
+ * while such notices wait (devspec-remote shows it when it steers them).
+ */
+function registerNoticeReplyTool(pi: ExtensionAPI): void {
+	pi.registerTool({
+		name: NOTICE_REPLY_TOOL,
+		label: "Reply to a DevSpec notice",
+		description: NOTICE_REPLY_TOOL_DESCRIPTION,
+		parameters: jsonSchemaToTypebox(NOTICE_REPLY_TOOL_SCHEMA as unknown as Record<string, unknown>),
+		async execute(_toolCallId, params) {
+			const handed = await handOverNoticeReply((params as { message?: unknown }).message);
+			return measuredToolResult(NOTICE_REPLY_TOOL, handed.ok ? toolTextResult(handed.text) : toolErrorResult(handed.text));
+		},
+	});
+}
+
 /** Every safe generated model verb, each with its own slim schema. */
 export function modelFacingCatalog(): CatalogEntry[] {
 	return allModelFacingTools();
@@ -484,8 +505,9 @@ export function initialActiveTools(active: readonly string[]): string[] {
 	const devspecVerbs = new Set(modelFacingCatalog().map((entry) => entry.name));
 	return [
 		...new Set([
-			// serve_request is shown only while a turn carries several requests.
-			...active.filter((name) => !devspecVerbs.has(name) && name !== TOOL_LOADER_NAME && name !== ROOM_READ_TOOL && name !== SERVE_REQUEST_TOOL),
+			// serve_request is shown only while a turn carries several requests, and the
+			// notice reply tool only while a person's turn holds notices steered into it.
+			...active.filter((name) => !devspecVerbs.has(name) && name !== TOOL_LOADER_NAME && name !== ROOM_READ_TOOL && name !== SERVE_REQUEST_TOOL && name !== NOTICE_REPLY_TOOL),
 			...HOT_SET_VERBS,
 			TOOL_LOADER_NAME,
 			ROOM_READ_TOOL,
@@ -494,10 +516,11 @@ export function initialActiveTools(active: readonly string[]): string[] {
 }
 
 export default function (pi: ExtensionAPI) {
-	registerContextBudgetToolNames([...MODEL_VERB_NAMES, TOOL_LOADER_NAME, ROOM_READ_TOOL, SERVE_REQUEST_TOOL]);
+	registerContextBudgetToolNames([...MODEL_VERB_NAMES, TOOL_LOADER_NAME, ROOM_READ_TOOL, SERVE_REQUEST_TOOL, NOTICE_REPLY_TOOL]);
 	for (const entry of allModelFacingTools()) if (entry.name !== TOOL_LOADER_NAME) registerCatalogTool(pi, entry);
 	registerToolLoader(pi);
 	registerServeRequestTool(pi);
+	registerNoticeReplyTool(pi);
 	registerRoomReader(pi, () => {
 		if (sessionDeniedTools.has("get_session_transcript")) return false;
 		const active = pi.getActiveTools();

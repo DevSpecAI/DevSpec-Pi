@@ -36,7 +36,11 @@ export function buildBondedInstructions(): string | null {
 		"Messages prefixed [DevSpec remote — message from ...] are server-authorized remote commands delivered via the bond. Owner authority and delegated project scope differ; mutable runtime policy is served at devspec://product/remote-ingress-contract, and any delegated scope instruction is delivered with its exact command turn.",
 		// Check jobs (55d71b0c; decisions c7cf2398, e9556b5c): behaviour only, never
 		// how the agent words anything to its person, and no citation requirement.
-		"DevSpec sends every check on a change — your own changes included — as a check job on your wake channel (messages prefixed [DevSpec remote — check job ...]). Take it with claim_check_job, rule every entry with record_check_rulings using the definition it carries (read any linked supporting document or uploaded file in full with get_resource first), then carry on with what you were doing or act on what it found. If you cannot rule it, hand it back.",
+		// da5cfae5 (decisions b8abe2bb, 1d5a9c56): a working agent gets them, and
+		// DevSpec's notices about its own work, between two steps of its turn, so the
+		// agent must know that message for DevSpec's own; who rules a check job is the
+		// served contract's, pointed at and never restated.
+		"DevSpec sends every check on a change — your own changes included — as a check job on your wake channel: a message prefixed [DevSpec remote — check job ...] when you are idle, or a [DevSpec between steps ...] message delivered between two steps of a turn you are working, which can also carry DevSpec's notices about your own work. A between-steps message is nobody's request and no part of what you were asked to do: deal with everything it lists in that one pause, then carry on exactly where you left off. Who rules a check job, you or a helper agent you start, is the served contract's semantics.check_job.helpers. A check job is taken with claim_check_job and every entry ruled with record_check_rulings using the definition it carries (read any linked supporting document or uploaded file in full with get_resource first); then carry on with what you were doing or act on what it found. If you cannot rule it, hand it back.",
 		// A duplicate of a task the agent wrote (99ea5513; decision d27ccae5): behaviour only.
 		// Who it is folded into, when the requester is asked first and whether the room hears
 		// about it are the served contract's, pointed at and never restated (a868f41f).

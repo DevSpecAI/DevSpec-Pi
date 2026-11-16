@@ -9,7 +9,7 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CHECK_JOB_VERSION, isCheckJobEnvelope } from "../extensions/core/dispatch.ts";
+import { CHECK_JOB_HELPERS_POINTER, CHECK_JOB_VERSION, isCheckJobEnvelope, servedCheckJobHelpers } from "../extensions/core/dispatch.ts";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const explicit = process.env.DEVSPEC_V2_ROOT?.trim();
@@ -46,4 +46,32 @@ test("Pi accepts exactly the server's version-2 check-job envelope, for every re
 		const job = { ...shaped(CHECK_JOB_VERSION), record: { type, id: "9b2d6c1e-1111-4222-8333-444455556666", title: "T" } };
 		assert.equal(isCheckJobEnvelope(job), true, type);
 	}
+});
+
+test("the helpers pointer names text the server really serves, and Pi reads those exact words from the contract (da5cfae5)", async t => {
+	const contractPath = "packages/core/src/mcp/remote-ingress-contract.ts";
+	if (!root || !existsSync(resolve(root, contractPath))) {
+		if (explicit) assert.fail("DEVSPEC_V2_ROOT does not contain the remote ingress contract");
+		t.skip("paired server checkout unavailable; set DEVSPEC_V2_ROOT"); return;
+	}
+	const require = createRequire(resolve(root, "package.json"));
+	const { createJiti } = require("jiti");
+	const jiti = createJiti(resolve(root, "pi-check-job-helpers-probe.mjs"), { fsCache: false, moduleCache: false, alias: { "@devspec/core": resolve(root, "packages/core/src"), "@": resolve(root, "apps/web") } });
+	const server = await jiti.import(resolve(root, contractPath)) as {
+		CHECK_JOB_HELPERS_INSTRUCTION: string;
+		REMOTE_INGRESS_CONTRACT: { kind: string; semantics: { check_job: { helpers: string } } };
+	};
+	const served = server.REMOTE_INGRESS_CONTRACT.semantics.check_job.helpers;
+	if (typeof served !== "string" || !served.trim()) {
+		// A sibling checkout found by default may sit on a branch cut before the
+		// server served this rule. One named explicitly must serve it.
+		if (explicit) assert.fail("DEVSPEC_V2_ROOT serves no semantics.check_job.helpers: the pointer would name nothing");
+		t.skip("paired server checkout predates semantics.check_job.helpers; set DEVSPEC_V2_ROOT to a current one"); return;
+	}
+	// The path the pointer gives is where the server keeps the rule.
+	assert.match(CHECK_JOB_HELPERS_POINTER, /semantics\.check_job\.helpers in devspec:\/\/product\/remote-ingress-contract/);
+	assert.equal(served, server.CHECK_JOB_HELPERS_INSTRUCTION);
+	// Read as the resource is served, the words come back whole.
+	const resource = { contents: [{ uri: "devspec://product/remote-ingress-contract", text: JSON.stringify(server.REMOTE_INGRESS_CONTRACT) }] };
+	assert.equal(servedCheckJobHelpers(resource), server.CHECK_JOB_HELPERS_INSTRUCTION);
 });

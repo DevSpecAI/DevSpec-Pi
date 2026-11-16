@@ -21,7 +21,7 @@ import {
 } from "./trail-events.ts";
 import { projectTrailArgs, projectTrailResult, safeTrailLabel } from "./trail-projection.ts";
 import type { SubagentFleetSnapshot } from "./subagent-fleet.ts";
-import { isCheckOwnWorkTool } from "./run-voice.ts";
+import { keptOutOfWorkTrail } from "./run-voice.ts";
 
 /**
  * Render cap for one trail snapshot. The server folds sliding-window snapshots
@@ -266,9 +266,9 @@ export class TrailBuilder {
 		}
 	}
 
-	/** False when the call is the check's own work and so never enters a trail (da5cfae5). */
+	/** False when the call is DevSpec's own follow-up and so never enters a trail (da5cfae5). */
 	toolStart(toolCallId: string, name: string, args?: unknown): boolean {
-		if (isCheckOwnWorkTool(name)) return false;
+		if (keptOutOfWorkTrail(name)) return false;
 		const startedAt = Date.now();
 		this.entries.push({
 			kind: "tool",

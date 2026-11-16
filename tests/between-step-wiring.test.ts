@@ -44,6 +44,7 @@ import {
 	remoteRunActivityPolicy,
 	resetSystemNoticeStateForTests,
 } from "../extensions/core/system-notice.ts";
+import { noticeNeedsPerson } from "../extensions/core/run-voice.ts";
 import { extractText } from "../extensions/core/trail.ts";
 import { CHECK_JOB_PREFIX, classifyUserKind, isBetweenStepDelivery, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 
@@ -97,6 +98,7 @@ function rig(options: { sessionId?: string | null; settled?: string[]; turn?: Re
 	const lookups: string[] = [];
 	const calls: string[] = [];
 	const resourceReads: string[] = [];
+	const replyTool: boolean[] = [];
 	const settled = new Set(options.settled ?? []);
 	const state = { runActive: false, idle: true, pending: false };
 	const key = bindSystemNoticeState({ piSessionId: "pi-session", connectionId: CONNECTION, pumpGeneration: 1 });
@@ -122,7 +124,9 @@ function rig(options: { sessionId?: string | null; settled?: string[]; turn?: Re
 			return { contents: [{ uri, text: JSON.stringify({ kind: "devspec.product.remote_ingress_contract", semantics: { check_job: options.helpers ? { helpers: options.helpers } : {} } }) }] };
 		},
 		BetweenStepLedger, betweenStepDeliveryId, deliverIdleCheckJobs, formatBetweenStepMessage, BETWEEN_STEP_CUSTOM_TYPE,
-		queuedSystemNotices, commitSystemNoticeDelivery, noticeIdsFromDelivery, remoteRunActivityPolicy,
+		queuedSystemNotices, commitSystemNoticeDelivery, noticeIdsFromDelivery, remoteRunActivityPolicy, noticeNeedsPerson,
+		pi_setNoticeReplyToolActive: (enabled: boolean) => { replyTool.push(enabled); },
+		reportUnansweredSteeredNotices: async (t: Record<string, unknown>) => { calls.push(`reportUnansweredSteeredNotices:${[...((t.steeredNotices as NoticeReplyCapture | undefined)?.noticeIds ?? [])].join(",")}`); },
 		SYSTEM_NOTICE_CUSTOM_TYPE, isBetweenStepDelivery, extractText,
 		MODEL_TIMEOUT_MS: 5_000,
 		pump: active,
@@ -219,7 +223,7 @@ function rig(options: { sessionId?: string | null; settled?: string[]; turn?: Re
 		for (let i = 0; i < 20; i += 1) await new Promise((resolve) => setImmediate(resolve));
 	};
 	return {
-		active, sandbox, state, hooks, wakes, steers, toasts, lookups, calls, resourceReads, ctx, api, settle,
+		active, sandbox, state, hooks, wakes, steers, toasts, lookups, calls, resourceReads, replyTool, ctx, api, settle,
 		ledger: () => active.betweenStep as BetweenStepLedger,
 		arrive: async (...values: unknown[]) => { for (const value of values) api.enqueueDispatch(active, "tok-1", value, ctx); await settle(); },
 		notices: (...values: SystemNoticeV1[]) => assert.equal(acceptSystemNotices(key, values), true),
@@ -388,21 +392,61 @@ test("a steer into a person's command leaves the turn, its request and its Worki
 	const r = rig({ turn });
 	r.startRun();
 	r.active.busy = true;
-	r.notices(notice(NEEDS, "needs_person"));
+	r.notices(notice(NEEDS, "needs_person"), notice(RECORD, "for_the_record"));
 	await r.arrive(job(JOB_A));
 	const before = snapshot(turn);
 	// The never() collaborators throw if the delivery binds a request, takes a command
 	// binding, splits the segment, changes presence or completes the turn.
+	await r.hooks.turn_end!({ outcome: "completed", toolResults: [] }, r.ctx);
+	assert.deepEqual(r.replyTool, [true], "the reply tool is shown before Pi prepares the step that reads the steer");
 	const { shown } = await r.endStep();
 	assert.equal(shown.length, 1);
-	assert.equal(snapshot(turn), before, "kind, command turn, request kind, revision and reply capture are untouched");
+	const { steeredNotices, ...rest } = turn;
+	assert.equal(snapshot(rest), before, "kind, command turn, request kind and revision are untouched");
 	assert.equal((turn.tracker as TurnTracker).userKind, "remote");
-	assert.equal(turn.noticeReply, undefined, "the command's answer is not turned into a notice reply");
+	assert.equal(turn.noticeReply, undefined, "the command's final message is not turned into a notice reply");
+	// The notices wait for a reply handed over apart from the command's messages.
+	assert.deepEqual([...(steeredNotices as NoticeReplyCapture).noticeIds], [NEEDS]);
+	assert.deepEqual([...(steeredNotices as NoticeReplyCapture).forTheRecordIds], [RECORD]);
 	assert.equal(r.sandbox.turn, turn, "the same segment goes on");
 	assert.equal(r.sandbox.segmentInputKind, "command", "writes are still recorded for the command's request");
 	assert.equal(r.active.busy, true, "Working is as the room saw it");
 	assert.deepEqual(r.calls, ["signalWake"], "no presence beat, no completion and no post of any kind");
-	assert.match(shown[0]!.content, /This turn's messages reach your DevSpec room as part of the work you were already doing, and nothing is posted separately as a reply to this notice\./);
+	assert.match(shown[0]!.content, /What you want your person to hear about a notice goes through the reply_to_devspec_notice tool/);
+	assert.doesNotMatch(shown[0]!.content, /nothing is posted separately as a reply/);
+});
+
+test("when the person's turn ends, its own answer and completion come first, then whatever notice is unanswered is reported, and the reply tool goes away", async () => {
+	const turn = trackedTurn("[DevSpec remote — message from Ali Price] Ship the export button");
+	const r = rig({ turn });
+	r.startRun();
+	r.notices(notice(NEEDS, "needs_person"));
+	await r.endStep();
+	r.calls.length = 0;
+	await r.endRun();
+	assert.deepEqual(r.calls.filter((call) => !call.startsWith("beatBusy")), ["settleTurn", "completeTurnActivity:turn_end", `reportUnansweredSteeredNotices:${NEEDS}`]);
+	assert.deepEqual(r.replyTool, [true, false]);
+	assert.deepEqual(r.calls.filter((call) => call.startsWith("noticeRun")), [], "and no notice run is started for it");
+});
+
+test("the reply tool is shown only where a reply can be handed over: a person's turn, in a room, with a notice that needs a person", async () => {
+	const command = "[DevSpec remote — message from Ali Price] Ship the export button";
+	const forTheRecord = rig({ turn: trackedTurn(command) });
+	forTheRecord.startRun();
+	forTheRecord.notices(notice(RECORD, "for_the_record"));
+	await forTheRecord.endStep();
+	assert.deepEqual(forTheRecord.replyTool, []);
+	const checksOnly = rig({ turn: trackedTurn(command) });
+	checksOnly.startRun();
+	await checksOnly.arrive(job(JOB_A));
+	await checksOnly.endStep();
+	assert.deepEqual(checksOnly.replyTool, []);
+	assert.equal((checksOnly.sandbox.turn as Record<string, unknown>).steeredNotices, undefined);
+	const noRoom = rig({ sessionId: null, turn: null });
+	noRoom.startRun();
+	noRoom.notices(notice(NEEDS, "needs_person"));
+	await noRoom.endStep();
+	assert.deepEqual(noRoom.replyTool, []);
 });
 
 test("a steer reaches a Pi that is in no room, which tracks no turn at all", async () => {
@@ -442,6 +486,8 @@ test("notices steered into a notice run join the reply its final message becomes
 	assert.deepEqual([...reply.noticeIds], [NEEDS, OTHER], "the run's one reply names every notice that needs a person");
 	assert.deepEqual([...reply.forTheRecordIds], [RECORD]);
 	assert.equal(turn.completionNeutral, true);
+	assert.equal(turn.steeredNotices, undefined, "its final message is the reply, as before: nothing is handed over by tool");
+	assert.deepEqual(r.replyTool, []);
 });
 
 test("a notice steered into a check-job run is answered by that run's final message; check jobs steered into it stay quiet", async () => {
@@ -457,6 +503,8 @@ test("a notice steered into a check-job run is answered by that run's final mess
 	assert.match(shown[0]!.content, /Your final message at the end of this run is posted to your DevSpec room as your reply to this notice/);
 	assert.deepEqual([...(turn.noticeReply as NoticeReplyCapture).noticeIds], [NEEDS]);
 	assert.equal((turn.tracker as TurnTracker).userKind, "check_job", "it is still a check-job run");
+	assert.equal(turn.steeredNotices, undefined);
+	assert.deepEqual(r.replyTool, []);
 });
 
 // ---- Criterion 5: idle is unchanged, and so is everything a person sends ---------------

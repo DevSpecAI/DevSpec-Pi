@@ -15,6 +15,7 @@ import {
 	type WaitingCheckJob,
 } from "../extensions/core/between-step.ts";
 import { CHECK_JOB_CONTRACT_URI, CHECK_JOB_HELPERS_POINTER, formatCheckJobsMessage, servedCheckJobHelpers } from "../extensions/core/dispatch.ts";
+import { NOTICE_REPLY_TOOL } from "../extensions/core/notice-handover.ts";
 import { noticeIdsFromDelivery } from "../extensions/core/notice-reply.ts";
 import type { SystemNoticeV1 } from "../extensions/core/remote-payload.ts";
 import { formatSystemNoticeMessage } from "../extensions/core/system-notice.ts";
@@ -282,21 +283,26 @@ test("one wake carries every waiting check job and still classifies as a check-j
 	assert.throws(() => formatCheckJobsMessage([job(JOB_A), { kind: "check" }], "Wary Wolf"), /check job envelope required/);
 });
 
-test("a steer in a turn that answers someone keeps that turn's voice; a run that answers nobody still replies with its final message", () => {
+test("a steer in a turn that answers someone names the reply tool and promises no final-message reply; a run that answers nobody still replies with its final message", () => {
 	const needs = [notice(NEEDS, "needs_person")];
 	const inTurn = formatBetweenStepMessage({ codename: "Wary Wolf", checkJobs: [], notices: needs, roomAttached: true, inRunningTurn: true });
-	assert.match(inTurn, /This turn's messages reach your DevSpec room as part of the work you were already doing, and nothing is posted separately as a reply to this notice\./);
-	assert.match(inTurn, /Mention a notice in them only when an unresolved choice, hold, rejection, or block still needs a person after you act \(semantics\.notice_audience\)/);
+	assert.match(inTurn, /This reached you inside a turn that answers someone else\. That turn's messages stay the answer to them, so write nothing about a notice there\./);
+	assert.match(inTurn, /What you want your person to hear about a notice goes through the reply_to_devspec_notice tool, which Pi posts as your reply to that notice; DevSpec decides what the room shows \(semantics\.notice_audience, semantics\.notice_reply\)\./);
+	assert.ok(inTurn.includes(NOTICE_REPLY_TOOL));
 	assert.doesNotMatch(inTurn, /Your final message at the end of this run is posted/);
+	// What the room is shown is the served contract's: pointed at, never restated or denied.
+	assert.doesNotMatch(inTurn, /nothing is posted separately|unresolved choice, hold, rejection, or block|clear conversation intent/);
 	const nobodys = formatBetweenStepMessage({ codename: "Wary Wolf", checkJobs: [], notices: needs, roomAttached: true, inRunningTurn: false });
 	assert.match(nobodys, /Your final message at the end of this run is posted to your DevSpec room as your reply to this notice/);
-	assert.doesNotMatch(nobodys, /This turn's messages reach your DevSpec room/);
+	assert.doesNotMatch(nobodys, /reply_to_devspec_notice|inside a turn that answers someone else/);
 	const quiet = formatBetweenStepMessage({ codename: "Wary Wolf", checkJobs: [], notices: [notice(RECORD, "for_the_record")], roomAttached: true, inRunningTurn: true });
-	assert.match(quiet, /Every notice here is for the record \(the served contract's semantics\.notice_audience\): say nothing about it in those messages, unless a write's result carries tell_person\./);
+	assert.match(quiet, /Every notice here is for the record \(the served contract's semantics\.notice_audience\): nothing is posted about it\. If a write's result carries tell_person, tell the person in this turn's messages\./);
+	assert.doesNotMatch(quiet, /reply_to_devspec_notice/, "no reply is possible for a notice that is for the record, so no tool is named");
 	const mixed = formatBetweenStepMessage({ codename: "Wary Wolf", checkJobs: [], notices: [...needs, notice(RECORD, "for_the_record")], roomAttached: true, inRunningTurn: true });
-	assert.match(mixed, /Those for the record are never mentioned \(semantics\.notice_audience\)\./);
+	assert.match(mixed, /It answers only the notices that need a person \(semantics\.notice_audience\)\./);
 	const unattached = formatBetweenStepMessage({ codename: "Wary Wolf", checkJobs: [], notices: needs, roomAttached: false, inRunningTurn: true });
 	assert.match(unattached, /You are not attached to a DevSpec room, so your final message stays in this terminal\./);
+	assert.doesNotMatch(unattached, /reply_to_devspec_notice/);
 });
 
 test("a notice message delivered on its own run reads exactly as before", () => {

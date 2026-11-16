@@ -1,5 +1,6 @@
 import type { SystemNoticeV1 } from "./remote-payload.ts";
 import { noticeNeedsPerson } from "./run-voice.ts";
+import { NOTICE_REPLY_TOOL } from "./notice-handover.ts";
 
 export const SYSTEM_NOTICE_CUSTOM_TYPE = "devspec-system-notice-v1";
 export const SYSTEM_NOTICE_QUEUE_LIMIT = 25;
@@ -176,9 +177,10 @@ const SERVER_NOTICE_TOPICS: Readonly<Record<string, string>> = {
  * marked tell_person, and the copy says that instead.
  *
  * `inRunningTurn` (da5cfae5): the notices were delivered between the steps of a
- * turn that answers someone else. That turn keeps its own voice: its messages go
- * to the room as part of the work it was already doing and nothing is posted as
- * a notice reply, so the copy says that instead of promising one.
+ * turn that answers someone else. That turn's messages stay the answer to that
+ * person, so its final message is no notice reply: the copy names the tool that
+ * hands the reply over instead (notice-handover.ts), and points at the served
+ * contract for what the room is then shown.
  */
 export function formatSystemNoticeMessage(notices: readonly SystemNoticeV1[], options: { roomAttached?: boolean; inRunningTurn?: boolean } = {}): string {
 	const lines = [
@@ -230,11 +232,11 @@ export function formatSystemNoticeMessage(notices: readonly SystemNoticeV1[], op
 			? "You are not attached to a DevSpec room, so your final message stays in this terminal."
 			: options.inRunningTurn
 				? [
-					"This turn's messages reach your DevSpec room as part of the work you were already doing, and nothing is posted separately as a reply to this notice.",
+					"This reached you inside a turn that answers someone else. That turn's messages stay the answer to them, so write nothing about a notice there.",
 					needsPerson === 0
-						? "Every notice here is for the record (the served contract's semantics.notice_audience): say nothing about it in those messages, unless a write's result carries tell_person."
-						: "Mention a notice in them only when an unresolved choice, hold, rejection, or block still needs a person after you act (semantics.notice_audience); when you settle every finding under clear conversation intent, say nothing about it.",
-					...(needsPerson > 0 && needsPerson < notices.length ? ["Those for the record are never mentioned (semantics.notice_audience)."] : []),
+						? "Every notice here is for the record (the served contract's semantics.notice_audience): nothing is posted about it. If a write's result carries tell_person, tell the person in this turn's messages."
+						: `What you want your person to hear about a notice goes through the ${NOTICE_REPLY_TOOL} tool, which Pi posts as your reply to that notice; DevSpec decides what the room shows (semantics.notice_audience, semantics.notice_reply).`,
+					...(needsPerson > 0 && needsPerson < notices.length ? ["It answers only the notices that need a person (semantics.notice_audience)."] : []),
 				].join(" ")
 			: needsPerson === 0
 				? "Every notice here is for the record (the served contract's semantics.notice_audience): nothing from this run is posted to your DevSpec room. If a write's result carries tell_person, your final message is posted there as an ordinary message instead."

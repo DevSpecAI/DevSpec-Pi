@@ -22,6 +22,7 @@
  *   its messages are delivered like any other run's.
  */
 import type { SystemNoticeV1 } from "./remote-payload.ts";
+import { NOTICE_REPLY_TOOL } from "./notice-handover.ts";
 
 export type RunWake =
 	/** A person, an automation run, a question answer, a completion wake: unchanged. */
@@ -56,6 +57,16 @@ export function noticeBatchWake(notices: readonly SystemNoticeV1[]): RunWake {
  */
 export function isCheckOwnWorkTool(toolName: string): boolean {
 	return toolName === "claim_check_job" || toolName === "record_check_rulings";
+}
+
+/**
+ * What never enters a work trail, whatever turn it ran in: taking and ruling a
+ * check, and the reply to a notice steered into a person's turn. Both are
+ * DevSpec's own follow-up riding that turn, and whether the room hears of them
+ * is DevSpec's to decide, never a row in the command's trail (da5cfae5).
+ */
+export function keptOutOfWorkTrail(toolName: string): boolean {
+	return isCheckOwnWorkTool(toolName) || toolName === NOTICE_REPLY_TOOL;
 }
 
 /** A run that, by what woke it, keeps its text out of the room. */

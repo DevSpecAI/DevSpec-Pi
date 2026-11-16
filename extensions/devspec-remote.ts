@@ -257,8 +257,16 @@ import {
 	noticeReplyTerminalMessage,
 	postNoticeReply,
 	type NoticeReplyCapture,
+	type NoticeReplyOutcome,
 } from "./core/notice-reply.ts";
-import { isCheckOwnWorkTool, runSpeaks, wakeIsQuiet, type RunWake } from "./core/run-voice.ts";
+import { keptOutOfWorkTrail, noticeNeedsPerson, runSpeaks, wakeIsQuiet, type RunWake } from "./core/run-voice.ts";
+import {
+	NO_NOTICE_WAITING,
+	UNANSWERED_NOTICE_LINE,
+	installNoticeHandover,
+	noticeHandoverResult,
+	withNoticeReplyToolActive,
+} from "./core/notice-handover.ts";
 import { takeTellPerson } from "./core/tell-person.ts";
 
 class StaleCommandHandoffError extends DevspecToolError {}
@@ -491,6 +499,13 @@ interface TurnState {
 	 * as their reply when the segment closes (6aad2b46). Never carried to the next segment.
 	 */
 	noticeReply?: NoticeReplyCapture;
+	/**
+	 * Notices steered between the steps of a turn that answers someone (da5cfae5),
+	 * still waiting for a reply. That turn's messages stay the answer to the
+	 * person: what the agent says about these is handed over through the notice
+	 * reply tool, and whatever is left when the run ends is reported the same way.
+	 */
+	steeredNotices?: NoticeReplyCapture;
 	/**
 	 * A write in this segment came back with DevSpec's tell_person mark: it changed
 	 * someone else's record (a868f41f). A segment that is quiet by what woke it
@@ -1588,30 +1603,7 @@ async function deliverNoticeReply(capture: NoticeReplyCapture, agentStats: Agent
 		else console.error(message);
 		return;
 	}
-	const current = () => {
-		const active = pump;
-		const bond = getBond();
-		if (!active || (active.stop && !active.closing) || !bond || active.bond.connectionId !== bond.connectionId) return null;
-		return { connectionId: bond.connectionId, sessionId: bond.sessionId ?? null };
-	};
-	const outcome = await postNoticeReply({
-		capture,
-		current,
-		call: async (args) => {
-			const resolved = await resolveToken();
-			if (!resolved) throw new Error("no DevSpec login is available");
-			try {
-				// The server stores the same notices and text once, so the client's
-				// ordinary transport retry cannot post it twice.
-				return { raw: await callDevspec(resolved.token, "post_session_message", args, { lane: "pump",
-					beforeSend: () => { if (current()?.connectionId !== capture.connectionId) throw new Error("this Pi's DevSpec connection changed before sending"); } }) };
-			} catch (error) {
-				if (error instanceof DevspecToolError) return { refusal: error.message };
-				throw error;
-			}
-		},
-		extraArgs: { agent_name: AGENT_NAME, ...(agentStats ? { agent_stats: agentStats } : {}), ...replyModelArgs(agentStats ?? undefined) },
-	});
+	const outcome = await postCapturedNoticeReply(capture, agentStats);
 	debug("notice reply", { notices: capture.noticeIds.length, posted: outcome.kind === "posted", idempotent: outcome.kind === "posted" && outcome.idempotent, refused: outcome.kind === "refused", unconfirmed: outcome.kind === "unconfirmed", skipped: outcome.kind === "no_final_text" || outcome.kind === "not_attached" || outcome.kind === "connection_changed" || outcome.kind === "settled_housekeeping" || outcome.kind === "for_the_record" });
 	if (outcome.kind === "posted") { noteOwnRoomMessage(outcome.messageId); return; }
 	if (outcome.kind === "settled_housekeeping" || outcome.kind === "for_the_record") {
@@ -1632,6 +1624,80 @@ async function deliverNoticeReply(capture: NoticeReplyCapture, agentStats: Agent
 	if (!message) return;
 	if (safeHasUI(ctx)) notify(ctx, message, "warning");
 	else console.error(message);
+}
+
+/**
+ * The one notice-reply post (semantics.notice_reply): the capture's text, naming
+ * its notices, from this Pi's connection. DevSpec's gate answers with what the
+ * room shows; nothing here decides that.
+ */
+async function postCapturedNoticeReply(capture: NoticeReplyCapture, agentStats: AgentStatsReport | null): Promise<NoticeReplyOutcome> {
+	const current = () => {
+		const active = pump;
+		const bond = getBond();
+		if (!active || (active.stop && !active.closing) || !bond || active.bond.connectionId !== bond.connectionId) return null;
+		return { connectionId: bond.connectionId, sessionId: bond.sessionId ?? null };
+	};
+	return postNoticeReply({
+		capture,
+		current,
+		call: async (args) => {
+			const resolved = await resolveToken();
+			if (!resolved) throw new Error("no DevSpec login is available");
+			try {
+				// The server stores the same notices and text once, so the client's
+				// ordinary transport retry cannot post it twice.
+				return { raw: await callDevspec(resolved.token, "post_session_message", args, { lane: "pump",
+					beforeSend: () => { if (current()?.connectionId !== capture.connectionId) throw new Error("this Pi's DevSpec connection changed before sending"); } }) };
+			} catch (error) {
+				if (error instanceof DevspecToolError) return { refusal: error.message };
+				throw error;
+			}
+		},
+		extraArgs: { agent_name: AGENT_NAME, ...(agentStats ? { agent_stats: agentStats } : {}), ...replyModelArgs(agentStats ?? undefined) },
+	});
+}
+
+/**
+ * The agent handed over what it has to say about the notices steered into the
+ * turn it is running (the notice reply tool, da5cfae5). The words were never one
+ * of the turn's messages, so they are no part of the command's speech: they go
+ * out as a notice reply naming those notices, and DevSpec's gate decides whether
+ * the room shows a reply with its card, a quiet housekeeping entry or nothing.
+ * The post binds to no command, turn or attempt, so the command is untouched.
+ */
+async function answerSteeredNotices(message: string): Promise<{ ok: boolean; text: string }> {
+	const capture = turn?.steeredNotices;
+	if (!capture || capture.noticeIds.length === 0) return { ok: false, text: NO_NOTICE_WAITING };
+	const noticeIds = [...capture.noticeIds];
+	// Kept, so a reply DevSpec could not confirm goes again with the agent's own words.
+	capture.finalText = message;
+	const outcome = await postCapturedNoticeReply({ ...capture, noticeIds, finalText: message }, null);
+	const result = noticeHandoverResult(outcome);
+	debug("notice reply", { notices: noticeIds.length, posted: outcome.kind === "posted", refused: outcome.kind === "refused", unconfirmed: outcome.kind === "unconfirmed", skipped: !result.done });
+	if (outcome.kind === "posted") noteOwnRoomMessage(outcome.messageId);
+	if (outcome.kind === "settled_housekeeping" && outcome.housekeepingMessageId) noteOwnRoomMessage(outcome.housekeepingMessageId);
+	if (result.done) {
+		// DevSpec has decided about these: nothing more is posted for them.
+		capture.noticeIds = capture.noticeIds.filter((id) => !noticeIds.includes(id));
+		capture.finalText = null;
+	}
+	return { ok: result.ok, text: result.text };
+}
+
+/**
+ * The run that notices were steered into has ended, its own answer and
+ * completion already posted. Any of those notices the agent handed nothing over
+ * for is reported through the same notice-reply path, so DevSpec's gate always
+ * runs and never waits on the agent: a settled notice becomes a quiet
+ * housekeeping entry, and one that still needs a person is shown to them with
+ * its card (da5cfae5).
+ */
+async function reportUnansweredSteeredNotices(t: TurnState, agentStats: AgentStatsReport | null): Promise<void> {
+	const capture = t.steeredNotices;
+	if (!capture || capture.noticeIds.length === 0) return;
+	t.steeredNotices = undefined;
+	await deliverNoticeReply({ ...capture, finalText: capture.finalText ?? UNANSWERED_NOTICE_LINE }, agentStats, false);
 }
 
 /**
@@ -1729,6 +1795,8 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 		localActivityReady: t.localActivityReady,
 		...(t.requestKind ? { requestKind: t.requestKind } : {}),
 		completionNeutral: t.completionNeutral,
+		// The run goes on, and so does the chance to answer what was steered into it.
+		...(t.steeredNotices ? { steeredNotices: t.steeredNotices } : {}),
 		interaction: t.interaction,
 		occupancy: t.occupancy,
 		lastInteractionKeepaliveAt: t.lastInteractionKeepaliveAt,
@@ -2793,6 +2861,7 @@ function steerWaitingBetweenSteps(active: PumpState, outcome: string): void {
 	const batch = active.betweenStep.beginSteer(notices.map((notice) => notice.notice_id));
 	if (!batch) return;
 	const roomAttached = Boolean(active.bond.sessionId);
+	const inRunningTurn = !segmentAnswersNobody(turn);
 	const details: BetweenStepDetails = {
 		delivery_id: batch.deliveryId,
 		check_job_ids: batch.checkJobs.map((job) => job.id),
@@ -2805,31 +2874,41 @@ function steerWaitingBetweenSteps(active: PumpState, outcome: string): void {
 			checkJobs: batch.checkJobs.map((job) => job.envelope),
 			notices,
 			roomAttached,
-			inRunningTurn: !segmentAnswersNobody(turn),
+			inRunningTurn,
 			helpers: active.checkJobHelpers,
 		}), details);
+		// The turn answers someone, so a reply about these notices cannot be one of
+		// its messages: show the agent the tool that hands it over. Set here, before
+		// Pi prepares the next step, so the tool is there when the steer is read.
+		if (inRunningTurn && roomAttached && notices.some(noticeNeedsPerson)) pi_setNoticeReplyToolActive(true);
 	} catch (error) {
 		active.betweenStep.abandonSteer(batch.deliveryId);
 		debug("between-step steer failed", { errorPresent: Boolean(error) });
 	}
 }
 
-/** The notices a nobody's run answers, for the reply its final message becomes (6aad2b46). */
-function captureNoticeReply(t: TurnState, details: unknown): void {
+/** One delivered batch's notices, joined to what the segment already holds. */
+function mergedNoticeCapture(held: NoticeReplyCapture | undefined, details: unknown): NoticeReplyCapture | undefined {
 	// Only the connection they were delivered to may name them. Only the notices
 	// that need a person are named in the reply; a batch of notices that are all
 	// for the record leaves the run quiet (a868f41f).
 	const { needsPerson, forTheRecord } = noticeIdsFromDelivery(details);
 	const connectionId = getBond()?.connectionId;
-	if (needsPerson.length + forTheRecord.length === 0 || !connectionId) return;
-	const held = t.noticeReply?.connectionId === connectionId ? t.noticeReply : undefined;
-	t.noticeReply = {
+	if (needsPerson.length + forTheRecord.length === 0 || !connectionId) return held;
+	const kept = held?.connectionId === connectionId ? held : undefined;
+	return {
 		connectionId,
-		noticeIds: [...new Set([...(held?.noticeIds ?? []), ...needsPerson])],
-		forTheRecordIds: [...new Set([...(held?.forTheRecordIds ?? []), ...forTheRecord])],
+		noticeIds: [...new Set([...(kept?.noticeIds ?? []), ...needsPerson])],
+		forTheRecordIds: [...new Set([...(kept?.forTheRecordIds ?? []), ...forTheRecord])],
 		roomPromised: (details as { roomAttached?: unknown } | undefined)?.roomAttached === true,
-		finalText: null,
+		finalText: kept?.finalText ?? null,
 	};
+}
+
+/** The notices a nobody's run answers, for the reply its final message becomes (6aad2b46). */
+function captureNoticeReply(t: TurnState, details: unknown): void {
+	const merged = mergedNoticeCapture(t.noticeReply, details);
+	if (merged) t.noticeReply = { ...merged, finalText: null };
 }
 
 /**
@@ -2852,6 +2931,10 @@ function noteBetweenStepDelivered(details: unknown, ctx: ExtensionContext): void
 			debug("between-step notice commit skipped", { notices: batch.noticeIds.length });
 		}
 		if (turn && segmentAnswersNobody(turn)) captureNoticeReply(turn, details);
+		// A turn that answers someone keeps its messages for that person. The
+		// notices wait for a reply handed over apart from them (answerSteeredNotices),
+		// and what is left when the run ends is reported the same way.
+		else if (turn) turn.steeredNotices = mergedNoticeCapture(turn.steeredNotices, details);
 	}
 	if (batch.checkJobs.length > 0) {
 		notify(ctx, `DevSpec remote: ${batch.checkJobs.length === 1 ? "check job" : `${batch.checkJobs.length} check jobs`} delivered.`);
@@ -4141,6 +4224,8 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 let pi_appendControlResult: (entry: ControlResultEntry) => void = () => { throw new Error("CONTROL journal unavailable"); };
 let pi_systemNoticeSend: (message: string, details: { notices: unknown[]; roomAttached: boolean }) => void = () => {};
 let pi_steerBetweenSteps: (message: string, details: BetweenStepDetails) => void = () => { throw new Error("Pi steering unavailable"); };
+/** Shows the notice reply tool only while a person's turn holds notices steered into it. */
+let pi_setNoticeReplyToolActive: (enabled: boolean) => void = () => {};
 let pi_appendInteractionEntry: (
 	state: "observed" | "applied" | "acknowledged",
 	details: InteractionEventApplicationDetails,
@@ -4582,6 +4667,11 @@ export default function (pi: ExtensionAPI) {
 		if (next.join("\0") !== pi.getActiveTools().join("\0")) pi.setActiveTools(next);
 	};
 	installServeToolSwitch(pi_setServeToolActive);
+	pi_setNoticeReplyToolActive = (enabled) => {
+		const next = withNoticeReplyToolActive(pi.getActiveTools(), enabled);
+		if (next.join("\0") !== pi.getActiveTools().join("\0")) pi.setActiveTools(next);
+	};
+	installNoticeHandover(answerSteeredNotices);
 	pi_appendInteractionEntry = (state, details) => {
 		pi.appendEntry(INTERACTION_EVENT_JOURNAL_TYPE, interactionEventJournalEntry(state, details));
 	};
@@ -4794,6 +4884,7 @@ export default function (pi: ExtensionAPI) {
 		// queue) was never committed: it is still waiting and goes out below (da5cfae5).
 		pump?.betweenStep.runEnded();
 		pi_setServeToolActive(false);
+		pi_setNoticeReplyToolActive(false);
 		const activeAtSettle = pump;
 		const occupancyAtSettle = activeAtSettle?.runtimeOccupancy.capture() ?? null;
 		const turnAtSettle = turn;
@@ -4866,6 +4957,8 @@ export default function (pi: ExtensionAPI) {
 				}
 			}
 			retireInteractionForeground(interactionRun);
+			// After the command's own answer and completion, never before or instead.
+			if (settlingTurn) await reportUnansweredSteeredNotices(settlingTurn, agentStats);
 		})();
 		trackTerminalPost(terminalPost);
 		if (keepWorking && settlingTurn && activeAtSettle && observationScope) {
@@ -5296,8 +5389,8 @@ export default function (pi: ExtensionAPI) {
 		// Mark synchronously before the first await. Timer ticks from this point on
 		// cannot open a pointer that overtakes canonical receipt takeover.
 		trackedTurn.receiptBatch.start(event.toolCallId, revision, potentialReceipt);
-		// Taking and ruling a check job never enters a work trail (da5cfae5): a job
-		// steered into a person's command leaves that command's trail its own.
+		// Taking and ruling a check job, and replying to a notice, never enter a work
+		// trail (da5cfae5): steered into a person's command, they leave its trail its own.
 		if (trackedTurn.trail.toolStart(event.toolCallId, event.toolName, event.args)) trackedTurn.trailDelivery.markDirty();
 		if (event.toolName === "subagent_wait") refreshSubagentFleet(event.toolCallId, trackedTurn);
 		if (!potentialReceipt) return;
@@ -5327,7 +5420,7 @@ export default function (pi: ExtensionAPI) {
 		noteProgressEvent();
 		lastCtx = ctx;
 		if (!turn) return;
-		if (isCheckOwnWorkTool(event.toolName)) return;
+		if (keptOutOfWorkTrail(event.toolName)) return;
 		turn.trail.toolUpdate(event.toolCallId, event.partialResult);
 		turn.trailDelivery.markDirty();
 		// Reuse the host tool's existing progress cadence; the client deduplicates
@@ -5380,7 +5473,7 @@ export default function (pi: ExtensionAPI) {
 			success: !event.isError,
 			terminatingReceipt,
 		}, turn.revision);
-		if (isCheckOwnWorkTool(event.toolName)) return;
+		if (keptOutOfWorkTrail(event.toolName)) return;
 		turn.trail.toolEnd(event.toolCallId, event.toolName, !event.isError, event.result);
 		turn.trailDelivery.markDirty();
 	});
@@ -5394,6 +5487,7 @@ export default function (pi: ExtensionAPI) {
 		launchScopes.clear();
 		launchRequests.clear();
 		installServeToolSwitch(null);
+		installNoticeHandover(null);
 		pi_refreshBackgroundWork = async () => {};
 		void clearOffer();
 		pi_receiveCommandOffer = async () => {};

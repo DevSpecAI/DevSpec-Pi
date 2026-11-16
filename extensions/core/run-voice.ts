@@ -47,6 +47,17 @@ export function noticeBatchWake(notices: readonly SystemNoticeV1[]): RunWake {
 	return notices.length > 0 && !notices.some(noticeNeedsPerson) ? "notice_for_the_record" : "notice_needs_person";
 }
 
+/**
+ * The two tools that take and rule a check job are the check's own work (served
+ * contract: check_job.own_work, check_job.room), whatever turn they run in. Since
+ * a check job can reach an agent between the steps of a person's command (item
+ * da5cfae5), they are kept out of every work trail: that command's trail shows
+ * the command's work and nothing about a ruling.
+ */
+export function isCheckOwnWorkTool(toolName: string): boolean {
+	return toolName === "claim_check_job" || toolName === "record_check_rulings";
+}
+
 /** A run that, by what woke it, keeps its text out of the room. */
 export function wakeIsQuiet(wake: RunWake): boolean {
 	return wake === "notice_for_the_record" || wake === "check_job";

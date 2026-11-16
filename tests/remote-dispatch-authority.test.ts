@@ -31,15 +31,16 @@ test("transport entries that are neither an automation run nor a check job are i
 	assert.ok(rejectAt >= 0 && rejectAt < keyAt && keyAt < queueAt);
 	assert.doesNotMatch(enqueue.slice(0, queueAt), /pi_send|sendUserMessage|noteWork|recordActiveDelivery/);
 
-	const delivery = bodyBetween("async function deliverAutomationRun", "async function deliverCheckJob");
+	const delivery = bodyBetween("async function deliverAutomationRun", "function pumpWaitingCheckJobs");
 	assert.match(delivery, /if \(!isAutomationRunEnvelope\(value\)\) return/);
 	assert.match(delivery, /formatAutomationRunMessage/);
 	assert.doesNotMatch(delivery, /implementation|assignment|noteWork|recordActiveDelivery/);
 
-	// A check job (55d71b0c) wakes the agent and nothing else: no work, no automation state.
-	const checkJob = bodyBetween("async function deliverCheckJob", "async function loadCurrentAutomationInbox");
-	assert.match(checkJob, /if \(!isCheckJobEnvelope\(value\)\) return/);
-	assert.match(checkJob, /formatCheckJobMessage/);
+	// A check job (55d71b0c) reaches the agent and nothing else: no work, no automation
+	// state, whether it wakes an idle Pi or is steered between steps (da5cfae5).
+	const checkJob = bodyBetween("function pumpWaitingCheckJobs", "async function loadCurrentAutomationInbox");
+	assert.match(checkJob, /formatCheckJobsMessage/);
+	assert.match(checkJob, /formatBetweenStepMessage/);
 	assert.doesNotMatch(checkJob, /implementation|assignment|noteWork|noteAutomation|recordActiveDelivery/);
 });
 

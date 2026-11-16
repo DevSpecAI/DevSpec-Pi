@@ -17,7 +17,7 @@ import { parsePostSessionReceipt, TrailDeliveryState } from "../extensions/core/
 import { noticeReplyFinalText, noticeReplyTerminalMessage, postNoticeReply } from "../extensions/core/notice-reply.ts";
 import { remoteRunActivityPolicy } from "../extensions/core/system-notice.ts";
 import { formatCheckJobMessage } from "../extensions/core/dispatch.ts";
-import { noticeBatchWake, noticeNeedsPerson, runSpeaks, wakeIsQuiet, type RunWake } from "../extensions/core/run-voice.ts";
+import { isCheckOwnWorkTool, noticeBatchWake, noticeNeedsPerson, runSpeaks, wakeIsQuiet, type RunWake } from "../extensions/core/run-voice.ts";
 import { carriesTellPerson, noteTellPerson, resetTellPersonForTests, takeTellPerson } from "../extensions/core/tell-person.ts";
 import { systemNotice } from "./canonical-ingress-fixture.ts";
 
@@ -109,7 +109,7 @@ test("the wiring: tools note the mark by tool call id, and a finished tool call 
 	// A new request in the same run starts without the previous one's mark.
 	assert.match(source, /turn\.localActivityReady = undefined;\n\t+turn\.tellPerson = undefined;/);
 	// A notice batch is captured split by DevSpec's label.
-	assert.match(source, /const \{ needsPerson, forTheRecord \} = noticeIdsFromDelivery\(msg\?\.details\);/);
+	assert.match(source, /const \{ needsPerson, forTheRecord \} = noticeIdsFromDelivery\(details\);/);
 });
 
 // ---- The real segment writers ---------------------------------------------
@@ -158,8 +158,9 @@ function liveSegment(wake: string, extra: Record<string, unknown> = {}): Record<
 	const tracker = new TurnTracker();
 	tracker.userMessage(wake);
 	const trail = new TrailBuilder();
-	trail.toolStart("call-1", "claim_check_job", { check_job_id: JOB });
-	trail.toolEnd("call-1", "claim_check_job", true, envelope({ ok: true }));
+	// A row that would post: the tools that take and rule a check never enter a trail at all.
+	trail.toolStart("call-1", "get_task", { item_id: JOB });
+	trail.toolEnd("call-1", "get_task", true, envelope({ ok: true }));
 	const trailDelivery = new TrailDeliveryState();
 	trailDelivery.markDirty();
 	const args = Object.freeze({ connection_id: CONNECTION, ingest_version: 2 });
@@ -269,4 +270,74 @@ test("a batch with a notice that needs a person replies, naming only that notice
 	await h.api.postSegmentAnswer(t, null, "run_end", true);
 	assert.deepEqual(h.requests.map((request) => request.args.system_notice_ids), [[NEEDS]]);
 	assert.deepEqual(h.room, []);
+});
+
+// ---- A notice delivered between the steps of a check-job run (da5cfae5) ------
+
+test("a notice steered into a check-job run is answered by the run's final message, as a notice reply and nothing else", async () => {
+	const t = liveSegment(checkJobWake, { noticeReply: { connectionId: CONNECTION, noticeIds: [NEEDS], forTheRecordIds: [RECORD], roomPromised: true, finalText: null } });
+	const h = harness(t);
+	assert.equal(h.api.segmentWake(t), "check_job", "it is still a check-job run: quiet by what woke it");
+	await say(h, t, "Taking the check.", "toolUse", true);
+	await say(h, t, "Your task clashes with Sam's decision; want me to revise it?");
+	h.api.trailTick();
+	await h.drain();
+	assert.deepEqual(h.requests, [], "no speech while it runs");
+	assert.equal(await h.api.postSegmentAnswer(t, null, "run_end", true), false, "it answers and completes no command turn");
+	assert.deepEqual(h.requests.map((request) => [request.name, request.args.message, request.args.system_notice_ids]), [
+		["post_session_message", "Your task clashes with Sam's decision; want me to revise it?", [NEEDS]],
+	]);
+	assert.deepEqual(h.room, [], "no trail and no answer post");
+	assert.deepEqual(h.warnings, []);
+});
+
+test("a check-job run steered only for-the-record notices, or ending on a tool call, still posts nothing", async () => {
+	const record = liveSegment(checkJobWake, { noticeReply: { connectionId: CONNECTION, noticeIds: [], forTheRecordIds: [RECORD], roomPromised: true, finalText: null } });
+	const quiet = harness(record);
+	await say(quiet, record, "Ruled all four entries and folded my duplicate.");
+	await quiet.drain();
+	assert.equal(await quiet.api.postSegmentAnswer(record, null, "run_end", true), false);
+	assert.deepEqual(quiet.requests, []);
+	assert.deepEqual(quiet.room, []);
+	const open = liveSegment(checkJobWake, { noticeReply: { connectionId: CONNECTION, noticeIds: [NEEDS], forTheRecordIds: [], roomPromised: true, finalText: null } });
+	const unfinished = harness(open);
+	await say(unfinished, open, "Still ruling.", "toolUse", true);
+	await unfinished.drain();
+	assert.equal(await unfinished.api.postSegmentAnswer(open, null, "run_end", true), false);
+	assert.deepEqual(unfinished.requests, [], "a run with no final message has no reply");
+});
+
+test("a check-job run that tell_person made speak says its final message once, never again as a notice reply", async () => {
+	const t = liveSegment(checkJobWake, { noticeReply: { connectionId: CONNECTION, noticeIds: [NEEDS], forTheRecordIds: [], roomPromised: true, finalText: null } });
+	const h = harness(t);
+	await say(h, t, "I'll fold the duplicate.", "toolUse", true);
+	t.tellPerson = true;
+	await say(h, t, "I closed Sam's task as a duplicate of yours.");
+	await h.drain();
+	assert.equal(await h.api.postSegmentAnswer(t, null, "run_end", true), false);
+	assert.deepEqual(h.requests.map((request) => [request.args.message, request.args.system_notice_ids]), [
+		["I closed Sam's task as a duplicate of yours.", undefined],
+	], "one ordinary message, as for any run a write made speak");
+});
+
+test("taking and ruling a check never enters a work trail, so a check steered into a command leaves that command's trail its own", () => {
+	assert.equal(isCheckOwnWorkTool("claim_check_job"), true);
+	assert.equal(isCheckOwnWorkTool("record_check_rulings"), true);
+	for (const other of ["get_task", "claim_work_item", "claim_automation_run", "subagent", "bash"]) assert.equal(isCheckOwnWorkTool(other), false, other);
+	// The command's own work, with a check ruled between two of its steps.
+	const trail = new TrailBuilder();
+	assert.equal(trail.toolStart("call-1", "get_task", { item_id: JOB }), true);
+	trail.toolEnd("call-1", "get_task", true, envelope({ ok: true }));
+	assert.equal(trail.toolStart("call-2", "claim_check_job", { check_job_id: JOB }), false);
+	trail.toolUpdate("call-2", { content: [] });
+	trail.toolEnd("call-2", "claim_check_job", true, envelope({ entries: [{ entry_id: "e1", text: "Someone else's decision" }] }));
+	assert.equal(trail.toolStart("call-3", "record_check_rulings", { check_job_id: JOB, rulings: [] }), false);
+	trail.toolEnd("call-3", "record_check_rulings", true, envelope({ remaining: 0 }));
+	assert.equal(trail.toolStart("call-4", "update_task", { item_id: JOB }), true);
+	trail.toolEnd("call-4", "update_task", true, envelope({ ok: true }));
+	const events = trail.events() as Array<{ name?: string; tool?: string }>;
+	const rendered = trail.render(100_000, false);
+	assert.doesNotMatch(JSON.stringify(events) + rendered, /claim_check_job|record_check_rulings|Someone else's decision/);
+	assert.match(rendered, /get_task/);
+	assert.match(rendered, /update_task/);
 });

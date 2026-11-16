@@ -167,21 +167,95 @@ export function describeCheckJob(value: unknown): string {
 }
 
 /**
- * The wake for one check job: the contract's one line, then the envelope so the
- * agent has the job's id. How to rule it is in the bonded instructions; this
- * never words what the agent tells its person.
+ * Who rules a check job, the agent or a helper agent it starts, is the server's
+ * rule (DevSpec item da5cfae5, decision 1d5a9c56). This points at the served
+ * words and never restates them: the same text travels on every
+ * claim_check_job reply as `helpers`. What a helper agent is on Pi is Pi's own
+ * fact, so that much is said here.
  */
-export function formatCheckJobMessage(value: unknown, codename: string): string {
-	if (!isCheckJobEnvelope(value)) throw new Error("check job envelope required");
+export const CHECK_JOB_HELPERS_POINTER =
+	"Who rules a check job, you or a helper agent you start, is DevSpec's rule: semantics.check_job.helpers in devspec://product/remote-ingress-contract, repeated as `helpers` on every claim_check_job reply. Follow it before a job is taken. On Pi a helper agent is a subagent started with the pi-subagents add-on, where it is installed.";
+
+/** Where the helpers rule is served. */
+export const CHECK_JOB_CONTRACT_URI = "devspec://product/remote-ingress-contract";
+
+/**
+ * semantics.check_job.helpers out of the served remote ingress contract, whole,
+ * or null when the resource does not carry it. Pi's model cannot open a
+ * devspec:// resource, so the plugin reads the words mechanically and quotes
+ * them beside the pointer, the way work entry loads the implementation contract.
+ */
+export function servedCheckJobHelpers(resource: unknown): string | null {
+	const contents = asRecord(resource)?.contents;
+	if (!Array.isArray(contents)) return null;
+	for (const item of contents) {
+		const body = asRecord(item)?.text;
+		if (typeof body !== "string") continue;
+		try {
+			const contract = asRecord(JSON.parse(body));
+			if (contract?.kind !== "devspec.product.remote_ingress_contract") continue;
+			const helpers = text(asRecord(asRecord(contract.semantics)?.check_job)?.helpers);
+			if (helpers) return helpers;
+		} catch { /* An unreadable resource leaves the pointer standing by itself. */ }
+	}
+	return null;
+}
+
+/**
+ * What announces check jobs to the agent, for a wake and for a between-step
+ * delivery alike. `lines`: each job in one line, the helpers pointer before
+ * anything is taken, then the two tools. `envelopes`: the envelopes that carry
+ * the ids. Never record text, and never how the agent words anything to its person.
+ *
+ * `helpers` is DevSpec's own served text when the plugin holds it (Pi's model
+ * cannot read a devspec:// resource itself): quoted whole, never reworded.
+ */
+export function checkJobAnnouncement(values: readonly unknown[], options: { helpers?: string | null } = {}): { lines: string[]; envelopes: string[] } {
+	if (values.length === 0 || !values.every(isCheckJobEnvelope)) throw new Error("check job envelope required");
+	const one = values.length === 1;
+	const served = text(options.helpers);
+	return {
+		lines: [
+			...(one
+				? [`${describeCheckJob(values[0])}.`]
+				: [
+					`${values.length} checks are waiting. Rule every one of them in this one pause:`,
+					...values.map((value) => `- ${describeCheckJob(value)} (check_job_id ${String(asRecord(value)?.check_job_id)})`),
+				]),
+			CHECK_JOB_HELPERS_POINTER,
+			...(served ? [`DevSpec's words, as served now: ${served}`] : []),
+			one
+				? "The job is taken with claim_check_job and every entry ruled with record_check_rulings."
+				: "Each job is taken with claim_check_job and every entry ruled with record_check_rulings.",
+		],
+		envelopes: [
+			one ? "Check job envelope:" : "Check job envelopes:",
+			"```json",
+			JSON.stringify(one ? values[0] : values, null, 2),
+			"```",
+		],
+	};
+}
+
+/**
+ * The wake for check jobs delivered to an idle Pi: every job waiting at that
+ * moment in one message (da5cfae5). It never words what the agent tells its
+ * person.
+ */
+export function formatCheckJobsMessage(values: readonly unknown[], codename: string, options: { helpers?: string | null } = {}): string {
+	const { lines, envelopes } = checkJobAnnouncement(values, options);
 	return [
 		`${CHECK_JOB_PREFIX} to ${codename}]`,
-		`${describeCheckJob(value)}: take it with claim_check_job, rule every entry with record_check_rulings, then carry on.`,
+		...lines,
+		"Then carry on.",
 		"",
-		"Check job envelope:",
-		"```json",
-		JSON.stringify(value, null, 2),
-		"```",
+		...envelopes,
 	].join("\n");
+}
+
+/** The wake for one check job. */
+export function formatCheckJobMessage(value: unknown, codename: string, options: { helpers?: string | null } = {}): string {
+	return formatCheckJobsMessage([value], codename, options);
 }
 
 export interface QueuedCheckJobInbox {

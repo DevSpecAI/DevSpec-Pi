@@ -2,28 +2,23 @@
  * Check jobs on the wake channel (DevSpec item 55d71b0c, Pi item d28fb9f1;
  * version 2: 1d89fe56): the validator union, the wake line, how the wake
  * classifies as a turn, and the negotiation every poll and the stream carry.
+ * How a check job reaches a working agent is in between-step-wiring.test.ts.
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { stripTypeScriptTypes } from "node:module";
-import { runInNewContext } from "node:vm";
 import { test } from "node:test";
 import {
+	CHECK_JOB_HELPERS_POINTER,
 	CHECK_JOB_VERSION,
 	automationRunId,
 	describeCheckJob,
 	dispatchId,
-	formatAutomationRunMessage,
 	formatCheckJobMessage,
 	isAutomationRunEnvelope,
 	isCheckJobEnvelope,
 	isDispatchEnvelope,
 	shouldDeliverQueuedCheckJob,
 } from "../extensions/core/dispatch.ts";
-import { DeliveryQueue, StaleDeliveryError, nextDeliveryRetryDelayMs } from "../extensions/core/delivery-queue.ts";
-import { revalidateAutomationRunRetry } from "../extensions/core/automation-run-retry.ts";
-import { capturePumpAuthority, isPumpAuthorityCurrent } from "../extensions/core/bond-recovery.ts";
-import { unwrapMcpResult } from "../extensions/core/result.ts";
 import { CHECK_JOB_PREFIX, classifyUserKind, isHarnessOrigin, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 import { buildBondedInstructions } from "../extensions/devspec-context.ts";
 import { setBond } from "../extensions/core/bond-state.ts";
@@ -135,17 +130,22 @@ test("a batch with one bad item keeps the bad item inert and the rest deliverabl
 	assert.deepEqual(batch.filter(isDispatchEnvelope).map(dispatchId), ["run-1", JOB_ID]);
 });
 
-test("the wake is the contract's one line plus the envelope that carries the job id", () => {
+test("the wake says what is waiting, where the helper rule is served, the two tools, then the envelope that carries the job id", () => {
 	const message = formatCheckJobMessage(checkJob, "Wary Wolf");
 	const lines = message.split("\n");
 	assert.equal(lines[0], `${CHECK_JOB_PREFIX} to Wary Wolf]`);
-	assert.equal(lines[1], "A check is waiting on Ship the export button: take it with claim_check_job, rule every entry with record_check_rulings, then carry on.");
+	assert.equal(lines[1], "A check is waiting on Ship the export button.");
+	// Who rules it is the server's rule (da5cfae5, decision 1d5a9c56): pointed at, before the tools.
+	assert.equal(lines[2], CHECK_JOB_HELPERS_POINTER);
+	assert.equal(lines[3], "The job is taken with claim_check_job and every entry ruled with record_check_rulings.");
+	assert.equal(lines[4], "Then carry on.");
 	assert.match(message, /Check job envelope:/);
 	assert.ok(message.includes(`"check_job_id": "${JOB_ID}"`));
+	assert.ok(message.includes(`"delivery_connection_id": "conn-1"`), "the connection id a helper is given travels with the job");
 	assert.doesNotMatch(message, /automation run|claim_automation_run|work dispatch|been dispatched/i);
 	// No stored title: name the record by its type and id instead.
 	const untitled = formatCheckJobMessage({ ...checkJob, record: { ...checkJob.record, title: "  " } }, "Wary Wolf");
-	assert.match(untitled.split("\n")[1]!, /^A check is waiting on task 9b2d6c1e-1111-4222-8333-444455556666: take it with claim_check_job/);
+	assert.equal(untitled.split("\n")[1], "A check is waiting on task 9b2d6c1e-1111-4222-8333-444455556666.");
 	assert.throws(() => formatCheckJobMessage({ ...checkJob, kind: "check" }, "Wary Wolf"), /check job envelope required/);
 	assert.throws(() => formatCheckJobMessage(automation, "Wary Wolf"), /check job envelope required/);
 });
@@ -160,7 +160,7 @@ test("the wake line says what a version-2 record is", () => {
 	assert.equal(describeCheckJob(job("goal", " ")), "An out-of-date check is waiting on the Goal 5c1d2e3f-1111-4222-8333-444455556666");
 	assert.equal(describeCheckJob(job("backlog_scan", "")), "The whole-backlog out-of-date scan is waiting");
 	const lines = formatCheckJobMessage(job("goal", "Launch to customers"), "Wary Wolf").split("\n");
-	assert.equal(lines[1], "An out-of-date check is waiting on the Goal “Launch to customers”: take it with claim_check_job, rule every entry with record_check_rulings, then carry on.");
+	assert.equal(lines[1], "An out-of-date check is waiting on the Goal “Launch to customers”.");
 	// Earlier records read exactly as before.
 	assert.equal(describeCheckJob(checkJob), "A check is waiting on Ship the export button");
 	assert.doesNotMatch(formatCheckJobMessage(checkJob, "Wary Wolf"), /high.risk/i);
@@ -258,8 +258,13 @@ test("bonded instructions say how to take and rule a check job, behaviour only",
 		const lines = buildBondedInstructions()!.split("\n").filter((line) => line.includes("claim_check_job"));
 		assert.equal(lines.length, 1, "one line, in the bonded block");
 		const line = lines[0]!;
-		assert.match(line, /^DevSpec sends every check on a change — your own changes included — as a check job on your wake channel/);
-		assert.match(line, /Take it with claim_check_job, rule every entry with record_check_rulings using the definition it carries \(read any linked supporting document or uploaded file in full with get_resource first\), then carry on with what you were doing or act on what it found\. If you cannot rule it, hand it back\.$/);
+		assert.match(line, /^DevSpec sends every check on a change — your own changes included — as a check job on your wake channel: a message prefixed \[DevSpec remote — check job \.\.\.\] when you are idle, or a \[DevSpec between steps \.\.\.\] message delivered between two steps of a turn you are working, which can also carry DevSpec's notices about your own work\./);
+		// A between-step delivery (da5cfae5) is the agent's to recognise as DevSpec's own, and as nobody's request.
+		assert.match(line, /A between-steps message is nobody's request and no part of what you were asked to do: deal with everything it lists in that one pause, then carry on exactly where you left off\./);
+		// Who rules it is the served contract's (decision 1d5a9c56): pointed at, never restated.
+		assert.match(line, /Who rules a check job, you or a helper agent you start, is the served contract's semantics\.check_job\.helpers\./);
+		assert.doesNotMatch(line, /Give the helper|fresh helper|one after another|remaining/, "the helper rule itself is not restated here");
+		assert.match(line, /A check job is taken with claim_check_job and every entry ruled with record_check_rulings using the definition it carries \(read any linked supporting document or uploaded file in full with get_resource first\); then carry on with what you were doing or act on what it found\. If you cannot rule it, hand it back\.$/);
 		// Decision e9556b5c: no wording scripts, no citation requirement.
 		assert.doesNotMatch(line, /\bcite\b|citation|tell (?:the|your) person|say to|word(?:ing)? it/i);
 	} finally {
@@ -319,128 +324,4 @@ test("shouldDeliverQueuedCheckJob skips settled check jobs and fails open on pen
 		true,
 		"transient lookup failure fails open so real check jobs are delivered",
 	);
-});
-
-test("real enqueueDispatch waits for foreground idle, skips already-settled check jobs without sending a prompt turn, and delivers on transient lookup failure", async () => {
-	const dispatchSlice = remote.slice(
-		remote.indexOf("function automationRecord("),
-		remote.indexOf("/**\n * Revive a recoverably-ended server bond in place"),
-	);
-	assert.ok(dispatchSlice.includes("async function deliverCheckJob("), "isolated real check-job delivery slice");
-
-	const settledId = "3f0c1e9a-6b1d-4d55-9a0e-2a7c4b8d1e11";
-	const transientFailId = "4f0c1e9a-6b1d-4d55-9a0e-2a7c4b8d1e22";
-	const settledJob = { ...checkJob, id: settledId, check_job_id: settledId };
-	const transientFailJob = { ...checkJob, id: transientFailId, check_job_id: transientFailId };
-
-	const sent: Array<{ message: string; mode: string }> = [];
-	const notices: string[] = [];
-	const lookups: string[] = [];
-	let idle = false;
-	let activeRun = true;
-
-	const active = {
-		generation: 1,
-		stop: false,
-		bond: { connectionId: "conn-1", codename: "Wary Wolf" },
-		runtimeOccupancy: { isBusy: () => activeRun },
-		automationQueue: new DeliveryQueue(),
-		automationRetryAttempts: new Map<string, number>(),
-		automationRetryTimers: new Map<string, ReturnType<typeof setTimeout>>(),
-	};
-
-	const sandbox: Record<string, unknown> = {
-		setTimeout,
-		clearTimeout,
-		Date,
-		Math,
-		Promise,
-		Set,
-		Error,
-		StaleDeliveryError,
-		nextDeliveryRetryDelayMs,
-		revalidateAutomationRunRetry,
-		capturePumpAuthority,
-		isPumpAuthorityCurrent,
-		unwrapMcpResult,
-		isAutomationRunEnvelope,
-		isCheckJobEnvelope,
-		isDispatchEnvelope,
-		dispatchId,
-		formatAutomationRunMessage,
-		formatCheckJobMessage,
-		shouldDeliverQueuedCheckJob,
-		MODEL_TIMEOUT_MS: 5_000,
-		pump: active,
-		get runActive() {
-			return activeRun;
-		},
-		noteAutomation() {},
-		paintStatus() {},
-		notify: (_ctx: unknown, msg: string) => notices.push(msg),
-		currentPumpToken: async (_active: unknown, held: string) => held,
-		pi_send: (message: string, mode: string) => {
-			sent.push({ message, mode });
-			// Starting a turn marks Pi occupied until that run settles.
-			idle = false;
-			activeRun = true;
-		},
-		callDevspec: async (_token: string, name: string, args: Record<string, unknown>) => {
-			assert.equal(name, "get_connection_dispatch");
-			const id = String(args.dispatch_id);
-			lookups.push(id);
-			if (id === settledId) {
-				return {
-					content: [
-						{
-							type: "text",
-							text: JSON.stringify({
-								connection_id: "conn-1",
-								dispatches: [],
-								count: 0,
-								dispatch_id: id,
-								identity_complete: true,
-							}),
-						},
-					],
-				};
-			}
-			throw new Error("MCP HTTP 503: upstream unavailable");
-		},
-	};
-
-	const compiled = stripTypeScriptTypes(
-		`${dispatchSlice}\n;globalThis.__api = { enqueueDispatch, notifyCheckJobIdleWaiters };`,
-	);
-	runInNewContext(compiled, sandbox);
-	const api = sandbox.__api as {
-		enqueueDispatch: (a: unknown, token: string, value: unknown, ctx: unknown) => void;
-		notifyCheckJobIdleWaiters: () => void;
-	};
-	const ctx = {
-		cwd: "/tmp",
-		isIdle: () => idle,
-		hasPendingMessages: () => false,
-	};
-
-	// Enqueue both check jobs while Pi is busy running an active foreground turn.
-	api.enqueueDispatch(active, "tok-1", settledJob, ctx);
-	api.enqueueDispatch(active, "tok-1", transientFailJob, ctx);
-	await new Promise((r) => setTimeout(r, 50));
-	assert.equal(sent.length, 0, "busy Pi does not push queued check jobs into followUp ahead of settle");
-	assert.deepEqual(lookups, [], "revalidation waits until delivery time");
-
-	// Settle the foreground turn: settledJob is skipped without sending a prompt turn,
-	// and transientFailJob immediately fails open and delivers as a fresh 'now' turn!
-	idle = true;
-	activeRun = false;
-	api.notifyCheckJobIdleWaiters();
-	await active.automationQueue.idle();
-
-	assert.deepEqual(lookups, [settledId, transientFailId]);
-	assert.equal(sent.length, 1, "settled check job sent no prompt turn; transient failure still delivered");
-	assert.equal(sent[0]!.mode, "now");
-	assert.ok(sent[0]!.message.includes(transientFailId));
-	assert.ok(!sent[0]!.message.includes(settledId));
-	assert.deepEqual(notices, ["DevSpec remote: check job delivered."], "skipped check job emits no delivered toast");
 });

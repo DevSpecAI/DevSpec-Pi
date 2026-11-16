@@ -228,11 +228,12 @@ test("the steer names every waiting check job and notice in one message, as nobo
 });
 
 test("the agent hears where the helper rule is served before any check job is taken, in a wake and in a steer", () => {
-	// Decision 1d5a9c56: the rule is the server's. The plugin points at it and adds
-	// only what a helper agent is on Pi.
+	// Decision 1d5a9c56: the rule is the server's. The plugin points at it and states
+	// that on Pi subagents do not receive DevSpec's check tools, so Pi rules directly.
 	assert.match(CHECK_JOB_HELPERS_POINTER, /semantics\.check_job\.helpers in devspec:\/\/product\/remote-ingress-contract/);
 	assert.match(CHECK_JOB_HELPERS_POINTER, /repeated as `helpers` on every claim_check_job reply/);
-	assert.match(CHECK_JOB_HELPERS_POINTER, /pi-subagents/);
+	assert.match(CHECK_JOB_HELPERS_POINTER, /without starting a subagent/);
+	assert.doesNotMatch(CHECK_JOB_HELPERS_POINTER, /pi-subagents/);
 	for (const message of [
 		formatCheckJobsMessage([job(JOB_A)], "Wary Wolf"),
 		formatCheckJobsMessage([job(JOB_A), job(JOB_B)], "Wary Wolf"),

@@ -170,11 +170,11 @@ export function describeCheckJob(value: unknown): string {
  * Who rules a check job, the agent or a helper agent it starts, is the server's
  * rule (DevSpec item da5cfae5, decision 1d5a9c56). This points at the served
  * words and never restates them: the same text travels on every
- * claim_check_job reply as `helpers`. What a helper agent is on Pi is Pi's own
- * fact, so that much is said here.
+ * claim_check_job reply as `helpers`. On Pi, subagents do not receive DevSpec's
+ * extension tools, so Pi rules check jobs directly in its own session.
  */
 export const CHECK_JOB_HELPERS_POINTER =
-	"Who rules a check job, you or a helper agent you start, is DevSpec's rule: semantics.check_job.helpers in devspec://product/remote-ingress-contract, repeated as `helpers` on every claim_check_job reply. Follow it before a job is taken. On Pi a helper agent is a subagent started with the pi-subagents add-on, where it is installed.";
+	"Who rules a check job, you or a helper agent you start, is DevSpec's rule: semantics.check_job.helpers in devspec://product/remote-ingress-contract, repeated as `helpers` on every claim_check_job reply. Follow it before a job is taken. On Pi, subagents do not receive DevSpec's check tools, so rule the job yourself in this session without starting a subagent.";
 
 /** Where the helpers rule is served. */
 export const CHECK_JOB_CONTRACT_URI = "devspec://product/remote-ingress-contract";

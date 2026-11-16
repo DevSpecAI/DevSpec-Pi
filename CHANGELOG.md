@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.9 - 2026-11-16
+
+- **Pi rules checks directly in its own session.** On Pi, subagents started through `pi-subagents` run with a fixed tool list that does not include DevSpec's check tools, so sending a check to a subagent spent time before falling back to the main session. Pi now rules every check directly in its own session and relies on its existing wake-time session clearing between unrelated checks. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.14.8 - 2026-11-16
 
 - **Checks, and what they find, now reach your agent while it is still working.** When your project sends your agent a check on a change, or DevSpec follows up on something your agent did, a busy Pi used to hear about it only after its whole turn had ended. Now your agent hears as soon as the step it is on finishes, deals with it there, and carries on with what it was doing. A step is never interrupted part-way through, and an idle Pi still hears straight away.

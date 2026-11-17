@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 66653376861151b719e0e47cb949554cefe5cad6e26e8a090708ebcf0bbc11c2
- * Description fingerprint: ad46e5e9a3c9f57d2a1cc3f8212e48316a8adc4f9ea6e1a726cfd2dbdee084bd
- * Regenerated: 2026-11-17T00:26:27.453Z
+ * Schema fingerprint: 134fa548c48f84c6bd4c7a69403209ef17f3f62bea09e942a20b520efa647086
+ * Description fingerprint: f444bd2ce39b25e3e2bdb6223009c6b21d61e24f735b479ca88159196b2ce46d
+ * Regenerated: 2026-11-17T12:30:35.524Z
  */
-export const MCP_CATALOG_FINGERPRINT = "66653376861151b719e0e47cb949554cefe5cad6e26e8a090708ebcf0bbc11c2";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "ad46e5e9a3c9f57d2a1cc3f8212e48316a8adc4f9ea6e1a726cfd2dbdee084bd";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-17T00:26:27.453Z";
-export const TOOL_CATALOG_VERSION = "453933bcaf693f381866af766f1a904cec760729adf2ccc888b83ee873acb5cd";
+export const MCP_CATALOG_FINGERPRINT = "134fa548c48f84c6bd4c7a69403209ef17f3f62bea09e942a20b520efa647086";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "f444bd2ce39b25e3e2bdb6223009c6b21d61e24f735b479ca88159196b2ce46d";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-17T12:30:35.525Z";
+export const TOOL_CATALOG_VERSION = "aac46120748cd8fe1c4097720d2b352c6ceef7cff66db8e2ec2bdff169175c50";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -170,13 +170,13 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_inventory",
 		"name": "get inventory",
-		"description": "List the project's infrastructure inventory: where its apps, sites, builds, packages, repositories, databases and providers live, with each entry's environment, lifecycle and current version. Cards only: read one entry in full, with its versions, with get_inventory_entry. Current versions only; retired and replaced entries are listed unless you filter by lifecycle. An entry records a location: it is not proof the resource is healthy or up to date, and listing it grants no access. Suggested entries waiting for review are not listed. page.total_matching counts the entries matching your filters; pass page.next_offset as offset for the next page.",
+		"description": "List the project's infrastructure inventory: where its apps, sites, builds, packages, repositories, databases and providers live, with each entry's environment, lifecycle and current version, and the judgements made about its dependencies (an update held back, a security advisory accepted, each with its reason and what would change it). To see what was decided about one dependency, pass dependency_package: a judgement whose lifecycle is current still stands, and one that is retired or replaced does not. Cards only: read one entry in full, with its versions, with get_inventory_entry. Current versions only; retired and replaced entries are listed unless you filter by lifecycle. An entry records a location: it is not proof the resource is healthy or up to date, and listing it grants no access. Suggested entries waiting for review are not listed. page.total_matching counts the entries matching your filters; pass page.next_offset as offset for the next page.",
 		"intent": "list infrastructure inventory environments urls production staging addresses where deployed hosted"
 	},
 	{
 		"id": "get_inventory_entry",
 		"name": "get inventory entry",
-		"description": "Read one infrastructure inventory entry in full: its name, purpose, resource type, environments, provider, location, host group and lifecycle (with the entry that replaced it, when replaced), the version you asked for, which version is current, and every earlier version with its own fields. Pass any version's id; when it is not the current version, current_id names the one that is. A retracted entry is still readable. Review flags are shown as found, never settled: no flag means none is known, not that the entry is verified.",
+		"description": "Read one infrastructure inventory entry in full: its name, purpose, resource type, environments, provider, location, host group and lifecycle (with the entry that replaced it, when replaced), and for a dependency judgement which dependency and version, what was decided, who decided and when, and the conditions that would change it (its purpose is the reason), the version you asked for, which version is current, and its versions, newest first, each with its own fields. Versions come a page at a time: versions_page.total counts every version the entry has, and when has_more is true pass versions_page.next_offset as versions_offset for older ones. Pass any version's id; when it is not the current version, current_id names the one that is. A retracted entry is still readable. Review flags are shown as found, never settled: no flag means none is known, not that the entry is verified.",
 		"intent": "read one inventory entry url environment history versions replaced"
 	},
 	{
@@ -410,7 +410,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_inventory_entry",
 		"name": "record inventory entry",
-		"description": "Record where one of the project's resources lives: a deployed app or site, an app store listing or test build, a package, a repository, a database, a server, a provider account. Record only what the person said or confirmed; never infer an environment, an address or a provider from code, configuration or a conversation's guess. One entry per resource: a site, the server it runs on and the dashboard that manages it are separate entries (host_group groups entries on one box). A Contributor's or Maintainer's entry is recorded at once (outcome committed); a Reviewed Contributor's, and any unattended run's, is saved as a suggestion for a Maintainer (outcome queued_for_review) and nothing is recorded until then. Credentials are refused, never stored: the answer names the field and the rule, not the value.",
+		"description": "Record where one of the project's resources lives: a deployed app or site, an app store listing or test build, a package, a repository, a database, a server, a provider account. Record only what the person said or confirmed; never infer an environment, an address or a provider from code, configuration or a conversation's guess. A judgement about one dependency is recorded here too (resource_type dependency, with the dependency object): an update you held back after checking it, or a security advisory judged not a realistic risk, with the reason as its purpose and at least one condition that would change it. That one records your own checked judgement, so it needs no person to have said it. One entry per resource: a site, the server it runs on and the dashboard that manages it are separate entries (host_group groups entries on one box). A Contributor's or Maintainer's entry is recorded at once (outcome committed); a Reviewed Contributor's, and any unattended run's, is saved as a suggestion for a Maintainer (outcome queued_for_review) and nothing is recorded until then. One thing an unattended run records at once: an update it held back (a dependency judgement with judgement held_back) counts from the moment it is recorded, as decided by the agent, and anyone with authority can change it later. Accepting a security advisory (advisory_accepted) on an unattended run still waits for a person. Read the outcome the answer states rather than assuming either. Credentials are refused, never stored: the answer names the field and the rule, not the value.",
 		"intent": "record add infrastructure inventory entry url environment provider where deployed"
 	},
 	{
@@ -482,7 +482,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "retract_inventory_entry",
 		"name": "retract inventory entry",
-		"description": "Retract an infrastructure inventory entry that was recorded by mistake. It stays readable with its full history, but stops being listed. A resource that existed and is no longer used is retired instead (revise_inventory_entry with lifecycle retired), so its old address stays findable. A Contributor's or Maintainer's retraction applies at once; a Reviewed Contributor's, and any unattended run's, waits for a Maintainer (outcome queued_for_review).",
+		"description": "Retract an infrastructure inventory entry that was recorded by mistake. It stays readable with its full history, but stops being listed. A resource that existed and is no longer used is retired instead (revise_inventory_entry with lifecycle retired), so its old address stays findable. A Contributor's or Maintainer's retraction applies at once; a Reviewed Contributor's, and any unattended run's, waits for a Maintainer (outcome queued_for_review), dependency judgements included.",
 		"intent": "retract remove mistaken inventory entry"
 	},
 	{
@@ -500,7 +500,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "revise_inventory_entry",
 		"name": "revise inventory entry",
-		"description": "Change an infrastructure inventory entry: correct it, move it to a new address, retire it (lifecycle retired) or mark it replaced (lifecycle replaced, with replaced_by). Every change is a new version; earlier versions stay in its history. Send only what changes: omitted fields keep their values, null clears an optional one. Read the entry first with get_inventory_entry and pass its version as expected_version: if it has changed since, nothing is written (outcome stale). A Contributor's or Maintainer's change applies at once; a Reviewed Contributor's, and any unattended run's, waits for a Maintainer (outcome queued_for_review) and the entry is unchanged until then. To remove an entry recorded by mistake, use retract_inventory_entry instead.",
+		"description": "Change an infrastructure inventory entry: correct it, move it to a new address, retire it (lifecycle retired) or mark it replaced (lifecycle replaced, with replaced_by). Every change is a new version; earlier versions stay in its history. Send only what changes: omitted fields keep their values, null clears an optional one. Read the entry first with get_inventory_entry and pass its version as expected_version: if it has changed since, nothing is written (outcome stale). A Contributor's or Maintainer's change applies at once; a Reviewed Contributor's, and any unattended run's, waits for a Maintainer (outcome queued_for_review) and the entry is unchanged until then. One thing an unattended run changes at once: an update held back (its reason, its conditions, or retiring it when the update lands). A change to an accepted security advisory on an unattended run still waits for a person. A judgement keeps the kind it was recorded as: an update held back never becomes an accepted advisory, which is its own entry. A dependency judgement that no longer stands (the update was taken, the advisory was fixed) is retired the same way, with the reason as note; one that was judged again is revised with its new reason as purpose and its new conditions. To remove an entry recorded by mistake, use retract_inventory_entry instead.",
 		"intent": "update change move retire replace inventory entry url environment"
 	},
 	{
@@ -3845,7 +3845,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_inventory",
 		"label": "DevSpec: Get Inventory",
-		"description": "List the project's infrastructure inventory: where its apps, sites, builds, packages, repositories, databases and providers live, with each entry's environment, lifecycle and current version. Cards only: read one entry in full, with its versions, with get_inventory_entry. Current versions only; retired and replaced entries are listed unless you filter by lifecycle. An entry records a location: it is not proof the resource is healthy or up to date, and listing it grants no access. Suggested entries waiting for review are not listed. page.total_matching counts the entries matching your filters; pass page.next_offset as offset for the next page.",
+		"description": "List the project's infrastructure inventory: where its apps, sites, builds, packages, repositories, databases and providers live, with each entry's environment, lifecycle and current version, and the judgements made about its dependencies (an update held back, a security advisory accepted, each with its reason and what would change it). To see what was decided about one dependency, pass dependency_package: a judgement whose lifecycle is current still stands, and one that is retired or replaced does not. Cards only: read one entry in full, with its versions, with get_inventory_entry. Current versions only; retired and replaced entries are listed unless you filter by lifecycle. An entry records a location: it is not proof the resource is healthy or up to date, and listing it grants no access. Suggested entries waiting for review are not listed. page.total_matching counts the entries matching your filters; pass page.next_offset as offset for the next page.",
 		"searchIntent": "list infrastructure inventory environments urls production staging addresses where deployed hosted",
 		"modelInputSchema": {
 			"type": "object",
@@ -3889,6 +3889,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"observability",
 						"domain",
 						"service",
+						"dependency",
 						"other"
 					],
 					"description": "Only entries of this resource type. Omitted: every type."
@@ -3896,6 +3897,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"delivered_only": {
 					"type": "boolean",
 					"description": "Only delivered things with a web address (deployed apps and sites, store listings, test builds, packages, releases): what the project overview links. Default false."
+				},
+				"dependency_package": {
+					"type": "string",
+					"description": "Only the judgements about this dependency: its package name exactly as recorded. Pass lifecycle current for the ones that still stand. Omitted: no dependency filter."
+				},
+				"dependency_ecosystem": {
+					"type": "string",
+					"description": "With dependency_package: only that ecosystem (npm, pip, go…). Omitted: any."
+				},
+				"judgement": {
+					"type": "string",
+					"enum": [
+						"held_back",
+						"advisory_accepted"
+					],
+					"description": "Only dependency judgements of this kind: held_back or advisory_accepted. Omitted: both, and every other entry."
 				},
 				"limit": {
 					"type": "integer",
@@ -3964,6 +3981,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"observability",
 						"domain",
 						"service",
+						"dependency",
 						"other"
 					],
 					"description": "Only entries of this resource type. Omitted: every type."
@@ -3971,6 +3989,22 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"delivered_only": {
 					"type": "boolean",
 					"description": "Only delivered things with a web address (deployed apps and sites, store listings, test builds, packages, releases): what the project overview links. Default false."
+				},
+				"dependency_package": {
+					"type": "string",
+					"description": "Only the judgements about this dependency: its package name exactly as recorded. Pass lifecycle current for the ones that still stand. Omitted: no dependency filter."
+				},
+				"dependency_ecosystem": {
+					"type": "string",
+					"description": "With dependency_package: only that ecosystem (npm, pip, go…). Omitted: any."
+				},
+				"judgement": {
+					"type": "string",
+					"enum": [
+						"held_back",
+						"advisory_accepted"
+					],
+					"description": "Only dependency judgements of this kind: held_back or advisory_accepted. Omitted: both, and every other entry."
 				},
 				"limit": {
 					"type": "integer",
@@ -4002,7 +4036,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_inventory_entry",
 		"label": "DevSpec: Get Inventory Entry",
-		"description": "Read one infrastructure inventory entry in full: its name, purpose, resource type, environments, provider, location, host group and lifecycle (with the entry that replaced it, when replaced), the version you asked for, which version is current, and every earlier version with its own fields. Pass any version's id; when it is not the current version, current_id names the one that is. A retracted entry is still readable. Review flags are shown as found, never settled: no flag means none is known, not that the entry is verified.",
+		"description": "Read one infrastructure inventory entry in full: its name, purpose, resource type, environments, provider, location, host group and lifecycle (with the entry that replaced it, when replaced), and for a dependency judgement which dependency and version, what was decided, who decided and when, and the conditions that would change it (its purpose is the reason), the version you asked for, which version is current, and its versions, newest first, each with its own fields. Versions come a page at a time: versions_page.total counts every version the entry has, and when has_more is true pass versions_page.next_offset as versions_offset for older ones. Pass any version's id; when it is not the current version, current_id names the one that is. A retracted entry is still readable. Review flags are shown as found, never settled: no flag means none is known, not that the entry is verified.",
 		"searchIntent": "read one inventory entry url environment history versions replaced",
 		"modelInputSchema": {
 			"type": "object",
@@ -4010,6 +4044,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"id": {
 					"type": "string",
 					"description": "The entry version's id (from get_inventory or an earlier answer)."
+				},
+				"versions_limit": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100,
+					"description": "Versions per page, 1-100. Default 20."
+				},
+				"versions_offset": {
+					"type": "integer",
+					"minimum": 0,
+					"description": "Where this page of versions starts, counted from the newest: versions_page.next_offset from the previous answer. Default 0."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -4034,6 +4079,17 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"id": {
 					"type": "string",
 					"description": "The entry version's id (from get_inventory or an earlier answer)."
+				},
+				"versions_limit": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100,
+					"description": "Versions per page, 1-100. Default 20."
+				},
+				"versions_offset": {
+					"type": "integer",
+					"minimum": 0,
+					"description": "Where this page of versions starts, counted from the newest: versions_page.next_offset from the previous answer. Default 0."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -13279,7 +13335,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_inventory_entry",
 		"label": "DevSpec: Record Inventory Entry",
-		"description": "Record where one of the project's resources lives: a deployed app or site, an app store listing or test build, a package, a repository, a database, a server, a provider account. Record only what the person said or confirmed; never infer an environment, an address or a provider from code, configuration or a conversation's guess. One entry per resource: a site, the server it runs on and the dashboard that manages it are separate entries (host_group groups entries on one box). A Contributor's or Maintainer's entry is recorded at once (outcome committed); a Reviewed Contributor's, and any unattended run's, is saved as a suggestion for a Maintainer (outcome queued_for_review) and nothing is recorded until then. Credentials are refused, never stored: the answer names the field and the rule, not the value.",
+		"description": "Record where one of the project's resources lives: a deployed app or site, an app store listing or test build, a package, a repository, a database, a server, a provider account. Record only what the person said or confirmed; never infer an environment, an address or a provider from code, configuration or a conversation's guess. A judgement about one dependency is recorded here too (resource_type dependency, with the dependency object): an update you held back after checking it, or a security advisory judged not a realistic risk, with the reason as its purpose and at least one condition that would change it. That one records your own checked judgement, so it needs no person to have said it. One entry per resource: a site, the server it runs on and the dashboard that manages it are separate entries (host_group groups entries on one box). A Contributor's or Maintainer's entry is recorded at once (outcome committed); a Reviewed Contributor's, and any unattended run's, is saved as a suggestion for a Maintainer (outcome queued_for_review) and nothing is recorded until then. One thing an unattended run records at once: an update it held back (a dependency judgement with judgement held_back) counts from the moment it is recorded, as decided by the agent, and anyone with authority can change it later. Accepting a security advisory (advisory_accepted) on an unattended run still waits for a person. Read the outcome the answer states rather than assuming either. Credentials are refused, never stored: the answer names the field and the rule, not the value.",
 		"searchIntent": "record add infrastructure inventory entry url environment provider where deployed",
 		"modelInputSchema": {
 			"type": "object",
@@ -13315,9 +13371,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"observability",
 						"domain",
 						"service",
+						"dependency",
 						"other"
 					],
-					"description": "What sort of resource it is: web_app, website, api, mobile_app_listing (an app store listing), mobile_test_build (TestFlight or internal testing), package (npm, PyPI…), release, repository, database, server, hosting, dashboard, storage, observability (logs, metrics), domain, service (another provider account) or other. A site, the server it runs on and the dashboard that manages it are separate entries."
+					"description": "What sort of resource it is: web_app, website, api, mobile_app_listing (an app store listing), mobile_test_build (TestFlight or internal testing), package (npm, PyPI…), release, repository, database, server, hosting, dashboard, storage, observability (logs, metrics), domain, service (another provider account) or other. A site, the server it runs on and the dashboard that manages it are separate entries. dependency is a judgement about one dependency (an update held back, or a security advisory accepted): send it with the dependency object, and it stays a dependency judgement for good."
 				},
 				"environments": {
 					"type": "array",
@@ -13364,6 +13421,167 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"replaced_by": {
 					"type": "string",
 					"description": "With lifecycle replaced: the stable id (thread_id) of the inventory entry that replaced this one."
+				},
+				"dependency": {
+					"type": "object",
+					"properties": {
+						"ecosystem": {
+							"type": "string",
+							"description": "Where the dependency comes from, as its tooling names it, in one lowercase word: npm, pip, go, cargo, github-actions."
+						},
+						"package": {
+							"type": "string",
+							"description": "The dependency's package name, exactly as its manifest writes it."
+						},
+						"declared_in": {
+							"description": "The manifest that declares it, such as apps/web/package.json, when the same package is declared in more than one place. Omitted: not recorded.",
+							"type": [
+								"string",
+								"null"
+							]
+						},
+						"current_version": {
+							"type": "string",
+							"description": "The version the project is on, which the judgement is about."
+						},
+						"judgement": {
+							"type": "string",
+							"enum": [
+								"held_back",
+								"advisory_accepted"
+							],
+							"description": "held_back (an update deliberately not taken) or advisory_accepted (a security advisory looked at and judged not a realistic risk)."
+						},
+						"held_version": {
+							"description": "held_back only: the version that was not taken.",
+							"type": [
+								"string",
+								"null"
+							]
+						},
+						"advisories": {
+							"anyOf": [
+								{
+									"type": "array",
+									"items": {
+										"type": "string"
+									}
+								},
+								{
+									"type": "null"
+								}
+							],
+							"description": "advisory_accepted only: the public identifier of each advisory accepted (GHSA, CVE, OSV…), nothing else in each."
+						},
+						"decided_by": {
+							"type": "string",
+							"enum": [
+								"agent",
+								"person"
+							],
+							"description": "agent when you made the judgement from your own checks; person only when the person you are acting for decided it. A person is recorded as the one whose request this is: you cannot name anyone else, and an unattended run can only say agent."
+						},
+						"decided_on": {
+							"type": "string",
+							"description": "The day it was decided, YYYY-MM-DD. Omitted when recording: today."
+						},
+						"accepted_until": {
+							"description": "advisory_accepted only: the day the acceptance runs until, YYYY-MM-DD, when it has one.",
+							"type": [
+								"string",
+								"null"
+							]
+						},
+						"conditions": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"kind": {
+										"type": "string",
+										"enum": [
+											"other_dependency_version",
+											"newer_release",
+											"requirement_met",
+											"dependency_version_changes",
+											"advisory_severity_changes",
+											"advisory_range_changes",
+											"advisory_exploit_known",
+											"dependency_scope_changes"
+										],
+										"description": "What would change the judgement, as a fact DevSpec can check: other_dependency_version (another dependency reaches a version: send package and version, and ecosystem when it differs); newer_release (a release of this dependency newer than `than`; omitted, the version not taken, else the version the project is on); requirement_met (a named missing feature or requirement arrives: send requirement); dependency_version_changes (the project moves off the version judged); advisory_severity_changes (the advisory is no longer rated `severity`); advisory_range_changes (its affected range is no longer `affected_range`); advisory_exploit_known (an exploit becomes known); dependency_scope_changes (it stops being `scope`: build_only or shipped). The three advisory kinds belong to an accepted advisory."
+									},
+									"ecosystem": {
+										"type": "string",
+										"description": "other_dependency_version: the other dependency's ecosystem. Omitted: the same as this dependency's."
+									},
+									"package": {
+										"type": "string",
+										"description": "other_dependency_version: the other dependency's package name."
+									},
+									"version": {
+										"type": "string",
+										"description": "other_dependency_version: the version it has to reach."
+									},
+									"than": {
+										"type": "string",
+										"description": "newer_release: the release already judged."
+									},
+									"requirement": {
+										"type": "string",
+										"description": "requirement_met: the missing feature or requirement, in plain prose (at most 2,000 characters)."
+									},
+									"advisory": {
+										"type": "string",
+										"description": "The advisory kinds: which accepted advisory, by its identifier. Omitted when the judgement accepts exactly one."
+									},
+									"severity": {
+										"type": "string",
+										"enum": [
+											"low",
+											"medium",
+											"high",
+											"critical",
+											"unknown"
+										],
+										"description": "advisory_severity_changes: the advisory's severity as published now."
+									},
+									"affected_range": {
+										"type": "string",
+										"description": "advisory_range_changes: the advisory's affected range as published now, such as < 4.0.0."
+									},
+									"scope": {
+										"type": "string",
+										"enum": [
+											"build_only",
+											"shipped"
+										],
+										"description": "dependency_scope_changes: build_only (it only runs while building and testing) or shipped (it is in what users run), as it is now."
+									},
+									"note": {
+										"description": "Words beside the fact, in plain prose (at most 2,000 characters). Never instead of the fact.",
+										"type": [
+											"string",
+											"null"
+										]
+									}
+								},
+								"required": [
+									"kind"
+								]
+							},
+							"description": "What would change the judgement: at least one condition. On a change, the whole list replaces the old one."
+						}
+					},
+					"required": [
+						"ecosystem",
+						"package",
+						"current_version",
+						"judgement",
+						"decided_by",
+						"conditions"
+					],
+					"description": "For resource_type dependency: the judgement about one dependency. The reason goes in purpose, in plain prose; name is a short label such as \"next 16 held back\". One entry per dependency per judgement: look for an existing one first (get_inventory with dependency_package) and revise it rather than recording a second."
 				},
 				"tags": {
 					"type": "array",
@@ -13437,9 +13655,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"observability",
 						"domain",
 						"service",
+						"dependency",
 						"other"
 					],
-					"description": "What sort of resource it is: web_app, website, api, mobile_app_listing (an app store listing), mobile_test_build (TestFlight or internal testing), package (npm, PyPI…), release, repository, database, server, hosting, dashboard, storage, observability (logs, metrics), domain, service (another provider account) or other. A site, the server it runs on and the dashboard that manages it are separate entries."
+					"description": "What sort of resource it is: web_app, website, api, mobile_app_listing (an app store listing), mobile_test_build (TestFlight or internal testing), package (npm, PyPI…), release, repository, database, server, hosting, dashboard, storage, observability (logs, metrics), domain, service (another provider account) or other. A site, the server it runs on and the dashboard that manages it are separate entries. dependency is a judgement about one dependency (an update held back, or a security advisory accepted): send it with the dependency object, and it stays a dependency judgement for good."
 				},
 				"environments": {
 					"type": "array",
@@ -13486,6 +13705,167 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"replaced_by": {
 					"type": "string",
 					"description": "With lifecycle replaced: the stable id (thread_id) of the inventory entry that replaced this one."
+				},
+				"dependency": {
+					"type": "object",
+					"properties": {
+						"ecosystem": {
+							"type": "string",
+							"description": "Where the dependency comes from, as its tooling names it, in one lowercase word: npm, pip, go, cargo, github-actions."
+						},
+						"package": {
+							"type": "string",
+							"description": "The dependency's package name, exactly as its manifest writes it."
+						},
+						"declared_in": {
+							"description": "The manifest that declares it, such as apps/web/package.json, when the same package is declared in more than one place. Omitted: not recorded.",
+							"type": [
+								"string",
+								"null"
+							]
+						},
+						"current_version": {
+							"type": "string",
+							"description": "The version the project is on, which the judgement is about."
+						},
+						"judgement": {
+							"type": "string",
+							"enum": [
+								"held_back",
+								"advisory_accepted"
+							],
+							"description": "held_back (an update deliberately not taken) or advisory_accepted (a security advisory looked at and judged not a realistic risk)."
+						},
+						"held_version": {
+							"description": "held_back only: the version that was not taken.",
+							"type": [
+								"string",
+								"null"
+							]
+						},
+						"advisories": {
+							"anyOf": [
+								{
+									"type": "array",
+									"items": {
+										"type": "string"
+									}
+								},
+								{
+									"type": "null"
+								}
+							],
+							"description": "advisory_accepted only: the public identifier of each advisory accepted (GHSA, CVE, OSV…), nothing else in each."
+						},
+						"decided_by": {
+							"type": "string",
+							"enum": [
+								"agent",
+								"person"
+							],
+							"description": "agent when you made the judgement from your own checks; person only when the person you are acting for decided it. A person is recorded as the one whose request this is: you cannot name anyone else, and an unattended run can only say agent."
+						},
+						"decided_on": {
+							"type": "string",
+							"description": "The day it was decided, YYYY-MM-DD. Omitted when recording: today."
+						},
+						"accepted_until": {
+							"description": "advisory_accepted only: the day the acceptance runs until, YYYY-MM-DD, when it has one.",
+							"type": [
+								"string",
+								"null"
+							]
+						},
+						"conditions": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"kind": {
+										"type": "string",
+										"enum": [
+											"other_dependency_version",
+											"newer_release",
+											"requirement_met",
+											"dependency_version_changes",
+											"advisory_severity_changes",
+											"advisory_range_changes",
+											"advisory_exploit_known",
+											"dependency_scope_changes"
+										],
+										"description": "What would change the judgement, as a fact DevSpec can check: other_dependency_version (another dependency reaches a version: send package and version, and ecosystem when it differs); newer_release (a release of this dependency newer than `than`; omitted, the version not taken, else the version the project is on); requirement_met (a named missing feature or requirement arrives: send requirement); dependency_version_changes (the project moves off the version judged); advisory_severity_changes (the advisory is no longer rated `severity`); advisory_range_changes (its affected range is no longer `affected_range`); advisory_exploit_known (an exploit becomes known); dependency_scope_changes (it stops being `scope`: build_only or shipped). The three advisory kinds belong to an accepted advisory."
+									},
+									"ecosystem": {
+										"type": "string",
+										"description": "other_dependency_version: the other dependency's ecosystem. Omitted: the same as this dependency's."
+									},
+									"package": {
+										"type": "string",
+										"description": "other_dependency_version: the other dependency's package name."
+									},
+									"version": {
+										"type": "string",
+										"description": "other_dependency_version: the version it has to reach."
+									},
+									"than": {
+										"type": "string",
+										"description": "newer_release: the release already judged."
+									},
+									"requirement": {
+										"type": "string",
+										"description": "requirement_met: the missing feature or requirement, in plain prose (at most 2,000 characters)."
+									},
+									"advisory": {
+										"type": "string",
+										"description": "The advisory kinds: which accepted advisory, by its identifier. Omitted when the judgement accepts exactly one."
+									},
+									"severity": {
+										"type": "string",
+										"enum": [
+											"low",
+											"medium",
+											"high",
+											"critical",
+											"unknown"
+										],
+										"description": "advisory_severity_changes: the advisory's severity as published now."
+									},
+									"affected_range": {
+										"type": "string",
+										"description": "advisory_range_changes: the advisory's affected range as published now, such as < 4.0.0."
+									},
+									"scope": {
+										"type": "string",
+										"enum": [
+											"build_only",
+											"shipped"
+										],
+										"description": "dependency_scope_changes: build_only (it only runs while building and testing) or shipped (it is in what users run), as it is now."
+									},
+									"note": {
+										"description": "Words beside the fact, in plain prose (at most 2,000 characters). Never instead of the fact.",
+										"type": [
+											"string",
+											"null"
+										]
+									}
+								},
+								"required": [
+									"kind"
+								]
+							},
+							"description": "What would change the judgement: at least one condition. On a change, the whole list replaces the old one."
+						}
+					},
+					"required": [
+						"ecosystem",
+						"package",
+						"current_version",
+						"judgement",
+						"decided_by",
+						"conditions"
+					],
+					"description": "For resource_type dependency: the judgement about one dependency. The reason goes in purpose, in plain prose; name is a short label such as \"next 16 held back\". One entry per dependency per judgement: look for an existing one first (get_inventory with dependency_package) and revise it rather than recording a second."
 				},
 				"tags": {
 					"type": "array",
@@ -13535,7 +13915,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "revise_inventory_entry",
 		"label": "DevSpec: Revise Inventory Entry",
-		"description": "Change an infrastructure inventory entry: correct it, move it to a new address, retire it (lifecycle retired) or mark it replaced (lifecycle replaced, with replaced_by). Every change is a new version; earlier versions stay in its history. Send only what changes: omitted fields keep their values, null clears an optional one. Read the entry first with get_inventory_entry and pass its version as expected_version: if it has changed since, nothing is written (outcome stale). A Contributor's or Maintainer's change applies at once; a Reviewed Contributor's, and any unattended run's, waits for a Maintainer (outcome queued_for_review) and the entry is unchanged until then. To remove an entry recorded by mistake, use retract_inventory_entry instead.",
+		"description": "Change an infrastructure inventory entry: correct it, move it to a new address, retire it (lifecycle retired) or mark it replaced (lifecycle replaced, with replaced_by). Every change is a new version; earlier versions stay in its history. Send only what changes: omitted fields keep their values, null clears an optional one. Read the entry first with get_inventory_entry and pass its version as expected_version: if it has changed since, nothing is written (outcome stale). A Contributor's or Maintainer's change applies at once; a Reviewed Contributor's, and any unattended run's, waits for a Maintainer (outcome queued_for_review) and the entry is unchanged until then. One thing an unattended run changes at once: an update held back (its reason, its conditions, or retiring it when the update lands). A change to an accepted security advisory on an unattended run still waits for a person. A judgement keeps the kind it was recorded as: an update held back never becomes an accepted advisory, which is its own entry. A dependency judgement that no longer stands (the update was taken, the advisory was fixed) is retired the same way, with the reason as note; one that was judged again is revised with its new reason as purpose and its new conditions. To remove an entry recorded by mistake, use retract_inventory_entry instead.",
 		"searchIntent": "update change move retire replace inventory entry url environment",
 		"modelInputSchema": {
 			"type": "object",
@@ -13580,9 +13960,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"observability",
 						"domain",
 						"service",
+						"dependency",
 						"other"
 					],
-					"description": "What sort of resource it is: web_app, website, api, mobile_app_listing (an app store listing), mobile_test_build (TestFlight or internal testing), package (npm, PyPI…), release, repository, database, server, hosting, dashboard, storage, observability (logs, metrics), domain, service (another provider account) or other. A site, the server it runs on and the dashboard that manages it are separate entries. Omitted: unchanged."
+					"description": "What sort of resource it is: web_app, website, api, mobile_app_listing (an app store listing), mobile_test_build (TestFlight or internal testing), package (npm, PyPI…), release, repository, database, server, hosting, dashboard, storage, observability (logs, metrics), domain, service (another provider account) or other. A site, the server it runs on and the dashboard that manages it are separate entries. dependency is a judgement about one dependency (an update held back, or a security advisory accepted): send it with the dependency object, and it stays a dependency judgement for good. Omitted: unchanged."
 				},
 				"environments": {
 					"type": "array",
@@ -13648,6 +14029,159 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"string",
 						"null"
 					]
+				},
+				"dependency": {
+					"type": "object",
+					"properties": {
+						"ecosystem": {
+							"type": "string",
+							"description": "Where the dependency comes from, as its tooling names it, in one lowercase word: npm, pip, go, cargo, github-actions."
+						},
+						"package": {
+							"type": "string",
+							"description": "The dependency's package name, exactly as its manifest writes it."
+						},
+						"declared_in": {
+							"description": "The manifest that declares it, such as apps/web/package.json, when the same package is declared in more than one place. Omitted: not recorded.",
+							"type": [
+								"string",
+								"null"
+							]
+						},
+						"current_version": {
+							"type": "string",
+							"description": "The version the project is on, which the judgement is about."
+						},
+						"judgement": {
+							"type": "string",
+							"enum": [
+								"held_back",
+								"advisory_accepted"
+							],
+							"description": "held_back (an update deliberately not taken) or advisory_accepted (a security advisory looked at and judged not a realistic risk)."
+						},
+						"held_version": {
+							"description": "held_back only: the version that was not taken.",
+							"type": [
+								"string",
+								"null"
+							]
+						},
+						"advisories": {
+							"anyOf": [
+								{
+									"type": "array",
+									"items": {
+										"type": "string"
+									}
+								},
+								{
+									"type": "null"
+								}
+							],
+							"description": "advisory_accepted only: the public identifier of each advisory accepted (GHSA, CVE, OSV…), nothing else in each."
+						},
+						"decided_by": {
+							"type": "string",
+							"enum": [
+								"agent",
+								"person"
+							],
+							"description": "agent when you made the judgement from your own checks; person only when the person you are acting for decided it. A person is recorded as the one whose request this is: you cannot name anyone else, and an unattended run can only say agent."
+						},
+						"decided_on": {
+							"type": "string",
+							"description": "The day it was decided, YYYY-MM-DD. Omitted when recording: today."
+						},
+						"accepted_until": {
+							"description": "advisory_accepted only: the day the acceptance runs until, YYYY-MM-DD, when it has one.",
+							"type": [
+								"string",
+								"null"
+							]
+						},
+						"conditions": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"kind": {
+										"type": "string",
+										"enum": [
+											"other_dependency_version",
+											"newer_release",
+											"requirement_met",
+											"dependency_version_changes",
+											"advisory_severity_changes",
+											"advisory_range_changes",
+											"advisory_exploit_known",
+											"dependency_scope_changes"
+										],
+										"description": "What would change the judgement, as a fact DevSpec can check: other_dependency_version (another dependency reaches a version: send package and version, and ecosystem when it differs); newer_release (a release of this dependency newer than `than`; omitted, the version not taken, else the version the project is on); requirement_met (a named missing feature or requirement arrives: send requirement); dependency_version_changes (the project moves off the version judged); advisory_severity_changes (the advisory is no longer rated `severity`); advisory_range_changes (its affected range is no longer `affected_range`); advisory_exploit_known (an exploit becomes known); dependency_scope_changes (it stops being `scope`: build_only or shipped). The three advisory kinds belong to an accepted advisory."
+									},
+									"ecosystem": {
+										"type": "string",
+										"description": "other_dependency_version: the other dependency's ecosystem. Omitted: the same as this dependency's."
+									},
+									"package": {
+										"type": "string",
+										"description": "other_dependency_version: the other dependency's package name."
+									},
+									"version": {
+										"type": "string",
+										"description": "other_dependency_version: the version it has to reach."
+									},
+									"than": {
+										"type": "string",
+										"description": "newer_release: the release already judged."
+									},
+									"requirement": {
+										"type": "string",
+										"description": "requirement_met: the missing feature or requirement, in plain prose (at most 2,000 characters)."
+									},
+									"advisory": {
+										"type": "string",
+										"description": "The advisory kinds: which accepted advisory, by its identifier. Omitted when the judgement accepts exactly one."
+									},
+									"severity": {
+										"type": "string",
+										"enum": [
+											"low",
+											"medium",
+											"high",
+											"critical",
+											"unknown"
+										],
+										"description": "advisory_severity_changes: the advisory's severity as published now."
+									},
+									"affected_range": {
+										"type": "string",
+										"description": "advisory_range_changes: the advisory's affected range as published now, such as < 4.0.0."
+									},
+									"scope": {
+										"type": "string",
+										"enum": [
+											"build_only",
+											"shipped"
+										],
+										"description": "dependency_scope_changes: build_only (it only runs while building and testing) or shipped (it is in what users run), as it is now."
+									},
+									"note": {
+										"description": "Words beside the fact, in plain prose (at most 2,000 characters). Never instead of the fact.",
+										"type": [
+											"string",
+											"null"
+										]
+									}
+								},
+								"required": [
+									"kind"
+								]
+							},
+							"description": "What would change the judgement: at least one condition. On a change, the whole list replaces the old one."
+						}
+					},
+					"description": "On a dependency judgement: only the judgement fields that change. Omitted fields keep their values, null clears an optional one, and advisories and conditions each replace the whole list. Omitted: unchanged."
 				},
 				"tags": {
 					"type": "array",
@@ -13737,9 +14271,10 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"observability",
 						"domain",
 						"service",
+						"dependency",
 						"other"
 					],
-					"description": "What sort of resource it is: web_app, website, api, mobile_app_listing (an app store listing), mobile_test_build (TestFlight or internal testing), package (npm, PyPI…), release, repository, database, server, hosting, dashboard, storage, observability (logs, metrics), domain, service (another provider account) or other. A site, the server it runs on and the dashboard that manages it are separate entries. Omitted: unchanged."
+					"description": "What sort of resource it is: web_app, website, api, mobile_app_listing (an app store listing), mobile_test_build (TestFlight or internal testing), package (npm, PyPI…), release, repository, database, server, hosting, dashboard, storage, observability (logs, metrics), domain, service (another provider account) or other. A site, the server it runs on and the dashboard that manages it are separate entries. dependency is a judgement about one dependency (an update held back, or a security advisory accepted): send it with the dependency object, and it stays a dependency judgement for good. Omitted: unchanged."
 				},
 				"environments": {
 					"type": "array",
@@ -13805,6 +14340,159 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"string",
 						"null"
 					]
+				},
+				"dependency": {
+					"type": "object",
+					"properties": {
+						"ecosystem": {
+							"type": "string",
+							"description": "Where the dependency comes from, as its tooling names it, in one lowercase word: npm, pip, go, cargo, github-actions."
+						},
+						"package": {
+							"type": "string",
+							"description": "The dependency's package name, exactly as its manifest writes it."
+						},
+						"declared_in": {
+							"description": "The manifest that declares it, such as apps/web/package.json, when the same package is declared in more than one place. Omitted: not recorded.",
+							"type": [
+								"string",
+								"null"
+							]
+						},
+						"current_version": {
+							"type": "string",
+							"description": "The version the project is on, which the judgement is about."
+						},
+						"judgement": {
+							"type": "string",
+							"enum": [
+								"held_back",
+								"advisory_accepted"
+							],
+							"description": "held_back (an update deliberately not taken) or advisory_accepted (a security advisory looked at and judged not a realistic risk)."
+						},
+						"held_version": {
+							"description": "held_back only: the version that was not taken.",
+							"type": [
+								"string",
+								"null"
+							]
+						},
+						"advisories": {
+							"anyOf": [
+								{
+									"type": "array",
+									"items": {
+										"type": "string"
+									}
+								},
+								{
+									"type": "null"
+								}
+							],
+							"description": "advisory_accepted only: the public identifier of each advisory accepted (GHSA, CVE, OSV…), nothing else in each."
+						},
+						"decided_by": {
+							"type": "string",
+							"enum": [
+								"agent",
+								"person"
+							],
+							"description": "agent when you made the judgement from your own checks; person only when the person you are acting for decided it. A person is recorded as the one whose request this is: you cannot name anyone else, and an unattended run can only say agent."
+						},
+						"decided_on": {
+							"type": "string",
+							"description": "The day it was decided, YYYY-MM-DD. Omitted when recording: today."
+						},
+						"accepted_until": {
+							"description": "advisory_accepted only: the day the acceptance runs until, YYYY-MM-DD, when it has one.",
+							"type": [
+								"string",
+								"null"
+							]
+						},
+						"conditions": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"kind": {
+										"type": "string",
+										"enum": [
+											"other_dependency_version",
+											"newer_release",
+											"requirement_met",
+											"dependency_version_changes",
+											"advisory_severity_changes",
+											"advisory_range_changes",
+											"advisory_exploit_known",
+											"dependency_scope_changes"
+										],
+										"description": "What would change the judgement, as a fact DevSpec can check: other_dependency_version (another dependency reaches a version: send package and version, and ecosystem when it differs); newer_release (a release of this dependency newer than `than`; omitted, the version not taken, else the version the project is on); requirement_met (a named missing feature or requirement arrives: send requirement); dependency_version_changes (the project moves off the version judged); advisory_severity_changes (the advisory is no longer rated `severity`); advisory_range_changes (its affected range is no longer `affected_range`); advisory_exploit_known (an exploit becomes known); dependency_scope_changes (it stops being `scope`: build_only or shipped). The three advisory kinds belong to an accepted advisory."
+									},
+									"ecosystem": {
+										"type": "string",
+										"description": "other_dependency_version: the other dependency's ecosystem. Omitted: the same as this dependency's."
+									},
+									"package": {
+										"type": "string",
+										"description": "other_dependency_version: the other dependency's package name."
+									},
+									"version": {
+										"type": "string",
+										"description": "other_dependency_version: the version it has to reach."
+									},
+									"than": {
+										"type": "string",
+										"description": "newer_release: the release already judged."
+									},
+									"requirement": {
+										"type": "string",
+										"description": "requirement_met: the missing feature or requirement, in plain prose (at most 2,000 characters)."
+									},
+									"advisory": {
+										"type": "string",
+										"description": "The advisory kinds: which accepted advisory, by its identifier. Omitted when the judgement accepts exactly one."
+									},
+									"severity": {
+										"type": "string",
+										"enum": [
+											"low",
+											"medium",
+											"high",
+											"critical",
+											"unknown"
+										],
+										"description": "advisory_severity_changes: the advisory's severity as published now."
+									},
+									"affected_range": {
+										"type": "string",
+										"description": "advisory_range_changes: the advisory's affected range as published now, such as < 4.0.0."
+									},
+									"scope": {
+										"type": "string",
+										"enum": [
+											"build_only",
+											"shipped"
+										],
+										"description": "dependency_scope_changes: build_only (it only runs while building and testing) or shipped (it is in what users run), as it is now."
+									},
+									"note": {
+										"description": "Words beside the fact, in plain prose (at most 2,000 characters). Never instead of the fact.",
+										"type": [
+											"string",
+											"null"
+										]
+									}
+								},
+								"required": [
+									"kind"
+								]
+							},
+							"description": "What would change the judgement: at least one condition. On a change, the whole list replaces the old one."
+						}
+					},
+					"description": "On a dependency judgement: only the judgement fields that change. Omitted fields keep their values, null clears an optional one, and advisories and conditions each replace the whole list. Omitted: unchanged."
 				},
 				"tags": {
 					"type": "array",
@@ -13861,7 +14549,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "retract_inventory_entry",
 		"label": "DevSpec: Retract Inventory Entry",
-		"description": "Retract an infrastructure inventory entry that was recorded by mistake. It stays readable with its full history, but stops being listed. A resource that existed and is no longer used is retired instead (revise_inventory_entry with lifecycle retired), so its old address stays findable. A Contributor's or Maintainer's retraction applies at once; a Reviewed Contributor's, and any unattended run's, waits for a Maintainer (outcome queued_for_review).",
+		"description": "Retract an infrastructure inventory entry that was recorded by mistake. It stays readable with its full history, but stops being listed. A resource that existed and is no longer used is retired instead (revise_inventory_entry with lifecycle retired), so its old address stays findable. A Contributor's or Maintainer's retraction applies at once; a Reviewed Contributor's, and any unattended run's, waits for a Maintainer (outcome queued_for_review), dependency judgements included.",
 		"searchIntent": "retract remove mistaken inventory entry",
 		"modelInputSchema": {
 			"type": "object",
@@ -17982,7 +18670,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"busy": {
 					"type": "boolean",
-					"description": "With status live: true when a turn starts (re-assert on keep-alives), false when idle; omit to leave unchanged. The strings \"true\" and \"false\" are accepted."
+					"description": "With status live: true while a turn is running (re-assert on keep-alives), false when idle; omit to leave unchanged. It keeps an activity you started alive but never starts a delivered command: call report_pickup when you start one. The strings \"true\" and \"false\" are accepted."
 				},
 				"check_tier": {
 					"type": "string",
@@ -18249,7 +18937,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"busy": {
 					"type": "boolean",
-					"description": "With status live: true when a turn starts (re-assert on keep-alives), false when idle; omit to leave unchanged. The strings \"true\" and \"false\" are accepted."
+					"description": "With status live: true while a turn is running (re-assert on keep-alives), false when idle; omit to leave unchanged. It keeps an activity you started alive but never starts a delivered command: call report_pickup when you start one. The strings \"true\" and \"false\" are accepted."
 				},
 				"progress_marker": {
 					"type": "string",
@@ -18762,7 +19450,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"busy": {
 					"type": "boolean",
-					"description": "true when a turn starts, false when idle; shows or clears Working… in the room. Omit to leave unchanged. busy:false does not close an activity whose lease is still running; report_complete does. The strings \"true\" and \"false\" are accepted."
+					"description": "true while a turn is running, false when idle. Omit to leave unchanged. busy:true keeps an activity you started alive but never starts a delivered command: call report_pickup when you start one. busy:false does not close an activity whose lease is still running; report_complete does. The strings \"true\" and \"false\" are accepted."
 				},
 				"check_tier": {
 					"type": "string",
@@ -19337,7 +20025,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"busy": {
 					"type": "boolean",
-					"description": "true when a turn starts, false when idle; shows or clears Working… in the room. Omit to leave unchanged. busy:false does not close an activity whose lease is still running; report_complete does. The strings \"true\" and \"false\" are accepted."
+					"description": "true while a turn is running, false when idle. Omit to leave unchanged. busy:true keeps an activity you started alive but never starts a delivered command: call report_pickup when you start one. busy:false does not close an activity whose lease is still running; report_complete does. The strings \"true\" and \"false\" are accepted."
 				},
 				"progress_marker": {
 					"type": "string",
@@ -19670,7 +20358,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "report_pickup",
 		"label": "DevSpec: Report Pickup",
-		"description": "Mark this connection as working in its room. With only connection_id it picks up the newest pending command; failing that it keeps an unexpired working attempt alive; failing that it opens a new working attempt, even when nothing was delivered. Picking up a pending command or opening a new attempt closes the connection's other open attempts as superseded. Whichever happens, and with attempt_id too, every command addressed to the connection is marked delivered, so none is redelivered. The room shows Working… until report_complete, or until the five-minute lease lapses without report_keepalive. Pass attempt_id to pick up one exact pending attempt instead. Usually called by the host plugin when a turn starts; it grants no authority over the work.",
+		"description": "Mark this connection as working in its room. With only connection_id it picks up the newest pending command; failing that it keeps an unexpired working attempt alive; failing that it opens a new working attempt, even when nothing was delivered. Picking up a pending command or opening a new attempt closes the connection's other open attempts as superseded. Whichever happens, and with attempt_id too, every command addressed to the connection is marked delivered, so none is redelivered. The room shows Working… until report_complete, or until the five-minute lease lapses without report_keepalive. Pass command_turn_id (and command_message_id) to start one exact delivered command, or attempt_id to pick up one exact pending attempt, instead. Usually called by the host plugin when a turn starts, and the only call that starts a delivered command (busy on a poll or heartbeat does not); it grants no authority over the work.",
 		"searchIntent": "",
 		"modelInputSchema": {
 			"type": "object",
@@ -19730,13 +20418,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"x-devspec-host-only": true,
 					"format": "uuid",
-					"description": "Host-only. With speech_scope: the command turn the speech belongs to. Refused with local_activity_version."
+					"description": "Host-only. The command_turn.id from poll_connection. Without speech_scope: start exactly that command's activity (send it, not attempt_id, when you know which command you are starting). With speech_scope: the command turn the speech belongs to. Refused with local_activity_version."
 				},
 				"command_message_id": {
 					"type": "string",
 					"x-devspec-host-only": true,
 					"format": "uuid",
-					"description": "Host-only. With speech_scope: the command message the speech answers. Refused with local_activity_version."
+					"description": "Host-only. With command_turn_id: the exact command message in that turn you are starting, or with speech_scope the one the speech answers. Refused without command_turn_id and with local_activity_version."
 				},
 				"local_turn": {
 					"type": "boolean",

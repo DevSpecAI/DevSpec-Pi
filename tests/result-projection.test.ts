@@ -966,7 +966,25 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// description adds that a check job not started within 15 minutes goes back in line. No
 		// projection family changed and the hot set is unchanged (101 verbs). Benchmark
 		// before/after: initial surface 77,841 -> 77,929 estimated tokens; every check still passes.
-		"4c8f827b3f8e73282ac69bf2d3f62855daab6f8dde09f1f37b889dddde0e8216",
+		// Rebaselined 2026-11-17 for item 6d767a58 (an agent's busy report never starts a room
+		// command; only report_pickup does), regenerated against DevSpecV2 origin/staging
+		// e1063c6d2 (pull request 1400). That item's own changes are all outside this fingerprint:
+		// the pump-only heartbeat_connection and poll_connection busy descriptions now say busy
+		// keeps an activity the host started alive but never starts a delivered command, and
+		// report_pickup's description and its command_turn_id / command_message_id descriptions
+		// add starting exactly one named command. What this fingerprint sees is the inventory work
+		// the server shipped since the last regeneration (pull requests 1397 d7c9a69e, 1398
+		// 4fc2d2f7, 1401 cd0ecc46): get_inventory, record_inventory_entry and
+		// revise_inventory_entry's resource_type enum gains "dependency"; get_inventory gains
+		// optional dependency_package, dependency_ecosystem and judgement (held_back |
+		// advisory_accepted); record_inventory_entry and revise_inventory_entry gain an optional
+		// dependency object (ecosystem, package and the judgement fields); get_inventory_entry
+		// gains optional versions_limit (1-100) and versions_offset (>= 0) to page an entry's
+		// history; the five inventory tool descriptions changed. No required field changed. Verbs
+		// 105 model / 12 pump / 1 never-model before and after, none added or removed, no
+		// projection family changed, hot set unchanged (101 verbs). Benchmark before/after:
+		// initial surface 77,929 -> 81,119 estimated tokens; every check still passes.
+		"f245271ccfa5bd4824b95420bdd3574eb122d6bd2efdcf6dd305459a4f356400",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

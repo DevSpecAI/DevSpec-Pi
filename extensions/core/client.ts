@@ -35,8 +35,14 @@ export const MODEL_TIMEOUT_MS = 25_000;
 
 export type ClientLane = "pump" | "work";
 
-/** Token rejected by the server (401 + invalid_api_token / invalid_connection_capability). The user needs to re-login. */
-export class DevspecAuthError extends Error {}
+/** Token rejected by the server (401 + invalid_api_token / invalid_connection_capability / signed_out). The user needs to re-login. */
+export class DevspecAuthError extends Error {
+	readonly code: string | null;
+	constructor(message: string, code: string | null = null) {
+		super(message);
+		this.code = code;
+	}
+}
 
 /** Anything else: network, server 5xx, MCP protocol errors. */
 export class DevspecApiError extends Error {}
@@ -409,7 +415,7 @@ export function mapClientError(err: unknown): Error {
 		);
 	}
 	if (structured.code === "invalid_api_token") {
-		return new DevspecAuthError("DevSpec rejected the token (invalid or revoked). Run /devspec.login.");
+		return new DevspecAuthError("DevSpec rejected the token (invalid or revoked). Run /devspec.login.", structured.code);
 	}
 	// A browser sign-in for a tool the person disconnected on the Agents page.
 	// DevSpec's own sentence says where to reconnect; signing in again follows.
@@ -417,20 +423,22 @@ export function mapClientError(err: unknown): Error {
 		const said = typeof structured.message === "string" && structured.message.trim()
 			? structured.message.trim()
 			: "Pi was disconnected from your DevSpec account. You can reconnect it from Agent setup in your DevSpec settings.";
-		return new DevspecAuthError(`${said} Then run /devspec.login.`);
+		return new DevspecAuthError(`${said} Then run /devspec.login.`, structured.code);
 	}
 	if (structured.code === "invalid_connection_capability") {
 		return new DevspecAuthError(
 			"DevSpec rejected the connection credentials (invalid or expired). Reconnecting — run /devspec.login if it persists.",
+			structured.code,
 		);
 	}
 	// 2. Exact legacy server strings (pre-code servers). Narrow on purpose.
 	if (/Invalid or revoked API token/.test(message)) {
-		return new DevspecAuthError("DevSpec rejected the token (invalid or revoked). Run /devspec.login.");
+		return new DevspecAuthError("DevSpec rejected the token (invalid or revoked). Run /devspec.login.", "invalid_api_token");
 	}
 	if (/Invalid or expired connection capability/.test(message)) {
 		return new DevspecAuthError(
 			"DevSpec rejected the connection credentials (invalid or expired). Reconnecting — run /devspec.login if it persists.",
+			"invalid_connection_capability",
 		);
 	}
 	// 3. Anything else — including ambiguous proxy/gateway 401s with no server
@@ -485,6 +493,15 @@ export function remotePostRejectionFromError(err: unknown): string | null {
  */
 export function shouldEndBondOnPollFailure(err: unknown): boolean {
 	return err instanceof DevspecAuthError || mapClientError(err) instanceof DevspecAuthError;
+}
+
+/**
+ * Whether the server said this tool's browser sign-in was disconnected by the
+ * person (`code: "signed_out"`), as opposed to a single rotated access token.
+ */
+export function isSignedOutAuthError(err: unknown): boolean {
+	if (err instanceof DevspecAuthError && err.code === "signed_out") return true;
+	return readStructuredFailure(err).code === "signed_out";
 }
 
 /**

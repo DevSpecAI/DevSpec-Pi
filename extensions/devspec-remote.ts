@@ -43,6 +43,7 @@ import {
 	MODEL_TIMEOUT_MS,
 	DevspecToolError,
 	isRecoverableTransportError,
+	isSignedOutAuthError,
 	shouldEndBondOnPollFailure,
 } from "./core/client.ts";
 import { connectionCapabilityFromResult, getBond, setBond, type BondState } from "./core/bond-state.ts";
@@ -1923,7 +1924,7 @@ async function ackControl(
 function drainControlResults(active: PumpState, ctx: ExtensionContext, token: string, endpoint: string): void {
 	if (pump !== active || active.stop || active.controlResultRetryTimer || !active.controlResults.hasPending(active.bond.connectionId)) return;
 	void active.controlResults.drain(active.bond.connectionId,
-		value => ackControl(token, value.connectionId, value.controlId, value.catalog, value.result, endpoint),
+		async value => ackControl(await currentPumpToken(active, token), value.connectionId, value.controlId, value.catalog, value.result, endpoint),
 		pi_appendControlResult, () => pump === active && !active.stop,
 	).then(() => { if (!active.controlResults.hasPending(active.bond.connectionId)) active.controlResultWarning = false; }).catch(() => {
 		if (pump !== active || active.stop) return;
@@ -3077,6 +3078,11 @@ async function reviveRecoverableBond(
 	serverEnded = false,
 ): Promise<boolean> {
 	if (active.stop || pump !== active) return false;
+	// Re-read the saved credential before re-registering: a poll failure may have
+	// been caused by a browser sign-in renewing its access token while the pump
+	// slept or polled (item b59b18fa).
+	token = await currentPumpToken(active, token);
+	if (active.stop || pump !== active) return false;
 	const prior = active.bond;
 	const localId = ctx.sessionManager.getSessionId();
 	try {
@@ -3205,22 +3211,31 @@ async function reviveRecoverableBond(
 		signalWake(active);
 		return true;
 	} catch (err) {
+		if (err instanceof DevspecAuthError && !isSignedOutAuthError(err)) {
+			// Another Pi process or background call may have renewed the saved
+			// access token while register_connection was in flight (b59b18fa).
+			const after = await currentPumpToken(active, token);
+			if (after !== token) {
+				return reviveRecoverableBond(active, after, ctx, failure, serverEnded);
+			}
+		}
 		if (failure) failure.authFailed = err instanceof DevspecAuthError;
 		return false;
 	}
 }
 
 async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: string, endpoint: string): Promise<void> {
+	if (pump !== active || active.stop) return;
+	const b = active.bond;
+	if (!b.projectId || !b.sessionId || !b.speechAttachmentId) {
+		active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncKey = undefined; pi_appendRoomScope(null, active.localSessionId); return;
+	}
 	const effective = await resolveToken();
 	const effectiveEndpoint = await resolveEndpoint();
 	if (pump !== active || active.stop) return;
 	// Same person and server as the pump: a renewed token is the same principal.
 	if (!effective || principalOf(effective) !== active.credentialPrincipal || effectiveEndpoint !== endpoint) {
 		active.roomSync?.close(true); active.roomSync = undefined; pi_appendRoomScope(null, active.localSessionId); return;
-	}
-	const b = active.bond;
-	if (!b.projectId || !b.sessionId || !b.speechAttachmentId) {
-		active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncKey = undefined; pi_appendRoomScope(null, active.localSessionId); return;
 	}
 	// Connection identity fences the authenticated principal; credentials are never
 	// part of the persisted scope. Endpoint credentials/query strings are omitted.
@@ -3235,7 +3250,7 @@ async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: s
 	active.roomSyncKey = key; active.roomSyncAttemptAt = Date.now();
 	const current = () => pump === active && !active.stop && ctx.sessionManager.getSessionId() === active.localSessionId && getBond()?.connectionId === scope.connectionId && getBond()?.connectionCapability === capability && active.bond.connectionId === scope.connectionId && active.bond.sessionId === scope.sessionId && active.bond.speechAttachmentId === scope.attachmentId && active.bond.connectionCapability === capability;
 	try {
-		const advertised = await readDevspecResource(token, "devspec://product/remote-ingress-contract", { lane: "pump", timeoutMs: 5_000 });
+		const advertised = await readDevspecResource(effective.token, "devspec://product/remote-ingress-contract", { lane: "pump", timeoutMs: 5_000 });
 		if (!current() || !advertisesRoomContext(advertised)) return;
 		// Rows this connection posted before this copy existed are its own too; a
 		// bare "Pi" without a codename would also match the owner's other Pis.
@@ -3251,7 +3266,7 @@ async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: s
 			fetchHistory: async (args) => {
 				if (!current()) throw new Error("room attachment changed");
 				let raw: unknown;
-				const pollToken = await currentPumpToken(active, token);
+				const pollToken = await currentPumpToken(active, effective.token);
 				try {
 					raw = await callDevspec(pollToken, "poll_connection", {
 						connection_id: scope.connectionId, ingress_version: 1, delegated_scope_version: 1,
@@ -3360,6 +3375,12 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		// future retry nor merely attempting a deferred start may starve the
 		// ordinary command/control poll (4284a43c / 4221d08e).
 		await drainInteractionRetries(active, ctx);
+		if (active.stop || pump !== active) return;
+		// Re-read the credential after the wake wait (up to 45s): a browser sign-in
+		// that crossed its 12-hour renewal point during the wait (or was renewed by
+		// another Pi or work-lane call) invalidates the pre-sleep token in Clerk as
+		// soon as the refresh completes (item b59b18fa).
+		token = await currentPumpToken(active, token);
 		if (active.stop || pump !== active) return;
 		drainControlResults(active, ctx, token, endpoint);
 
@@ -3475,6 +3496,16 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			// owner_gone / local_stop for anything but a dead host / human stop:
 			// confirmed rejection stamps auth.
 			if (shouldEndBondOnPollFailure(err)) {
+				// If a browser sign-in renewed its access token while this poll was in
+				// flight, Clerk invalidated the old token on refresh. Switch to the
+				// renewed token and continue polling (item b59b18fa).
+				if (!isSignedOutAuthError(err)) {
+					const renewed = await currentPumpToken(active, token);
+					if (renewed !== token) {
+						token = renewed;
+						continue;
+					}
+				}
 				const failure = { authFailed: false };
 				if (await reviveRecoverableBond(active, token, ctx, failure)) {
 					pushMode = true;

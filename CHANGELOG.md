@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.11 - 2026-11-17
+
+- **Long-running Pi sessions stay connected when your browser sign-in renews its daily token.** A browser sign-in renews its 24-hour access token automatically once it is 12 hours old, and the sign-in server invalidates the old token as soon as the new one is issued. When that renewal happened while Pi's remote-control loop was sleeping between wake checks or waiting on a poll, the loop could send the old token on its next poll and recovery attempt, causing DevSpec to reject it and end the connection. Pi now re-reads the saved credential after waking, when a poll fails during an in-flight renewal, and before re-registering during recovery, so the connection switches cleanly to the renewed token without disconnecting. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.14.10 - 2026-11-17
 
 - Pi's built-in copy of DevSpec's tools is regenerated to match the server. One description changed: what DevSpec does when an agent reports a turn finished without saying which. It now ends only work the agent had started, never a command still waiting to be picked up. Pi always says which turn it finished, so nothing changes in how Pi behaves. No tool was added or removed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.

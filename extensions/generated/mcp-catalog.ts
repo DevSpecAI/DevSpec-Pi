@@ -3,12 +3,12 @@
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
  * Schema fingerprint: 66653376861151b719e0e47cb949554cefe5cad6e26e8a090708ebcf0bbc11c2
- * Description fingerprint: 20030b63abd005495913a0bcc324c23baef7f685999193247c67e2c1415ed4c5
- * Regenerated: 2026-11-16T14:30:14.030Z
+ * Description fingerprint: ad46e5e9a3c9f57d2a1cc3f8212e48316a8adc4f9ea6e1a726cfd2dbdee084bd
+ * Regenerated: 2026-11-17T00:26:27.453Z
  */
 export const MCP_CATALOG_FINGERPRINT = "66653376861151b719e0e47cb949554cefe5cad6e26e8a090708ebcf0bbc11c2";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "20030b63abd005495913a0bcc324c23baef7f685999193247c67e2c1415ed4c5";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-16T14:30:14.030Z";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "ad46e5e9a3c9f57d2a1cc3f8212e48316a8adc4f9ea6e1a726cfd2dbdee084bd";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-17T00:26:27.453Z";
 export const TOOL_CATALOG_VERSION = "453933bcaf693f381866af766f1a904cec760729adf2ccc888b83ee873acb5cd";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -20113,7 +20113,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "report_complete",
 		"label": "DevSpec: Report Complete",
-		"description": "End this connection's open activity: the attempt is marked done and, when its turn closes, the room's Working… and pending state is cleared and its open answer bubble completed. With only connection_id it closes the newest working attempt, else the newest pending one, which can be an owner command never started; pass command_turn_id (from poll_connection) or attempt_id to close exactly that one. Usually called by the host plugin; a turn whose answer went out with post_session_message complete_turn:true is already complete. When nothing was open, closed_as is null and already_finalized is true. This is not implementation evidence for a task; to report delivered work on one, use record_implementation.",
+		"description": "End this connection's open activity: the attempt is marked done and, when its turn closes, the room's Working… and pending state is cleared and its open answer bubble completed. With only connection_id it closes the newest working attempt, or failing that the newest waiting activity that no command started (a turn typed at the terminal), and closes only that activity's own command; it never closes a delivered command that has not been picked up, and with nothing being worked on it changes nothing. Pass command_turn_id (from poll_connection) or attempt_id to close exactly that one. Usually called by the host plugin; a turn whose answer went out with post_session_message complete_turn:true is already complete. When nothing was open, closed_as is null and already_finalized is true. This is not implementation evidence for a task; to report delivered work on one, use record_implementation.",
 		"searchIntent": "",
 		"modelInputSchema": {
 			"type": "object",

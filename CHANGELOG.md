@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.10 - 2026-11-17
+
+- Pi's built-in copy of DevSpec's tools is regenerated to match the server. One description changed: what DevSpec does when an agent reports a turn finished without saying which. It now ends only work the agent had started, never a command still waiting to be picked up. Pi always says which turn it finished, so nothing changes in how Pi behaves. No tool was added or removed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.14.9 - 2026-11-16
 
 - **Pi rules checks directly in its own session.** On Pi, subagents started through `pi-subagents` run with a fixed tool list that does not include DevSpec's check tools, so sending a check to a subagent spent time before falling back to the main session. Pi now rules every check directly in its own session and relies on its existing wake-time session clearing between unrelated checks. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.

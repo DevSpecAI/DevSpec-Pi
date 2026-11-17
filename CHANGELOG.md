@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.11 - 2026-11-17
+
+- **The room shows your Pi agent working on your message from the moment it starts.** When you send a message from a room, Pi now tells DevSpec exactly which message it has started on, instead of only saying it is busy. This gets Pi ready for a DevSpec change that stops a follow-up you send just as your agent finishes from being lost: DevSpec will only count a message as started when the agent says so. Without this update, messages you send Pi from a room would show as waiting for the whole time Pi works on them. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.14.10 - 2026-11-17
 
 - Pi's built-in copy of DevSpec's tools is regenerated to match the server. One description changed: what DevSpec does when an agent reports a turn finished without saying which. It now ends only work the agent had started, never a command still waiting to be picked up. Pi always says which turn it finished, so nothing changes in how Pi behaves. No tool was added or removed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.

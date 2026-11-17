@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.12 - 2026-11-17
+
+- Pi's built-in copy of DevSpec's tools is regenerated to match the server. DevSpec now counts a message you send from a room as started only when your agent says it has started it, never because the agent happened to be busy, so a follow-up you send just as your agent finishes is no longer lost. Pi already says which message it starts (0.14.11), so nothing changes in how Pi behaves. The descriptions also pick up DevSpec's newer inventory tools: your agent can record a dependency it has decided to hold back or an advisory it has accepted as an inventory entry, find those entries by package, and page through an entry's history. No tool was added or removed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.14.11 - 2026-11-17
 
 - **The room shows your Pi agent working on your message from the moment it starts.** When you send a message from a room, Pi now tells DevSpec exactly which message it has started on, instead of only saying it is busy. This gets Pi ready for a DevSpec change that stops a follow-up you send just as your agent finishes from being lost: DevSpec will only count a message as started when the agent says so. Without this update, messages you send Pi from a room would show as waiting for the whole time Pi works on them. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.

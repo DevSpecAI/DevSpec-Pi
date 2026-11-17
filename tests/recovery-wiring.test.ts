@@ -13,11 +13,31 @@ test("an auth-shaped poll failure revives before it may end the bond", () => {
 	const authBranch = remote.indexOf("if (shouldEndBondOnPollFailure(err))");
 	assert.ok(authBranch > 0, "auth-failure branch missing from the poll catch");
 	const window = remote.slice(authBranch, authBranch + 1500);
+	const renewedAt = window.indexOf("const renewed = await currentPumpToken(active, token)");
 	const reviveAt = window.indexOf("reviveRecoverableBond(active, token, ctx, failure)");
 	const endAt = window.indexOf('stopPump(ctx, "auth")');
-	assert.ok(reviveAt > 0, "poll catch must attempt revive on auth-shaped failure");
+	assert.ok(renewedAt > 0, "poll catch must check whether the saved credential renewed in flight");
+	assert.ok(reviveAt > renewedAt, "poll catch must check renewed credential before attempting revive");
 	assert.ok(endAt > reviveAt, "terminal end must come only after the revive attempt");
 	assert.match(window, /failure\.authFailed/, "revive must report whether credentials were confirmed rejected");
+});
+
+test("pumpLoop refreshes the token after waitForWake and reviveRecoverableBond refreshes before register_connection", () => {
+	const wakeWaitAt = remote.indexOf("await drainInteractionRetries(active, ctx)");
+	assert.ok(wakeWaitAt > 0, "post-wake retry drain missing");
+	const beforePollWindow = remote.slice(wakeWaitAt, wakeWaitAt + 1000);
+	const refreshAt = beforePollWindow.indexOf("token = await currentPumpToken(active, token)");
+	const roomSyncAt = beforePollWindow.indexOf("ensureRoomSync(active, ctx, token, endpoint)");
+	assert.ok(refreshAt > 0, "pumpLoop must refresh token after waitForWake/drainInteractionRetries");
+	assert.ok(roomSyncAt > refreshAt, "pumpLoop must refresh token before ensureRoomSync and poll_connection");
+
+	const reviveDef = remote.indexOf("async function reviveRecoverableBond(");
+	assert.ok(reviveDef > 0, "reviveRecoverableBond missing");
+	const reviveWindow = remote.slice(reviveDef, reviveDef + 1400);
+	const reviveRefreshAt = reviveWindow.indexOf("token = await currentPumpToken(active, token)");
+	const registerAt = reviveWindow.indexOf('"register_connection"');
+	assert.ok(reviveRefreshAt > 0, "reviveRecoverableBond must resolve latest saved token");
+	assert.ok(registerAt > reviveRefreshAt, "reviveRecoverableBond must resolve latest token before register_connection");
 });
 
 test("confirmed rejection stamps auth; owner_gone is never written for validation failure", () => {

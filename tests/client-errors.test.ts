@@ -5,6 +5,7 @@ import {
 	DevspecAuthError,
 	DevspecAuthUnavailableError,
 	isPermanentServerEnd,
+	isSignedOutAuthError,
 	personEndClosesPi,
 	isRecoverableTransportError,
 	mapClientError,
@@ -54,6 +55,9 @@ test("a disconnected browser sign-in is a credential rejection that says where t
 	);
 	const mapped = mapClientError(sdkError);
 	assert.ok(mapped instanceof DevspecAuthError);
+	assert.equal((mapped as DevspecAuthError).code, "signed_out");
+	assert.equal(isSignedOutAuthError(sdkError), true);
+	assert.equal(isSignedOutAuthError(mapped), true);
 	assert.equal(
 		mapped.message,
 		"This tool was disconnected from your DevSpec account. You can reconnect it from Agent setup in your DevSpec settings. Then run /devspec.login.",

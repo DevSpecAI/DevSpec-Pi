@@ -1321,6 +1321,38 @@ function trailTick(): void {
  * otherwise strand the Working indicator until lease expiry. report_complete
  * is the explicit channel; idempotent when the attempt already closed.
  */
+/**
+ * Say that this segment has started one exact room command (item 7b693c1b).
+ *
+ * DevSpec no longer treats a busy report as starting a delivered command: a busy
+ * sampled while the previous turn was ending used to mark the next command started,
+ * and that turn's late finish then closed it before the agent saw it (DevSpecV2
+ * 6d767a58). Only the host saying which command it started starts one, so Pi names
+ * the command turn and message here. Best-effort: Working is a view, and the turn
+ * never waits on or fails with this report.
+ */
+async function reportCommandPickup(commandTurnId: string, commandMessageId: string, stillCurrent: () => boolean): Promise<void> {
+	const active = pump;
+	if (!active || active.stop) return;
+	const authority = capturePumpAuthority({ generation: active.generation, connectionId: active.bond.connectionId });
+	const resolved = await resolveToken();
+	if (!resolved || !stillCurrent() || pump !== active || active.stop || !isPumpAuthorityCurrent(authority, {
+		generation: active.generation,
+		connectionId: active.bond.connectionId,
+	})) return;
+	try {
+		await callDevspec(resolved.token, "report_pickup", {
+			connection_id: authority.connectionId,
+			command_turn_id: commandTurnId,
+			command_message_id: commandMessageId,
+		}, { timeoutMs: 10_000, lane: "pump", retry: "never",
+			beforeSend: () => { if (!stillCurrent()) throw new DevspecToolError("Command segment changed before pickup."); },
+		});
+	} catch {
+		/* busy presence, the answer's own completion and lease expiry remain */
+	}
+}
+
 async function reportComplete(reason: string, commandTurnId?: string, commandMessageId?: string, commandTurnUnbound = false, interaction?: ExactInteractionContinuationIdentity, prePersistenceFailure = false, stillCurrent: () => boolean = () => true, localAttemptId?: string): Promise<boolean> {
 	const active = pump;
 	if (!active || (active.stop && !active.closing)) return false;
@@ -5290,6 +5322,14 @@ export default function (pi: ExtensionAPI) {
 				if (activityTransition?.beginBusyPresence && pump) {
 					pump.busy = true;
 					void beatBusy(true);
+				}
+				// Busy never starts a room command on DevSpec; saying which one we
+				// started does (item 7b693c1b). Once per command segment.
+				if (incomingCommand?.turnId && incomingCommand.commandMessageId && !turn.completionNeutral && pump) {
+					const segment = turn;
+					const commandMessageId = incomingCommand.commandMessageId;
+					void reportCommandPickup(incomingCommand.turnId, commandMessageId,
+						() => turn === segment && segment.commandMessageId === commandMessageId);
 				}
 			} else {
 				if (harness && backgroundTaskNotificationId(text, msg?.details)) void pi_refreshBackgroundWork();

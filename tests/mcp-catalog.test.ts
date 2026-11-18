@@ -145,3 +145,26 @@ test("every catalog entry has a schema and a name", () => {
 		assert.ok(entry.inputSchema);
 	}
 });
+
+test("inventory tools expose dependency judgement fields, lookup filters, version paging and companion links on the model surface (d060721f)", () => {
+	const surface = new Map(modelFacingSurface().map((entry) => [entry.name, entry]));
+	const list = surface.get("get_inventory")!;
+	const listProps = list.inputSchema.properties as Record<string, Record<string, unknown>>;
+	assert.equal(listProps.dependency_package?.type, "string");
+	assert.equal(listProps.dependency_ecosystem?.type, "string");
+	assert.deepEqual(listProps.judgement?.enum, ["held_back", "advisory_accepted"]);
+	assert.ok((listProps.resource_type?.enum as string[]).includes("dependency"));
+
+	const read = surface.get("get_inventory_entry")!;
+	const readProps = read.inputSchema.properties as Record<string, Record<string, unknown>>;
+	assert.equal(readProps.versions_limit?.maximum, 100);
+	assert.equal(readProps.versions_offset?.minimum, 0);
+
+	for (const verb of ["record_inventory_entry", "revise_inventory_entry"]) {
+		const entry = surface.get(verb)!;
+		const props = entry.inputSchema.properties as Record<string, Record<string, unknown>>;
+		assert.ok((props.resource_type?.enum as string[]).includes("dependency"), `${verb}.resource_type includes dependency`);
+		assert.equal(props.dependency?.type, "object", `${verb}.dependency`);
+		assert.equal(props.companion_links?.type, "array", `${verb}.companion_links`);
+	}
+});

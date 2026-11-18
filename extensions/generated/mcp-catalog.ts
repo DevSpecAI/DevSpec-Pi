@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 134fa548c48f84c6bd4c7a69403209ef17f3f62bea09e942a20b520efa647086
- * Description fingerprint: f444bd2ce39b25e3e2bdb6223009c6b21d61e24f735b479ca88159196b2ce46d
- * Regenerated: 2026-11-17T12:30:35.524Z
+ * Schema fingerprint: 94ec2c2c8039305225b87b80381331003ed6030e28cfe511224adab130c233e3
+ * Description fingerprint: dd98f7b89277bf65cb3920e70191331aafaf1ac68110c2b3dfa4b703754f27e9
+ * Regenerated: 2026-11-18T13:39:06.497Z
  */
-export const MCP_CATALOG_FINGERPRINT = "134fa548c48f84c6bd4c7a69403209ef17f3f62bea09e942a20b520efa647086";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "f444bd2ce39b25e3e2bdb6223009c6b21d61e24f735b479ca88159196b2ce46d";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-17T12:30:35.525Z";
-export const TOOL_CATALOG_VERSION = "aac46120748cd8fe1c4097720d2b352c6ceef7cff66db8e2ec2bdff169175c50";
+export const MCP_CATALOG_FINGERPRINT = "94ec2c2c8039305225b87b80381331003ed6030e28cfe511224adab130c233e3";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "dd98f7b89277bf65cb3920e70191331aafaf1ac68110c2b3dfa4b703754f27e9";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-18T13:39:06.497Z";
+export const TOOL_CATALOG_VERSION = "e65bd55b41c04685393296db8bca24baf8fb58ad4aea69374153bd83daec8f10";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -170,13 +170,13 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_inventory",
 		"name": "get inventory",
-		"description": "List the project's infrastructure inventory: where its apps, sites, builds, packages, repositories, databases and providers live, with each entry's environment, lifecycle and current version, and the judgements made about its dependencies (an update held back, a security advisory accepted, each with its reason and what would change it). To see what was decided about one dependency, pass dependency_package: a judgement whose lifecycle is current still stands, and one that is retired or replaced does not. Cards only: read one entry in full, with its versions, with get_inventory_entry. Current versions only; retired and replaced entries are listed unless you filter by lifecycle. An entry records a location: it is not proof the resource is healthy or up to date, and listing it grants no access. Suggested entries waiting for review are not listed. page.total_matching counts the entries matching your filters; pass page.next_offset as offset for the next page.",
+		"description": "List the project's infrastructure inventory: where its apps, sites, builds, packages, repositories, databases and providers live, with each entry's environment, lifecycle and current version, and the judgements made about its dependencies (an update held back, a security advisory accepted, each with its reason and what would change it). Each entry is a concise index card (its purpose is a brief two-to-three-sentence summary of up to 400 characters covering what the resource is for and top-level account or billing ownership); detailed configuration, settings or operational procedures belong in a linked Document or Memory. To see what was decided about one dependency, pass dependency_package: a judgement whose lifecycle is current still stands, and one that is retired or replaced does not. Cards only: read one entry in full, with its versions, with get_inventory_entry. Current versions only; retired and replaced entries are listed unless you filter by lifecycle. An entry records a location: it is not proof the resource is healthy or up to date, and listing it grants no access. Suggested entries waiting for review are not listed. page.total_matching counts the entries matching your filters; pass page.next_offset as offset for the next page.",
 		"intent": "list infrastructure inventory environments urls production staging addresses where deployed hosted"
 	},
 	{
 		"id": "get_inventory_entry",
 		"name": "get inventory entry",
-		"description": "Read one infrastructure inventory entry in full: its name, purpose, resource type, environments, provider, location, host group and lifecycle (with the entry that replaced it, when replaced), and for a dependency judgement which dependency and version, what was decided, who decided and when, and the conditions that would change it (its purpose is the reason), the version you asked for, which version is current, and its versions, newest first, each with its own fields. Versions come a page at a time: versions_page.total counts every version the entry has, and when has_more is true pass versions_page.next_offset as versions_offset for older ones. Pass any version's id; when it is not the current version, current_id names the one that is. A retracted entry is still readable. Review flags are shown as found, never settled: no flag means none is known, not that the entry is verified.",
+		"description": "Read one infrastructure inventory entry in full: its name, purpose (a brief two-to-three-sentence index-card summary up to 400 characters covering what the resource is for and top-level account or billing ownership, while detailed configuration, settings or operational procedures live in a linked Document or Memory), resource type, environments, provider, location, host group, lifecycle (with the entry that replaced it, when replaced), its linked companion Documents and Memories (companions, with their notes), and for a dependency judgement which dependency and version, what was decided, who decided and when, and the conditions that would change it (its purpose is the reason), the version you asked for, which version is current, and its versions, newest first, each with its own fields. Versions come a page at a time: versions_page.total counts every version the entry has, and when has_more is true pass versions_page.next_offset as versions_offset for older ones. Pass any version's id; when it is not the current version, current_id names the one that is. A retracted entry is still readable. Review flags are shown as found, never settled: no flag means none is known, not that the entry is verified.",
 		"intent": "read one inventory entry url environment history versions replaced"
 	},
 	{
@@ -410,7 +410,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_inventory_entry",
 		"name": "record inventory entry",
-		"description": "Record where one of the project's resources lives: a deployed app or site, an app store listing or test build, a package, a repository, a database, a server, a provider account. Record only what the person said or confirmed; never infer an environment, an address or a provider from code, configuration or a conversation's guess. A judgement about one dependency is recorded here too (resource_type dependency, with the dependency object): an update you held back after checking it, or a security advisory judged not a realistic risk, with the reason as its purpose and at least one condition that would change it. That one records your own checked judgement, so it needs no person to have said it. One entry per resource: a site, the server it runs on and the dashboard that manages it are separate entries (host_group groups entries on one box). A Contributor's or Maintainer's entry is recorded at once (outcome committed); a Reviewed Contributor's, and any unattended run's, is saved as a suggestion for a Maintainer (outcome queued_for_review) and nothing is recorded until then. One thing an unattended run records at once: an update it held back (a dependency judgement with judgement held_back) counts from the moment it is recorded, as decided by the agent, and anyone with authority can change it later. Accepting a security advisory (advisory_accepted) on an unattended run still waits for a person. Read the outcome the answer states rather than assuming either. Credentials are refused, never stored: the answer names the field and the rule, not the value.",
+		"description": "Record where one of the project's resources lives: a deployed app or site, an app store listing or test build, a package, a repository, a database, a server, a provider account. An inventory entry is a concise index card: its purpose is a brief two-to-three-sentence summary (at most 400 characters) covering what the resource is for and top-level account or billing ownership; put detailed configuration, settings, setup notes or operational procedures in a linked Document (create_resource / update_resource) or Memory (record_memory) and attach it via companion_links (or manage_knowledge_links) rather than in the entry. Record only what the person said or confirmed; never infer an environment, an address or a provider from code, configuration or a conversation's guess. A judgement about one dependency is recorded here too (resource_type dependency, with the dependency object): an update you held back after checking it, or a security advisory judged not a realistic risk, with the reason as its purpose (up to 400 characters) and at least one condition that would change it. That one records your own checked judgement, so it needs no person to have said it. One entry per resource: a site, the server it runs on and the dashboard that manages it are separate entries (host_group groups entries on one box). A Contributor's or Maintainer's entry is recorded at once (outcome committed); a Reviewed Contributor's, and any unattended run's, is saved as a suggestion for a Maintainer (outcome queued_for_review) and nothing is recorded until then. One thing an unattended run records at once: an update it held back (a dependency judgement with judgement held_back) counts from the moment it is recorded, as decided by the agent, and anyone with authority can change it later. Accepting a security advisory (advisory_accepted) on an unattended run still waits for a person. Read the outcome the answer states rather than assuming either. Credentials are refused, never stored: the answer names the field and the rule, not the value.",
 		"intent": "record add infrastructure inventory entry url environment provider where deployed"
 	},
 	{
@@ -500,7 +500,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "revise_inventory_entry",
 		"name": "revise inventory entry",
-		"description": "Change an infrastructure inventory entry: correct it, move it to a new address, retire it (lifecycle retired) or mark it replaced (lifecycle replaced, with replaced_by). Every change is a new version; earlier versions stay in its history. Send only what changes: omitted fields keep their values, null clears an optional one. Read the entry first with get_inventory_entry and pass its version as expected_version: if it has changed since, nothing is written (outcome stale). A Contributor's or Maintainer's change applies at once; a Reviewed Contributor's, and any unattended run's, waits for a Maintainer (outcome queued_for_review) and the entry is unchanged until then. One thing an unattended run changes at once: an update held back (its reason, its conditions, or retiring it when the update lands). A change to an accepted security advisory on an unattended run still waits for a person. A judgement keeps the kind it was recorded as: an update held back never becomes an accepted advisory, which is its own entry. A dependency judgement that no longer stands (the update was taken, the advisory was fixed) is retired the same way, with the reason as note; one that was judged again is revised with its new reason as purpose and its new conditions. To remove an entry recorded by mistake, use retract_inventory_entry instead.",
+		"description": "Change an infrastructure inventory entry: correct it, move it to a new address, retire it (lifecycle retired) or mark it replaced (lifecycle replaced, with replaced_by). An entry's purpose is a brief two-to-three-sentence index-card summary (at most 400 characters) covering what the resource is for and top-level account or billing ownership; put detailed configuration, settings or operational procedures in a linked Document or Memory and attach it via companion_links (or manage_knowledge_links). Every change is a new version; earlier versions stay in its history. Send only what changes: omitted fields keep their values, null clears an optional one. Read the entry first with get_inventory_entry and pass its version as expected_version: if it has changed since, nothing is written (outcome stale). A Contributor's or Maintainer's change applies at once; a Reviewed Contributor's, and any unattended run's, waits for a Maintainer (outcome queued_for_review) and the entry is unchanged until then. One thing an unattended run changes at once: an update held back (its reason, its conditions, or retiring it when the update lands). A change to an accepted security advisory on an unattended run still waits for a person. A judgement keeps the kind it was recorded as: an update held back never becomes an accepted advisory, which is its own entry. A dependency judgement that no longer stands (the update was taken, the advisory was fixed) is retired the same way, with the reason as note; one that was judged again is revised with its new reason as purpose and its new conditions. To remove an entry recorded by mistake, use retract_inventory_entry instead.",
 		"intent": "update change move retire replace inventory entry url environment"
 	},
 	{
@@ -3845,7 +3845,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_inventory",
 		"label": "DevSpec: Get Inventory",
-		"description": "List the project's infrastructure inventory: where its apps, sites, builds, packages, repositories, databases and providers live, with each entry's environment, lifecycle and current version, and the judgements made about its dependencies (an update held back, a security advisory accepted, each with its reason and what would change it). To see what was decided about one dependency, pass dependency_package: a judgement whose lifecycle is current still stands, and one that is retired or replaced does not. Cards only: read one entry in full, with its versions, with get_inventory_entry. Current versions only; retired and replaced entries are listed unless you filter by lifecycle. An entry records a location: it is not proof the resource is healthy or up to date, and listing it grants no access. Suggested entries waiting for review are not listed. page.total_matching counts the entries matching your filters; pass page.next_offset as offset for the next page.",
+		"description": "List the project's infrastructure inventory: where its apps, sites, builds, packages, repositories, databases and providers live, with each entry's environment, lifecycle and current version, and the judgements made about its dependencies (an update held back, a security advisory accepted, each with its reason and what would change it). Each entry is a concise index card (its purpose is a brief two-to-three-sentence summary of up to 400 characters covering what the resource is for and top-level account or billing ownership); detailed configuration, settings or operational procedures belong in a linked Document or Memory. To see what was decided about one dependency, pass dependency_package: a judgement whose lifecycle is current still stands, and one that is retired or replaced does not. Cards only: read one entry in full, with its versions, with get_inventory_entry. Current versions only; retired and replaced entries are listed unless you filter by lifecycle. An entry records a location: it is not proof the resource is healthy or up to date, and listing it grants no access. Suggested entries waiting for review are not listed. page.total_matching counts the entries matching your filters; pass page.next_offset as offset for the next page.",
 		"searchIntent": "list infrastructure inventory environments urls production staging addresses where deployed hosted",
 		"modelInputSchema": {
 			"type": "object",
@@ -4036,7 +4036,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_inventory_entry",
 		"label": "DevSpec: Get Inventory Entry",
-		"description": "Read one infrastructure inventory entry in full: its name, purpose, resource type, environments, provider, location, host group and lifecycle (with the entry that replaced it, when replaced), and for a dependency judgement which dependency and version, what was decided, who decided and when, and the conditions that would change it (its purpose is the reason), the version you asked for, which version is current, and its versions, newest first, each with its own fields. Versions come a page at a time: versions_page.total counts every version the entry has, and when has_more is true pass versions_page.next_offset as versions_offset for older ones. Pass any version's id; when it is not the current version, current_id names the one that is. A retracted entry is still readable. Review flags are shown as found, never settled: no flag means none is known, not that the entry is verified.",
+		"description": "Read one infrastructure inventory entry in full: its name, purpose (a brief two-to-three-sentence index-card summary up to 400 characters covering what the resource is for and top-level account or billing ownership, while detailed configuration, settings or operational procedures live in a linked Document or Memory), resource type, environments, provider, location, host group, lifecycle (with the entry that replaced it, when replaced), its linked companion Documents and Memories (companions, with their notes), and for a dependency judgement which dependency and version, what was decided, who decided and when, and the conditions that would change it (its purpose is the reason), the version you asked for, which version is current, and its versions, newest first, each with its own fields. Versions come a page at a time: versions_page.total counts every version the entry has, and when has_more is true pass versions_page.next_offset as versions_offset for older ones. Pass any version's id; when it is not the current version, current_id names the one that is. A retracted entry is still readable. Review flags are shown as found, never settled: no flag means none is known, not that the entry is verified.",
 		"searchIntent": "read one inventory entry url environment history versions replaced",
 		"modelInputSchema": {
 			"type": "object",
@@ -13335,7 +13335,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_inventory_entry",
 		"label": "DevSpec: Record Inventory Entry",
-		"description": "Record where one of the project's resources lives: a deployed app or site, an app store listing or test build, a package, a repository, a database, a server, a provider account. Record only what the person said or confirmed; never infer an environment, an address or a provider from code, configuration or a conversation's guess. A judgement about one dependency is recorded here too (resource_type dependency, with the dependency object): an update you held back after checking it, or a security advisory judged not a realistic risk, with the reason as its purpose and at least one condition that would change it. That one records your own checked judgement, so it needs no person to have said it. One entry per resource: a site, the server it runs on and the dashboard that manages it are separate entries (host_group groups entries on one box). A Contributor's or Maintainer's entry is recorded at once (outcome committed); a Reviewed Contributor's, and any unattended run's, is saved as a suggestion for a Maintainer (outcome queued_for_review) and nothing is recorded until then. One thing an unattended run records at once: an update it held back (a dependency judgement with judgement held_back) counts from the moment it is recorded, as decided by the agent, and anyone with authority can change it later. Accepting a security advisory (advisory_accepted) on an unattended run still waits for a person. Read the outcome the answer states rather than assuming either. Credentials are refused, never stored: the answer names the field and the rule, not the value.",
+		"description": "Record where one of the project's resources lives: a deployed app or site, an app store listing or test build, a package, a repository, a database, a server, a provider account. An inventory entry is a concise index card: its purpose is a brief two-to-three-sentence summary (at most 400 characters) covering what the resource is for and top-level account or billing ownership; put detailed configuration, settings, setup notes or operational procedures in a linked Document (create_resource / update_resource) or Memory (record_memory) and attach it via companion_links (or manage_knowledge_links) rather than in the entry. Record only what the person said or confirmed; never infer an environment, an address or a provider from code, configuration or a conversation's guess. A judgement about one dependency is recorded here too (resource_type dependency, with the dependency object): an update you held back after checking it, or a security advisory judged not a realistic risk, with the reason as its purpose (up to 400 characters) and at least one condition that would change it. That one records your own checked judgement, so it needs no person to have said it. One entry per resource: a site, the server it runs on and the dashboard that manages it are separate entries (host_group groups entries on one box). A Contributor's or Maintainer's entry is recorded at once (outcome committed); a Reviewed Contributor's, and any unattended run's, is saved as a suggestion for a Maintainer (outcome queued_for_review) and nothing is recorded until then. One thing an unattended run records at once: an update it held back (a dependency judgement with judgement held_back) counts from the moment it is recorded, as decided by the agent, and anyone with authority can change it later. Accepting a security advisory (advisory_accepted) on an unattended run still waits for a person. Read the outcome the answer states rather than assuming either. Credentials are refused, never stored: the answer names the field and the rule, not the value.",
 		"searchIntent": "record add infrastructure inventory entry url environment provider where deployed",
 		"modelInputSchema": {
 			"type": "object",
@@ -13350,7 +13350,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"purpose": {
 					"type": "string",
-					"description": "What it is for, in a sentence or two of plain prose (at most 2,000 characters). Not a procedure, not credentials."
+					"description": "A brief two-to-three-sentence index-card summary (at most 400 characters) covering what the resource is for and top-level account or billing ownership (or, for a dependency judgement, the reason). Put detailed configuration, settings, setup or operational procedures in a linked Document or Memory. Never credentials."
 				},
 				"resource_type": {
 					"type": "string",
@@ -13589,6 +13589,28 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"type": "string"
 					},
 					"description": "Topic tags, at most 10. Omitted: none."
+				},
+				"companion_links": {
+					"maxItems": 10,
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string",
+								"description": "The current version id (or 8-character short code) of the project document or memory to link with this entry."
+							},
+							"note": {
+								"type": "string",
+								"description": "Why these two belong together, in a sentence or two (up to 1,000 characters). Required for agents."
+							}
+						},
+						"required": [
+							"id",
+							"note"
+						]
+					},
+					"description": "Documents (guides, references, runbooks) or memories (decisions, conventions, insights, risks) that hold detailed setup, settings, or procedures for this resource, each with its id and a short note saying why they belong together. Keep the entry itself a concise index card and link the detail here. Omitted: none added."
 				},
 				"idempotency_key": {
 					"type": "string",
@@ -13634,7 +13656,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"purpose": {
 					"type": "string",
-					"description": "What it is for, in a sentence or two of plain prose (at most 2,000 characters). Not a procedure, not credentials."
+					"description": "A brief two-to-three-sentence index-card summary (at most 400 characters) covering what the resource is for and top-level account or billing ownership (or, for a dependency judgement, the reason). Put detailed configuration, settings, setup or operational procedures in a linked Document or Memory. Never credentials."
 				},
 				"resource_type": {
 					"type": "string",
@@ -13874,6 +13896,28 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Topic tags, at most 10. Omitted: none."
 				},
+				"companion_links": {
+					"maxItems": 10,
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string",
+								"description": "The current version id (or 8-character short code) of the project document or memory to link with this entry."
+							},
+							"note": {
+								"type": "string",
+								"description": "Why these two belong together, in a sentence or two (up to 1,000 characters). Required for agents."
+							}
+						},
+						"required": [
+							"id",
+							"note"
+						]
+					},
+					"description": "Documents (guides, references, runbooks) or memories (decisions, conventions, insights, risks) that hold detailed setup, settings, or procedures for this resource, each with its id and a short note saying why they belong together. Keep the entry itself a concise index card and link the detail here. Omitted: none added."
+				},
 				"idempotency_key": {
 					"type": "string",
 					"description": "A fresh UUID for this intended entry; reuse it, with the same fields, to retry after an uncertain answer. Required when the entry is saved for review, so send one every time."
@@ -13915,7 +13959,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "revise_inventory_entry",
 		"label": "DevSpec: Revise Inventory Entry",
-		"description": "Change an infrastructure inventory entry: correct it, move it to a new address, retire it (lifecycle retired) or mark it replaced (lifecycle replaced, with replaced_by). Every change is a new version; earlier versions stay in its history. Send only what changes: omitted fields keep their values, null clears an optional one. Read the entry first with get_inventory_entry and pass its version as expected_version: if it has changed since, nothing is written (outcome stale). A Contributor's or Maintainer's change applies at once; a Reviewed Contributor's, and any unattended run's, waits for a Maintainer (outcome queued_for_review) and the entry is unchanged until then. One thing an unattended run changes at once: an update held back (its reason, its conditions, or retiring it when the update lands). A change to an accepted security advisory on an unattended run still waits for a person. A judgement keeps the kind it was recorded as: an update held back never becomes an accepted advisory, which is its own entry. A dependency judgement that no longer stands (the update was taken, the advisory was fixed) is retired the same way, with the reason as note; one that was judged again is revised with its new reason as purpose and its new conditions. To remove an entry recorded by mistake, use retract_inventory_entry instead.",
+		"description": "Change an infrastructure inventory entry: correct it, move it to a new address, retire it (lifecycle retired) or mark it replaced (lifecycle replaced, with replaced_by). An entry's purpose is a brief two-to-three-sentence index-card summary (at most 400 characters) covering what the resource is for and top-level account or billing ownership; put detailed configuration, settings or operational procedures in a linked Document or Memory and attach it via companion_links (or manage_knowledge_links). Every change is a new version; earlier versions stay in its history. Send only what changes: omitted fields keep their values, null clears an optional one. Read the entry first with get_inventory_entry and pass its version as expected_version: if it has changed since, nothing is written (outcome stale). A Contributor's or Maintainer's change applies at once; a Reviewed Contributor's, and any unattended run's, waits for a Maintainer (outcome queued_for_review) and the entry is unchanged until then. One thing an unattended run changes at once: an update held back (its reason, its conditions, or retiring it when the update lands). A change to an accepted security advisory on an unattended run still waits for a person. A judgement keeps the kind it was recorded as: an update held back never becomes an accepted advisory, which is its own entry. A dependency judgement that no longer stands (the update was taken, the advisory was fixed) is retired the same way, with the reason as note; one that was judged again is revised with its new reason as purpose and its new conditions. To remove an entry recorded by mistake, use retract_inventory_entry instead.",
 		"searchIntent": "update change move retire replace inventory entry url environment",
 		"modelInputSchema": {
 			"type": "object",
@@ -13939,7 +13983,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"purpose": {
 					"type": "string",
-					"description": "A new purpose. Omitted: unchanged."
+					"description": "A new purpose: a brief two-to-three-sentence index-card summary (at most 400 characters) covering what the resource is for and top-level account or billing ownership (or the reason for a dependency judgement). Put detailed configuration, settings or operational procedures in a linked Document or Memory. Omitted: unchanged."
 				},
 				"resource_type": {
 					"type": "string",
@@ -14189,6 +14233,28 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"type": "string"
 					},
 					"description": "Replace the tags, at most 10. Omitted: unchanged."
+				},
+				"companion_links": {
+					"maxItems": 10,
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string",
+								"description": "The current version id (or 8-character short code) of the project document or memory to link with this entry."
+							},
+							"note": {
+								"type": "string",
+								"description": "Why these two belong together, in a sentence or two (up to 1,000 characters). Required for agents."
+							}
+						},
+						"required": [
+							"id",
+							"note"
+						]
+					},
+					"description": "Documents (guides, references, runbooks) or memories (decisions, conventions, insights, risks) that hold detailed setup, settings, or procedures for this resource, each with its id and a short note saying why they belong together. Keep the entry itself a concise index card and link the detail here. Omitted: none added."
 				},
 				"note": {
 					"type": "string",
@@ -14250,7 +14316,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"purpose": {
 					"type": "string",
-					"description": "A new purpose. Omitted: unchanged."
+					"description": "A new purpose: a brief two-to-three-sentence index-card summary (at most 400 characters) covering what the resource is for and top-level account or billing ownership (or the reason for a dependency judgement). Put detailed configuration, settings or operational procedures in a linked Document or Memory. Omitted: unchanged."
 				},
 				"resource_type": {
 					"type": "string",
@@ -14500,6 +14566,28 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"type": "string"
 					},
 					"description": "Replace the tags, at most 10. Omitted: unchanged."
+				},
+				"companion_links": {
+					"maxItems": 10,
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string",
+								"description": "The current version id (or 8-character short code) of the project document or memory to link with this entry."
+							},
+							"note": {
+								"type": "string",
+								"description": "Why these two belong together, in a sentence or two (up to 1,000 characters). Required for agents."
+							}
+						},
+						"required": [
+							"id",
+							"note"
+						]
+					},
+					"description": "Documents (guides, references, runbooks) or memories (decisions, conventions, insights, risks) that hold detailed setup, settings, or procedures for this resource, each with its id and a short note saying why they belong together. Keep the entry itself a concise index card and link the detail here. Omitted: none added."
 				},
 				"note": {
 					"type": "string",

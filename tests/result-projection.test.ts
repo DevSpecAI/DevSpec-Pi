@@ -984,7 +984,22 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// 105 model / 12 pump / 1 never-model before and after, none added or removed, no
 		// projection family changed, hot set unchanged (101 verbs). Benchmark before/after:
 		// initial surface 77,929 -> 81,119 estimated tokens; every check still passes.
-		"f245271ccfa5bd4824b95420bdd3574eb122d6bd2efdcf6dd305459a4f356400",
+		// Rebaselined 2026-11-18 for item d060721f (refresh Pi's inventory tool definitions for
+		// dependency judgements, index-card purpose cap, and companion links), regenerated against
+		// DevSpecV2 carrying items d7c9a69e (#1397), fd0166db (#1430) and 36128924 (#1432). Verbs
+		// 105 model / 12 pump / 1 never-model before and after, none added or removed, no
+		// projection family changed, hot set unchanged (101 verbs). Inputs added: optional
+		// companion_links (array of { id, note }, maxItems 10) on record_inventory_entry and
+		// revise_inventory_entry (36128924), alongside the dependency judgement fields on
+		// record_inventory_entry and revise_inventory_entry, dependency_package /
+		// dependency_ecosystem / judgement filters on get_inventory, and versions_limit /
+		// versions_offset on get_inventory_entry (d7c9a69e). Descriptions changed: get_inventory,
+		// get_inventory_entry, record_inventory_entry and revise_inventory_entry (and their
+		// purpose parameter descriptions) now state the 400-character index-card purpose rule and
+		// companion links for detailed configuration or procedures (fd0166db, 36128924).
+		// Benchmark before/after: initial surface 81,119 -> 81,967 estimated tokens; every check
+		// still passes.
+		"822890db5681d22d7173b91f8f506a3d2451fc851bf82d3a7951a5c7e771cdd8",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

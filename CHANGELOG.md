@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.15 - 2026-11-19
+
+- Pi's built-in copy of DevSpec's tools is refreshed to match the server. When Pi rules a check on a pull request that carries several tasks, it can now say which task caused each clash, so only that task is held and its owner asked; a ruling that should name one and does not is refused with what to send. Pi can also link a task to the outside ticket, GitHub issue or error it resolves, confirm it still means to save a task, decision, requirement or document after DevSpec shows it a similar existing one, and link an inventory entry to as many documents and memories as it needs. No tool was added or removed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.14.14 - 2026-11-18
 
 - **Pi's inventory tools now include dependency judgements, version history paging, and linked documents and memories.** Pi's built-in copy of DevSpec's tools is refreshed to match the server: your agent can record and revise dependency judgements (updates held back and security advisories accepted, with the package, versions, reason, and the conditions that would change the decision), filter the inventory by dependency package or judgement kind, page through an entry's version history, and link companion documents or memories (such as a runbook, setup guide, or decision) when recording or revising an inventory entry while keeping each entry's own purpose a brief two-to-three-sentence summary. No tool was added or removed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.

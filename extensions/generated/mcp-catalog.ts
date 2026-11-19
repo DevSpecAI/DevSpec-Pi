@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 94ec2c2c8039305225b87b80381331003ed6030e28cfe511224adab130c233e3
- * Description fingerprint: dd98f7b89277bf65cb3920e70191331aafaf1ac68110c2b3dfa4b703754f27e9
- * Regenerated: 2026-11-18T13:39:06.497Z
+ * Schema fingerprint: 218acca45f9491499fdc172dfa59f42ce03361d4883115f618cf935d5b12c451
+ * Description fingerprint: 27bc83deefcc61be43f14de6c4039ebe77951d117a84c55a7493dc25d950be13
+ * Regenerated: 2026-11-19T00:26:43.117Z
  */
-export const MCP_CATALOG_FINGERPRINT = "94ec2c2c8039305225b87b80381331003ed6030e28cfe511224adab130c233e3";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "dd98f7b89277bf65cb3920e70191331aafaf1ac68110c2b3dfa4b703754f27e9";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-18T13:39:06.497Z";
-export const TOOL_CATALOG_VERSION = "e65bd55b41c04685393296db8bca24baf8fb58ad4aea69374153bd83daec8f10";
+export const MCP_CATALOG_FINGERPRINT = "218acca45f9491499fdc172dfa59f42ce03361d4883115f618cf935d5b12c451";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "27bc83deefcc61be43f14de6c4039ebe77951d117a84c55a7493dc25d950be13";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-19T00:26:43.118Z";
+export const TOOL_CATALOG_VERSION = "b41b306c9c631162b098314058ae545a11c6d748411d3d22696fa66391a0799b";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -374,7 +374,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_check_rulings",
 		"name": "record check rulings",
-		"description": "Record your rulings on a check job you took with claim_check_job; one call can carry many. Each ruling names the entry_id, the candidate_version you ruled, a verdict this kind allows (conflict and conflict_decisions: conflict, no_conflict or needs_person; duplicate: duplicate, not_duplicate or needs_person; staleness: out_of_date, current or needs_person) and a short reason. A malformed batch (a verdict the kind does not use, a blank reason, an entry named twice) is refused whole and nothing is recorded. A ruling that cannot apply comes back in not_recorded with its reason and the rest still apply: already_ruled; version_changed, with the current version, when the record changed after you read it; not_in_this_job. The result gives recorded, not_recorded, remaining (entries still to rule) and settled, which is true once every entry is ruled and DevSpec completes the check from your rulings. hand_back: true returns whatever you have not ruled to the next in line; the rulings you made stand. Refused outright when the job is not yours, was superseded, or has finished. Never post in the room about ruling a check job (that you ruled it, how many entries, what is left): the rulings show on the record and in Review, and an outcome that needs your person reaches you as its own notice.",
+		"description": "Record your rulings on a check job you took with claim_check_job; one call can carry many. Each ruling names the entry_id, the candidate_version you ruled, a verdict this kind allows (conflict and conflict_decisions: conflict, no_conflict or needs_person; duplicate: duplicate, not_duplicate or needs_person; staleness: out_of_date, current or needs_person) and a short reason. On a pull request that carries several tasks, a conflict or needs_person ruling also names in task_ids the task or tasks on the pull request whose work makes it. A malformed batch (a verdict the kind does not use, a blank reason, an entry named twice, task_ids missing where the entry is compared with several tasks or naming a task it is not compared with) is refused whole and nothing is recorded. A ruling that cannot apply comes back in not_recorded with its reason and the rest still apply: already_ruled; version_changed, with the current version, when the record changed after you read it; not_in_this_job. The result gives recorded, not_recorded, remaining (entries still to rule) and settled, which is true once every entry is ruled and DevSpec completes the check from your rulings. hand_back: true returns whatever you have not ruled to the next in line; the rulings you made stand. Refused outright when the job is not yours, was superseded, or has finished. Never post in the room about ruling a check job (that you ruled it, how many entries, what is left): the rulings show on the record and in Review, and an outcome that needs your person reaches you as its own notice.",
 		"intent": "rule check job entries verdict reason conflict duplicate out of date hand back a check"
 	},
 	{
@@ -5770,6 +5770,44 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"description": "Close an open Duplicate/Replaced reconciliation chore involving this task by recording its outcome after inspecting the detected differences and applying any needed attributed edits. Can be sent alongside kept-task edits or on its own when no edits were needed. Omitted: no reconciliation chore is closed."
 				},
+				"external_source": {
+					"type": "string",
+					"enum": [
+						"sentry",
+						"better_stack",
+						"github_issue",
+						"jira",
+						"plain",
+						"inbound_pipe"
+					],
+					"description": "External system when attaching or updating a linked ticket, GitHub Issue, Sentry error, or Better Stack error on this task. Omitted: inferred from external_url or unchanged."
+				},
+				"source_pipe_id": {
+					"description": "Inbound pipe UUID or identifier when linking this task to an inbound pipe ticket. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"external_id": {
+					"description": "External ticket, GitHub Issue (e.g. 'owner/repo#42'), Sentry issue (e.g. 'DEVSPEC-WEB-1' or numeric ID), or Better Stack error identifier that this task resolves. Pass null to remove an existing external link. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"external_url": {
+					"description": "Clickable https:// URL back to the linked external ticket, GitHub Issue, Sentry error, or Better Stack error. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"description": "The receipt_id from a preview_required overlap preview on update_task, confirming this exact specification edit should still be saved despite overlapping active, deferred, or not_wanted items. Send it only when keeping both tasks separate is genuinely intended; otherwise fold unique details into the existing task or resolve the duplicate. Any change to title, intent, description or acceptance_criteria invalidates the receipt. Omitted: overlapping material edits return preview_required without changing the task."
+				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
 					"type": "string"
@@ -6039,6 +6077,44 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"description": "Close an open Duplicate/Replaced reconciliation chore involving this task by recording its outcome after inspecting the detected differences and applying any needed attributed edits. Can be sent alongside kept-task edits or on its own when no edits were needed. Omitted: no reconciliation chore is closed."
 				},
+				"external_source": {
+					"type": "string",
+					"enum": [
+						"sentry",
+						"better_stack",
+						"github_issue",
+						"jira",
+						"plain",
+						"inbound_pipe"
+					],
+					"description": "External system when attaching or updating a linked ticket, GitHub Issue, Sentry error, or Better Stack error on this task. Omitted: inferred from external_url or unchanged."
+				},
+				"source_pipe_id": {
+					"description": "Inbound pipe UUID or identifier when linking this task to an inbound pipe ticket. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"external_id": {
+					"description": "External ticket, GitHub Issue (e.g. 'owner/repo#42'), Sentry issue (e.g. 'DEVSPEC-WEB-1' or numeric ID), or Better Stack error identifier that this task resolves. Pass null to remove an existing external link. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"external_url": {
+					"description": "Clickable https:// URL back to the linked external ticket, GitHub Issue, Sentry error, or Better Stack error. Omitted: unchanged.",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"description": "The receipt_id from a preview_required overlap preview on update_task, confirming this exact specification edit should still be saved despite overlapping active, deferred, or not_wanted items. Send it only when keeping both tasks separate is genuinely intended; otherwise fold unique details into the existing task or resolve the duplicate. Any change to title, intent, description or acceptance_criteria invalidates the receipt. Omitted: overlapping material edits return preview_required without changing the task."
+				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
 					"type": "string"
@@ -6223,6 +6299,30 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"automation_run"
 					],
 					"description": "Why this task was created automatically or from an incident/dependency flow. Derived automatically from the linked source when omitted; omit on normal human-requested tasks."
+				},
+				"external_source": {
+					"type": "string",
+					"enum": [
+						"sentry",
+						"better_stack",
+						"github_issue",
+						"jira",
+						"plain",
+						"inbound_pipe"
+					],
+					"description": "External system when this task is created to resolve a specific support ticket, GitHub Issue, Sentry error, or Better Stack error. Inherited automatically when created in a seeded session; pass directly when creating a task for a specific issue or error pulled during a normal session or Incident."
+				},
+				"source_pipe_id": {
+					"type": "string",
+					"description": "Inbound pipe UUID or identifier when linking this task to an inbound pipe ticket."
+				},
+				"external_id": {
+					"type": "string",
+					"description": "External ticket, GitHub Issue (e.g. 'owner/repo#42'), Sentry issue (e.g. 'DEVSPEC-WEB-1' or numeric ID), or Better Stack error identifier that this task resolves. Inherited automatically when created in a seeded session."
+				},
+				"external_url": {
+					"type": "string",
+					"description": "Clickable https:// URL back to the external ticket, GitHub Issue, Sentry error, or Better Stack error that this task resolves."
 				},
 				"idempotency_key": {
 					"type": "string",
@@ -6419,6 +6519,30 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"automation_run"
 					],
 					"description": "Why this task was created automatically or from an incident/dependency flow. Derived automatically from the linked source when omitted; omit on normal human-requested tasks."
+				},
+				"external_source": {
+					"type": "string",
+					"enum": [
+						"sentry",
+						"better_stack",
+						"github_issue",
+						"jira",
+						"plain",
+						"inbound_pipe"
+					],
+					"description": "External system when this task is created to resolve a specific support ticket, GitHub Issue, Sentry error, or Better Stack error. Inherited automatically when created in a seeded session; pass directly when creating a task for a specific issue or error pulled during a normal session or Incident."
+				},
+				"source_pipe_id": {
+					"type": "string",
+					"description": "Inbound pipe UUID or identifier when linking this task to an inbound pipe ticket."
+				},
+				"external_id": {
+					"type": "string",
+					"description": "External ticket, GitHub Issue (e.g. 'owner/repo#42'), Sentry issue (e.g. 'DEVSPEC-WEB-1' or numeric ID), or Better Stack error identifier that this task resolves. Inherited automatically when created in a seeded session."
+				},
+				"external_url": {
+					"type": "string",
+					"description": "Clickable https:// URL back to the external ticket, GitHub Issue, Sentry error, or Better Stack error that this task resolves."
 				},
 				"idempotency_key": {
 					"type": "string",
@@ -11216,6 +11340,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Optional additional companion memories, AI-written documents or uploaded project files to link to this memory when the new version commits ('read these together'), each with a note saying why. Existing thread companion links automatically carry forward to the new version. Omitted: no new companion links."
 				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"description": "The receipt_id from a preview_required overlap preview on supersede_memory, confirming this exact replacement wording should still be saved despite overlapping another memory. Any change to title, summary or body invalidates the receipt. Omitted: overlapping drafts return preview_required without saving."
+				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
 					"type": "string"
@@ -11331,6 +11460,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						]
 					},
 					"description": "Optional additional companion memories, AI-written documents or uploaded project files to link to this memory when the new version commits ('read these together'), each with a note saying why. Existing thread companion links automatically carry forward to the new version. Omitted: no new companion links."
+				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"description": "The receipt_id from a preview_required overlap preview on supersede_memory, confirming this exact replacement wording should still be saved despite overlapping another memory. Any change to title, summary or body invalidates the receipt. Omitted: overlapping drafts return preview_required without saving."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -11847,6 +11981,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Optional companion AI-written documents, uploaded project files, or memories this requirement relies on ('read these together'), each with a note saying why. Linked documents are read in full during conflict checks. Omitted: no companion links."
 				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"description": "The receipt_id from a preview_required overlap preview on record_requirement, confirming this exact requirement draft should still be saved as a standalone requirement despite overlapping an existing requirement. Any change to title, summary or body invalidates the receipt. Omitted: overlapping drafts return preview_required without saving."
+				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
@@ -11950,6 +12089,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						]
 					},
 					"description": "Optional companion AI-written documents, uploaded project files, or memories this requirement relies on ('read these together'), each with a note saying why. Linked documents are read in full during conflict checks. Omitted: no companion links."
+				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"description": "The receipt_id from a preview_required overlap preview on record_requirement, confirming this exact requirement draft should still be saved as a standalone requirement despite overlapping an existing requirement. Any change to title, summary or body invalidates the receipt. Omitted: overlapping drafts return preview_required without saving."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -12078,6 +12222,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					},
 					"description": "Optional additional companion documents, uploaded project files, or memories to link when the new version commits. Existing thread companion links automatically carry forward. Omitted: no new companion links."
 				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"description": "The receipt_id from a preview_required overlap preview on supersede_requirement, confirming this exact replacement requirement wording should still be saved despite overlapping another requirement. Any change to title, summary or body invalidates the receipt. Omitted: overlapping drafts return preview_required without saving."
+				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
 					"type": "string"
@@ -12185,6 +12334,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						]
 					},
 					"description": "Optional additional companion documents, uploaded project files, or memories to link when the new version commits. Existing thread companion links automatically carry forward. Omitted: no new companion links."
+				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"description": "The receipt_id from a preview_required overlap preview on supersede_requirement, confirming this exact replacement requirement wording should still be saved despite overlapping another requirement. Any change to title, summary or body invalidates the receipt. Omitted: overlapping drafts return preview_required without saving."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -12675,6 +12829,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"null"
 					]
 				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "The receipt_id from a pre-save overlap preview, confirming this exact document draft should still be created as a separate document after reviewing the overlapping active project documents. Send it only when a separate document is genuinely intended: otherwise update or supersede the document the preview named (or link a companion via manage_knowledge_links). Omitted: overlapping drafts pause for review before saving."
+				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
 					"type": "string"
@@ -12746,6 +12906,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"string",
 						"null"
 					]
+				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "The receipt_id from a pre-save overlap preview, confirming this exact document draft should still be created as a separate document after reviewing the overlapping active project documents. Send it only when a separate document is genuinely intended: otherwise update or supersede the document the preview named (or link a companion via manage_knowledge_links). Omitted: overlapping drafts pause for review before saving."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -12862,6 +13028,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"null"
 					]
 				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "The receipt_id from a pre-save overlap preview on a material document edit, confirming this exact edit should still be saved after reviewing the overlapping active project documents. Omitted: overlapping material edits pause for review before saving."
+				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
 					"type": "string"
@@ -12956,6 +13128,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"null"
 					]
 				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "The receipt_id from a pre-save overlap preview on a material document edit, confirming this exact edit should still be saved after reviewing the overlapping active project documents. Omitted: overlapping material edits pause for review before saving."
+				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
 					"type": "string"
@@ -13042,6 +13220,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"null"
 					]
 				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "The receipt_id from a pre-save overlap preview on a document replacement, confirming this exact replacement should still be saved after reviewing the overlapping active project documents. Omitted: overlapping replacements pause for review before saving."
+				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
 					"type": "string"
@@ -13117,6 +13301,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"string",
 						"null"
 					]
+				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+					"description": "The receipt_id from a pre-save overlap preview on a document replacement, confirming this exact replacement should still be saved after reviewing the overlapping active project documents. Omitted: overlapping replacements pause for review before saving."
 				},
 				"project_id": {
 					"description": "The project you expect the record this call names to be in. The record sets the project; a project_id that names a different one, or differs from the connection your client signed in as, is refused and nothing is run. Omitted: the record's own project.",
@@ -13591,7 +13781,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Topic tags, at most 10. Omitted: none."
 				},
 				"companion_links": {
-					"maxItems": 10,
 					"type": "array",
 					"items": {
 						"type": "object",
@@ -13897,7 +14086,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Topic tags, at most 10. Omitted: none."
 				},
 				"companion_links": {
-					"maxItems": 10,
 					"type": "array",
 					"items": {
 						"type": "object",
@@ -14235,7 +14423,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replace the tags, at most 10. Omitted: unchanged."
 				},
 				"companion_links": {
-					"maxItems": 10,
 					"type": "array",
 					"items": {
 						"type": "object",
@@ -14568,7 +14755,6 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"description": "Replace the tags, at most 10. Omitted: unchanged."
 				},
 				"companion_links": {
-					"maxItems": 10,
 					"type": "array",
 					"items": {
 						"type": "object",
@@ -17961,7 +18147,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"link_blocked",
 						"unlink_blocked"
 					],
-					"description": "Operation: claim (take the single-handler claim, or renew your own), release (hand back, so it is open with nobody on it: only for stepping off with no fix in flight), heartbeat (renew your own active claim; refused if you do not hold it), awaiting_followup (your fix is on its way: its pull request is waiting on checks or the merge queue, or it has landed and you are waiting for live confirmation. Name the fix with fix_task_id or fix_pull_request_number; the incident stays yours without heartbeats), escalate_needs_decision (pause for a human decision with decision_prompt), resolve (close incident and unblock linked PRs/tasks), link_blocked (anyone may link their own blocked work), or unlink_blocked (only the holder, a person, or whoever made the link). A claim lapses after 15 minutes without a heartbeat. While a pull request carrying your fix is waiting to merge, use awaiting_followup: never release the incident or unlink its fix task then, because that shows it as unhandled and leaves nothing for it to close on. A security incident opened by a Dependabot or Renovate pull request closes by itself when the fix it records merges into the tracked branch."
+					"description": "Operation: claim (take the single-handler claim, or renew your own), release (hand back, so it is open with nobody on it: only for stepping off with no fix in flight), heartbeat (renew your own active claim; refused if you do not hold it), awaiting_followup (your fix is on its way: its pull request is waiting on checks or the merge queue, or it has landed and you are waiting for live confirmation. Name the fix with fix_task_id or fix_pull_request_number; the incident stays yours without heartbeats), escalate_needs_decision (pause for a human decision with decision_prompt), resolve (close incident and unblock linked PRs/tasks), link_blocked (anyone may link their own blocked work), or unlink_blocked (only the holder, a person, or whoever made the link). A claim lapses after 15 minutes without a heartbeat. While a pull request carrying your fix is waiting to merge, use awaiting_followup: never release or resolve the incident or unlink its fix task then, because that shows it as unhandled or refreshes blocked pull requests before the fix has landed. A failing-checks incident or a security incident opened by a Dependabot or Renovate pull request closes by itself when the fix it records merges into the tracked branch."
 				},
 				"connection_id": {
 					"type": "string",
@@ -18077,7 +18263,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"link_blocked",
 						"unlink_blocked"
 					],
-					"description": "Operation: claim (take the single-handler claim, or renew your own), release (hand back, so it is open with nobody on it: only for stepping off with no fix in flight), heartbeat (renew your own active claim; refused if you do not hold it), awaiting_followup (your fix is on its way: its pull request is waiting on checks or the merge queue, or it has landed and you are waiting for live confirmation. Name the fix with fix_task_id or fix_pull_request_number; the incident stays yours without heartbeats), escalate_needs_decision (pause for a human decision with decision_prompt), resolve (close incident and unblock linked PRs/tasks), link_blocked (anyone may link their own blocked work), or unlink_blocked (only the holder, a person, or whoever made the link). A claim lapses after 15 minutes without a heartbeat. While a pull request carrying your fix is waiting to merge, use awaiting_followup: never release the incident or unlink its fix task then, because that shows it as unhandled and leaves nothing for it to close on. A security incident opened by a Dependabot or Renovate pull request closes by itself when the fix it records merges into the tracked branch."
+					"description": "Operation: claim (take the single-handler claim, or renew your own), release (hand back, so it is open with nobody on it: only for stepping off with no fix in flight), heartbeat (renew your own active claim; refused if you do not hold it), awaiting_followup (your fix is on its way: its pull request is waiting on checks or the merge queue, or it has landed and you are waiting for live confirmation. Name the fix with fix_task_id or fix_pull_request_number; the incident stays yours without heartbeats), escalate_needs_decision (pause for a human decision with decision_prompt), resolve (close incident and unblock linked PRs/tasks), link_blocked (anyone may link their own blocked work), or unlink_blocked (only the holder, a person, or whoever made the link). A claim lapses after 15 minutes without a heartbeat. While a pull request carrying your fix is waiting to merge, use awaiting_followup: never release or resolve the incident or unlink its fix task then, because that shows it as unhandled or refreshes blocked pull requests before the fix has landed. A failing-checks incident or a security incident opened by a Dependabot or Renovate pull request closes by itself when the fix it records merges into the tracked branch."
 				},
 				"connection_id": {
 					"type": "string",
@@ -18245,7 +18431,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_check_rulings",
 		"label": "DevSpec: Record Check Rulings",
-		"description": "Record your rulings on a check job you took with claim_check_job; one call can carry many. Each ruling names the entry_id, the candidate_version you ruled, a verdict this kind allows (conflict and conflict_decisions: conflict, no_conflict or needs_person; duplicate: duplicate, not_duplicate or needs_person; staleness: out_of_date, current or needs_person) and a short reason. A malformed batch (a verdict the kind does not use, a blank reason, an entry named twice) is refused whole and nothing is recorded. A ruling that cannot apply comes back in not_recorded with its reason and the rest still apply: already_ruled; version_changed, with the current version, when the record changed after you read it; not_in_this_job. The result gives recorded, not_recorded, remaining (entries still to rule) and settled, which is true once every entry is ruled and DevSpec completes the check from your rulings. hand_back: true returns whatever you have not ruled to the next in line; the rulings you made stand. Refused outright when the job is not yours, was superseded, or has finished. Never post in the room about ruling a check job (that you ruled it, how many entries, what is left): the rulings show on the record and in Review, and an outcome that needs your person reaches you as its own notice.",
+		"description": "Record your rulings on a check job you took with claim_check_job; one call can carry many. Each ruling names the entry_id, the candidate_version you ruled, a verdict this kind allows (conflict and conflict_decisions: conflict, no_conflict or needs_person; duplicate: duplicate, not_duplicate or needs_person; staleness: out_of_date, current or needs_person) and a short reason. On a pull request that carries several tasks, a conflict or needs_person ruling also names in task_ids the task or tasks on the pull request whose work makes it. A malformed batch (a verdict the kind does not use, a blank reason, an entry named twice, task_ids missing where the entry is compared with several tasks or naming a task it is not compared with) is refused whole and nothing is recorded. A ruling that cannot apply comes back in not_recorded with its reason and the rest still apply: already_ruled; version_changed, with the current version, when the record changed after you read it; not_in_this_job. The result gives recorded, not_recorded, remaining (entries still to rule) and settled, which is true once every entry is ruled and DevSpec completes the check from your rulings. hand_back: true returns whatever you have not ruled to the next in line; the rulings you made stand. Refused outright when the job is not yours, was superseded, or has finished. Never post in the room about ruling a check job (that you ruled it, how many entries, what is left): the rulings show on the record and in Review, and an outcome that needs your person reaches you as its own notice.",
 		"searchIntent": "rule check job entries verdict reason conflict duplicate out of date hand back a check",
 		"modelInputSchema": {
 			"type": "object",
@@ -18290,6 +18476,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 								"minLength": 1,
 								"maxLength": 2000,
 								"description": "Why, in a sentence or two (at most 2,000 characters)."
+							},
+							"task_ids": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"description": "A check on a pull request that carries several tasks: for a conflict or needs_person ruling, the id of the task on the pull request whose work makes the conflict, or the ids of the tasks that make it together, from the entry's compared_task_ids. Required when the entry is compared with more than one task; an entry compared with one task is given that task. Leave it out of any other ruling. Only the tasks named here are held and asked about."
 							}
 						},
 						"required": [
@@ -18366,6 +18559,13 @@ export const MCP_CATALOG: CatalogEntry[] = [
 								"minLength": 1,
 								"maxLength": 2000,
 								"description": "Why, in a sentence or two (at most 2,000 characters)."
+							},
+							"task_ids": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"description": "A check on a pull request that carries several tasks: for a conflict or needs_person ruling, the id of the task on the pull request whose work makes the conflict, or the ids of the tasks that make it together, from the entry's compared_task_ids. Required when the entry is compared with more than one task; an entry compared with one task is given that task. Leave it out of any other ruling. Only the tasks named here are held and asked about."
 							}
 						},
 						"required": [

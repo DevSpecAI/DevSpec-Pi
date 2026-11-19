@@ -999,7 +999,22 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// companion links for detailed configuration or procedures (fd0166db, 36128924).
 		// Benchmark before/after: initial surface 81,119 -> 81,967 estimated tokens; every check
 		// still passes.
-		"822890db5681d22d7173b91f8f506a3d2451fc851bf82d3a7951a5c7e771cdd8",
+		// Rebaselined 2026-11-19 for item d2b0483c (pull-request check rulings name the
+		// responsible task), regenerated against DevSpecV2 staging at 790c7d311, which also
+		// carries items 3f3f6e70 (#1446), b65646e8 (#1423), 36128924 and b4893c50 since the last
+		// regeneration. Verbs 105 model / 12 pump / 1 never-model before and after, none added or
+		// removed, no projection family changed, hot set unchanged. Inputs added: optional
+		// task_ids (array of strings) on each record_check_rulings ruling (d2b0483c); optional
+		// external_source, external_id, external_url and source_pipe_id on create_task and
+		// update_task (3f3f6e70); optional preview_ack on update_task, supersede_memory,
+		// record_requirement, supersede_requirement, create_resource, update_resource and
+		// supersede_resource (b65646e8). Input relaxed: companion_links on
+		// record_inventory_entry and revise_inventory_entry no longer has maxItems 10
+		// (36128924). Descriptions changed: record_check_rulings (task_ids and its refusals) and
+		// manage_incident's operation (a failing-checks incident stays open until its fix lands,
+		// b4893c50). No required field changed. Benchmark before/after: initial surface 81,967 ->
+		// 83,510 estimated tokens; every check still passes.
+		"a95c7b8faca545e89751d50dd2f9821cc089103d4f3c665f201d8e976571f7df",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

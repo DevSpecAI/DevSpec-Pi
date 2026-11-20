@@ -21,6 +21,7 @@ import { NO_NOTICE_WAITING, NOTICE_REPLY_TOOL, UNANSWERED_NOTICE_LINE, noticeHan
 import { isCheckOwnWorkTool, keptOutOfWorkTrail, noticeBatchWake, noticeNeedsPerson, runSpeaks, wakeIsQuiet, type RunWake } from "../extensions/core/run-voice.ts";
 import { carriesTellPerson, noteTellPerson, resetTellPersonForTests, takeTellPerson } from "../extensions/core/tell-person.ts";
 import { systemNotice } from "./canonical-ingress-fixture.ts";
+import { UsageRefusalReport } from "../extensions/core/usage-refusal.ts";
 
 const source = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 const tools = readFileSync(new URL("../extensions/devspec-tools.ts", import.meta.url), "utf8");
@@ -129,7 +130,7 @@ function harness(turn: Record<string, unknown>, options: { notice?: "stored" | "
 		turn, pump: { bond, generation: 1, stop: false }, lastCtx: { hasUI: true }, AGENT_NAME: "Pi",
 		getBond: () => bond, resolveToken: async () => ({ token: "private-bearer" }), replyModelArgs: () => ({}),
 		randomUUID: () => "20202020-2020-4202-8202-202020202020",
-		noteProgressEvent() {}, debug() {}, telemetry: { addMessageUsage() {} }, safeHasUI: () => true,
+		noteProgressEvent() {}, debug() {}, telemetry: { addMessageUsage() {} }, usageRefusal: new UsageRefusalReport(), safeHasUI: () => true,
 		notify: (_ctx: unknown, warning: string) => warnings.push(warning), noteOwnRoomMessage: () => {},
 		trackTerminalPost: (post: Promise<void>) => posts.push(post), splitTurnAtBoundary() { journal.push("split"); },
 		INTERACTION_EVENT_CUSTOM_TYPE: "interaction", QUESTION_DISMISSAL_EVENT_CUSTOM_TYPE: "dismissal", FINAL_TRAIL_CHARS: 100000,

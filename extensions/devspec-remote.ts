@@ -269,6 +269,7 @@ import {
 	withNoticeReplyToolActive,
 } from "./core/notice-handover.ts";
 import { takeTellPerson } from "./core/tell-person.ts";
+import { UsageRefusalReport, type ModelCallEnd } from "./core/usage-refusal.ts";
 
 class StaleCommandHandoffError extends DevspecToolError {}
 
@@ -1064,6 +1065,10 @@ function deliverAssistantSpeech(t: TurnState, message: unknown, append: (type: s
 // pi's own message_end usage; the report rides the settle answer post (when
 // attached) AND the idle heartbeat (always, so sessionless agents show too).
 const telemetry = new TelemetryCollector();
+// Usage refusal (04a1fe8f; remote-ingress semantics.check_job.usage_refusal): while
+// this Pi's model provider refuses it for usage, its status updates say until when,
+// so DevSpec offers its check jobs to another agent instead of leaving them here.
+const usageRefusal = new UsageRefusalReport();
 /** Last settled usage plus runtime identity. Runtime-only refreshes preserve usage. */
 let latestAgentStats: AgentStatsReport | null = null;
 let runtimeStampTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1873,6 +1878,7 @@ async function beatBusy(busy: boolean, agentStats?: AgentStatsReport | null): Pr
 	}
 	const resolved = await resolveToken();
 	if (!resolved) return;
+	const refusal = usageRefusal.statusField(Date.now());
 	try {
 		await callDevspec(resolved.token, "heartbeat_connection", {
 			connection_id: active.bond.connectionId,
@@ -1883,7 +1889,9 @@ async function beatBusy(busy: boolean, agentStats?: AgentStatsReport | null): Pr
 			// lease only while this marker keeps changing.
 			progress_marker: currentProgressMarker(),
 			...(agentStats ? { agent_stats: agentStats } : {}),
+			...refusal,
 		}, { lane: "pump" });
+		usageRefusal.delivered(refusal);
 	} catch {
 		/* presence is best-effort — the next poll re-asserts */
 	}
@@ -3453,6 +3461,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		const commandOfferNegotiated = Boolean(active.bond.sessionId && active.bond.speechAttachmentId && active.bond.connectionCapability);
 		const commandHandoffReady = commandOfferNegotiated && !interactionEventAck ? pi_commandHandoffReady(active, ctx) : null;
 		let payload: unknown;
+		const refusal = usageRefusal.statusField(Date.now());
 		try {
 			const raw = await callDevspec(
 				token,
@@ -3467,7 +3476,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					session_polls_projection_version: 2,
 					// Item 55d71b0c: this host reads check jobs in dispatches[]. Sent on every
 					// poll (one without it clears it on the connection), and only because
-					// busy below is truthful: DevSpec drops an untaken job when a turn ends.
+					// busy below is truthful: the server reads it to tell when an offered job
+					// has been left (remote-ingress semantics.check_job.busy).
 					check_job_version: CHECK_JOB_VERSION,
 					...(commandOfferNegotiated ? { command_offer_version: 1,
 						...(commandHandoffReady ? { command_handoff_ready: commandHandoffReady } : {}) } : {}),
@@ -3497,6 +3507,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					// What this Pi carries out (item 6beb89c6). Authoritative once sent:
 					// DevSpec offers exactly these, so Clear only to a Pi that has it.
 					control_verbs: [...CONTROL_VERBS],
+					...refusal,
 				},
 				{ timeoutMs: POLL_TIMEOUT_MS, cwd: ctx.cwd, lane: "pump",
 					beforeSend: () => { if (commandHandoffReady && pi_commandHandoffReady(active, ctx) !== commandHandoffReady) throw new StaleCommandHandoffError("Command readiness changed before send."); },
@@ -3508,6 +3519,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				pi_appendRoomScope(null, active.localSessionId);
 				throw new Error(text || "poll_connection failed");
 			}
+			usageRefusal.delivered(refusal);
 			payload = details;
 			if (notifiedDegraded) {
 				notifiedDegraded = false;
@@ -4932,6 +4944,9 @@ export default function (pi: ExtensionAPI) {
 	pi.on("agent_settled", async (_event, ctx) => {
 		noteProgressEvent();
 		lastCtx = ctx;
+		// After Pi's own retries: a run whose last model call was refused for usage
+		// stands refused, and the idle heartbeat below already says so (04a1fe8f).
+		usageRefusal.settleRun();
 		// The run is over before anything here awaits (item 7a4d04fd): input it
 		// never consumed never became a message, and its segment stops running —
 		// a request with nothing pending closes now.
@@ -5383,6 +5398,9 @@ export default function (pi: ExtensionAPI) {
 		if (pump && msg?.role === "assistant") {
 			telemetry.addMessageUsage(msg.usage);
 		}
+		// Whether the provider answered or refused this agent for usage (04a1fe8f),
+		// bonded or not: a refusal still standing is reported once Pi is bonded.
+		if (msg?.role === "assistant") usageRefusal.noteModelCall(event.message as ModelCallEnd, Date.now());
 		if (!turn) { debug("message_end: no turn"); return; }
 		if (msg?.role === "assistant") {
 			deliverAssistantSpeech(turn, event.message, (type, data) => pi.appendEntry(type, data));

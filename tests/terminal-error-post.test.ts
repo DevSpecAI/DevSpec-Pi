@@ -10,6 +10,7 @@ import { unwrapMcpResult } from "../extensions/core/result.ts";
 import { parsePostSessionReceipt, TrailDeliveryState } from "../extensions/core/post-session-receipt.ts";
 import { formatSenderStyleRepair, REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE, senderStyleRepairNeeded } from "../extensions/core/remote-payload.ts";
 import { runSpeaks, wakeIsQuiet } from "../extensions/core/run-voice.ts";
+import { UsageRefusalReport } from "../extensions/core/usage-refusal.ts";
 
 // Item e99d158b: a run dying on a terminal provider error (402 out-of-credit,
 // auth, exhausted retries) must post its reason to the room instead of closing
@@ -40,7 +41,7 @@ function captureHarness() {
 		interactionIdentity: () => undefined, exactInteractionContinuationArgs: (value: unknown) => value,
 		noteProgressEvent: () => {}, currentProgressMarker: () => "1",
 		DevspecToolError: Error, safeHasUI: () => true, notify: () => {},
-		trackTerminalPost: () => {}, debug() {}, telemetry: { addMessageUsage() {} },
+		trackTerminalPost: () => {}, debug() {}, telemetry: { addMessageUsage() {} }, usageRefusal: new UsageRefusalReport(),
 		INTERACTION_EVENT_CUSTOM_TYPE: "interaction", QUESTION_DISMISSAL_EVENT_CUSTOM_TYPE: "dismissal", splitTurnAtBoundary() {},
 		activeCommandStyles: new Map(), senderStyleRepairNeeded, formatSenderStyleRepair, REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE,
 		remoteRunActivityPolicy: () => ({ reportTranscript: true }), FINAL_TRAIL_CHARS: 100000,

@@ -47,6 +47,7 @@ import {
 import { noticeNeedsPerson } from "../extensions/core/run-voice.ts";
 import { extractText } from "../extensions/core/trail.ts";
 import { CHECK_JOB_PREFIX, classifyUserKind, isBetweenStepDelivery, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
+import { UsageRefusalReport } from "../extensions/core/usage-refusal.ts";
 
 const source = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 function slice(start: string, end: string): string {
@@ -147,6 +148,7 @@ function rig(options: { sessionId?: string | null; settled?: string[]; turn?: Re
 		set runActive(value: boolean) { state.runActive = value; },
 		getBond: () => active.bond,
 		noteAutomation() {}, paintStatus() {}, noteProgressEvent() {}, debug() {},
+		usageRefusal: new UsageRefusalReport(),
 		notify: (_ctx: unknown, message: string) => toasts.push(message),
 		signalWake: () => calls.push("signalWake"),
 		currentPumpToken: async (_active: unknown, held: string) => held,

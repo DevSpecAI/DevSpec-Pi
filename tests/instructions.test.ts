@@ -131,6 +131,9 @@ test("instructions carry the load-bearing rules", () => {
 	assert.match(text, /preview_ack set to its receipt_id only when a separate record is genuinely intended \(the served contract's core\.prefer-existing-records-on-overlap\)/);
 	// Requirements: ask first, record in one step, read linked documents, check delivered work, record met ones as evidence.
 	assert.match(text, /Requirements are rare and ask-first \(the served contract's core\.ask-before-recording-requirements\)/);
+	assert.match(text, /never create or propose one unasked in the store — instead, speak up and suggest one in conversation when you spot a candidate/);
+	assert.match(text, /recurring mistake that keeps creeping back in across tasks/);
+	assert.match(text, /checkable property of what future work actually delivers/);
 	assert.match(text, /record it in one step with record_requirement/);
 	assert.match(text, /read the document in full/);
 	assert.match(text, /requirement_evidence on your criterion verdicts; never record a break there \(core\.check-deliverables-against-requirements\)/);

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.15.1 - 2026-11-20
+
+- **Your agent now suggests turning a recurring problem into a requirement when one comes up.** Before, the instructions warned your agent never to create or propose a requirement unasked without saying what makes something a candidate requirement in conversation, so it waited for you to say the word "requirement" yourself. Now, when you point out a mistake that keeps creeping back in across tasks, or state a non-negotiable project-wide "always" or "never" obligation that can be checked against what future work actually delivers, your agent explains what a requirement is and asks whether you want to record one — while still never saving a requirement without your yes.
+- **Pi's built-in copy of DevSpec's tools is refreshed to match the server.** The requirement creation tool description now carries the same candidate-spotting guidance. No tool was added or removed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.15.0 - 2026-11-20
 
 - **Pi tells DevSpec when your model provider stops it for usage.** If a rate limit or a used-up quota stops Pi's model, and Pi's own retries don't get through, Pi tells DevSpec until when: the time your provider gave, or a few minutes when it gave none. Until then DevSpec stops sending Pi checks and hands on any it was holding, so the work they check isn't left waiting on an agent that can't run. Pi still shows online, and the first reply that gets through clears it. A usage percentage on its own never counts, because some accounts keep working past their limit.

@@ -16,7 +16,6 @@ import { selectTools } from "./core/tool-selection.ts";
 import { getBond } from "./core/bond-state.ts";
 import { registerRoomReader } from "./core/room-tools.ts";
 import { ROOM_READ_TOOL } from "./core/room-reader.ts";
-import { agentsSettingsUrl, TOKEN_ENV_VAR } from "./core/config.ts";
 import { callDevspec, MODEL_TIMEOUT_MS } from "./core/client.ts";
 import { repoResolver, validateCommitSha } from "./core/commit-ledger.ts";
 import { observeReviewResult, listFlags, type ReviewObservation } from "./core/review-watch.ts";
@@ -199,7 +198,7 @@ export function consumeResultMechanics(
 
 const NOT_CONNECTED =
 	"Not signed in to DevSpec. Run /devspec.login to sign in through your browser " +
-	`(for a run with no browser, set ${TOKEN_ENV_VAR} to an access token from ${agentsSettingsUrl()}).`;
+	"(add --code where your browser cannot reach this machine).";
 
 type CallCtx = { sessionManager: { getSessionId(): string }; cwd: string };
 

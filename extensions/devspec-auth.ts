@@ -148,8 +148,10 @@ async function login(args: string, ctx: ExtensionContext): Promise<void> {
 		return;
 	}
 	if (!ctx.hasUI) {
+		// Sign-in is browser approval only (04a1fe8f, 7e7f4091): a run with no terminal
+		// to show the approval link uses the sign-in made once from interactive Pi.
 		ctx.ui.notify(
-			`DevSpec sign-in needs a browser. For a run without one, set ${TOKEN_ENV_VAR} to an access token from ${agentsSettingsUrl()}.`,
+			"DevSpec sign-in happens in your browser from interactive Pi: run /devspec.login there (add --code where your browser cannot reach this machine). Pi runs on this computer then use that sign-in.",
 			"warning",
 		);
 		return;

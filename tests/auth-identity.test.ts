@@ -108,7 +108,7 @@ test("login, status and startup say plainly where the credential comes from", { 
   }
 });
 
-test("headless login points at the environment token instead of waiting for a browser", async () => {
+test("headless login points at browser sign-in from interactive Pi instead of waiting for a browser", async () => {
   const notices: string[] = [];
   const commands = new Map<string, (args: string, ctx: ExtensionContext) => Promise<void>>();
   const oldToken = process.env.DEVSPEC_MCP_TOKEN;
@@ -119,7 +119,9 @@ test("headless login points at the environment token instead of waiting for a br
       on: () => {},
     } as unknown as ExtensionAPI);
     await commands.get("devspec.login")!("", { hasUI: false, mode: "print", ui: { notify: (text: string) => notices.push(text), setStatus() {} } } as unknown as ExtensionContext);
-    assert.match(notices.at(-1)!, /needs a browser\. For a run without one, set DEVSPEC_MCP_TOKEN/);
+    // Sign-in is browser approval only (04a1fe8f): no token is offered as a way in.
+    assert.match(notices.at(-1)!, /DevSpec sign-in happens in your browser from interactive Pi: run \/devspec\.login there/);
+    assert.doesNotMatch(notices.at(-1)!, /DEVSPEC_MCP_TOKEN|access token/);
   } finally {
     if (oldToken !== undefined) process.env.DEVSPEC_MCP_TOKEN = oldToken;
   }

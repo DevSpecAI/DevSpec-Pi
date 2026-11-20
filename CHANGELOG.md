@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.15.1 - 2026-11-20
+
+- **Pi's instructions defer to DevSpec on held work.** When work is held, and when work that reverses a decision can be kept, Pi now follows what DevSpec tells it at that moment instead of a copy of the rule written into the plugin, so its guidance stays right when DevSpec's rules change.
+- Update with `pi update`, then restart Pi.
+
 ## 0.15.0 - 2026-11-20
 
 - **Pi tells DevSpec when your model provider stops it for usage.** If a rate limit or a used-up quota stops Pi's model, and Pi's own retries don't get through, Pi tells DevSpec until when: the time your provider gave, or a few minutes when it gave none. Until then DevSpec stops sending Pi checks and hands on any it was holding, so the work they check isn't left waiting on an agent that can't run. Pi still shows online, and the first reply that gets through clears it. A usage percentage on its own never counts, because some accounts keep working past their limit.

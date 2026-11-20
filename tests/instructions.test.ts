@@ -54,17 +54,18 @@ test("instructions carry the load-bearing rules", () => {
 	assert.doesNotMatch(text, /a maintainer has to accept/i);
 	// Waiting work stays on its own branch; who gives the OK is pointed at, never restated.
 	assert.match(text, /waiting_for_ok/);
-	// "until it has the OK" is the rule, not a softening: dropping it once a task's done
-	// waited on a merge would strand approved work on its branch (5a9eaa57).
-	assert.match(text, /never merge it into the tracking branch until it has the OK/);
+	// "until" is the rule, not a softening: dropping it once a task's done waited on a
+	// merge would strand approved work on its branch (5a9eaa57).
+	assert.match(text, /never merge it into the tracking branch until the hold clears/);
 	assert.match(text, /reversal_rule/);
-	// A hold from a requirement break or an unintended conflict is cleared by fixing the
-	// work and recording it again, with no OK (contract 5.32.0, the served
-	// core.waiting-work-stays-on-its-branch; 04a1fe8f).
-	assert.match(text, /A hold from a requirement break or an unintended conflict that you can fix in code needs no OK: fix the work on its branch, push, and call record_implementation again/);
-	// Keeping work that reverses a decision means changing that record: a bare go-ahead is refused (04a1fe8f).
-	assert.match(text, /Keeping work that reverses a decision, convention or requirement means changing that record itself/);
-	assert.match(text, /a bare go-ahead on it is refused \(the served contract's reversal_rule\)/);
+	// Which holds clear on a fix and which wait for an OK, and how reversing work is kept,
+	// are the served contract's authority rules: Pi points at them and at the result's own
+	// instruction, and never restates them, because a restatement goes stale silently the
+	// next time the server changes (04a1fe8f; the 20 Nov staleness finding on Pi as the
+	// control that proves pointing works).
+	assert.match(text, /the result's instruction says which applies: when it says fixing the work clears the hold, fix it on its branch, push, and call record_implementation again/);
+	assert.match(text, /How work that reverses a decision, convention or requirement may be kept is the served contract's reversal_rule/);
+	assert.doesNotMatch(text, /needs no OK|bare go-ahead on it is refused/);
 	// Pending its checks (a67dfd95) is not a wait for an OK: the result's own instruction and the served rule are pointed at, never restated.
 	assert.match(text, /checks_pending \("Waiting for its checks"\) needs nobody's OK: follow its instruction \(the served contract's core\.pending-checks-hold-the-merge rule\)/);
 	assert.match(text, /core\.push-safely/);

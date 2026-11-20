@@ -10,6 +10,7 @@ import { unwrapMcpResult } from "../extensions/core/result.ts";
 import { parsePostSessionReceipt, TrailDeliveryState } from "../extensions/core/post-session-receipt.ts";
 import { noticeReplyFinalText, noticeReplyTerminalMessage, postNoticeReply } from "../extensions/core/notice-reply.ts";
 import { remoteRunActivityPolicy } from "../extensions/core/system-notice.ts";
+import { UsageRefusalReport } from "../extensions/core/usage-refusal.ts";
 
 // DevSpec item 6aad2b46. The REAL message_end hook and segment closer from
 // devspec-remote.ts, with the wire mocked: a notice-woken segment's last message is
@@ -38,7 +39,7 @@ function harness(options: { refuse?: string; customRefusal?: Record<string, unkn
 		noticeReplyFinalText, noticeReplyTerminalMessage, postNoticeReply, remoteRunActivityPolicy, DevspecToolError,
 		turn: t, pump: { bond, generation: 1, stop: false }, lastCtx: { hasUI: true }, AGENT_NAME: "Pi",
 		getBond: () => bond, resolveToken: async () => ({ token: "private-bearer" }), replyModelArgs: () => ({}),
-		noteProgressEvent() {}, debug() {}, telemetry: { addMessageUsage() {} }, safeHasUI: () => true,
+		noteProgressEvent() {}, debug() {}, telemetry: { addMessageUsage() {} }, usageRefusal: new UsageRefusalReport(), safeHasUI: () => true,
 		notify: (_ctx: unknown, warning: string) => warnings.push(warning), noteOwnRoomMessage: (id: string) => other.push(`own:${id}`),
 		trackTerminalPost: (post: Promise<void>) => posts.push(post), splitTurnAtBoundary() { other.push("split"); },
 		INTERACTION_EVENT_CUSTOM_TYPE: "interaction", QUESTION_DISMISSAL_EVENT_CUSTOM_TYPE: "dismissal", FINAL_TRAIL_CHARS: 100000,

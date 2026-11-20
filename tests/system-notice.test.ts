@@ -369,7 +369,8 @@ test("ruling outcomes and write-quality notices are introduced as what they are"
 	};
 	assert.match(formatSystemNoticeMessage([{ ...base, topic: "write_quality" }]), /A record this agent wrote needs a content correction\./);
 	assert.match(formatSystemNoticeMessage([{ ...base, topic: "intent_ruling_outcome" }]), /Someone answered on work of this agent's that waited for an OK, or on an experiment of its own\./);
-	assert.match(formatSystemNoticeMessage([{ ...base, topic: "pr_ready_to_merge", notice_type: "pr_ready_to_merge" }]), /A pull request with DevSpec's Merge when cleared has passed DevSpec's check and all GitHub checks\/approvals on its current head commit/);
+	// The clear-to-merge wake under the topic and notice type the server sends (04a1fe8f).
+	assert.match(formatSystemNoticeMessage([{ ...base, topic: "pr_merge_when_cleared", notice_type: "merge_when_cleared_fallback" }]), /A pull request with DevSpec's Merge when cleared is clear on its current commit, and DevSpec could not merge it itself\. Run the command the prompt gives/);
 });
 
 test("the outcome of a request to confirm is introduced as that, not as a finding", () => {

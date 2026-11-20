@@ -116,7 +116,8 @@ const FULL_READ_VERBS = new Set([
 	"create_session",
 	"claim_automation_run",
 	// A claimed check job's packet (55d71b0c): the kind's definition, the change and
-	// every entry's exact text, risk and supporting documents. A dropped entry would
+	// every entry's exact text, its facts, how it is tied to the change and its
+	// supporting documents (DevSpecV2 #1187). A dropped entry would
 	// go unruled, so it reaches the model whole.
 	"claim_check_job",
 	// Every review-queue entry is a decision waiting on a person; a dropped row

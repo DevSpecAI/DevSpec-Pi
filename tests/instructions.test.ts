@@ -58,11 +58,23 @@ test("instructions carry the load-bearing rules", () => {
 	// waited on a merge would strand approved work on its branch (5a9eaa57).
 	assert.match(text, /never merge it into the tracking branch until it has the OK/);
 	assert.match(text, /reversal_rule/);
+	// A hold from a requirement break or an unintended conflict is cleared by fixing the
+	// work and recording it again, with no OK (contract 5.32.0, the served
+	// core.waiting-work-stays-on-its-branch; 04a1fe8f).
+	assert.match(text, /A hold from a requirement break or an unintended conflict that you can fix in code needs no OK: fix the work on its branch, push, and call record_implementation again/);
+	// Keeping work that reverses a decision means changing that record: a bare go-ahead is refused (04a1fe8f).
+	assert.match(text, /Keeping work that reverses a decision, convention or requirement means changing that record itself/);
+	assert.match(text, /a bare go-ahead on it is refused \(the served contract's reversal_rule\)/);
 	// Pending its checks (a67dfd95) is not a wait for an OK: the result's own instruction and the served rule are pointed at, never restated.
 	assert.match(text, /checks_pending \("Waiting for its checks"\) needs nobody's OK: follow its instruction \(the served contract's core\.pending-checks-hold-the-merge rule\)/);
 	assert.match(text, /core\.push-safely/);
-	assert.match(text, /merge_when_cleared:true/);
-	assert.match(text, /pr_ready_to_merge/);
+	// Merge when cleared is switched on where the server accepts it, never on
+	// get_pull_request, which only reads (04a1fe8f).
+	assert.match(text, /merge_when_cleared:true on record_implementation \(or on record_dependency_review for a dependency update\)/);
+	assert.doesNotMatch(text, /get_pull_request/);
+	// The one clear-to-merge wake: run the command its prompt gives, pinned to its commit.
+	assert.match(text, /clear-to-merge notice: run the command its prompt gives/);
+	assert.doesNotMatch(text, /pr_ready_to_merge/);
 	// The capture bar (ADR "Protecting intent" §11): only the person's answer makes a decision.
 	assert.match(text, /only their answer makes it their decision/);
 	assert.match(text, /never report the change as done/i);
@@ -157,34 +169,8 @@ test("instructions do not dump search-first or the 76-verb map", () => {
 	assert.ok(!text.includes("post_session_message"));
 });
 
-test("instructions stay compact (every line costs tokens per turn)", () => {
-	const text = buildDevspecInstructions();
-	// Every line here costs tokens on every turn, so keep a test. The budget exists
-	// to catch a dumped verb map or a pasted contract, not to ration a sentence.
-	// At Pi 0.3.0 the block was 2,192 chars; adding the authority pointer meant
-	// squeezing it to a fragment and trimming two unrelated lines to stay under
-	// 2,200 (item 45588384). Quality of instruction beats a few hundred characters;
-	// the block is tiny relative to any model context.
-	// Raised 9,000 -> 10,000 on 2026-11-12 (item 210fc045): staging's notice-reply
-	// sentence (0.13.2) and the incident rule (0.13.3) are each needed and each fit
-	// alone (8,909 and 8,943 chars); together the block is 9,177.
-	// Raised 10,000 -> 12,000 on 2026-11-13 (item cd12cbe2): contract 5.24.0 added
-	// requirements, overlap previews, the intent and capture bars, and what binds the
-	// work. Each is a short pointer at the served rule rather than a restatement; the
-	// block is 11,436 chars with them.
-	const COMPACT_CEILING_CHARS = 12_000;
-	assert.ok(
-		text.length < COMPACT_CEILING_CHARS,
-		`instructions bloated: ${text.length} chars (ceiling ${COMPACT_CEILING_CHARS})`,
-	);
-	const PER_BULLET_CEILING_CHARS = 1_200;
-	for (const line of text.split("\n")) {
-		const bullet = line.trim();
-		if (!bullet.startsWith("- ")) continue;
-		assert.ok(
-			bullet.length < PER_BULLET_CEILING_CHARS,
-			`instruction bullet is an essay (${bullet.length} chars, ceiling ${PER_BULLET_CEILING_CHARS}): ${bullet.slice(0, 80)}`,
-		);
-	}
+test("instructions carry a version for drift reports", () => {
+	// No size budget is enforced here (convention 8faf5044): the bar is one style and
+	// quality shared with the served contracts, and the block is as long as that takes.
 	assert.ok(INSTRUCTIONS_VERSION >= 13);
 });

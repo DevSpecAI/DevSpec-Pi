@@ -11,7 +11,7 @@ Installing `@devspecai/pi-plugin` connects Pi directly to your DevSpec projects 
 - **Shared team memory with automatic staleness screening** — Before each turn — whether you typed it or sent it from DevSpec — Pi brings in the project records that bear on what was asked: requirements, decisions and conventions, documents and runbooks, related plans and ideas your team turned down, and past shipped work. Each appears once per conversation and comes back only when it changes, and nothing is added when nothing applies. When you record a new decision or land changes, DevSpec screens your project's records for conflicts, duplicates, and **Possibly outdated** guidance so your team's shared memory stays accurate.
 - **Steer Pi live from your phone or the web** — In a linked or pinned repository, interactive Pi connects to DevSpec automatically and appears on your project's **Agents** page outside any session room (or run `/devspec.remote` on demand). Attach it to a room from [devspec.ai](https://devspec.ai) or with `/devspec.remote --session <id>` to chat from your phone or browser, collaborate with teammates, answer structured questions and polls, and track multi-phase execution plans in real time.
 - **Tasks, observed verification, and automatic commit provenance** — Pick up tasks with full context (`/devspec.work`). When a single task is claimed in a linked project repository (including Git worktrees and Git Bash on Windows) or a `.devspec/project.json`-pinned folder, Pi tags your commits (`[devspec:<id>]`) automatically, links pull requests, and records observed verification evidence from commands and checks it actually ran against each acceptance criterion. (On native Windows outside WSL or Git Bash, Pi adds the task tag directly in its commit messages.)
-- **Protected intent, pull-request checks, and Merge when cleared** — DevSpec screens changes against your team's recorded decisions, requirements, and open tasks, runs one final check per pull request when it is ready (protected or not), holds reversals of someone else's decision and unagreed experiments on their own branch until approved, publishes its pull-request check on GitHub, and merges cleared pull requests automatically (or wakes Pi once to merge with your GitHub credentials when the GitHub App is read-only).
+- **Protected intent, pull-request checks, and Merge when cleared** — DevSpec screens changes against your team's recorded decisions, requirements, and open tasks, runs one final check per pull request when it is ready (protected or not), holds reversals of someone else's decision and unagreed experiments on their own branch until approved, publishes its pull-request check on GitHub, and merges cleared pull requests automatically. A hold Pi can fix in code, such as a broken requirement, clears by itself once Pi fixes the work and DevSpec checks it again. When GitHub won't let DevSpec merge a cleared pull request itself, DevSpec wakes Pi once to merge it, or add it to your merge queue, with your GitHub credentials.
 - **One native package** — Native DevSpec tools, authentication, project matching, commit tracking, and live remote control are all built in. No separate MCP server setup required.
 
 ---
@@ -36,7 +36,6 @@ Your browser opens DevSpec's approval page. Click **Allow**, and Pi is signed in
 
 - **Working over SSH, or on a machine your browser cannot reach?** Run `/devspec.login --code`. Open the link in any browser, approve, and paste the code the page shows back into Pi. Pi does this by itself in an SSH session.
 - **Staging and production** are signed in separately and side by side. Pi uses production unless `DEVSPEC_ENV=staging` (or a full `DEVSPEC_MCP_URL`) is set when it starts, and switching never needs a new sign-in.
-- **No browser at all** (CI, a cloud worker)? Set `DEVSPEC_MCP_TOKEN` to an access token from your Agent setup page. It takes precedence over a browser sign-in, and `/devspec.login` and `/devspec.status` tell you when it is set.
 
 ### 3. Connect to your project
 
@@ -44,7 +43,7 @@ Your browser opens DevSpec's approval page. Click **Allow**, and Pi is signed in
 - **Join a session room:** Attach your connected Pi terminal to a new or existing session room from [devspec.ai](https://devspec.ai), or run `/devspec.remote --session <id>` inside Pi (and `/devspec.remote stop` when you want to disconnect this conversation).
 - **Switch or pin projects anywhere:** Run `/devspec.project` to inspect or change the active project for the current conversation or folder (or launch with `pi --devspec-project "Project Name"`).
 
-Sitting idle on the **Agents** page uses no tokens — Pi runs only when you or an authorized teammate asks it to do something, when your project routes a check on a change for it to rule, or when an automation you opted into runs.
+Sitting idle on the **Agents** page uses no tokens — Pi runs only when you or an authorized teammate asks it to do something, when your project routes a check on a change for it to rule, when DevSpec follows up on work Pi did (something a check found, a cleared pull request to merge, or whether it is still on an automation run), or when an automation you opted into runs. If your model provider stops Pi for usage, such as a rate limit or a used-up quota, Pi tells DevSpec, which stops sending Pi checks, and hands on any it holds, until Pi can work again.
 
 ---
 
@@ -72,7 +71,8 @@ The package also adds these slash commands and launch flags:
 | `pi --devspec-project "<name>"` | Starts `pi` bound to a specific DevSpec project by name or ID for that terminal session. |
 | `/devspec.pin <project-uuid>` | Pins the current folder to a DevSpec project via `.devspec/project.json`. |
 | `/devspec.reload` | Reloads DevSpec extensions and skills in the current Pi session. |
-| `/devspec.review` | Reviews local changes against your project's recorded decisions and conventions. |
+| `/devspec.review` | Lists the open review questions (possibly out of date, or waiting for someone's OK) on records Pi has seen in this session. |
+| `/devspec.logo` | Turns the DevSpec duck header on or off when Pi starts. |
 
 ---
 

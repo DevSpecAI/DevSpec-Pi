@@ -443,13 +443,13 @@ const LOCAL_SAFETY_RULES: readonly ImplementationRule[] = [
 	{
 		id: "pi-fallback.push-safely",
 		phase: "delivery",
-		requirement: "Build every change on its own branch, open a pull request into the repository's tracking branch wherever pull requests are supported, switch on DevSpec's Merge when cleared (get_pull_request with merge_when_cleared:true), never merge before DevSpec's check passes, and end the turn rather than polling checks.",
+		requirement: "Build every change on its own branch, open a pull request into the repository's tracking branch wherever pull requests are supported, switch on DevSpec's Merge when cleared (merge_when_cleared:true on record_implementation, or on record_dependency_review for a dependency update), never merge before DevSpec's check passes, and end the turn rather than polling checks. On DevSpec's one clear-to-merge wake, run the command its prompt gives with the owner's GitHub credentials, pinned to the commit it names.",
 		enforcement: "agent",
 	},
 	{
 		id: "pi-fallback.waiting-work-stays-on-its-branch",
 		phase: "delivery",
-		requirement: "When the claim or the item carries waiting_for_ok (\"Experiment\", or \"Waiting for <name>'s OK\"), build and push the work on its own branch and never merge it into the tracking branch until it has the OK; tell the person plainly.",
+		requirement: "When the claim or the item carries waiting_for_ok (\"Experiment\", or \"Waiting for <name>'s OK\"), build and push the work on its own branch and never merge it into the tracking branch until it has the OK. A hold from a requirement break or an unintended conflict that can be fixed in code needs no OK: fix the work on its branch, push and call record_implementation again, and DevSpec's follow-up check clears it when it passes. Tell the person plainly about any other hold.",
 		enforcement: "agent",
 	},
 	{

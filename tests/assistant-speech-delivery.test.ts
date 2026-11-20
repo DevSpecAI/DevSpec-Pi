@@ -10,6 +10,7 @@ import { unwrapMcpResult } from "../extensions/core/result.ts";
 import { parsePostSessionReceipt, TrailDeliveryState } from "../extensions/core/post-session-receipt.ts";
 import { formatSenderStyleRepair, REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE, senderStyleRepairNeeded } from "../extensions/core/remote-payload.ts";
 import { runSpeaks, wakeIsQuiet } from "../extensions/core/run-voice.ts";
+import { UsageRefusalReport } from "../extensions/core/usage-refusal.ts";
 
 const source = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 const speech = source.slice(source.indexOf("const assistantSpeechQueue ="), source.indexOf("// Per-turn telemetry"));
@@ -40,7 +41,7 @@ function harness(gate?: Promise<void>, receipt?: (args: Record<string, unknown>)
 		interactionIdentity: () => undefined, exactInteractionContinuationArgs: (value: unknown) => value,
 		noteProgressEvent: () => {}, currentProgressMarker: () => "1",
 		DevspecToolError: Error, safeHasUI: () => true, notify: (_ctx: unknown, warning: string) => warnings.push(warning),
-		trackTerminalPost: (post: Promise<void>) => posts.push(post), debug() {}, telemetry: { addMessageUsage() {} },
+		trackTerminalPost: (post: Promise<void>) => posts.push(post), debug() {}, telemetry: { addMessageUsage() {} }, usageRefusal: new UsageRefusalReport(),
 		INTERACTION_EVENT_CUSTOM_TYPE: "interaction", QUESTION_DISMISSAL_EVENT_CUSTOM_TYPE: "dismissal", splitTurnAtBoundary() { throw new Error("speech split execution"); },
 		activeCommandStyles: new Map(), senderStyleRepairNeeded, formatSenderStyleRepair, REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE,
 		remoteRunActivityPolicy: () => ({ reportTranscript: true }), FINAL_TRAIL_CHARS: 100000,

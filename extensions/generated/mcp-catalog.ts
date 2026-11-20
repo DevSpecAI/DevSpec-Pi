@@ -2,13 +2,13 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 218acca45f9491499fdc172dfa59f42ce03361d4883115f618cf935d5b12c451
+ * Schema fingerprint: fa544d5cb4b2c0fc3d3d84b59525f2498f292a5653e2a27de8599e4e65d0ce60
  * Description fingerprint: 27bc83deefcc61be43f14de6c4039ebe77951d117a84c55a7493dc25d950be13
- * Regenerated: 2026-11-19T00:26:43.117Z
+ * Regenerated: 2026-11-19T23:53:44.815Z
  */
-export const MCP_CATALOG_FINGERPRINT = "218acca45f9491499fdc172dfa59f42ce03361d4883115f618cf935d5b12c451";
+export const MCP_CATALOG_FINGERPRINT = "fa544d5cb4b2c0fc3d3d84b59525f2498f292a5653e2a27de8599e4e65d0ce60";
 export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "27bc83deefcc61be43f14de6c4039ebe77951d117a84c55a7493dc25d950be13";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-19T00:26:43.118Z";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-19T23:53:44.815Z";
 export const TOOL_CATALOG_VERSION = "b41b306c9c631162b098314058ae545a11c6d748411d3d22696fa66391a0799b";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
@@ -9506,7 +9506,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"pattern": "^#?\\d+$"
 						}
 					],
-					"description": "Only on a pull request you opened to carry a bot's update unchanged: the number of the Dependabot or Renovate pull request, in the same repository, whose change it carries. DevSpec compares the two: every file must be a dependency file, and every manifest or version pin must change the same lines in both (lockfiles may differ). Identical: the review is recorded and the pull request needs no task. Anything else is refused naming the files. Omitted: the pull request must be the bot's own."
+					"description": "Only on a pull request you opened to carry a bot's update unchanged: the number of the Dependabot or Renovate pull request, in the same repository, whose change it carries. DevSpec compares the two: every file must be a dependency file, and every manifest or version pin must change the same lines in both (lockfiles may differ, including lockfile-only updates touching the same lockfiles). Identical: the review is recorded and the pull request needs no task. Anything else is refused naming the files. Omitted: the pull request must be the bot's own."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -9585,7 +9585,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 							"pattern": "^#?\\d+$"
 						}
 					],
-					"description": "Only on a pull request you opened to carry a bot's update unchanged: the number of the Dependabot or Renovate pull request, in the same repository, whose change it carries. DevSpec compares the two: every file must be a dependency file, and every manifest or version pin must change the same lines in both (lockfiles may differ). Identical: the review is recorded and the pull request needs no task. Anything else is refused naming the files. Omitted: the pull request must be the bot's own."
+					"description": "Only on a pull request you opened to carry a bot's update unchanged: the number of the Dependabot or Renovate pull request, in the same repository, whose change it carries. DevSpec compares the two: every file must be a dependency file, and every manifest or version pin must change the same lines in both (lockfiles may differ, including lockfile-only updates touching the same lockfiles). Identical: the review is recorded and the pull request needs no task. Anything else is refused naming the files. Omitted: the pull request must be the bot's own."
 				},
 				"project_id": {
 					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
@@ -16915,6 +16915,88 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"description": "Required when status is escalated: opens or escalates an Incident to Needs your decision with structured findings, never firing recursive incident_opened automations."
 				},
+				"triage_outcome": {
+					"type": "object",
+					"properties": {
+						"pull_request_id": {
+							"type": "string",
+							"maxLength": 200,
+							"description": "Pull request UUID triaged by this run (defaults to the pull request in the run's source_event_id)."
+						},
+						"outcome": {
+							"type": "string",
+							"enum": [
+								"unstuck",
+								"closed",
+								"handed_on",
+								"escalated",
+								"waiting_on_person"
+							],
+							"description": "Structured per-pull-request triage outcome stored directly on the pull request."
+						},
+						"note": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 2000,
+							"description": "Plain-language triage note stored on the pull request and shown on Delivery."
+						},
+						"head_sha": {
+							"type": "string",
+							"maxLength": 100,
+							"description": "Pull request head commit SHA triaged."
+						},
+						"proof": {
+							"type": "string",
+							"maxLength": 2000,
+							"description": "Required when outcome is closed: concrete proof that the pull request's work already landed on the tracking branch or its linked task was dismissed or replaced."
+						},
+						"linked_task_id": {
+							"type": "string",
+							"maxLength": 200,
+							"description": "When outcome is handed_on: linked task UUID offered together with the pull request."
+						},
+						"handed_on_to_connection_id": {
+							"type": "string",
+							"maxLength": 200,
+							"description": "When outcome is handed_on: target agent connection UUID."
+						},
+						"handed_on_run_id": {
+							"type": "string",
+							"maxLength": 200,
+							"description": "When outcome is handed_on: hand-on run UUID."
+						},
+						"incident_id": {
+							"type": "string",
+							"maxLength": 200,
+							"description": "When outcome is escalated: decision incident UUID on the pull request."
+						},
+						"asked_user_id": {
+							"type": "string",
+							"maxLength": 200,
+							"description": "When outcome is escalated: user UUID of whoever started the work."
+						},
+						"waiting_on_user_id": {
+							"type": "string",
+							"maxLength": 200,
+							"description": "When outcome is waiting_on_person: user UUID of the person the pull request waits on."
+						},
+						"waiting_on_name": {
+							"type": "string",
+							"maxLength": 200,
+							"description": "When outcome is waiting_on_person: display name of the person the pull request waits on."
+						},
+						"what_it_needs": {
+							"type": "string",
+							"maxLength": 1000,
+							"description": "When outcome is waiting_on_person: what the pull request needs from that person."
+						}
+					},
+					"required": [
+						"outcome",
+						"note"
+					],
+					"description": "Structured per-pull-request triage outcome stored directly on the pull request (unstuck, closed with proof, handed_on with linked task, escalated once to a decision incident, or waiting_on_person)."
+				},
 				"local_session_id": {
 					"type": "string",
 					"description": "Your local conversation id, stored with the run. On a correction, omit it to keep the stored one."
@@ -17250,6 +17332,88 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"decision_needed"
 					],
 					"description": "Required when status is escalated: opens or escalates an Incident to Needs your decision with structured findings, never firing recursive incident_opened automations."
+				},
+				"triage_outcome": {
+					"type": "object",
+					"properties": {
+						"pull_request_id": {
+							"type": "string",
+							"maxLength": 200,
+							"description": "Pull request UUID triaged by this run (defaults to the pull request in the run's source_event_id)."
+						},
+						"outcome": {
+							"type": "string",
+							"enum": [
+								"unstuck",
+								"closed",
+								"handed_on",
+								"escalated",
+								"waiting_on_person"
+							],
+							"description": "Structured per-pull-request triage outcome stored directly on the pull request."
+						},
+						"note": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 2000,
+							"description": "Plain-language triage note stored on the pull request and shown on Delivery."
+						},
+						"head_sha": {
+							"type": "string",
+							"maxLength": 100,
+							"description": "Pull request head commit SHA triaged."
+						},
+						"proof": {
+							"type": "string",
+							"maxLength": 2000,
+							"description": "Required when outcome is closed: concrete proof that the pull request's work already landed on the tracking branch or its linked task was dismissed or replaced."
+						},
+						"linked_task_id": {
+							"type": "string",
+							"maxLength": 200,
+							"description": "When outcome is handed_on: linked task UUID offered together with the pull request."
+						},
+						"handed_on_to_connection_id": {
+							"type": "string",
+							"maxLength": 200,
+							"description": "When outcome is handed_on: target agent connection UUID."
+						},
+						"handed_on_run_id": {
+							"type": "string",
+							"maxLength": 200,
+							"description": "When outcome is handed_on: hand-on run UUID."
+						},
+						"incident_id": {
+							"type": "string",
+							"maxLength": 200,
+							"description": "When outcome is escalated: decision incident UUID on the pull request."
+						},
+						"asked_user_id": {
+							"type": "string",
+							"maxLength": 200,
+							"description": "When outcome is escalated: user UUID of whoever started the work."
+						},
+						"waiting_on_user_id": {
+							"type": "string",
+							"maxLength": 200,
+							"description": "When outcome is waiting_on_person: user UUID of the person the pull request waits on."
+						},
+						"waiting_on_name": {
+							"type": "string",
+							"maxLength": 200,
+							"description": "When outcome is waiting_on_person: display name of the person the pull request waits on."
+						},
+						"what_it_needs": {
+							"type": "string",
+							"maxLength": 1000,
+							"description": "When outcome is waiting_on_person: what the pull request needs from that person."
+						}
+					},
+					"required": [
+						"outcome",
+						"note"
+					],
+					"description": "Structured per-pull-request triage outcome stored directly on the pull request (unstuck, closed with proof, handed_on with linked task, escalated once to a decision incident, or waiting_on_person)."
 				},
 				"local_session_id": {
 					"type": "string",

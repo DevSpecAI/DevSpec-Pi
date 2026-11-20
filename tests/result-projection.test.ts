@@ -1014,7 +1014,23 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// manage_incident's operation (a failing-checks incident stays open until its fix lands,
 		// b4893c50). No required field changed. Benchmark before/after: initial surface 81,967 ->
 		// 83,510 estimated tokens; every check still passes.
-		"a95c7b8faca545e89751d50dd2f9821cc089103d4f3c665f201d8e976571f7df",
+		// Rebaselined 2026-11-20 for item 04a1fe8f (bring Pi level with the release candidate),
+		// regenerated against DevSpecV2 origin/staging 807d37292. Diffing every model entry
+		// against the 790c7d311 catalogue moved exactly two tools, both from other people's
+		// server work. record_automation_run gains optional triage_outcome (object;
+		// pull_request_id, head_sha, proof, linked_task_id, handed_on_to_connection_id,
+		// handed_on_run_id, incident_id, asked_user_id, waiting_on_user_id, waiting_on_name and
+		// what_it_needs optional; outcome enum unstuck | closed | handed_on | escalated |
+		// waiting_on_person and note required inside it) in inputSchema and modelInputSchema
+		// (a453eb6b, #1483, per-pull-request triage after 24 hours untouched).
+		// record_dependency_review's carries_pull_request_number description adds "including
+		// lockfile-only updates touching the same lockfiles" (676e1922). Tool descriptions,
+		// search intents, TOOL_CATALOG_VERSION and the description fingerprint are unchanged;
+		// no tool's required inputs changed. Verbs 105 model / 12 pump / 1 never-model before
+		// and after, none added or removed, no projection family changed, hot set unchanged (101
+		// verbs). Benchmark before/after: initial surface 83,510 -> 84,089 estimated tokens for
+		// the catalogue, 84,300 with this item's instruction changes; every check still passes.
+		"70a3dee19f4250426ce48fc18dbffe723a14f50eef1b2d584fb854eb2578896f",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

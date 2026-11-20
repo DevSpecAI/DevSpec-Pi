@@ -1,9 +1,14 @@
 # Changelog
 
-## 0.15.1 - 2026-11-20
+## 0.15.2 - 2026-11-20
 
 - **Your agent now suggests turning a recurring problem into a requirement when one comes up.** Before, the instructions warned your agent never to create or propose a requirement unasked without saying what makes something a candidate requirement in conversation, so it waited for you to say the word "requirement" yourself. Now, when you point out a mistake that keeps creeping back in across tasks, or state a non-negotiable project-wide "always" or "never" obligation that can be checked against what future work actually delivers, your agent explains what a requirement is and asks whether you want to record one — while still never saving a requirement without your yes.
 - **Pi's built-in copy of DevSpec's tools is refreshed to match the server.** The requirement creation tool description now carries the same candidate-spotting guidance. No tool was added or removed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.15.1 - 2026-11-20
+
+- **Pi's instructions defer to DevSpec on held work.** When work is held, and when work that reverses a decision can be kept, Pi now follows what DevSpec tells it at that moment instead of a copy of the rule written into the plugin, so its guidance stays right when DevSpec's rules change.
+- Update with `pi update`, then restart Pi.
 
 ## 0.15.0 - 2026-11-20
 

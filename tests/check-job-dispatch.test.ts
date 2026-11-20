@@ -258,7 +258,14 @@ test("bonded instructions say how to take and rule a check job, behaviour only",
 		const lines = buildBondedInstructions()!.split("\n").filter((line) => line.includes("claim_check_job"));
 		assert.equal(lines.length, 1, "one line, in the bonded block");
 		const line = lines[0]!;
-		assert.match(line, /^DevSpec sends every check on a change — your own changes included — as a check job on your wake channel: a message prefixed \[DevSpec remote — check job \.\.\.\] when you are idle, or a \[DevSpec between steps \.\.\.\] message delivered between two steps of a turn you are working, which can also carry DevSpec's notices about your own work\./);
+		// Who is offered a check is the server's routing (decision e5327b23): a spare agent
+		// first, the agent that made the change only as the fallback. Pointed at, and never
+		// a promise that every check on your own change reaches you (04a1fe8f).
+		assert.match(line, /^DevSpec sends checks on a change to agents to rule, as check jobs on their wake channel\. Which agent is the server's rule \(semantics\.check_job\.routing in devspec:\/\/product\/remote-ingress-contract\): a spare agent first and the agent that made the change only as the fallback, so a check on your own change may never reach you/);
+		assert.doesNotMatch(line, /sends every check on a change|your own changes included/);
+		assert.match(line, /One that reaches you arrives as a message prefixed \[DevSpec remote — check job \.\.\.\] when you are idle, or a \[DevSpec between steps \.\.\.\] message delivered between two steps of a turn you are working, which can also carry DevSpec's notices about your own work\./);
+		// Checks on your own change that still wait for you are named when you hand work in.
+		assert.match(line, /the result names them \(checks_waiting_for_you\): rule them before you carry on\./);
 		// A between-step delivery (da5cfae5) is the agent's to recognise as DevSpec's own, and as nobody's request.
 		assert.match(line, /A between-steps message is nobody's request and no part of what you were asked to do: deal with everything it lists in that one pause, then carry on exactly where you left off\./);
 		// Who rules it is the served contract's (decision 1d5a9c56): pointed at, never restated.

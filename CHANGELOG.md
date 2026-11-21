@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.15.3 - 2026-11-21
+
+- **Pi's built-in copy of DevSpec's tools now includes the write-time right-home check confirmation and guidance.** When your agent saves a memory, requirement, inventory entry, document, project rule, or personal rule that clearly belongs in a different knowledge home, DevSpec pauses before saving and returns a suggestion plus a one-use `home_check_ack` confirmation token so your agent can either move the entry or confirm it belongs where it is (and ask you first whenever Requirements are involved). No tool was added or removed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.15.2 - 2026-11-20
 
 - **Your agent now suggests turning a recurring problem into a requirement when one comes up.** Before, the instructions warned your agent never to create or propose a requirement unasked without saying what makes something a candidate requirement in conversation, so it waited for you to say the word "requirement" yourself. Now, when you point out a mistake that keeps creeping back in across tasks, or state a non-negotiable project-wide "always" or "never" obligation that can be checked against what future work actually delivers, your agent explains what a requirement is and asks whether you want to record one — while still never saving a requirement without your yes.

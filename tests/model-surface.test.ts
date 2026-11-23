@@ -15,6 +15,7 @@ import {
 import registerDevspecTools, { initialActiveTools, modelFacingCatalog, stampKnownScope } from '../extensions/devspec-tools.ts';
 import { MODEL_VERB_NAMES, NEVER_MODEL_VERBS, PUMP_VERBS } from '../extensions/generated/mcp-catalog.ts';
 import { SERVE_REQUEST_TOOL } from '../extensions/core/request-chain.ts';
+import { NOTICE_REPLY_TOOL } from '../extensions/core/notice-handover.ts';
 
 test('every eligible safe operation starts available; there is no deferred subset', () => {
   const initial = initialActiveTools(['read', 'custom_tool', ...MODEL_VERB_NAMES]);
@@ -37,8 +38,10 @@ test('all and only safe generated model verbs are registered once', async () => 
   } as unknown as ExtensionAPI;
   setBond(null);
   registerDevspecTools(pi);
-  // + the room reader and serve_request host tools (item 7a4d04fd).
-  assert.equal(definitions.length, MODEL_VERB_NAMES.length + 2);
+  // + the room reader and serve_request host tools (item 7a4d04fd), and the notice
+  // reply host tool (item da5cfae5).
+  assert.equal(definitions.length, MODEL_VERB_NAMES.length + 3);
+  assert.equal(definitions.filter(def => def.name === NOTICE_REPLY_TOOL).length, 1);
   assert.equal(definitions.filter(def => def.name === TOOL_LOADER_NAME).length, 1);
   assert.equal(definitions.filter(def => def.name === SERVE_REQUEST_TOOL).length, 1);
   assert.deepEqual(allModelFacingTools().map(entry => entry.name), [...MODEL_VERB_NAMES]);
@@ -52,6 +55,7 @@ test('all and only safe generated model verbs are registered once', async () => 
   }
   handlers.get('session_start')?.();
   assert.ok(!active.includes(SERVE_REQUEST_TOOL), 'serve_request is shown only while a turn carries several requests');
+  assert.ok(!active.includes(NOTICE_REPLY_TOOL), 'the notice reply tool is shown only while a person\'s turn holds notices steered into it');
   const before = [...active];
   const result = await definitions.find(def => def.name === TOOL_LOADER_NAME).execute('call', { query: 'create_resource' });
   assert.deepEqual(result.details.matches.map((hit: any) => hit.name), ['create_resource']);

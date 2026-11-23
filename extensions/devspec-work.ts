@@ -14,12 +14,11 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
-import { createHash } from "node:crypto";
 import { getAdapterGuardState, SUPPRESSION_NOTICE } from "./core/adapter-overlap.ts";
 import { markTypedSend, unmarkTypedSend } from "./core/request-chain.ts";
-import { resolveToken } from "./core/auth-store.ts";
+import { principalOf, resolveToken } from "./core/auth-store.ts";
 import { callDevspec, MODEL_TIMEOUT_MS } from "./core/client.ts";
-import { agentsSettingsUrl } from "./core/config.ts";
+import { TOKEN_ENV_VAR } from "./core/config.ts";
 import {
 	buildImplementationKickoff,
 	createImplementationContractLoader,
@@ -40,8 +39,9 @@ interface ItemSummary {
 let cacheCwd = process.cwd();
 let itemCache: { at: number; scope: string; items: ItemSummary[] } = { at: 0, scope: "", items: [] };
 
-function itemCacheScope(token: string, cwd: string): string {
-	return `${createHash("sha256").update(token, "utf8").digest("hex").slice(0, 24)}:${cwd}`;
+/** Keyed by who is signed in (stable across a browser login's renewals), never the raw token. */
+function itemCacheScope(auth: { token: string; principal?: string }, cwd: string): string {
+	return `${principalOf(auth).slice(0, 24)}:${cwd}`;
 }
 
 async function refreshItemCache(cwd = cacheCwd): Promise<boolean> {
@@ -50,7 +50,7 @@ async function refreshItemCache(cwd = cacheCwd): Promise<boolean> {
 		itemCache = { at: 0, scope: "", items: [] };
 		return false;
 	}
-	const scope = itemCacheScope(resolved.token, cwd);
+	const scope = itemCacheScope(resolved, cwd);
 	try {
 		const raw = await callDevspec(
 			resolved.token,
@@ -186,7 +186,7 @@ export default function (pi: ExtensionAPI) {
 				const [target, implementationContext] = await Promise.all([
 					fetchItemById(id),
 					loadImplementationContext({
-						loader: createImplementationContractLoader(resolved.token),
+						loader: createImplementationContractLoader(resolved),
 					}),
 				]);
 				const kickoff = buildImplementationKickoff({
@@ -221,20 +221,21 @@ export default function (pi: ExtensionAPI) {
 			const resolved = await resolveToken();
 			const lines = [
 				"DevSpec commands:",
-				"  /devspec.work [item]  — select one task to work (id/title, or picker)",
-				"  /devspec.remote       — connect (optional --project <name-or-id>; stop | auto on|off)",
-				"  /devspec.project      — show project; choose | remember | forget",
-				"  pi --devspec-project <name-or-id> — choose for a new local conversation",
+				"  /devspec.login        — sign in through your browser (--code where your browser cannot reach this machine)",
+				"  /devspec.logout       — sign out of the DevSpec server Pi is using",
+				"  /devspec.status       — which DevSpec server Pi uses and who it is signed in as",
+				"  /devspec.work [item]  — pick one task to work (id or title, or a picker)",
+				"  /devspec.remote       — connect this conversation (--project <name-or-id>, --session <id>; stop | reconnect | auto on|off | preempt on|off)",
+				"  /devspec.project      — show this conversation's project; choose | remember | forget",
+				"  pi --devspec-project <name-or-id> — start a new conversation in a chosen project",
+				"  /devspec.pin <id>     — pin this folder to a DevSpec project",
+				"  /devspec.review       — the open review questions seen on records this session",
 				"  /devspec.reload       — reload this extension (same as /reload)",
-				`  /devspec.login        — connect (token from ${agentsSettingsUrl()})`,
-				"  /devspec.pin <id>     — explicitly associate this folder with a DevSpec project",
-				"  /devspec.status       — connection state",
-				"  /devspec.logout       — remove the stored token",
-				"  /devspec.logo         — toggle the duck header",
+				"  /devspec.logo         — turn the duck header on or off",
 				"",
-				"Your owner can ask you to take work through DevSpec remote control; you reserve the selected items yourself. Nothing is pushed to you, and this command never drains a queue.",
-				"DevSpec tools are native to this package. Foreign MCP servers remain available.",
-				`Connection: ${resolved ? `token from ${resolved.source}` : "not connected — /devspec.login"}`,
+				"You or a teammate can ask Pi to take work from DevSpec remote control, and it reserves the tasks it is asked to work itself. Nothing is pushed to it, and this command never takes work from a queue.",
+				"DevSpec tools are built into this package. Other MCP servers you use stay available.",
+				`Connection: ${!resolved ? "not signed in — run /devspec.login" : resolved.source === "login" ? "signed in through your browser" : `using the token in ${TOKEN_ENV_VAR}`}`,
 			];
 			const guard = getAdapterGuardState();
 			if (guard.suppressed.length > 0) lines.push("", SUPPRESSION_NOTICE);

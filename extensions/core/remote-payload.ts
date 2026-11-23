@@ -25,6 +25,10 @@ import {
 	parseStillToDiscussProjection,
 	type StillToDiscussProjectionV1,
 } from "./still-to-discuss.ts";
+import {
+	parseProjectIncidentsProjection,
+	type ProjectIncidentsProjectionV1,
+} from "./project-incidents.ts";
 
 import { createHash } from "node:crypto";
 import { ROOM_CONTEXT_LANE, parseRoomContext, parseActivityIndex, type RoomContext, type ActivityIndex } from "./room-context.ts";
@@ -45,19 +49,23 @@ const SENDER_STYLE_VERSION = 1;
 const SENDER_STYLE_CONTRACT_VERSION = "1.5.0";
 const SENDER_STYLE_POLICY_VERSION = "2026-09-18.1";
 const DELEGATED_PROJECT_POLICY_ID = "delegated_project_v1";
-/** The shape version each notice carries in its own `version` field (unchanged at channel version 2). */
+/** The shape version each notice carries in its own `version` field (unchanged at channel versions 2 and 3). */
 const SYSTEM_NOTICE_VERSION = 1;
 /**
  * The notice CHANNEL version Pi negotiates on every poll and on the push stream:
  * which kinds DevSpec may send, not the shape of a notice. 1 carries
  * unlinked_commit_item_review; 2 also carries server_notice (confirmed findings and
- * pending-edit outcomes about this agent's own work). DevSpec sends server_notice
- * only to a channel that asked for 2 and records the last version asked for on the
- * connection, so every place that negotiates must ask for the same one, or the
- * Agents page flips to "Not receiving findings" (1fd34942, item 1e25f0f0). Version
- * 2 adds kinds and changes none: each notice still arrives as a version-1 body.
+ * pending-edit outcomes about this agent's own work); 3 puts DevSpec's label,
+ * `audience`, on every notice of every kind (item a868f41f; the served contract's
+ * semantics.notice_audience and system_notice.audience). DevSpec records the last
+ * version asked for on the connection, so every place that negotiates must ask for
+ * the same one, or the Agents page flips to "Not receiving findings" (1fd34942,
+ * item 1e25f0f0). Each notice still arrives as a version-1 body.
  */
-export const SYSTEM_NOTICE_CHANNEL_VERSION = 2;
+export const SYSTEM_NOTICE_CHANNEL_VERSION = 3;
+/** DevSpec's label on a notice at channel version 3: whether it needs the person. */
+export const NOTICE_AUDIENCES = ["needs_person", "for_the_record"] as const;
+export type NoticeAudience = (typeof NOTICE_AUDIENCES)[number];
 const SYSTEM_NOTICE_KIND = "unlinked_commit_item_review";
 const SERVER_NOTICE_KIND = "server_notice";
 const SYSTEM_NOTICE_CONTRACT_URI = "devspec://product/remote-ingress-contract";
@@ -250,6 +258,7 @@ export interface UnlinkedCommitItemReviewNoticeV1 {
 	contract_uri: typeof SYSTEM_NOTICE_CONTRACT_URI;
 	allowed_outcomes: [...typeof SYSTEM_NOTICE_ALLOWED_OUTCOMES];
 	allowed_tools: [...typeof SYSTEM_NOTICE_ALLOWED_TOOLS];
+	audience: NoticeAudience;
 }
 
 export interface ServerNoticeRecordV1 {
@@ -273,6 +282,7 @@ export interface ServerNoticeV1 {
 	records: ServerNoticeRecordV1[];
 	allowed_outcomes: string[];
 	allowed_tools: string[];
+	audience: NoticeAudience;
 }
 
 /**
@@ -324,10 +334,12 @@ export interface PollPackage {
 	sessionPolls?: SessionPollsProjection;
 	/** Changed packages: null means unavailable, rows:[] means empty. Idle: undefined. */
 	stillToDiscuss?: StillToDiscussProjectionV1 | null;
+	/** Changed packages: null when omitted (no active/recent incidents), parsed when present, undefined on malformed rejection or idle. */
+	projectIncidents?: ProjectIncidentsProjectionV1 | null;
 	/** Server history only; null marks missing/unavailable advisory data. */
 	sessionEvents?: SessionEvents | null;
 	/** Closed section names only; never raw payloads or parser error text. */
-	advisoryRejections?: Array<"session_polls" | "still_to_discuss" | "session_activity" | "session_events" | "notice_reply">;
+	advisoryRejections?: Array<"session_polls" | "still_to_discuss" | "session_activity" | "session_events" | "notice_reply" | "project_incidents">;
 	/** Sections this Pi skipped because it does not implement them; delivery still succeeded. */
 	unknownEnvelopeSections?: string[];
 	canonicalState: "idle" | "valid" | "invalid";
@@ -488,7 +500,7 @@ function systemNotice(value: unknown, path: string): SystemNoticeV1 {
 	if (row.kind === SERVER_NOTICE_KIND) {
 		exactKeys(row, [
 			"version", "kind", "notice_id", "topic", "notice_type",
-			"summary", "prompt", "contract_uri", "records", "allowed_outcomes", "allowed_tools",
+			"summary", "prompt", "contract_uri", "records", "allowed_outcomes", "allowed_tools", "audience",
 		], path);
 		if (row.version !== SYSTEM_NOTICE_VERSION) fail(`${path}.version`, "unknown system notice version");
 		const topic = string(row.topic, `${path}.topic`);
@@ -519,11 +531,12 @@ function systemNotice(value: unknown, path: string): SystemNoticeV1 {
 			records: row.records.map((entry, index) => serverNoticeRecord(entry, `${path}.records[${index}]`)),
 			allowed_outcomes: boundedStringArray(row.allowed_outcomes, SYSTEM_NOTICE_WIRE_BOUNDS.listItems, SYSTEM_NOTICE_WIRE_BOUNDS.listItemChars, `${path}.allowed_outcomes`),
 			allowed_tools: boundedStringArray(row.allowed_tools, SYSTEM_NOTICE_WIRE_BOUNDS.listItems, SYSTEM_NOTICE_WIRE_BOUNDS.listItemChars, `${path}.allowed_tools`),
+			audience: noticeAudience(row.audience, `${path}.audience`),
 		};
 	}
 	exactKeys(row, [
 		"version", "kind", "notice_id", "commit_sha", "task_id",
-		"task_title", "branch", "contract_uri", "allowed_outcomes", "allowed_tools",
+		"task_title", "branch", "contract_uri", "allowed_outcomes", "allowed_tools", "audience",
 	], path);
 	if (row.version !== SYSTEM_NOTICE_VERSION) fail(`${path}.version`, "unknown system notice version");
 	if (row.kind !== SYSTEM_NOTICE_KIND) fail(`${path}.kind`, "unknown system notice kind");
@@ -545,7 +558,14 @@ function systemNotice(value: unknown, path: string): SystemNoticeV1 {
 		contract_uri: SYSTEM_NOTICE_CONTRACT_URI,
 		allowed_outcomes: exactTuple(row.allowed_outcomes, SYSTEM_NOTICE_ALLOWED_OUTCOMES, `${path}.allowed_outcomes`) as [...typeof SYSTEM_NOTICE_ALLOWED_OUTCOMES],
 		allowed_tools: exactTuple(row.allowed_tools, SYSTEM_NOTICE_ALLOWED_TOOLS, `${path}.allowed_tools`) as [...typeof SYSTEM_NOTICE_ALLOWED_TOOLS],
+		audience: noticeAudience(row.audience, `${path}.audience`),
 	};
+}
+
+/** DevSpec's label, exactly one of its two values; anything else makes the notice unreadable. */
+function noticeAudience(value: unknown, path: string): NoticeAudience {
+	if (!(NOTICE_AUDIENCES as readonly unknown[]).includes(value)) fail(path, "expected needs_person or for_the_record");
+	return value as NoticeAudience;
 }
 
 /** A stable id for a notice whose own id is unusable, so both copies of one envelope agree. */
@@ -1084,6 +1104,7 @@ export function parsePollPayload(
 			if (topLevelNotices.length !== 0) fail("system_notices", "idle response cannot carry notices");
 			if (outer.session_polls !== undefined) fail("session_polls", "idle response cannot carry session polls");
 			if (outer.still_to_discuss !== undefined) fail("still_to_discuss", "idle response cannot carry still to discuss");
+			if (outer.project_incidents !== undefined) fail("project_incidents", "idle response cannot carry project incidents");
 			return {
 				changed: false,
 				cursorV2: typeof outer.cursor_v2 === "string" && outer.cursor_v2.length > 0 ? outer.cursor_v2 : undefined,
@@ -1103,7 +1124,12 @@ export function parsePollPayload(
 		const actionableCommand = envelope.deliveryState === "live" && envelope.wakeActive && envelope.wakeKind === "conversational_command";
 		const actionableControl = envelope.deliveryState === "live" && envelope.wakeActive && envelope.wakeKind === "control";
 		const actionableNotices = envelope.deliveryState === "live" && envelope.wakeActive && envelope.wakeKind === "system_notice";
-		if ((actionableCommand || actionableControl) && !cursorV2) fail("cursor_v2", "actionable canonical delivery requires top-level cursor_v2");
+		// A command advances the transcript cursor, so it needs one. A control does
+		// not: it is acknowledged by connection and control id, and a connection in
+		// no room has no transcript and so no cursor at all. Requiring one there
+		// left every control sent to a Pi outside a session unread and holding the
+		// connection's one control slot (item 12dff17f).
+		if (actionableCommand && !cursorV2) fail("cursor_v2", "actionable canonical command delivery requires top-level cursor_v2");
 		if (actionableNotices && (!returnedNoticeCursor || envelope.systemNotices.length === 0)) fail("system_notice_cursor", "active notice delivery requires an independent returned cursor");
 		let ownerBundle: OwnerCommandBundle | undefined;
 		let rejectedBundle: OwnerCommandBundle | undefined;
@@ -1133,6 +1159,9 @@ export function parsePollPayload(
 		const stillToDiscuss = outer.still_to_discuss === undefined
 			? null
 			: tryParseAdvisory(outer.still_to_discuss, parseStillToDiscussProjection, () => advisoryRejections.push("still_to_discuss")) ?? null;
+		const projectIncidents = outer.project_incidents === undefined || outer.project_incidents === null
+			? null
+			: tryParseAdvisory(outer.project_incidents, parseProjectIncidentsProjection, () => advisoryRejections.push("project_incidents"));
 		return {
 			changed: true,
 			cursorV2,
@@ -1146,6 +1175,7 @@ export function parsePollPayload(
 			activeSessionPlans: envelope.activeSessionPlans,
 			...(sessionPolls ? { sessionPolls } : {}),
 			stillToDiscuss,
+			...(projectIncidents !== undefined ? { projectIncidents } : {}),
 			...(advisoryRejections.length > 0 ? { advisoryRejections } : {}),
 			...(envelope.unknownSections ? { unknownEnvelopeSections: envelope.unknownSections } : {}),
 			...(envelope.unboundSenderStyleIds.length > 0 ? { unboundSenderStyleIds: envelope.unboundSenderStyleIds } : {}),

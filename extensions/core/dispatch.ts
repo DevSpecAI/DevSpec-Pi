@@ -11,8 +11,13 @@
 
 import { AUTOMATION_RUN_PREFIX, CHECK_JOB_PREFIX } from "./turn-lifecycle.ts";
 
-/** The check-job wake-channel version Pi sends on every poll and the stream. */
-export const CHECK_JOB_VERSION = 1;
+/**
+ * The check-job wake-channel version Pi sends on every poll and the stream
+ * (served contract: check_job.negotiation). Version 2 (DevSpec item 1d89fe56)
+ * drops high_risk from the envelope and adds three record types. Pi negotiates 2
+ * only: the server then sends version-2 envelopes and nothing else.
+ */
+export const CHECK_JOB_VERSION = 2;
 
 const WAKE_KEYS = [
 	"id",
@@ -72,7 +77,10 @@ export function isAutomationRunEnvelope(value: unknown): boolean {
 		requesterOk;
 }
 
-/** The exact keys of a check job envelope: inbox metadata only, never record text (CHECK_JOB_WAKE_KEYS). */
+/**
+ * The exact keys of a version-2 check job envelope: inbox metadata only, never
+ * record text (served contract: check_job.envelope).
+ */
 const CHECK_JOB_WAKE_KEYS = [
 	"id",
 	"kind",
@@ -80,13 +88,15 @@ const CHECK_JOB_WAKE_KEYS = [
 	"check_kind",
 	"record",
 	"entries",
-	"high_risk",
 	"yours",
 	"offered_at",
 	"delivery_connection_id",
 ] as const;
 const CHECK_KINDS = new Set(["conflict", "conflict_decisions", "duplicate", "staleness"]);
-const CHECK_RECORD_TYPES = new Set(["task", "memory", "artifact", "proposal"]);
+/** What a check job may name (served contract: check_job.records). */
+const CHECK_RECORD_TYPES = new Set(["task", "memory", "artifact", "proposal", "discussion_point", "goal", "backlog_scan"]);
+/** The record types version 2 added: each is only ever an out-of-date check. */
+const STALENESS_ONLY_RECORD_TYPES = new Set(["discussion_point", "goal", "backlog_scan"]);
 
 function exactKeys(root: Record<string, unknown>, keys: readonly string[]): boolean {
 	return Object.keys(root).length === keys.length && keys.every((key) => Object.hasOwn(root, key));
@@ -107,9 +117,9 @@ export function isCheckJobEnvelope(value: unknown): boolean {
 		typeof root.check_kind === "string" && CHECK_KINDS.has(root.check_kind) &&
 		Boolean(record && exactKeys(record, ["type", "id", "title"]) &&
 			typeof record.type === "string" && CHECK_RECORD_TYPES.has(record.type) &&
+			(!STALENESS_ONLY_RECORD_TYPES.has(record.type) || root.check_kind === "staleness") &&
 			text(record.id) && typeof record.title === "string") &&
 		count(root.entries) &&
-		count(root.high_risk) &&
 		typeof root.yours === "boolean" &&
 		Boolean(text(root.offered_at)) &&
 		Boolean(text(root.delivery_connection_id));
@@ -134,24 +144,149 @@ export function dispatchId(value: unknown): string | undefined {
 }
 
 /**
- * The wake for one check job: the contract's one line, then the envelope so the
- * agent has the job's id. How to rule it is in the bonded instructions; this
- * never words what the agent tells its person.
+ * What a check job is about, in the wake line. A task, memory, document or
+ * proposal is named by its title. The three version-2 records are always
+ * out-of-date checks and say what they are: a settled discussion point, a Goal,
+ * or the manual whole-backlog scan.
  */
-export function formatCheckJobMessage(value: unknown, codename: string): string {
+export function describeCheckJob(value: unknown): string {
 	if (!isCheckJobEnvelope(value)) throw new Error("check job envelope required");
-	const root = asRecord(value) ?? {};
-	const record = asRecord(root.record) ?? {};
-	const on = text(record.title) ?? `${String(record.type)} ${String(record.id)}`;
+	const record = asRecord(asRecord(value)?.record) ?? {};
+	const title = text(record.title);
+	const named = (what: string) => title ? `${what} “${title}”` : `${what} ${String(record.id)}`;
+	switch (record.type) {
+		case "discussion_point":
+			return `An out-of-date check is waiting on ${named("the settled discussion point")}`;
+		case "goal":
+			return `An out-of-date check is waiting on ${named("the Goal")}`;
+		case "backlog_scan":
+			return title ? `The whole-backlog out-of-date scan “${title}” is waiting` : "The whole-backlog out-of-date scan is waiting";
+		default:
+			return `A check is waiting on ${title ?? `${String(record.type)} ${String(record.id)}`}`;
+	}
+}
+
+/**
+ * Who rules a check job, the agent or a helper agent it starts, is the server's
+ * rule (DevSpec item da5cfae5, decision 1d5a9c56). This points at the served
+ * words and never restates them: the same text travels on every
+ * claim_check_job reply as `helpers`. On Pi, subagents do not receive DevSpec's
+ * extension tools, so Pi rules check jobs directly in its own session.
+ */
+export const CHECK_JOB_HELPERS_POINTER =
+	"Who rules a check job, you or a helper agent you start, is DevSpec's rule: semantics.check_job.helpers in devspec://product/remote-ingress-contract, repeated as `helpers` on every claim_check_job reply. Follow it before a job is taken. On Pi, subagents do not receive DevSpec's check tools, so rule the job yourself in this session without starting a subagent.";
+
+/** Where the helpers rule is served. */
+export const CHECK_JOB_CONTRACT_URI = "devspec://product/remote-ingress-contract";
+
+/**
+ * semantics.check_job.helpers out of the served remote ingress contract, whole,
+ * or null when the resource does not carry it. Pi's model cannot open a
+ * devspec:// resource, so the plugin reads the words mechanically and quotes
+ * them beside the pointer, the way work entry loads the implementation contract.
+ */
+export function servedCheckJobHelpers(resource: unknown): string | null {
+	const contents = asRecord(resource)?.contents;
+	if (!Array.isArray(contents)) return null;
+	for (const item of contents) {
+		const body = asRecord(item)?.text;
+		if (typeof body !== "string") continue;
+		try {
+			const contract = asRecord(JSON.parse(body));
+			if (contract?.kind !== "devspec.product.remote_ingress_contract") continue;
+			const helpers = text(asRecord(asRecord(contract.semantics)?.check_job)?.helpers);
+			if (helpers) return helpers;
+		} catch { /* An unreadable resource leaves the pointer standing by itself. */ }
+	}
+	return null;
+}
+
+/**
+ * What announces check jobs to the agent, for a wake and for a between-step
+ * delivery alike. `lines`: each job in one line, the helpers pointer before
+ * anything is taken, then the two tools. `envelopes`: the envelopes that carry
+ * the ids. Never record text, and never how the agent words anything to its person.
+ *
+ * `helpers` is DevSpec's own served text when the plugin holds it (Pi's model
+ * cannot read a devspec:// resource itself): quoted whole, never reworded.
+ */
+export function checkJobAnnouncement(values: readonly unknown[], options: { helpers?: string | null } = {}): { lines: string[]; envelopes: string[] } {
+	if (values.length === 0 || !values.every(isCheckJobEnvelope)) throw new Error("check job envelope required");
+	const one = values.length === 1;
+	const served = text(options.helpers);
+	return {
+		lines: [
+			...(one
+				? [`${describeCheckJob(values[0])}.`]
+				: [
+					`${values.length} checks are waiting. Rule every one of them in this one pause:`,
+					...values.map((value) => `- ${describeCheckJob(value)} (check_job_id ${String(asRecord(value)?.check_job_id)})`),
+				]),
+			CHECK_JOB_HELPERS_POINTER,
+			...(served ? [`DevSpec's words, as served now: ${served}`] : []),
+			one
+				? "The job is taken with claim_check_job and every entry ruled with record_check_rulings."
+				: "Each job is taken with claim_check_job and every entry ruled with record_check_rulings.",
+		],
+		envelopes: [
+			one ? "Check job envelope:" : "Check job envelopes:",
+			"```json",
+			JSON.stringify(one ? values[0] : values, null, 2),
+			"```",
+		],
+	};
+}
+
+/**
+ * The wake for check jobs delivered to an idle Pi: every job waiting at that
+ * moment in one message (da5cfae5). It never words what the agent tells its
+ * person.
+ */
+export function formatCheckJobsMessage(values: readonly unknown[], codename: string, options: { helpers?: string | null } = {}): string {
+	const { lines, envelopes } = checkJobAnnouncement(values, options);
 	return [
 		`${CHECK_JOB_PREFIX} to ${codename}]`,
-		`A check is waiting on ${on}: take it with claim_check_job, rule every entry with record_check_rulings, then carry on.`,
+		...lines,
+		"Then carry on.",
 		"",
-		"Check job envelope:",
-		"```json",
-		JSON.stringify(value, null, 2),
-		"```",
+		...envelopes,
 	].join("\n");
+}
+
+/** The wake for one check job. */
+export function formatCheckJobMessage(value: unknown, codename: string, options: { helpers?: string | null } = {}): string {
+	return formatCheckJobsMessage([value], codename, options);
+}
+
+export interface QueuedCheckJobInbox {
+	readonly dispatches: readonly unknown[];
+	readonly identityComplete?: boolean;
+}
+
+/**
+ * Revalidate a queued check job right before waking Pi (DevSpec item e6985316).
+ * Returns `false` when the live connection dispatch inbox confirms the check job
+ * is no longer pending; fails open (`true`) when still pending or on transient
+ * lookup failure so real checks are never dropped.
+ */
+export async function shouldDeliverQueuedCheckJob(options: {
+	key: string;
+	loadCurrentInbox: () => Promise<QueuedCheckJobInbox>;
+	identity?: (value: unknown) => string | undefined;
+}): Promise<boolean> {
+	const identityOf = options.identity ?? ((value: unknown) => {
+		const root = asRecord(value);
+		return text(root?.check_job_id) ?? text(root?.id);
+	});
+	try {
+		const inbox = await options.loadCurrentInbox();
+		if (!Array.isArray(inbox?.dispatches)) return true;
+		if (inbox.dispatches.some((entry) => identityOf(entry) === options.key)) return true;
+		if (inbox.identityComplete === false && inbox.dispatches.length > 0) return true;
+		return false;
+	} catch {
+		return true;
+	}
 }
 
 export function formatAutomationRunMessage(value: unknown, codename: string): string {

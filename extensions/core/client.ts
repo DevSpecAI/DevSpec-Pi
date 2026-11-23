@@ -35,8 +35,14 @@ export const MODEL_TIMEOUT_MS = 25_000;
 
 export type ClientLane = "pump" | "work";
 
-/** Token rejected by the server (401 + invalid_api_token / invalid_connection_capability). The user needs to re-login. */
-export class DevspecAuthError extends Error {}
+/** Token rejected by the server (401 + invalid_api_token / invalid_connection_capability / signed_out). The user needs to re-login. */
+export class DevspecAuthError extends Error {
+	readonly code: string | null;
+	constructor(message: string, code: string | null = null) {
+		super(message);
+		this.code = code;
+	}
+}
 
 /** Anything else: network, server 5xx, MCP protocol errors. */
 export class DevspecApiError extends Error {}
@@ -53,6 +59,13 @@ export class DevspecAuthUnavailableError extends DevspecApiError {
 		this.credentialType = credentialType;
 	}
 }
+
+/**
+ * DevSpec did not answer before the caller's deadline (CallOptions.deadline).
+ * Recoverable: nothing was refused, the server just never replied in time
+ * (item dffdc30a).
+ */
+export class DevspecUnreachableError extends DevspecApiError {}
 
 /** MCP tool result with `isError: true` — a verb refusal, not a dead socket. */
 export class DevspecToolError extends DevspecApiError {
@@ -87,11 +100,13 @@ export interface StructuredServerFailure {
 	code: string | null;
 	retryable: boolean | null;
 	credentialType: "api_token" | "connection_capability" | null;
+	/** The server's own sentence (`error`), when its body could be read. */
+	message: string | null;
 }
 
 /** Extract status / machine code / retry verdict from an SDK-shaped error. Exported for tests. */
 export function readStructuredFailure(err: unknown): StructuredServerFailure {
-	const out: StructuredServerFailure = { status: null, code: null, retryable: null, credentialType: null };
+	const out: StructuredServerFailure = { status: null, code: null, retryable: null, credentialType: null, message: null };
 	if (typeof err === "object" && err !== null) {
 		const rec = err as Record<string, unknown>;
 		for (const key of ["code", "status", "statusCode"]) {
@@ -114,6 +129,7 @@ export function readStructuredFailure(err: unknown): StructuredServerFailure {
 		}
 		if (body && typeof body === "object") {
 			if (typeof body.code === "string") out.code = body.code;
+			if (typeof body.error === "string") out.message = body.error;
 			if (typeof body.retryable === "boolean") out.retryable = body.retryable;
 			if (body.credential_type === "api_token" || body.credential_type === "connection_capability") {
 				out.credentialType = body.credential_type;
@@ -148,9 +164,22 @@ function rateLimitStore(): { until: number } {
 
 const MAX_COOLDOWN_WAIT_MS = 30_000;
 
-async function waitOutCooldown(): Promise<void> {
-	const wait = rateLimitStore().until - Date.now();
-	if (wait > 0) await new Promise((r) => setTimeout(r, Math.min(wait, MAX_COOLDOWN_WAIT_MS)));
+/** Wait out a known cooldown, never past the caller's deadline. */
+async function waitOutCooldown(deadline?: number): Promise<void> {
+	const now = Date.now();
+	const wait = Math.min(rateLimitStore().until - now, MAX_COOLDOWN_WAIT_MS, deadline === undefined ? Infinity : deadline - now);
+	if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+}
+
+/**
+ * How long one attempt may take: the caller's per-request timeout, cut to what
+ * is left before its deadline. Past the deadline there is nothing left to try.
+ */
+function attemptBudgetMs(timeoutMs: number, deadline: number | undefined): number {
+	if (deadline === undefined) return timeoutMs;
+	const left = deadline - Date.now();
+	if (left <= 0) throw new DevspecUnreachableError("DevSpec did not answer in time.");
+	return Math.min(timeoutMs, left);
 }
 
 /** Minimal MCP client surface the lane cache holds. Real SDK Client satisfies this. */
@@ -263,14 +292,31 @@ export function resetClientCache(lane?: ClientLane): void {
 	forceCloseSlot(store[lane]);
 }
 
+/**
+ * Open a lane's client. The MCP handshake is network like any call, so it is
+ * bounded by the timeout of the call that needed it: a server that accepts the
+ * connection and never answers must not hold the handshake open on the SDK's
+ * own 60s default, or on no limit at all for its `initialized` notification
+ * (item dffdc30a). A handshake given up on is closed, so its request is aborted
+ * and the next call opens a fresh one.
+ */
 async function openClient(
 	token: string,
 	lane: ClientLane,
 	url: string,
-	connectionCapability?: string,
+	connectionCapability: string | undefined,
+	timeoutMs: number,
 ): Promise<LaneClient> {
 	const factory = laneClientFactory();
-	if (factory) return factory({ token, lane, url, connectionCapability });
+	if (factory) {
+		const opening = factory({ token, lane, url, connectionCapability });
+		try {
+			return await withHardTimeout(opening, timeoutMs, "connection");
+		} catch (err) {
+			void opening.then((late) => late.close(), () => {}).catch(() => {});
+			throw err;
+		}
+	}
 	const transport = new StreamableHTTPClientTransport(new URL(url), {
 		requestInit: {
 			headers: {
@@ -281,11 +327,22 @@ async function openClient(
 		},
 	});
 	const client = new Client({ name: CLIENT_NAME, version: CLIENT_VERSION }, { capabilities: {} });
-	await client.connect(transport);
+	try {
+		await withHardTimeout(client.connect(transport), timeoutMs, "connection");
+	} catch (err) {
+		void client.close().catch(() => {});
+		throw err;
+	}
 	return client as unknown as LaneClient;
 }
 
-async function acquireClient(token: string, lane: ClientLane, connectionCapability?: string, endpoint?: string): Promise<CacheEntry> {
+async function acquireClient(
+	token: string,
+	lane: ClientLane,
+	connectionCapability: string | undefined,
+	endpoint: string | undefined,
+	timeoutMs: number,
+): Promise<CacheEntry> {
 	const url = endpoint ?? (laneClientFactory() ? "https://devspec.test/api/mcp" : await resolveEndpoint());
 	const slot = cacheStore()[lane];
 	for (;;) {
@@ -304,7 +361,7 @@ async function acquireClient(token: string, lane: ClientLane, connectionCapabili
 		const previous = slot.entry;
 		const connecting = (async () => {
 			if (previous) retireEntry(lane, previous);
-			const client = await openClient(token, lane, url, connectionCapability);
+			const client = await openClient(token, lane, url, connectionCapability, Math.min(timeoutMs, DEFAULT_TIMEOUT_MS));
 			const entry: CacheEntry = {
 				token,
 				url,
@@ -358,20 +415,30 @@ export function mapClientError(err: unknown): Error {
 		);
 	}
 	if (structured.code === "invalid_api_token") {
-		return new DevspecAuthError("DevSpec rejected the token (invalid or revoked). Run /devspec.login.");
+		return new DevspecAuthError("DevSpec rejected the token (invalid or revoked). Run /devspec.login.", structured.code);
+	}
+	// A browser sign-in for a tool the person disconnected on the Agents page.
+	// DevSpec's own sentence says where to reconnect; signing in again follows.
+	if (structured.code === "signed_out") {
+		const said = typeof structured.message === "string" && structured.message.trim()
+			? structured.message.trim()
+			: "Pi was disconnected from your DevSpec account. You can reconnect it from Agent setup in your DevSpec settings.";
+		return new DevspecAuthError(`${said} Then run /devspec.login.`, structured.code);
 	}
 	if (structured.code === "invalid_connection_capability") {
 		return new DevspecAuthError(
 			"DevSpec rejected the connection credentials (invalid or expired). Reconnecting — run /devspec.login if it persists.",
+			structured.code,
 		);
 	}
 	// 2. Exact legacy server strings (pre-code servers). Narrow on purpose.
 	if (/Invalid or revoked API token/.test(message)) {
-		return new DevspecAuthError("DevSpec rejected the token (invalid or revoked). Run /devspec.login.");
+		return new DevspecAuthError("DevSpec rejected the token (invalid or revoked). Run /devspec.login.", "invalid_api_token");
 	}
 	if (/Invalid or expired connection capability/.test(message)) {
 		return new DevspecAuthError(
 			"DevSpec rejected the connection credentials (invalid or expired). Reconnecting — run /devspec.login if it persists.",
+			"invalid_connection_capability",
 		);
 	}
 	// 3. Anything else — including ambiguous proxy/gateway 401s with no server
@@ -384,7 +451,7 @@ export function mapClientError(err: unknown): Error {
 
 /** Transport / parse / timeout / unavailable validation — recoverable. Never a human End. */
 export function isRecoverableTransportError(err: unknown): boolean {
-	if (err instanceof DevspecAuthUnavailableError) return true;
+	if (err instanceof DevspecAuthUnavailableError || err instanceof DevspecUnreachableError) return true;
 	if (err instanceof DevspecAuthError || err instanceof DevspecToolError) return false;
 	const message = err instanceof Error ? err.message : String(err);
 	return /parse|streamable|timed? ?out|ETIMEDOUT|fetch failed|ECONNREFUSED|ENOTFOUND|ECONNRESET|socket|certificate|network|abort|Cannot reach DevSpec|Connection closed|-32000/i.test(
@@ -429,6 +496,15 @@ export function shouldEndBondOnPollFailure(err: unknown): boolean {
 }
 
 /**
+ * Whether the server said this tool's browser sign-in was disconnected by the
+ * person (`code: "signed_out"`), as opposed to a single rotated access token.
+ */
+export function isSignedOutAuthError(err: unknown): boolean {
+	if (err instanceof DevspecAuthError && err.code === "signed_out") return true;
+	return readStructuredFailure(err).code === "signed_out";
+}
+
+/**
  * Only deliberate human teardown is sticky. Matches the server's
  * PERMANENT_END_REASONS (ui / local_stop): owner_gone and auth are
  * recoverable ends the revive path re-validates, idle_timeout was never
@@ -456,8 +532,16 @@ export interface CallOptions {
 	retry?: "never";
 	/** Recheck captured authority after cooldown/client acquisition, immediately before send. */
 	beforeSend?: () => void;
-	/** Request timeout (default 60s). Long-poll callers pass hold + margin. */
+	/** Request timeout (default 60s), connection handshake included. Long-poll callers pass hold + margin. */
 	timeoutMs?: number;
+	/**
+	 * Absolute time (ms since the epoch) by which the whole call must be over:
+	 * cooldown wait, connection handshake, every retry and every wait between
+	 * them. Each attempt gets what is left of it at most; once it has passed
+	 * the call stops waiting and throws DevspecUnreachableError. Omitted: each
+	 * attempt is bounded by timeoutMs alone, as before (item dffdc30a).
+	 */
+	deadline?: number;
 	/** Hidden host-held capability. It is stamped as a transport header, never an argument. */
 	connectionCapability?: string;
 	/**
@@ -489,25 +573,43 @@ export async function withHardTimeout<T>(promise: Promise<T>, timeoutMs: number,
 	}
 }
 
+/**
+ * One attempt on a lane. The attempt's budget covers getting a client (which
+ * may mean a fresh handshake) as well as the request itself, so no part of it
+ * can outlast the caller's timeout or deadline (item dffdc30a).
+ */
 async function invokeOnLane<T>(
 	token: string,
 	lane: ClientLane,
 	connectionCapability: string | undefined,
 	timeoutMs: number,
 	label: string,
-	run: (client: LaneClient) => Promise<T>,
+	run: (client: LaneClient, timeoutMs: number) => Promise<T>,
 	endpoint?: string,
+	deadline?: number,
 ): Promise<T> {
-	await waitOutCooldown();
-	const entry = await acquireClient(token, lane, connectionCapability, endpoint);
+	await waitOutCooldown(deadline);
+	const budgetMs = attemptBudgetMs(timeoutMs, deadline);
+	const held: { entry: CacheEntry | null; finished: boolean } = { entry: null, finished: false };
+	const attempt = (async () => {
+		const acquired = await acquireClient(token, lane, connectionCapability, endpoint, budgetMs);
+		if (held.finished) {
+			// The caller already gave up while the client was being opened.
+			releaseClient(acquired);
+			throw new DevspecApiError(`DevSpec ${label} timed out after ${budgetMs}ms`);
+		}
+		held.entry = acquired;
+		return run(acquired.client, budgetMs);
+	})();
 	try {
-		return await withHardTimeout(run(entry.client), timeoutMs, label);
+		return await withHardTimeout(attempt, budgetMs, label);
 	} catch (err) {
 		const mapped = mapClientError(err);
-		if (isRecoverableTransportError(mapped)) retireEntry(lane, entry);
+		if (held.entry && isRecoverableTransportError(mapped)) retireEntry(lane, held.entry);
 		throw mapped;
 	} finally {
-		releaseClient(entry);
+		held.finished = true;
+		if (held.entry) releaseClient(held.entry);
 	}
 }
 
@@ -551,25 +653,33 @@ export async function callDevspec(
 				options.connectionCapability,
 				timeoutMs,
 				name,
-				(client) => {
+				(client, budgetMs) => {
 					options.beforeSend?.();
-					return client.callTool({ name, arguments: callArgs }, undefined, { timeout: timeoutMs });
+					return client.callTool({ name, arguments: callArgs }, undefined, { timeout: budgetMs });
 				},
 				options.endpoint,
+				options.deadline,
 			);
 			const toolError = mcpToolErrorText(raw, name);
 			if (toolError) throw new DevspecToolError(toolError, raw);
 			return raw;
 		} catch (err) {
 			const mapped = mapClientError(err);
+			// The deadline has passed: there is no time left for another attempt.
+			if (mapped instanceof DevspecUnreachableError) throw mapped;
 			// Rate limit: honor the server's hint, cool the whole process down,
-			// and retry ONCE after waiting — never hammer the window.
+			// and retry ONCE after waiting — never hammer the window, and never
+			// wait past the caller's deadline.
 			const retryMs = parseRateLimitRetryMs(mapped.message);
 			if (retryMs !== null) {
 				rateLimitStore().until = Date.now() + retryMs;
 				rateLimitRetries += 1;
-				if (options.retry === "never" || rateLimitRetries > 1) throw new DevspecRateLimitError(mapped.message, retryMs);
-				await new Promise((r) => setTimeout(r, Math.min(retryMs, MAX_COOLDOWN_WAIT_MS)));
+				const waitMs = Math.min(retryMs, MAX_COOLDOWN_WAIT_MS);
+				if (options.retry === "never" || rateLimitRetries > 1 ||
+					(options.deadline !== undefined && Date.now() + waitMs >= options.deadline)) {
+					throw new DevspecRateLimitError(mapped.message, retryMs);
+				}
+				await new Promise((r) => setTimeout(r, waitMs));
 				attempt--; // the rate-limit wait-retry doesn't consume a transport attempt
 				continue;
 			}
@@ -671,7 +781,7 @@ export async function readDevspecResource(
 				undefined,
 				timeoutMs,
 				`resource ${uri}`,
-				(client) => client.readResource({ uri }, { timeout: timeoutMs }),
+				(client, budgetMs) => client.readResource({ uri }, { timeout: budgetMs }),
 			);
 		} catch (error) {
 			const mapped = mapClientError(error);
@@ -699,6 +809,7 @@ export async function readDevspecResource(
  * Verify a token and return the server's identity payload (unwrapMcpResult
  * shape). Used by /devspec.login and the session-start status check.
  */
-export async function verifyToken(token: string): Promise<unknown> {
-	return callDevspec(token, "verify_agent_connection", {}, { lane: "work", timeoutMs: 15_000 });
+/** `endpoint` pins the check to one server (a new sign-in is verified where it was approved). */
+export async function verifyToken(token: string, endpoint?: string): Promise<unknown> {
+	return callDevspec(token, "verify_agent_connection", {}, { lane: "work", timeoutMs: 15_000, ...(endpoint ? { endpoint } : {}) });
 }

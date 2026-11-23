@@ -52,6 +52,9 @@ export function systemNotice(overrides: Record<string, unknown> = {}) {
 			"get_task", "update_task", "link_tasks",
 			"supersede_task",
 		],
+		// Channel version 3 labels every notice (a868f41f): which item one's own commit
+		// belongs to is for the record.
+		audience: "for_the_record",
 		...overrides,
 	};
 }
@@ -263,7 +266,7 @@ export function canonicalPoll(options: {
 		...(options.stillToDiscuss ? { still_to_discuss: options.stillToDiscuss } : {}),
 		cursor_v2: "canonical-cursor-1",
 		...(systemNoticeNegotiated ? {
-			system_notice_version: 2,
+			system_notice_version: 3,
 			system_notice_cursor: systemNotices.length > 0 ? `2026-08-22T12:00:00.000Z|${IDS.notice}` : null,
 			system_notices: systemNotices,
 		} : {}),

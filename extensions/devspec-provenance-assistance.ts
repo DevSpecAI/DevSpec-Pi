@@ -7,9 +7,8 @@
  * git stand-in when exactly one task is claimed (item df71ab6c), never here.
  */
 
-import { createHash } from "node:crypto";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
+import { principalOf, resolveEndpoint, resolveToken } from "./core/auth-store.ts";
 import { callDevspecAdvisoryOnce } from "./core/client.ts";
 import { resolveGitRemote, resolveProjectPin, resolveProjectPinFile, writeProjectPin } from "./core/project-scope.ts";
 import { getProjectChoice } from "./core/project-choice.ts";
@@ -70,8 +69,9 @@ const jurisdictionDeps: JurisdictionDeps = {
 	call: (token, name, args) => callDevspecAdvisoryOnce(token, name, args, 1500),
 };
 
-function tokenFingerprint(token: string): string {
-	return createHash("sha256").update(token).digest("hex").slice(0, 16);
+/** Who is signed in (stable across a browser login's renewals), never the raw token. */
+function principalFingerprint(auth: { token: string; principal?: string }): string {
+	return principalOf(auth).slice(0, 16);
 }
 
 function remoteMatch(raw: unknown): { resolved: string | null; candidates: string[] } | null {
@@ -105,7 +105,7 @@ export async function resolveNudgeProject(
 		deps.resolveEndpoint().catch(() => ""),
 	]);
 	if (!auth?.token || !endpoint) return null;
-	const key = `${endpoint}\0${tokenFingerprint(auth.token)}\0${remote}\0${validPin ?? ""}`;
+	const key = `${endpoint}\0${principalFingerprint(auth)}\0${remote}\0${validPin ?? ""}`;
 	const cache = jurisdictionCache();
 	const hit = cache.get(key);
 	if (hit && hit.expiresAt > now) return hit.projectId;
@@ -166,7 +166,7 @@ export async function unclaimedEditNudge(
 			`DevSpec provenance note: this conversation is working with project ${projectId}, ` +
 			"but this Pi session has not observed an active claim. Continue this edit—editing is never blocked. " +
 			"Before committing, use search_tasks to find and claim the covering item. If none exists, " +
-			"create the smallest task that does, with a substantive description and the reason for the work (create_task " +
+			"create the smallest task that does, with a substantive description and the reason the person gave for the work, never an invented one (create_task " +
 			"requires both), as the implementation contract's work_entry_contract decides, and claim it. " +
 			(commitTagging()
 				? "Once one task is claimed, Pi adds its [devspec:<full-uuid>] tag to your commits itself; write the tag yourself only when Pi says it did not."

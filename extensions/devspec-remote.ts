@@ -42,14 +42,17 @@ import {
 	personEndClosesPi,
 	MODEL_TIMEOUT_MS,
 	DevspecToolError,
+	isRecoverableTransportError,
+	isSignedOutAuthError,
 	shouldEndBondOnPollFailure,
 } from "./core/client.ts";
 import { connectionCapabilityFromResult, getBond, setBond, type BondState } from "./core/bond-state.ts";
 import { repositoryContextMessage } from "./core/repository-context.ts";
 import { applyConnectionContext } from "./core/connection-context.ts";
-import { installProjectSelection } from "./core/project-selection-ui.ts";
+import { installProjectSelection, type ProjectBondOutcome, type ReachOptions } from "./core/project-selection-ui.ts";
+import { BackgroundConnect, DEVSPEC_REACHABLE_EVENT, DEVSPEC_UNREACHABLE_NOTICE, reachTiming } from "./core/startup-connect.ts";
 import { getProjectChoice, projectFromRegistration, projectRemoteArgs, type ProjectCandidate, type ProjectChoice, type ProjectChoiceRequired } from "./core/project-choice.ts";
-import { openRoomStore, roomPrincipalFingerprint, type RoomStoreScope } from "./core/room-store.ts";
+import { openRoomStore, type RoomStoreScope } from "./core/room-store.ts";
 import { readRoomForContext, roomUnreadBoundary, roomUnreadForContext } from "./core/room-tools.ts";
 import { observeRoomAccess } from "./core/room-access.ts";
 import { compactRoomAwareness, roomScopeFromEntries, ROOM_READ_TOOL, ROOM_SCOPE_ENTRY } from "./core/room-reader.ts";
@@ -107,7 +110,7 @@ import { BackgroundWorkObserver, backgroundTaskFromLaunch, backgroundTasksFromMa
 import { BACKGROUND_WORK_ENTRY, backgroundScopeKey, backgroundWorkEntry, journaledFinishedTasks, restoreBackgroundWork, type BackgroundWorkScope } from "./core/background-journal.ts";
 import { buildAgentStatsReport, refreshAgentStatsReport, TelemetryCollector, type AgentStatsReport, type MessageUsage } from "./core/telemetry.ts";
 import { takeContextBudgetReport, noteInjectedContext } from "./core/context-budget.ts";
-import { backgroundTaskNotificationId, classifyUserKind, isBackgroundCompletionOrigin, terminalBackgroundTaskIds, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitSpeech, isHarnessOrigin, isSubagentAsyncNotification, TurnTracker, noteProgressEvent, currentProgressMarker } from "./core/turn-lifecycle.ts";
+import { backgroundTaskNotificationId, classifyUserKind, isBackgroundCompletionOrigin, isBetweenStepDelivery, terminalBackgroundTaskIds, planSettle, isDeliveryBoundary, isClosedAnswer, isClosedAnswerBoundary, shouldSplitSpeech, isHarnessOrigin, isSubagentAsyncNotification, TurnTracker, noteProgressEvent, currentProgressMarker } from "./core/turn-lifecycle.ts";
 import {
 	activeRequestChain,
 	askedQuestionId,
@@ -132,14 +135,25 @@ import {
 	type WakeKey,
 } from "./core/request-chain.ts";
 import {
+	CHECK_JOB_CONTRACT_URI,
 	CHECK_JOB_VERSION,
 	dispatchId,
 	formatAutomationRunMessage,
-	formatCheckJobMessage,
+	formatCheckJobsMessage,
 	isAutomationRunEnvelope,
 	isCheckJobEnvelope,
 	isDispatchEnvelope,
+	servedCheckJobHelpers,
+	shouldDeliverQueuedCheckJob,
 } from "./core/dispatch.ts";
+import {
+	BETWEEN_STEP_CUSTOM_TYPE,
+	BetweenStepLedger,
+	betweenStepDeliveryId,
+	deliverIdleCheckJobs,
+	formatBetweenStepMessage,
+	type BetweenStepDetails,
+} from "./core/between-step.ts";
 import {
 	firstTextPreview,
 	isRealSessionTitle,
@@ -183,6 +197,9 @@ import {
 	serializeStillToDiscussProjection,
 } from "./core/still-to-discuss.ts";
 import {
+	serializeProjectIncidentsProjection,
+} from "./core/project-incidents.ts";
+import {
 	withDirectedQuestionToolActive,
 	withPlanToolActive,
 	withPollToolActive,
@@ -214,7 +231,7 @@ import {
 	type DirectedQuestionEventV1,
 	type SessionEntryLike,
 } from "./core/interaction-events.ts";
-import { resolveEndpoint, resolveToken } from "./core/auth-store.ts";
+import { principalOf, resolveEndpoint, resolveToken } from "./core/auth-store.ts";
 import { loadSettings, saveSettings } from "./core/settings.ts";
 import { decideInteractionDelivery, decideOwnerDelivery, shouldClearStrandedBusyAfterAbort, waitUntil } from "./core/preempt.ts";
 import {
@@ -241,7 +258,18 @@ import {
 	noticeReplyTerminalMessage,
 	postNoticeReply,
 	type NoticeReplyCapture,
+	type NoticeReplyOutcome,
 } from "./core/notice-reply.ts";
+import { keptOutOfWorkTrail, noticeNeedsPerson, runSpeaks, wakeIsQuiet, type RunWake } from "./core/run-voice.ts";
+import {
+	NO_NOTICE_WAITING,
+	UNANSWERED_NOTICE_LINE,
+	installNoticeHandover,
+	noticeHandoverResult,
+	withNoticeReplyToolActive,
+} from "./core/notice-handover.ts";
+import { takeTellPerson } from "./core/tell-person.ts";
+import { UsageRefusalReport, type ModelCallEnd } from "./core/usage-refusal.ts";
 
 class StaleCommandHandoffError extends DevspecToolError {}
 
@@ -291,6 +319,12 @@ interface PendingInteractionReleaseRetry {
 interface PumpState {
 	/** Monotonic authority generation; async work may commit only while this pump remains current. */
 	generation: number;
+	/**
+	 * Who the pump runs as (`principalOf`): stable across a browser sign-in's
+	 * renewals, so long-lived work can take the renewed token without ever
+	 * switching to another person's credential.
+	 */
+	credentialPrincipal?: string;
 	bond: BondState;
 	cursor?: string;
 	dispatchCursor?: string;
@@ -362,6 +396,22 @@ interface PumpState {
 	lastSessionEnrichAt?: number;
 	/** Typed automation-run delivery stays ordered without blocking the pump. */
 	automationQueue: DeliveryQueue;
+	/** Check jobs waiting to reach the agent, and the steer Pi has not shown it yet (da5cfae5). */
+	betweenStep: BetweenStepLedger;
+	/** The credential the wake channel last listed a check job under. */
+	checkJobToken?: string;
+	/** Rechecks an idle Pi that could not take its waiting check jobs yet. */
+	checkJobIdleTimer?: ReturnType<typeof setTimeout>;
+	checkJobIdleDelivering?: boolean;
+	checkJobIdleAgain?: boolean;
+	checkJobIdleFailures?: number;
+	/**
+	 * DevSpec's served words on ruling a check job in a helper agent, read
+	 * mechanically because Pi's model cannot open a devspec:// resource (da5cfae5).
+	 * Undefined until a read has answered; null when the server serves none.
+	 */
+	checkJobHelpers?: string | null;
+	checkJobHelpersLoading?: Promise<void>;
 	/** Exact-target retry survives cursor advancement after a transient send failure. */
 	automationRetryAttempts: Map<string, number>;
 	automationRetryTimers: Map<string, ReturnType<typeof setTimeout>>;
@@ -381,6 +431,9 @@ interface PumpState {
 	/** Latest validated this-session Still to Discuss tail. */
 	stillToDiscussTail: string;
 	pendingStillToDiscussTail: string;
+	/** Latest validated project-wide passive incident awareness tail. */
+	projectIncidentsTail: string;
+	pendingProjectIncidentsTail: string;
 }
 
 let pump: PumpState | null = null;
@@ -430,7 +483,8 @@ interface TurnState {
 	speechManaged?: boolean;
 	speechScopeCaptured?: boolean;
 	speechBinding?: SpeechBinding;
-	assistantSpeech?: { source: AssistantSpeechSource; binding?: SpeechBinding; model: Record<string, unknown> };
+	/** sessionBound: the connection was attached to a room session when this turn's speech was prepared (0ba072df). */
+	assistantSpeech?: { source: AssistantSpeechSource; binding?: SpeechBinding; model: Record<string, unknown>; sessionBound: boolean };
 
 	/** Monotonic segment revision; protects awaited settle reconciliation. */
 	revision: number;
@@ -447,6 +501,19 @@ interface TurnState {
 	 * as their reply when the segment closes (6aad2b46). Never carried to the next segment.
 	 */
 	noticeReply?: NoticeReplyCapture;
+	/**
+	 * Notices steered between the steps of a turn that answers someone (da5cfae5),
+	 * still waiting for a reply. That turn's messages stay the answer to the
+	 * person: what the agent says about these is handed over through the notice
+	 * reply tool, and whatever is left when the run ends is reported the same way.
+	 */
+	steeredNotices?: NoticeReplyCapture;
+	/**
+	 * A write in this segment came back with DevSpec's tell_person mark: it changed
+	 * someone else's record (a868f41f). A segment that is quiet by what woke it
+	 * speaks from then on (run-voice.ts). Never carried to the next segment.
+	 */
+	tellPerson?: boolean;
 	/**
 	 * Terminal provider failure reason for this run (item e99d158b): a
 	 * stopReason "error" assistant message is never speech and never settles
@@ -933,7 +1000,7 @@ function prepareAssistantSpeech(t: TurnState): Promise<void> {
 		})();
 		t.speechBinding = Object.freeze({ args, current, capability, sessionId, ready });
 	}
-	t.assistantSpeech = { source, binding: t.speechBinding, model: replyModelArgs() };
+	t.assistantSpeech = { source, binding: t.speechBinding, model: replyModelArgs(), sessionBound: Boolean(sessionId) };
 	return (t.speechBinding?.ready ?? Promise.resolve(null)).then(() => undefined);
 }
 
@@ -943,7 +1010,17 @@ function deliverAssistantSpeech(t: TurnState, message: unknown, append: (type: s
 	// used to end in a false "storage not confirmed". Its final message reaches the
 	// room through the notice reply instead (6aad2b46).
 	if (t.completionNeutral) return;
+	// A check-job run is quiet (a868f41f): its text stays in this session, unless
+	// one of its writes changed someone else's record (tell_person), after which its
+	// messages are delivered like any other run's.
+	if (!runSpeaks(segmentWake(t), t.tellPerson === true)) return;
 	const captured = t.assistantSpeech;
+	// A connection attached to no room (a standalone terminal answering local
+	// prompts or claiming unattended automation runs) has no transcript to mirror
+	// speech into, so there is nothing to store and nothing unconfirmed (0ba072df).
+	// Only a turn that was attached to a room, or has been attached since, can fail
+	// to store its speech, and that failure keeps its warning.
+	if (captured && !captured.sessionBound && !getBond()?.sessionId) return;
 	const record = captured?.source.finalize(message);
 	if (!record) return;
 	const binding = captured?.binding;
@@ -988,6 +1065,10 @@ function deliverAssistantSpeech(t: TurnState, message: unknown, append: (type: s
 // pi's own message_end usage; the report rides the settle answer post (when
 // attached) AND the idle heartbeat (always, so sessionless agents show too).
 const telemetry = new TelemetryCollector();
+// Usage refusal (04a1fe8f; remote-ingress semantics.check_job.usage_refusal): while
+// this Pi's model provider refuses it for usage, its status updates say until when,
+// so DevSpec offers its check jobs to another agent instead of leaving them here.
+const usageRefusal = new UsageRefusalReport();
 /** Last settled usage plus runtime identity. Runtime-only refreshes preserve usage. */
 let latestAgentStats: AgentStatsReport | null = null;
 let runtimeStampTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1177,6 +1258,23 @@ function trackTerminalPost(post: Promise<void>): void {
 	);
 }
 
+/**
+ * What woke this segment (a868f41f, criterion f9caa4fa): a notice batch, a check
+ * job, or anything else. With DevSpec's tell_person mark it decides whether the
+ * segment's text reaches the room (run-voice.ts), never the text itself.
+ */
+function segmentWake(t: TurnState): RunWake {
+	if (t.completionNeutral && t.noticeReply) {
+		return t.noticeReply.noticeIds.length > 0 ? "notice_needs_person" : "notice_for_the_record";
+	}
+	return t.tracker.userKind === "check_job" ? "check_job" : "person";
+}
+
+/** Quiet by what woke it: no speech, answer, trail or error notice in the room. */
+function segmentIsQuiet(t: TurnState): boolean {
+	return wakeIsQuiet(segmentWake(t));
+}
+
 function isCommandTurnUnbound(t: TurnState): boolean {
 	// Every actionable remote command now has BOTH ids (extractor fails closed).
 	// Interaction continuations are exact source-less generations too.
@@ -1196,6 +1294,9 @@ function resetDirectedQuestionReceiptBatch(): void {
 
 function trailTick(): void {
 	if (!turn || !remoteRunActivityPolicy(turn.completionNeutral).reportTranscript) return;
+	// A quiet segment posts no work trail: a finished trail-only row is drawn in the
+	// conversation, which is exactly what a check job must not reach (a868f41f).
+	if (segmentIsQuiet(turn)) return;
 	if (turn.receiptBatch.deferTrail(turn.revision)) return;
 	const now = Date.now();
 	if (turn.interaction && now - (turn.lastInteractionKeepaliveAt ?? 0) >= 60_000) {
@@ -1225,6 +1326,38 @@ function trailTick(): void {
  * otherwise strand the Working indicator until lease expiry. report_complete
  * is the explicit channel; idempotent when the attempt already closed.
  */
+/**
+ * Say that this segment has started one exact room command (item 7b693c1b).
+ *
+ * DevSpec no longer treats a busy report as starting a delivered command: a busy
+ * sampled while the previous turn was ending used to mark the next command started,
+ * and that turn's late finish then closed it before the agent saw it (DevSpecV2
+ * 6d767a58). Only the host saying which command it started starts one, so Pi names
+ * the command turn and message here. Best-effort: Working is a view, and the turn
+ * never waits on or fails with this report.
+ */
+async function reportCommandPickup(commandTurnId: string, commandMessageId: string, stillCurrent: () => boolean): Promise<void> {
+	const active = pump;
+	if (!active || active.stop) return;
+	const authority = capturePumpAuthority({ generation: active.generation, connectionId: active.bond.connectionId });
+	const resolved = await resolveToken();
+	if (!resolved || !stillCurrent() || pump !== active || active.stop || !isPumpAuthorityCurrent(authority, {
+		generation: active.generation,
+		connectionId: active.bond.connectionId,
+	})) return;
+	try {
+		await callDevspec(resolved.token, "report_pickup", {
+			connection_id: authority.connectionId,
+			command_turn_id: commandTurnId,
+			command_message_id: commandMessageId,
+		}, { timeoutMs: 10_000, lane: "pump", retry: "never",
+			beforeSend: () => { if (!stillCurrent()) throw new DevspecToolError("Command segment changed before pickup."); },
+		});
+	} catch {
+		/* busy presence, the answer's own completion and lease expiry remain */
+	}
+}
+
 async function reportComplete(reason: string, commandTurnId?: string, commandMessageId?: string, commandTurnUnbound = false, interaction?: ExactInteractionContinuationIdentity, prePersistenceFailure = false, stillCurrent: () => boolean = () => true, localAttemptId?: string): Promise<boolean> {
 	const active = pump;
 	if (!active || (active.stop && !active.closing)) return false;
@@ -1311,6 +1444,8 @@ export function renderTerminalErrorPost(errorMessage: string): string {
  */
 async function reportTerminalError(t: TurnState, agentStats: AgentStatsReport | null): Promise<void> {
 	if (!t.terminalError) return;
+	// Nobody in the room asked for a quiet run; the provider's error stays in Pi (a868f41f).
+	if (segmentIsQuiet(t)) return;
 	const finalTrail = t.trail.render(FINAL_TRAIL_CHARS, false);
 	const finalEvents = t.trail.events();
 	const activityTrail = finalEvents.length > 0 ? finalTrail : undefined;
@@ -1431,10 +1566,19 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 	// message goes to the room as their reply and it reports no transcript,
 	// trail or completion, so it never closes a turn (6aad2b46).
 	if (t.completionNeutral) {
-		if (t.noticeReply) await deliverNoticeReply(t.noticeReply, agentStats);
+		if (t.noticeReply) await deliverNoticeReply(t.noticeReply, agentStats, t.tellPerson === true);
 		return false;
 	}
 	if (!remoteRunActivityPolicy(t.completionNeutral).reportTranscript) return false;
+	// A quiet segment (a check job) posts no answer and no trail. If a write of its
+	// own was marked tell_person, its messages already went out as speech (a868f41f).
+	if (segmentIsQuiet(t)) {
+		// A notice delivered between the steps of a check-job run has no other voice:
+		// the run's final message is its reply, as for a notice run (da5cfae5). Once
+		// tell_person made the run speak, that message already reached the room.
+		if (t.noticeReply && t.tellPerson !== true) await deliverNoticeReply(t.noticeReply, agentStats, false);
+		return false;
+	}
 	// The final render rides the answer post (item 9b7455df): the server
 	// REPLACES the fold-merged accumulation with this canonical final render —
 	// every tool closed, the whole segment's thinking — so the preserved
@@ -1478,15 +1622,61 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
  * local-turn or background-completion writers. Anything that keeps it out of the
  * room is said in the terminal, with DevSpec's own reason when DevSpec refused it.
  */
-async function deliverNoticeReply(capture: NoticeReplyCapture, agentStats: AgentStatsReport | null): Promise<void> {
+async function deliverNoticeReply(capture: NoticeReplyCapture, agentStats: AgentStatsReport | null, tellPerson: boolean): Promise<void> {
 	const ctx = lastCtx;
+	if (capture.noticeIds.length === 0) {
+		// Every notice was for the record (a868f41f): nothing is posted, not even to
+		// acknowledge it, unless a write of this run changed someone else's record.
+		// Then the person must hear what changed, in an ordinary message, because a
+		// reply naming only for-the-record notices is refused (notice_reply.only_when_needed).
+		if (!tellPerson || capture.finalText === null) {
+			debug("notice reply", { forTheRecord: capture.forTheRecordIds.length, posted: false });
+			return;
+		}
+		const told = await postTellPersonAnswer(capture.connectionId, capture.finalText);
+		debug("notice reply", { forTheRecord: capture.forTheRecordIds.length, tellPerson: true, posted: told === "posted" });
+		if (told !== "failed") return;
+		const message = "DevSpec: your agent changed someone else's record while handling a DevSpec notice, and its message saying so may not have reached the room. It stays here in the terminal.";
+		if (safeHasUI(ctx)) notify(ctx, message, "warning");
+		else console.error(message);
+		return;
+	}
+	const outcome = await postCapturedNoticeReply(capture, agentStats);
+	debug("notice reply", { notices: capture.noticeIds.length, posted: outcome.kind === "posted", idempotent: outcome.kind === "posted" && outcome.idempotent, refused: outcome.kind === "refused", unconfirmed: outcome.kind === "unconfirmed", skipped: outcome.kind === "no_final_text" || outcome.kind === "not_attached" || outcome.kind === "connection_changed" || outcome.kind === "settled_housekeeping" || outcome.kind === "for_the_record" });
+	if (outcome.kind === "posted") { noteOwnRoomMessage(outcome.messageId); return; }
+	if (outcome.kind === "settled_housekeeping" || outcome.kind === "for_the_record") {
+		if (outcome.kind === "settled_housekeeping" && outcome.housekeepingMessageId) {
+			noteOwnRoomMessage(outcome.housekeepingMessageId);
+		}
+		if (tellPerson && capture.finalText !== null) {
+			const told = await postTellPersonAnswer(capture.connectionId, capture.finalText);
+			if (told === "failed") {
+				const warn = "DevSpec: your agent changed someone else's record while handling a DevSpec notice, and its message saying so may not have reached the room. It stays here in the terminal.";
+				if (safeHasUI(ctx)) notify(ctx, warn, "warning");
+				else console.error(warn);
+			}
+		}
+		return;
+	}
+	const message = noticeReplyTerminalMessage(outcome, capture);
+	if (!message) return;
+	if (safeHasUI(ctx)) notify(ctx, message, "warning");
+	else console.error(message);
+}
+
+/**
+ * The one notice-reply post (semantics.notice_reply): the capture's text, naming
+ * its notices, from this Pi's connection. DevSpec's gate answers with what the
+ * room shows; nothing here decides that.
+ */
+async function postCapturedNoticeReply(capture: NoticeReplyCapture, agentStats: AgentStatsReport | null): Promise<NoticeReplyOutcome> {
 	const current = () => {
 		const active = pump;
 		const bond = getBond();
 		if (!active || (active.stop && !active.closing) || !bond || active.bond.connectionId !== bond.connectionId) return null;
 		return { connectionId: bond.connectionId, sessionId: bond.sessionId ?? null };
 	};
-	const outcome = await postNoticeReply({
+	return postNoticeReply({
 		capture,
 		current,
 		call: async (args) => {
@@ -1504,12 +1694,82 @@ async function deliverNoticeReply(capture: NoticeReplyCapture, agentStats: Agent
 		},
 		extraArgs: { agent_name: AGENT_NAME, ...(agentStats ? { agent_stats: agentStats } : {}), ...replyModelArgs(agentStats ?? undefined) },
 	});
-	debug("notice reply", { notices: capture.noticeIds.length, posted: outcome.kind === "posted", idempotent: outcome.kind === "posted" && outcome.idempotent, refused: outcome.kind === "refused", unconfirmed: outcome.kind === "unconfirmed", skipped: outcome.kind === "no_final_text" || outcome.kind === "not_attached" || outcome.kind === "connection_changed" });
-	if (outcome.kind === "posted") { noteOwnRoomMessage(outcome.messageId); return; }
-	const message = noticeReplyTerminalMessage(outcome, capture);
-	if (!message) return;
-	if (safeHasUI(ctx)) notify(ctx, message, "warning");
-	else console.error(message);
+}
+
+/**
+ * The agent handed over what it has to say about the notices steered into the
+ * turn it is running (the notice reply tool, da5cfae5). The words were never one
+ * of the turn's messages, so they are no part of the command's speech: they go
+ * out as a notice reply naming those notices, and DevSpec's gate decides whether
+ * the room shows a reply with its card, a quiet housekeeping entry or nothing.
+ * The post binds to no command, turn or attempt, so the command is untouched.
+ */
+async function answerSteeredNotices(message: string): Promise<{ ok: boolean; text: string }> {
+	const capture = turn?.steeredNotices;
+	if (!capture || capture.noticeIds.length === 0) return { ok: false, text: NO_NOTICE_WAITING };
+	const noticeIds = [...capture.noticeIds];
+	// Kept, so a reply DevSpec could not confirm goes again with the agent's own words.
+	capture.finalText = message;
+	const outcome = await postCapturedNoticeReply({ ...capture, noticeIds, finalText: message }, null);
+	const result = noticeHandoverResult(outcome);
+	debug("notice reply", { notices: noticeIds.length, posted: outcome.kind === "posted", refused: outcome.kind === "refused", unconfirmed: outcome.kind === "unconfirmed", skipped: !result.done });
+	if (outcome.kind === "posted") noteOwnRoomMessage(outcome.messageId);
+	if (outcome.kind === "settled_housekeeping" && outcome.housekeepingMessageId) noteOwnRoomMessage(outcome.housekeepingMessageId);
+	if (result.done) {
+		// DevSpec has decided about these: nothing more is posted for them.
+		capture.noticeIds = capture.noticeIds.filter((id) => !noticeIds.includes(id));
+		capture.finalText = null;
+	}
+	return { ok: result.ok, text: result.text };
+}
+
+/**
+ * The run that notices were steered into has ended, its own answer and
+ * completion already posted. Any of those notices the agent handed nothing over
+ * for is reported through the same notice-reply path, so DevSpec's gate always
+ * runs and never waits on the agent: a settled notice becomes a quiet
+ * housekeeping entry, and one that still needs a person is shown to them with
+ * its card (da5cfae5).
+ */
+async function reportUnansweredSteeredNotices(t: TurnState, agentStats: AgentStatsReport | null): Promise<void> {
+	const capture = t.steeredNotices;
+	if (!capture || capture.noticeIds.length === 0) return;
+	t.steeredNotices = undefined;
+	await deliverNoticeReply({ ...capture, finalText: capture.finalText ?? UNANSWERED_NOTICE_LINE }, agentStats, false);
+}
+
+/**
+ * A quiet notice run's final message, when one of its writes changed someone
+ * else's record (tell_person, a868f41f). It goes to the room as an ordinary
+ * message on the same append-only speech lane as every other Pi message: no
+ * command, turn or attempt identity, so it changes no Working, Pending or idle.
+ * "not_attached": there is no room, and the text stays in the terminal anyway.
+ */
+async function postTellPersonAnswer(connectionId: string, text: string): Promise<"posted" | "not_attached" | "failed"> {
+	const active = pump;
+	const bond = getBond();
+	const sessionId = bond?.sessionId;
+	const capability = bond?.connectionCapability;
+	if (!active || active.stop || bond?.connectionId !== connectionId) return "failed";
+	if (!sessionId) return "not_attached";
+	if (!capability || !assistantSpeechWithinBudget(text)) return "failed";
+	const current = () => pump === active && !active.stop &&
+		getBond()?.connectionId === connectionId && getBond()?.sessionId === sessionId;
+	const assistantSourceId = randomUUID();
+	try {
+		const resolved = await resolveToken();
+		if (!resolved || !current()) return "failed";
+		const raw = await callDevspec(resolved.token, "post_session_message", {
+			connection_id: connectionId, ingest_version: 2, assistant_source_id: assistantSourceId,
+			message: text, phase: "answer", complete_turn: false, ...replyModelArgs(),
+		}, { lane: "pump", retry: "never", connectionCapability: capability,
+			beforeSend: () => { if (!current()) throw new DevspecToolError("Speech scope changed."); } });
+		const receipt = parsePostSessionReceipt(raw, { connectionId, sessionId, phase: "answer", assistantSourceId });
+		if ("messageId" in receipt) noteOwnRoomMessage(receipt.messageId);
+		return receipt.status === "stored" || receipt.status === "idempotently_stored" ? "posted" : "failed";
+	} catch {
+		return "failed";
+	}
 }
 
 /**
@@ -1573,6 +1833,8 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 		localActivityReady: t.localActivityReady,
 		...(t.requestKind ? { requestKind: t.requestKind } : {}),
 		completionNeutral: t.completionNeutral,
+		// The run goes on, and so does the chance to answer what was steered into it.
+		...(t.steeredNotices ? { steeredNotices: t.steeredNotices } : {}),
 		interaction: t.interaction,
 		occupancy: t.occupancy,
 		lastInteractionKeepaliveAt: t.lastInteractionKeepaliveAt,
@@ -1616,6 +1878,7 @@ async function beatBusy(busy: boolean, agentStats?: AgentStatsReport | null): Pr
 	}
 	const resolved = await resolveToken();
 	if (!resolved) return;
+	const refusal = usageRefusal.statusField(Date.now());
 	try {
 		await callDevspec(resolved.token, "heartbeat_connection", {
 			connection_id: active.bond.connectionId,
@@ -1626,7 +1889,9 @@ async function beatBusy(busy: boolean, agentStats?: AgentStatsReport | null): Pr
 			// lease only while this marker keeps changing.
 			progress_marker: currentProgressMarker(),
 			...(agentStats ? { agent_stats: agentStats } : {}),
+			...refusal,
 		}, { lane: "pump" });
+		usageRefusal.delivered(refusal);
 	} catch {
 		/* presence is best-effort — the next poll re-asserts */
 	}
@@ -1637,7 +1902,20 @@ function notify(ctx: ExtensionContext | null, message: string, level: "info" | "
 	withLiveUi(ctx, () => ctx.ui.notify(message, level));
 }
 
-/** Deliver only from an idle, current generation. Busy intake remains memory-only. */
+function notifyAutoBonded(ctx: ExtensionContext, codename: string | undefined): void {
+	notify(ctx, `DevSpec remote: auto-bonded as ${codename ?? "agent"} — you're reachable from the Agents page. /devspec.remote stop to end.`);
+}
+
+function notifyAutoBondFailed(ctx: ExtensionContext, outcome: ProjectBondOutcome): void {
+	notify(ctx, outcome.cancelled ? `DevSpec remote: ${outcome.error}` : `DevSpec remote: auto-bond failed: ${outcome.error}`, outcome.cancelled ? "info" : outcome.errorKind === "auth" ? "warning" : "error");
+}
+
+/**
+ * Start a notice run from an idle, current generation. Busy intake remains
+ * memory-only here: a running turn is handed what is queued when its current
+ * step ends (steerWaitingBetweenSteps, da5cfae5), and what is still queued when
+ * the run settles goes out through this.
+ */
 function deliverQueuedSystemNotices(active: PumpState, ctx: ExtensionContext): boolean {
 	if (pump !== active || active.stop || !shouldDeliverSystemNotices({ ctxIdle: ctx.isIdle(), pumpBusy: active.busy })) return false;
 	const notices = queuedSystemNotices(active.systemNoticeKey);
@@ -1686,7 +1964,7 @@ async function ackControl(
 function drainControlResults(active: PumpState, ctx: ExtensionContext, token: string, endpoint: string): void {
 	if (pump !== active || active.stop || active.controlResultRetryTimer || !active.controlResults.hasPending(active.bond.connectionId)) return;
 	void active.controlResults.drain(active.bond.connectionId,
-		value => ackControl(token, value.connectionId, value.controlId, value.catalog, value.result, endpoint),
+		async value => ackControl(await currentPumpToken(active, token), value.connectionId, value.controlId, value.catalog, value.result, endpoint),
 		pi_appendControlResult, () => pump === active && !active.stop,
 	).then(() => { if (!active.controlResults.hasPending(active.bond.connectionId)) active.controlResultWarning = false; }).catch(() => {
 		if (pump !== active || active.stop) return;
@@ -1841,6 +2119,7 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	systemNoticeRunActive = false;
 	revokeSystemNoticeState(active.systemNoticeKey);
 	active.automationQueue.invalidate();
+	dropWaitingCheckJobs(active);
 	for (const timer of active.automationRetryTimers.values()) clearTimeout(timer);
 	active.automationRetryTimers.clear();
 	active.pushGenerationFence.invalidate();
@@ -2342,6 +2621,19 @@ function waitForWake(active: PumpState, safetyMs: number): Promise<void> {
  * grace-guarded liveness clear (10s) gives these retries their window: a
  * reconnect that lands in time re-stamps presence and defeats the clear.
  */
+/**
+ * The credential to use now. A browser sign-in renews its access token about
+ * once a day, so work that outlives a moment (reconnects, retries, room history)
+ * asks for the current token instead of keeping the one it started with. It
+ * never switches identity: if someone else is now signed in, the held token is
+ * kept and DevSpec decides.
+ */
+async function currentPumpToken(active: PumpState, held: string): Promise<string> {
+	const fresh = await resolveToken().catch(() => null);
+	if (!fresh || !active.credentialPrincipal || principalOf(fresh) !== active.credentialPrincipal) return held;
+	return fresh.token;
+}
+
 function schedulePushReconnect(
 	active: PumpState,
 	token: string,
@@ -2363,10 +2655,14 @@ function schedulePushReconnect(
 		active.pushReconnectTimer = undefined;
 		if (active.stop || active.pushEnded !== undefined ||
 			!active.pushGenerationFence.isCurrent(streamGeneration)) return;
-		startPushChannel(active, token, endpoint);
-		// A re-opened stream's first marker read always wakes (fresh baseline),
-		// so nothing that moved during the outage is missed.
-		signalWake(active);
+		void currentPumpToken(active, token).then((current) => {
+			if (active.stop || active.pushEnded !== undefined ||
+				!active.pushGenerationFence.isCurrent(streamGeneration)) return;
+			startPushChannel(active, current, endpoint);
+			// A re-opened stream's first marker read always wakes (fresh baseline),
+			// so nothing that moved during the outage is missed.
+			signalWake(active);
+		});
 	}, delay);
 	if (typeof active.pushReconnectTimer.unref === "function") active.pushReconnectTimer.unref();
 }
@@ -2444,6 +2740,58 @@ function assertDeliveryAuthority(active: PumpState, lease: DeliveryLease): void 
 	}
 }
 
+/**
+ * Check jobs and notices reach a working agent between steps (item da5cfae5,
+ * decision b8abe2bb; this replaces the hold of d36ac887, decision ff1bcabe).
+ *
+ * "Busy" here is one thing: Pi is running a turn (agent_start to agent_settled),
+ * or is about to (a run is starting, a message is queued, a notice run is being
+ * started). Then nothing new starts a run. Whatever is waiting is steered into
+ * the running turn when its current step ends (steerWaitingBetweenSteps, from
+ * turn_end), or goes out idle once the run has settled. Idle, it goes out
+ * straight away, as before.
+ */
+const CHECK_JOB_PICKUP_HOLD_MS = 400;
+const CHECK_JOB_IDLE_POLL_MS = 200;
+/** A check-job wake was just handed to Pi: its run is starting, so a second wake must not race it. */
+let checkJobPickupHoldUntil = 0;
+
+/** Pi is idle and nothing is about to start a run: a check-job wake may start one. */
+function isCheckJobForegroundReady(active: PumpState, ctx: ExtensionContext): boolean {
+	const hasPending = typeof ctx.hasPendingMessages === "function" ? ctx.hasPendingMessages() : false;
+	return !runActive && !systemNoticeTurnPending && !active.runtimeOccupancy.isBusy() && ctx.isIdle() && !hasPending && Date.now() >= checkJobPickupHoldUntil;
+}
+
+/** This connection is ending or being replaced: its waiting check jobs go with it. */
+function dropWaitingCheckJobs(active: PumpState): void {
+	if (active.checkJobIdleTimer) clearTimeout(active.checkJobIdleTimer);
+	active.checkJobIdleTimer = undefined;
+	active.checkJobIdleAgain = false;
+	active.checkJobIdleFailures = 0;
+	active.betweenStep = new BetweenStepLedger();
+}
+
+/**
+ * Read what DevSpec serves on ruling a check job in a helper agent, so the text
+ * that announces a job can quote it beside the pointer (da5cfae5, decision
+ * 1d5a9c56). Read again whenever a job arrives, off Pi's loop, so the words are
+ * as current as the job. A failed read changes nothing: the pointer stands by
+ * itself, and every claim_check_job reply carries the same words.
+ */
+function refreshCheckJobHelpers(active: PumpState, token: string): Promise<void> {
+	active.checkJobHelpersLoading ??= (async () => {
+		try {
+			const resource = await readDevspecResource(token, CHECK_JOB_CONTRACT_URI, { lane: "work", timeoutMs: 5_000 });
+			if (pump === active && !active.stop) active.checkJobHelpers = servedCheckJobHelpers(resource);
+		} catch {
+			debug("check job helpers read failed", { errorPresent: true });
+		} finally {
+			active.checkJobHelpersLoading = undefined;
+		}
+	})();
+	return active.checkJobHelpersLoading;
+}
+
 async function deliverAutomationRun(
 	active: PumpState,
 	value: unknown,
@@ -2464,18 +2812,174 @@ async function deliverAutomationRun(
 	pi_send(message, ctx.isIdle() ? "now" : "followUp");
 }
 
-/** Wake the agent for one check job; the job itself is taken with claim_check_job. */
-async function deliverCheckJob(
-	active: PumpState,
-	value: unknown,
-	ctx: ExtensionContext,
-	lease: DeliveryLease,
-): Promise<void> {
-	assertDeliveryAuthority(active, lease);
-	if (!isCheckJobEnvelope(value)) return;
-	const message = formatCheckJobMessage(value, active.bond.codename ?? "this agent");
-	assertDeliveryAuthority(active, lease);
-	pi_send(message, ctx.isIdle() ? "now" : "followUp");
+/**
+ * Deliver every waiting check job to an idle Pi in ONE wake (da5cfae5): the
+ * one-job-per-turn pacing is gone. Each waiting job is rechecked with DevSpec
+ * first (e6985316). While a run is active this does nothing: that run's next
+ * step boundary takes the jobs (steerWaitingBetweenSteps), and its end calls this
+ * again. An idle Pi that cannot take them yet (a run is starting, a message is
+ * queued, compaction) is asked again shortly.
+ */
+function pumpWaitingCheckJobs(active: PumpState, ctx: ExtensionContext): void {
+	if (active.checkJobIdleTimer) clearTimeout(active.checkJobIdleTimer);
+	active.checkJobIdleTimer = undefined;
+	if (active.stop || pump !== active || !active.betweenStep.hasWaitingCheckJobs() || runActive) return;
+	if (active.checkJobIdleDelivering) { active.checkJobIdleAgain = true; return; }
+	active.checkJobIdleDelivering = true;
+	const ledger = active.betweenStep;
+	const current = () => !active.stop && pump === active && active.betweenStep === ledger;
+	void (async () => {
+		let retryMs = CHECK_JOB_IDLE_POLL_MS;
+		try {
+			const token = await currentPumpToken(active, active.checkJobToken ?? "");
+			// The first job on this connection waits for DevSpec's words on helpers
+			// (bounded by that read's own timeout); later ones use what was read last.
+			if (active.checkJobHelpers === undefined) await active.checkJobHelpersLoading;
+			const outcome = await deliverIdleCheckJobs({
+				ledger,
+				current,
+				ready: () => isCheckJobForegroundReady(active, ctx),
+				stillPending: (key) => shouldDeliverQueuedCheckJob({
+					key,
+					loadCurrentInbox: () => loadCurrentAutomationInbox(active, key, token, ctx),
+					identity: dispatchId,
+				}),
+				send: (jobs) => {
+					// The run this starts is not active yet: hold a second wake until it is.
+					checkJobPickupHoldUntil = Date.now() + CHECK_JOB_PICKUP_HOLD_MS;
+					pi_send(formatCheckJobsMessage(jobs.map((job) => job.envelope), active.bond.codename ?? "this agent", { helpers: active.checkJobHelpers }), "now");
+					notify(ctx, `DevSpec remote: ${jobs.length === 1 ? "check job" : `${jobs.length} check jobs`} delivered.`);
+				},
+			});
+			active.checkJobIdleFailures = 0;
+			if (outcome === "stale") return;
+		} catch (error) {
+			if (!current()) return;
+			const failures = (active.checkJobIdleFailures ?? 0) + 1;
+			active.checkJobIdleFailures = failures;
+			retryMs = nextDeliveryRetryDelayMs(failures);
+			const reason = error instanceof Error ? error.message : String(error);
+			notify(ctx, `DevSpec remote: failed to deliver check job: ${reason}. Trying again in ${Math.ceil(retryMs / 1_000)}s.`, "warning");
+		} finally {
+			active.checkJobIdleDelivering = false;
+		}
+		if (!current() || !ledger.hasWaitingCheckJobs() || runActive) return;
+		if (active.checkJobIdleAgain) {
+			active.checkJobIdleAgain = false;
+			pumpWaitingCheckJobs(active, ctx);
+			return;
+		}
+		const timer = setTimeout(() => {
+			if (active.checkJobIdleTimer === timer) active.checkJobIdleTimer = undefined;
+			pumpWaitingCheckJobs(active, ctx);
+		}, retryMs);
+		if (typeof timer.unref === "function") timer.unref();
+		active.checkJobIdleTimer = timer;
+	})();
+}
+
+/**
+ * A check-job run and a notice run answer nobody. A notice delivered into one is
+ * answered by its final message, as for any notice run; a notice delivered into
+ * a turn that answers someone leaves that turn's voice alone (da5cfae5).
+ */
+function segmentAnswersNobody(t: TurnState | null): boolean {
+	return Boolean(t && (t.completionNeutral || t.tracker.userKind === "check_job"));
+}
+
+/**
+ * A step of the running turn has ended: hand Pi everything waiting at this
+ * moment as ONE steer (da5cfae5). Pi shows it to the agent before the next step
+ * and never interrupts a step for it. Nothing is committed here: the steer is in
+ * flight until its message_start (noteBetweenStepDelivered). No network call is
+ * made, because this runs inside Pi's own loop.
+ */
+function steerWaitingBetweenSteps(active: PumpState, outcome: string): void {
+	// A step that was stopped or failed ends its run (or is retried): the run's
+	// next completed step, or its end, delivers what waits.
+	if (pump !== active || active.stop || outcome !== "completed") return;
+	const notices = queuedSystemNotices(active.systemNoticeKey);
+	const batch = active.betweenStep.beginSteer(notices.map((notice) => notice.notice_id));
+	if (!batch) return;
+	const roomAttached = Boolean(active.bond.sessionId);
+	const inRunningTurn = !segmentAnswersNobody(turn);
+	const details: BetweenStepDetails = {
+		delivery_id: batch.deliveryId,
+		check_job_ids: batch.checkJobs.map((job) => job.id),
+		notices,
+		roomAttached,
+	};
+	try {
+		pi_steerBetweenSteps(formatBetweenStepMessage({
+			codename: active.bond.codename ?? "this agent",
+			checkJobs: batch.checkJobs.map((job) => job.envelope),
+			notices,
+			roomAttached,
+			inRunningTurn,
+			helpers: active.checkJobHelpers,
+		}), details);
+		// The turn answers someone, so a reply about these notices cannot be one of
+		// its messages: show the agent the tool that hands it over. Set here, before
+		// Pi prepares the next step, so the tool is there when the steer is read.
+		if (inRunningTurn && roomAttached && notices.some(noticeNeedsPerson)) pi_setNoticeReplyToolActive(true);
+	} catch (error) {
+		active.betweenStep.abandonSteer(batch.deliveryId);
+		debug("between-step steer failed", { errorPresent: Boolean(error) });
+	}
+}
+
+/** One delivered batch's notices, joined to what the segment already holds. */
+function mergedNoticeCapture(held: NoticeReplyCapture | undefined, details: unknown): NoticeReplyCapture | undefined {
+	// Only the connection they were delivered to may name them. Only the notices
+	// that need a person are named in the reply; a batch of notices that are all
+	// for the record leaves the run quiet (a868f41f).
+	const { needsPerson, forTheRecord } = noticeIdsFromDelivery(details);
+	const connectionId = getBond()?.connectionId;
+	if (needsPerson.length + forTheRecord.length === 0 || !connectionId) return held;
+	const kept = held?.connectionId === connectionId ? held : undefined;
+	return {
+		connectionId,
+		noticeIds: [...new Set([...(kept?.noticeIds ?? []), ...needsPerson])],
+		forTheRecordIds: [...new Set([...(kept?.forTheRecordIds ?? []), ...forTheRecord])],
+		roomPromised: (details as { roomAttached?: unknown } | undefined)?.roomAttached === true,
+		finalText: kept?.finalText ?? null,
+	};
+}
+
+/** The notices a nobody's run answers, for the reply its final message becomes (6aad2b46). */
+function captureNoticeReply(t: TurnState, details: unknown): void {
+	const merged = mergedNoticeCapture(t.noticeReply, details);
+	if (merged) t.noticeReply = { ...merged, finalText: null };
+}
+
+/**
+ * Pi has shown the agent a between-step delivery (its message_start). This is
+ * the one place a steered batch is committed, exactly once: a repeat, or a steer
+ * this pump gave up on, changes nothing. The running turn is left exactly as it
+ * is: its kind, the request its writes are recorded for, its command identity,
+ * its Working state and its replies (da5cfae5).
+ */
+function noteBetweenStepDelivered(details: unknown, ctx: ExtensionContext): void {
+	const active = pump;
+	const deliveryId = betweenStepDeliveryId(details);
+	const batch = active && deliveryId ? active.betweenStep.observe(deliveryId) : null;
+	if (!active || !batch) return;
+	if (batch.noticeIds.length > 0) {
+		if (commitSystemNoticeDelivery(active.systemNoticeKey, batch.noticeIds)) {
+			// Capacity is available again: resume notice negotiation at once.
+			signalWake(active);
+		} else {
+			debug("between-step notice commit skipped", { notices: batch.noticeIds.length });
+		}
+		if (turn && segmentAnswersNobody(turn)) captureNoticeReply(turn, details);
+		// A turn that answers someone keeps its messages for that person. The
+		// notices wait for a reply handed over apart from them (answerSteeredNotices),
+		// and what is left when the run ends is reported the same way.
+		else if (turn) turn.steeredNotices = mergedNoticeCapture(turn.steeredNotices, details);
+	}
+	if (batch.checkJobs.length > 0) {
+		notify(ctx, `DevSpec remote: ${batch.checkJobs.length === 1 ? "check job" : `${batch.checkJobs.length} check jobs`} delivered.`);
+	}
 }
 
 async function loadCurrentAutomationInbox(
@@ -2520,7 +3024,7 @@ function scheduleAutomationRetry(
 	const delayMs = nextDeliveryRetryDelayMs(failures);
 	const reason = error instanceof Error ? error.message : String(error);
 	if (!active.automationRetryTimers.has(key)) {
-		const timer = setTimeout(() => {
+		const timer = setTimeout(() => void currentPumpToken(active, token).then((token) => {
 			active.automationRetryTimers.delete(key);
 			if (!authorityIsCurrent()) return;
 			void revalidateAutomationRunRetry({
@@ -2542,7 +3046,7 @@ function scheduleAutomationRetry(
 			}).catch((retryError) => {
 				if (authorityIsCurrent()) scheduleAutomationRetry(active, key, token, ctx, retryError, false, what);
 			});
-		}, delayMs);
+		}), delayMs);
 		if (typeof timer.unref === "function") timer.unref();
 		active.automationRetryTimers.set(key, timer);
 	}
@@ -2570,8 +3074,18 @@ function enqueueDispatch(
 	active.automationQueue.enqueue(
 		key,
 		async (lease) => {
-			if (checkJob) await deliverCheckJob(active, value, ctx, lease);
-			else await deliverAutomationRun(active, value, ctx, lease);
+			if (checkJob) {
+				// A check job only starts waiting here (da5cfae5). An idle Pi takes it
+				// straight away; a running turn takes it when its current step ends.
+				assertDeliveryAuthority(active, lease);
+				active.checkJobToken = token;
+				if (active.betweenStep.admitCheckJob(key, value)) {
+					void refreshCheckJobHelpers(active, token);
+					pumpWaitingCheckJobs(active, ctx);
+				}
+				return;
+			}
+			await deliverAutomationRun(active, value, ctx, lease);
 			active.automationRetryAttempts.delete(key);
 			const timer = active.automationRetryTimers.get(key);
 			if (timer) clearTimeout(timer);
@@ -2603,6 +3117,11 @@ async function reviveRecoverableBond(
 	// ended/not_found): it closed every request the connection carried (7a4d04fd).
 	serverEnded = false,
 ): Promise<boolean> {
+	if (active.stop || pump !== active) return false;
+	// Re-read the saved credential before re-registering: a poll failure may have
+	// been caused by a browser sign-in renewing its access token while the pump
+	// slept or polled (item b59b18fa).
+	token = await currentPumpToken(active, token);
 	if (active.stop || pump !== active) return false;
 	const prior = active.bond;
 	const localId = ctx.sessionManager.getSessionId();
@@ -2691,6 +3210,8 @@ async function reviveRecoverableBond(
 			active.attachmentRetryAttempts.clear();
 			active.automationQueue.invalidate();
 			active.automationQueue = new DeliveryQueue();
+			// Another connection's check jobs are not this one's to rule.
+			dropWaitingCheckJobs(active);
 			for (const timer of active.automationRetryTimers.values()) clearTimeout(timer);
 			active.automationRetryTimers.clear();
 			active.automationRetryAttempts.clear();
@@ -2730,21 +3251,31 @@ async function reviveRecoverableBond(
 		signalWake(active);
 		return true;
 	} catch (err) {
+		if (err instanceof DevspecAuthError && !isSignedOutAuthError(err)) {
+			// Another Pi process or background call may have renewed the saved
+			// access token while register_connection was in flight (b59b18fa).
+			const after = await currentPumpToken(active, token);
+			if (after !== token) {
+				return reviveRecoverableBond(active, after, ctx, failure, serverEnded);
+			}
+		}
 		if (failure) failure.authFailed = err instanceof DevspecAuthError;
 		return false;
 	}
 }
 
 async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: string, endpoint: string): Promise<void> {
-	const effective = await resolveToken();
-	const effectiveEndpoint = await resolveEndpoint();
 	if (pump !== active || active.stop) return;
-	if (effective?.token !== token || effectiveEndpoint !== endpoint) {
-		active.roomSync?.close(true); active.roomSync = undefined; pi_appendRoomScope(null, active.localSessionId); return;
-	}
 	const b = active.bond;
 	if (!b.projectId || !b.sessionId || !b.speechAttachmentId) {
 		active.roomSync?.close(true); active.roomSync = undefined; active.roomSyncKey = undefined; pi_appendRoomScope(null, active.localSessionId); return;
+	}
+	const effective = await resolveToken();
+	const effectiveEndpoint = await resolveEndpoint();
+	if (pump !== active || active.stop) return;
+	// Same person and server as the pump: a renewed token is the same principal.
+	if (!effective || principalOf(effective) !== active.credentialPrincipal || effectiveEndpoint !== endpoint) {
+		active.roomSync?.close(true); active.roomSync = undefined; pi_appendRoomScope(null, active.localSessionId); return;
 	}
 	// Connection identity fences the authenticated principal; credentials are never
 	// part of the persisted scope. Endpoint credentials/query strings are omitted.
@@ -2759,12 +3290,12 @@ async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: s
 	active.roomSyncKey = key; active.roomSyncAttemptAt = Date.now();
 	const current = () => pump === active && !active.stop && ctx.sessionManager.getSessionId() === active.localSessionId && getBond()?.connectionId === scope.connectionId && getBond()?.connectionCapability === capability && active.bond.connectionId === scope.connectionId && active.bond.sessionId === scope.sessionId && active.bond.speechAttachmentId === scope.attachmentId && active.bond.connectionCapability === capability;
 	try {
-		const advertised = await readDevspecResource(token, "devspec://product/remote-ingress-contract", { lane: "pump", timeoutMs: 5_000 });
+		const advertised = await readDevspecResource(effective.token, "devspec://product/remote-ingress-contract", { lane: "pump", timeoutMs: 5_000 });
 		if (!current() || !advertisesRoomContext(advertised)) return;
 		// Rows this connection posted before this copy existed are its own too; a
 		// bare "Pi" without a codename would also match the owner's other Pis.
 		const identity = active.connectionIdentity;
-		const store = await openRoomStore(scope, { current, principalFingerprint: roomPrincipalFingerprint(token), selfLabel: identity.connection_id === scope.connectionId && identity.codename ? identity.label : null });
+		const store = await openRoomStore(scope, { current, principalFingerprint: principalOf(effective), selfLabel: identity.connection_id === scope.connectionId && identity.codename ? identity.label : null });
 		if (!current()) { store.close(true); return; }
 		const sessionEventsNegotiated = advertisesSessionEvents(advertised);
 		const noticeReplyNegotiated = advertisesNoticeReply(advertised);
@@ -2775,8 +3306,9 @@ async function ensureRoomSync(active: PumpState, ctx: ExtensionContext, token: s
 			fetchHistory: async (args) => {
 				if (!current()) throw new Error("room attachment changed");
 				let raw: unknown;
+				const pollToken = await currentPumpToken(active, effective.token);
 				try {
-					raw = await callDevspec(token, "poll_connection", {
+					raw = await callDevspec(pollToken, "poll_connection", {
 						connection_id: scope.connectionId, ingress_version: 1, delegated_scope_version: 1,
 						active_plan_projection_version: 1, system_notice_version: SYSTEM_NOTICE_CHANNEL_VERSION, sender_style_version: 1,
 						room_context_version: 1, session_polls_projection_version: 2, check_job_version: CHECK_JOB_VERSION, wait_ms: 0, ...args,
@@ -2823,7 +3355,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 	if (!active) return;
 	const resolved = await resolveToken();
 	if (!resolved) return;
-	const token = resolved.token;
+	active.credentialPrincipal = principalOf(resolved);
+	// Renewed each lap (currentPumpToken): a browser sign-in's token changes daily.
+	let token = resolved.token;
 
 	// Push mode: SSE wakes us; we fetch the package with a no-hold poll.
 	// Falls back to the held long-poll if the channel stays unavailable.
@@ -2839,6 +3373,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 
 	while (pump === active && !active.stop) {
 		lastCtx = ctx;
+		token = await currentPumpToken(active, token);
+		if (pump !== active || active.stop) return;
 		ensurePushInteractionNegotiation(active, token, endpoint);
 		if (active.stop || pump !== active) return;
 		// Server told us the bond ended — only a human End / local stop is sticky.
@@ -2880,6 +3416,12 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		// ordinary command/control poll (4284a43c / 4221d08e).
 		await drainInteractionRetries(active, ctx);
 		if (active.stop || pump !== active) return;
+		// Re-read the credential after the wake wait (up to 45s): a browser sign-in
+		// that crossed its 12-hour renewal point during the wait (or was renewed by
+		// another Pi or work-lane call) invalidates the pre-sleep token in Clerk as
+		// soon as the refresh completes (item b59b18fa).
+		token = await currentPumpToken(active, token);
+		if (active.stop || pump !== active) return;
 		drainControlResults(active, ctx, token, endpoint);
 
 		// The server can claim ten at once. Negotiate only when that complete batch
@@ -2919,6 +3461,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		const commandOfferNegotiated = Boolean(active.bond.sessionId && active.bond.speechAttachmentId && active.bond.connectionCapability);
 		const commandHandoffReady = commandOfferNegotiated && !interactionEventAck ? pi_commandHandoffReady(active, ctx) : null;
 		let payload: unknown;
+		const refusal = usageRefusal.statusField(Date.now());
 		try {
 			const raw = await callDevspec(
 				token,
@@ -2933,7 +3476,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					session_polls_projection_version: 2,
 					// Item 55d71b0c: this host reads check jobs in dispatches[]. Sent on every
 					// poll (one without it clears it on the connection), and only because
-					// busy below is truthful: DevSpec drops an untaken job when a turn ends.
+					// busy below is truthful: the server reads it to tell when an offered job
+					// has been left (remote-ingress semantics.check_job.busy).
 					check_job_version: CHECK_JOB_VERSION,
 					...(commandOfferNegotiated ? { command_offer_version: 1,
 						...(commandHandoffReady ? { command_handoff_ready: commandHandoffReady } : {}) } : {}),
@@ -2963,6 +3507,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					// What this Pi carries out (item 6beb89c6). Authoritative once sent:
 					// DevSpec offers exactly these, so Clear only to a Pi that has it.
 					control_verbs: [...CONTROL_VERBS],
+					...refusal,
 				},
 				{ timeoutMs: POLL_TIMEOUT_MS, cwd: ctx.cwd, lane: "pump",
 					beforeSend: () => { if (commandHandoffReady && pi_commandHandoffReady(active, ctx) !== commandHandoffReady) throw new StaleCommandHandoffError("Command readiness changed before send."); },
@@ -2974,6 +3519,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				pi_appendRoomScope(null, active.localSessionId);
 				throw new Error(text || "poll_connection failed");
 			}
+			usageRefusal.delivered(refusal);
 			payload = details;
 			if (notifiedDegraded) {
 				notifiedDegraded = false;
@@ -2994,6 +3540,16 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			// owner_gone / local_stop for anything but a dead host / human stop:
 			// confirmed rejection stamps auth.
 			if (shouldEndBondOnPollFailure(err)) {
+				// If a browser sign-in renewed its access token while this poll was in
+				// flight, Clerk invalidated the old token on refresh. Switch to the
+				// renewed token and continue polling (item b59b18fa).
+				if (!isSignedOutAuthError(err)) {
+					const renewed = await currentPumpToken(active, token);
+					if (renewed !== token) {
+						token = renewed;
+						continue;
+					}
+				}
 				const failure = { authFailed: false };
 				if (await reviveRecoverableBond(active, token, ctx, failure)) {
 					pushMode = true;
@@ -3115,6 +3671,8 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			active.sessionPollsTail = "";
 			active.pendingStillToDiscussTail = "";
 			active.stillToDiscussTail = "";
+			active.pendingProjectIncidentsTail = "";
+			active.projectIncidentsTail = "";
 			setBond(next);
 			pi_syncBackgroundScope();
 			pi_setPlanToolActive(Boolean(serverSessionId));
@@ -3249,6 +3807,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				...(pkg.advisoryRejections.includes("session_activity") ? { sessionActivity: true } : {}),
 				...(pkg.advisoryRejections.includes("session_events") ? { sessionEvents: true } : {}),
 				...(pkg.advisoryRejections.includes("notice_reply") ? { noticeReply: true } : {}),
+				...(pkg.advisoryRejections.includes("project_incidents") ? { projectIncidents: true } : {}),
 			});
 		}
 
@@ -3296,6 +3855,12 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (pollTail !== active.sessionPollsTail) active.pendingSessionPollsTail = pollTail;
 			active.sessionPollsTail = pollTail;
 			pi_setPollToolActive(Boolean(active.bond.sessionId && active.bond.connectionCapability));
+		}
+
+		if (pkg.projectIncidents !== undefined) {
+			const incidentsTail = serializeProjectIncidentsProjection(pkg.projectIncidents);
+			if (incidentsTail !== active.projectIncidentsTail) active.pendingProjectIncidentsTail = incidentsTail;
+			active.projectIncidentsTail = incidentsTail;
 		}
 
 		if (pkg.stillToDiscuss !== undefined) {
@@ -3545,6 +4110,8 @@ interface BondOutcome {
 	codename?: string;
 	attached?: boolean;
 	projectChoice?: ProjectChoiceRequired;
+	/** DevSpec did not answer: trying again later can work (item dffdc30a). */
+	unreachable?: boolean;
 }
 
 /**
@@ -3568,9 +4135,12 @@ async function clearForOwner(ctx: ExtensionContext): Promise<void> {
 
 /**
  * Register/revive the bond and start the pump. Shared by /devspec.remote and
- * the auto-bond on session_start. Never throws.
+ * the auto-bond on session_start. Never throws. `reach.reachLimitMs` bounds the
+ * whole attempt's wait on DevSpec, from here (item dffdc30a).
  */
-async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: ProjectCandidate): Promise<BondOutcome> {
+async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: ProjectCandidate, reach?: ReachOptions): Promise<BondOutcome> {
+	const deadline = reach?.reachLimitMs === undefined ? undefined : Date.now() + reach.reachLimitMs;
+	const reachBy = deadline === undefined ? {} : { deadline };
 	const resolved = await resolveToken();
 	if (!resolved) return { ok: false, error: "Not connected to DevSpec — /devspec.login first.", errorKind: "auth" };
 
@@ -3589,7 +4159,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 			connection_capability_version: 1,
 			project_selection_version: 1,
 			...(project ? { project_id: project.id } : {}),
-		}, { cwd: ctx.cwd, lane: "pump" });
+		}, { cwd: ctx.cwd, lane: "pump", ...reachBy });
 		const reg = unwrapMcpResult(regRaw);
 		if (reg.isError) return { ok: false, error: `register failed: ${reg.text}`, errorKind: "api" };
 		regText = reg.text;
@@ -3599,6 +4169,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 		connectionCapability = negotiatedCapability;
 	} catch (err) {
 		return { ok: false, error: err instanceof Error ? err.message : String(err), errorKind: "api",
+			...(isRecoverableTransportError(err) ? { unreachable: true } : {}),
 			...(err instanceof DevspecToolError && err.projectChoice ? { projectChoice: err.projectChoice } : {}) };
 	}
 	const connectionId = (d.connection_id ?? d.connectionId) as string | undefined;
@@ -3637,7 +4208,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 			const attRaw = await callDevspec(resolved.token, "attach_connection", {
 				connection_id: connectionId,
 				session_id: sessionArg,
-			}, { cwd: ctx.cwd, lane: "pump" });
+			}, { cwd: ctx.cwd, lane: "pump", ...reachBy });
 			const att = unwrapMcpResult(attRaw);
 			if (att.isError) {
 				notify(ctx, `DevSpec remote: bonded but attach failed: ${att.text}`, "warning");
@@ -3654,6 +4225,10 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 		}
 	}
 
+	// Another connect in this conversation (a person's /devspec.project or
+	// /devspec.remote, or a background retry) finished while this one waited on
+	// DevSpec: it already runs the pump, so never start a second one.
+	if (pump) return { ok: true, codename: pump.bond.codename, attached: Boolean(pump.bond.sessionId) };
 	setBond(bond);
 	const generation = nextPumpGeneration++;
 	const connectionIdentity: RemoteConnectionIdentity = {
@@ -3689,6 +4264,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 		queuedClears: new Set(),
 		wakeGate: new WakeGenerationGate(),
 		automationQueue: new DeliveryQueue(),
+		betweenStep: new BetweenStepLedger(),
 		automationRetryAttempts: new Map(),
 		automationRetryTimers: new Map(),
 		attachmentRetryAttempts: new Map(),
@@ -3699,6 +4275,8 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 		pendingSessionPollsTail: "",
 		stillToDiscussTail: "",
 		pendingStillToDiscussTail: "",
+		projectIncidentsTail: "",
+		pendingProjectIncidentsTail: "",
 	};
 	pi_syncBackgroundScope();
 	pi_setPlanToolActive(Boolean(bond.sessionId));
@@ -3720,6 +4298,9 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 // Late-bound so the loop can reference the ExtensionAPI closure.
 let pi_appendControlResult: (entry: ControlResultEntry) => void = () => { throw new Error("CONTROL journal unavailable"); };
 let pi_systemNoticeSend: (message: string, details: { notices: unknown[]; roomAttached: boolean }) => void = () => {};
+let pi_steerBetweenSteps: (message: string, details: BetweenStepDetails) => void = () => { throw new Error("Pi steering unavailable"); };
+/** Shows the notice reply tool only while a person's turn holds notices steered into it. */
+let pi_setNoticeReplyToolActive: (enabled: boolean) => void = () => {};
 let pi_appendInteractionEntry: (
 	state: "observed" | "applied" | "acknowledged",
 	details: InteractionEventApplicationDetails,
@@ -3805,6 +4386,35 @@ export default function (pi: ExtensionAPI) {
 		stop: async ctx => { if (pump) await stopPump(ctx, "local_stop"); },
 	});
 	pi_persistProjectChoice = projectSelection.persist;
+	// After start-up gave up on DevSpec, keep trying in the background until this
+	// conversation connects (item dffdc30a). Attempts are bounded like start-up's
+	// and never open a chooser nobody asked for; only connecting, or a refusal
+	// that waiting cannot fix, is said out loud.
+	let backgroundConnectCtx: ExtensionContext | null = null;
+	const backgroundConnect = new BackgroundConnect({
+		intervalMs: reachTiming().intervalMs,
+		attempt: async () => {
+			const ctx = backgroundConnectCtx;
+			if (!ctx || pump) return "done";
+			if (!await resolveToken()) return "done";
+			const startedAt = Date.now();
+			const outcome = await projectSelection.connect(ctx, undefined, undefined, { reachLimitMs: reachTiming().limitMs, pickProject: false });
+			debug("background connect", { connected: outcome.ok, unreachable: Boolean(outcome.unreachable), busy: Boolean(outcome.busy), ms: Date.now() - startedAt });
+			if (outcome.ok) {
+				lastCtx = ctx;
+				notifyAutoBonded(ctx, outcome.codename);
+				pi.events.emit(DEVSPEC_REACHABLE_EVENT, {});
+				return "done";
+			}
+			if (outcome.unreachable || outcome.busy) return "retry";
+			if (outcome.projectChoice) {
+				notify(ctx, "DevSpec can be reached again. Run /devspec.remote to choose this conversation's project and connect.", "info");
+				return "done";
+			}
+			notifyAutoBondFailed(ctx, outcome);
+			return "done";
+		},
+	});
 	const subagentFleet = new SubagentFleetClient(pi.events);
 	let observationScope: BackgroundWorkScope | null = null;
 	let restoringBackground = false;
@@ -4132,6 +4742,11 @@ export default function (pi: ExtensionAPI) {
 		if (next.join("\0") !== pi.getActiveTools().join("\0")) pi.setActiveTools(next);
 	};
 	installServeToolSwitch(pi_setServeToolActive);
+	pi_setNoticeReplyToolActive = (enabled) => {
+		const next = withNoticeReplyToolActive(pi.getActiveTools(), enabled);
+		if (next.join("\0") !== pi.getActiveTools().join("\0")) pi.setActiveTools(next);
+	};
+	installNoticeHandover(answerSteeredNotices);
 	pi_appendInteractionEntry = (state, details) => {
 		pi.appendEntry(INTERACTION_EVENT_JOURNAL_TYPE, interactionEventJournalEntry(state, details));
 	};
@@ -4195,6 +4810,18 @@ export default function (pi: ExtensionAPI) {
 	};
 	pi_abort = () => {
 		if (lastCtx && !lastCtx.isIdle()) lastCtx.abort();
+	};
+	pi_steerBetweenSteps = (message, details) => {
+		// Pi's steer (da5cfae5): while a run is active, a custom message sent with
+		// deliverAs "steer" goes on the agent's steering queue, which Pi reads only
+		// between steps, never inside one. A custom message is context, never a user
+		// message, so it cannot start, rename or end the turn it lands in.
+		pi.sendMessage({
+			customType: BETWEEN_STEP_CUSTOM_TYPE,
+			content: message,
+			display: true,
+			details,
+		}, { deliverAs: "steer" });
 	};
 	pi_compact = () => {
 		lastCtx?.compact?.({});
@@ -4317,6 +4944,9 @@ export default function (pi: ExtensionAPI) {
 	pi.on("agent_settled", async (_event, ctx) => {
 		noteProgressEvent();
 		lastCtx = ctx;
+		// After Pi's own retries: a run whose last model call was refused for usage
+		// stands refused, and the idle heartbeat below already says so (04a1fe8f).
+		usageRefusal.settleRun();
 		// The run is over before anything here awaits (item 7a4d04fd): input it
 		// never consumed never became a message, and its segment stops running —
 		// a request with nothing pending closes now.
@@ -4328,7 +4958,11 @@ export default function (pi: ExtensionAPI) {
 		segmentInputKind = undefined;
 		leafWake = null;
 		runActive = false;
+		// A steer Pi never showed the agent (the run was stopped and Pi dropped its
+		// queue) was never committed: it is still waiting and goes out below (da5cfae5).
+		pump?.betweenStep.runEnded();
 		pi_setServeToolActive(false);
+		pi_setNoticeReplyToolActive(false);
 		const activeAtSettle = pump;
 		const occupancyAtSettle = activeAtSettle?.runtimeOccupancy.capture() ?? null;
 		const turnAtSettle = turn;
@@ -4401,6 +5035,8 @@ export default function (pi: ExtensionAPI) {
 				}
 			}
 			retireInteractionForeground(interactionRun);
+			// After the command's own answer and completion, never before or instead.
+			if (settlingTurn) await reportUnansweredSteeredNotices(settlingTurn, agentStats);
 		})();
 		trackTerminalPost(terminalPost);
 		if (keepWorking && settlingTurn && activeAtSettle && observationScope) {
@@ -4419,6 +5055,9 @@ export default function (pi: ExtensionAPI) {
 				debug("system notice settle drain failed", { errorPresent: Boolean(error) });
 			}
 		}
+		// What arrived after the run's last step, or was never shown, goes out now.
+		// A notice run started above takes the check jobs at its first step boundary.
+		if (pump) pumpWaitingCheckJobs(pump, ctx);
 	});
 
 	// ---- Turn lifecycle events (mechanical trail + final answer) ------------
@@ -4472,11 +5111,19 @@ export default function (pi: ExtensionAPI) {
 	// model about: nothing new adds nothing. Directed commands keep their own
 	// interruption path; this never starts or extends a run. Only an attached
 	// copy can change mid-run; an offline one was fully presented at the wake.
+	//
+	// The same boundary is where a check job or notice that arrived during the
+	// step is steered in (da5cfae5): Pi reads its steering queue right after this
+	// handler returns, so the agent is shown it before its next step. It is the
+	// handler's last act, after every await, so nothing can slip in between.
 	pi.on("turn_end", async (event, ctx) => {
 		lastCtx = ctx;
-		if (!pump?.bond.sessionId || !pi_roomReaderAvailable()) return undefined;
-		const boundary = await roomUnreadBoundary(event, () => roomUnreadForContext(ctx, "fresh"));
+		const active = pump;
+		const boundary = active?.bond.sessionId && pi_roomReaderAvailable()
+			? await roomUnreadBoundary(event, () => roomUnreadForContext(ctx, "fresh"))
+			: undefined;
 		if (boundary) noteInjectedContext("roomDigest", boundary.entries.reduce((n, e) => n + e.content.length, 0));
+		if (active) steerWaitingBetweenSteps(active, event.outcome);
 		return boundary;
 	});
 
@@ -4514,12 +5161,21 @@ export default function (pi: ExtensionAPI) {
 			active?.pendingStillToDiscussTail ?? "",
 		);
 		if (active && discussTail) active.pendingStillToDiscussTail = "";
+		const incidentsTail = activePlanTailForDelivery(
+			Boolean(canonicalQueueItem),
+			active?.projectIncidentsTail ?? "",
+			active?.pendingProjectIncidentsTail ?? "",
+		);
+		if (active && incidentsTail) active.pendingProjectIncidentsTail = "";
 		let hiddenContent = appendActivePlanTail(
 			appendActivePlanTail(
-				appendActivePlanTail(canonicalQueueItem?.hiddenContent ?? "", planTail),
-				pollTail,
+				appendActivePlanTail(
+					appendActivePlanTail(canonicalQueueItem?.hiddenContent ?? "", planTail),
+					pollTail,
+				),
+				discussTail,
 			),
-			discussTail,
+			incidentsTail,
 		);
 		if (pi_roomReaderAvailable() && (active?.bond.sessionId || canonicalQueueItem || roomScopeFromEntries(ctx.sessionManager.getBranch()))) {
 			const expected = (canonicalQueueItem?.details as { local_room?: { session_id?: string; attachment_id?: string } } | undefined)?.local_room;
@@ -4583,6 +5239,15 @@ export default function (pi: ExtensionAPI) {
 		const customType = typeof msg?.customType === "string" ? msg.customType : null;
 		if (customType === SYSTEM_NOTICE_CUSTOM_TYPE) systemNoticeTurnPending = false;
 		const text = extractText(event.message);
+		// A between-step delivery is nobody's request (da5cfae5): it is counted as
+		// delivered and nothing else happens. It binds no request, opens no segment
+		// and leaves the running turn's kind, command identity, Working state and
+		// replies exactly as they are, attached to a room or not. Only Pi's own custom
+		// message is one: a person's message is never swallowed for how it opens.
+		if (msg?.role !== "user" && isBetweenStepDelivery(text, customType)) {
+			noteBetweenStepDelivered(msg?.details, ctx);
+			return;
+		}
 		const harness = isHarnessOrigin(text, customType);
 		const isInput = msg?.role === "user" || msg?.role === "custom" || harness;
 		const isRealUserMessage = msg?.role === "user" && !harness;
@@ -4600,19 +5265,7 @@ export default function (pi: ExtensionAPI) {
 			const previousInteraction = isRealUserMessage ? turn.interaction : undefined;
 			if (customType === SYSTEM_NOTICE_CUSTOM_TYPE) {
 				turn.completionNeutral = true;
-				// The notices this run answers, for the reply its final message becomes
-				// (6aad2b46): only the connection they were delivered to may name them.
-				const noticeIds = noticeIdsFromDelivery(msg?.details);
-				const connectionId = getBond()?.connectionId;
-				if (noticeIds.length > 0 && connectionId) {
-					const held = turn.noticeReply?.connectionId === connectionId ? turn.noticeReply.noticeIds : [];
-					turn.noticeReply = {
-						connectionId,
-						noticeIds: [...new Set([...held, ...noticeIds])],
-						roomPromised: (msg?.details as { roomAttached?: unknown } | undefined)?.roomAttached === true,
-						finalText: null,
-					};
-				}
+				captureNoticeReply(turn, msg?.details);
 			}
 			const activityTransition = isRealUserMessage
 				? transitionToRealUserActivity({
@@ -4676,6 +5329,7 @@ export default function (pi: ExtensionAPI) {
 				turn.speechBinding = undefined;
 				turn.speechScopeCaptured = false;
 				turn.localActivityReady = undefined;
+				turn.tellPerson = undefined;
 				turn.requestKind = segmentKind ?? "untyped";
 				turn.tracker.userMessage(text, { customType });
 				// Only a prompt the owner typed here is mirrored as a local prompt.
@@ -4683,6 +5337,14 @@ export default function (pi: ExtensionAPI) {
 				if (activityTransition?.beginBusyPresence && pump) {
 					pump.busy = true;
 					void beatBusy(true);
+				}
+				// Busy never starts a room command on DevSpec; saying which one we
+				// started does (item 7b693c1b). Once per command segment.
+				if (incomingCommand?.turnId && incomingCommand.commandMessageId && !turn.completionNeutral && pump) {
+					const segment = turn;
+					const commandMessageId = incomingCommand.commandMessageId;
+					void reportCommandPickup(incomingCommand.turnId, commandMessageId,
+						() => turn === segment && segment.commandMessageId === commandMessageId);
 				}
 			} else {
 				if (harness && backgroundTaskNotificationId(text, msg?.details)) void pi_refreshBackgroundWork();
@@ -4736,6 +5398,9 @@ export default function (pi: ExtensionAPI) {
 		if (pump && msg?.role === "assistant") {
 			telemetry.addMessageUsage(msg.usage);
 		}
+		// Whether the provider answered or refused this agent for usage (04a1fe8f),
+		// bonded or not: a refusal still standing is reported once Pi is bonded.
+		if (msg?.role === "assistant") usageRefusal.noteModelCall(event.message as ModelCallEnd, Date.now());
 		if (!turn) { debug("message_end: no turn"); return; }
 		if (msg?.role === "assistant") {
 			deliverAssistantSpeech(turn, event.message, (type, data) => pi.appendEntry(type, data));
@@ -4813,8 +5478,9 @@ export default function (pi: ExtensionAPI) {
 		// Mark synchronously before the first await. Timer ticks from this point on
 		// cannot open a pointer that overtakes canonical receipt takeover.
 		trackedTurn.receiptBatch.start(event.toolCallId, revision, potentialReceipt);
-		trackedTurn.trail.toolStart(event.toolCallId, event.toolName, event.args);
-		trackedTurn.trailDelivery.markDirty();
+		// Taking and ruling a check job, and replying to a notice, never enter a work
+		// trail (da5cfae5): steered into a person's command, they leave its trail its own.
+		if (trackedTurn.trail.toolStart(event.toolCallId, event.toolName, event.args)) trackedTurn.trailDelivery.markDirty();
 		if (event.toolName === "subagent_wait") refreshSubagentFleet(event.toolCallId, trackedTurn);
 		if (!potentialReceipt) return;
 
@@ -4843,6 +5509,7 @@ export default function (pi: ExtensionAPI) {
 		noteProgressEvent();
 		lastCtx = ctx;
 		if (!turn) return;
+		if (keptOutOfWorkTrail(event.toolName)) return;
 		turn.trail.toolUpdate(event.toolCallId, event.partialResult);
 		turn.trailDelivery.markDirty();
 		// Reuse the host tool's existing progress cadence; the client deduplicates
@@ -4860,6 +5527,10 @@ export default function (pi: ExtensionAPI) {
 		const launch = launchRequests.get(event.toolCallId);
 		launchRequests.delete(event.toolCallId);
 		recordLaunchedWork(event.toolName, launch, event.result, event.isError);
+		// DevSpec marked this write as changing someone else's record (a868f41f): a
+		// segment quiet by what woke it speaks from here on. Taken even with no turn.
+		const tellPerson = takeTellPerson(event.toolCallId);
+		if (tellPerson && turn) turn.tellPerson = true;
 		pi_syncBackgroundScope();
 		if (launchScope && observationScope && launchScope === backgroundScopeKey(observationScope)) {
 			const task = backgroundTaskFromLaunch(event.toolName, event.result, event.isError);
@@ -4891,17 +5562,21 @@ export default function (pi: ExtensionAPI) {
 			success: !event.isError,
 			terminatingReceipt,
 		}, turn.revision);
+		if (keptOutOfWorkTrail(event.toolName)) return;
 		turn.trail.toolEnd(event.toolCallId, event.toolName, !event.isError, event.result);
 		turn.trailDelivery.markDirty();
 	});
 
 	pi.on("session_shutdown", async () => {
+		backgroundConnect.cancel();
+		backgroundConnectCtx = null;
 		resetStatus(); // clear the dedicated row before this UI becomes stale
 		pi_backgroundInputPending();
 		backgroundObserver.dispose();
 		launchScopes.clear();
 		launchRequests.clear();
 		installServeToolSwitch(null);
+		installNoticeHandover(null);
 		pi_refreshBackgroundWork = async () => {};
 		void clearOffer();
 		pi_receiveCommandOffer = async () => {};
@@ -5003,7 +5678,10 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
-		if (!await projectSelection.prepare(ctx)) return;
+		// Pi takes no prompt until this handler returns, so every wait on DevSpec
+		// here is bounded by the reach limit (item dffdc30a).
+		const reach: ReachOptions = { reachLimitMs: reachTiming().limitMs };
+		if (!await projectSelection.prepare(ctx, reach)) return;
 		replaceInteractionJournal(InteractionEventJournal.reconstruct(
 			readPersistedActiveBranchEntries(ctx.sessionManager) ?? [],
 			ctx.sessionManager.getSessionId(),
@@ -5017,12 +5695,19 @@ export default function (pi: ExtensionAPI) {
 		if (!settings.autoBond && !explicitlyRequested) return;
 		const resolved = await resolveToken();
 		if (!resolved) return;
-		const outcome = await projectSelection.connect(ctx);
+		const startedAt = Date.now();
+		const outcome = await projectSelection.connect(ctx, undefined, undefined, reach);
+		debug("startup connect", { connected: outcome.ok, unreachable: Boolean(outcome.unreachable), ms: Date.now() - startedAt });
 		if (outcome.ok) {
 			lastCtx = ctx;
-			notify(ctx, `DevSpec remote: auto-bonded as ${outcome.codename ?? "agent"} — you're reachable from the Agents page. /devspec.remote stop to end.`);
+			notifyAutoBonded(ctx, outcome.codename);
+		} else if (outcome.unreachable) {
+			// Carry on without DevSpec: say so once, and keep trying in the background.
+			notify(ctx, DEVSPEC_UNREACHABLE_NOTICE, "warning");
+			backgroundConnectCtx = ctx;
+			backgroundConnect.start();
 		} else {
-			notify(ctx, outcome.cancelled ? `DevSpec remote: ${outcome.error}` : `DevSpec remote: auto-bond failed: ${outcome.error}`, outcome.cancelled ? "info" : outcome.errorKind === "auth" ? "warning" : "error");
+			notifyAutoBondFailed(ctx, outcome);
 		}
 	});
 
@@ -5058,6 +5743,11 @@ export default function (pi: ExtensionAPI) {
 
 			if (arg === "stop" || arg === "off" || arg === "end") {
 				if (!pump) {
+					if (backgroundConnect.active) {
+						backgroundConnect.cancel();
+						notify(ctx, "DevSpec remote: stopped trying to connect. /devspec.remote connects when you're ready.", "info");
+						return;
+					}
 					notify(ctx, "DevSpec remote: not bonded.", "info");
 					return;
 				}

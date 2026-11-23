@@ -9,12 +9,16 @@ import { extractAssistantParts, TrailBuilder } from "../extensions/core/trail.ts
 import { unwrapMcpResult } from "../extensions/core/result.ts";
 import { parsePostSessionReceipt, TrailDeliveryState } from "../extensions/core/post-session-receipt.ts";
 import { formatSenderStyleRepair, REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE, senderStyleRepairNeeded } from "../extensions/core/remote-payload.ts";
+import { runSpeaks, wakeIsQuiet } from "../extensions/core/run-voice.ts";
+import { UsageRefusalReport } from "../extensions/core/usage-refusal.ts";
 
 const source = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 const speech = source.slice(source.indexOf("const assistantSpeechQueue ="), source.indexOf("// Per-turn telemetry"));
 const contextHook = source.slice(source.indexOf('\tpi.on("context"'), source.indexOf('\tpi.on("turn_start"'));
 const endHook = source.slice(source.indexOf('\tpi.on("message_end"'), source.indexOf('\tpi.on("tool_execution_start"'));
 const segment = source.slice(source.indexOf("async function postSegmentAnswer("), source.indexOf("/**\n * Settle the run"));
+// What woke a segment decides whether it speaks (a868f41f): the real helpers, sliced.
+const voice = source.slice(source.indexOf("function segmentWake("), source.indexOf("function isCommandTurnUnbound("));
 const envelope = (details: unknown) => ({ content: [{ type: "text", text: JSON.stringify(details) }] });
 const message = (text: string, stopReason = "stop", tools = false) => ({ role: "assistant", stopReason, content: [
 	{ type: "thinking", thinking: "private thinking" }, { type: "text", text }, ...(tools ? [{ type: "toolCall", name: "bash" }] : []),
@@ -31,13 +35,13 @@ function harness(gate?: Promise<void>, receipt?: (args: Record<string, unknown>)
 	t.tracker.userMessage("[DevSpec remote — message from Ali] continue");
 	const ctx = { hasUI: true };
 	const sandbox = {
-		AssistantSpeechSource, AssistantSpeechQueue, assistantSpeechWithinBudget, unwrapMcpResult, parsePostSessionReceipt,
+		AssistantSpeechSource, AssistantSpeechQueue, assistantSpeechWithinBudget, unwrapMcpResult, parsePostSessionReceipt, runSpeaks, wakeIsQuiet,
 		TurnTracker, shouldSplitSpeech, isClosedAnswer, extractAssistantParts, turn: t, pump: { bond, generation: 1, stop: false }, lastCtx: ctx,
 		getBond: () => bond, resolveToken: async () => ({ token: "private-bearer" }), ensureTurn() {}, replyModelArgs: () => ({ model: { providerID: "test", modelID: "model" } }),
 		interactionIdentity: () => undefined, exactInteractionContinuationArgs: (value: unknown) => value,
 		noteProgressEvent: () => {}, currentProgressMarker: () => "1",
 		DevspecToolError: Error, safeHasUI: () => true, notify: (_ctx: unknown, warning: string) => warnings.push(warning),
-		trackTerminalPost: (post: Promise<void>) => posts.push(post), debug() {}, telemetry: { addMessageUsage() {} },
+		trackTerminalPost: (post: Promise<void>) => posts.push(post), debug() {}, telemetry: { addMessageUsage() {} }, usageRefusal: new UsageRefusalReport(),
 		INTERACTION_EVENT_CUSTOM_TYPE: "interaction", QUESTION_DISMISSAL_EVENT_CUSTOM_TYPE: "dismissal", splitTurnAtBoundary() { throw new Error("speech split execution"); },
 		activeCommandStyles: new Map(), senderStyleRepairNeeded, formatSenderStyleRepair, REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE,
 		remoteRunActivityPolicy: () => ({ reportTranscript: true }), FINAL_TRAIL_CHARS: 100000,
@@ -56,7 +60,7 @@ function harness(gate?: Promise<void>, receipt?: (args: Record<string, unknown>)
 		},
 		pi: { on: (name: string, fn: typeof hooks[string]) => hooks[name] = fn, appendEntry: (type: string, data: unknown) => journal.push({ type, data }) },
 	};
-	const api = runInNewContext(stripTypeScriptTypes(`${speech}\n${segment}\n${contextHook}\n${endHook}\n({ prepareAssistantSpeech, postSegmentAnswer })`), sandbox);
+	const api = runInNewContext(stripTypeScriptTypes(`${voice}\n${speech}\n${segment}\n${contextHook}\n${endHook}\n({ prepareAssistantSpeech, postSegmentAnswer })`), sandbox);
 	return { hooks, ctx, t, bond, sandbox, requests, journal, warnings, api, drain: () => Promise.all(posts) };
 }
 
@@ -119,7 +123,7 @@ for (const change of ["capability", "epoch", "timestamp", "room ABA"] as const) 
 	});
 }
 
-test("no attached room and structural notice never fall back or acquire generic local publication", async () => {
+test("no attached room and structural notice never fall back, publish, or warn", async () => {
 	for (const notice of [false, true]) {
 		const h = harness();
 		// v2's one live check is attachment: no session, no post (item bf84793b).
@@ -129,10 +133,45 @@ test("no attached room and structural notice never fall back or acquire generic 
 		await h.drain();
 		assert.equal(h.requests.length, 0);
 		// A notice run is not room speech: its final message reaches the room as the
-		// reply to its notices (6aad2b46), so nothing here is unconfirmed speech.
-		assert.equal(h.warnings.length, notice ? 0 : 1);
-		if (notice) assert.deepEqual(h.journal, []);
+		// reply to its notices (6aad2b46). A connection in no room has no transcript
+		// to store speech in (0ba072df). Neither is unconfirmed speech.
+		assert.equal(h.warnings.length, 0);
+		assert.deepEqual(h.journal, []);
 	}
+});
+
+// 0ba072df: a standalone Pi, connected but attached to no room, used to print
+// "assistant speech storage not confirmed" after every message.
+for (const kind of ["local prompt", "automation run"] as const) {
+	test(`a ${kind} on a connection attached to no room says nothing about speech storage`, async () => {
+		const h = harness();
+		h.bond.sessionId = "";
+		h.t.commandTurnId = undefined as unknown as string;
+		h.t.commandMessageId = undefined as unknown as string;
+		h.t.tracker = new TurnTracker();
+		h.t.tracker.userMessage(kind === "local prompt" ? "tidy the changelog" : "[DevSpec automation run — Routine dependency PRs] review the open updates");
+		for (const text of ["Looking at the updates.", "Done."]) {
+			await h.hooks.context({}, h.ctx);
+			await h.hooks.message_end({ message: message(text) }, h.ctx);
+		}
+		await h.drain();
+		assert.equal(h.requests.filter(r => r.name === "post_session_message").length, 0);
+		assert.deepEqual(h.warnings, []);
+		assert.equal(JSON.stringify(h.journal).includes('"stored":false'), false);
+	});
+}
+
+test("a turn attached to a room mid-turn still warns when its speech cannot be stored", async () => {
+	const h = harness();
+	h.bond.sessionId = "";
+	await h.hooks.context({}, h.ctx);
+	// Attached before the message finished: the text was meant for the room now,
+	// and no binding was prepared for it, so it is genuinely unconfirmed.
+	h.bond.sessionId = "room";
+	await h.hooks.message_end({ message: message("said after attaching") }, h.ctx);
+	await h.drain();
+	assert.equal(h.warnings.length, 1);
+	assert.match(JSON.stringify(h.journal), /"stored":false/);
 });
 
 test("tool/custom/user/thinking input never becomes speech and a post cannot refresh revoked source authority", async () => {

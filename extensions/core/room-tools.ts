@@ -1,8 +1,8 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getBond } from "./bond-state.ts";
 import { roomAccess, sameRoomScope } from "./room-access.ts";
-import { resolveEndpoint, resolveToken } from "./auth-store.ts";
-import { roomPrincipalFingerprint, type RoomStoreScope } from "./room-store.ts";
+import { principalOf, resolveEndpoint, resolveToken } from "./auth-store.ts";
+import type { RoomStoreScope } from "./room-store.ts";
 import { jsonSchemaToTypebox } from "./json-schema.ts";
 import { noteModelToolResult } from "./context-budget.ts";
 import { formatRoomUnreadNotice, noticeLocalRoom, readLocalRoom, roomScopeFromEntries, ROOM_READ_DESCRIPTION, ROOM_READ_SCHEMA, ROOM_READ_TOOL, ROOM_READ_PROMPT_METADATA, ROOM_UNREAD_CUSTOM_TYPE, type RoomReadInput, type RoomUnreadNotice } from "./room-reader.ts";
@@ -35,7 +35,8 @@ async function roomReadScope(ctx: ExtensionContext): Promise<RoomReadScope | nul
 				: now === null);
 		} catch { return false; }
 	};
-	return { scope, fingerprint: roomPrincipalFingerprint(auth.token), offline: !bond, current };
+	// Who is signed in, not the raw token: a browser login keeps its local room copy across renewals.
+	return { scope, fingerprint: principalOf(auth), offline: !bond, current };
 }
 
 export async function readRoomForContext(ctx: ExtensionContext, input: RoomReadInput = {}): Promise<Record<string, unknown>> {

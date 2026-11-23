@@ -1,5 +1,167 @@
 # Changelog
 
+## 0.15.3 - 2026-11-21
+
+- **Pi's built-in copy of DevSpec's tools now includes the write-time right-home check confirmation and guidance.** When your agent saves a memory, requirement, inventory entry, document, project rule, or personal rule that clearly belongs in a different knowledge home, DevSpec pauses before saving and returns a suggestion plus a one-use `home_check_ack` confirmation token so your agent can either move the entry or confirm it belongs where it is (and ask you first whenever Requirements are involved). No tool was added or removed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.15.2 - 2026-11-20
+
+- **Your agent now suggests turning a recurring problem into a requirement when one comes up.** Before, the instructions warned your agent never to create or propose a requirement unasked without saying what makes something a candidate requirement in conversation, so it waited for you to say the word "requirement" yourself. Now, when you point out a mistake that keeps creeping back in across tasks, or state a non-negotiable project-wide "always" or "never" obligation that can be checked against what future work actually delivers, your agent explains what a requirement is and asks whether you want to record one — while still never saving a requirement without your yes.
+- **Pi's built-in copy of DevSpec's tools is refreshed to match the server.** The requirement creation tool description now carries the same candidate-spotting guidance. No tool was added or removed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.15.1 - 2026-11-20
+
+- **Pi's instructions defer to DevSpec on held work.** When work is held, and when work that reverses a decision can be kept, Pi now follows what DevSpec tells it at that moment instead of a copy of the rule written into the plugin, so its guidance stays right when DevSpec's rules change.
+- Update with `pi update`, then restart Pi.
+
+## 0.15.0 - 2026-11-20
+
+- **Pi tells DevSpec when your model provider stops it for usage.** If a rate limit or a used-up quota stops Pi's model, and Pi's own retries don't get through, Pi tells DevSpec until when: the time your provider gave, or a few minutes when it gave none. Until then DevSpec stops sending Pi checks and hands on any it was holding, so the work they check isn't left waiting on an agent that can't run. Pi still shows online, and the first reply that gets through clears it. A usage percentage on its own never counts, because some accounts keep working past their limit.
+- **Your agent's instructions match how DevSpec handles holds, decisions, merges and checks today.**
+  - A hold from a broken requirement, or from a clash nobody intended, that can be fixed in code no longer waits for anyone's OK. Your agent fixes the work on its branch and records it again, and DevSpec's follow-up check clears the hold. Work that reverses someone's decision, an intentional override, a genuinely debatable clash and an experiment still wait for an OK.
+  - To keep work that reverses a decision, convention or requirement, your agent changes that record itself, by updating, replacing or retracting it. A plain go-ahead on its own is refused.
+  - Your agent switches on Merge when cleared when it records its work or a dependency update. When DevSpec can't merge a cleared pull request itself, including when your repository's GitHub rules block it, Pi now recognises DevSpec's one wake to merge it, or to add it to your merge queue, and your agent runs exactly the command DevSpec gives.
+  - A check on your agent's own change goes to a spare agent first, and to your agent only when none can take it, so your agent no longer expects every check to reach it. When it hands work in while checks on its own change are still waiting for it, it rules those first.
+  - Pi's built-in fallback rules, used only when DevSpec's own rules can't be loaded, now say the same.
+- **Pi's built-in copy of DevSpec's tools is refreshed to match the server.** When DevSpec asks your agent to follow up a pull request that has sat untouched for a day, your agent can record what it did: got it moving again, closed it, handed it on, escalated it, or left it waiting on a person. Your agent also knows that a pull request it opens to carry a bot's dependency update can be a lockfile-only update. No tool was added or removed.
+- **Sign-in is browser sign-in everywhere Pi mentions it.** `/devspec.help` now says `/devspec.login` signs you in through your browser (with `--code` where your browser can't reach the machine), and lists `/devspec.review` and the `/devspec.remote` options. Signing in from a Pi run with no terminal now tells you to sign in once from interactive Pi, which later runs on the same computer use. The README lists `/devspec.logo` and describes `/devspec.review` correctly. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.14.15 - 2026-11-19
+
+- Pi's built-in copy of DevSpec's tools is refreshed to match the server. When Pi rules a check on a pull request that carries several tasks, it can now say which task caused each clash, so only that task is held and its owner asked; a ruling that should name one and does not is refused with what to send. Pi can also link a task to the outside ticket, GitHub issue or error it resolves, confirm it still means to save a task, decision, requirement or document after DevSpec shows it a similar existing one, and link an inventory entry to as many documents and memories as it needs. No tool was added or removed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.14.14 - 2026-11-18
+
+- **Pi's inventory tools now include dependency judgements, version history paging, and linked documents and memories.** Pi's built-in copy of DevSpec's tools is refreshed to match the server: your agent can record and revise dependency judgements (updates held back and security advisories accepted, with the package, versions, reason, and the conditions that would change the decision), filter the inventory by dependency package or judgement kind, page through an entry's version history, and link companion documents or memories (such as a runbook, setup guide, or decision) when recording or revising an inventory entry while keeping each entry's own purpose a brief two-to-three-sentence summary. No tool was added or removed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.14.13 - 2026-11-17
+
+- **Long-running Pi sessions stay connected when your browser sign-in renews its daily token.** A browser sign-in renews its 24-hour access token automatically once it is 12 hours old, and the sign-in server invalidates the old token as soon as the new one is issued. When that renewal happened while Pi's remote-control loop was sleeping between wake checks or waiting on a poll, the loop could send the old token on its next poll and recovery attempt, causing DevSpec to reject it and end the connection. Pi now re-reads the saved credential after waking, when a poll fails during an in-flight renewal, and before re-registering during recovery, so the connection switches cleanly to the renewed token without disconnecting. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.14.12 - 2026-11-17
+
+- Pi's built-in copy of DevSpec's tools is regenerated to match the server. DevSpec now counts a message you send from a room as started only when your agent says it has started it, never because the agent happened to be busy, so a follow-up you send just as your agent finishes is no longer lost. Pi already says which message it starts (0.14.11), so nothing changes in how Pi behaves. The descriptions also pick up DevSpec's newer inventory tools: your agent can record a dependency it has decided to hold back or an advisory it has accepted as an inventory entry, find those entries by package, and page through an entry's history. No tool was added or removed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.14.11 - 2026-11-17
+
+- **The room shows your Pi agent working on your message from the moment it starts.** When you send a message from a room, Pi now tells DevSpec exactly which message it has started on, instead of only saying it is busy. This gets Pi ready for a DevSpec change that stops a follow-up you send just as your agent finishes from being lost: DevSpec will only count a message as started when the agent says so. Without this update, messages you send Pi from a room would show as waiting for the whole time Pi works on them. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.14.10 - 2026-11-17
+
+- Pi's built-in copy of DevSpec's tools is regenerated to match the server. One description changed: what DevSpec does when an agent reports a turn finished without saying which. It now ends only work the agent had started, never a command still waiting to be picked up. Pi always says which turn it finished, so nothing changes in how Pi behaves. No tool was added or removed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.14.9 - 2026-11-16
+
+- **Pi rules checks directly in its own session.** On Pi, subagents started through `pi-subagents` run with a fixed tool list that does not include DevSpec's check tools, so sending a check to a subagent spent time before falling back to the main session. Pi now rules every check directly in its own session and relies on its existing wake-time session clearing between unrelated checks. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.14.8 - 2026-11-16
+
+- **Checks, and what they find, now reach your agent while it is still working.** When your project sends your agent a check on a change, or DevSpec follows up on something your agent did, a busy Pi used to hear about it only after its whole turn had ended. Now your agent hears as soon as the step it is on finishes, deals with it there, and carries on with what it was doing. A step is never interrupted part-way through, and an idle Pi still hears straight away.
+- **Every check that is waiting is handed over together.** Your agent rules all of them in one pause. Before, each check waited for the one ahead of it to finish a turn of its own.
+- **The work your agent was doing is left exactly as it was.** A check or follow-up that arrives part-way through a turn is nobody's request. The command your agent is answering still shows as being worked on, and its answer still goes to the person who asked. Anything your agent has to say about a follow-up is posted apart from that answer, as its reply to the follow-up, so you see it with its own card. Whether you hear about what a check found is unchanged, and DevSpec decides it: only when something still needs you after your agent has acted. Your own messages, Stop and the other controls, and your answers to its questions reach Pi the same way as before.
+- **How your agent rules a check.** DevSpec asks agents to rule each check in a short-lived helper agent where their tool can, so the records being compared stay out of the main conversation. Pi's helper agents cannot use DevSpec's check tools, so from 0.14.9 Pi rules each check directly in its own session. You don't need to install anything for checks.
+- Pi's built-in copy of DevSpec's tools is regenerated to match the server. No tool was added, removed or changed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.14.7 - 2026-11-16
+
+- **A Pi that is not in a session now does what DevSpec asks of it straight away.** Stop, a model or thinking change, compact, reload and Start fresh used to wait until that Pi was next brought into a session, and until then every other control sent to it was refused as "still processing another control". Pi also showed "DevSpec sent this Pi a message it cannot read". Now it carries each one out at once and frees the slot. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.14.6 - 2026-11-15
+
+- **Your agent knows how to tell DevSpec it is still working on an automation run.** When DevSpec asks whether your agent is still on a run, for example while it waits for a long build or check to finish, your agent now answers by claiming the run it already holds. That takes nothing new and keeps the run with it. A run that stays quiet after that question is handed to another agent, and anything the first agent reports on it afterwards is refused.
+- **Handing an incident back is described in plain words.** `manage_incident` now tells your agent that releasing an incident leaves it open with nobody on it.
+- Pi's built-in copy of DevSpec's tools is regenerated to match the server. No tool was added or removed and no tool's inputs changed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.14.5 - 2026-11-15
+
+- **Your agent can land a routine Dependabot or Renovate update without creating a task for it.** DevSpec no longer asks for a task on a pull request that only bumps versions. Pi now has the tool your agent uses instead: once it has read the release notes and run your project's checks, it records what it found on the pull request, and that record is the green light DevSpec's check waits for. The same goes for a pull request your agent has to open itself to move a bot's update onto the right branch: DevSpec compares it with the bot's and, when nothing was added, it needs no task either. A task is still created when an upgrade needs your project's code changed.
+- **A security incident stays with its fix while the fix is on its way.** When the fix is a pull request with no task, your agent can now name that pull request so the incident shows as waiting on it, and DevSpec closes the incident when the fix merges.
+- **Pi can read and record your project's infrastructure inventory.** The five inventory tools DevSpec already offered (list, read, record, revise and retract an entry) are now in Pi too, so your agent can look up where something is deployed and record a dependency update it is holding back.
+- Pi's built-in copy of DevSpec's tools is regenerated to match the server.
+
+## 0.14.4 - 2026-11-15
+
+- **Your first message after a quiet spell now gets its project records.** Before each substantive message, Pi asks DevSpec which of the project's requirements, documents, decisions and plans bear on it. After several idle minutes that first lookup can take over 2.5 seconds, and Pi used to stop waiting at 2.8 seconds, so that message went ahead with none of them. Pi now waits up to 4.8 seconds.
+- **Nothing else is slower.** A lookup that comes back in a second or two still lets your agent start straight away. If DevSpec is slow or unreachable, your message still goes ahead by itself, now after at most about 5 seconds instead of 3.
+
+## 0.14.2 - 2026-11-13
+
+- **Pi no longer holds your first prompt for minutes when DevSpec doesn't answer.** If DevSpec accepts the connection but never replies when Pi starts, for example because the server is hung, Pi now waits at most 30 seconds, then carries on without it and says once that DevSpec could not be reached. Your first prompt runs straight after. Before, it sat for up to two minutes and then showed "auto-bond failed: MCP error -32001: Request timed out". A server that refuses the connection outright is still handled at once.
+- **Pi keeps trying to connect in the background.** After start-up gives up, Pi tries again every 30 seconds without holding anything up, for as long as the session is open, and appears on your project's **Agents** page as soon as DevSpec answers, with no restart. `/devspec.remote stop` stops the retries. When DevSpec is healthy, start-up is unchanged: Pi connects automatically and recall works as before. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.14.1 - 2026-11-13
+
+- **Pi now follows DevSpec's updated rules for decisions, task intents and requirements.** Pi's built-in instructions point your agent at the matching rules DevSpec serves, instead of restating them. Your agent asks you before recording a decision and records nothing if you say no or don't answer. A task's intent gives the reason you actually gave, in your own everyday words, never one the agent made up. Decisions, conventions and requirements are what the work is held to, and a broken requirement keeps a task from being done; risks are things to weigh, and documents are for reference.
+- **Requirements are rare, and your agent asks first.** Before recording a requirement, your agent explains what one is (a standing rule that all later work is held to) and asks you. Once you agree, it records it in one step, and DevSpec says whether it applies at once or waits for someone to approve it. Your agent reads any document a requirement links in full before acting on it. Before reporting work as built, it checks what was actually delivered against the requirements that apply, and records the ones it saw met as evidence on the task's criteria.
+- **When a new memory or task overlaps something your project already has, your agent sees exactly what DevSpec found.** DevSpec saves nothing in that case and lists the existing records. Pi now shows that list to your agent as DevSpec wrote it, instead of as escaped data, and never as an error. Your agent then updates or extends the existing record, talks through an idea your team turned down with you before reviving it, or confirms a genuinely separate record. The records that bear on a newly created task are shown the same way.
+- Pi's built-in copy of DevSpec's tools is regenerated to match the server. `record_criterion_verdicts` gains `requirement_evidence`, which links a criterion your agent saw met to the requirement it shows was met. Tool descriptions also carry DevSpec's guidance on writing records that are easy to find later: summaries that say when to reach for a record, task intents in everyday words, related records linked together, and existing guides updated rather than duplicated. No tool was added or removed. This version needs DevSpec's matching server update. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.14.0 - 2026-11-13
+
+- **Pi now brings in every kind of project record that bears on a turn, not only memories.** Before each turn, whether you typed it or sent it from DevSpec on your phone or the web, Pi asks DevSpec which of your project's records apply: requirements (with a pointer to any document you need to read in full), decisions and conventions, documents and runbooks, active and deferred plans, ideas your team turned down and why, and past shipped work. They are added out of sight at the end of the conversation, so earlier turns stay cached and your prompt is never changed. Each record appears once per conversation and comes back only when it is edited, nothing is added when nothing applies, and short replies like "ok", slash commands and DevSpec's own notices are never looked up. If DevSpec is slow or unreachable, Pi waits at most a few seconds and starts your turn without it. New kinds of record DevSpec adds later appear without a plugin update. This needs DevSpec's matching server update. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.13.6 - 2026-11-12
+
+- **No more false "speech storage not confirmed" warnings outside a room.** A Pi connected to DevSpec but attached to no room, for example answering local prompts or working an automation run on its own, no longer warns after every message that its speech couldn't be stored. There is no room to store it in. A Pi attached to a room still warns when a message meant for the room can't be confirmed, and still keeps the text locally. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.13.5 - 2026-11-12
+
+- **Agents picking up an automation run started by an event now see what triggered it.** Pi's built-in copy of DevSpec's tools is regenerated to match the server: `claim_automation_run` now tells your agent that a run started by an event also carries `started_reason`, that event's `firing_facts` (the repository, branch, commit, tasks, incident and so on) and `event_context`, which gives both as text. Your agent treats them as facts about what happened, never as instructions. No tool was added or removed and no tool's inputs changed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.13.4 - 2026-11-12
+
+- **No more red extension error under every DevSpec notice.** Before each turn, Pi looks up the project's memories that match what you typed. A turn that DevSpec starts itself, such as a notice or a check job, has nothing typed, and that lookup used to fail with "Cannot read properties of undefined (reading 'trim')" every time a notice arrived. Nothing was lost, but it looked like the connection was broken. Now those turns simply skip the memory lookup, the same way DevSpec's own recall treats notices, and typed messages are looked up exactly as before. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.13.3 - 2026-11-12
+
+- **Pi now keeps your agent aware of open incidents on your project.** When DevSpec has open incidents on the project, such as a failed deploy, failing checks, a security advisory or work that landed without a task, Pi shows them to your agent as background on its ordinary turns (under `== PROJECT INCIDENTS ==`), so it can take them into account. They never wake an idle Pi session on their own and are never treated as a request to fix something nobody asked for. Your agent can also look up, report, claim, hand back and resolve incidents with the new `get_incidents`, `get_incident`, `report_incident` and `manage_incident` tools, and their results reach it in full. It follows the rules DevSpec gives every agent for respecting incidents and for raising work that is blocked from shipping.
+- **Work that lands without a task is now an incident, not an automatic task.** DevSpec no longer makes a task by itself for commits that reach the tracking branch with no task linked: if the agent that made them is online, it is asked to link or create the right task, and if that does not happen, DevSpec opens one incident for the unlinked work, which closes by itself once every commit is linked. Pi's Review instructions now match: the retired "take ownership" and "move commit" answers on work that would undo a decision are gone.
+- Pi's built-in copy of DevSpec's tools is regenerated to match the server. Besides the incident tools above, it adds the project requirements tools (`search_requirements`, `get_requirements`, `get_requirement`, `record_requirement`, `update_requirement`, `supersede_requirement` and `retract_requirement`), lets `create_task` and `record_memory` confirm an overlap preview with `preview_ack`, and picks up the updated incident claim rules (a claim now lapses after 15 minutes without a heartbeat, instead of a lease length you choose). This version needs DevSpec's matching server update. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.13.2 - 2026-11-12
+
+- **Your room hears about a DevSpec follow-up only when something still needs you.** When DevSpec follows up on your agent's work, for example with something a check found, and your conversation already makes clear what you want, your agent settles it quietly and DevSpec files it as housekeeping in the room. Your agent replies in the room only when a choice, hold, rejection or block is still waiting for a person after it has acted. When it settles everything quietly, Pi no longer posts a stray message or shows a warning in your terminal. Pi's built-in copy of DevSpec's tools is regenerated to match the server. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.13.1 - 2026-11-12
+
+- **Pi no longer wakes your agent for a check that was already dealt with.** A check that arrives while your agent is busy now waits for its turn to finish, and Pi asks DevSpec whether it still needs ruling just before handing it over. If someone else has ruled it, or it was withdrawn, Pi drops it without starting a turn or showing a notification. If DevSpec can't be asked at that moment, Pi hands the check over anyway, so no check is lost. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.13.0 - 2026-11-09
+
+- **Every change goes through a pull request, with Merge when cleared.** Your agent builds every change on its own branch and opens a pull request into your repository's tracking branch wherever pull requests are supported, small changes and unprotected branches included. It switches on DevSpec's Merge when cleared when it records its work (`record_implementation` with `merge_when_cleared: true`), or GitHub's auto-merge where DevSpec's check is required. It never merges before DevSpec's check passes, and it ends its turn instead of waiting on checks, so it stays free to rule a check when one comes.
+- **One wake to merge when DevSpec can't.** When a pull request with Merge when cleared has passed DevSpec's check and every GitHub check and approval on its latest commit, but DevSpec's GitHub App cannot merge it, DevSpec wakes your agent once to merge that commit with your GitHub credentials.
+- Pi's built-in copy of DevSpec's tools is regenerated to match the server: `record_implementation` gains `merge_when_cleared`, and the pull-request tools carry the new workflow guidance. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.12.2 - 2026-11-08
+
+- **Browser sign-in polish.** Startup and `/devspec.status` now welcome signed-out users directly (`Welcome to DevSpec! Run /devspec.login to sign in through your browser.`) without mentioning the retired token setup. The local browser callback page renders with the DevSpec logo and adapts to light and dark mode, `/devspec.login` places the browser link on its own line with a clearer remote-machine `--code` hint, and sign-in confirmation prompts you to restart Pi so the status bar and agent connection load cleanly.
+
+## 0.12.1 - 2026-11-08
+
+- **Pi agents can quietly fold their owner's duplicate task from a DevSpec duplicate notice.** Regenerated the checked-in DevSpec tool catalogue so `resolve_duplicate` exposes `notice_id`, allowing a Pi agent acting on a for-the-record duplicate notice about its owner's own task to pass that notice's ID on preview and resolve and fold the duplicate into the kept task without a command turn. Also picks up the updated `claim_check_job` tool description.
+
+## 0.12.0 - 2026-11-08
+
+- Pi now signs in to DevSpec through your browser. Run `/devspec.login`, click **Allow** on DevSpec's approval page, and you are signed in; nothing is pasted. The approval page and your Agent setup page show Pi by name, and disconnecting Pi there signs out Pi and nothing else. Pi renews the sign-in by itself, so it lasts until you sign out or disconnect it. In an SSH session, or with `/devspec.login --code`, you approve in any browser and paste back the code the page shows.
+- Staging and production sign-ins are kept side by side. Pi uses production unless `DEVSPEC_ENV=staging` or `DEVSPEC_MCP_URL` is set when it starts, and switching never needs a new sign-in or overwrites the other one. A sign-in is always saved for the server it was approved on.
+- `DEVSPEC_MCP_TOKEN` is now only for runs with no browser. When it is set, `/devspec.login`, `/devspec.status` and startup say that it takes precedence and how to remove it, and `/devspec.login` no longer reports a sign-in that the next start would ignore.
+- If DevSpec ends your sign-in, for example because Pi was disconnected on the Agent setup page, Pi says so the next time it is used and tells you to run `/devspec.login`.
+- A token pasted with an earlier version is no longer used: run `/devspec.login` once to sign in through your browser. Browser sign-in needs DevSpec's matching server update. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.11.0 - 2026-11-07
+
+- Your Pi agent can now rule three more kinds of out-of-date check that DevSpec sends it: whether open tasks are out of date because a discussion point was settled, because a Goal or one of its outcomes changed, and the whole-backlog out-of-date scan started from the Tasks page. The line that wakes your agent says which one it is. Checks no longer carry a count of high-risk entries.
+- Pi now follows DevSpec's label on every notice it sends your agent. A notice that needs you is still answered in your room, under a header DevSpec writes saying which record, what happened and what you need to do. A notice that is only for the record, such as a pending edit going live or a duplicate of your own task, is handled quietly and nothing is posted about it. Ruling a check is quiet too: your agent's working text stays in Pi instead of appearing as messages in the room, because the rulings already show on the record and in Review. If handling either one changes someone else's record, your agent still tells the room what it changed.
+- Pi's built-in copy of DevSpec's tools is regenerated so `search_devspec_tools` stays aligned with the server: the tool for recording check rulings now says never to post about ruling a check, and the room-posting tool says to reply only to notices that need a person. This version needs DevSpec's matching server update. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.10.20 - 2026-11-07
+
+- When your agent takes a check DevSpec sent it, the check now stays with it until it finishes or hands it back. Before, a check your agent had already started could be passed to another agent just because your agent's turn ended, and the other agent did the same check again. It now moves on only if your agent disconnects, goes quiet, or makes no progress on it for 15 minutes while idle. Pi's built-in copy of DevSpec's tools carries the new description, so `search_devspec_tools` stays aligned with the server. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
+## 0.10.19 - 2026-11-06
+
+- When your agent looks up a pull request, it now hears what DevSpec's check on it means for where the pull request is going. Into your tracking branch, the check reflects the work's pending checks and holds. Into your release branch, it holds only for what is being released. Into any other branch, it reports Not checked here. A check still running when the pull request merges or closes is finished as neutral. Pi's built-in copy of DevSpec's tools carries the new description, so `search_devspec_tools` stays aligned with the server. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.10.18 - 2026-11-05
 
 - Updated `README.md` to match Pi's shipped command surface (`/devspec.remote`, `--project`, `--session`, `stop`, `reconnect`, `auto`, `preempt`, `/devspec.work`, `/devspec.help`, `/devspec.project`, `pi --devspec-project`, `/devspec.pin`, `/devspec.reload`, and `/devspec.review`), automatic startup connection on the **Agents** page, check-ruling and automation wake behavior, single-claim commit tagging across linked repositories and pinned folders, observed criterion verification, Protected intent holds, and GitHub pull-request checks.

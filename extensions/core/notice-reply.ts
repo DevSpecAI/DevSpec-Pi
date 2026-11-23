@@ -86,16 +86,24 @@ export function advertisesNoticeReply(resource: unknown): boolean {
 	return false;
 }
 
-/** The notice ids of one delivered batch, from the details Pi put on the notice message itself. */
-export function noticeIdsFromDelivery(details: unknown): string[] {
+/**
+ * The notice ids of one delivered batch, from the details Pi put on the notice
+ * message itself, split by DevSpec's label (item a868f41f): a reply names only
+ * the notices that need a person, because one that is for the record is never
+ * posted about (served contract: semantics.notice_audience). Only an explicit
+ * for_the_record label makes a notice quiet; an unreadable one needs the person.
+ */
+export function noticeIdsFromDelivery(details: unknown): { needsPerson: string[]; forTheRecord: string[] } {
 	const notices = row(details)?.notices;
-	if (!Array.isArray(notices)) return [];
-	const ids: string[] = [];
+	const needsPerson: string[] = [];
+	const forTheRecord: string[] = [];
+	if (!Array.isArray(notices)) return { needsPerson, forTheRecord };
 	for (const notice of notices) {
 		const id = row(notice)?.notice_id;
-		if (typeof id === "string" && UUID.test(id) && !ids.includes(id)) ids.push(id);
+		if (typeof id !== "string" || !UUID.test(id) || needsPerson.includes(id) || forTheRecord.includes(id)) continue;
+		(row(notice)?.audience === "for_the_record" ? forTheRecord : needsPerson).push(id);
 	}
-	return ids;
+	return { needsPerson, forTheRecord };
 }
 
 /**
@@ -112,7 +120,10 @@ export function noticeReplyFinalText(message: { text: string; stopReason?: strin
 export interface NoticeReplyCapture {
 	/** The connection the notices were delivered to; only it may name them. */
 	connectionId: string;
+	/** The notices that need a person: the ones a reply names. */
 	noticeIds: string[];
+	/** The notices that are for the record: never posted about. */
+	forTheRecordIds: string[];
 	/** The notice framing told the model its final message reaches the room. */
 	roomPromised: boolean;
 	finalText: string | null;
@@ -122,6 +133,10 @@ export type NoticeReplyCallResult = { raw: unknown } | { refusal: string };
 
 export type NoticeReplyOutcome =
 	| { kind: "posted"; messageId: string; sessionId: string; idempotent: boolean }
+	/** Every named notice was resolved during the run and routed into room housekeeping: quiet, never an error or chat bubble. */
+	| { kind: "settled_housekeeping"; housekeepingMessageId: string | null }
+	/** Nothing needs a person: nothing is posted, and nothing is said about it. */
+	| { kind: "for_the_record" }
 	| { kind: "no_final_text" }
 	| { kind: "not_attached" }
 	| { kind: "connection_changed" }
@@ -146,6 +161,25 @@ export function readNoticeReplyReceipt(raw: unknown, expected: { connectionId: s
 	if (!Array.isArray(answered) || !answered.every((id) => typeof id === "string")) return null;
 	if (JSON.stringify(canonical(answered as string[])) !== JSON.stringify(canonical(expected.noticeIds))) return null;
 	return { messageId, sessionId, idempotent: delivery.status === "idempotently_stored" };
+}
+
+/** A settled-housekeeping receipt from either a refusal text or a non-error MCP payload, or null. */
+export function readSettledHousekeepingReceipt(value: unknown): { housekeepingMessageId: string | null } | null {
+	let data: Row | null = null;
+	if (typeof value === "string") {
+		try { data = row(JSON.parse(value)); } catch { data = null; }
+	} else {
+		data = row(unwrapMcpResult(value).details);
+	}
+	if (!data) return null;
+	const delivery = row(data.delivery);
+	if (data.settled_housekeeping !== true && delivery?.reason !== "settled_housekeeping" && delivery?.status !== "settled_housekeeping") {
+		return null;
+	}
+	const hkId = typeof data.housekeeping_message_id === "string" && data.housekeeping_message_id.trim()
+		? data.housekeeping_message_id.trim()
+		: null;
+	return { housekeepingMessageId: hkId };
 }
 
 /** The server's refusal: its delivery reason and its own words, verbatim. */
@@ -176,7 +210,8 @@ export async function postNoticeReply(input: {
 	extraArgs?: Record<string, unknown>;
 }): Promise<NoticeReplyOutcome> {
 	const { capture } = input;
-	if (capture.finalText === null || capture.noticeIds.length === 0) return { kind: "no_final_text" };
+	if (capture.noticeIds.length === 0) return { kind: "for_the_record" };
+	if (capture.finalText === null) return { kind: "no_final_text" };
 	const args = { ...input.extraArgs, connection_id: capture.connectionId, message: capture.finalText, system_notice_ids: [...capture.noticeIds] };
 	for (let attempt = 0; ; attempt += 1) {
 		const now = input.current();
@@ -186,12 +221,23 @@ export async function postNoticeReply(input: {
 		try { result = await input.call(args); }
 		catch (error) { return { kind: "unconfirmed", detail: error instanceof Error ? error.message : String(error) }; }
 		if ("refusal" in result) {
+			const settled = readSettledHousekeepingReceipt(result.refusal);
+			if (settled) return { kind: "settled_housekeeping", ...settled };
 			const refusal = readNoticeReplyRefusal(result.refusal);
 			if (refusal.reason === "room_changed" && attempt === 0) continue;
+			// DevSpec read every named notice as for the record: an expected, quiet
+			// outcome, never an error and never posted another way (notice_reply.only_when_needed).
+			if (refusal.reason === "for_the_record") return { kind: "for_the_record" };
 			return { kind: "refused", ...refusal };
 		}
 		const receipt = readNoticeReplyReceipt(result.raw, { connectionId: capture.connectionId, noticeIds: capture.noticeIds });
-		return receipt ? { kind: "posted", ...receipt } : { kind: "unconfirmed", detail: "DevSpec's receipt did not confirm this reply" };
+		if (receipt) return { kind: "posted", ...receipt };
+		const settled = readSettledHousekeepingReceipt(result.raw);
+		if (settled) return { kind: "settled_housekeeping", ...settled };
+		if (row(row(unwrapMcpResult(result.raw).details)?.delivery)?.reason === "for_the_record") {
+			return { kind: "for_the_record" };
+		}
+		return { kind: "unconfirmed", detail: "DevSpec's receipt did not confirm this reply" };
 	}
 }
 
@@ -200,6 +246,8 @@ export function noticeReplyTerminalMessage(outcome: NoticeReplyOutcome, capture:
 	const what = capture.noticeIds.length === 1 ? "The reply to the DevSpec notice" : `The reply to ${capture.noticeIds.length} DevSpec notices`;
 	switch (outcome.kind) {
 		case "posted":
+		case "settled_housekeeping":
+		case "for_the_record":
 		case "no_final_text":
 			return null;
 		case "not_attached":

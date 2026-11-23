@@ -8,10 +8,10 @@ Installing `@devspecai/pi-plugin` connects Pi directly to your DevSpec projects 
 
 ## Why DevSpec + Pi?
 
-- **Shared team memory with automatic staleness screening** — Pi automatically recalls the architectural decisions, conventions, risks, and reference docs that apply to the code it's touching. When you record a new decision or land changes, DevSpec screens your project's records for conflicts, duplicates, and **Possibly outdated** guidance so your team's shared memory stays accurate.
+- **Shared team memory with automatic staleness screening** — Before each turn — whether you typed it or sent it from DevSpec — Pi brings in the project records that bear on what was asked: requirements, decisions and conventions, documents and runbooks, related plans and ideas your team turned down, and past shipped work. Each appears once per conversation and comes back only when it changes, and nothing is added when nothing applies. When you record a new decision or land changes, DevSpec screens your project's records for conflicts, duplicates, and **Possibly outdated** guidance so your team's shared memory stays accurate.
 - **Steer Pi live from your phone or the web** — In a linked or pinned repository, interactive Pi connects to DevSpec automatically and appears on your project's **Agents** page outside any session room (or run `/devspec.remote` on demand). Attach it to a room from [devspec.ai](https://devspec.ai) or with `/devspec.remote --session <id>` to chat from your phone or browser, collaborate with teammates, answer structured questions and polls, and track multi-phase execution plans in real time.
 - **Tasks, observed verification, and automatic commit provenance** — Pick up tasks with full context (`/devspec.work`). When a single task is claimed in a linked project repository (including Git worktrees and Git Bash on Windows) or a `.devspec/project.json`-pinned folder, Pi tags your commits (`[devspec:<id>]`) automatically, links pull requests, and records observed verification evidence from commands and checks it actually ran against each acceptance criterion. (On native Windows outside WSL or Git Bash, Pi adds the task tag directly in its commit messages.)
-- **Protected intent and GitHub pull-request holds** — DevSpec screens changes against your team's recorded decisions, requirements, and open tasks, holds reversals of someone else's decision and unagreed experiments on their own branch until approved, and publishes its pull-request check on GitHub to reflect pending checks and holds.
+- **Protected intent, pull-request checks, and Merge when cleared** — DevSpec screens changes against your team's recorded decisions, requirements, and open tasks, runs one final check per pull request when it is ready (protected or not), holds reversals of someone else's decision and unagreed experiments on their own branch until approved, publishes its pull-request check on GitHub, and merges cleared pull requests automatically. A hold Pi can fix in code, such as a broken requirement, clears by itself once Pi fixes the work and DevSpec checks it again. When GitHub won't let DevSpec merge a cleared pull request itself, DevSpec wakes Pi once to merge it, or add it to your merge queue, with your GitHub credentials.
 - **One native package** — Native DevSpec tools, authentication, project matching, commit tracking, and live remote control are all built in. No separate MCP server setup required.
 
 ---
@@ -24,15 +24,18 @@ Installing `@devspecai/pi-plugin` connects Pi directly to your DevSpec projects 
 pi install npm:@devspecai/pi-plugin
 ```
 
-### 2. Sign in with your DevSpec token
+### 2. Sign in
 
-Create a **Read & write** access token on your [Agent setup](https://app.devspec.ai/settings/agents) page, then inside `pi` run:
+Inside `pi` run:
 
 ```text
-/devspec.login dvs_your_token_here
+/devspec.login
 ```
 
-Your token is stored locally (`~/.pi/agent/devspec/auth.json`) with owner-only permissions and works across all of your DevSpec projects.
+Your browser opens DevSpec's approval page. Click **Allow**, and Pi is signed in as you, across all of your DevSpec projects. Restart `pi` once so your status bar and agent connection load cleanly. Pi keeps the sign-in on this computer, readable only by you, and renews it by itself, so you stay signed in until you sign out or disconnect Pi on your [Agent setup](https://app.devspec.ai/settings/agents) page.
+
+- **Working over SSH, or on a machine your browser cannot reach?** Run `/devspec.login --code`. Open the link in any browser, approve, and paste the code the page shows back into Pi. Pi does this by itself in an SSH session.
+- **Staging and production** are signed in separately and side by side. Pi uses production unless `DEVSPEC_ENV=staging` (or a full `DEVSPEC_MCP_URL`) is set when it starts, and switching never needs a new sign-in.
 
 ### 3. Connect to your project
 
@@ -40,7 +43,7 @@ Your token is stored locally (`~/.pi/agent/devspec/auth.json`) with owner-only p
 - **Join a session room:** Attach your connected Pi terminal to a new or existing session room from [devspec.ai](https://devspec.ai), or run `/devspec.remote --session <id>` inside Pi (and `/devspec.remote stop` when you want to disconnect this conversation).
 - **Switch or pin projects anywhere:** Run `/devspec.project` to inspect or change the active project for the current conversation or folder (or launch with `pi --devspec-project "Project Name"`).
 
-Sitting idle on the **Agents** page uses no tokens — Pi runs only when you or an authorized teammate asks it to do something, when your project routes a check on a change for it to rule, or when an automation you opted into runs.
+Sitting idle on the **Agents** page uses no tokens — Pi runs only when you or an authorized teammate asks it to do something, when your project routes a check on a change for it to rule, when DevSpec follows up on work Pi did (something a check found, a cleared pull request to merge, or whether it is still on an automation run), or when an automation you opted into runs. If your model provider stops Pi for usage, such as a rate limit or a used-up quota, Pi tells DevSpec, which stops sending Pi checks, and hands on any it holds, until Pi can work again.
 
 ---
 
@@ -52,9 +55,9 @@ The package also adds these slash commands and launch flags:
 
 | Command | What it does |
 |---|---|
-| `/devspec.login <token>` | Signs Pi in to DevSpec with your `dvs_…` access token. |
-| `/devspec.logout` | Removes your stored DevSpec token from this machine. |
-| `/devspec.status` | Shows your connection status, active user, project, and attached session room. |
+| `/devspec.login` | Signs Pi in to DevSpec through your browser (`--code` on a machine your browser cannot reach). |
+| `/devspec.logout` | Signs Pi out of the DevSpec server it is using (staging and production are separate). |
+| `/devspec.status` | Shows which DevSpec server Pi uses, who it is signed in as, and where its credential comes from. |
 | `/devspec.work [item]` | Lists open tasks in your project or claims a task by ID or title to start building. |
 | `/devspec.help` | Shows a quick summary of DevSpec commands inside Pi. |
 | `/devspec.remote` | Connects this Pi conversation to DevSpec and waits on the **Agents** page outside any session room. |
@@ -68,7 +71,8 @@ The package also adds these slash commands and launch flags:
 | `pi --devspec-project "<name>"` | Starts `pi` bound to a specific DevSpec project by name or ID for that terminal session. |
 | `/devspec.pin <project-uuid>` | Pins the current folder to a DevSpec project via `.devspec/project.json`. |
 | `/devspec.reload` | Reloads DevSpec extensions and skills in the current Pi session. |
-| `/devspec.review` | Reviews local changes against your project's recorded decisions and conventions. |
+| `/devspec.review` | Lists the open review questions (possibly out of date, or waiting for someone's OK) on records Pi has seen in this session. |
+| `/devspec.logo` | Turns the DevSpec duck header on or off when Pi starts. |
 
 ---
 

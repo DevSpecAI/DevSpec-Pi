@@ -871,7 +871,170 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// Descriptions: get_resource says a living document comes with its change history and
 		// how to page it. Hot set unchanged. Benchmark before/after: initial surface
 		// 60,574 -> 60,727 estimated tokens; every budget still passes.
-		"54d10db9cd93ebba9e13549240ddcafa44546cedb14b37146a4ad9d68bd86e1b",
+		// Rebaselined 2026-11-08 for DevSpec item e07d4406 (quiet duplicate fold from a
+		// DevSpec duplicate notice, item 4e5a2432 / DevSpecV2 #1197, plus check-job tool
+		// description updates from item ec2372c5 / DevSpecV2 #1187), regenerated against
+		// DevSpecV2 origin/staging (629c04136). Verbs 88 model / 12 pump / 1 never-model
+		// unchanged, none added or removed, no required field or projection family changed.
+		// Inputs: resolve_duplicate gains optional notice_id (uuid) on modelInputSchema and
+		// inputSchema so an agent acting on a DevSpec duplicate notice can pass that notice's
+		// id on preview and resolve to fold its owner's own duplicate without a command turn.
+		// Outside this model schema fingerprint: claim_check_job's tool and search-document
+		// description updates how check definitions and entry facts/ties are described
+		// (#1187). Hot set unchanged. Benchmark before/after: initial surface 60,870 ->
+		// 61,082 estimated tokens; every budget still passes.
+		// Rebaselined 2026-11-09 for DevSpec item d667abff (universal pull-request delivery
+		// and Merge when cleared, item 55a69a08 / DevSpecV2 #1241), regenerated against
+		// devspecv2-worktrees/track-1-pr-workflow. Verbs 88 model / 12 pump / 1 never-model
+		// unchanged, none added or removed, no required field or projection family changed.
+		// Inputs: record_implementation gains optional merge_when_cleared (boolean),
+		// pull_request_number (number|string) and pull_request_repo (string). Hot set
+		// unchanged; every budget still passes.
+		// Rebaselined 2026-11-12 for DevSpec item 7115301e (passive incident context and
+		// incident MCP tools), regenerated against DevSpecV2 .worktrees/7115301e-incident-agent-tools.
+		// Verbs 88 -> 92 model / 12 pump / 1 never-model. Added: get_incidents, get_incident,
+		// report_incident, and manage_incident, all assigned to the full-read family so
+		// open/resolved incident summaries, linked blocked pull requests/tasks, and second-claim
+		// holder refusals reach the model lossless. report_incident and manage_incident carry
+		// host-only request_ref (x-devspec-host-only) hidden from modelInputSchema. Every
+		// benchmark passes (initial surface: 64,322 estimated tokens).
+		// Rebaselined 2026-11-12 for DevSpec item 210fc045 (unlinked_work incident
+		// replaces auto-made unlinked-commit tasks): manage_protected_intent drops
+		// take_ownership, move_commit, auto_item_id, target_item_id, resolution_id,
+		// and intent.
+		// Rebaselined 2026-11-12 for item 210fc045: merged Pi origin/staging (0.13.2) into the
+		// PR and regenerated the catalog against DevSpecV2 origin/staging (831dfaac7).
+		// Verbs 92 -> 99 model / 12 pump / 1 never-model. Added: search_requirements,
+		// get_requirements, get_requirement, record_requirement, update_requirement,
+		// supersede_requirement and retract_requirement, all assigned to the full-read family
+		// (versions, pending proposals, companions and requirement evidence stay lossless, as
+		// they already do through get_memory); no existing verb's family changed. Inputs:
+		// create_task and record_memory gain optional preview_ack (uuid, an overlap preview's
+		// receipt); report_incident and manage_incident drop lease_seconds (a claim now lapses
+		// after 15 minutes without a heartbeat, said in claim_immediately/action), report_incident's
+		// kind narrows to reported|checks_failing|deploy_failed and opened_reason to
+		// contributor_escalated|reported, and both tools' run_id descriptions changed. No required
+		// field changed. Outside this model fingerprint: post_session_message (never-model) takes
+		// staging's notice-reply description, and the pump-only poll_connection gains host-only
+		// turn_recall_version and seen_recall_versions plus a new system_notice_version
+		// description. Hot set is every eligible model verb, so it gains the seven requirements
+		// verbs (88 -> 95). Benchmark before/after: initial surface 65,553 (PR head; Pi staging
+		// 61,546) -> 70,898 estimated tokens; every check still passes.
+		// Rebaselined 2026-11-13 for DevSpec item cd12cbe2 (requirement tools and contract
+		// 5.24.0/5.25.0 guidance in Pi), regenerated against DevSpecV2 origin/staging 74b252b07
+		// (includes #1310 f804f982, #1312 dcf6264f and #1314 9436b548). Verbs 99 model / 12 pump /
+		// 1 never-model unchanged, none added or removed, no projection family changed. Inputs:
+		// record_criterion_verdicts gains optional requirement_evidence (array of criterion_id,
+		// requirement_id, coverage, optional note). Description-only: the intent, preview_ack,
+		// summary and companion_links parameter descriptions on the task, memory, requirement and
+		// resource writes, and the tool descriptions of get_testing_brief, the requirement tools,
+		// create_task, link_tasks, claim_work_item, record_memory, supersede_memory,
+		// manage_knowledge_links and create_resource. No required field changed. Hot set unchanged
+		// (every eligible model verb). Benchmark before/after (with this item's instruction
+		// pointers): initial surface 70,956 -> 73,134 estimated tokens; every check still passes.
+		// Rebaselined 2026-11-14 for DevSpec items f721803f (dependency updates need no task) and
+		// 6714db51 (a security incident waits on its fix), regenerated against the DevSpecV2
+		// pull request 1346 (head 21476968c at the second rebaseline below; staging 2026-11-14 plus f721803f). Verbs 99 -> 105
+		// model / 12 pump / 1 never-model. Added: record_dependency_review (f721803f), and the
+		// five inventory verbs the server shipped in d4b78ada that Pi had not picked up
+		// (get_inventory, get_inventory_entry, record_inventory_entry, revise_inventory_entry,
+		// retract_inventory_entry). All six are assigned to the full-read family: an inventory
+		// read or write carries version, lifecycle, outcome and field-level refusals like a
+		// requirement's, and a dependency review's receipt carries the commit it covers and each
+		// refusal's reason. No existing verb's family changed. Inputs: manage_incident gains
+		// optional fix_pull_request_number (an integer: the pull request carrying the fix when
+		// the fix has no task), and its action and repo descriptions changed. Description-only:
+		// get_pull_request now says it returns dependency_review. No required field changed. Hot set
+		// is every eligible model verb, so it gains the six (95 -> 101). Benchmark before/after:
+		// initial surface 73,134 -> 77,604 estimated tokens; every check still passes.
+		// Rebaselined again the same day for f721803f, before this was released: Ali Price chose
+		// that a pull request an agent opens to carry a bot's update unchanged also needs no task.
+		// record_dependency_review gains optional carries_pull_request_number (an integer or "#n":
+		// the bot's pull request the caller's own pull request carries), and its description says
+		// DevSpec compares the two changes. Verbs, families and hot set unchanged. Benchmark:
+		// initial surface 77,604 -> 77,841 estimated tokens; every check still passes.
+		// Rebaselined 2026-11-15 for item 014f794d (automation-run handover and the plain-words
+		// incident hand-back), regenerated against DevSpecV2 origin/staging 1155a646e. Verbs 105
+		// model / 12 pump / 1 never-model before and after, none added or removed. Inputs: none
+		// added or removed, no type, enum or required field changed. Description-only, and the
+		// one change this fingerprint sees: manage_incident's action description now says release
+		// is "hand back, so it is open with nobody on it" (it said "hand back to unhandled open").
+		// Outside this fingerprint: claim_automation_run's tool description now says that claiming
+		// a run you already hold takes nothing and answers DevSpec's "are you still on it?"
+		// (still_yours), and that a run left quiet after that question is handed to another agent
+		// and later reports on it are refused; the pump-only poll_connection's check_job_version
+		// description adds that a check job not started within 15 minutes goes back in line. No
+		// projection family changed and the hot set is unchanged (101 verbs). Benchmark
+		// before/after: initial surface 77,841 -> 77,929 estimated tokens; every check still passes.
+		// Rebaselined 2026-11-17 for item 6d767a58 (an agent's busy report never starts a room
+		// command; only report_pickup does), regenerated against DevSpecV2 origin/staging
+		// e1063c6d2 (pull request 1400). That item's own changes are all outside this fingerprint:
+		// the pump-only heartbeat_connection and poll_connection busy descriptions now say busy
+		// keeps an activity the host started alive but never starts a delivered command, and
+		// report_pickup's description and its command_turn_id / command_message_id descriptions
+		// add starting exactly one named command. What this fingerprint sees is the inventory work
+		// the server shipped since the last regeneration (pull requests 1397 d7c9a69e, 1398
+		// 4fc2d2f7, 1401 cd0ecc46): get_inventory, record_inventory_entry and
+		// revise_inventory_entry's resource_type enum gains "dependency"; get_inventory gains
+		// optional dependency_package, dependency_ecosystem and judgement (held_back |
+		// advisory_accepted); record_inventory_entry and revise_inventory_entry gain an optional
+		// dependency object (ecosystem, package and the judgement fields); get_inventory_entry
+		// gains optional versions_limit (1-100) and versions_offset (>= 0) to page an entry's
+		// history; the five inventory tool descriptions changed. No required field changed. Verbs
+		// 105 model / 12 pump / 1 never-model before and after, none added or removed, no
+		// projection family changed, hot set unchanged (101 verbs). Benchmark before/after:
+		// initial surface 77,929 -> 81,119 estimated tokens; every check still passes.
+		// Rebaselined 2026-11-18 for item d060721f (refresh Pi's inventory tool definitions for
+		// dependency judgements, index-card purpose cap, and companion links), regenerated against
+		// DevSpecV2 carrying items d7c9a69e (#1397), fd0166db (#1430) and 36128924 (#1432). Verbs
+		// 105 model / 12 pump / 1 never-model before and after, none added or removed, no
+		// projection family changed, hot set unchanged (101 verbs). Inputs added: optional
+		// companion_links (array of { id, note }, maxItems 10) on record_inventory_entry and
+		// revise_inventory_entry (36128924), alongside the dependency judgement fields on
+		// record_inventory_entry and revise_inventory_entry, dependency_package /
+		// dependency_ecosystem / judgement filters on get_inventory, and versions_limit /
+		// versions_offset on get_inventory_entry (d7c9a69e). Descriptions changed: get_inventory,
+		// get_inventory_entry, record_inventory_entry and revise_inventory_entry (and their
+		// purpose parameter descriptions) now state the 400-character index-card purpose rule and
+		// companion links for detailed configuration or procedures (fd0166db, 36128924).
+		// Benchmark before/after: initial surface 81,119 -> 81,967 estimated tokens; every check
+		// still passes.
+		// Rebaselined 2026-11-19 for item d2b0483c (pull-request check rulings name the
+		// responsible task), regenerated against DevSpecV2 staging at 790c7d311, which also
+		// carries items 3f3f6e70 (#1446), b65646e8 (#1423), 36128924 and b4893c50 since the last
+		// regeneration. Verbs 105 model / 12 pump / 1 never-model before and after, none added or
+		// removed, no projection family changed, hot set unchanged. Inputs added: optional
+		// task_ids (array of strings) on each record_check_rulings ruling (d2b0483c); optional
+		// external_source, external_id, external_url and source_pipe_id on create_task and
+		// update_task (3f3f6e70); optional preview_ack on update_task, supersede_memory,
+		// record_requirement, supersede_requirement, create_resource, update_resource and
+		// supersede_resource (b65646e8). Input relaxed: companion_links on
+		// record_inventory_entry and revise_inventory_entry no longer has maxItems 10
+		// (36128924). Descriptions changed: record_check_rulings (task_ids and its refusals) and
+		// manage_incident's operation (a failing-checks incident stays open until its fix lands,
+		// b4893c50). No required field changed. Benchmark before/after: initial surface 81,967 ->
+		// 83,510 estimated tokens; every check still passes.
+		// Rebaselined 2026-11-20 for item 04a1fe8f (bring Pi level with the release candidate),
+		// regenerated against DevSpecV2 origin/staging 807d37292. Diffing every model entry
+		// against the 790c7d311 catalogue moved exactly two tools, both from other people's
+		// server work. record_automation_run gains optional triage_outcome (object;
+		// pull_request_id, head_sha, proof, linked_task_id, handed_on_to_connection_id,
+		// handed_on_run_id, incident_id, asked_user_id, waiting_on_user_id, waiting_on_name and
+		// what_it_needs optional; outcome enum unstuck | closed | handed_on | escalated |
+		// waiting_on_person and note required inside it) in inputSchema and modelInputSchema
+		// (a453eb6b, #1483, per-pull-request triage after 24 hours untouched).
+		// record_dependency_review's carries_pull_request_number description adds "including
+		// lockfile-only updates touching the same lockfiles" (676e1922). Tool descriptions,
+		// search intents, TOOL_CATALOG_VERSION and the description fingerprint are unchanged;
+		// no tool's required inputs changed. Verbs 105 model / 12 pump / 1 never-model before
+		// and after, none added or removed, no projection family changed, hot set unchanged (101
+		// verbs). Benchmark before/after: initial surface 83,510 -> 84,089 estimated tokens for
+		// the catalogue, 84,300 with this item's instruction changes; every check still passes.
+		// Rebaselined 2026-11-21 for item eb4cb42d (v0.15.3 write-time right-home check):
+		// regenerated against DevSpecV2 origin/staging 177d4db0c (`02146935c`). The 11 knowledge
+		// write tools gain optional `home_check_ack` (string). No required inputs or projection
+		// families changed.
+		"78a56d87da0a1279ad6abb444e4450936418a4219060cfa3b6a8aefd3c7f9389",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -920,6 +1083,9 @@ test("verb projections use explicit, loss-aware families", () => {
 		"get_task", "claim_work_item", "get_session_transcript", "preview_supersession",
 		"get_project_instruction_rules", "get_personal_instructions", "get_workflow_rules", "get_database_schema",
 		"get_goals", "get_project_goals", "create_session", "claim_automation_run",
+		"get_incidents", "get_incident", "report_incident", "manage_incident",
+		"search_requirements", "get_requirements", "get_requirement", "record_requirement",
+		"update_requirement", "supersede_requirement", "retract_requirement",
 		"import_instruction_rules", "update_personal_instructions", "manage_plan", "manage_poll", "manage_directed_question",
 	]) assert.equal(projectionFamily(verb), "full", verb);
 	assert.equal(projectionFamily("some_future_verb"), "fallback");
@@ -1602,6 +1768,43 @@ test("update_memory preserves version identity, proposals and exact refusal/prev
 		const projected = projectModelText({ toolName: "update_memory", text: JSON.stringify(details), details });
 		assert.deepEqual(JSON.parse(projected), details, "no version, proposal, preview or refusal field may disappear");
 	}
+});
+
+test("an overlap preview on create_task or record_memory reaches the model as DevSpec rendered it, with its receipt", () => {
+	// Contract 5.24.0 core.prefer-existing-records-on-overlap (item cd12cbe2): nothing was
+	// saved, and the model needs the overlapping records, the guidance and the receipt_id
+	// to resend with preview_ack. The block must arrive as text, never as an escaped string.
+	const block = (heading: string) => [
+		heading,
+		"One or more existing in-force project records overlap this draft.",
+		"- [DECISION] Staging is the tracking branch (memory-1 · v2) — get_memory({ id: \"memory-1\" })",
+		"- [REQUIREMENT] Every change lands through a pull request (req-1 · v1) — get_requirement({ id: \"req-1\" })",
+		"Nothing was saved yet. Only if this draft is genuinely distinct, resend the exact same call with preview_ack: \"receipt-9\".",
+	].join("\n");
+	for (const [verb, marker] of [["record_memory", "recorded"], ["create_task", "created"]] as const) {
+		const formatted_block = block(`== PRE-SAVE ${verb === "create_task" ? "TASK" : "MEMORY"} OVERLAP PREVIEW ==`);
+		const details = {
+			[marker]: false, outcome: "preview_required", receipt_id: "receipt-9",
+			cards: [{ id: "memory-1", version: 2, renderedLine: "- [DECISION] Staging is the tracking branch" }, { id: "req-1", version: 1, renderedLine: "- [REQUIREMENT] Every change lands through a pull request" }],
+			formatted_block, guidance: "Nothing was saved yet. Review the overlapping project record(s) above.",
+		};
+		const text = projectModelText({ toolName: verb, text: JSON.stringify(details), details, args: { title: "A draft" } });
+		assert.ok(text.includes(formatted_block), `${verb}: the preview block arrives verbatim, newlines kept`);
+		assert.match(text, new RegExp(`${verb}: outcome=preview_required\\.`));
+		assert.match(text, /"receipt_id": "receipt-9"/);
+		assert.match(text, /"guidance": "Nothing was saved yet/);
+		assert.match(text, new RegExp(`"${marker}": false`));
+		assert.match(text, /with its 2 card\(s\)/, "the structured cards are named, not silently dropped");
+		assert.doesNotMatch(text, /"renderedLine"/, "each card is shown once, in DevSpec's block");
+		assert.doesNotMatch(text, /shows the stored record/, "a preview saved nothing, so no stored record is offered");
+	}
+	// A task created with records bearing on it shows that block the same way.
+	const boundaryBlock = "== RECORDS BEARING ON THIS WORK ==\n- [REQUIREMENT] Every change lands through a pull request (req-1 · v1)";
+	const created = { created: true, outcome: "committed", id: "item-3", title: "A draft", work_boundary: { cards: [{ id: "req-1", renderedLine: "x" }], formattedBlock: boundaryBlock } };
+	const createdText = projectModelText({ toolName: "create_task", text: JSON.stringify(created), details: created });
+	assert.ok(createdText.includes(boundaryBlock));
+	assert.match(createdText, /work_boundary shown above as DevSpec sent it, with its 1 card\(s\)/);
+	assert.doesNotMatch(createdText, /"formattedBlock"/);
 });
 
 test("reserve_work_items keeps what was reserved and why each item was skipped", () => {

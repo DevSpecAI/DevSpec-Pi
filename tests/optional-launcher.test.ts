@@ -8,7 +8,7 @@ test("Pi package discovery and login do not install an independent launcher", ()
   }
   const auth = fs.readFileSync(new URL("../extensions/devspec-auth.ts", import.meta.url), "utf8");
   assert.doesNotMatch(auth, /installBundledLauncher|devspec-launcher|DEVSPEC_LAUNCHER_DISABLED/);
-  assert.match(auth, /await saveAuth/);
+  assert.match(auth, /await saveLogin/);
   assert.match(auth, /pi.registerCommand\("devspec.login"/);
   assert.ok(fs.existsSync(new URL("../extensions/devspec-remote.ts", import.meta.url)));
   const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));

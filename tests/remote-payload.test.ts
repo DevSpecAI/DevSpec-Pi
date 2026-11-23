@@ -114,7 +114,7 @@ test("invalid delegated scope preserves independent dispatch inbox metadata for 
 	assert.equal(pkg.dispatchCount, 1);
 });
 
-test("actionable canonical command/control delivery requires top-level cursor_v2", () => {
+test("a command needs the top-level cursor_v2; a control is acted on without one", () => {
 	const command = canonicalPoll();
 	delete (command as { cursor_v2?: string }).cursor_v2;
 	const commandPkg = parsePollPayload(command, ME);
@@ -142,8 +142,14 @@ test("actionable canonical command/control delivery requires top-level cursor_v2
 		},
 	};
 	assert.equal(parsePollPayload(control, ME).canonicalState, "valid");
+	// A Pi in no room is sent no cursor: there is no transcript to point into.
+	// The control must still reach it, or it holds the connection's one control
+	// slot until Pi is next put in a room (item 12dff17f).
 	delete (control as { cursor_v2?: string }).cursor_v2;
-	assert.equal(parsePollPayload(control, ME).canonicalState, "invalid");
+	const outsideRoom = parsePollPayload(control, ME);
+	assert.equal(outsideRoom.canonicalState, "valid");
+	assert.equal((outsideRoom.control as { verb?: string } | undefined)?.verb, "abort");
+	assert.equal(outsideRoom.cursorV2, undefined);
 
 	const advisory = canonicalPoll({ wakeKind: "advisory_update" });
 	delete (advisory as { cursor_v2?: string }).cursor_v2;
@@ -463,7 +469,7 @@ test("idle poll never falls back to legacy top-level executable arrays", () => {
 		changed: false,
 		commands: [{ content: "execute me" }],
 		cursor: "legacy",
-		system_notice_version: 2,
+		system_notice_version: 3,
 		system_notice_cursor: null,
 		system_notices: [],
 	}, ME);

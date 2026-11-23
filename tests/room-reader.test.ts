@@ -98,7 +98,7 @@ test("checkpoint navigation, changed scopes and changed credentials are explicit
 	} finally { f.close(); }
 });
 
-test("state remains an ID-only observed inventory and awareness is compact data", async () => {
+test("state remains an ID-only observed inventory and awareness is data without message text", async () => {
 	const f = await fixture(1);
 	try {
 		const p = packet(1); p.sessionActivity = { version: 1, status: "available", as_of: at, truncated: false, entries: [{ kind: "memory", id: id(5000), relation: "referenced" }] }; f.store.apply(p);
@@ -106,7 +106,9 @@ test("state remains an ID-only observed inventory and awareness is compact data"
 		assert.deepEqual(state.value.snapshots.activity.value.entries, [{ kind: "memory", id: id(5000), relation: "referenced" }]);
 		const status = await readLocalRoom(scope, fp, { view: "status" }, { root: f.root });
 		const awareness = compactRoomAwareness(status);
-		assert(awareness.length < 1200); assert(awareness.includes("read_room_context")); assert(!awareness.includes("message 1"));
+		// No size budget on injected context (convention 8faf5044): what is checked is that
+		// awareness points at the reader and carries no message text.
+		assert(awareness.includes("read_room_context")); assert(!awareness.includes("message 1"));
 		assert.equal(roomScopeFromEntries([{ type: "custom", customType: "devspec-room-scope-v1", data: { version: 1, scope } }]), scope);
 		assert.equal(roomScopeFromEntries([{ type: "custom", customType: "devspec-room-scope-v1", data: { version: 1, scope } }, { type: "custom", customType: "devspec-room-scope-v1", data: { version: 1, scope: null } }]), null);
 	} finally { f.close(); }

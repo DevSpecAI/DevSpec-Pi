@@ -55,7 +55,37 @@ const FULL_READ_VERBS = new Set([
 	// A pull request's provenance umbrella is one exact entity read; every list in it
 	// is already bounded by the joins, and its `absent` sentences must reach the model whole.
 	"get_pull_request",
+	"get_incidents",
+	"get_incident",
+	"report_incident",
+	"manage_incident",
 	"get_memory",
+	// Requirements (DevSpecV2 requirements tools): every read and write carries the
+	// version, state, pending proposals, companions and recorded evidence that decide
+	// whether work is blocked, and a write can come back waiting for its checks or
+	// queued as a proposal. A dropped field would read as "no obligation" or "done", so all seven
+	// stay whole, as requirement evidence already does through get_memory.
+	"search_requirements",
+	"get_requirements",
+	"get_requirement",
+	"record_requirement",
+	"update_requirement",
+	"supersede_requirement",
+	"retract_requirement",
+	// The infrastructure inventory (DevSpecV2 inventory tools): the same kind of record as
+	// a requirement. A read carries the entry's version, lifecycle and location; a write
+	// comes back committed, queued as a suggestion, or refused naming the field and the
+	// rule. A dropped field would read as "recorded" when nothing was, so all five stay whole.
+	"get_inventory",
+	"get_inventory_entry",
+	"record_inventory_entry",
+	"revise_inventory_entry",
+	"retract_inventory_entry",
+	// A dependency review's receipt (DevSpecV2 task f721803f): recorded for one commit, with
+	// what DevSpec knows of that commit's files and whether Merge when cleared was switched
+	// on, or refused with the reason (not the bot's pull request, moved on, other files).
+	// The agent decides what to do next from every one of those, so it stays whole.
+	"record_dependency_review",
 	"get_resource",
 	"get_testing_brief",
 	"get_task_history",
@@ -86,7 +116,8 @@ const FULL_READ_VERBS = new Set([
 	"create_session",
 	"claim_automation_run",
 	// A claimed check job's packet (55d71b0c): the kind's definition, the change and
-	// every entry's exact text, risk and supporting documents. A dropped entry would
+	// every entry's exact text, its facts, how it is tied to the change and its
+	// supporting documents (DevSpecV2 #1187). A dropped entry would
 	// go unruled, so it reaches the model whole.
 	"claim_check_job",
 	// Every review-queue entry is a decision waiting on a person; a dropped row
@@ -833,6 +864,57 @@ function conflictBlocks(root: Row): string[] {
 /** Response fields a receipt renders in their own block, whole, instead of in the field dump. */
 const ACK_OWN_BLOCK_KEYS = new Set(["own_criteria_follow_through", "brief_follow_through", "manual_followup_steps", "human_actions_required"]);
 
+interface RenderedCards {
+	/** DevSpec's own text, verbatim, newlines kept. */
+	blocks: string[];
+	/** The response with each rendered block and the structured cards it renders taken out. */
+	rest: Row;
+	/** What was taken out, said in the receipt so nothing leaves silently. */
+	notes: string[];
+}
+
+function cardCount(value: unknown): number {
+	return Array.isArray(value) ? value.length : 0;
+}
+
+/**
+ * A block of record cards DevSpec rendered for the model: the overlap preview a
+ * create_task or record_memory answers with `preview_required` (nothing was saved;
+ * the block carries its guidance and receipt), or the records that bear on a task
+ * just created (`work_boundary`). Shown verbatim, as turn recall is (decision
+ * 3ea02bd2): Pi never re-renders a card by its kind. The structured `cards` beside
+ * a block are the same records, each card's rendered line already in it, so the
+ * receipt names them instead of printing every card twice; details keep them whole.
+ */
+function renderedCardBlocks(root: Row): RenderedCards {
+	const rest: Row = { ...root };
+	const blocks: string[] = [];
+	const notes: string[] = [];
+	const preview = typeof root.formatted_block === "string" ? root.formatted_block.trim() : "";
+	if (preview) {
+		blocks.push(preview);
+		delete rest.formatted_block;
+		const count = cardCount(root.cards);
+		if (count) {
+			delete rest.cards;
+			notes.push(`formatted_block shown above as DevSpec sent it, with its ${count} card(s)`);
+		} else notes.push("formatted_block shown above as DevSpec sent it");
+	}
+	const boundary = record(root.work_boundary);
+	const boundaryBlock = boundary && typeof boundary.formattedBlock === "string" ? boundary.formattedBlock.trim() : "";
+	if (boundary && boundaryBlock) {
+		blocks.push(boundaryBlock);
+		const kept: Row = { ...boundary };
+		delete kept.formattedBlock;
+		const count = cardCount(boundary.cards);
+		if (count) delete kept.cards;
+		if (Object.keys(kept).length) rest.work_boundary = kept;
+		else delete rest.work_boundary;
+		notes.push(`work_boundary shown above as DevSpec sent it${count ? `, with its ${count} card(s)` : ""}`);
+	}
+	return { blocks, rest, notes };
+}
+
 /** null, a blank string, an empty list or an empty object: a field that says nothing. */
 function isEmptyValue(value: unknown): boolean {
 	if (value === null || value === undefined) return true;
@@ -962,13 +1044,18 @@ function ackProjection(toolName: string, details: unknown, args?: Row): string |
 	}
 	const manual = manualFollowUpBlock(root);
 	if (manual) blocks.push(manual);
-	const fields = receiptFields(root, args);
+	const rendered = renderedCardBlocks(root);
+	blocks.push(...rendered.blocks);
+	const fields = receiptFields(rendered.rest, args);
 	const leftOut = [
+		...rendered.notes,
 		fields.empty.length ? `${fields.empty.length} empty field(s) left out` : null,
 		fields.echoed.length ? `left out as identical to what you sent: ${fields.echoed.join(", ")}` : null,
 	].filter((part): part is string => part !== null);
+	// An overlap preview saved nothing, so there is no stored record to read.
+	const readHint = root.outcome === "preview_required" ? "" : ` — ${readToolFor(toolName)} shows the stored record`;
 	const heading = leftOut.length
-		? `DevSpec's response (every other field; ${leftOut.join("; ")} — ${readToolFor(toolName)} shows the stored record):`
+		? `DevSpec's response (every other field; ${leftOut.join("; ")}${readHint}):`
 		: "DevSpec's response (every field):";
 	blocks.push(`${heading}\n${reviewData(fields.shown)}`);
 	return blocks.join("\n");

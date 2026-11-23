@@ -24,6 +24,8 @@ async function replay(attempted: boolean, futureRetry: boolean) {
 		active, pump: active, ctx: {}, lastCtx: null, token: "fixture", endpoint: "loopback",
 		pushMode: false, notifiedFallback: false, polls: 0,
 		ensurePushInteractionNegotiation() {},
+		// The lap's credential renewal (a browser sign-in's token changes daily).
+		currentPumpToken: async (_active: unknown, held: string) => held,
 		// An unavailable provider must not hold command polling behind its reply.
 		pi_refreshBackgroundWork: () => { observations += 1; return new Promise(() => {}); },
 		nextInteractionRetryAt: () => futureRetry ? 11_000 : null,

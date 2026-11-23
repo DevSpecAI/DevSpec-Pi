@@ -186,6 +186,16 @@ const VERB_LABELS: Record<string, string> = {
 	get_automation: "reading automation",
 	get_automations: "listing automations",
 	get_automation_runs: "listing automation runs",
+	get_incidents: "listing incidents",
+	get_incident: "reading incident",
+	report_incident: "reporting incident",
+	manage_incident: "updating incident",
+	get_inventory: "listing inventory",
+	get_inventory_entry: "reading inventory entry",
+	record_inventory_entry: "recording inventory entry",
+	revise_inventory_entry: "revising inventory entry",
+	retract_inventory_entry: "retracting inventory entry",
+	record_dependency_review: "recording dependency review",
 };
 
 export function verbLabel(verb: string): string {

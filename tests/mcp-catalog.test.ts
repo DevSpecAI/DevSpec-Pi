@@ -36,6 +36,27 @@ test("memory reads expose independent optional evidence continuation without ena
 	assert.ok(!types.includes("requirement"));
 });
 
+test("the model surface carries the requirement tools, overlap confirmation and requirement evidence (cd12cbe2)", () => {
+	// What the model is actually handed, after host-identity slimming: a requirement
+	// tool or input missing here is one the model cannot call, whatever the wire map says.
+	const surface = new Map(modelFacingSurface().map(entry => [entry.name, entry]));
+	for (const verb of ["search_requirements", "get_requirements", "get_requirement", "record_requirement", "update_requirement", "supersede_requirement", "retract_requirement"]) {
+		assert.ok(surface.has(verb), `requirement verb missing from the model surface: ${verb}`);
+	}
+	for (const verb of ["record_memory", "create_task"]) {
+		const ack = (surface.get(verb)!.inputSchema.properties as Record<string, Record<string, unknown>>).preview_ack;
+		assert.equal(ack?.type, "string", `${verb}.preview_ack`);
+		assert.equal(ack?.format, "uuid", `${verb}.preview_ack`);
+		assert.ok(!((surface.get(verb)!.inputSchema.required as string[] | undefined) ?? []).includes("preview_ack"));
+	}
+	const verdicts = surface.get("record_criterion_verdicts")!.inputSchema;
+	const evidence = (verdicts.properties as Record<string, { type?: string; items?: { required?: string[]; properties?: Record<string, unknown> } }>).requirement_evidence;
+	assert.equal(evidence?.type, "array");
+	assert.deepEqual(evidence?.items?.required, ["criterion_id", "requirement_id", "coverage"]);
+	assert.ok(evidence?.items?.properties?.note);
+	assert.ok(!((verdicts.required as string[] | undefined) ?? []).includes("requirement_evidence"));
+});
+
 test("catalog classifies every host-only pump verb as non-model", () => {
 	for (const name of PUMP_VERBS) {
 		const entry = MCP_CATALOG.find((e) => e.name === name);
@@ -122,5 +143,28 @@ test("every catalog entry has a schema and a name", () => {
 		assert.ok(entry.name.length > 0);
 		assert.equal(typeof entry.inputSchema, "object");
 		assert.ok(entry.inputSchema);
+	}
+});
+
+test("inventory tools expose dependency judgement fields, lookup filters, version paging and companion links on the model surface (d060721f)", () => {
+	const surface = new Map(modelFacingSurface().map((entry) => [entry.name, entry]));
+	const list = surface.get("get_inventory")!;
+	const listProps = list.inputSchema.properties as Record<string, Record<string, unknown>>;
+	assert.equal(listProps.dependency_package?.type, "string");
+	assert.equal(listProps.dependency_ecosystem?.type, "string");
+	assert.deepEqual(listProps.judgement?.enum, ["held_back", "advisory_accepted"]);
+	assert.ok((listProps.resource_type?.enum as string[]).includes("dependency"));
+
+	const read = surface.get("get_inventory_entry")!;
+	const readProps = read.inputSchema.properties as Record<string, Record<string, unknown>>;
+	assert.equal(readProps.versions_limit?.maximum, 100);
+	assert.equal(readProps.versions_offset?.minimum, 0);
+
+	for (const verb of ["record_inventory_entry", "revise_inventory_entry"]) {
+		const entry = surface.get(verb)!;
+		const props = entry.inputSchema.properties as Record<string, Record<string, unknown>>;
+		assert.ok((props.resource_type?.enum as string[]).includes("dependency"), `${verb}.resource_type includes dependency`);
+		assert.equal(props.dependency?.type, "object", `${verb}.dependency`);
+		assert.equal(props.companion_links?.type, "array", `${verb}.companion_links`);
 	}
 });

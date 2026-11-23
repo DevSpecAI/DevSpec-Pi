@@ -1030,7 +1030,11 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// and after, none added or removed, no projection family changed, hot set unchanged (101
 		// verbs). Benchmark before/after: initial surface 83,510 -> 84,089 estimated tokens for
 		// the catalogue, 84,300 with this item's instruction changes; every check still passes.
-		"70a3dee19f4250426ce48fc18dbffe723a14f50eef1b2d584fb854eb2578896f",
+		// Rebaselined 2026-11-21 for item eb4cb42d (v0.15.3 write-time right-home check):
+		// regenerated against DevSpecV2 origin/staging 177d4db0c (`02146935c`). The 11 knowledge
+		// write tools gain optional `home_check_ack` (string). No required inputs or projection
+		// families changed.
+		"78a56d87da0a1279ad6abb444e4450936418a4219060cfa3b6a8aefd3c7f9389",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

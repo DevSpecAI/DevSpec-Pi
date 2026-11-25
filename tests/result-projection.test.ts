@@ -1034,7 +1034,14 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// regenerated against DevSpecV2 origin/staging 177d4db0c (`02146935c`). The 11 knowledge
 		// write tools gain optional `home_check_ack` (string). No required inputs or projection
 		// families changed.
-		"78a56d87da0a1279ad6abb444e4450936418a4219060cfa3b6a8aefd3c7f9389",
+		// Rebaselined 2026-11-25 for items 5cf91a48, cd75ed97, and 154ef465 (v0.15.4 inventory
+		// discovery, curated profile lookups, duplicate pre-screening, and map connections):
+		// Verbs 105 -> 106 model / 12 pump / 1 never-model. Added `manage_inventory_connections`
+		// (full-read projection family, matching the five existing inventory verbs). `get_inventory`
+		// gains optional `profile_for_provider`, `profile_for_resource_type`, and `include_profiles`;
+		// `record_inventory_entry` gains optional `preview_ack` and `profile_fields`;
+		// `revise_inventory_entry` gains optional `profile_fields`. No required field changed.
+		"632b361b92e699361df15378221c1042413d35f831970a7c6d611b97b157c43f",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

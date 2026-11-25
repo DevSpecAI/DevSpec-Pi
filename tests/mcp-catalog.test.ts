@@ -166,5 +166,17 @@ test("inventory tools expose dependency judgement fields, lookup filters, versio
 		assert.ok((props.resource_type?.enum as string[]).includes("dependency"), `${verb}.resource_type includes dependency`);
 		assert.equal(props.dependency?.type, "object", `${verb}.dependency`);
 		assert.equal(props.companion_links?.type, "array", `${verb}.companion_links`);
+		assert.ok(props.profile_fields, `${verb}.profile_fields`);
 	}
+
+	assert.equal(listProps.profile_for_provider?.type, "string");
+	assert.equal(listProps.include_profiles?.type, "boolean");
+	const recordProps = surface.get("record_inventory_entry")!.inputSchema.properties as Record<string, Record<string, unknown>>;
+	assert.equal(recordProps.preview_ack?.type, "string");
+
+	const connections = surface.get("manage_inventory_connections")!;
+	assert.ok(connections, "manage_inventory_connections is exposed on the model surface");
+	const connProps = connections.inputSchema.properties as Record<string, Record<string, unknown>>;
+	assert.deepEqual(connProps.action?.enum, ["list", "propose", "confirm", "remove"]);
+	assert.deepEqual(connProps.evidence?.type, ["string", "null"]);
 });

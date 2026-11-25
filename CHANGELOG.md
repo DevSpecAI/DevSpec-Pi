@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.15.4 - 2026-11-25
+
+- **Pi's built-in copy of DevSpec's tools now includes Inventory Map connections (`manage_inventory_connections`), curated platform field lookups, and write-time duplicate pre-screening on new Inventory entries.** Agents can inspect curated `profile_fields` schemas via `get_inventory` (`profile_for_provider`, `profile_for_resource_type`, `include_profiles`), confirm separate multi-instance resources with `preview_ack` on `record_inventory_entry`, and read, propose (with code/config evidence), confirm, or remove connections on the Inventory Map via `manage_inventory_connections`. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.15.3 - 2026-11-21
 
 - **Pi's built-in copy of DevSpec's tools now includes the write-time right-home check confirmation and guidance.** When your agent saves a memory, requirement, inventory entry, document, project rule, or personal rule that clearly belongs in a different knowledge home, DevSpec pauses before saving and returns a suggestion plus a one-use `home_check_ack` confirmation token so your agent can either move the entry or confirm it belongs where it is (and ask you first whenever Requirements are involved). No tool was added or removed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.

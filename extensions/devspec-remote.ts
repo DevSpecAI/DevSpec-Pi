@@ -5133,8 +5133,10 @@ export default function (pi: ExtensionAPI) {
 	// remirror (item 56b9a3b4). Typed /commands never take this path.
 	pi.on("before_agent_start", async (event, ctx) => {
 		noteProgressEvent();
-		const promptText = "prompt" in event && typeof event.prompt === "string" ? event.prompt : "";
-		const canonicalQueueItem = promptText ? commandTurnBindings.peek(promptText)?.canonicalQueueItem : undefined;
+		const canonicalQueueItem =
+			"prompt" in event && typeof event.prompt === "string"
+				? commandTurnBindings.peek(event.prompt)?.canonicalQueueItem
+				: undefined;
 		const active = pump;
 		// A queued owner turn may start after a newer projection arrived. Bind its
 		// immutable canonical prefix to the latest validated tail exactly once.

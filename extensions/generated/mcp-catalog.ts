@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: a95353f1659601570499affc68046b17f8ecff3746e5edd77988d3d404371f73
- * Description fingerprint: 2ed75abb487a8a367c664772a6c5635824186249392ba96bde255bd09f619a73
- * Regenerated: 2026-11-21T21:21:41.308Z
+ * Schema fingerprint: 1cd251dd85741b3ff56534510d3f1330e8b355e78207aed792d771ac81ebe112
+ * Description fingerprint: 1acc0cd3437e502283976a0873ad6aaa6025b79a7aeb71509563600ccb584cfb
+ * Regenerated: 2026-11-25T21:56:57.405Z
  */
-export const MCP_CATALOG_FINGERPRINT = "a95353f1659601570499affc68046b17f8ecff3746e5edd77988d3d404371f73";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "2ed75abb487a8a367c664772a6c5635824186249392ba96bde255bd09f619a73";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-21T21:21:41.309Z";
-export const TOOL_CATALOG_VERSION = "77f4bb67e35db9655f262ba1f6bc5183fd9e0a11d388dc4d3c27ae923762fc64";
+export const MCP_CATALOG_FINGERPRINT = "1cd251dd85741b3ff56534510d3f1330e8b355e78207aed792d771ac81ebe112";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "1acc0cd3437e502283976a0873ad6aaa6025b79a7aeb71509563600ccb584cfb";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-25T21:56:57.405Z";
+export const TOOL_CATALOG_VERSION = "8df414e8ac768eceebd410af4fcc9396c4ac8a0b4e507d7a882cdc9037335681";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -170,14 +170,14 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "get_inventory",
 		"name": "get inventory",
-		"description": "List the project's infrastructure inventory: where its apps, sites, builds, packages, repositories, databases and providers live, with each entry's environment, lifecycle and current version, and the judgements made about its dependencies (an update held back, a security advisory accepted, each with its reason and what would change it). Each entry is a concise index card (its purpose is a brief two-to-three-sentence summary of up to 400 characters covering what the resource is for and top-level account or billing ownership); detailed configuration, settings or operational procedures belong in a linked Document or Memory. To see what was decided about one dependency, pass dependency_package: a judgement whose lifecycle is current still stands, and one that is retired or replaced does not. Cards only: read one entry in full, with its versions, with get_inventory_entry. Current versions only; retired and replaced entries are listed unless you filter by lifecycle. An entry records a location: it is not proof the resource is healthy or up to date, and listing it grants no access. Suggested entries waiting for review are not listed. page.total_matching counts the entries matching your filters; pass page.next_offset as offset for the next page.",
-		"intent": "list infrastructure inventory environments urls production staging addresses where deployed hosted"
+		"description": "List the project's infrastructure inventory: where its apps, sites, builds, packages, repositories, databases and providers live, with each entry's environment, lifecycle and current version, and the judgements made about its dependencies (an update held back, a security advisory accepted, each with its reason and what would change it). Each entry is a concise index card (its purpose is a brief two-to-three-sentence summary of up to 400 characters covering what the resource is for and top-level account or billing ownership); detailed configuration, settings or operational procedures belong in a linked Document or Memory. To inspect the curated structured fields and tick-box options available for a platform (such as Cloudflare or Supabase) or resource category before recording or updating an entry, pass profile_for_provider and/or profile_for_resource_type (or include_profiles: true to list all curated platforms). To see what was decided about one dependency, pass dependency_package: a judgement whose lifecycle is current still stands, and one that is retired or replaced does not. Cards only: read one entry in full, with its versions and available curated fields, with get_inventory_entry. Current versions only; retired and replaced entries are listed unless you filter by lifecycle. An entry records a location: it is not proof the resource is healthy or up to date, and listing it grants no access. Suggested entries waiting for review are not listed. page.total_matching counts the entries matching your filters; pass page.next_offset as offset for the next page.",
+		"intent": "list infrastructure inventory environments urls production staging addresses where deployed hosted curated platform fields tick boxes"
 	},
 	{
 		"id": "get_inventory_entry",
 		"name": "get inventory entry",
-		"description": "Read one infrastructure inventory entry in full: its name, purpose (a brief two-to-three-sentence index-card summary up to 400 characters covering what the resource is for and top-level account or billing ownership, while detailed configuration, settings or operational procedures live in a linked Document or Memory), resource type, environments, provider, location, host group, lifecycle (with the entry that replaced it, when replaced), its linked companion Documents and Memories (companions, with their notes), and for a dependency judgement which dependency and version, what was decided, who decided and when, and the conditions that would change it (its purpose is the reason), the version you asked for, which version is current, and its versions, newest first, each with its own fields. Versions come a page at a time: versions_page.total counts every version the entry has, and when has_more is true pass versions_page.next_offset as versions_offset for older ones. Pass any version's id; when it is not the current version, current_id names the one that is. A retracted entry is still readable. Review flags are shown as found, never settled: no flag means none is known, not that the entry is verified.",
-		"intent": "read one inventory entry url environment history versions replaced"
+		"description": "Read one infrastructure inventory entry in full: its name, purpose (a brief two-to-three-sentence index-card summary up to 400 characters covering what the resource is for and top-level account or billing ownership, while detailed configuration, settings or operational procedures live in a linked Document or Memory), resource type, environments, provider, location, host group, lifecycle (with the entry that replaced it, when replaced), its populated profile_fields and available_profile_fields (every curated structured field and tick-box option allowed for this entry's platform or category), its linked companion Documents and Memories (companions, with their notes), and for a dependency judgement which dependency and version, what was decided, who decided and when, and the conditions that would change it (its purpose is the reason), the version you asked for, which version is current, and its versions, newest first, each with its own fields. Versions come a page at a time: versions_page.total counts every version the entry has, and when has_more is true pass versions_page.next_offset as versions_offset for older ones. Pass any version's id; when it is not the current version, current_id names the one that is. A retracted entry is still readable. Review flags are shown as found, never settled: no flag means none is known, not that the entry is verified.",
+		"intent": "read one inventory entry url environment history versions replaced profile fields"
 	},
 	{
 		"id": "get_memory",
@@ -336,6 +336,12 @@ export const TOOL_SEARCH_DOCUMENTS = [
 		"intent": "claim resolve release hand back project incident escalate needs decision link unlink blocked pull request"
 	},
 	{
+		"id": "manage_inventory_connections",
+		"name": "manage inventory connections",
+		"description": "Read, propose, confirm, or remove typed connections between active Infrastructure Inventory entries on the project Map (such as 'deploys to', 'reads & writes', 'authenticates via', 'routes to', 'dispatches jobs', 'monitors', or 'sends email via'). Use action 'list' to inspect existing connections (optionally narrowed to one entry via entry_id). Use action 'propose' during discovery or codebase inspection to record a verified connection with a required plain-English evidence note citing the exact file, workflow, config, or document that proved it: agent-proposed connections appear on the Map as proposed links awaiting human confirmation rather than being silently treated as human-confirmed facts. NEVER guess or infer a connection merely because two services share an environment. Use action 'confirm' (Contributor/Maintainer attended) to promote a proposed connection to confirmed (or record a human-confirmed link), and action 'remove' to remove an explicit connection.",
+		"intent": "inventory map connections link services resources propose confirm remove topology architecture"
+	},
+	{
 		"id": "manage_knowledge_links",
 		"name": "manage knowledge links",
 		"description": "Link two memories or AI-written documents, in any combination, as companions a reader should see together, with a note saying why (link): typically a runbook or guide and the convention or decision it carries out, or a supporting document and the decision or requirement that relies on it. You can also change that note (set_note), remove the link (unlink), or list one record's companions (list). A link is an association only: it does not say the two agree, clear a review flag, supersede either record, make either more trusted or change who may edit them. An uploaded project file can be linked only to a memory, as the supporting reference of the decision or requirement that relies on it; the decisions check then reads the file whole with that record. A file attached inside a conversation cannot be linked. Tasks have their own links (link_tasks). Both records must be current versions, given by full id or 8-character short code; a code that matches both a memory and a document is refused as ambiguous.",
@@ -410,7 +416,7 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "record_inventory_entry",
 		"name": "record inventory entry",
-		"description": "Record where one of the project's resources lives: a deployed app or site, an app store listing or test build, a package, a repository, a database, a server, a provider account. An inventory entry is a concise index card: its purpose is a brief two-to-three-sentence summary (at most 400 characters) covering what the resource is for and top-level account or billing ownership; put detailed configuration, settings, setup notes or operational procedures in a linked Document (create_resource / update_resource) or Memory (record_memory) and attach it via companion_links (or manage_knowledge_links) rather than in the entry. Record only what the person said or confirmed; never infer an environment, an address or a provider from code, configuration or a conversation's guess. A judgement about one dependency is recorded here too (resource_type dependency, with the dependency object): an update you held back after checking it, or a security advisory judged not a realistic risk, with the reason as its purpose (up to 400 characters) and at least one condition that would change it. That one records your own checked judgement, so it needs no person to have said it. One entry per resource: a site, the server it runs on and the dashboard that manages it are separate entries (host_group groups entries on one box). A Contributor's or Maintainer's entry is recorded at once (outcome committed); a Reviewed Contributor's, and any unattended run's, is saved as a suggestion for a Maintainer (outcome queued_for_review) and nothing is recorded until then. One thing an unattended run records at once: an update it held back (a dependency judgement with judgement held_back) counts from the moment it is recorded, as decided by the agent, and anyone with authority can change it later. Accepting a security advisory (advisory_accepted) on an unattended run still waits for a person. Read the outcome the answer states rather than assuming either. Credentials are refused, never stored: the answer names the field and the rule, not the value. Infrastructure Inventory holds facts about live services, environments, accounts and identifiers, with no rules or secrets. When an entry clearly belongs somewhere else, nothing is saved and the reply's outcome is home_suggestion: follow its guidance.",
+		"description": "Record where one of the project's resources lives: a deployed app or site, an app store listing or test build, a package, a repository, a database, a server, a provider account. An inventory entry is a concise index card: its purpose is a brief two-to-three-sentence summary (at most 400 characters) covering what the resource is for and top-level account or billing ownership; put detailed configuration, settings, setup notes or operational procedures in a linked Document (create_resource / update_resource) or Memory (record_memory) and attach it via companion_links (or manage_knowledge_links) rather than in the entry. Record only what the person said or confirmed; never infer an environment, an address or a provider from code, configuration or a conversation's guess. Before saving a non-dependency entry, DevSpec checks for overlapping existing entries and open suggestions in Review (by normalized location, same provider and resource type, or similar name): if any match, nothing is saved and the call returns outcome preview_required with a receipt_id so you can revise the existing entry instead of duplicating it, or resend with preview_ack when a separate resource instance (such as a second database) is genuinely intended. A judgement about one dependency is recorded here too (resource_type dependency, with the dependency object): an update you held back after checking it, or a security advisory judged not a realistic risk, with the reason as its purpose (up to 400 characters) and at least one condition that would change it. That one records your own checked judgement, so it needs no person to have said it. One entry per resource: a site, the server it runs on and the dashboard that manages it are separate entries (host_group groups entries on one box). A Contributor's or Maintainer's entry is recorded at once (outcome committed); a Reviewed Contributor's, and any unattended run's, is saved as a suggestion for a Maintainer (outcome queued_for_review) and nothing is recorded until then. One thing an unattended run records at once: an update it held back (a dependency judgement with judgement held_back) counts from the moment it is recorded, as decided by the agent, and anyone with authority can change it later. Accepting a security advisory (advisory_accepted) on an unattended run still waits for a person. Read the outcome the answer states rather than assuming either. Credentials are refused, never stored: the answer names the field and the rule, not the value. Infrastructure Inventory holds facts about live services, environments, accounts and identifiers, with no rules or secrets. When an entry clearly belongs somewhere else, nothing is saved and the reply's outcome is home_suggestion: follow its guidance.",
 		"intent": "record add infrastructure inventory entry url environment provider where deployed"
 	},
 	{
@@ -764,6 +770,7 @@ export const MODEL_VERB_NAMES = [
 	"record_inventory_entry",
 	"revise_inventory_entry",
 	"retract_inventory_entry",
+	"manage_inventory_connections",
 	"manage_discussion_point",
 	"manage_plan",
 	"manage_poll",
@@ -3845,8 +3852,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_inventory",
 		"label": "DevSpec: Get Inventory",
-		"description": "List the project's infrastructure inventory: where its apps, sites, builds, packages, repositories, databases and providers live, with each entry's environment, lifecycle and current version, and the judgements made about its dependencies (an update held back, a security advisory accepted, each with its reason and what would change it). Each entry is a concise index card (its purpose is a brief two-to-three-sentence summary of up to 400 characters covering what the resource is for and top-level account or billing ownership); detailed configuration, settings or operational procedures belong in a linked Document or Memory. To see what was decided about one dependency, pass dependency_package: a judgement whose lifecycle is current still stands, and one that is retired or replaced does not. Cards only: read one entry in full, with its versions, with get_inventory_entry. Current versions only; retired and replaced entries are listed unless you filter by lifecycle. An entry records a location: it is not proof the resource is healthy or up to date, and listing it grants no access. Suggested entries waiting for review are not listed. page.total_matching counts the entries matching your filters; pass page.next_offset as offset for the next page.",
-		"searchIntent": "list infrastructure inventory environments urls production staging addresses where deployed hosted",
+		"description": "List the project's infrastructure inventory: where its apps, sites, builds, packages, repositories, databases and providers live, with each entry's environment, lifecycle and current version, and the judgements made about its dependencies (an update held back, a security advisory accepted, each with its reason and what would change it). Each entry is a concise index card (its purpose is a brief two-to-three-sentence summary of up to 400 characters covering what the resource is for and top-level account or billing ownership); detailed configuration, settings or operational procedures belong in a linked Document or Memory. To inspect the curated structured fields and tick-box options available for a platform (such as Cloudflare or Supabase) or resource category before recording or updating an entry, pass profile_for_provider and/or profile_for_resource_type (or include_profiles: true to list all curated platforms). To see what was decided about one dependency, pass dependency_package: a judgement whose lifecycle is current still stands, and one that is retired or replaced does not. Cards only: read one entry in full, with its versions and available curated fields, with get_inventory_entry. Current versions only; retired and replaced entries are listed unless you filter by lifecycle. An entry records a location: it is not proof the resource is healthy or up to date, and listing it grants no access. Suggested entries waiting for review are not listed. page.total_matching counts the entries matching your filters; pass page.next_offset as offset for the next page.",
+		"searchIntent": "list infrastructure inventory environments urls production staging addresses where deployed hosted curated platform fields tick boxes",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -3913,6 +3920,38 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"advisory_accepted"
 					],
 					"description": "Only dependency judgements of this kind: held_back or advisory_accepted. Omitted: both, and every other entry."
+				},
+				"profile_for_provider": {
+					"type": "string",
+					"description": "Return profile_schema: the curated structured profile_fields (including single-select and multi-select tick-box options) for this provider name, such as \"Cloudflare\", \"Supabase\", or \"GitHub\". Omitted: none."
+				},
+				"profile_for_resource_type": {
+					"type": "string",
+					"enum": [
+						"web_app",
+						"website",
+						"api",
+						"mobile_app_listing",
+						"mobile_test_build",
+						"package",
+						"release",
+						"repository",
+						"database",
+						"server",
+						"hosting",
+						"dashboard",
+						"storage",
+						"observability",
+						"domain",
+						"service",
+						"dependency",
+						"other"
+					],
+					"description": "Return profile_schema for this resource category fallback (or combine with profile_for_provider). Omitted: uses resource_type when set, else \"service\" when profile_for_provider is sent."
+				},
+				"include_profiles": {
+					"type": "boolean",
+					"description": "When true, also return curated_platforms: the compact list of platforms that have curated structured fields and tick boxes. Default false."
 				},
 				"limit": {
 					"type": "integer",
@@ -4006,6 +4045,38 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					],
 					"description": "Only dependency judgements of this kind: held_back or advisory_accepted. Omitted: both, and every other entry."
 				},
+				"profile_for_provider": {
+					"type": "string",
+					"description": "Return profile_schema: the curated structured profile_fields (including single-select and multi-select tick-box options) for this provider name, such as \"Cloudflare\", \"Supabase\", or \"GitHub\". Omitted: none."
+				},
+				"profile_for_resource_type": {
+					"type": "string",
+					"enum": [
+						"web_app",
+						"website",
+						"api",
+						"mobile_app_listing",
+						"mobile_test_build",
+						"package",
+						"release",
+						"repository",
+						"database",
+						"server",
+						"hosting",
+						"dashboard",
+						"storage",
+						"observability",
+						"domain",
+						"service",
+						"dependency",
+						"other"
+					],
+					"description": "Return profile_schema for this resource category fallback (or combine with profile_for_provider). Omitted: uses resource_type when set, else \"service\" when profile_for_provider is sent."
+				},
+				"include_profiles": {
+					"type": "boolean",
+					"description": "When true, also return curated_platforms: the compact list of platforms that have curated structured fields and tick boxes. Default false."
+				},
 				"limit": {
 					"type": "integer",
 					"minimum": 1,
@@ -4036,8 +4107,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "get_inventory_entry",
 		"label": "DevSpec: Get Inventory Entry",
-		"description": "Read one infrastructure inventory entry in full: its name, purpose (a brief two-to-three-sentence index-card summary up to 400 characters covering what the resource is for and top-level account or billing ownership, while detailed configuration, settings or operational procedures live in a linked Document or Memory), resource type, environments, provider, location, host group, lifecycle (with the entry that replaced it, when replaced), its linked companion Documents and Memories (companions, with their notes), and for a dependency judgement which dependency and version, what was decided, who decided and when, and the conditions that would change it (its purpose is the reason), the version you asked for, which version is current, and its versions, newest first, each with its own fields. Versions come a page at a time: versions_page.total counts every version the entry has, and when has_more is true pass versions_page.next_offset as versions_offset for older ones. Pass any version's id; when it is not the current version, current_id names the one that is. A retracted entry is still readable. Review flags are shown as found, never settled: no flag means none is known, not that the entry is verified.",
-		"searchIntent": "read one inventory entry url environment history versions replaced",
+		"description": "Read one infrastructure inventory entry in full: its name, purpose (a brief two-to-three-sentence index-card summary up to 400 characters covering what the resource is for and top-level account or billing ownership, while detailed configuration, settings or operational procedures live in a linked Document or Memory), resource type, environments, provider, location, host group, lifecycle (with the entry that replaced it, when replaced), its populated profile_fields and available_profile_fields (every curated structured field and tick-box option allowed for this entry's platform or category), its linked companion Documents and Memories (companions, with their notes), and for a dependency judgement which dependency and version, what was decided, who decided and when, and the conditions that would change it (its purpose is the reason), the version you asked for, which version is current, and its versions, newest first, each with its own fields. Versions come a page at a time: versions_page.total counts every version the entry has, and when has_more is true pass versions_page.next_offset as versions_offset for older ones. Pass any version's id; when it is not the current version, current_id names the one that is. A retracted entry is still readable. Review flags are shown as found, never settled: no flag means none is known, not that the entry is verified.",
+		"searchIntent": "read one inventory entry url environment history versions replaced profile fields",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -13635,7 +13706,7 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "record_inventory_entry",
 		"label": "DevSpec: Record Inventory Entry",
-		"description": "Record where one of the project's resources lives: a deployed app or site, an app store listing or test build, a package, a repository, a database, a server, a provider account. An inventory entry is a concise index card: its purpose is a brief two-to-three-sentence summary (at most 400 characters) covering what the resource is for and top-level account or billing ownership; put detailed configuration, settings, setup notes or operational procedures in a linked Document (create_resource / update_resource) or Memory (record_memory) and attach it via companion_links (or manage_knowledge_links) rather than in the entry. Record only what the person said or confirmed; never infer an environment, an address or a provider from code, configuration or a conversation's guess. A judgement about one dependency is recorded here too (resource_type dependency, with the dependency object): an update you held back after checking it, or a security advisory judged not a realistic risk, with the reason as its purpose (up to 400 characters) and at least one condition that would change it. That one records your own checked judgement, so it needs no person to have said it. One entry per resource: a site, the server it runs on and the dashboard that manages it are separate entries (host_group groups entries on one box). A Contributor's or Maintainer's entry is recorded at once (outcome committed); a Reviewed Contributor's, and any unattended run's, is saved as a suggestion for a Maintainer (outcome queued_for_review) and nothing is recorded until then. One thing an unattended run records at once: an update it held back (a dependency judgement with judgement held_back) counts from the moment it is recorded, as decided by the agent, and anyone with authority can change it later. Accepting a security advisory (advisory_accepted) on an unattended run still waits for a person. Read the outcome the answer states rather than assuming either. Credentials are refused, never stored: the answer names the field and the rule, not the value. Infrastructure Inventory holds facts about live services, environments, accounts and identifiers, with no rules or secrets. When an entry clearly belongs somewhere else, nothing is saved and the reply's outcome is home_suggestion: follow its guidance.",
+		"description": "Record where one of the project's resources lives: a deployed app or site, an app store listing or test build, a package, a repository, a database, a server, a provider account. An inventory entry is a concise index card: its purpose is a brief two-to-three-sentence summary (at most 400 characters) covering what the resource is for and top-level account or billing ownership; put detailed configuration, settings, setup notes or operational procedures in a linked Document (create_resource / update_resource) or Memory (record_memory) and attach it via companion_links (or manage_knowledge_links) rather than in the entry. Record only what the person said or confirmed; never infer an environment, an address or a provider from code, configuration or a conversation's guess. Before saving a non-dependency entry, DevSpec checks for overlapping existing entries and open suggestions in Review (by normalized location, same provider and resource type, or similar name): if any match, nothing is saved and the call returns outcome preview_required with a receipt_id so you can revise the existing entry instead of duplicating it, or resend with preview_ack when a separate resource instance (such as a second database) is genuinely intended. A judgement about one dependency is recorded here too (resource_type dependency, with the dependency object): an update you held back after checking it, or a security advisory judged not a realistic risk, with the reason as its purpose (up to 400 characters) and at least one condition that would change it. That one records your own checked judgement, so it needs no person to have said it. One entry per resource: a site, the server it runs on and the dashboard that manages it are separate entries (host_group groups entries on one box). A Contributor's or Maintainer's entry is recorded at once (outcome committed); a Reviewed Contributor's, and any unattended run's, is saved as a suggestion for a Maintainer (outcome queued_for_review) and nothing is recorded until then. One thing an unattended run records at once: an update it held back (a dependency judgement with judgement held_back) counts from the moment it is recorded, as decided by the agent, and anyone with authority can change it later. Accepting a security advisory (advisory_accepted) on an unattended run still waits for a person. Read the outcome the answer states rather than assuming either. Credentials are refused, never stored: the answer names the field and the rule, not the value. Infrastructure Inventory holds facts about live services, environments, accounts and identifiers, with no rules or secrets. When an entry clearly belongs somewhere else, nothing is saved and the reply's outcome is home_suggestion: follow its guidance.",
 		"searchIntent": "record add infrastructure inventory entry url environment provider where deployed",
 		"modelInputSchema": {
 			"type": "object",
@@ -13721,6 +13792,36 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"replaced_by": {
 					"type": "string",
 					"description": "With lifecycle replaced: the stable id (thread_id) of the inventory entry that replaced this one."
+				},
+				"profile_fields": {
+					"anyOf": [
+						{
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {
+								"anyOf": [
+									{
+										"type": "string"
+									},
+									{
+										"type": "array",
+										"items": {
+											"type": "string"
+										}
+									},
+									{
+										"type": "null"
+									}
+								]
+							}
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Optional curated structured fields for this platform or resource category (such as account_owner, region, project_ref, zone_domain, or platform tick-box multi-select lists like Cloudflare products or Supabase features). Call get_inventory with profile_for_provider (for example, \"Cloudflare\") or profile_for_resource_type — or read an entry with get_inventory_entry — to see the exact allowed keys and valid options before writing. Every key must belong to the resolved curated profile, values are short single-line strings or lists of canonical choices (never credentials), and null clears a field on revision. Omitted: unchanged."
 				},
 				"dependency": {
 					"type": "object",
@@ -13914,6 +14015,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"idempotency_key": {
 					"type": "string",
 					"description": "A fresh UUID for this intended entry; reuse it, with the same fields, to retry after an uncertain answer. Required when the entry is saved for review, so send one every time."
+				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"description": "The receipt_id from a preview_required duplicate/overlap preview on record_inventory_entry. Send it only after confirming this is genuinely a separate resource instance rather than a duplicate of an existing entry. Any change to name, purpose, resource_type, provider, location, or environments invalidates the receipt. Omitted: overlapping creates return preview_required without saving."
 				},
 				"home_check_ack": {
 					"type": "string",
@@ -14032,6 +14138,36 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"description": "With lifecycle replaced: the stable id (thread_id) of the inventory entry that replaced this one."
 				},
+				"profile_fields": {
+					"anyOf": [
+						{
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {
+								"anyOf": [
+									{
+										"type": "string"
+									},
+									{
+										"type": "array",
+										"items": {
+											"type": "string"
+										}
+									},
+									{
+										"type": "null"
+									}
+								]
+							}
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Optional curated structured fields for this platform or resource category (such as account_owner, region, project_ref, zone_domain, or platform tick-box multi-select lists like Cloudflare products or Supabase features). Call get_inventory with profile_for_provider (for example, \"Cloudflare\") or profile_for_resource_type — or read an entry with get_inventory_entry — to see the exact allowed keys and valid options before writing. Every key must belong to the resolved curated profile, values are short single-line strings or lists of canonical choices (never credentials), and null clears a field on revision. Omitted: unchanged."
+				},
 				"dependency": {
 					"type": "object",
 					"properties": {
@@ -14224,6 +14360,11 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				"idempotency_key": {
 					"type": "string",
 					"description": "A fresh UUID for this intended entry; reuse it, with the same fields, to retry after an uncertain answer. Required when the entry is saved for review, so send one every time."
+				},
+				"preview_ack": {
+					"type": "string",
+					"format": "uuid",
+					"description": "The receipt_id from a preview_required duplicate/overlap preview on record_inventory_entry. Send it only after confirming this is genuinely a separate resource instance rather than a duplicate of an existing entry. Any change to name, purpose, resource_type, provider, location, or environments invalidates the receipt. Omitted: overlapping creates return preview_required without saving."
 				},
 				"home_check_ack": {
 					"type": "string",
@@ -14381,6 +14522,36 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"string",
 						"null"
 					]
+				},
+				"profile_fields": {
+					"anyOf": [
+						{
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {
+								"anyOf": [
+									{
+										"type": "string"
+									},
+									{
+										"type": "array",
+										"items": {
+											"type": "string"
+										}
+									},
+									{
+										"type": "null"
+									}
+								]
+							}
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Optional curated structured fields for this platform or resource category (such as account_owner, region, project_ref, zone_domain, or platform tick-box multi-select lists like Cloudflare products or Supabase features). Call get_inventory with profile_for_provider (for example, \"Cloudflare\") or profile_for_resource_type — or read an entry with get_inventory_entry — to see the exact allowed keys and valid options before writing. Every key must belong to the resolved curated profile, values are short single-line strings or lists of canonical choices (never credentials), and null clears a field on revision. Omitted: unchanged."
 				},
 				"dependency": {
 					"type": "object",
@@ -14718,6 +14889,36 @@ export const MCP_CATALOG: CatalogEntry[] = [
 						"string",
 						"null"
 					]
+				},
+				"profile_fields": {
+					"anyOf": [
+						{
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {
+								"anyOf": [
+									{
+										"type": "string"
+									},
+									{
+										"type": "array",
+										"items": {
+											"type": "string"
+										}
+									},
+									{
+										"type": "null"
+									}
+								]
+							}
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Optional curated structured fields for this platform or resource category (such as account_owner, region, project_ref, zone_domain, or platform tick-box multi-select lists like Cloudflare products or Supabase features). Call get_inventory with profile_for_provider (for example, \"Cloudflare\") or profile_for_resource_type — or read an entry with get_inventory_entry — to see the exact allowed keys and valid options before writing. Every key must belong to the resolved curated profile, values are short single-line strings or lists of canonical choices (never credentials), and null clears a field on revision. Omitted: unchanged."
 				},
 				"dependency": {
 					"type": "object",
@@ -15066,6 +15267,148 @@ export const MCP_CATALOG: CatalogEntry[] = [
 			"required": [
 				"id",
 				"expected_version"
+			]
+		},
+		"kind": "model"
+	},
+	{
+		"name": "manage_inventory_connections",
+		"label": "DevSpec: Manage Inventory Connections",
+		"description": "Read, propose, confirm, or remove typed connections between active Infrastructure Inventory entries on the project Map (such as 'deploys to', 'reads & writes', 'authenticates via', 'routes to', 'dispatches jobs', 'monitors', or 'sends email via'). Use action 'list' to inspect existing connections (optionally narrowed to one entry via entry_id). Use action 'propose' during discovery or codebase inspection to record a verified connection with a required plain-English evidence note citing the exact file, workflow, config, or document that proved it: agent-proposed connections appear on the Map as proposed links awaiting human confirmation rather than being silently treated as human-confirmed facts. NEVER guess or infer a connection merely because two services share an environment. Use action 'confirm' (Contributor/Maintainer attended) to promote a proposed connection to confirmed (or record a human-confirmed link), and action 'remove' to remove an explicit connection.",
+		"searchIntent": "inventory map connections link services resources propose confirm remove topology architecture",
+		"modelInputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id, if you are a connected agent. It records which agent made this change and the session it came from, and lets a teammate's command be attributed to, and judged as, the person who gave it. Omitted: the connection your client authenticated, if any; otherwise the write names no agent or session. Refused if the connection is not live, not yours, or not the one your client authenticated."
+				},
+				"action": {
+					"type": "string",
+					"enum": [
+						"list",
+						"propose",
+						"confirm",
+						"remove"
+					],
+					"description": "list existing connections; propose a verified connection with code/config evidence (awaits human confirmation on the Map); confirm a proposed or human-stated connection; remove an explicit connection."
+				},
+				"entry_id": {
+					"type": "string",
+					"description": "For action list: optional entry id or thread_id (full UUID) to return only connections touching that resource. Omitted: list all active project connections."
+				},
+				"source_id": {
+					"type": "string",
+					"description": "For propose, confirm, and remove: the source Inventory entry id or thread_id (full UUID, from get_inventory)."
+				},
+				"target_id": {
+					"type": "string",
+					"description": "For propose, confirm, and remove: the target Inventory entry id or thread_id (full UUID, from get_inventory)."
+				},
+				"label": {
+					"type": "string",
+					"description": "Concise relationship verb (single line, at most 100 characters, such as \"deploys to\", \"reads & writes\", \"routes to\", \"authenticates via\", \"dispatches jobs\", \"monitors\", \"sends email via\"). Required for propose; optional on confirm if promoting an existing proposed connection."
+				},
+				"evidence": {
+					"description": "Plain-English evidence note (at most 400 characters, never secrets) naming the exact file, workflow, config, or runbook where this connection was observed. Required for propose; optional on confirm (preserves existing evidence when omitted).",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"action"
+			]
+		},
+		"inputSchema": {
+			"type": "object",
+			"properties": {
+				"connection_id": {
+					"type": "string",
+					"description": "Your own connection id, if you are a connected agent. It records which agent made this change and the session it came from, and lets a teammate's command be attributed to, and judged as, the person who gave it. Omitted: the connection your client authenticated, if any; otherwise the write names no agent or session. Refused if the connection is not live, not yours, or not the one your client authenticated."
+				},
+				"action": {
+					"type": "string",
+					"enum": [
+						"list",
+						"propose",
+						"confirm",
+						"remove"
+					],
+					"description": "list existing connections; propose a verified connection with code/config evidence (awaits human confirmation on the Map); confirm a proposed or human-stated connection; remove an explicit connection."
+				},
+				"entry_id": {
+					"type": "string",
+					"description": "For action list: optional entry id or thread_id (full UUID) to return only connections touching that resource. Omitted: list all active project connections."
+				},
+				"source_id": {
+					"type": "string",
+					"description": "For propose, confirm, and remove: the source Inventory entry id or thread_id (full UUID, from get_inventory)."
+				},
+				"target_id": {
+					"type": "string",
+					"description": "For propose, confirm, and remove: the target Inventory entry id or thread_id (full UUID, from get_inventory)."
+				},
+				"label": {
+					"type": "string",
+					"description": "Concise relationship verb (single line, at most 100 characters, such as \"deploys to\", \"reads & writes\", \"routes to\", \"authenticates via\", \"dispatches jobs\", \"monitors\", \"sends email via\"). Required for propose; optional on confirm if promoting an existing proposed connection."
+				},
+				"evidence": {
+					"description": "Plain-English evidence note (at most 400 characters, never secrets) naming the exact file, workflow, config, or runbook where this connection was observed. Required for propose; optional on confirm (preserves existing evidence when omitted).",
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"project_id": {
+					"description": "Project UUID. Wins over pinned_project_id and git_remote, except that the connection your client signed in as, or a record the call names, sets the project, and a project_id that disagrees is refused. Omit it when you can reach only one project, or when the folder pin or git remote identifies it.",
+					"type": "string"
+				},
+				"git_remote": {
+					"description": "Your `git remote get-url origin`. Used when project_id is omitted and you can reach more than one project. A verified match outranks the folder pin; a remote that several of your projects track needs the pin or project_id. Omitted: not used.",
+					"type": "string"
+				},
+				"pinned_project_id": {
+					"description": "The project_id from `.devspec/project.json`, if the folder has one. Used when project_id is omitted, you can reach more than one project and git_remote resolves no single project. A pin you cannot access is ignored. Omitted: not used.",
+					"type": "string"
+				},
+				"provenance_ref": {
+					"description": "The provenance_ref of a live command this write serves, when that is not your newest command. Omitted: DevSpec works out who asked from your connection. A wrong or closed ref is refused. Never send a user id.",
+					"type": "string"
+				},
+				"request_ref": {
+					"type": "string",
+					"x-devspec-host-only": true,
+					"description": "Host-only. The open request this write serves, from report_request: a room command or a prompt typed at this agent's terminal, including when work it started wakes the agent later. \"none\" says this turn continues nobody's request, so the write is the agent's own initiative. Omitted: DevSpec works out who asked from your connection. A request that is not this connection's is refused."
+				},
+				"work_claim_ref": {
+					"description": "The work_claim_ref claim_work_item returned, on a write that work produced; it stays valid for writes about its own item after record_implementation. Omitted: DevSpec works out who asked from your connection.",
+					"type": "string"
+				}
+			},
+			"required": [
+				"action"
 			]
 		},
 		"kind": "model"
@@ -21513,8 +21856,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 ];
 
 export const CATALOG_COUNTS = {
-	total: 118,
-	model: 105,
+	total: 119,
+	model: 106,
 	pump: 12,
 	never_model: 1,
 } as const;

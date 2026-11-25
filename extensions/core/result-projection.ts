@@ -81,6 +81,7 @@ const FULL_READ_VERBS = new Set([
 	"record_inventory_entry",
 	"revise_inventory_entry",
 	"retract_inventory_entry",
+	"manage_inventory_connections",
 	// A dependency review's receipt (DevSpecV2 task f721803f): recorded for one commit, with
 	// what DevSpec knows of that commit's files and whether Merge when cleared was switched
 	// on, or refused with the reason (not the bot's pull request, moved on, other files).

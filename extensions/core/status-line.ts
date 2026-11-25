@@ -195,6 +195,7 @@ const VERB_LABELS: Record<string, string> = {
 	record_inventory_entry: "recording inventory entry",
 	revise_inventory_entry: "revising inventory entry",
 	retract_inventory_entry: "retracting inventory entry",
+	manage_inventory_connections: "managing inventory connections",
 	record_dependency_review: "recording dependency review",
 };
 

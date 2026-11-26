@@ -299,8 +299,33 @@ const POLL_TIMEOUT_MS = 45_000;
  * idle: Pi can use SSE while busy, and wakes shorten observed gaps in both.
  */
 export const PUSH_SAFETY_MS = 45_000;
+/**
+ * First retry gap after something the pump did failed without ending the bond.
+ * Five seconds is long enough for a redeploy's container swap or a dropped proxy
+ * connection to clear, and short enough that a single blip is invisible to the
+ * person waiting on the agent.
+ */
 const ERROR_BACKOFF_MS = 5_000;
 const MAX_CONSECUTIVE_ERRORS = 10;
+
+/**
+ * How long to wait before retrying after `consecutiveFailures` check-ins in a row
+ * failed (item da977c8d). The retry is owed: the wake that started the failed lap
+ * was already used up, so without one the pump would sleep up to PUSH_SAFETY_MS
+ * more although DevSpec had already announced work.
+ *
+ * Starts at ERROR_BACKOFF_MS and doubles with each consecutive failure, so a
+ * DevSpec outage seen by every Pi at once does not become a sustained 5-second
+ * retry storm while the server is recovering. Capped at PUSH_SAFETY_MS: a failing
+ * agent never retries less often than a healthy idle one checks in, so it
+ * notices recovery inside the same window presence already relies on.
+ * 5 s, 10 s, 20 s, 40 s, then 45 s for as long as the failures continue.
+ */
+export function pollFailureBackoffMs(consecutiveFailures: number): number {
+	const failures = Number.isFinite(consecutiveFailures) ? Math.max(1, Math.floor(consecutiveFailures)) : 1;
+	// 2 ** 4 × 5 s already exceeds the cap; bounding the exponent keeps it finite.
+	return Math.min(PUSH_SAFETY_MS, ERROR_BACKOFF_MS * 2 ** Math.min(failures - 1, 4));
+}
 
 interface PendingInteractionStartRetry {
 	event: DirectedQuestionEventV1;
@@ -347,6 +372,14 @@ interface PumpState {
 	/** Shutdown blocks intake but still permits exact terminal fallback posts. */
 	closing?: boolean;
 	errors: number;
+	/**
+	 * Consecutive laps whose check-in failed without ending the bond: the poll
+	 * itself, or a package Pi could not use (item da977c8d). Drives
+	 * pollFailureBackoffMs, and resets only when a lap's package is handled, so a
+	 * response that keeps failing to parse still backs off instead of retrying
+	 * every 5 s (`errors` resets as soon as the transport answers).
+	 */
+	pollFailures: number;
 	/**
 	 * False until the first package has been processed. The cold-start poll
 	 * has no cursor, so the server answers with the catch-up WINDOW — which
@@ -2614,6 +2647,28 @@ function waitForWake(active: PumpState, safetyMs: number): Promise<void> {
 }
 
 /**
+ * A check-in failed without ending the bond (item da977c8d): back off, then owe
+ * the pump one check-in. The wake that started this lap was used up before the
+ * check-in failed, so nothing it announced has been read; without this the next
+ * lap would wait for a fresh wake or the PUSH_SAFETY_MS tick. Signalling the gate
+ * itself (not signalWake) coalesces with any real wake that lands during the
+ * back-off, and leaves the busy-boundary replay latch alone: this is not news
+ * from DevSpec. A plain sleep, not a wake wait: reconnect attempts signal wakes
+ * during an outage and would otherwise cut every back-off short.
+ */
+async function retryAfterPollFailure(active: PumpState): Promise<void> {
+	active.pollFailures += 1;
+	await new Promise((resolve) => setTimeout(resolve, pollFailureBackoffMs(active.pollFailures)));
+	if (pump !== active || active.stop) return;
+	active.wakeGate.signal();
+}
+
+/** The lap's package was handled: the next failure starts the back-off from the bottom. */
+function pollLapCompleted(active: PumpState): void {
+	active.pollFailures = 0;
+}
+
+/**
  * The stream dropped unexpectedly (or failed to connect). Reconnect with
  * bounded backoff (item 8b0c162b) — a proxy hiccup must not cost the bond its
  * fast lane for the rest of its life. Only when quick retries are exhausted do
@@ -3392,7 +3447,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				continue;
 			}
 			active.errors += 1;
-			await new Promise((resolve) => setTimeout(resolve, ERROR_BACKOFF_MS));
+			await retryAfterPollFailure(active);
 			continue;
 		}
 		if (pushMode && active.pushClosed) {
@@ -3575,7 +3630,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				notify(ctx, "DevSpec remote: connection troubled — retrying automatically. /devspec.remote reconnect to retry now.", "warning");
 			}
 			void beatBusy(active.busy);
-			await new Promise((r) => setTimeout(r, ERROR_BACKOFF_MS));
+			await retryAfterPollFailure(active);
 			continue;
 		}
 
@@ -3600,7 +3655,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				notifiedFallback = false;
 				continue;
 			}
-			await new Promise((r) => setTimeout(r, ERROR_BACKOFF_MS));
+			await retryAfterPollFailure(active);
 			continue;
 		}
 
@@ -3612,7 +3667,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		} catch (error) {
 			active.errors += 1;
 			debug("interaction event payload rejected", { errors: active.errors, errorPresent: Boolean(error) });
-			await new Promise((resolve) => setTimeout(resolve, ERROR_BACKOFF_MS));
+			await retryAfterPollFailure(active);
 			continue;
 		}
 		if (interactionEventAck) {
@@ -3736,7 +3791,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (!await applyInteractionEvent(active, ctx, interactionEvent)) {
 				active.errors += 1;
 				debug("interaction event exact-workflow guard rejected", { errors: active.errors });
-				await new Promise((resolve) => setTimeout(resolve, ERROR_BACKOFF_MS));
+				await retryAfterPollFailure(active);
+			} else {
+				pollLapCompleted(active);
 			}
 			// The server's event-only lane intentionally carries no canonical ingress,
 			// dispatch, notice, cursor, control, plan, trail, or activity payload.
@@ -3779,7 +3836,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				notify(ctx, unreadable.local, "error");
 				void postToSession(unreadable.room, { commandTurnUnbound: true });
 			}
-			await new Promise((resolve) => setTimeout(resolve, ERROR_BACKOFF_MS));
+			await retryAfterPollFailure(active);
 			continue;
 		}
 		if (pkg.canonicalState === "valid") active.unreadableIngressReported = undefined;
@@ -3821,7 +3878,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (!acceptSystemNotices(active.systemNoticeKey, pkg.systemNotices)) {
 				active.errors += 1;
 				debug("system notice memory queue rejected", { errors: active.errors, count: pkg.systemNotices.length });
-				await new Promise((resolve) => setTimeout(resolve, ERROR_BACKOFF_MS));
+				await retryAfterPollFailure(active);
 				continue;
 			}
 			// This independent point advances only after the entire validated batch is
@@ -4096,6 +4153,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		const dispatches = (payload as { dispatches?: unknown[] } | null)?.dispatches ?? [];
 		for (const dispatch of dispatches) enqueueDispatch(active, token, dispatch, ctx);
 		if (pkg.dispatchCursor) active.dispatchCursor = pkg.dispatchCursor;
+		// A command that could not be delivered retries on its own clock below; the
+		// check-in that brought it succeeded.
+		pollLapCompleted(active);
 		if (commandRetryDelayMs > 0 && pump === active && !active.stop) {
 			await new Promise((resolve) => setTimeout(resolve, commandRetryDelayMs));
 			if (pump === active && !active.stop) signalWake(active);
@@ -4250,6 +4310,7 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 		busy: false,
 		stop: false,
 		errors: 0,
+		pollFailures: 0,
 		synced: false,
 		seenOwnerCommands: new SeenOwnerCommands(),
 		advisoryCarry: [],

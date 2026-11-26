@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { RoomSync } from "../extensions/core/room-sync.ts";
+import { WakeGenerationGate } from "../extensions/core/push-channel.ts";
 import { openRoomStore } from "../extensions/core/room-store.ts";
 import { parsePollPayload, type PollPackage } from "../extensions/core/remote-payload.ts";
 import { roomPoll } from "./room-context-fixture.ts";
@@ -53,4 +54,25 @@ test("ambient history is retained without a model wake and failed reads retain t
 		store.markBehind(); await sync.repairOnce(); assert.equal(errors, 1);
 		assert.deepEqual(store.status().through, before); assert.equal(store.status().online, false);
 	} finally { sync.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("a push wake that lands while room history is being read stays pending for the pump (da977c8d)", async () => {
+	// Pi reads room history on its own calls, beside the pump. A message that arrives
+	// mid-read must still find its wake waiting when the pump next looks, not be used
+	// up by the history read (the gap the local-poller plugins had).
+	const root = mkdtempSync(join(tmpdir(), "pi-room-sync-")); const store = await openRoomStore(scope, { root });
+	const gate = new WakeGenerationGate();
+	let release!: (pkg: PollPackage) => void; let started!: () => void;
+	const fetching = new Promise<void>(r => { started = r; });
+	const sync = new RoomSync({ store, current: () => true, liveCursor: () => "cursor", intervalMs: 60_000,
+		fetchHistory: () => new Promise(r => { release = r; started(); }), wake: () => gate.signal(), onError: () => assert.fail("unexpected error") });
+	try {
+		const pending = sync.repairOnce(); await fetching;
+		gate.signal(); // the SSE wake for a message posted mid-read
+		release(parsed()); await pending;
+		assert.equal(store.status().records, 4, "the history page was applied");
+		assert.equal(gate.hasPending(), true, "the wake is still waiting for the pump");
+		const startedWait = Date.now(); await gate.wait(5_000);
+		assert.ok(Date.now() - startedWait < 500, "the pump's next wait returns at once");
+	} finally { gate.cancel(); sync.close(); rmSync(root, { recursive: true, force: true }); }
 });

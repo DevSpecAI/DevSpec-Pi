@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.15.6 - 2026-11-26
+
+- **A check-in with DevSpec that fails or times out is retried straight after a short wait, instead of waiting for the next nudge.** Before, Pi had already used up the nudge that started a failed check-in, so a message DevSpec had already announced could sit for up to another 45 seconds. Now the retry comes 5 seconds later. If check-ins keep failing, for example while DevSpec is redeploying, the wait doubles each time (10, 20, 40 seconds) up to 45 seconds, so a whole room of agents does not hammer DevSpec while it recovers, and the first check-in that works resets it. Nothing changes for an idle agent. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.15.5 - 2026-11-26
 
 - **Pi's built-in copy of DevSpec's tools now reflects live Inventory Map connections (`action: "record"` on `manage_inventory_connections`).** Verified connections are saved directly as live editable links on the Inventory Map (with `evidence` required and legacy `propose`/`confirm` actions kept compatible). No tool was added or removed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.

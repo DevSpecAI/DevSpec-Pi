@@ -67,6 +67,7 @@ const DEBUG_FIELDS = {
 	"optional room state rejected": ["sessionPolls", "stillToDiscuss", "sessionActivity", "noticeReply", "projectIncidents"],
 	"room storage unavailable": ["errorPresent"],
 	"poll recoverable": ["errors", "errorPresent"],
+	"poll answered without checking the room": ["errors"],
 	"poll recoverable server response": ["ended", "reasonPresent"],
 	"post delivery failed": ["skipped", "rejected", "malformed", "unknown"],
 	"post stored": ["idempotent"],

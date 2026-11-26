@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.15.7 - 2026-11-26
+
+- **When DevSpec says "nothing new" but could not actually look at the room, Pi now treats that as a failed check-in and tries again.** DevSpec now says so on such answers. Before, Pi took that answer at face value, so a message waiting for it could sit until the next nudge or the 45-second safety check. Now Pi retries on the same short, growing wait as any other failed check-in. Answers from an older DevSpec that does not say either way are trusted as before. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.15.6 - 2026-11-26
 
 - **A check-in with DevSpec that fails or times out is retried straight after a short wait, instead of waiting for the next nudge.** Before, Pi had already used up the nudge that started a failed check-in, so a message DevSpec had already announced could sit for up to another 45 seconds. Now the retry comes 5 seconds later. If check-ins keep failing, for example while DevSpec is redeploying, the wait doubles each time (10, 20, 40 seconds) up to 45 seconds, so a whole room of agents does not hammer DevSpec while it recovers, and the first check-in that works resets it. Nothing changes for an idle agent. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.

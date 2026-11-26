@@ -18,7 +18,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { resetClientCache, setLaneClientFactoryForTests, type LaneClient } from "../extensions/core/client.ts";
 import { getBond, setBond } from "../extensions/core/bond-state.ts";
 import { saveLogin } from "../extensions/core/auth-store.ts";
-import { PUSH_SAFETY_MS, pollFailureBackoffMs } from "../extensions/devspec-remote.ts";
+import { PUSH_SAFETY_MS, pollCheckedNothing, pollFailureBackoffMs } from "../extensions/devspec-remote.ts";
 
 const PROJECT = {
 	id: "abababab-abab-4bab-8bab-abababababab",
@@ -54,6 +54,8 @@ class ScriptedDevspec {
 	readonly polls: Array<{ at: number; failed: boolean }> = [];
 	/** The next this-many poll_connection calls time out (the client retries a timeout once). */
 	failNextPolls = 0;
+	/** What the next "nothing new" answers say about their own check, in order; empty = field absent. */
+	markerReads: Array<"ok" | "unavailable"> = [];
 
 	async start(): Promise<void> {
 		this.server = createServer((req, res) => {
@@ -104,11 +106,13 @@ class ScriptedDevspec {
 						this.polls.push({ at: Date.now(), failed: true });
 						throw new Error("poll_connection timed out");
 					}
-					this.polls.push({ at: Date.now(), failed: false });
+					const markerRead = this.markerReads.shift();
+					this.polls.push({ at: Date.now(), failed: markerRead === "unavailable" });
 					return text({
 						connection_id: args?.connection_id ?? CONNECTION,
 						session_id: null,
 						changed: false,
+						...(markerRead ? { marker_read: markerRead } : {}),
 						dispatches: [],
 						dispatch_cursor: null,
 						cursor_v2: null,
@@ -256,4 +260,54 @@ test("a timed-out check-in is retried after its back-off without another wake, a
 	await until(() => !srv.polls[srv.polls.length - 1]!.failed && srv.polls[srv.polls.length - 1]!.at > failedAgainAt,
 		FIRST_BACKOFF_MS + SLACK_MS, "the second owed retry at the first back-off");
 	assert.equal(getBond()?.connectionId, CONNECTION, "the bond survived both failures");
+});
+
+test("only an explicit unchecked no-change answer counts as a failed check-in", () => {
+	assert.equal(pollCheckedNothing({ changed: false, marker_read: "unavailable" }), true);
+	assert.equal(pollCheckedNothing({ changed: false, marker_read: "ok" }), false);
+	// An older server sends no marker_read: its no-change answer is trusted as before.
+	assert.equal(pollCheckedNothing({ changed: false }), false);
+	assert.equal(pollCheckedNothing({ changed: true, marker_read: "unavailable" }), false);
+	assert.equal(pollCheckedNothing(null), false);
+});
+
+test("a no-change answer that checked nothing is retried on the growing back-off, without another wake", async () => {
+	const pi = await loadRemote();
+	await pi.start();
+	await until(() => srv.polls.some((p) => !p.failed), 3_000, "first check-in");
+	await delay(100);
+
+	// Two unchecked answers in a row, then a real one: the retries come at the first
+	// and then the doubled back-off, so the streak was not reset by the unchecked one.
+	srv.markerReads = ["unavailable", "unavailable", "ok"];
+	const before = srv.polls.length;
+	srv.wake();
+	await until(() => srv.polls.length >= before + 1, 3_000, "the unchecked answer");
+	const firstAt = srv.polls[before]!.at;
+	await until(() => srv.polls.length >= before + 2, FIRST_BACKOFF_MS + SLACK_MS, "the first owed retry");
+	const secondAt = srv.polls[before + 1]!.at;
+	assert.ok(secondAt - firstAt >= FIRST_BACKOFF_MS - 250, `retried before the first back-off (${secondAt - firstAt} ms)`);
+	await until(() => srv.polls.length >= before + 3, pollFailureBackoffMs(2) + SLACK_MS, "the second owed retry");
+	const thirdAt = srv.polls[before + 2]!.at;
+	assert.ok(thirdAt - secondAt >= pollFailureBackoffMs(2) - 250, `the streak reset on an unchecked answer (${thirdAt - secondAt} ms)`);
+
+	// The checked answer ends it: nothing more until something wakes the pump.
+	const settled = srv.polls.length;
+	await delay(1_500);
+	assert.equal(srv.polls.length, settled, "no extra check-ins after a checked answer");
+});
+
+test("a checked no-change answer, and one from an older server without the field, are trusted as before", async () => {
+	const pi = await loadRemote();
+	await pi.start();
+	await until(() => srv.polls.some((p) => !p.failed), 3_000, "first check-in");
+	await delay(100);
+	for (const markerRead of ["ok", undefined] as const) {
+		srv.markerReads = markerRead ? [markerRead] : [];
+		const before = srv.polls.length;
+		srv.wake();
+		await until(() => srv.polls.length >= before + 1, 3_000, `the ${markerRead ?? "field-less"} answer`);
+		await delay(1_500);
+		assert.equal(srv.polls.length, before + 1, `a ${markerRead ?? "field-less"} no-change answer is not retried`);
+	}
 });

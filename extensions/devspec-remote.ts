@@ -2669,6 +2669,23 @@ function pollLapCompleted(active: PumpState): void {
 }
 
 /**
+ * Did DevSpec answer "nothing new" without having checked the room (item
+ * da977c8d, DevSpecV2 #1681)? A server whose every marker read failed still
+ * answers changed:false, and says so with `marker_read: "unavailable"`; that
+ * answer covers nothing, so the check-in failed and the wake it answered is
+ * still owed.
+ *
+ * Only the explicit "unavailable" counts. An older server (production until its
+ * release) sends no `marker_read` at all: treating its absence as a failure
+ * would turn every ordinary "nothing new" from that server into a retry.
+ */
+export function pollCheckedNothing(payload: unknown): boolean {
+	if (!payload || typeof payload !== "object") return false;
+	const response = payload as { changed?: unknown; marker_read?: unknown };
+	return response.changed === false && response.marker_read === "unavailable";
+}
+
+/**
  * The stream dropped unexpectedly (or failed to connect). Reconnect with
  * bounded backoff (item 8b0c162b) — a proxy hiccup must not cost the bond its
  * fast lane for the rest of its life. Only when quick retries are exhausted do
@@ -3655,6 +3672,16 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				notifiedFallback = false;
 				continue;
 			}
+			await retryAfterPollFailure(active);
+			continue;
+		}
+
+		// "Nothing new" from a server that could not read the room checked nothing:
+		// a failed check-in, retried on the same growing back-off. The streak is not
+		// reset, because nothing was handled.
+		if (pollCheckedNothing(payload)) {
+			active.errors += 1;
+			debug("poll answered without checking the room", { errors: active.errors });
 			await retryAfterPollFailure(active);
 			continue;
 		}

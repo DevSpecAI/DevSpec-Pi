@@ -1041,7 +1041,13 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// gains optional `profile_for_provider`, `profile_for_resource_type`, and `include_profiles`;
 		// `record_inventory_entry` gains optional `preview_ack` and `profile_fields`;
 		// `revise_inventory_entry` gains optional `profile_fields`. No required field changed.
-		"632b361b92e699361df15378221c1042413d35f831970a7c6d611b97b157c43f",
+		// Rebaselined 2026-11-26 for item f546e9e0 (v0.15.5 live inventory connections):
+		// `manage_inventory_connections.action` enum adds `"record"` as the primary write verb
+		// (`["list", "record", "remove", "propose", "confirm"]`) and updates its description to
+		// record verified links directly as live editable facts while keeping legacy `propose`/
+		// `confirm` compatible. Verb count (106 model / 12 pump / 1 never-model) and projection
+		// families unchanged.
+		"e06b25b7bb697035411c076d343ded3cd062400b795e2d3586c4f49e064f8741",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });

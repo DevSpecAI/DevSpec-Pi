@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.15.5 - 2026-11-26
+
+- **Pi's built-in copy of DevSpec's tools now reflects live Inventory Map connections (`action: "record"` on `manage_inventory_connections`).** Verified connections are saved directly as live editable links on the Inventory Map (with `evidence` required and legacy `propose`/`confirm` actions kept compatible). No tool was added or removed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.15.4 - 2026-11-25
 
 - **Pi's built-in copy of DevSpec's tools now includes Inventory Map connections (`manage_inventory_connections`), curated platform field lookups, and write-time duplicate pre-screening on new Inventory entries.** Agents can inspect curated `profile_fields` schemas via `get_inventory` (`profile_for_provider`, `profile_for_resource_type`, `include_profiles`), confirm separate multi-instance resources with `preview_ack` on `record_inventory_entry`, and read, propose (with code/config evidence), confirm, or remove connections on the Inventory Map via `manage_inventory_connections`. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.

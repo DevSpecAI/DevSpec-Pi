@@ -2,14 +2,14 @@
 /**
  * GENERATED — do not edit by hand.
  * Source: each tool's one definition in DevSpecV2 (packages/core/src/mcp/tools) via scripts/generate-mcp-catalog.mjs
- * Schema fingerprint: 1cd251dd85741b3ff56534510d3f1330e8b355e78207aed792d771ac81ebe112
- * Description fingerprint: 1acc0cd3437e502283976a0873ad6aaa6025b79a7aeb71509563600ccb584cfb
- * Regenerated: 2026-11-25T21:56:57.405Z
+ * Schema fingerprint: 7d90377a12ec91816013990a7a01f4ac8d22e20aaa74c25b6e0045b10ac656d4
+ * Description fingerprint: ac4eeb0660d59e4692c4d94ed03528651fee347861183e20b79bfa297b62b33d
+ * Regenerated: 2026-11-26T21:49:58.904Z
  */
-export const MCP_CATALOG_FINGERPRINT = "1cd251dd85741b3ff56534510d3f1330e8b355e78207aed792d771ac81ebe112";
-export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "1acc0cd3437e502283976a0873ad6aaa6025b79a7aeb71509563600ccb584cfb";
-export const MCP_CATALOG_GENERATED_AT = "2026-11-25T21:56:57.405Z";
-export const TOOL_CATALOG_VERSION = "8df414e8ac768eceebd410af4fcc9396c4ac8a0b4e507d7a882cdc9037335681";
+export const MCP_CATALOG_FINGERPRINT = "7d90377a12ec91816013990a7a01f4ac8d22e20aaa74c25b6e0045b10ac656d4";
+export const MCP_CATALOG_DESCRIPTION_FINGERPRINT = "ac4eeb0660d59e4692c4d94ed03528651fee347861183e20b79bfa297b62b33d";
+export const MCP_CATALOG_GENERATED_AT = "2026-11-26T21:49:58.904Z";
+export const TOOL_CATALOG_VERSION = "90eeb793bc882ec314d9a2440f1c6dbfd312c0a657aec70c1f608739418610b5";
 export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "add_commit_reference",
@@ -338,8 +338,8 @@ export const TOOL_SEARCH_DOCUMENTS = [
 	{
 		"id": "manage_inventory_connections",
 		"name": "manage inventory connections",
-		"description": "Read, propose, confirm, or remove typed connections between active Infrastructure Inventory entries on the project Map (such as 'deploys to', 'reads & writes', 'authenticates via', 'routes to', 'dispatches jobs', 'monitors', or 'sends email via'). Use action 'list' to inspect existing connections (optionally narrowed to one entry via entry_id). Use action 'propose' during discovery or codebase inspection to record a verified connection with a required plain-English evidence note citing the exact file, workflow, config, or document that proved it: agent-proposed connections appear on the Map as proposed links awaiting human confirmation rather than being silently treated as human-confirmed facts. NEVER guess or infer a connection merely because two services share an environment. Use action 'confirm' (Contributor/Maintainer attended) to promote a proposed connection to confirmed (or record a human-confirmed link), and action 'remove' to remove an explicit connection.",
-		"intent": "inventory map connections link services resources propose confirm remove topology architecture"
+		"description": "Read, record, or remove typed connections between active Infrastructure Inventory entries on the project Map (such as 'deploys to', 'reads & writes', 'authenticates via', 'routes to', 'dispatches jobs', 'monitors', or 'sends email via'). Use action 'list' to inspect existing connections (optionally narrowed to one entry via entry_id). Use action 'record' during discovery or codebase inspection to save a verified connection directly as a live, freely editable link on the Map, with a required plain-English evidence note citing the exact file, workflow, config, or document that proved it (respecting any links a person previously removed on the Map). NEVER guess or infer a connection merely because two services share an environment. Use action 'remove' to remove an explicit connection. Legacy actions 'propose' and 'confirm' remain accepted as aliases.",
+		"intent": "inventory map connections link services resources record remove topology architecture"
 	},
 	{
 		"id": "manage_knowledge_links",
@@ -15274,8 +15274,8 @@ export const MCP_CATALOG: CatalogEntry[] = [
 	{
 		"name": "manage_inventory_connections",
 		"label": "DevSpec: Manage Inventory Connections",
-		"description": "Read, propose, confirm, or remove typed connections between active Infrastructure Inventory entries on the project Map (such as 'deploys to', 'reads & writes', 'authenticates via', 'routes to', 'dispatches jobs', 'monitors', or 'sends email via'). Use action 'list' to inspect existing connections (optionally narrowed to one entry via entry_id). Use action 'propose' during discovery or codebase inspection to record a verified connection with a required plain-English evidence note citing the exact file, workflow, config, or document that proved it: agent-proposed connections appear on the Map as proposed links awaiting human confirmation rather than being silently treated as human-confirmed facts. NEVER guess or infer a connection merely because two services share an environment. Use action 'confirm' (Contributor/Maintainer attended) to promote a proposed connection to confirmed (or record a human-confirmed link), and action 'remove' to remove an explicit connection.",
-		"searchIntent": "inventory map connections link services resources propose confirm remove topology architecture",
+		"description": "Read, record, or remove typed connections between active Infrastructure Inventory entries on the project Map (such as 'deploys to', 'reads & writes', 'authenticates via', 'routes to', 'dispatches jobs', 'monitors', or 'sends email via'). Use action 'list' to inspect existing connections (optionally narrowed to one entry via entry_id). Use action 'record' during discovery or codebase inspection to save a verified connection directly as a live, freely editable link on the Map, with a required plain-English evidence note citing the exact file, workflow, config, or document that proved it (respecting any links a person previously removed on the Map). NEVER guess or infer a connection merely because two services share an environment. Use action 'remove' to remove an explicit connection. Legacy actions 'propose' and 'confirm' remain accepted as aliases.",
+		"searchIntent": "inventory map connections link services resources record remove topology architecture",
 		"modelInputSchema": {
 			"type": "object",
 			"properties": {
@@ -15287,11 +15287,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"enum": [
 						"list",
+						"record",
+						"remove",
 						"propose",
-						"confirm",
-						"remove"
+						"confirm"
 					],
-					"description": "list existing connections; propose a verified connection with code/config evidence (awaits human confirmation on the Map); confirm a proposed or human-stated connection; remove an explicit connection."
+					"description": "list existing connections; record a verified live connection with code/config evidence; remove an explicit connection (legacy propose/confirm also accepted)."
 				},
 				"entry_id": {
 					"type": "string",
@@ -15299,18 +15300,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"source_id": {
 					"type": "string",
-					"description": "For propose, confirm, and remove: the source Inventory entry id or thread_id (full UUID, from get_inventory)."
+					"description": "For record and remove: the source Inventory entry id or thread_id (full UUID, from get_inventory)."
 				},
 				"target_id": {
 					"type": "string",
-					"description": "For propose, confirm, and remove: the target Inventory entry id or thread_id (full UUID, from get_inventory)."
+					"description": "For record and remove: the target Inventory entry id or thread_id (full UUID, from get_inventory)."
 				},
 				"label": {
 					"type": "string",
-					"description": "Concise relationship verb (single line, at most 100 characters, such as \"deploys to\", \"reads & writes\", \"routes to\", \"authenticates via\", \"dispatches jobs\", \"monitors\", \"sends email via\"). Required for propose; optional on confirm if promoting an existing proposed connection."
+					"description": "Concise relationship verb (single line, at most 100 characters, such as \"deploys to\", \"reads & writes\", \"routes to\", \"authenticates via\", \"dispatches jobs\", \"monitors\", \"sends email via\"). Required for record."
 				},
 				"evidence": {
-					"description": "Plain-English evidence note (at most 400 characters, never secrets) naming the exact file, workflow, config, or runbook where this connection was observed. Required for propose; optional on confirm (preserves existing evidence when omitted).",
+					"description": "Plain-English evidence note (at most 400 characters, never secrets) naming the exact file, workflow, config, or runbook where this connection was observed. Required for record.",
 					"type": [
 						"string",
 						"null"
@@ -15352,11 +15353,12 @@ export const MCP_CATALOG: CatalogEntry[] = [
 					"type": "string",
 					"enum": [
 						"list",
+						"record",
+						"remove",
 						"propose",
-						"confirm",
-						"remove"
+						"confirm"
 					],
-					"description": "list existing connections; propose a verified connection with code/config evidence (awaits human confirmation on the Map); confirm a proposed or human-stated connection; remove an explicit connection."
+					"description": "list existing connections; record a verified live connection with code/config evidence; remove an explicit connection (legacy propose/confirm also accepted)."
 				},
 				"entry_id": {
 					"type": "string",
@@ -15364,18 +15366,18 @@ export const MCP_CATALOG: CatalogEntry[] = [
 				},
 				"source_id": {
 					"type": "string",
-					"description": "For propose, confirm, and remove: the source Inventory entry id or thread_id (full UUID, from get_inventory)."
+					"description": "For record and remove: the source Inventory entry id or thread_id (full UUID, from get_inventory)."
 				},
 				"target_id": {
 					"type": "string",
-					"description": "For propose, confirm, and remove: the target Inventory entry id or thread_id (full UUID, from get_inventory)."
+					"description": "For record and remove: the target Inventory entry id or thread_id (full UUID, from get_inventory)."
 				},
 				"label": {
 					"type": "string",
-					"description": "Concise relationship verb (single line, at most 100 characters, such as \"deploys to\", \"reads & writes\", \"routes to\", \"authenticates via\", \"dispatches jobs\", \"monitors\", \"sends email via\"). Required for propose; optional on confirm if promoting an existing proposed connection."
+					"description": "Concise relationship verb (single line, at most 100 characters, such as \"deploys to\", \"reads & writes\", \"routes to\", \"authenticates via\", \"dispatches jobs\", \"monitors\", \"sends email via\"). Required for record."
 				},
 				"evidence": {
-					"description": "Plain-English evidence note (at most 400 characters, never secrets) naming the exact file, workflow, config, or runbook where this connection was observed. Required for propose; optional on confirm (preserves existing evidence when omitted).",
+					"description": "Plain-English evidence note (at most 400 characters, never secrets) naming the exact file, workflow, config, or runbook where this connection was observed. Required for record.",
 					"type": [
 						"string",
 						"null"

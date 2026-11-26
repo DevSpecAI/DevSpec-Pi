@@ -177,6 +177,6 @@ test("inventory tools expose dependency judgement fields, lookup filters, versio
 	const connections = surface.get("manage_inventory_connections")!;
 	assert.ok(connections, "manage_inventory_connections is exposed on the model surface");
 	const connProps = connections.inputSchema.properties as Record<string, Record<string, unknown>>;
-	assert.deepEqual(connProps.action?.enum, ["list", "propose", "confirm", "remove"]);
+	assert.deepEqual(connProps.action?.enum, ["list", "record", "remove", "propose", "confirm"]);
 	assert.deepEqual(connProps.evidence?.type, ["string", "null"]);
 });

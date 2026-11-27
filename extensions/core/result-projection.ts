@@ -112,6 +112,10 @@ const FULL_READ_VERBS = new Set([
 	// Projection does not receive call parameters, so conservatively keep both
 	// focused query/table reads and whole-schema reads lossless.
 	"get_database_schema",
+	// Live rows from a database set to Everything (DevSpecV2 task 7adeef66). The server
+	// already bounds the answer (200 rows, 60,000 characters) and says where to read on
+	// from; a row cut here would be a silent loss with no continuation, so it stays whole.
+	"query_database",
 	// These mutate/claim, but their responses are read-like contracts containing
 	// briefing, permission, previews, resulting text, or mandatory instructions.
 	"create_session",

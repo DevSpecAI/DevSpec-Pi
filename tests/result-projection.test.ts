@@ -1047,7 +1047,15 @@ test("model tool schemas and projection families require an explicit contract-ba
 		// record verified links directly as live editable facts while keeping legacy `propose`/
 		// `confirm` compatible. Verb count (106 model / 12 pump / 1 never-model) and projection
 		// families unchanged.
-		"e06b25b7bb697035411c076d343ded3cd062400b795e2d3586c4f49e064f8741",
+		// Rebaselined 2026-11-27 for item 7adeef66 (v0.15.8 live data): regenerated against
+		// DevSpecV2 origin/staging eab441bf4, after pull request 1684 merged. Verbs 106 -> 107
+		// model / 12 pump / 1 never-model. Added `query_database` (required `sql`; optional
+		// `offset` and `database`), in the full-read family beside `get_database_schema`: the
+		// server already bounds its answer and names where to read on, so nothing is cut here.
+		// `get_database_schema`'s description now says it shows each database's Live data
+		// setting. No other tool, required input or projection family changed. Benchmark
+		// before/after: initial surface 88,504 -> 88,927 estimated tokens; every check passes.
+		"015d4b14771de40ad27a98b4c5a625feaa6471d799514d497b164cdafb738f98",
 		"a model-facing schema or projection family changed; review quality/budget coverage, then update this fingerprint deliberately",
 	);
 });
@@ -1095,7 +1103,7 @@ test("verb projections use explicit, loss-aware families", () => {
 	for (const verb of [
 		"get_task", "claim_work_item", "get_session_transcript", "preview_supersession",
 		"get_project_instruction_rules", "get_personal_instructions", "get_workflow_rules", "get_database_schema",
-		"get_goals", "get_project_goals", "create_session", "claim_automation_run",
+		"query_database", "get_goals", "get_project_goals", "create_session", "claim_automation_run",
 		"get_incidents", "get_incident", "report_incident", "manage_incident",
 		"search_requirements", "get_requirements", "get_requirement", "record_requirement",
 		"update_requirement", "supersede_requirement", "retract_requirement",
@@ -1733,7 +1741,7 @@ test("full exact decision, instruction, transcript, and schema reads are never c
 	const payload = { id: "exact", body: huge("LOSSLESS-EXACT-CONTENT", 9_000) };
 	for (const verb of [
 		"get_task", "get_session_transcript", "preview_supersession", "get_project_instruction_rules",
-		"get_personal_instructions", "get_workflow_rules", "get_database_schema", "manage_plan", "manage_poll",
+		"get_personal_instructions", "get_workflow_rules", "get_database_schema", "query_database", "manage_plan", "manage_poll",
 	]) {
 		const text = projectModelText({ toolName: verb, text: JSON.stringify(payload), details: payload });
 		assert.deepEqual(JSON.parse(text), payload, verb);

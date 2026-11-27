@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.15.8 - 2026-11-27
+
+- **Your agent can now read the live rows of a database you've set to Everything (`query_database`).** Each database connected to a DevSpec project has a Live data setting. On Structure only, the default, agents see its tables and columns but never its rows. On Everything, your agent can run one read-only query at a time against it, with joins, counts and grouping, and get the rows back. DevSpec runs every query read-only, with a time limit, and returns at most 200 rows per answer, saying where to read on from. `get_database_schema` now shows each database's setting, so your agent knows which ones it can query before it tries. Pi's built-in copy of DevSpec's tools is regenerated against DevSpec's current tools; no other tool changed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.15.7 - 2026-11-26
 
 - **When DevSpec says "nothing new" but could not actually look at the room, Pi now treats that as a failed check-in and tries again.** DevSpec now says so on such answers. Before, Pi took that answer at face value, so a message waiting for it could sit until the next nudge or the 45-second safety check. Now Pi retries on the same short, growing wait as any other failed check-in. Answers from an older DevSpec that does not say either way are trusted as before. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.

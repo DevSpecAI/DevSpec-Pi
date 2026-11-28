@@ -1250,7 +1250,7 @@ function capturePostAuthority(): () => boolean {
 		(!active.stop || active.closing));
 }
 
-async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; localTurn?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; isCurrent?: () => boolean; agentStats?: AgentStatsReport; onReceipt?: (status: "stored" | "idempotently_stored" | "skipped" | "rejected" | "malformed", refusal?: PostSessionRefusal) => void } = {}): Promise<boolean> {
+async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; localTurn?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; isCurrent?: () => boolean; agentStats?: AgentStatsReport; callerSurfacesRefusal?: boolean; onReceipt?: (status: "stored" | "idempotently_stored" | "skipped" | "rejected" | "malformed", refusal?: PostSessionRefusal) => void } = {}): Promise<boolean> {
 	const active = pump;
 	const bond = getBond();
 	const ctx = lastCtx;
@@ -1315,7 +1315,7 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 		if (receipt.status !== "stored" && receipt.status !== "idempotently_stored") {
 			const refusal = "refusal" in receipt ? receipt.refusal : undefined;
 			opts.onReceipt?.(receipt.status, refusal);
-			return failure(receipt.status, Boolean(opts.onReceipt && refusal));
+			return failure(receipt.status, Boolean(opts.callerSurfacesRefusal && refusal));
 		}
 		opts.onReceipt?.(receipt.status);
 		debug("post stored", { idempotent: receipt.status === "idempotently_stored" });
@@ -1338,7 +1338,7 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 				const refusal = ("refusal" in parsed ? parsed.refusal : undefined)
 					?? extractPostSessionRefusal(err.raw);
 				opts.onReceipt?.("rejected", refusal);
-				callerSurfacesRefusal = Boolean(opts.onReceipt && refusal);
+				callerSurfacesRefusal = Boolean(opts.callerSurfacesRefusal && refusal);
 			}
 			return failure("rejected", callerSurfacesRefusal);
 		}
@@ -1423,6 +1423,7 @@ function trailTick(): void {
 	const snapshot = postingTurn.trailDelivery.begin();
 	if (snapshot === null) return;
 	let capturedRefusal: PostSessionRefusal | undefined;
+	let capturedStatus: "skipped" | "rejected" | "malformed" | undefined;
 	postingTurn.trailPostFence.track(postToSession(rendered, {
 		phase: "trail",
 		isCurrent: postingTurn.canPost,
@@ -1432,10 +1433,14 @@ function trailTick(): void {
 		localTurn: isCommandTurnUnbound(postingTurn) && !postingTurn.interaction,
 		interaction: interactionIdentity(postingTurn.interaction),
 		trailEvents: activityEvents,
-		onReceipt: (_status, refusal) => { if (refusal) capturedRefusal = refusal; },
+		callerSurfacesRefusal: true,
+		onReceipt: (status, refusal) => {
+			if (status !== "stored" && status !== "idempotently_stored") capturedStatus = status;
+			if (refusal) capturedRefusal = refusal;
+		},
 	}).then(stored => {
 		postingTurn.trailDelivery.finish(snapshot, stored, capturedRefusal);
-		const refusalNotice = !stored ? postingTurn.trailDelivery.refusalNotice() : null;
+		const refusalNotice = !stored ? postingTurn.trailDelivery.refusalNotice(capturedStatus ?? "refused") : null;
 		if (refusalNotice) {
 			if (safeHasUI(lastCtx)) notify(lastCtx, refusalNotice, "warning");
 			else console.error(refusalNotice);
@@ -1652,16 +1657,40 @@ async function reportTerminalError(t: TurnState, agentStats: AgentStatsReport | 
 		interaction: interactionIdentity(t.interaction),
 	};
 	const message = renderTerminalErrorPost(t.terminalError);
-	let receipt: string | undefined;
+	let receipt: "stored" | "idempotently_stored" | "skipped" | "rejected" | "malformed" | undefined;
+	let errorRefusal: PostSessionRefusal | undefined;
 	const stored = await postToSession(message, {
 		...identity, phase: "error", completeTurn: true, isCurrent: t.canPost,
 		workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined,
-		onReceipt: (status) => { receipt = status; },
+		callerSurfacesRefusal: true,
+		onReceipt: (status, refusal) => {
+			receipt = status;
+			if (refusal) errorRefusal = refusal;
+		},
 	});
+	if (!stored && errorRefusal && receipt !== "skipped") {
+		const notice = TrailDeliveryState.formatRefusal(errorRefusal, "error", receipt && receipt !== "stored" && receipt !== "idempotently_stored" ? receipt : "refused");
+		if (safeHasUI(lastCtx)) notify(lastCtx, notice, "warning");
+		else console.error(notice);
+	}
 	if (receipt === "skipped") {
 		// noop_error: no open bubble existed; the activity is already closed
 		// (turn_error). This second post is transcript-only — omit complete_turn.
-		await postToSession(message, { ...identity, phase: "answer", isCurrent: t.canPost });
+		let fallbackStatus: "skipped" | "rejected" | "malformed" | undefined;
+		let fallbackRefusal: PostSessionRefusal | undefined;
+		const fallbackStored = await postToSession(message, {
+			...identity, phase: "answer", isCurrent: t.canPost,
+			callerSurfacesRefusal: true,
+			onReceipt: (status, refusal) => {
+				if (status !== "stored" && status !== "idempotently_stored") fallbackStatus = status;
+				if (refusal) fallbackRefusal = refusal;
+			},
+		});
+		if (!fallbackStored && fallbackRefusal) {
+			const notice = TrailDeliveryState.formatRefusal(fallbackRefusal, "answer", fallbackStatus ?? "refused");
+			if (safeHasUI(lastCtx)) notify(lastCtx, notice, "warning");
+			else console.error(notice);
+		}
 	}
 	// Parity with reportComplete's success cleanup: the server acted on the
 	// command turn (stored it, or completed it via noop_error), so drop the
@@ -1789,13 +1818,58 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 	// (60cf5f00). A background-completion wake MAY speak (its own bubble) and
 	// flushes its trail like any segment.
 	if (t.tracker.userKind === "harness" && !t.tracker.harnessSpeechAllowed) return false;
+	const surfaceRefusal = (
+		label: "trail" | "answer" | "local prompt" | "error" | "message",
+		status: "skipped" | "rejected" | "malformed" | undefined,
+		refusal: PostSessionRefusal | undefined,
+	): void => {
+		if (!refusal) return;
+		const notice = TrailDeliveryState.formatRefusal(refusal, label, status ?? "refused");
+		if (safeHasUI(lastCtx)) notify(lastCtx, notice, "warning");
+		else console.error(notice);
+	};
 	if (plan.kind === "final") {
 		// phase 'answer' closes the trail bubble (preserved as "Show work").
 		const localTurn = isCommandTurnUnbound(t) && !t.interaction;
-		return await postToSession(plan.message, { phase: "answer", completeTurn, isCurrent: t.canPost, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), localTurn, interaction: interactionIdentity(t.interaction), workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
+		let status: "skipped" | "rejected" | "malformed" | undefined;
+		let refusal: PostSessionRefusal | undefined;
+		const stored = await postToSession(plan.message, {
+			phase: "answer", completeTurn, isCurrent: t.canPost, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId,
+			commandTurnUnbound: isCommandTurnUnbound(t), localTurn, interaction: interactionIdentity(t.interaction),
+			workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined,
+			callerSurfacesRefusal: true,
+			onReceipt: (s, r) => {
+				if (s !== "stored" && s !== "idempotently_stored") status = s;
+				if (r) refusal = r;
+			},
+		});
+		if (!stored) surfaceRefusal("answer", status, refusal);
+		return stored;
 	} else if (plan.kind === "local_mirror") {
-		const promptStored = await postToSession(plan.prompt, { turnKind: "local_prompt", localTurn: true, isCurrent: t.canPost });
-		const answerStored = await postToSession(plan.answer, { phase: "answer", completeTurn, isCurrent: t.canPost, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), localTurn: true, interaction: interactionIdentity(t.interaction), workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
+		let promptStatus: "skipped" | "rejected" | "malformed" | undefined;
+		let promptRefusal: PostSessionRefusal | undefined;
+		const promptStored = await postToSession(plan.prompt, {
+			turnKind: "local_prompt", localTurn: true, isCurrent: t.canPost,
+			callerSurfacesRefusal: true,
+			onReceipt: (s, r) => {
+				if (s !== "stored" && s !== "idempotently_stored") promptStatus = s;
+				if (r) promptRefusal = r;
+			},
+		});
+		if (!promptStored) surfaceRefusal("local prompt", promptStatus, promptRefusal);
+		let answerStatus: "skipped" | "rejected" | "malformed" | undefined;
+		let answerRefusal: PostSessionRefusal | undefined;
+		const answerStored = await postToSession(plan.answer, {
+			phase: "answer", completeTurn, isCurrent: t.canPost, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId,
+			commandTurnUnbound: isCommandTurnUnbound(t), localTurn: true, interaction: interactionIdentity(t.interaction),
+			workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined,
+			callerSurfacesRefusal: true,
+			onReceipt: (s, r) => {
+				if (s !== "stored" && s !== "idempotently_stored") answerStatus = s;
+				if (r) answerRefusal = r;
+			},
+		});
+		if (!answerStored) surfaceRefusal("answer", answerStatus, answerRefusal);
 		return promptStored && answerStored;
 	}
 	if (t.trailDelivery.dirty && !t.trailDelivery.blocked && activityTrail && !t.receiptBatch.suppressEmptyFallback(t.revision)) {
@@ -1803,6 +1877,7 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 		if (!getBond()?.sessionId) return false;
 		const snapshot = t.trailDelivery.begin();
 		if (snapshot === null) return false;
+		let capturedStatus: "skipped" | "rejected" | "malformed" | undefined;
 		let capturedRefusal: PostSessionRefusal | undefined;
 		const stored = await postToSession(activityTrail, {
 			phase: "trail",
@@ -1813,10 +1888,14 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 			localTurn: isCommandTurnUnbound(t) && !t.interaction,
 			interaction: interactionIdentity(t.interaction),
 			trailEvents: finalEvents,
-			onReceipt: (_status, refusal) => { if (refusal) capturedRefusal = refusal; },
+			callerSurfacesRefusal: true,
+			onReceipt: (s, r) => {
+				if (s !== "stored" && s !== "idempotently_stored") capturedStatus = s;
+				if (r) capturedRefusal = r;
+			},
 		});
 		t.trailDelivery.finish(snapshot, stored, capturedRefusal);
-		const refusalNotice = !stored ? t.trailDelivery.refusalNotice() : null;
+		const refusalNotice = !stored ? t.trailDelivery.refusalNotice(capturedStatus ?? "refused") : null;
 		if (refusalNotice) {
 			if (safeHasUI(lastCtx)) notify(lastCtx, refusalNotice, "warning");
 			else console.error(refusalNotice);
@@ -4085,7 +4164,22 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (unreadable) {
 				active.unreadableIngressReported = unreadable.key;
 				notify(ctx, unreadable.local, "error");
-				void postToSession(unreadable.room, { commandTurnUnbound: true });
+				let unreadableStatus: "skipped" | "rejected" | "malformed" | undefined;
+				let unreadableRefusal: PostSessionRefusal | undefined;
+				void postToSession(unreadable.room, {
+					commandTurnUnbound: true,
+					callerSurfacesRefusal: true,
+					onReceipt: (s, r) => {
+						if (s !== "stored" && s !== "idempotently_stored") unreadableStatus = s;
+						if (r) unreadableRefusal = r;
+					},
+				}).then(stored => {
+					if (!stored && unreadableRefusal) {
+						const notice = TrailDeliveryState.formatRefusal(unreadableRefusal, "message", unreadableStatus ?? "refused");
+						if (safeHasUI(ctx)) notify(ctx, notice, "warning");
+						else console.error(notice);
+					}
+				});
 			}
 			await retryAfterPollFailure(active);
 			continue;
@@ -5431,7 +5525,21 @@ export default function (pi: ExtensionAPI) {
 		const prepared = Promise.all([prepareAssistantSpeech(t), prepareLocalActivity(t)]);
 		if (t.tracker.shouldMirrorPrompt && t.tracker.userText && t.requestKind === "typed" && getBond()?.sessionId) {
 			t.tracker.shouldMirrorPrompt = false;
-			await postToSession(t.tracker.userText, { turnKind: "local_prompt", localTurn: true, isCurrent: t.canPost });
+			let mirrorStatus: "skipped" | "rejected" | "malformed" | undefined;
+			let mirrorRefusal: PostSessionRefusal | undefined;
+			const mirrorStored = await postToSession(t.tracker.userText, {
+				turnKind: "local_prompt", localTurn: true, isCurrent: t.canPost,
+				callerSurfacesRefusal: true,
+				onReceipt: (s, r) => {
+					if (s !== "stored" && s !== "idempotently_stored") mirrorStatus = s;
+					if (r) mirrorRefusal = r;
+				},
+			});
+			if (!mirrorStored && mirrorRefusal) {
+				const notice = TrailDeliveryState.formatRefusal(mirrorRefusal, "local prompt", mirrorStatus ?? "refused");
+				if (safeHasUI(lastCtx)) notify(lastCtx, notice, "warning");
+				else console.error(notice);
+			}
 		}
 		await prepared;
 		// Keep the active command turn's response style in force at every LLM

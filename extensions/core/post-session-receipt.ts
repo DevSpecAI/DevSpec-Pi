@@ -100,9 +100,13 @@ function redactRefusalCredentials(value: unknown): unknown {
 	return out;
 }
 
-/** Format a structured trail refusal for runtime surfacing without subsetting fields or slicing values (requirement 4e32d1a5). */
-export function formatPostSessionRefusal(refusal: PostSessionRefusal): string {
-	return `DevSpec remote: live trail refused — ${JSON.stringify(redactRefusalCredentials(refusal))}`;
+/** Format a structured `post_session_message` refusal for runtime surfacing without subsetting fields or slicing values (requirement 4e32d1a5). */
+export function formatPostSessionRefusal(
+	refusal: PostSessionRefusal,
+	label: "trail" | "answer" | "local prompt" | "error" | "message" = "trail",
+	status: "skipped" | "rejected" | "malformed" | "refused" = "refused",
+): string {
+	return `DevSpec remote: ${label} delivery ${status} — ${JSON.stringify(redactRefusalCredentials(refusal))}`;
 }
 
 /** A cumulative snapshot stays dirty until acknowledged. Failure stops automatic
@@ -114,12 +118,20 @@ export class TrailDeliveryState {
 	private failed = false;
 	private lastRefusal: PostSessionRefusal | undefined = undefined;
 
+	static formatRefusal(
+		refusal: PostSessionRefusal,
+		label: "trail" | "answer" | "local prompt" | "error" | "message" = "trail",
+		status: "skipped" | "rejected" | "malformed" | "refused" = "refused",
+	): string {
+		return formatPostSessionRefusal(refusal, label, status);
+	}
+
 	markDirty(): void { this.revision += 1; }
 	get dirty(): boolean { return this.revision !== this.acknowledged; }
 	get blocked(): boolean { return this.failed || this.pending !== null; }
 	get refusal(): PostSessionRefusal | undefined { return this.lastRefusal; }
-	refusalNotice(): string | null {
-		return this.lastRefusal ? formatPostSessionRefusal(this.lastRefusal) : null;
+	refusalNotice(status: "skipped" | "rejected" | "malformed" | "refused" = "refused"): string | null {
+		return this.lastRefusal ? formatPostSessionRefusal(this.lastRefusal, "trail", status) : null;
 	}
 	begin(): number | null {
 		if (!this.dirty || this.blocked) return null;

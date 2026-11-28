@@ -4,7 +4,7 @@ import { stripTypeScriptTypes } from "node:module";
 import { runInNewContext } from "node:vm";
 import { afterEach, test } from "node:test";
 import { callDevspec, DevspecToolError, resetClientCache, setLaneClientFactoryForTests } from "../extensions/core/client.ts";
-import { parsePostSessionReceipt, TrailDeliveryState } from "../extensions/core/post-session-receipt.ts";
+import { extractPostSessionRefusal, parsePostSessionReceipt, TrailDeliveryState } from "../extensions/core/post-session-receipt.ts";
 import { safeHasUI } from "../extensions/core/ctx-guard.ts";
 import { TrailPostFence } from "../extensions/core/question-receipt-lifecycle.ts";
 import { setProjectChoice } from "../extensions/core/project-choice.ts";
@@ -43,7 +43,7 @@ function harness(call: (args: Record<string, unknown>) => Promise<unknown>) {
 		planSettle: () => context.settlePlan, FINAL_TRAIL_CHARS: 1000,
 		activeCommandTurnIdentity: { turnId: "command", commandMessageId: "source" },
 		getBond: () => active.bond, resolveToken: async () => ({ token: "secret-token" }),
-		callDevspec, DevspecToolError, parsePostSessionReceipt, safeHasUI,
+		callDevspec, DevspecToolError, parsePostSessionReceipt, extractPostSessionRefusal, TrailDeliveryState, safeHasUI,
 		debug: (event: string, fields: unknown) => logs.push([event, fields]),
 		notify: (_ctx: unknown, message: string) => warnings.push(message),
 		noteCommandTurnClosed: () => { context.activeCommandTurnIdentity = null as never; },
@@ -322,9 +322,35 @@ test("trailTick reads and surfaces full structured refusal details (attempt_id, 
 	h.trailTick();
 	await Promise.all(pendingPosts);
 	assert.deepEqual(t.trailDelivery.refusal, structuredRefusal);
-	const surfaced = h.warnings.find(w => w.includes("live trail refused"));
+	const surfaced = h.warnings.find(w => w.includes("trail delivery rejected"));
 	assert.ok(surfaced, "trailTick must surface structured refusal details to the runtime");
 	assert.ok(surfaced.includes("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"), "surfaced refusal must include attempt_id");
 	assert.ok(surfaced.includes("attempt_finalized"), "surfaced refusal must include reason");
 	assert.ok(surfaced.includes("\"retryable\":false"), "surfaced refusal must include retryable");
+});
+
+test("postSegmentAnswer surfaces full structured refusal details on answer and local_prompt posts (4e32d1a5)", async () => {
+	const answerRefusal = {
+		session_id: "session",
+		connection_id: "connection",
+		phase: "answer",
+		attempt_id: "11111111-2222-4333-8444-555555555555",
+		reason: "already_finalized",
+		retryable: false,
+	};
+	const h = harness(async () => ({ ...envelope(answerRefusal), isError: true }));
+	h.context.settlePlan = { kind: "final", message: "final answer" };
+	const t = {
+		canPost: h.capturePostAuthority(),
+		tracker: { lastAssistantText: "final answer", pendingBackgroundTasks: () => [], userKind: "remote" },
+		trail: { events: () => [], render: () => "" },
+		trailDelivery: new TrailDeliveryState(),
+		receiptBatch: { suppressEmptyFallback: () => false },
+	};
+	assert.equal(await h.postSegmentAnswer(t, null, "run_end"), false);
+	assert.equal(h.warnings.length, 1);
+	assert.ok(h.warnings[0]!.includes("answer delivery rejected"));
+	assert.ok(h.warnings[0]!.includes("11111111-2222-4333-8444-555555555555"));
+	assert.ok(h.warnings[0]!.includes("already_finalized"));
+	assert.ok(h.warnings[0]!.includes("\"retryable\":false"));
 });

@@ -84,6 +84,27 @@ export function parsePostSessionReceipt(raw: unknown, expected: ExpectedPostRece
 	return { status: "stored", messageId: data.message_id };
 }
 
+/** Strip only credentials/transport metadata from a refusal before display, preserving all structured refusal fields intact (4e32d1a5). */
+function redactRefusalCredentials(value: unknown): unknown {
+	if (typeof value === "string") {
+		return value.replace(/dvsc_[A-Za-z0-9_-]+/g, "[REDACTED_CONNECTION_CAPABILITY]");
+	}
+	if (Array.isArray(value)) return value.map(redactRefusalCredentials);
+	const obj = record(value);
+	if (!obj) return value;
+	const out: Record<string, unknown> = {};
+	for (const [key, nested] of Object.entries(obj)) {
+		if (key === "token" || key === "connection_capability" || key === "connectionCapability" || key === "_meta") continue;
+		out[key] = redactRefusalCredentials(nested);
+	}
+	return out;
+}
+
+/** Format a structured trail refusal for runtime surfacing without subsetting fields or slicing values (requirement 4e32d1a5). */
+export function formatPostSessionRefusal(refusal: PostSessionRefusal): string {
+	return `DevSpec remote: live trail refused — ${JSON.stringify(redactRefusalCredentials(refusal))}`;
+}
+
 /** A cumulative snapshot stays dirty until acknowledged. Failure stops automatic
  * replay for this segment: stale authority and ambiguous response loss are not retry permission. */
 export class TrailDeliveryState {
@@ -97,6 +118,9 @@ export class TrailDeliveryState {
 	get dirty(): boolean { return this.revision !== this.acknowledged; }
 	get blocked(): boolean { return this.failed || this.pending !== null; }
 	get refusal(): PostSessionRefusal | undefined { return this.lastRefusal; }
+	refusalNotice(): string | null {
+		return this.lastRefusal ? formatPostSessionRefusal(this.lastRefusal) : null;
+	}
 	begin(): number | null {
 		if (!this.dirty || this.blocked) return null;
 		this.pending = this.revision;

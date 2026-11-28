@@ -1255,12 +1255,14 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 	const bond = getBond();
 	const ctx = lastCtx;
 	const current = capturePostAuthority();
-	const failure = (status: "skipped" | "rejected" | "malformed" | "unknown"): false => {
+	const failure = (status: "skipped" | "rejected" | "malformed" | "unknown", callerSurfacesRefusal = false): false => {
 		// No raw server/transport error, prompt, token, or thinking in diagnostics.
 		debug("post delivery failed", { skipped: status === "skipped", rejected: status === "rejected", malformed: status === "malformed", unknown: status === "unknown" });
-		const warning = `DevSpec remote: ${opts.turnKind === "local_prompt" ? "local prompt" : opts.phase === "trail" ? "trail" : "answer"} delivery ${status}; storage not confirmed. Not replaying automatically; check the room before resending.`;
-		if (safeHasUI(ctx)) notify(ctx, warning, "warning");
-		else console.error(warning);
+		if (!callerSurfacesRefusal) {
+			const warning = `DevSpec remote: ${opts.turnKind === "local_prompt" ? "local prompt" : opts.phase === "trail" ? "trail" : "answer"} delivery ${status}; storage not confirmed. Not replaying automatically; check the room before resending.`;
+			if (safeHasUI(ctx)) notify(ctx, warning, "warning");
+			else console.error(warning);
+		}
 		return false;
 	};
 	const sessionlessAutomationTrail =
@@ -1313,7 +1315,7 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 		if (receipt.status !== "stored" && receipt.status !== "idempotently_stored") {
 			const refusal = "refusal" in receipt ? receipt.refusal : undefined;
 			opts.onReceipt?.(receipt.status, refusal);
-			return failure(receipt.status);
+			return failure(receipt.status, Boolean(opts.onReceipt && refusal));
 		}
 		opts.onReceipt?.(receipt.status);
 		debug("post stored", { idempotent: receipt.status === "idempotently_stored" });
@@ -1328,6 +1330,7 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 		// Preserve the full structured server refusal object via onReceipt while
 		// keeping user-facing warnings and debug logs privacy-safe (4e32d1a5).
 		if (err instanceof DevspecToolError) {
+			let callerSurfacesRefusal = false;
 			if (err.raw !== undefined) {
 				const parsed = parsePostSessionReceipt(err.raw, {
 					...authority, phase: opts.phase ?? "answer", turnKind: opts.turnKind,
@@ -1335,8 +1338,9 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 				const refusal = ("refusal" in parsed ? parsed.refusal : undefined)
 					?? extractPostSessionRefusal(err.raw);
 				opts.onReceipt?.("rejected", refusal);
+				callerSurfacesRefusal = Boolean(opts.onReceipt && refusal);
 			}
-			return failure("rejected");
+			return failure("rejected", callerSurfacesRefusal);
 		}
 		return failure("unknown");
 	}
@@ -1429,7 +1433,14 @@ function trailTick(): void {
 		interaction: interactionIdentity(postingTurn.interaction),
 		trailEvents: activityEvents,
 		onReceipt: (_status, refusal) => { if (refusal) capturedRefusal = refusal; },
-	}).then(stored => postingTurn.trailDelivery.finish(snapshot, stored, capturedRefusal)));
+	}).then(stored => {
+		postingTurn.trailDelivery.finish(snapshot, stored, capturedRefusal);
+		const refusalNotice = !stored ? postingTurn.trailDelivery.refusalNotice() : null;
+		if (refusalNotice) {
+			if (safeHasUI(lastCtx)) notify(lastCtx, refusalNotice, "warning");
+			else console.error(refusalNotice);
+		}
+	}));
 }
 
 /**
@@ -1805,6 +1816,11 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 			onReceipt: (_status, refusal) => { if (refusal) capturedRefusal = refusal; },
 		});
 		t.trailDelivery.finish(snapshot, stored, capturedRefusal);
+		const refusalNotice = !stored ? t.trailDelivery.refusalNotice() : null;
+		if (refusalNotice) {
+			if (safeHasUI(lastCtx)) notify(lastCtx, refusalNotice, "warning");
+			else console.error(refusalNotice);
+		}
 	}
 	return false;
 }

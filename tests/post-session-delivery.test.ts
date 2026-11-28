@@ -285,3 +285,46 @@ test("a sessionless automation trail posts through its connection, and with no b
 	assert.equal(unbonded.requests.length, 0);
 	assert.equal(unbonded.warnings.length, 1);
 });
+
+test("trailTick reads and surfaces full structured refusal details (attempt_id, reason, retryable) from TrailDeliveryState (4e32d1a5)", async () => {
+	const structuredRefusal = {
+		session_id: "session",
+		connection_id: "connection",
+		phase: "trail",
+		attempt_id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+		reason: "attempt_finalized",
+		retryable: false,
+		delivery: {
+			status: "skipped",
+			reason: "attempt_finalized",
+			attempt_id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+			retryable: false,
+		},
+	};
+	const h = harness(async () => ({ ...envelope(structuredRefusal), isError: true }));
+	const pendingPosts: Promise<unknown>[] = [];
+	const t = {
+		revision: 1,
+		trailDelivery: new TrailDeliveryState(),
+		canPost: h.capturePostAuthority(),
+		completionNeutral: false,
+		commandTurnId: "command",
+		commandMessageId: "source",
+		posts: 0,
+		lastPostAt: 0,
+		tracker: { userKind: "user" },
+		receiptBatch: { deferTrail: () => false, suppressEmptyFallback: () => false },
+		trailPostFence: { track: (p: Promise<unknown>) => { pendingPosts.push(p); return p; } },
+		trail: { events: () => [{ kind: "tool", name: "read" }], render: () => "- read file" },
+	};
+	t.trailDelivery.markDirty();
+	h.setTurn(t);
+	h.trailTick();
+	await Promise.all(pendingPosts);
+	assert.deepEqual(t.trailDelivery.refusal, structuredRefusal);
+	const surfaced = h.warnings.find(w => w.includes("live trail refused"));
+	assert.ok(surfaced, "trailTick must surface structured refusal details to the runtime");
+	assert.ok(surfaced.includes("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"), "surfaced refusal must include attempt_id");
+	assert.ok(surfaced.includes("attempt_finalized"), "surfaced refusal must include reason");
+	assert.ok(surfaced.includes("\"retryable\":false"), "surfaced refusal must include retryable");
+});

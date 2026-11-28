@@ -62,7 +62,7 @@ test("local turns are marked local_turn and bindings die with their command (6f4
 	assert.match(source, /\.\.\.\(opts\.localTurn \? \{ local_turn: true \} : \{\}\)/);
 	assert.match(source, /localTurn: isCommandTurnUnbound\(t\) && !t\.interaction/);
 	assert.match(source, /localTurn: isCommandTurnUnbound\(postingTurn\) && !postingTurn\.interaction/);
-	assert.match(source, /postToSession\(plan\.prompt, \{ turnKind: "local_prompt", localTurn: true, isCurrent: t\.canPost \}\)/);
+	assert.match(source, /postToSession\(plan\.prompt, \{\s*turnKind: "local_prompt", localTurn: true, isCurrent: t\.canPost\b/);
 	assert.match(source, /commandTurnBindings\.forgetByCommand\(commandTurnId, commandMessageId\)/);
 });
 

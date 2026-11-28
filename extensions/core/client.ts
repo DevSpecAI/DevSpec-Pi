@@ -70,8 +70,10 @@ export class DevspecUnreachableError extends DevspecApiError {}
 /** MCP tool result with `isError: true` — a verb refusal, not a dead socket. */
 export class DevspecToolError extends DevspecApiError {
 	readonly projectChoice: ProjectChoiceRequired | null;
+	readonly raw?: unknown;
 	constructor(message: string, raw?: unknown) {
 		super(message);
+		this.raw = raw;
 		this.projectChoice = readProjectChoiceRequired(raw);
 	}
 }

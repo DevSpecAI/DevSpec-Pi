@@ -103,7 +103,7 @@ import {
 import { unwrapMcpResult } from "./core/result.ts";
 import { bondedRemoteAction, namedSessionFromRemoteArg } from "./core/remote-session-arg.ts";
 import { shapeTranscript } from "./core/attach-context.ts";
-import { parsePostSessionReceipt, TrailDeliveryState } from "./core/post-session-receipt.ts";
+import { extractPostSessionRefusal, parsePostSessionReceipt, TrailDeliveryState, type PostSessionRefusal } from "./core/post-session-receipt.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { SubagentFleetClient, type SubagentFleetSnapshot } from "./core/subagent-fleet.ts";
 import { BackgroundWorkObserver, backgroundTaskFromLaunch, backgroundTasksFromManagement, type BackgroundObservation } from "./core/background-observer.ts";
@@ -272,6 +272,7 @@ import { takeTellPerson } from "./core/tell-person.ts";
 import { UsageRefusalReport, type ModelCallEnd } from "./core/usage-refusal.ts";
 import {
 	PendingWorkSubjects,
+	WORK_SUBJECT_PICKUP_TIMEOUT_MS,
 	isNonCommandWorkSubject,
 	terminalWorkSubject,
 	workSubjectEquals,
@@ -1249,7 +1250,7 @@ function capturePostAuthority(): () => boolean {
 		(!active.stop || active.closing));
 }
 
-async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; localTurn?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; isCurrent?: () => boolean; agentStats?: AgentStatsReport; onReceipt?: (status: "stored" | "idempotently_stored" | "skipped" | "rejected" | "malformed") => void } = {}): Promise<boolean> {
+async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; localTurn?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; isCurrent?: () => boolean; agentStats?: AgentStatsReport; onReceipt?: (status: "stored" | "idempotently_stored" | "skipped" | "rejected" | "malformed", refusal?: PostSessionRefusal) => void } = {}): Promise<boolean> {
 	const active = pump;
 	const bond = getBond();
 	const ctx = lastCtx;
@@ -1310,7 +1311,8 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 		// for pre-send skips or response loss, so callers can tell a server-side
 		// noop (activity completed, content refused) from "never reached".
 		if (receipt.status !== "stored" && receipt.status !== "idempotently_stored") {
-			opts.onReceipt?.(receipt.status);
+			const refusal = "refusal" in receipt ? receipt.refusal : undefined;
+			opts.onReceipt?.(receipt.status, refusal);
 			return failure(receipt.status);
 		}
 		opts.onReceipt?.(receipt.status);
@@ -1323,7 +1325,20 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 	} catch (err) {
 		// Response loss may follow a successful write. Never turn UNKNOWN into
 		// NOT STORED, and never replay non-idempotent speech/local_prompt.
-		return failure(err instanceof DevspecToolError ? "rejected" : "unknown");
+		// Preserve the full structured server refusal object via onReceipt while
+		// keeping user-facing warnings and debug logs privacy-safe (4e32d1a5).
+		if (err instanceof DevspecToolError) {
+			if (err.raw !== undefined) {
+				const parsed = parsePostSessionReceipt(err.raw, {
+					...authority, phase: opts.phase ?? "answer", turnKind: opts.turnKind,
+				});
+				const refusal = ("refusal" in parsed ? parsed.refusal : undefined)
+					?? extractPostSessionRefusal(err.raw);
+				opts.onReceipt?.("rejected", refusal);
+			}
+			return failure("rejected");
+		}
+		return failure("unknown");
 	}
 }
 
@@ -1403,6 +1418,7 @@ function trailTick(): void {
 	const postingTurn = turn;
 	const snapshot = postingTurn.trailDelivery.begin();
 	if (snapshot === null) return;
+	let capturedRefusal: PostSessionRefusal | undefined;
 	postingTurn.trailPostFence.track(postToSession(rendered, {
 		phase: "trail",
 		isCurrent: postingTurn.canPost,
@@ -1412,7 +1428,8 @@ function trailTick(): void {
 		localTurn: isCommandTurnUnbound(postingTurn) && !postingTurn.interaction,
 		interaction: interactionIdentity(postingTurn.interaction),
 		trailEvents: activityEvents,
-	}).then(stored => postingTurn.trailDelivery.finish(snapshot, stored)));
+		onReceipt: (_status, refusal) => { if (refusal) capturedRefusal = refusal; },
+	}).then(stored => postingTurn.trailDelivery.finish(snapshot, stored, capturedRefusal)));
 }
 
 /**
@@ -1475,7 +1492,7 @@ async function reportWorkSubjectPickup(workSubject: NonCommandWorkSubject, still
 		const raw = await callDevspec(resolved.token, "report_pickup", {
 			connection_id: authority.connectionId,
 			work_subject: workSubject,
-		}, { timeoutMs: 10_000, lane: "pump", retry: "never",
+		}, { timeoutMs: WORK_SUBJECT_PICKUP_TIMEOUT_MS, lane: "pump", retry: "never",
 			beforeSend: () => { if (!stillCurrent()) throw new DevspecToolError("Work segment changed before pickup."); },
 		});
 		const receipt = unwrapMcpResult(raw);
@@ -1775,6 +1792,7 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 		if (!getBond()?.sessionId) return false;
 		const snapshot = t.trailDelivery.begin();
 		if (snapshot === null) return false;
+		let capturedRefusal: PostSessionRefusal | undefined;
 		const stored = await postToSession(activityTrail, {
 			phase: "trail",
 			isCurrent: t.canPost,
@@ -1784,8 +1802,9 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 			localTurn: isCommandTurnUnbound(t) && !t.interaction,
 			interaction: interactionIdentity(t.interaction),
 			trailEvents: finalEvents,
+			onReceipt: (_status, refusal) => { if (refusal) capturedRefusal = refusal; },
 		});
-		t.trailDelivery.finish(snapshot, stored);
+		t.trailDelivery.finish(snapshot, stored, capturedRefusal);
 	}
 	return false;
 }

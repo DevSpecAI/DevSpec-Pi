@@ -173,6 +173,31 @@ test("parsePostSessionReceipt accepts attempt-backed phase:'trail' receipts for 
 		parsePostSessionReceipt(wrongAttempt, { connectionId: CONNECTION, sessionId: ROOM_SESSION, phase: "trail" }),
 		{ status: "malformed" },
 	);
+
+	// Full structured refusal payload is preserved unmodified across parsePostSessionReceipt,
+	// DevspecToolError.raw, and TrailDeliveryState.refusal (requirement 4e32d1a5, zero slicing).
+	const refusalPayload = {
+		attempt_id: attemptId,
+		outcome: "already_finalized",
+		reason: "attempt_finalized",
+		terminal: true,
+		retryable: false,
+		awaiting_input: false,
+		blocking_context: { kind: "turn", id: attemptId },
+		delivery: { status: "rejected", outcome: "already_finalized", reason: "attempt_finalized", terminal: true, retryable: false },
+		error: "Turn already finalized",
+	};
+	const refused = { ...textResult(refusalPayload), isError: true };
+	const toolErr = new DevspecToolError("Turn already finalized", refused);
+	const parsedRefusal = parsePostSessionReceipt(toolErr.raw, { connectionId: CONNECTION, sessionId: ROOM_SESSION, phase: "trail" });
+	assert.deepEqual(parsedRefusal, { status: "rejected", refusal: refusalPayload });
+	const refusedDelivery = new TrailDeliveryState();
+	refusedDelivery.markDirty();
+	const snap = refusedDelivery.begin();
+	assert.notEqual(snap, null);
+	refusedDelivery.finish(snap!, false, parsedRefusal.status === "rejected" ? parsedRefusal.refusal : undefined);
+	assert.equal(refusedDelivery.blocked, true);
+	assert.deepEqual(refusedDelivery.refusal, refusalPayload);
 });
 
 test("trail projections keep background commands, gh commands, and newer DevSpec verbs granular and privacy-safe", () => {

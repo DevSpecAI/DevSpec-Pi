@@ -218,9 +218,11 @@ test("a check-job segment is nobody's request and gets no sessionless automation
 	const branch = remote.slice(remote.indexOf('} else if (userKind === "check_job") {'), remote.indexOf('} else if (userKind !== "local") {'));
 	assert.match(branch, /kind = "none";/);
 	assert.match(branch, /chain\?\.arriveNobody\(\);/);
-	// Sessionless check jobs track turn state for work_subject/pickup/completion,
-	// but only automation turns post sessionless trails (canPostTrail).
-	assert.match(remote, /function canPostTrail\(t: TurnState\): boolean \{[^]*if \(bond\.sessionId\) return true;[^]*return t\.requestKind === "automation" \|\| t\.tracker\?\.userKind === "automation" \|\| t\.workSubject\?\.kind === "automation_run";/);
+	// Sessionless check jobs and automations track turn state for work_subject/pickup/completion,
+	// and trailTick never posts trails without a room session or for quiet/automation turns.
+	const trail = remote.slice(remote.indexOf("function trailTick(): void {"), remote.indexOf("/**\n * Explicitly close"));
+	assert.match(trail, /if \(segmentIsQuiet\(turn\) \|\| isAutomationSegment\(turn\)\) return;/);
+	assert.match(trail, /if \(!getBond\(\)\?\.sessionId\) return;/);
 });
 
 test("bonded instructions say to resolve a duplicate of a task the agent wrote on the spot, pointing at the served contract for how", () => {

@@ -73,8 +73,7 @@ test("system notices use a fresh harness custom turn and never user/followUp/ste
 	const answer = bodyBetween("async function postSegmentAnswer", "async function settleTurn");
 	assert.match(answer, /if \(!remoteRunActivityPolicy\(t\.completionNeutral\)\.reportTranscript\) return false/);
 	const trail = bodyBetween("function trailTick", "/**\n * Explicitly close");
-	assert.match(trail, /const policy = turn \? remoteRunActivityPolicy\(turn\.completionNeutral\) : null/);
-	assert.match(trail, /if \(!turn \|\| !\(policy\?\.reportTrail \?\? policy\?\.reportTranscript\)\) return/);
+	assert.match(trail, /if \(!turn \|\| !remoteRunActivityPolicy\(turn\.completionNeutral\)\.reportTranscript\) return/);
 	const shutdown = bodyBetween('pi.on("session_shutdown"', 'pi.on("session_start"');
 	assert.match(shutdown, /revokeSystemNoticeState\(active\.systemNoticeKey\)/);
 	assert.match(shutdown, /if \(openTurn && remoteRunActivityPolicy\(openTurn\.completionNeutral\)\.reportCompletion\)[^]*completeTurnActivity\(openTurn, "process_exit"/);

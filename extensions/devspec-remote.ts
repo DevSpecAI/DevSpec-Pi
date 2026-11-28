@@ -103,7 +103,7 @@ import {
 import { unwrapMcpResult } from "./core/result.ts";
 import { bondedRemoteAction, namedSessionFromRemoteArg } from "./core/remote-session-arg.ts";
 import { shapeTranscript } from "./core/attach-context.ts";
-import { extractPostSessionRefusal, parsePostSessionReceipt, TrailDeliveryState, type PostSessionRefusal } from "./core/post-session-receipt.ts";
+import { parsePostSessionReceipt, TrailDeliveryState } from "./core/post-session-receipt.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { SubagentFleetClient, type SubagentFleetSnapshot } from "./core/subagent-fleet.ts";
 import { BackgroundWorkObserver, backgroundTaskFromLaunch, backgroundTasksFromManagement, type BackgroundObservation } from "./core/background-observer.ts";
@@ -1249,15 +1249,13 @@ function capturePostAuthority(): () => boolean {
 		(!active.stop || active.closing));
 }
 
-async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; localTurn?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; isCurrent?: () => boolean; agentStats?: AgentStatsReport; onReceipt?: (status: "stored" | "idempotently_stored" | "skipped" | "rejected" | "malformed", refusal?: PostSessionRefusal) => void } = {}): Promise<boolean> {
+async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; localTurn?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; isCurrent?: () => boolean; agentStats?: AgentStatsReport; onReceipt?: (status: "stored" | "idempotently_stored" | "skipped" | "rejected" | "malformed") => void } = {}): Promise<boolean> {
 	const active = pump;
 	const bond = getBond();
 	const ctx = lastCtx;
 	const current = capturePostAuthority();
 	const failure = (status: "skipped" | "rejected" | "malformed" | "unknown"): false => {
-		// No raw server/transport error, prompt, token, or thinking in diagnostics/warnings
-		// (tests/post-session-delivery.test.ts); structured refusal details are preserved on
-		// PostSessionReceipt / opts.onReceipt / TrailDeliveryState.refusal (4e32d1a5).
+		// No raw server/transport error, prompt, token, or thinking in diagnostics.
 		debug("post delivery failed", { skipped: status === "skipped", rejected: status === "rejected", malformed: status === "malformed", unknown: status === "unknown" });
 		const warning = `DevSpec remote: ${opts.turnKind === "local_prompt" ? "local prompt" : opts.phase === "trail" ? "trail" : "answer"} delivery ${status}; storage not confirmed. Not replaying automatically; check the room before resending.`;
 		if (safeHasUI(ctx)) notify(ctx, warning, "warning");
@@ -1312,8 +1310,7 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 		// for pre-send skips or response loss, so callers can tell a server-side
 		// noop (activity completed, content refused) from "never reached".
 		if (receipt.status !== "stored" && receipt.status !== "idempotently_stored") {
-			const refusal = "refusal" in receipt ? receipt.refusal : undefined;
-			opts.onReceipt?.(receipt.status, refusal);
+			opts.onReceipt?.(receipt.status);
 			return failure(receipt.status);
 		}
 		opts.onReceipt?.(receipt.status);
@@ -1326,22 +1323,7 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 	} catch (err) {
 		// Response loss may follow a successful write. Never turn UNKNOWN into
 		// NOT STORED, and never replay non-idempotent speech/local_prompt.
-		// When callDevspec threw DevspecToolError on a structured server refusal,
-		// parse its preserved raw MCP payload so callers (e.g. TrailDeliveryState)
-		// receive attemptId, outcome, reason, delivery, terminal, retryable, and
-		// awaitingInput rather than losing the refusal payload (requirement 4e32d1a5).
-		if (err instanceof DevspecToolError) {
-			if (err.raw !== undefined) {
-				const parsed = parsePostSessionReceipt(err.raw, {
-					...authority, phase: opts.phase ?? "answer", turnKind: opts.turnKind,
-				});
-				const refusal = ("refusal" in parsed ? parsed.refusal : undefined)
-					?? extractPostSessionRefusal(err.raw);
-				opts.onReceipt?.("rejected", refusal);
-			}
-			return failure("rejected");
-		}
-		return failure("unknown");
+		return failure(err instanceof DevspecToolError ? "rejected" : "unknown");
 	}
 }
 
@@ -1421,7 +1403,6 @@ function trailTick(): void {
 	const postingTurn = turn;
 	const snapshot = postingTurn.trailDelivery.begin();
 	if (snapshot === null) return;
-	let capturedRefusal: PostSessionRefusal | undefined;
 	postingTurn.trailPostFence.track(postToSession(rendered, {
 		phase: "trail",
 		isCurrent: postingTurn.canPost,
@@ -1431,10 +1412,7 @@ function trailTick(): void {
 		localTurn: isCommandTurnUnbound(postingTurn) && !postingTurn.interaction,
 		interaction: interactionIdentity(postingTurn.interaction),
 		trailEvents: activityEvents,
-		onReceipt: (_status: "stored" | "idempotently_stored" | "skipped" | "rejected" | "malformed", refusal?: PostSessionRefusal) => {
-			if (refusal) capturedRefusal = refusal;
-		},
-	}).then(stored => postingTurn.trailDelivery.finish(snapshot, stored, capturedRefusal)));
+	}).then(stored => postingTurn.trailDelivery.finish(snapshot, stored)));
 }
 
 /**
@@ -1797,7 +1775,6 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 		if (!getBond()?.sessionId) return false;
 		const snapshot = t.trailDelivery.begin();
 		if (snapshot === null) return false;
-		let capturedRefusal: PostSessionRefusal | undefined;
 		const stored = await postToSession(activityTrail, {
 			phase: "trail",
 			isCurrent: t.canPost,
@@ -1807,9 +1784,8 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 			localTurn: isCommandTurnUnbound(t) && !t.interaction,
 			interaction: interactionIdentity(t.interaction),
 			trailEvents: finalEvents,
-			onReceipt: (_status, refusal) => { if (refusal) capturedRefusal = refusal; },
 		});
-		t.trailDelivery.finish(snapshot, stored, capturedRefusal);
+		t.trailDelivery.finish(snapshot, stored);
 	}
 	return false;
 }

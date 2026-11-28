@@ -1,19 +1,8 @@
 import { unwrapMcpResult } from "./result.ts";
 
-export interface PostSessionRefusal {
-	attemptId?: string;
-	outcome?: string;
-	reason?: string;
-	terminal?: boolean;
-	retryable?: boolean;
-	awaitingInput?: boolean;
-	deliveryStatus?: string;
-	error?: string;
-}
-
 export type PostSessionReceipt =
 	| { status: "stored" | "idempotently_stored"; messageId: string; diagnosticsOnly?: true }
-	| { status: "skipped" | "rejected" | "malformed"; refusal?: PostSessionRefusal };
+	| { status: "skipped" | "rejected" | "malformed" };
 
 export interface ExpectedPostReceipt {
 	connectionId: string;
@@ -29,86 +18,16 @@ function record(value: unknown): Record<string, unknown> | null {
 		? value as Record<string, unknown> : null;
 }
 
-function boundedRefusalText(value: unknown, maxChars = 240): string | undefined {
-	if (typeof value !== "string") return undefined;
-	const compact = value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
-	if (!compact) return undefined;
-	return compact.length > maxChars ? `${compact.slice(0, maxChars - 1)}…` : compact;
-}
-
-export function extractPostSessionRefusal(details: unknown): PostSessionRefusal | undefined {
-	const data = record(details);
-	if (!data) {
-		const error = boundedRefusalText(details);
-		return error ? { error } : undefined;
-	}
-	const delivery = record(data.delivery);
-	const attemptId = boundedRefusalText(data.attempt_id ?? delivery?.attempt_id, 96);
-	const outcome = boundedRefusalText(data.outcome ?? delivery?.outcome, 96);
-	const reason = boundedRefusalText(data.reason ?? delivery?.reason, 96);
-	const terminal = typeof data.terminal === "boolean"
-		? data.terminal
-		: typeof delivery?.terminal === "boolean"
-			? delivery.terminal
-			: undefined;
-	const retryable = typeof data.retryable === "boolean"
-		? data.retryable
-		: typeof delivery?.retryable === "boolean"
-			? delivery.retryable
-			: undefined;
-	const awaitingInput = typeof data.awaiting_input === "boolean"
-		? data.awaiting_input
-		: typeof delivery?.awaiting_input === "boolean"
-			? delivery.awaiting_input
-			: undefined;
-	const deliveryStatus = boundedRefusalText(delivery?.status, 64);
-	const error = boundedRefusalText(data.error ?? data.message ?? delivery?.error);
-	if (
-		attemptId === undefined &&
-		outcome === undefined &&
-		reason === undefined &&
-		terminal === undefined &&
-		retryable === undefined &&
-		awaitingInput === undefined &&
-		deliveryStatus === undefined &&
-		error === undefined
-	) {
-		return undefined;
-	}
-	return {
-		...(attemptId !== undefined ? { attemptId } : {}),
-		...(outcome !== undefined ? { outcome } : {}),
-		...(reason !== undefined ? { reason } : {}),
-		...(terminal !== undefined ? { terminal } : {}),
-		...(retryable !== undefined ? { retryable } : {}),
-		...(awaitingInput !== undefined ? { awaitingInput } : {}),
-		...(deliveryStatus !== undefined ? { deliveryStatus } : {}),
-		...(error !== undefined ? { error } : {}),
-	};
-}
-
 /** Accept deployed text-JSON and structured MCP envelopes, never transport success alone. */
 export function parsePostSessionReceipt(raw: unknown, expected: ExpectedPostReceipt): PostSessionReceipt {
-	const { details, text, isError } = unwrapMcpResult(raw);
-	if (isError) {
-		const refusal = extractPostSessionRefusal(details ?? text);
-		return refusal ? { status: "rejected", refusal } : { status: "rejected" };
-	}
+	const { details, isError } = unwrapMcpResult(raw);
+	if (isError) return { status: "rejected" };
 	const data = record(details);
 	if (!data) return { status: "malformed" };
 	const receipt = record(data.delivery);
-	if (receipt?.status === "rejected") {
-		const refusal = extractPostSessionRefusal(data);
-		return refusal ? { status: "rejected", refusal } : { status: "rejected" };
-	}
-	if (data.skipped === true || data.noop === true || receipt?.status === "skipped") {
-		const refusal = extractPostSessionRefusal(data);
-		return refusal ? { status: "skipped", refusal } : { status: "skipped" };
-	}
-	if (data.error !== undefined) {
-		const refusal = extractPostSessionRefusal(data);
-		return refusal ? { status: "rejected", refusal } : { status: "rejected" };
-	}
+	if (receipt?.status === "rejected") return { status: "rejected" };
+	if (data.skipped === true || data.noop === true || receipt?.status === "skipped") return { status: "skipped" };
+	if (data.error !== undefined) return { status: "rejected" };
 	const expectedSessionId = expected.sessionId ?? null;
 	if ((data.session_id ?? null) !== expectedSessionId || data.phase !== expected.phase ||
 		data.connection_id !== expected.connectionId ||
@@ -144,26 +63,19 @@ export class TrailDeliveryState {
 	private acknowledged = 0;
 	private pending: number | null = null;
 	private failed = false;
-	private lastRefusal: PostSessionRefusal | undefined = undefined;
 
 	markDirty(): void { this.revision += 1; }
 	get dirty(): boolean { return this.revision !== this.acknowledged; }
 	get blocked(): boolean { return this.failed || this.pending !== null; }
-	get refusal(): PostSessionRefusal | undefined { return this.lastRefusal; }
 	begin(): number | null {
 		if (!this.dirty || this.blocked) return null;
 		this.pending = this.revision;
 		return this.pending;
 	}
-	finish(snapshot: number, stored: boolean, refusal?: PostSessionRefusal): void {
+	finish(snapshot: number, stored: boolean): void {
 		if (this.pending !== snapshot) return;
 		this.pending = null;
-		if (stored) {
-			this.acknowledged = snapshot;
-			this.lastRefusal = undefined;
-		} else {
-			this.failed = true;
-			if (refusal) this.lastRefusal = refusal;
-		}
+		if (stored) this.acknowledged = snapshot;
+		else this.failed = true;
 	}
 }

@@ -72,7 +72,7 @@ test("persisted custom application ACKs mechanically while busy before model set
 });
 
 test("trail, final, keepalive, fallback, and process exit carry the exact interaction tuple", () => {
-	assert.match(remote, /postToSession\(rendered, \{ phase: "trail"[^]*interaction: interactionIdentity\(postingTurn\.interaction\)/);
+	assert.match(remote, /phase: "trail",[\s\S]*interaction: interactionIdentity\(postingTurn\.interaction\)/);
 	assert.match(remote, /phase: "answer"[^]*interaction: interactionIdentity\(t\.interaction\)/);
 	const keepalive = between("async function keepInteractionContinuationAlive", "async function releaseInteractionBeforePersistence");
 	assert.match(keepalive, /interactionAuthorityCurrent\(run\.authority\)[^]*await resolveToken\(\)[^]*interactionAuthorityCurrent\(run\.authority\)/);
@@ -128,8 +128,8 @@ test("ambiguous start and release calls retain exact pump retries", () => {
 
 test("owner polling is deferred by server activity while Pi suppresses generic busy mutation", () => {
 	const pump = between("async function pumpLoop", "interface BondOutcome");
-	// Both generic presence fields stay absent during an exact interaction run.
-	assert.match(pump, /!activeInteractionRun\(active\) \? \{ busy: active\.busy, progress_marker: currentProgressMarker\(\) \} : \{\}/);
+	// Generic presence fields stay absent during an exact interaction run.
+	assert.match(pump, /!activeInteractionRun\(active\) \? \{ busy: active\.busy, progress_marker: currentProgressMarker\(\), \.\.\.pollWorkSubject \} : \{\}/);
 	assert.match(pump, /interactionEventAck[^]*catch_up: true/);
 	assert.match(pump, /await applyInteractionEvent\(active, ctx, interactionEvent\)/);
 });

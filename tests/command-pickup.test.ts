@@ -16,6 +16,7 @@ import { capturePumpAuthority, isPumpAuthorityCurrent } from "../extensions/core
 import { remoteRunActivityPolicy, transitionToRealUserActivity } from "../extensions/core/system-notice.ts";
 import { isDeliveryBoundary, isBetweenStepDelivery, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 import { extractText } from "../extensions/core/trail.ts";
+import { PendingWorkSubjects, isNonCommandWorkSubject, terminalWorkSubject, workSubjectEquals, workSubjectForCommand, workSubjectForNotices, workSubjectFromWakeText } from "../extensions/core/work-subject.ts";
 
 const source = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 function slice(start: string, end: string): string {
@@ -35,7 +36,7 @@ type Call = { name: string; args: Record<string, unknown>; opts: Record<string, 
 function rig(options: { binding?: typeof COMMAND | null; completionNeutral?: boolean; callFails?: boolean } = {}) {
 	const calls: Call[] = [];
 	const hooks: Record<string, (event: any, ctx: any) => Promise<unknown> | unknown> = {};
-	const active = { generation: 1, stop: false, busy: false, bond: { connectionId: CONNECTION, sessionId: "room", connectionCapability: "cap" },
+	const active = { generation: 1, stop: false, busy: false, workSubject: null, workSubjectNeedsClear: false, bond: { connectionId: CONNECTION, sessionId: "room", connectionCapability: "cap" },
 		runtimeOccupancy: { promote: () => null } };
 	const turn: Record<string, unknown> = { revision: 1, tracker: new TurnTracker(), completionNeutral: options.completionNeutral ?? false,
 		receiptBatch: { reset() {} }, canPost: () => true };
@@ -43,6 +44,10 @@ function rig(options: { binding?: typeof COMMAND | null; completionNeutral?: boo
 		Error, Promise,
 		pump: active, turn, lastCtx: null, nextTurnRevision: 2,
 		systemNoticeTurnPending: false, systemNoticeRunActive: false, activeCommandTurnIdentity: null,
+		pendingSystemNoticeWorkSubject: null, parkedWorkSubject: null,
+		pendingWorkSubjects: new PendingWorkSubjects(),
+		isNonCommandWorkSubject, terminalWorkSubject, workSubjectEquals, workSubjectForCommand, workSubjectForNotices, workSubjectFromWakeText,
+		setPumpWorkSubject: (a: Record<string, unknown>, s: unknown) => { a.workSubject = s; a.workSubjectNeedsClear = s === null; },
 		SYSTEM_NOTICE_CUSTOM_TYPE: "devspec-system-notice",
 		capturePumpAuthority, isPumpAuthorityCurrent, remoteRunActivityPolicy, transitionToRealUserActivity,
 		isDeliveryBoundary, isBetweenStepDelivery, extractText,

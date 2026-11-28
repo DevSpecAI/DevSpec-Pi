@@ -254,31 +254,30 @@ test("preserved 1.3 is accepted only when notice negotiation was omitted; mismat
 	assert.equal(parsePollPayload(spoofed, TEST_CONNECTION, { systemNoticeNegotiated: false }).canonicalState, "invalid");
 });
 
-test("notice runs report zero remote activity while ordinary owner runs retain every lifecycle channel", () => {
+test("notice runs report live presence, source-less completion, and diagnostics trail while suppressing chat transcript speech (2145bd84)", () => {
 	assert.deepEqual(remoteRunActivityPolicy(true), {
-		reportPresence: false,
-		reportCompletion: false,
+		reportPresence: true,
+		reportCompletion: true,
 		reportTranscript: false,
+		reportTrail: true,
 	});
 	assert.deepEqual(remoteRunActivityPolicy(false), {
 		reportPresence: true,
 		reportCompletion: true,
 		reportTranscript: true,
+		reportTrail: true,
 	});
 });
 
-test("same-run notice boundary activates one owner or local segment without attributing notice activity", () => {
+test("same-run notice boundary closes the notice attempt cleanly and activates one owner or local segment without leaking notice transcript", () => {
 	for (const kind of ["owner", "local"] as const) {
 		const events: string[] = [];
 		const noticeTracker = new TurnTracker();
 		noticeTracker.userMessage("[DevSpec system notice v1]", { customType: SYSTEM_NOTICE_CUSTOM_TYPE });
 		noticeTracker.assistantFinal("notice-only analysis", true);
-		// 2026-09-23: reproduced the old false assertion on untouched 8f0a233.
-		// Text creates a segment boundary; completion-neutral runtime policy,
-		// not text classification, suppresses notice presence/storage/completion.
 		assert.equal(isDeliveryBoundary(noticeTracker), true);
 		const noticePolicy = remoteRunActivityPolicy(true);
-		assert.deepEqual(noticePolicy, { reportPresence: false, reportCompletion: false, reportTranscript: false });
+		assert.deepEqual(noticePolicy, { reportPresence: true, reportCompletion: true, reportTranscript: false, reportTrail: true });
 		if (noticePolicy.reportPresence) events.push("notice:busy");
 		if (noticePolicy.reportTranscript) events.push("notice:transcript");
 
@@ -313,6 +312,8 @@ test("same-run notice boundary activates one owner or local segment without attr
 		if (!posted && transition.nextPolicy.reportCompletion) events.push(`${kind}:complete`);
 
 		assert.deepEqual(events, [
+			"notice:busy",
+			"notice:complete",
 			`${kind}:busy:true`,
 			`${kind}:answer`,
 			`${kind}:busy:false`,

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.15.9 - 2026-11-28
+
+- **Pi now shows live Working state and what it is working on during DevSpec notices, check jobs, automation runs, and terminal prompts — not only room messages.** Before, a Pi woken by a PR follow-up notice, a check job, or a background automation run stayed marked Idle on the Agents page while it worked, and hid its step-by-step activity. Now Pi tells DevSpec mechanically which wake it started on (`server_notice`, `system_notice`, `check_job`, `automation_run`, `command`, or `terminal`), opens a dedicated work attempt without touching any waiting room message, streams live granular activity (including background commands, GitHub CLI steps, and DevSpec record tools) onto that attempt while keeping check jobs and for-the-record notices out of room chat, and clears Working cleanly when the work settles.
+- **Long-running background commands and subagents stay Working until the last child finishes.** When a notice, check-job, automation, terminal, or room turn starts background commands or async subagents, Pi keeps Working and its active subject live across turns and advances its progress marker as background work runs, aligned with DevSpec's 24-hour last-resort staleness bound. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.
+
 ## 0.15.8 - 2026-11-27
 
 - **Your agent can now read the live rows of a database you've set to Everything (`query_database`).** Each database connected to a DevSpec project has a Live data setting. On Structure only, the default, agents see its tables and columns but never its rows. On Everything, your agent can run one read-only query at a time against it, with joins, counts and grouping, and get the rows back. DevSpec runs every query read-only, with a time limit, and returns at most 200 rows per answer, saying where to read on from. `get_database_schema` now shows each database's setting, so your agent knows which ones it can query before it tries. Pi's built-in copy of DevSpec's tools is regenerated against DevSpec's current tools; no other tool changed. Update with `pi update npm:@devspecai/pi-plugin`, then restart Pi.

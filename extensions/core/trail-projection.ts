@@ -13,19 +13,21 @@ const MAX_LABEL_CHARS = 240;
 
 const FILE_TOOLS = new Set(["read", "write", "edit", "apply_patch", "multiedit"]);
 const SEARCH_TOOLS = new Set(["grep", "find", "ls"]);
-const SHELL_TOOLS = new Set(["bash", "shell", "exec", "execute"]);
+const SHELL_TOOLS = new Set(["bash", "shell", "exec", "execute", "bg_run", "bg_run_pi_attested"]);
 const WEB_TOOLS = new Set(["fetch", "web_fetch", "web_search", "browser", "navigate"]);
 const DATABASE_TOOLS = new Set(["supabase_execute_sql", "execute_sql", "query_database"]);
 const DEVSPEC_TOOLS = new Set<string>([...MODEL_VERB_NAMES, "search_devspec_tools"]);
 
 const DEVSPEC_ID_KEYS = [
 	"task_id",
+	"item_id",
 	"brief_id",
 	"criterion_id",
 	"goal_id",
 	"outcome_id",
 	"id",
 	"memory_id",
+	"requirement_id",
 	"plan_id",
 	"poll_id",
 	"project_id",
@@ -34,6 +36,11 @@ const DEVSPEC_ID_KEYS = [
 	"session_id",
 	"signal_id",
 	"step_id",
+	"run_id",
+	"automation_id",
+	"incident_id",
+	"entry_id",
+	"discussion_point_id",
 ] as const;
 
 const SECRET_NAME = /(?:^|[_-])(?:access[_-]?token|api[_-]?key|apikey|auth|authorization|bearer|client[_-]?secret|credential|jwt|password|passwd|private[_-]?key|secret|session[_-]?token|token)(?:$|[_-])/i;
@@ -210,6 +217,7 @@ function safeShellCommand(value: unknown): string | undefined {
 			if (operation === "run" && conventionalScripts.has(script)) selected.push(script);
 		}
 	} else if (lower === "git") {
+		selected = ["git"];
 		const operation = bareToken(tokens[0] ?? "").toLowerCase();
 		const allowed = new Set(["branch", "commit", "diff", "fetch", "log", "merge", "pull", "push", "rebase", "status"]);
 		if (allowed.has(operation)) selected.push(operation);
@@ -219,6 +227,16 @@ function safeShellCommand(value: unknown): string | undefined {
 			.filter((token) => /^--(?:check|short|stat|oneline|decorate|name-only)$/.test(token))
 			.slice(0, 2);
 		selected = selected.concat(flags);
+	} else if (lower === "gh") {
+		selected = ["gh"];
+		const area = bareToken(tokens[0] ?? "").toLowerCase();
+		const sub = bareToken(tokens[1] ?? "").toLowerCase();
+		const allowedAreas = new Set(["pr", "issue", "run", "release", "workflow"]);
+		const allowedSubs = new Set(["checks", "close", "comment", "create", "diff", "edit", "list", "merge", "ready", "reopen", "review", "status", "view", "watch"]);
+		if (allowedAreas.has(area)) {
+			selected.push(area);
+			if (allowedSubs.has(sub)) selected.push(sub);
+		}
 	} else if (["ls", "cat", "head", "tail", "wc", "stat", "realpath"].includes(lower)) {
 		selected = [lower];
 		const path = safeFileOperand(tokens);
@@ -248,14 +266,20 @@ function devspecArgs(name: string, args: Record<string, unknown>): string | unde
 		const id = safeTrailId(args[key]);
 		if (id) parts.push(`${key}=${id}`);
 	}
-	if (name === "manage_plan" || name === "manage_poll" || name === "manage_directed_question" || name === "manage_goals") {
+	if (
+		name === "manage_plan" || name === "manage_poll" || name === "manage_directed_question" || name === "manage_goals"
+		|| name === "manage_incident" || name === "manage_discussion_point" || name === "manage_protected_intent"
+		|| name === "manage_inventory_connections" || name === "manage_knowledge_links"
+	) {
 		const actionPattern = name === "manage_plan"
 			? /^(?:create|list|get|update|start_step|complete_step|skip_step|fail_step|advance|complete|abandon|adopt)$/
 			: name === "manage_poll"
 				? /^(?:create|list|get|update|end|retract|supersede)$/
 				: name === "manage_directed_question"
 					? /^(?:create|list|get|cancel)$/
-					: /^(?:create|update|achieve|dismiss|reactivate|split|merge|create_outcome|update_outcome|reorder_outcomes|confirm_outcome|reopen_outcome|drop_outcome|delete_outcome|link_outcome|unlink_outcome|restore_outcome_target)$/;
+					: name === "manage_goals"
+						? /^(?:create|update|achieve|dismiss|reactivate|split|merge|create_outcome|update_outcome|reorder_outcomes|confirm_outcome|reopen_outcome|drop_outcome|delete_outcome|link_outcome|unlink_outcome|restore_outcome_target)$/
+						: /^[a-z][a-z0-9_]{1,40}$/;
 		const action = typeof args.action === "string" && actionPattern.test(args.action)
 			? args.action
 			: undefined;
@@ -366,7 +390,12 @@ function safeOutcome(result: unknown): string | undefined {
 /** Select safe output metadata. Raw tool text is never copied into the trail. */
 export function projectTrailResult(name: string, result: unknown): string | undefined {
 	if (!DEVSPEC_TOOLS.has(name)) return undefined;
-	if (name === "manage_plan" || name === "manage_poll" || name === "manage_directed_question" || name === "manage_goals" || /^(?:create_|update_|claim_|record_|resolve_|supersede_|retract_|archive_)/.test(name)) {
+	if (
+		name === "manage_plan" || name === "manage_poll" || name === "manage_directed_question" || name === "manage_goals"
+		|| name === "manage_incident" || name === "manage_discussion_point" || name === "manage_protected_intent"
+		|| name === "manage_inventory_connections" || name === "manage_knowledge_links"
+		|| /^(?:create_|update_|claim_|record_|resolve_|supersede_|retract_|archive_|revise_|decide_|verify_|report_)/.test(name)
+	) {
 		return safeOutcome(result);
 	}
 	if (name.startsWith("search_") || name.startsWith("list_")) {

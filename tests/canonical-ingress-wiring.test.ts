@@ -64,17 +64,17 @@ test("system notices use a fresh harness custom turn and never user/followUp/ste
 	assert.match(settled, /pump && !pump\.busy && ctx\.isIdle\(\)[^]*deliverQueuedSystemNotices/);
 	assert.match(settled, /!posted && activityPolicy\.reportCompletion[^]*completeTurnActivity\(settlingTurn, "turn_end"/);
 	const runtimeStamp = bodyBetween("function scheduleRuntimeStamp", "/** Settle the turn's usage");
-	assert.match(runtimeStamp, /const completionNeutralAtSchedule = systemNoticeRunActive \|\| systemNoticeTurnPending/);
-	assert.match(runtimeStamp, /if \(!completionNeutralAtSchedule && !systemNoticeRunActive\) void beatBusy/);
+	assert.match(runtimeStamp, /void beatBusy\(active\.busy, stats\)/);
 	const beat = bodyBetween("async function beatBusy", "function notify");
-	assert.match(beat, /if \(!active \|\| active\.stop \|\| systemNoticeRunActive\) return/);
+	assert.match(beat, /if \(!active \|\| active\.stop\) return/);
 
 	const split = bodyBetween("function splitTurnAtBoundary", "/**\n * Assert busy presence");
 	assert.match(split, /completionNeutral: t\.completionNeutral/);
 	const answer = bodyBetween("async function postSegmentAnswer", "async function settleTurn");
 	assert.match(answer, /if \(!remoteRunActivityPolicy\(t\.completionNeutral\)\.reportTranscript\) return false/);
 	const trail = bodyBetween("function trailTick", "/**\n * Explicitly close");
-	assert.match(trail, /if \(!turn \|\| !remoteRunActivityPolicy\(turn\.completionNeutral\)\.reportTranscript\) return/);
+	assert.match(trail, /const policy = turn \? remoteRunActivityPolicy\(turn\.completionNeutral\) : null/);
+	assert.match(trail, /if \(!turn \|\| !\(policy\?\.reportTrail \?\? policy\?\.reportTranscript\)\) return/);
 	const shutdown = bodyBetween('pi.on("session_shutdown"', 'pi.on("session_start"');
 	assert.match(shutdown, /revokeSystemNoticeState\(active\.systemNoticeKey\)/);
 	assert.match(shutdown, /if \(openTurn && remoteRunActivityPolicy\(openTurn\.completionNeutral\)\.reportCompletion\)[^]*completeTurnActivity\(openTurn, "process_exit"/);
@@ -215,7 +215,7 @@ test("all send modes use the same visible bundle binding and idle retains hidden
 	assert.match(sender, /catch \(error\)[^]*commandTurnBindings\.forget/);
 
 	const beforeStart = bodyBetween('pi.on("before_agent_start"', 'pi.on("message_start"');
-	assert.match(beforeStart, /commandTurnBindings\.peek\(event\.prompt\)/);
+	assert.match(beforeStart, /commandTurnBindings\.peek\(promptText\)/);
 	assert.match(beforeStart, /appendActivePlanTail\(\s*appendActivePlanTail\(canonicalQueueItem\?\.hiddenContent \?\? "", planTail\),\s*pollTail/s);
 	assert.match(beforeStart, /customType: canonicalQueueItem \? REMOTE_INGRESS_CONTEXT_CUSTOM_TYPE : "devspec-active-session-plans"/);
 	assert.match(beforeStart, /content: hiddenContent/);

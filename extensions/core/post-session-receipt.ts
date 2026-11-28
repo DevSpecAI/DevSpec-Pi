@@ -1,7 +1,7 @@
 import { unwrapMcpResult } from "./result.ts";
 
 export type PostSessionReceipt =
-	| { status: "stored" | "idempotently_stored"; messageId: string }
+	| { status: "stored" | "idempotently_stored"; messageId: string; diagnosticsOnly?: true }
 	| { status: "skipped" | "rejected" | "malformed" };
 
 export interface ExpectedPostReceipt {
@@ -31,8 +31,17 @@ export function parsePostSessionReceipt(raw: unknown, expected: ExpectedPostRece
 	const expectedSessionId = expected.sessionId ?? null;
 	if ((data.session_id ?? null) !== expectedSessionId || data.phase !== expected.phase ||
 		data.connection_id !== expected.connectionId ||
-		(expected.turnKind !== undefined && data.turn_kind !== expected.turnKind) ||
-		typeof data.message_id !== "string" || !data.message_id.trim()) return { status: "malformed" };
+		(expected.turnKind !== undefined && data.turn_kind !== expected.turnKind)) return { status: "malformed" };
+	// Non-command diagnostics trail posts (item 5f082b61 / 2145bd84) attach directly
+	// to the active source-less working attempt (`diagnostics_only: true`) without
+	// creating a room chat row; their delivery receipt names `attempt_id`.
+	if (data.diagnostics_only === true && expected.phase === "trail") {
+		if (typeof data.attempt_id !== "string" || !data.attempt_id.trim()) return { status: "malformed" };
+		if (!receipt || (receipt.status !== "stored" && receipt.status !== "idempotently_stored") ||
+			receipt.message_id !== data.attempt_id) return { status: "malformed" };
+		return { status: receipt.status, messageId: data.attempt_id, diagnosticsOnly: true };
+	}
+	if (typeof data.message_id !== "string" || !data.message_id.trim()) return { status: "malformed" };
 	if (expected.assistantSourceId !== undefined &&
 		(data.assistant_source_id !== expected.assistantSourceId || !receipt)) return { status: "malformed" };
 	if (data.delivery !== undefined) {

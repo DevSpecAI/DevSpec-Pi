@@ -296,20 +296,20 @@ export function terminalBackgroundTaskIds(
 }
 
 /**
- * Working-lease progress evidence (item 0b8035ac; server migration 952).
+ * Working-lease progress evidence (item 0b8035ac; server migration 952/1772,
+ * decision 6459a009).
  *
- * The server renews a working attempt's lease on a keepalive only while the
- * caller's progress marker keeps CHANGING; a marker frozen past the staleness
- * bound is declined ('stale') and the attempt expires on its lease. This is
- * what stops a wedged tracker (pendingBg stuck at 1, session ea7704f4,
- * 2026-09-20) from holding Working for hours: the wedge froze every event
- * stream, so a counter fed BY those streams provably stops too.
+ * The server renews a working attempt's lease on a keepalive while the
+ * caller's progress marker keeps CHANGING, with a 24-hour last-resort staleness
+ * bound (no 60-minute cutoff, so deep-reasoning models and multi-step runs stay
+ * live across long silent steps while truly wedged hosts still expire).
  *
  * One process-global monotonic counter, bumped by the extension's event
- * handlers (turns, messages, tool executions, updates). Opaque and cheap —
- * the server compares for change, never meaning. Monotonicity within the
- * process is all the server needs; a restart re-seeds from zero and the first
- * beat reads as progress (the marker differs from whatever the attempt held).
+ * handlers (turns, messages, tool executions, updates, and live background-work
+ * / subagent-fleet status observations). Opaque and cheap — the server compares
+ * for change, never meaning. Monotonicity within the process is all the server
+ * needs; a restart re-seeds from zero and the first beat reads as progress (the
+ * marker differs from whatever the attempt held).
  */
 let progressEventCounter = 0;
 

@@ -48,6 +48,7 @@ import { noticeNeedsPerson } from "../extensions/core/run-voice.ts";
 import { extractText } from "../extensions/core/trail.ts";
 import { CHECK_JOB_PREFIX, classifyUserKind, isBetweenStepDelivery, TurnTracker } from "../extensions/core/turn-lifecycle.ts";
 import { UsageRefusalReport } from "../extensions/core/usage-refusal.ts";
+import { PendingWorkSubjects, isNonCommandWorkSubject, workSubjectForAutomationRun, workSubjectForCheckJobs } from "../extensions/core/work-subject.ts";
 
 const source = readFileSync(new URL("../extensions/devspec-remote.ts", import.meta.url), "utf8");
 function slice(start: string, end: string): string {
@@ -104,7 +105,7 @@ function rig(options: { sessionId?: string | null; settled?: string[]; turn?: Re
 	const state = { runActive: false, idle: true, pending: false };
 	const key = bindSystemNoticeState({ piSessionId: "pi-session", connectionId: CONNECTION, pumpGeneration: 1 });
 	const active: Record<string, any> = {
-		generation: 1, stop: false, busy: false, systemNoticeKey: key,
+		generation: 1, stop: false, busy: false, workSubject: null, workSubjectNeedsClear: false, systemNoticeKey: key,
 		bond: { connectionId: CONNECTION, codename: "Wary Wolf", sessionId: options.sessionId === undefined ? "room" : options.sessionId, connectionCapability: "cap" },
 		runtimeOccupancy: { isBusy: () => state.runActive, capture: () => null, finish: () => true },
 		idleBoundaryWake: { consumeAtIdle: () => false },
@@ -135,6 +136,15 @@ function rig(options: { sessionId?: string | null; settled?: string[]; turn?: Re
 		lastCtx: null,
 		systemNoticeTurnPending: false,
 		systemNoticeRunActive: false,
+		pendingSystemNoticeWorkSubject: null,
+		nextRunWorkSubject: null,
+		parkedWorkSubject: null,
+		pendingWorkSubjects: new PendingWorkSubjects(),
+		workSubjectForAutomationRun,
+		workSubjectForCheckJobs,
+		isNonCommandWorkSubject,
+		setPumpWorkSubject(p: Record<string, unknown>, s: unknown) { p.workSubject = s; p.workSubjectNeedsClear = s === null; },
+		segmentIsQuiet: () => false,
 		segmentInputKind: "command",
 		leafWake: null,
 		settledInteractionForOffer: null,

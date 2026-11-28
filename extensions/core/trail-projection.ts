@@ -279,7 +279,15 @@ function devspecArgs(name: string, args: Record<string, unknown>): string | unde
 					? /^(?:create|list|get|cancel)$/
 					: name === "manage_goals"
 						? /^(?:create|update|achieve|dismiss|reactivate|split|merge|create_outcome|update_outcome|reorder_outcomes|confirm_outcome|reopen_outcome|drop_outcome|delete_outcome|link_outcome|unlink_outcome|restore_outcome_target)$/
-						: /^[a-z][a-z0-9_]{1,40}$/;
+						: name === "manage_incident"
+							? /^(?:claim|release|heartbeat|awaiting_followup|escalate_needs_decision|resolve|link_blocked|unlink_blocked)$/
+							: name === "manage_discussion_point"
+								? /^(?:add|update|strike|reopen|watch|unwatch)$/
+								: name === "manage_protected_intent"
+									? /^(?:go_ahead|decline|not_a_reversal|keep|undo|reopen|adopt|make_experiment|ask_to_land|request_confirmation|confirm_request|decline_request)$/
+									: name === "manage_inventory_connections"
+										? /^(?:list|record|remove|propose|confirm)$/
+										: /^(?:link|unlink|set_note|list)$/;
 		const action = typeof args.action === "string" && actionPattern.test(args.action)
 			? args.action
 			: undefined;

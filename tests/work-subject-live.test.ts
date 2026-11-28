@@ -15,7 +15,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { resetClientCache, setLaneClientFactoryForTests, type LaneClient } from "../extensions/core/client.ts";
+import { DevspecToolError, resetClientCache, setLaneClientFactoryForTests, type LaneClient } from "../extensions/core/client.ts";
 import { getBond, setBond } from "../extensions/core/bond-state.ts";
 import { saveLogin } from "../extensions/core/auth-store.ts";
 import { parsePostSessionReceipt, TrailDeliveryState } from "../extensions/core/post-session-receipt.ts";
@@ -144,20 +144,29 @@ test("parsePostSessionReceipt accepts non-command diagnostics_only trail receipt
 		{ status: "malformed" },
 	);
 
-	// Structured refusal details are preserved and TrailDeliveryState retains refusal + stops retrying (4e32d1a5).
-	const refused = textResult({
-		outcome: "already_finalized",
-		terminal: true,
-		retryable: false,
-		awaiting_input: false,
-		delivery: { status: "rejected", outcome: "already_finalized", terminal: true, retryable: false },
-		error: "Turn already finalized",
-	});
-	const parsedRefusal = parsePostSessionReceipt(refused, { connectionId: CONNECTION, sessionId: ROOM_SESSION, phase: "trail" });
+	// Structured refusal details (including attempt_id & reason) are preserved across both
+	// parsePostSessionReceipt AND thrown DevspecToolError(msg, raw) (requirement 4e32d1a5).
+	const refused = {
+		...textResult({
+			attempt_id: attemptId,
+			outcome: "already_finalized",
+			reason: "attempt_finalized",
+			terminal: true,
+			retryable: false,
+			awaiting_input: false,
+			delivery: { status: "rejected", outcome: "already_finalized", reason: "attempt_finalized", terminal: true, retryable: false },
+			error: "Turn already finalized",
+		}),
+		isError: true,
+	};
+	const toolErr = new DevspecToolError("Turn already finalized", refused);
+	const parsedRefusal = parsePostSessionReceipt(toolErr.raw, { connectionId: CONNECTION, sessionId: ROOM_SESSION, phase: "trail" });
 	assert.deepEqual(parsedRefusal, {
 		status: "rejected",
 		refusal: {
+			attemptId,
 			outcome: "already_finalized",
+			reason: "attempt_finalized",
 			terminal: true,
 			retryable: false,
 			awaitingInput: false,

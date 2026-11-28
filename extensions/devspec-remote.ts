@@ -103,7 +103,7 @@ import {
 import { unwrapMcpResult } from "./core/result.ts";
 import { bondedRemoteAction, namedSessionFromRemoteArg } from "./core/remote-session-arg.ts";
 import { shapeTranscript } from "./core/attach-context.ts";
-import { parsePostSessionReceipt, TrailDeliveryState, type PostSessionRefusal } from "./core/post-session-receipt.ts";
+import { extractPostSessionRefusal, parsePostSessionReceipt, TrailDeliveryState, type PostSessionRefusal } from "./core/post-session-receipt.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { SubagentFleetClient, type SubagentFleetSnapshot } from "./core/subagent-fleet.ts";
 import { BackgroundWorkObserver, backgroundTaskFromLaunch, backgroundTasksFromManagement, type BackgroundObservation } from "./core/background-observer.ts";
@@ -1326,7 +1326,22 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 	} catch (err) {
 		// Response loss may follow a successful write. Never turn UNKNOWN into
 		// NOT STORED, and never replay non-idempotent speech/local_prompt.
-		return failure(err instanceof DevspecToolError ? "rejected" : "unknown");
+		// When callDevspec threw DevspecToolError on a structured server refusal,
+		// parse its preserved raw MCP payload so callers (e.g. TrailDeliveryState)
+		// receive attemptId, outcome, reason, delivery, terminal, retryable, and
+		// awaitingInput rather than losing the refusal payload (requirement 4e32d1a5).
+		if (err instanceof DevspecToolError) {
+			if (err.raw !== undefined) {
+				const parsed = parsePostSessionReceipt(err.raw, {
+					...authority, phase: opts.phase ?? "answer", turnKind: opts.turnKind,
+				});
+				const refusal = ("refusal" in parsed ? parsed.refusal : undefined)
+					?? extractPostSessionRefusal(err.raw);
+				opts.onReceipt?.("rejected", refusal);
+			}
+			return failure("rejected");
+		}
+		return failure("unknown");
 	}
 }
 

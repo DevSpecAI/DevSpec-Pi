@@ -1,7 +1,9 @@
 import { unwrapMcpResult } from "./result.ts";
 
 export interface PostSessionRefusal {
+	attemptId?: string;
 	outcome?: string;
+	reason?: string;
 	terminal?: boolean;
 	retryable?: boolean;
 	awaitingInput?: boolean;
@@ -41,7 +43,9 @@ export function extractPostSessionRefusal(details: unknown): PostSessionRefusal 
 		return error ? { error } : undefined;
 	}
 	const delivery = record(data.delivery);
+	const attemptId = boundedRefusalText(data.attempt_id ?? delivery?.attempt_id, 96);
 	const outcome = boundedRefusalText(data.outcome ?? delivery?.outcome, 96);
+	const reason = boundedRefusalText(data.reason ?? delivery?.reason, 96);
 	const terminal = typeof data.terminal === "boolean"
 		? data.terminal
 		: typeof delivery?.terminal === "boolean"
@@ -58,9 +62,11 @@ export function extractPostSessionRefusal(details: unknown): PostSessionRefusal 
 			? delivery.awaiting_input
 			: undefined;
 	const deliveryStatus = boundedRefusalText(delivery?.status, 64);
-	const error = boundedRefusalText(data.error ?? data.message ?? delivery?.error ?? delivery?.reason);
+	const error = boundedRefusalText(data.error ?? data.message ?? delivery?.error);
 	if (
+		attemptId === undefined &&
 		outcome === undefined &&
+		reason === undefined &&
 		terminal === undefined &&
 		retryable === undefined &&
 		awaitingInput === undefined &&
@@ -70,7 +76,9 @@ export function extractPostSessionRefusal(details: unknown): PostSessionRefusal 
 		return undefined;
 	}
 	return {
+		...(attemptId !== undefined ? { attemptId } : {}),
 		...(outcome !== undefined ? { outcome } : {}),
+		...(reason !== undefined ? { reason } : {}),
 		...(terminal !== undefined ? { terminal } : {}),
 		...(retryable !== undefined ? { retryable } : {}),
 		...(awaitingInput !== undefined ? { awaitingInput } : {}),

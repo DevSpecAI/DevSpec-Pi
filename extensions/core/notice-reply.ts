@@ -129,7 +129,7 @@ export interface NoticeReplyCapture {
 	finalText: string | null;
 }
 
-export type NoticeReplyCallResult = { raw: unknown } | { refusal: string };
+export type NoticeReplyCallResult = { raw: unknown } | { refusal: string; raw?: unknown };
 
 export type NoticeReplyOutcome =
 	| { kind: "posted"; messageId: string; sessionId: string; idempotent: boolean }
@@ -140,7 +140,7 @@ export type NoticeReplyOutcome =
 	| { kind: "no_final_text" }
 	| { kind: "not_attached" }
 	| { kind: "connection_changed" }
-	| { kind: "refused"; reason: string; detail: string }
+	| { kind: "refused"; reason: string; detail: string; refusal?: Record<string, unknown> }
 	| { kind: "unconfirmed"; detail: string };
 
 const canonical = (ids: readonly string[]) => [...new Set(ids.map((id) => id.trim().toLowerCase()))].sort();
@@ -182,16 +182,59 @@ export function readSettledHousekeepingReceipt(value: unknown): { housekeepingMe
 	return { housekeepingMessageId: hkId };
 }
 
-/** The server's refusal: its delivery reason and its own words, verbatim. */
-export function readNoticeReplyRefusal(text: string): { reason: string; detail: string } {
-	try {
-		const data = row(JSON.parse(text));
-		const delivery = row(data?.delivery);
-		if (delivery?.status === "rejected" && typeof delivery.reason === "string" && delivery.reason) {
-			return { reason: delivery.reason, detail: typeof data?.error === "string" && data.error.trim() ? data.error.trim() : text.trim() };
-		}
-	} catch { /* A refusal before anything was read is plain text. */ }
-	return { reason: "refused", detail: text.trim() };
+function redactRefusalValue(value: unknown): unknown {
+	if (typeof value === "string") {
+		return value
+			.replace(/\b(dvs_[A-Za-z0-9_-]{4})[A-Za-z0-9_-]+/g, "$1…")
+			.replace(/\b(dvsc_[A-Za-z0-9_-]{4})[A-Za-z0-9_-]+/g, "$1…")
+			.replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=-]{12,}/gi, "$1[redacted]");
+	}
+	if (Array.isArray(value)) return value.map(redactRefusalValue);
+	const obj = row(value);
+	if (!obj) return value;
+	const out: Record<string, unknown> = {};
+	for (const [k, v] of Object.entries(obj)) {
+		if (k === "token" || k === "connection_capability" || k === "connectionCapability" || k === "_meta") continue;
+		out[k] = redactRefusalValue(v);
+	}
+	return out;
+}
+
+/**
+ * The server's refusal: its delivery reason, its own words verbatim, and any
+ * structured refusal context (such as `refused: [{ notice_id, reason, why }]`)
+ * preserved unmodified as data (requirement 4e32d1a5).
+ */
+export function readNoticeReplyRefusal(
+	text: string,
+	raw?: unknown,
+): { reason: string; detail: string; refusal?: Record<string, unknown> } {
+	let data: Row | null = null;
+	if (raw !== undefined) {
+		data = row(unwrapMcpResult(raw).details);
+	}
+	if (!data) {
+		try {
+			data = row(JSON.parse(text));
+		} catch { /* A refusal before anything was read is plain text. */ }
+	}
+	const hasStructuredDetails = Boolean(
+		data && Object.keys(data).some((key) => key !== "delivery" && key !== "error"),
+	);
+	const structured = hasStructuredDetails && data ? { ...data } : undefined;
+	const delivery = row(data?.delivery);
+	if (delivery?.status === "rejected" && typeof delivery.reason === "string" && delivery.reason) {
+		return {
+			reason: delivery.reason,
+			detail: typeof data?.error === "string" && data.error.trim() ? data.error.trim() : text.trim(),
+			...(structured ? { refusal: structured } : {}),
+		};
+	}
+	return {
+		reason: "refused",
+		detail: typeof data?.error === "string" && data.error.trim() ? data.error.trim() : text.trim(),
+		...(structured ? { refusal: structured } : {}),
+	};
 }
 
 /**
@@ -221,9 +264,9 @@ export async function postNoticeReply(input: {
 		try { result = await input.call(args); }
 		catch (error) { return { kind: "unconfirmed", detail: error instanceof Error ? error.message : String(error) }; }
 		if ("refusal" in result) {
-			const settled = readSettledHousekeepingReceipt(result.refusal);
+			const settled = readSettledHousekeepingReceipt(result.raw ?? result.refusal);
 			if (settled) return { kind: "settled_housekeeping", ...settled };
-			const refusal = readNoticeReplyRefusal(result.refusal);
+			const refusal = readNoticeReplyRefusal(result.refusal, result.raw);
 			if (refusal.reason === "room_changed" && attempt === 0) continue;
 			// DevSpec read every named notice as for the record: an expected, quiet
 			// outcome, never an error and never posted another way (notice_reply.only_when_needed).
@@ -256,7 +299,9 @@ export function noticeReplyTerminalMessage(outcome: NoticeReplyOutcome, capture:
 		case "connection_changed":
 			return `DevSpec: ${what} was not posted, because this Pi's DevSpec connection changed during the run. It stays here in the terminal.`;
 		case "refused":
-			return `DevSpec: ${what} was not posted to the room (${outcome.reason}). ${outcome.detail}`;
+			return outcome.refusal
+				? `DevSpec: ${what} was not posted to the room (${outcome.reason}). ${outcome.detail} Details: ${JSON.stringify(redactRefusalValue(outcome.refusal))}`
+				: `DevSpec: ${what} was not posted to the room (${outcome.reason}). ${outcome.detail}`;
 		case "unconfirmed":
 			return `DevSpec: ${what} may not have reached the room (${outcome.detail}). Check the room before sending it again.`;
 	}

@@ -59,6 +59,7 @@ const DEBUG_FIELDS = {
 	"interaction preempt already aborted for event; awaiting idle": [],
 	"interaction apply deferred": ["busy", "occupancyBusy", "ctxIdle"],
 	"interaction authority revoked before agent start": [],
+	"interaction keepalive failed": ["isError", "renewed", "errorPresent"],
 	"stale tool receipt abort": [],
 	"startup connect": ["connected", "unreachable", "ms"],
 	"background connect": ["connected", "unreachable", "busy", "ms"],

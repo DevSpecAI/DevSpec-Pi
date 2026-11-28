@@ -1,8 +1,15 @@
 import { unwrapMcpResult } from "./result.ts";
 
+/**
+ * Complete structured refusal payload returned by DevSpec on a rejected or
+ * skipped `post_session_message` call, preserved unmodified (requirement
+ * 4e32d1a5 — no field subsetting and no silent slicing).
+ */
+export type PostSessionRefusal = Record<string, unknown>;
+
 export type PostSessionReceipt =
-	| { status: "stored" | "idempotently_stored"; messageId: string }
-	| { status: "skipped" | "rejected" | "malformed" };
+	| { status: "stored" | "idempotently_stored"; messageId: string; diagnosticsOnly?: true }
+	| { status: "skipped" | "rejected" | "malformed"; refusal?: PostSessionRefusal };
 
 export interface ExpectedPostReceipt {
 	connectionId: string;
@@ -18,21 +25,53 @@ function record(value: unknown): Record<string, unknown> | null {
 		? value as Record<string, unknown> : null;
 }
 
+/** Preserve the server's structured refusal object whole, never dropping fields or slicing text. */
+export function extractPostSessionRefusal(details: unknown, text?: string): PostSessionRefusal | undefined {
+	const data = record(details);
+	if (data && Object.keys(data).length > 0) return { ...data };
+	if (typeof text === "string" && text.trim()) return { error: text.trim() };
+	if (typeof details === "string" && details.trim()) return { error: details.trim() };
+	return undefined;
+}
+
 /** Accept deployed text-JSON and structured MCP envelopes, never transport success alone. */
 export function parsePostSessionReceipt(raw: unknown, expected: ExpectedPostReceipt): PostSessionReceipt {
-	const { details, isError } = unwrapMcpResult(raw);
-	if (isError) return { status: "rejected" };
+	const { details, text, isError } = unwrapMcpResult(raw);
+	if (isError) {
+		const refusal = extractPostSessionRefusal(details, text);
+		return refusal ? { status: "rejected", refusal } : { status: "rejected" };
+	}
 	const data = record(details);
 	if (!data) return { status: "malformed" };
 	const receipt = record(data.delivery);
-	if (receipt?.status === "rejected") return { status: "rejected" };
-	if (data.skipped === true || data.noop === true || receipt?.status === "skipped") return { status: "skipped" };
-	if (data.error !== undefined) return { status: "rejected" };
+	if (receipt?.status === "rejected") {
+		const refusal = extractPostSessionRefusal(data, text);
+		return refusal ? { status: "rejected", refusal } : { status: "rejected" };
+	}
+	if (data.skipped === true || data.noop === true || receipt?.status === "skipped") {
+		const refusal = extractPostSessionRefusal(data, text);
+		return refusal ? { status: "skipped", refusal } : { status: "skipped" };
+	}
+	if (data.error !== undefined) {
+		const refusal = extractPostSessionRefusal(data, text);
+		return refusal ? { status: "rejected", refusal } : { status: "rejected" };
+	}
 	const expectedSessionId = expected.sessionId ?? null;
 	if ((data.session_id ?? null) !== expectedSessionId || data.phase !== expected.phase ||
 		data.connection_id !== expected.connectionId ||
-		(expected.turnKind !== undefined && data.turn_kind !== expected.turnKind) ||
-		typeof data.message_id !== "string" || !data.message_id.trim()) return { status: "malformed" };
+		(expected.turnKind !== undefined && data.turn_kind !== expected.turnKind)) return { status: "malformed" };
+	// Attempt-backed trail posts (DevSpecV2 PR #1708 / item 01932667) attach directly
+	// to `agent_connection_activity` for BOTH ordinary room commands (`diagnostics_only: false`)
+	// and non-command runs (`diagnostics_only: true`) with `attempt_id` and no top-level
+	// `message_id`. Accept both so ordinary room activity never freezes after its first
+	// stored update, and mark `diagnosticsOnly: true` so `noteOwnRoomMessage` never treats
+	// an `attempt_id` as a chat row.
+	if (expected.phase === "trail" && typeof data.attempt_id === "string" && data.attempt_id.trim()) {
+		if (!receipt || (receipt.status !== "stored" && receipt.status !== "idempotently_stored") ||
+			receipt.message_id !== data.attempt_id) return { status: "malformed" };
+		return { status: receipt.status, messageId: data.attempt_id, diagnosticsOnly: true };
+	}
+	if (typeof data.message_id !== "string" || !data.message_id.trim()) return { status: "malformed" };
 	if (expected.assistantSourceId !== undefined &&
 		(data.assistant_source_id !== expected.assistantSourceId || !receipt)) return { status: "malformed" };
 	if (data.delivery !== undefined) {
@@ -45,6 +84,31 @@ export function parsePostSessionReceipt(raw: unknown, expected: ExpectedPostRece
 	return { status: "stored", messageId: data.message_id };
 }
 
+/** Strip only credentials/transport metadata from a refusal before display, preserving all structured refusal fields intact (4e32d1a5). */
+function redactRefusalCredentials(value: unknown): unknown {
+	if (typeof value === "string") {
+		return value.replace(/dvsc_[A-Za-z0-9_-]+/g, "[REDACTED_CONNECTION_CAPABILITY]");
+	}
+	if (Array.isArray(value)) return value.map(redactRefusalCredentials);
+	const obj = record(value);
+	if (!obj) return value;
+	const out: Record<string, unknown> = {};
+	for (const [key, nested] of Object.entries(obj)) {
+		if (key === "token" || key === "connection_capability" || key === "connectionCapability" || key === "_meta") continue;
+		out[key] = redactRefusalCredentials(nested);
+	}
+	return out;
+}
+
+/** Format a structured `post_session_message` refusal for runtime surfacing without subsetting fields or slicing values (requirement 4e32d1a5). */
+export function formatPostSessionRefusal(
+	refusal: PostSessionRefusal,
+	label: "trail" | "answer" | "local prompt" | "error" | "message" | "keepalive" = "trail",
+	status: "skipped" | "rejected" | "malformed" | "refused" = "refused",
+): string {
+	return `DevSpec remote: ${label} delivery ${status} — ${JSON.stringify(redactRefusalCredentials(refusal))}`;
+}
+
 /** A cumulative snapshot stays dirty until acknowledged. Failure stops automatic
  * replay for this segment: stale authority and ambiguous response loss are not retry permission. */
 export class TrailDeliveryState {
@@ -52,19 +116,37 @@ export class TrailDeliveryState {
 	private acknowledged = 0;
 	private pending: number | null = null;
 	private failed = false;
+	private lastRefusal: PostSessionRefusal | undefined = undefined;
+
+	static formatRefusal(
+		refusal: PostSessionRefusal,
+		label: "trail" | "answer" | "local prompt" | "error" | "message" | "keepalive" = "trail",
+		status: "skipped" | "rejected" | "malformed" | "refused" = "refused",
+	): string {
+		return formatPostSessionRefusal(refusal, label, status);
+	}
 
 	markDirty(): void { this.revision += 1; }
 	get dirty(): boolean { return this.revision !== this.acknowledged; }
 	get blocked(): boolean { return this.failed || this.pending !== null; }
+	get refusal(): PostSessionRefusal | undefined { return this.lastRefusal; }
+	refusalNotice(status: "skipped" | "rejected" | "malformed" | "refused" = "refused"): string | null {
+		return this.lastRefusal ? formatPostSessionRefusal(this.lastRefusal, "trail", status) : null;
+	}
 	begin(): number | null {
 		if (!this.dirty || this.blocked) return null;
 		this.pending = this.revision;
 		return this.pending;
 	}
-	finish(snapshot: number, stored: boolean): void {
+	finish(snapshot: number, stored: boolean, refusal?: PostSessionRefusal): void {
 		if (this.pending !== snapshot) return;
 		this.pending = null;
-		if (stored) this.acknowledged = snapshot;
-		else this.failed = true;
+		if (stored) {
+			this.acknowledged = snapshot;
+			this.lastRefusal = undefined;
+		} else {
+			this.failed = true;
+			if (refusal) this.lastRefusal = refusal;
+		}
 	}
 }

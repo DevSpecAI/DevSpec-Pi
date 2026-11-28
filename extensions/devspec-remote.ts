@@ -103,7 +103,7 @@ import {
 import { unwrapMcpResult } from "./core/result.ts";
 import { bondedRemoteAction, namedSessionFromRemoteArg } from "./core/remote-session-arg.ts";
 import { shapeTranscript } from "./core/attach-context.ts";
-import { parsePostSessionReceipt, TrailDeliveryState } from "./core/post-session-receipt.ts";
+import { extractPostSessionRefusal, parsePostSessionReceipt, TrailDeliveryState, type PostSessionRefusal } from "./core/post-session-receipt.ts";
 import { extractAssistantParts, extractText, FINAL_TRAIL_CHARS, TrailBuilder } from "./core/trail.ts";
 import { SubagentFleetClient, type SubagentFleetSnapshot } from "./core/subagent-fleet.ts";
 import { BackgroundWorkObserver, backgroundTaskFromLaunch, backgroundTasksFromManagement, type BackgroundObservation } from "./core/background-observer.ts";
@@ -270,6 +270,21 @@ import {
 } from "./core/notice-handover.ts";
 import { takeTellPerson } from "./core/tell-person.ts";
 import { UsageRefusalReport, type ModelCallEnd } from "./core/usage-refusal.ts";
+import {
+	PendingWorkSubjects,
+	TURN_LIFECYCLE_REQUEST_TIMEOUT_MS,
+	isNonCommandWorkSubject,
+	terminalWorkSubject,
+	workSubjectEquals,
+	workSubjectForAutomationRun,
+	workSubjectForCheckJobs,
+	workSubjectForCommand,
+	workSubjectForNotices,
+	workSubjectFromWakeText,
+	workSubjectWireField,
+	type NonCommandWorkSubject,
+	type WorkSubject,
+} from "./core/work-subject.ts";
 
 class StaleCommandHandoffError extends DevspecToolError {}
 
@@ -368,6 +383,10 @@ interface PumpState {
 	/** globalThis notice state key: Pi session + connection + pump generation. */
 	systemNoticeKey: string;
 	busy: boolean;
+	/** Mechanical wake/work subject for the active run or owned background work (2145bd84). */
+	workSubject: WorkSubject | null;
+	/** True after clearing a non-null workSubject on idle until one idle update acknowledges it. */
+	workSubjectNeedsClear: boolean;
 	stop: boolean;
 	/** Shutdown blocks intake but still permits exact terminal fallback posts. */
 	closing?: boolean;
@@ -527,6 +546,14 @@ interface TurnState {
 	commandTurnId?: string;
 	/** Exact owner command/source message this transcript segment answers. */
 	commandMessageId?: string;
+	/** Exact mechanical wake/work subject for this segment (2145bd84). */
+	workSubject?: WorkSubject;
+	/** True when a source-less working attempt was opened via report_pickup({ connection_id, work_subject }). */
+	workSubjectPickupSent?: boolean;
+	/** Exact source-less attempt id returned by report_pickup({ connection_id, work_subject }). */
+	workSubjectAttemptId?: string;
+	/** In-flight non-command pickup promise resolving to its confirmed attempt_id (or null on failure). */
+	workSubjectPickupReady?: Promise<string | null>;
 	/** Harness notice runs never post/complete owner command activity. */
 	completionNeutral: boolean;
 	/**
@@ -594,9 +621,34 @@ export function nextTrailDelayMs(postsSoFar: number): number {
 let turn: TurnState | null = null;
 let systemNoticeTurnPending = false;
 let systemNoticeRunActive = false;
+let pendingSystemNoticeWorkSubject: NonCommandWorkSubject | null = null;
+let nextRunWorkSubject: WorkSubject | null = null;
+let parkedWorkSubject: NonCommandWorkSubject | null = null;
+let parkedWorkSubjectAttemptId: string | undefined = undefined;
+let parkedWorkSubjectPickupReady: Promise<string | null> | undefined = undefined;
 let nextTurnRevision = 1;
 const pendingTerminalPosts = new Set<Promise<void>>();
 const commandTurnBindings = new CommandTurnBindings();
+const pendingWorkSubjects = new PendingWorkSubjects();
+
+function setPumpWorkSubject(active: PumpState, subject: WorkSubject | null): void {
+	if (subject) {
+		// CRITICAL (decisions 6459a009 & a2d9f38f): while a room command is parked
+		// waiting on owned background work (`activeCommandTurnIdentity !== null`),
+		// its command attempt is still `working` on DevSpec. Never overwrite it with
+		// a non-command check/notice subject.
+		if (subject.kind !== "command" && activeCommandTurnIdentity) {
+			active.workSubject = workSubjectForCommand(activeCommandTurnIdentity.commandMessageId);
+			active.workSubjectNeedsClear = false;
+			return;
+		}
+		active.workSubject = subject;
+		active.workSubjectNeedsClear = false;
+	} else if (active.workSubject !== null) {
+		active.workSubject = null;
+		active.workSubjectNeedsClear = true;
+	}
+}
 /**
  * Response styles of in-flight command turns (item 6a511dab): minimal
  * per-command copies set at delivery, cleared when the turn closes. Same
@@ -913,7 +965,7 @@ function noteCommandTurnClosed(turnId: string | undefined): void {
 function ensureTurn(): void {
 	if (turn) return;
 	const bond = getBond();
-	if (!bond?.connectionId || (!bond.sessionId && segmentInputKind !== "automation")) {
+	if (!bond?.connectionId) {
 		debug("ensureTurn: not attached");
 		return;
 	}
@@ -959,7 +1011,7 @@ function prepareLocalActivity(t: TurnState): Promise<string | null> {
 			previousAttemptId: localActivityPredecessor?.scope === key ? localActivityPredecessor.attemptId : null,
 			current, request: async args => {
 				const raw = await callDevspec(resolved.token, "report_pickup", args, {
-					lane: "pump", retry: "never", timeoutMs: 10_000, connectionCapability,
+					lane: "pump", retry: "never", timeoutMs: TURN_LIFECYCLE_REQUEST_TIMEOUT_MS, connectionCapability,
 					beforeSend: () => { if (!current()) throw new DevspecToolError("Local activity changed before admission."); },
 				});
 				const result = unwrapMcpResult(raw);
@@ -1021,7 +1073,7 @@ function prepareAssistantSpeech(t: TurnState): Promise<void> {
 				const resolved = await resolveToken();
 				if (!resolved || !current()) return null;
 				const raw = await callDevspec(resolved.token, "report_pickup", { ...args, speech_scope: true }, {
-					lane: "pump", retry: "never", connectionCapability: capability,
+					lane: "pump", retry: "never", timeoutMs: TURN_LIFECYCLE_REQUEST_TIMEOUT_MS, connectionCapability: capability,
 					beforeSend: () => { if (!current()) throw new DevspecToolError("Speech scope changed."); },
 				});
 				const result = unwrapMcpResult(raw);
@@ -1121,7 +1173,6 @@ function runtimeAgentStats(ctx: ExtensionContext | null = lastCtx): AgentStatsRe
 function scheduleRuntimeStamp(ctx: ExtensionContext): void {
 	lastCtx = ctx;
 	if (!pump) return;
-	const completionNeutralAtSchedule = systemNoticeRunActive || systemNoticeTurnPending;
 	if (runtimeStampTimer) clearTimeout(runtimeStampTimer);
 	runtimeStampTimer = setTimeout(() => {
 		runtimeStampTimer = null;
@@ -1129,7 +1180,7 @@ function scheduleRuntimeStamp(ctx: ExtensionContext): void {
 		if (!active || active.stop) return;
 		const stats = runtimeAgentStats(lastCtx);
 		latestAgentStats = stats;
-		if (!completionNeutralAtSchedule && !systemNoticeRunActive) void beatBusy(active.busy, stats);
+		void beatBusy(active.busy, stats);
 	}, 0);
 	if (typeof runtimeStampTimer.unref === "function") runtimeStampTimer.unref();
 }
@@ -1199,17 +1250,19 @@ function capturePostAuthority(): () => boolean {
 		(!active.stop || active.closing));
 }
 
-async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; localTurn?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; isCurrent?: () => boolean; agentStats?: AgentStatsReport; onReceipt?: (status: "stored" | "idempotently_stored" | "skipped" | "rejected" | "malformed") => void } = {}): Promise<boolean> {
+async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; localTurn?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; isCurrent?: () => boolean; agentStats?: AgentStatsReport; callerSurfacesRefusal?: boolean; onReceipt?: (status: "stored" | "idempotently_stored" | "skipped" | "rejected" | "malformed", refusal?: PostSessionRefusal) => void } = {}): Promise<boolean> {
 	const active = pump;
 	const bond = getBond();
 	const ctx = lastCtx;
 	const current = capturePostAuthority();
-	const failure = (status: "skipped" | "rejected" | "malformed" | "unknown"): false => {
+	const failure = (status: "skipped" | "rejected" | "malformed" | "unknown", callerSurfacesRefusal = false): false => {
 		// No raw server/transport error, prompt, token, or thinking in diagnostics.
 		debug("post delivery failed", { skipped: status === "skipped", rejected: status === "rejected", malformed: status === "malformed", unknown: status === "unknown" });
-		const warning = `DevSpec remote: ${opts.turnKind === "local_prompt" ? "local prompt" : opts.phase === "trail" ? "trail" : "answer"} delivery ${status}; storage not confirmed. Not replaying automatically; check the room before resending.`;
-		if (safeHasUI(ctx)) notify(ctx, warning, "warning");
-		else console.error(warning);
+		if (!callerSurfacesRefusal) {
+			const warning = `DevSpec remote: ${opts.turnKind === "local_prompt" ? "local prompt" : opts.phase === "trail" ? "trail" : "answer"} delivery ${status}; storage not confirmed. Not replaying automatically; check the room before resending.`;
+			if (safeHasUI(ctx)) notify(ctx, warning, "warning");
+			else console.error(warning);
+		}
 		return false;
 	};
 	const sessionlessAutomationTrail =
@@ -1260,12 +1313,13 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 		// for pre-send skips or response loss, so callers can tell a server-side
 		// noop (activity completed, content refused) from "never reached".
 		if (receipt.status !== "stored" && receipt.status !== "idempotently_stored") {
-			opts.onReceipt?.(receipt.status);
-			return failure(receipt.status);
+			const refusal = "refusal" in receipt ? receipt.refusal : undefined;
+			opts.onReceipt?.(receipt.status, refusal);
+			return failure(receipt.status, Boolean(opts.callerSurfacesRefusal && refusal));
 		}
 		opts.onReceipt?.(receipt.status);
 		debug("post stored", { idempotent: receipt.status === "idempotently_stored" });
-		if (authority.sessionId) noteOwnRoomMessage(receipt.messageId);
+		if (authority.sessionId && !receipt.diagnosticsOnly) noteOwnRoomMessage(receipt.messageId);
 		if (isCurrent() && activeCommandTurnIdentity === parkedIdentity) {
 			if (opts.completeTurn === true) noteCommandTurnClosed(opts.commandTurnId);
 		}
@@ -1273,7 +1327,22 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 	} catch (err) {
 		// Response loss may follow a successful write. Never turn UNKNOWN into
 		// NOT STORED, and never replay non-idempotent speech/local_prompt.
-		return failure(err instanceof DevspecToolError ? "rejected" : "unknown");
+		// Preserve the full structured server refusal object via onReceipt while
+		// keeping user-facing warnings and debug logs privacy-safe (4e32d1a5).
+		if (err instanceof DevspecToolError) {
+			let callerSurfacesRefusal = false;
+			if (err.raw !== undefined) {
+				const parsed = parsePostSessionReceipt(err.raw, {
+					...authority, phase: opts.phase ?? "answer", turnKind: opts.turnKind,
+				});
+				const refusal = ("refusal" in parsed ? parsed.refusal : undefined)
+					?? extractPostSessionRefusal(err.raw);
+				opts.onReceipt?.("rejected", refusal);
+				callerSurfacesRefusal = Boolean(opts.callerSurfacesRefusal && refusal);
+			}
+			return failure("rejected", callerSurfacesRefusal);
+		}
+		return failure("unknown");
 	}
 }
 
@@ -1308,6 +1377,10 @@ function segmentIsQuiet(t: TurnState): boolean {
 	return wakeIsQuiet(segmentWake(t));
 }
 
+function isAutomationSegment(t: TurnState): boolean {
+	return t.workSubject?.kind === "automation_run" || t.requestKind === "automation" || t.tracker?.userKind === "automation";
+}
+
 function isCommandTurnUnbound(t: TurnState): boolean {
 	// Every actionable remote command now has BOTH ids (extractor fails closed).
 	// Interaction continuations are exact source-less generations too.
@@ -1327,9 +1400,10 @@ function resetDirectedQuestionReceiptBatch(): void {
 
 function trailTick(): void {
 	if (!turn || !remoteRunActivityPolicy(turn.completionNeutral).reportTranscript) return;
-	// A quiet segment posts no work trail: a finished trail-only row is drawn in the
-	// conversation, which is exactly what a check job must not reach (a868f41f).
-	if (segmentIsQuiet(turn)) return;
+	// Quiet segments (check jobs) and automations post no phase:"trail" updates
+	// (Technical details is retired for connected agents, decision 0c496777).
+	if (segmentIsQuiet(turn) || isAutomationSegment(turn)) return;
+	if (!getBond()?.sessionId) return;
 	if (turn.receiptBatch.deferTrail(turn.revision)) return;
 	const now = Date.now();
 	if (turn.interaction && now - (turn.lastInteractionKeepaliveAt ?? 0) >= 60_000) {
@@ -1348,7 +1422,30 @@ function trailTick(): void {
 	const postingTurn = turn;
 	const snapshot = postingTurn.trailDelivery.begin();
 	if (snapshot === null) return;
-	postingTurn.trailPostFence.track(postToSession(rendered, { phase: "trail", isCurrent: postingTurn.canPost, commandTurnId: postingTurn.commandTurnId, commandMessageId: postingTurn.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(postingTurn), localTurn: isCommandTurnUnbound(postingTurn) && !postingTurn.interaction, interaction: interactionIdentity(postingTurn.interaction), trailEvents: activityEvents }).then(stored => postingTurn.trailDelivery.finish(snapshot, stored)));
+	let capturedRefusal: PostSessionRefusal | undefined;
+	let capturedStatus: "skipped" | "rejected" | "malformed" | undefined;
+	postingTurn.trailPostFence.track(postToSession(rendered, {
+		phase: "trail",
+		isCurrent: postingTurn.canPost,
+		commandTurnId: postingTurn.commandTurnId,
+		commandMessageId: postingTurn.commandMessageId,
+		commandTurnUnbound: isCommandTurnUnbound(postingTurn),
+		localTurn: isCommandTurnUnbound(postingTurn) && !postingTurn.interaction,
+		interaction: interactionIdentity(postingTurn.interaction),
+		trailEvents: activityEvents,
+		callerSurfacesRefusal: true,
+		onReceipt: (status, refusal) => {
+			if (status !== "stored" && status !== "idempotently_stored") capturedStatus = status;
+			if (refusal) capturedRefusal = refusal;
+		},
+	}).then(stored => {
+		postingTurn.trailDelivery.finish(snapshot, stored, capturedRefusal);
+		const refusalNotice = !stored ? postingTurn.trailDelivery.refusalNotice(capturedStatus ?? "refused") : null;
+		if (refusalNotice) {
+			if (safeHasUI(lastCtx)) notify(lastCtx, refusalNotice, "warning");
+			else console.error(refusalNotice);
+		}
+	}));
 }
 
 /**
@@ -1383,12 +1480,73 @@ async function reportCommandPickup(commandTurnId: string, commandMessageId: stri
 			connection_id: authority.connectionId,
 			command_turn_id: commandTurnId,
 			command_message_id: commandMessageId,
-		}, { timeoutMs: 10_000, lane: "pump", retry: "never",
+		}, { timeoutMs: TURN_LIFECYCLE_REQUEST_TIMEOUT_MS, lane: "pump", retry: "never",
 			beforeSend: () => { if (!stillCurrent()) throw new DevspecToolError("Command segment changed before pickup."); },
 		});
 	} catch {
 		/* busy presence, the answer's own completion and lease expiry remain */
 	}
+}
+
+/**
+ * Open or refresh a source-less working attempt for a non-command wake/work
+ * subject (`server_notice`, `system_notice`, `check_job`, `automation_run`, or
+ * sessionless `terminal`) WITHOUT touching any waiting room command (item 2145bd84).
+ * Never mixed with command_turn_id, attempt_id, local_activity_version, speech_scope,
+ * or interaction identity.
+ */
+async function reportWorkSubjectPickup(workSubject: NonCommandWorkSubject, stillCurrent: () => boolean): Promise<string | null> {
+	const active = pump;
+	if (!active || active.stop) return null;
+	const authority = capturePumpAuthority({ generation: active.generation, connectionId: active.bond.connectionId });
+	const resolved = await resolveToken();
+	if (!resolved || !stillCurrent() || pump !== active || active.stop || !isPumpAuthorityCurrent(authority, {
+		generation: active.generation,
+		connectionId: active.bond.connectionId,
+	})) return null;
+	try {
+		const raw = await callDevspec(resolved.token, "report_pickup", {
+			connection_id: authority.connectionId,
+			work_subject: workSubject,
+		}, { timeoutMs: TURN_LIFECYCLE_REQUEST_TIMEOUT_MS, lane: "pump", retry: "never",
+			beforeSend: () => { if (!stillCurrent()) throw new DevspecToolError("Work segment changed before pickup."); },
+		});
+		const receipt = unwrapMcpResult(raw);
+		const data = receipt.details && typeof receipt.details === "object" && !Array.isArray(receipt.details)
+			? (receipt.details as Record<string, unknown>) : null;
+		if (receipt.isError || typeof data?.attempt_id !== "string" || !data.attempt_id.trim()) return null;
+		return data.attempt_id.trim();
+	} catch {
+		/* busy presence, heartbeat work_subject and lease expiry remain */
+		return null;
+	}
+}
+
+function startWorkSubjectPickup(t: TurnState, workSubject: NonCommandWorkSubject): void {
+	// Never call non-command `report_pickup({ work_subject })` while a room command
+	// attempt is still working (directly on this turn or parked waiting on background
+	// work in `activeCommandTurnIdentity`), because the server's non-command pickup
+	// can reuse the latest working attempt and overwrite the room command's subject
+	// (decisions 6459a009 & a2d9f38f).
+	if (
+		t.workSubjectPickupSent ||
+		t.interaction ||
+		t.commandTurnId ||
+		t.commandMessageId ||
+		t.localActivityReady ||
+		activeCommandTurnIdentity
+	) return;
+	const revision = t.revision;
+	t.workSubjectPickupSent = true;
+	t.workSubjectPickupReady = reportWorkSubjectPickup(
+		workSubject,
+		() => t.canPost() && t.revision === revision && (turn === t || turn === null),
+	).then((attemptId) => {
+		if (attemptId && t.revision === revision) {
+			t.workSubjectAttemptId = attemptId;
+		}
+		return attemptId;
+	});
 }
 
 async function reportComplete(reason: string, commandTurnId?: string, commandMessageId?: string, commandTurnUnbound = false, interaction?: ExactInteractionContinuationIdentity, prePersistenceFailure = false, stillCurrent: () => boolean = () => true, localAttemptId?: string): Promise<boolean> {
@@ -1411,7 +1569,7 @@ async function reportComplete(reason: string, commandTurnId?: string, commandMes
 			...(localAttemptId ? { attempt_id: localAttemptId } : {}),
 			...(interaction ? exactInteractionContinuationArgs(interaction) : {}),
 			...(prePersistenceFailure ? { interaction_pre_persistence_failure: true } : {}),
-		}, { timeoutMs: 10_000, lane: "pump", ...(interaction && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}),
+		}, { timeoutMs: TURN_LIFECYCLE_REQUEST_TIMEOUT_MS, lane: "pump", ...(interaction && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}),
 			beforeSend: () => { if (!stillCurrent()) throw new DevspecToolError("Completion observation changed before send."); },
 		});
 		const receipt = unwrapMcpResult(raw);
@@ -1437,9 +1595,17 @@ async function reportComplete(reason: string, commandTurnId?: string, commandMes
 
 /** Freeze identity before awaiting: message_start may reuse the segment object. */
 async function completeTurnActivity(t: TurnState, reason: string, current: () => boolean = t.canPost): Promise<boolean> {
-	const { commandTurnId, commandMessageId, localActivityReady } = t;
+	const { commandTurnId, commandMessageId, localActivityReady, workSubjectPickupSent, workSubjectAttemptId, workSubjectPickupReady } = t;
 	const interaction = interactionIdentity(t.interaction);
 	if (commandTurnId || interaction) return reportComplete(reason, commandTurnId, commandMessageId, false, interaction, false, current);
+	if (workSubjectPickupSent) {
+		// Target the exact source-less attempt_id returned by report_pickup({ work_subject }),
+		// never generic command_turn_unbound: true, so a late finalizer can never close a newer
+		// source-less wake or terminal prompt attempt (requirement 4284a43c).
+		const attemptId = workSubjectAttemptId ?? (workSubjectPickupReady ? await workSubjectPickupReady : null);
+		if (!attemptId || !current()) return false;
+		return reportComplete(reason, undefined, undefined, false, undefined, false, current, attemptId);
+	}
 	const attemptId = await localActivityReady;
 	if (!attemptId || !current()) return false;
 	return reportComplete(reason, undefined, undefined, false, undefined, false, current, attemptId);
@@ -1477,8 +1643,9 @@ export function renderTerminalErrorPost(errorMessage: string): string {
  */
 async function reportTerminalError(t: TurnState, agentStats: AgentStatsReport | null): Promise<void> {
 	if (!t.terminalError) return;
-	// Nobody in the room asked for a quiet run; the provider's error stays in Pi (a868f41f).
-	if (segmentIsQuiet(t)) return;
+	// Nobody in the room asked for a quiet or notice run; the provider's error stays in Pi (a868f41f).
+	if (segmentIsQuiet(t) || t.completionNeutral) return;
+	if (typeof getBond === "function" && !getBond()?.sessionId) return;
 	const finalTrail = t.trail.render(FINAL_TRAIL_CHARS, false);
 	const finalEvents = t.trail.events();
 	const activityTrail = finalEvents.length > 0 ? finalTrail : undefined;
@@ -1490,16 +1657,40 @@ async function reportTerminalError(t: TurnState, agentStats: AgentStatsReport | 
 		interaction: interactionIdentity(t.interaction),
 	};
 	const message = renderTerminalErrorPost(t.terminalError);
-	let receipt: string | undefined;
+	let receipt: "stored" | "idempotently_stored" | "skipped" | "rejected" | "malformed" | undefined;
+	let errorRefusal: PostSessionRefusal | undefined;
 	const stored = await postToSession(message, {
 		...identity, phase: "error", completeTurn: true, isCurrent: t.canPost,
 		workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined,
-		onReceipt: (status) => { receipt = status; },
+		callerSurfacesRefusal: true,
+		onReceipt: (status, refusal) => {
+			receipt = status;
+			if (refusal) errorRefusal = refusal;
+		},
 	});
+	if (!stored && errorRefusal && receipt !== "skipped") {
+		const notice = TrailDeliveryState.formatRefusal(errorRefusal, "error", receipt && receipt !== "stored" && receipt !== "idempotently_stored" ? receipt : "refused");
+		if (safeHasUI(lastCtx)) notify(lastCtx, notice, "warning");
+		else console.error(notice);
+	}
 	if (receipt === "skipped") {
 		// noop_error: no open bubble existed; the activity is already closed
 		// (turn_error). This second post is transcript-only — omit complete_turn.
-		await postToSession(message, { ...identity, phase: "answer", isCurrent: t.canPost });
+		let fallbackStatus: "skipped" | "rejected" | "malformed" | undefined;
+		let fallbackRefusal: PostSessionRefusal | undefined;
+		const fallbackStored = await postToSession(message, {
+			...identity, phase: "answer", isCurrent: t.canPost,
+			callerSurfacesRefusal: true,
+			onReceipt: (status, refusal) => {
+				if (status !== "stored" && status !== "idempotently_stored") fallbackStatus = status;
+				if (refusal) fallbackRefusal = refusal;
+			},
+		});
+		if (!fallbackStored && fallbackRefusal) {
+			const notice = TrailDeliveryState.formatRefusal(fallbackRefusal, "answer", fallbackStatus ?? "refused");
+			if (safeHasUI(lastCtx)) notify(lastCtx, notice, "warning");
+			else console.error(notice);
+		}
 	}
 	// Parity with reportComplete's success cleanup: the server acted on the
 	// command turn (stored it, or completed it via noop_error), so drop the
@@ -1524,7 +1715,7 @@ async function startInteractionContinuation(
 	const raw = await callDevspec(resolved.token, "report_pickup", {
 		connection_id: authority.connectionId,
 		...interactionContinuationStartArgs(event),
-	}, { timeoutMs: 10_000, lane: "pump", connectionCapability: active.bond.connectionCapability });
+	}, { timeoutMs: TURN_LIFECYCLE_REQUEST_TIMEOUT_MS, lane: "pump", connectionCapability: active.bond.connectionCapability });
 	const { details, isError, text } = unwrapMcpResult(raw);
 	if (isError) throw new Error(text || "exact interaction report_pickup failed");
 	return parseInteractionContinuationStartResult(details);
@@ -1539,12 +1730,40 @@ async function keepInteractionContinuationAlive(run: ExactInteractionRun): Promi
 	const resolved = await resolveToken();
 	if (!resolved || !interactionRunIsLive(run) || !interactionAuthorityCurrent(run.authority)) return false;
 	try {
-		await callDevspec(resolved.token, "report_keepalive", {
+		const raw = await callDevspec(resolved.token, "report_keepalive", {
 			connection_id: run.authority.connectionId,
 			...exactInteractionContinuationArgs(run.identity),
-		}, { timeoutMs: 10_000, lane: "pump", connectionCapability: run.authority.connectionCapability });
+		}, { timeoutMs: TURN_LIFECYCLE_REQUEST_TIMEOUT_MS, lane: "pump", connectionCapability: run.authority.connectionCapability });
+		const { details, isError } = unwrapMcpResult(raw);
+		const record = details && typeof details === "object" && !Array.isArray(details)
+			? (details as Record<string, unknown>)
+			: null;
+		if (isError || record?.renewed === false) {
+			debug("interaction keepalive failed", {
+				isError,
+				renewed: record?.renewed === true,
+				errorPresent: true,
+			});
+			if (record && lastCtx) {
+				notify(
+					lastCtx,
+					TrailDeliveryState.formatRefusal(record, "keepalive", isError ? "rejected" : "refused"),
+					"warning",
+				);
+			}
+			return false;
+		}
 		return interactionRunIsLive(run) && interactionAuthorityCurrent(run.authority);
-	} catch {
+	} catch (error) {
+		const refusal = extractPostSessionRefusal(error instanceof DevspecToolError ? error.raw : null);
+		debug("interaction keepalive failed", { isError: true, renewed: false, errorPresent: true });
+		if (refusal && lastCtx) {
+			notify(
+				lastCtx,
+				TrailDeliveryState.formatRefusal(refusal, "keepalive", "refused"),
+				"warning",
+			);
+		}
 		return false;
 	}
 }
@@ -1563,7 +1782,7 @@ async function releaseInteractionBeforePersistence(run: ExactInteractionRun, rea
 			...exactInteractionContinuationArgs(run.identity),
 			interaction_pre_persistence_failure: true,
 		}, {
-			timeoutMs: 10_000,
+			timeoutMs: TURN_LIFECYCLE_REQUEST_TIMEOUT_MS,
 			lane: "pump",
 			connectionCapability: run.authority.connectionCapability,
 		});
@@ -1596,8 +1815,7 @@ async function releaseInteractionBeforePersistence(run: ExactInteractionRun, rea
  */
 async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | null, why: string, completeTurn = true): Promise<boolean> {
 	// A notice-woken segment answers its notices, never a command. Its final
-	// message goes to the room as their reply and it reports no transcript,
-	// trail or completion, so it never closes a turn (6aad2b46).
+	// message goes to the room as their reply and it posts no transcript or trail (6aad2b46).
 	if (t.completionNeutral) {
 		if (t.noticeReply) await deliverNoticeReply(t.noticeReply, agentStats, t.tellPerson === true);
 		return false;
@@ -1628,20 +1846,88 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 	// (60cf5f00). A background-completion wake MAY speak (its own bubble) and
 	// flushes its trail like any segment.
 	if (t.tracker.userKind === "harness" && !t.tracker.harnessSpeechAllowed) return false;
+	const surfaceRefusal = (
+		label: "trail" | "answer" | "local prompt" | "error" | "message",
+		status: "skipped" | "rejected" | "malformed" | undefined,
+		refusal: PostSessionRefusal | undefined,
+	): void => {
+		if (!refusal) return;
+		const notice = TrailDeliveryState.formatRefusal(refusal, label, status ?? "refused");
+		if (safeHasUI(lastCtx)) notify(lastCtx, notice, "warning");
+		else console.error(notice);
+	};
 	if (plan.kind === "final") {
 		// phase 'answer' closes the trail bubble (preserved as "Show work").
 		const localTurn = isCommandTurnUnbound(t) && !t.interaction;
-		return await postToSession(plan.message, { phase: "answer", completeTurn, isCurrent: t.canPost, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), localTurn, interaction: interactionIdentity(t.interaction), workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
+		let status: "skipped" | "rejected" | "malformed" | undefined;
+		let refusal: PostSessionRefusal | undefined;
+		const stored = await postToSession(plan.message, {
+			phase: "answer", completeTurn, isCurrent: t.canPost, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId,
+			commandTurnUnbound: isCommandTurnUnbound(t), localTurn, interaction: interactionIdentity(t.interaction),
+			workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined,
+			callerSurfacesRefusal: true,
+			onReceipt: (s, r) => {
+				if (s !== "stored" && s !== "idempotently_stored") status = s;
+				if (r) refusal = r;
+			},
+		});
+		if (!stored) surfaceRefusal("answer", status, refusal);
+		return stored;
 	} else if (plan.kind === "local_mirror") {
-		const promptStored = await postToSession(plan.prompt, { turnKind: "local_prompt", localTurn: true, isCurrent: t.canPost });
-		const answerStored = await postToSession(plan.answer, { phase: "answer", completeTurn, isCurrent: t.canPost, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), localTurn: true, interaction: interactionIdentity(t.interaction), workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined });
+		let promptStatus: "skipped" | "rejected" | "malformed" | undefined;
+		let promptRefusal: PostSessionRefusal | undefined;
+		const promptStored = await postToSession(plan.prompt, {
+			turnKind: "local_prompt", localTurn: true, isCurrent: t.canPost,
+			callerSurfacesRefusal: true,
+			onReceipt: (s, r) => {
+				if (s !== "stored" && s !== "idempotently_stored") promptStatus = s;
+				if (r) promptRefusal = r;
+			},
+		});
+		if (!promptStored) surfaceRefusal("local prompt", promptStatus, promptRefusal);
+		let answerStatus: "skipped" | "rejected" | "malformed" | undefined;
+		let answerRefusal: PostSessionRefusal | undefined;
+		const answerStored = await postToSession(plan.answer, {
+			phase: "answer", completeTurn, isCurrent: t.canPost, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId,
+			commandTurnUnbound: isCommandTurnUnbound(t), localTurn: true, interaction: interactionIdentity(t.interaction),
+			workTrail: activityTrail, trailEvents: finalEvents, agentStats: agentStats ?? undefined,
+			callerSurfacesRefusal: true,
+			onReceipt: (s, r) => {
+				if (s !== "stored" && s !== "idempotently_stored") answerStatus = s;
+				if (r) answerRefusal = r;
+			},
+		});
+		if (!answerStored) surfaceRefusal("answer", answerStatus, answerRefusal);
 		return promptStored && answerStored;
 	}
 	if (t.trailDelivery.dirty && !t.trailDelivery.blocked && activityTrail && !t.receiptBatch.suppressEmptyFallback(t.revision)) {
+		if (isAutomationSegment(t)) return false;
+		if (!getBond()?.sessionId) return false;
 		const snapshot = t.trailDelivery.begin();
 		if (snapshot === null) return false;
-		const stored = await postToSession(activityTrail, { phase: "trail", isCurrent: t.canPost, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), localTurn: isCommandTurnUnbound(t) && !t.interaction, interaction: interactionIdentity(t.interaction), trailEvents: finalEvents });
-		t.trailDelivery.finish(snapshot, stored);
+		let capturedStatus: "skipped" | "rejected" | "malformed" | undefined;
+		let capturedRefusal: PostSessionRefusal | undefined;
+		const stored = await postToSession(activityTrail, {
+			phase: "trail",
+			isCurrent: t.canPost,
+			commandTurnId: t.commandTurnId,
+			commandMessageId: t.commandMessageId,
+			commandTurnUnbound: isCommandTurnUnbound(t),
+			localTurn: isCommandTurnUnbound(t) && !t.interaction,
+			interaction: interactionIdentity(t.interaction),
+			trailEvents: finalEvents,
+			callerSurfacesRefusal: true,
+			onReceipt: (s, r) => {
+				if (s !== "stored" && s !== "idempotently_stored") capturedStatus = s;
+				if (r) capturedRefusal = r;
+			},
+		});
+		t.trailDelivery.finish(snapshot, stored, capturedRefusal);
+		const refusalNotice = !stored ? t.trailDelivery.refusalNotice(capturedStatus ?? "refused") : null;
+		if (refusalNotice) {
+			if (safeHasUI(lastCtx)) notify(lastCtx, refusalNotice, "warning");
+			else console.error(refusalNotice);
+		}
 	}
 	return false;
 }
@@ -1721,7 +2007,7 @@ async function postCapturedNoticeReply(capture: NoticeReplyCapture, agentStats: 
 				return { raw: await callDevspec(resolved.token, "post_session_message", args, { lane: "pump",
 					beforeSend: () => { if (current()?.connectionId !== capture.connectionId) throw new Error("this Pi's DevSpec connection changed before sending"); } }) };
 			} catch (error) {
-				if (error instanceof DevspecToolError) return { refusal: error.message };
+				if (error instanceof DevspecToolError) return { refusal: error.message, raw: error.raw };
 				throw error;
 			}
 		},
@@ -1737,7 +2023,7 @@ async function postCapturedNoticeReply(capture: NoticeReplyCapture, agentStats: 
  * the room shows a reply with its card, a quiet housekeeping entry or nothing.
  * The post binds to no command, turn or attempt, so the command is untouched.
  */
-async function answerSteeredNotices(message: string): Promise<{ ok: boolean; text: string }> {
+async function answerSteeredNotices(message: string): Promise<{ ok: boolean; text: string; refusal?: Record<string, unknown> }> {
 	const capture = turn?.steeredNotices;
 	if (!capture || capture.noticeIds.length === 0) return { ok: false, text: NO_NOTICE_WAITING };
 	const noticeIds = [...capture.noticeIds];
@@ -1753,7 +2039,7 @@ async function answerSteeredNotices(message: string): Promise<{ ok: boolean; tex
 		capture.noticeIds = capture.noticeIds.filter((id) => !noticeIds.includes(id));
 		capture.finalText = null;
 	}
-	return { ok: result.ok, text: result.text };
+	return { ok: result.ok, text: result.text, ...(result.refusal ? { refusal: result.refusal } : {}) };
 }
 
 /**
@@ -1864,6 +2150,12 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
 		commandTurnId: t.commandTurnId,
 		commandMessageId: t.commandMessageId,
 		localActivityReady: t.localActivityReady,
+		...(completeTurn ? {} : {
+			workSubject: t.workSubject,
+			workSubjectPickupSent: t.workSubjectPickupSent,
+			workSubjectAttemptId: t.workSubjectAttemptId,
+			workSubjectPickupReady: t.workSubjectPickupReady,
+		}),
 		...(t.requestKind ? { requestKind: t.requestKind } : {}),
 		completionNeutral: t.completionNeutral,
 		// The run goes on, and so does the chance to answer what was steered into it.
@@ -1903,7 +2195,7 @@ function splitTurnAtBoundary(why = "boundary", completeTurn = true): void {
  */
 async function beatBusy(busy: boolean, agentStats?: AgentStatsReport | null): Promise<void> {
 	const active = pump;
-	if (!active || active.stop || systemNoticeRunActive) return;
+	if (!active || active.stop) return;
 	const interaction = activeInteractionRun(active);
 	if (interaction) {
 		if (busy) await keepInteractionContinuationAlive(interaction);
@@ -1912,19 +2204,23 @@ async function beatBusy(busy: boolean, agentStats?: AgentStatsReport | null): Pr
 	const resolved = await resolveToken();
 	if (!resolved) return;
 	const refusal = usageRefusal.statusField(Date.now());
+	const subjectField = workSubjectWireField(busy, active.workSubject, active.workSubjectNeedsClear);
 	try {
 		await callDevspec(resolved.token, "heartbeat_connection", {
 			connection_id: active.bond.connectionId,
 			status: "live",
 			busy,
 			agent_name: AGENT_NAME,
-			// Progress evidence (item 0b8035ac): the server renews the working
-			// lease only while this marker keeps changing.
+			// Progress evidence (item 0b8035ac; 24-hour last-resort bound, decision 6459a009).
 			progress_marker: currentProgressMarker(),
+			...subjectField,
 			...(agentStats ? { agent_stats: agentStats } : {}),
 			...refusal,
 		}, { lane: "pump" });
 		usageRefusal.delivered(refusal);
+		if (!busy && subjectField.work_subject === null && !active.busy && active.workSubject === null) {
+			active.workSubjectNeedsClear = false;
+		}
 	} catch {
 		/* presence is best-effort — the next poll re-asserts */
 	}
@@ -2150,6 +2446,13 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	active.pendingInteractionReleases.clear();
 	systemNoticeTurnPending = false;
 	systemNoticeRunActive = false;
+	pendingSystemNoticeWorkSubject = null;
+	nextRunWorkSubject = null;
+	parkedWorkSubject = null;
+	parkedWorkSubjectAttemptId = undefined;
+	parkedWorkSubjectPickupReady = undefined;
+	active.workSubject = null;
+	active.workSubjectNeedsClear = false;
 	revokeSystemNoticeState(active.systemNoticeKey);
 	active.automationQueue.invalidate();
 	dropWaitingCheckJobs(active);
@@ -2167,6 +2470,7 @@ async function stopPump(ctx: ExtensionContext | null, reason: "local_stop" | "ow
 	pump = null;
 	pi_syncBackgroundScope();
 	commandTurnBindings.clear();
+	pendingWorkSubjects.clear();
 	clearDealtRefs();
 	activeCommandStyles.clear();
 	pendingBackgroundTaskIds.clear();
@@ -2881,7 +3185,14 @@ async function deliverAutomationRun(
 		name: typeof root?.automation_name === "string" ? root.automation_name : undefined,
 	});
 	paintStatus(ctx);
-	pi_send(message, ctx.isIdle() ? "now" : "followUp");
+	const subject = workSubjectForAutomationRun(root);
+	pendingWorkSubjects.remember(message, subject);
+	try {
+		pi_send(message, ctx.isIdle() ? "now" : "followUp");
+	} catch (error) {
+		pendingWorkSubjects.forget(message, subject);
+		throw error;
+	}
 }
 
 /**
@@ -2919,7 +3230,15 @@ function pumpWaitingCheckJobs(active: PumpState, ctx: ExtensionContext): void {
 				send: (jobs) => {
 					// The run this starts is not active yet: hold a second wake until it is.
 					checkJobPickupHoldUntil = Date.now() + CHECK_JOB_PICKUP_HOLD_MS;
-					pi_send(formatCheckJobsMessage(jobs.map((job) => job.envelope), active.bond.codename ?? "this agent", { helpers: active.checkJobHelpers }), "now");
+					const message = formatCheckJobsMessage(jobs.map((job) => job.envelope), active.bond.codename ?? "this agent", { helpers: active.checkJobHelpers });
+					const subject = workSubjectForCheckJobs(jobs);
+					pendingWorkSubjects.remember(message, subject);
+					try {
+						pi_send(message, "now");
+					} catch (error) {
+						pendingWorkSubjects.forget(message, subject);
+						throw error;
+					}
 					notify(ctx, `DevSpec remote: ${jobs.length === 1 ? "check job" : `${jobs.length} check jobs`} delivered.`);
 				},
 			});
@@ -3274,10 +3593,14 @@ async function reviveRecoverableBond(
 			// A replacement row is different authority: pending bindings for the old
 			// connection's turns must not be inherited here (item 6f4136d8).
 			commandTurnBindings.clear();
+			pendingWorkSubjects.clear();
 			clearDealtRefs();
 			activeCommandStyles.clear();
 			pendingBackgroundTaskIds.clear();
 			activeCommandTurnIdentity = null;
+			parkedWorkSubject = null;
+			active.workSubject = null;
+			active.workSubjectNeedsClear = false;
 			active.advisoryCarry = [];
 			active.attachmentRetryAttempts.clear();
 			active.automationQueue.invalidate();
@@ -3534,6 +3857,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 		const commandHandoffReady = commandOfferNegotiated && !interactionEventAck ? pi_commandHandoffReady(active, ctx) : null;
 		let payload: unknown;
 		const refusal = usageRefusal.statusField(Date.now());
+		const pollWorkSubject = workSubjectWireField(active.busy, active.workSubject, active.workSubjectNeedsClear);
 		try {
 			const raw = await callDevspec(
 				token,
@@ -3572,7 +3896,7 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 					...(interactionEventAck && (active.busy || active.runtimeOccupancy.isBusy()) ? { catch_up: true } : {}),
 					// Generic busy projection is forbidden for exact interaction attempts;
 					// their lease is refreshed with report_keepalive and exact tuple.
-					...(!activeInteractionRun(active) ? { busy: active.busy, progress_marker: currentProgressMarker() } : {}),
+					...(!activeInteractionRun(active) ? { busy: active.busy, progress_marker: currentProgressMarker(), ...pollWorkSubject } : {}),
 					listener_armed: true,
 					agent_name: AGENT_NAME,
 					agent_stats: runtimeAgentStats(ctx),
@@ -3592,6 +3916,9 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 				throw new Error(text || "poll_connection failed");
 			}
 			usageRefusal.delivered(refusal);
+			if (!active.busy && pollWorkSubject.work_subject === null && active.workSubject === null) {
+				active.workSubjectNeedsClear = false;
+			}
 			payload = details;
 			if (notifiedDegraded) {
 				notifiedDegraded = false;
@@ -3724,10 +4051,14 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			// A new room (or detach) invalidates pending bindings for the old room's
 			// turns: identical terminal text must not inherit them (item 6f4136d8).
 			commandTurnBindings.clear();
+			pendingWorkSubjects.clear();
 			clearDealtRefs();
 			activeCommandStyles.clear();
 			pendingBackgroundTaskIds.clear();
 			activeCommandTurnIdentity = null;
+			parkedWorkSubject = null;
+			active.workSubject = null;
+			active.workSubjectNeedsClear = false;
 			const next = {
 				...active.bond,
 				sessionId: serverSessionId ?? undefined,
@@ -3861,7 +4192,22 @@ async function pumpLoop(ctx: ExtensionContext): Promise<void> {
 			if (unreadable) {
 				active.unreadableIngressReported = unreadable.key;
 				notify(ctx, unreadable.local, "error");
-				void postToSession(unreadable.room, { commandTurnUnbound: true });
+				let unreadableStatus: "skipped" | "rejected" | "malformed" | undefined;
+				let unreadableRefusal: PostSessionRefusal | undefined;
+				void postToSession(unreadable.room, {
+					commandTurnUnbound: true,
+					callerSurfacesRefusal: true,
+					onReceipt: (s, r) => {
+						if (s !== "stored" && s !== "idempotently_stored") unreadableStatus = s;
+						if (r) unreadableRefusal = r;
+					},
+				}).then(stored => {
+					if (!stored && unreadableRefusal) {
+						const notice = TrailDeliveryState.formatRefusal(unreadableRefusal, "message", unreadableStatus ?? "refused");
+						if (safeHasUI(ctx)) notify(ctx, notice, "warning");
+						else console.error(notice);
+					}
+				});
 			}
 			await retryAfterPollFailure(active);
 			continue;
@@ -4335,6 +4681,8 @@ async function bondNow(ctx: ExtensionContext, sessionArg?: string, project?: Pro
 		connectionIdentity,
 		systemNoticeKey,
 		busy: false,
+		workSubject: null,
+		workSubjectNeedsClear: false,
 		stop: false,
 		errors: 0,
 		pollFailures: 0,
@@ -4714,7 +5062,7 @@ export default function (pi: ExtensionAPI) {
 		if (!candidate || completingBackground) return;
 		const { settled, active } = candidate;
 		// Local work must have started admission before execution, never at drain.
-		if (!settled.interaction && (!settled.commandTurnId || !settled.commandMessageId) && !settled.localActivityReady) return;
+		if (!settled.interaction && (!settled.commandTurnId || !settled.commandMessageId) && !settled.localActivityReady && !settled.workSubjectPickupSent) return;
 		const current = () => parkedBackground === candidate && pump === active && !active.stop &&
 			foregroundEpoch === candidate.epoch && observationScope !== null &&
 			backgroundScopeKey(observationScope) === candidate.scope && settled.canPost() &&
@@ -4726,9 +5074,24 @@ export default function (pi: ExtensionAPI) {
 			await candidate.ready;
 			if (!current()) return;
 			const completed = await completeTurnActivity(settled, "turn_end", current);
-			if (completed && current()) {
+			// If a non-command pickup (`workSubjectPickupSent`) or local activity admission
+			// never returned a server `attempt_id`, there is no server attempt to close —
+			// never send generic `report_complete`, and still clear local busy and wake
+			// subject truthfully once all owned background work has finished (task 4284a43c).
+			let noServerAttemptOpened = false;
+			if (!completed && !settled.interaction && !settled.commandTurnId) {
+				if (settled.workSubjectPickupSent) {
+					const attemptId = settled.workSubjectAttemptId ?? (settled.workSubjectPickupReady ? await settled.workSubjectPickupReady : null);
+					noServerAttemptOpened = !attemptId;
+				} else if (settled.localActivityReady) {
+					noServerAttemptOpened = !(await settled.localActivityReady);
+				}
+			}
+			if ((completed || noServerAttemptOpened) && current()) {
 				parkedBackground = null;
+				parkedWorkSubject = null;
 				active.busy = false;
+				setPumpWorkSubject(active, null);
 				void beatBusy(false);
 				signalWake(active);
 			}
@@ -4738,6 +5101,8 @@ export default function (pi: ExtensionAPI) {
 	const applyBackgroundObservation = (observation: BackgroundObservation): void => {
 		const scope = currentBackgroundScope();
 		if (restoringBackground || !scope || observation.scope !== backgroundScopeKey(scope)) return;
+		const prevPendingSize = pendingBackgroundTaskIds.size;
+		let stateChanged = false;
 		for (const id of observedIds) pendingBackgroundTaskIds.delete(id);
 		observedIds.clear();
 		for (const task of observation.tasks) {
@@ -4745,11 +5110,13 @@ export default function (pi: ExtensionAPI) {
 			if (task.state === "running" || task.state === "unknown") pendingBackgroundTaskIds.add(task.id);
 			const stateKey = `${task.startTime}:${task.state}`;
 			if (journalStates.get(task.id) === stateKey) continue;
+			stateChanged = true;
 			try {
 				pi.appendEntry(BACKGROUND_WORK_ENTRY, backgroundWorkEntry(scope, task));
 				journalStates.set(task.id, stateKey);
 			} catch { debug("background observation persistence failed", { errorPresent: true }); }
 		}
+		if (stateChanged || pendingBackgroundTaskIds.size !== prevPendingSize) noteProgressEvent();
 		debug("background observation", { pendingBg: pendingBackgroundTaskIds.size,
 			unknown: observation.tasks.filter(task => task.state === "unknown").length });
 		// Item 7a4d04fd: work the provider reports killed will not wake the agent;
@@ -4770,6 +5137,16 @@ export default function (pi: ExtensionAPI) {
 		void completeObservedIdle();
 	};
 	const backgroundObserver = new BackgroundWorkObserver(pi.events, applyBackgroundObservation);
+	let lastSubagentFleetSignature: string | null = null;
+	const noteSubagentFleetProgress = (snapshot: SubagentFleetSnapshot): void => {
+		// Exclude wall-clock durationMs/observedAt: an unchanged wedged subagent must NOT
+		// artificially advance progress_marker and defeat the 24-hour staleness bound (6459a009).
+		const sig = `${snapshot.totalActive}:${snapshot.omitted}:${snapshot.children.map((c) => `${c.key}:${c.status}:${c.agent}:${c.model ?? ""}`).join("|")}`;
+		if (sig !== lastSubagentFleetSignature) {
+			lastSubagentFleetSignature = snapshot.totalActive > 0 ? sig : null;
+			if (snapshot.totalActive > 0) noteProgressEvent();
+		}
+	};
 	pi_backgroundInputPending = () => { foregroundEpoch += 1; parkedBackground = null; settledInteractionForOffer = null; };
 	pi_syncBackgroundScope = () => {
 		const scope = currentBackgroundScope();
@@ -4778,6 +5155,7 @@ export default function (pi: ExtensionAPI) {
 		pi_backgroundInputPending();
 		for (const id of observedIds) pendingBackgroundTaskIds.delete(id);
 		observedIds.clear(); journalStates.clear(); launchScopes.clear();
+		lastSubagentFleetSignature = null;
 		observationScope = scope;
 		void clearOffer();
 		offerBudget.bind(scope, lastCtx?.sessionManager.getBranch() ?? []);
@@ -4794,6 +5172,10 @@ export default function (pi: ExtensionAPI) {
 		try {
 			pi_syncBackgroundScope();
 			await backgroundObserver.refresh();
+			// Do NOT unconditionally call noteProgressEvent() on an unchanged "running"
+			// background task: applyBackgroundObservation already bumps progress_marker
+			// when task states or pending counts actually change, so a wedged process
+			// cannot renew Working forever past the 24-hour last-resort bound (6459a009).
 			await completeObservedIdle();
 		} catch { debug("background observation reconciliation failed", { errorPresent: true }); }
 	};
@@ -4808,6 +5190,7 @@ export default function (pi: ExtensionAPI) {
 			if (turn !== trackedTurn || trackedTurn.revision !== expectedRevision) return "stale";
 		}
 		if (!snapshot) return "unknown";
+		noteSubagentFleetProgress(snapshot);
 		if (snapshot.totalActive > 0) {
 			trackedTurn.tracker.noteBackgroundTask(SUBAGENT_FLEET_TASK_ID);
 			return "active";
@@ -4820,6 +5203,7 @@ export default function (pi: ExtensionAPI) {
 		void subagentFleet.refresh().then((snapshot) => {
 			// A late optional-RPC reply must never mutate a later delivery segment.
 			if (!snapshot || turn !== trackedTurn) return;
+			noteSubagentFleetProgress(snapshot);
 			if (trackedTurn.trail.applySubagentFleet(toolCallId, snapshot)) trackedTurn.trailDelivery.markDirty();
 		});
 	};
@@ -4861,6 +5245,7 @@ export default function (pi: ExtensionAPI) {
 		// Called only after the pump proves idle; triggerTurn starts a fresh
 		// harness-attributed run from this model-visible custom message.
 		systemNoticeTurnPending = true;
+		pendingSystemNoticeWorkSubject = workSubjectForNotices(details.notices);
 		try {
 			pi.sendMessage({
 				customType: SYSTEM_NOTICE_CUSTOM_TYPE,
@@ -4870,6 +5255,7 @@ export default function (pi: ExtensionAPI) {
 			}, { triggerTurn: true });
 		} catch (error) {
 			systemNoticeTurnPending = false;
+			pendingSystemNoticeWorkSubject = null;
 			throw error;
 		}
 	};
@@ -4987,6 +5373,11 @@ export default function (pi: ExtensionAPI) {
 		const completionNeutral = occupancy?.kind === "system_notice";
 		const activityPolicy = remoteRunActivityPolicy(completionNeutral);
 		const interactionRun = newInteractionRun ?? (occupancy?.kind === "interaction" ? continuedInteractionRun : undefined);
+		const noticeWorkSubject = completionNeutral
+			? (pendingSystemNoticeWorkSubject ?? (isNonCommandWorkSubject(turn?.workSubject) ? turn.workSubject : null) ?? (isNonCommandWorkSubject(active?.workSubject) ? active.workSubject : null))
+			: null;
+		const queuedSubject = !completionNeutral && !newInteractionRun ? nextRunWorkSubject : null;
+		nextRunWorkSubject = null;
 		systemNoticeRunActive = completionNeutral;
 
 		if (newInteractionRun) {
@@ -5010,13 +5401,18 @@ export default function (pi: ExtensionAPI) {
 			return;
 		} else if (active && activityPolicy.reportPresence) {
 			active.busy = true;
+			if (noticeWorkSubject) setPumpWorkSubject(active, noticeWorkSubject);
+			else if (queuedSubject) setPumpWorkSubject(active, queuedSubject);
 			void beatBusy(true);
 		}
 
 		// The run begins — the delivery unit. Turn state is born here (or on
 		// the first attached turn_start after a mid-run attach), never per round.
 		ensureTurn();
-		if (turn && completionNeutral) turn.completionNeutral = true;
+		if (turn && completionNeutral) {
+			turn.completionNeutral = true;
+			if (noticeWorkSubject) turn.workSubject = noticeWorkSubject;
+		}
 		if (turn && newInteractionRun) {
 			turn.interaction = newInteractionRun;
 			turn.commandTurnId = undefined;
@@ -5027,11 +5423,13 @@ export default function (pi: ExtensionAPI) {
 			turn.occupancy = occupancy ?? undefined;
 			turn.revision = nextTurnRevision++;
 			turn.receiptBatch.reset(turn.revision);
+			if (completionNeutral && noticeWorkSubject) startWorkSubjectPickup(turn, noticeWorkSubject);
 		}
 	});
 	pi.on("agent_settled", async (_event, ctx) => {
 		noteProgressEvent();
 		lastCtx = ctx;
+		nextRunWorkSubject = null;
 		// After Pi's own retries: a run whose last model call was refused for usage
 		// stands refused, and the idle heartbeat below already says so (04a1fe8f).
 		usageRefusal.settleRun();
@@ -5060,10 +5458,10 @@ export default function (pi: ExtensionAPI) {
 			attemptInteractionPersistenceConfirmation(confirmation, true)));
 		// The parent model may be locally finished while async children still own
 		// the user-visible job. Reconcile pi-subagents' documented current-session
-		// fleet before deciding whether this command attempt is terminal. The DTO
+		// fleet before deciding whether this attempt is terminal. The DTO
 		// exposes only a bounded aggregate here—no child ids, prompts, or paths.
 		const settlingTurn = turnAtSettle;
-		if (settlingTurn?.tracker.userKind && settlingTurn.tracker.userKind !== "harness") {
+		if (settlingTurn && (settlingTurn.completionNeutral || (settlingTurn.tracker.userKind && settlingTurn.tracker.userKind !== "harness"))) {
 			const reconciliation = await reconcileSubagentFleetOwnership(settlingTurn);
 			// Pi may accept a newer command while an extension settle handler awaits.
 			// The stale callback owns nothing in that newer segment.
@@ -5082,19 +5480,26 @@ export default function (pi: ExtensionAPI) {
 		// Settle telemetry FIRST so the idle/parked heartbeat and answer post carry
 		// this turn's report, not the previous one's.
 		const agentStats = settleTelemetry();
-		// A settled parent model run can still own automatic background work.
-		// Keep the pump authoritative Working signal alive until the final owned
-		// continuation settles; otherwise polls broadcast false and close the
-		// durable attempt while an async child is visibly still running.
-		// Presence follows outstanding background work (owner direction
-		// 2026-09-17 PM): with owned bg tasks still pending the agent is still
-		// working — the run settled but the job has not. The wake of the last
-		// task's completion re-runs this with an empty set and clears Working.
-		// This parks PRESENCE ONLY: the answer already posted above regardless
-		// (759f2818), so a long-running task can never hold speech hostage.
-		const keepWorking = !completionNeutral && pendingBackgroundTaskIds.size > 0;
+		// A settled parent model run can still own automatic background work
+		// (including background commands or async subagents started during notice,
+		// check-job, automation, terminal, or command turns — item 2145bd84).
+		// Keep the pump authoritative Working signal and active workSubject alive
+		// until the final owned continuation settles.
+		const keepWorking = pendingBackgroundTaskIds.size > 0;
+		if (keepWorking) {
+			if (settlingTurn?.workSubjectPickupSent && isNonCommandWorkSubject(settlingTurn.workSubject)) {
+				parkedWorkSubject = settlingTurn.workSubject;
+				parkedWorkSubjectAttemptId = settlingTurn.workSubjectAttemptId;
+				parkedWorkSubjectPickupReady = settlingTurn.workSubjectPickupReady;
+			}
+		} else {
+			parkedWorkSubject = null;
+			parkedWorkSubjectAttemptId = undefined;
+			parkedWorkSubjectPickupReady = undefined;
+		}
 		if (pump && activityPolicy.reportPresence) {
 			pump.busy = keepWorking;
+			if (!keepWorking) setPumpWorkSubject(pump, null);
 			if (!interactionRun) void beatBusy(keepWorking, agentStats);
 			const trueIdle = !keepWorking && !pump.runtimeOccupancy.isBusy() && ctx.isIdle();
 			if (pump.idleBoundaryWake.consumeAtIdle(trueIdle)) signalWake(pump);
@@ -5109,14 +5514,14 @@ export default function (pi: ExtensionAPI) {
 			? { run: interactionRun, epoch: foregroundEpoch, scope: backgroundScopeKey(observationScope) } : null;
 		const terminalPost = (async () => {
 			const posted = await settleTurn(agentStats, true);
-			// No complete_turn post landed (aborted/empty turn, or the post
-			// failed) — close the exact activity honestly. Outstanding owned
-			// background work is the one exception: the attempt stays open so
-			// Working persists until the last completion wake settles.
+			// No complete_turn post landed (aborted/empty turn, notice/check-job
+			// source-less attempt, or failed post) — close the exact activity honestly.
+			// Outstanding owned background work is the one exception: the attempt stays
+			// open so Working persists until the last completion wake settles.
 			if (!posted && activityPolicy.reportCompletion && pendingBackgroundTaskIds.size === 0 && (settlingTurn?.canPost() ?? pump === activeAtSettle)) {
 				// A run that died on a terminal provider error posts its reason
 				// (item e99d158b); every other silent close is unchanged.
-				if (settlingTurn?.terminalError) {
+				if (settlingTurn?.terminalError && !completionNeutral && !segmentIsQuiet(settlingTurn)) {
 					await reportTerminalError(settlingTurn, agentStats);
 				} else {
 					if (settlingTurn) await completeTurnActivity(settlingTurn, "turn_end");
@@ -5136,7 +5541,10 @@ export default function (pi: ExtensionAPI) {
 		// Local telemetry above is safe; from here onward the notice run is over.
 		// Busy notices may wake only after final settlement proves both Pi and pump
 		// idle. The next custom run remains unbound from every owner generation.
-		if (completionNeutral) systemNoticeTurnPending = false;
+		if (completionNeutral) {
+			systemNoticeTurnPending = false;
+			pendingSystemNoticeWorkSubject = null;
+		}
 		systemNoticeRunActive = false;
 		if (pump && !pump.busy && ctx.isIdle()) {
 			try { deliverQueuedSystemNotices(pump, ctx); } catch (error) {
@@ -5156,9 +5564,23 @@ export default function (pi: ExtensionAPI) {
 		const t = turn;
 		if (!t) return undefined;
 		const prepared = Promise.all([prepareAssistantSpeech(t), prepareLocalActivity(t)]);
-		if (t.tracker.shouldMirrorPrompt && t.tracker.userText && t.requestKind === "typed") {
+		if (t.tracker.shouldMirrorPrompt && t.tracker.userText && t.requestKind === "typed" && getBond()?.sessionId) {
 			t.tracker.shouldMirrorPrompt = false;
-			await postToSession(t.tracker.userText, { turnKind: "local_prompt", localTurn: true, isCurrent: t.canPost });
+			let mirrorStatus: "skipped" | "rejected" | "malformed" | undefined;
+			let mirrorRefusal: PostSessionRefusal | undefined;
+			const mirrorStored = await postToSession(t.tracker.userText, {
+				turnKind: "local_prompt", localTurn: true, isCurrent: t.canPost,
+				callerSurfacesRefusal: true,
+				onReceipt: (s, r) => {
+					if (s !== "stored" && s !== "idempotently_stored") mirrorStatus = s;
+					if (r) mirrorRefusal = r;
+				},
+			});
+			if (!mirrorStored && mirrorRefusal) {
+				const notice = TrailDeliveryState.formatRefusal(mirrorRefusal, "local prompt", mirrorStatus ?? "refused");
+				if (safeHasUI(lastCtx)) notify(lastCtx, notice, "warning");
+				else console.error(notice);
+			}
 		}
 		await prepared;
 		// Keep the active command turn's response style in force at every LLM
@@ -5221,10 +5643,15 @@ export default function (pi: ExtensionAPI) {
 	// remirror (item 56b9a3b4). Typed /commands never take this path.
 	pi.on("before_agent_start", async (event, ctx) => {
 		noteProgressEvent();
-		const canonicalQueueItem =
-			"prompt" in event && typeof event.prompt === "string"
-				? commandTurnBindings.peek(event.prompt)?.canonicalQueueItem
-				: undefined;
+		const promptText = "prompt" in event && typeof event.prompt === "string" ? event.prompt : undefined;
+		const peekedCommand = promptText ? commandTurnBindings.peek(promptText) : undefined;
+		const canonicalQueueItem = peekedCommand?.canonicalQueueItem;
+		if (promptText) {
+			const peekedSubject = peekedCommand?.commandMessageId
+				? workSubjectForCommand(peekedCommand.commandMessageId)
+				: pendingWorkSubjects.peek(promptText) ?? null;
+			if (peekedSubject) nextRunWorkSubject = peekedSubject;
+		}
 		const active = pump;
 		// A queued owner turn may start after a newer projection arrived. Bind its
 		// immutable canonical prefix to the latest validated tail exactly once.
@@ -5328,7 +5755,10 @@ export default function (pi: ExtensionAPI) {
 		lastCtx = ctx;
 		const msg = event.message as { role?: string; customType?: string; details?: unknown } | undefined;
 		const customType = typeof msg?.customType === "string" ? msg.customType : null;
-		if (customType === SYSTEM_NOTICE_CUSTOM_TYPE) systemNoticeTurnPending = false;
+		if (customType === SYSTEM_NOTICE_CUSTOM_TYPE) {
+			systemNoticeTurnPending = false;
+			pendingSystemNoticeWorkSubject = null;
+		}
 		const text = extractText(event.message);
 		// A between-step delivery is nobody's request (da5cfae5): it is counted as
 		// delivered and nothing else happens. It binds no request, opens no segment
@@ -5350,13 +5780,27 @@ export default function (pi: ExtensionAPI) {
 		const segmentKind = isInput
 			? bindSegmentForMessage({ text, customType, details: msg?.details, isRealUserMessage, incomingCommand })
 			: null;
-		if (!turn && segmentKind === "automation") ensureTurn();
+		if (!turn && isInput) ensureTurn();
 		if (!turn) return;
 		if (isInput) {
 			const previousInteraction = isRealUserMessage ? turn.interaction : undefined;
 			if (customType === SYSTEM_NOTICE_CUSTOM_TYPE) {
 				turn.completionNeutral = true;
 				captureNoticeReply(turn, msg?.details);
+				const notices = (msg?.details as { notices?: unknown[] } | undefined)?.notices;
+				const noticeSubject = Array.isArray(notices) ? workSubjectForNotices(notices) : null;
+				if (noticeSubject) {
+					const changed = !workSubjectEquals(pump?.workSubject, noticeSubject);
+					turn.workSubject = noticeSubject;
+					if (pump) {
+						setPumpWorkSubject(pump, noticeSubject);
+						if (!pump.busy || changed) {
+							pump.busy = true;
+							void beatBusy(true);
+						}
+					}
+					startWorkSubjectPickup(turn, noticeSubject);
+				}
 			}
 			const activityTransition = isRealUserMessage
 				? transitionToRealUserActivity({
@@ -5403,6 +5847,7 @@ export default function (pi: ExtensionAPI) {
 					}
 				}
 				systemNoticeTurnPending = false;
+				pendingSystemNoticeWorkSubject = null;
 				systemNoticeRunActive = activityTransition?.nextSystemNoticeRunActive ?? false;
 				turn.completionNeutral = activityTransition?.nextCompletionNeutral ?? false;
 				turn.revision = nextTurnRevision++;
@@ -5420,14 +5865,32 @@ export default function (pi: ExtensionAPI) {
 				turn.speechBinding = undefined;
 				turn.speechScopeCaptured = false;
 				turn.localActivityReady = undefined;
+				turn.workSubject = undefined;
+				turn.workSubjectPickupSent = false;
+				turn.workSubjectPickupReady = undefined;
 				turn.tellPerson = undefined;
 				turn.requestKind = segmentKind ?? "untyped";
 				turn.tracker.userMessage(text, { customType });
 				// Only a prompt the owner typed here is mirrored as a local prompt.
 				if (turn.requestKind !== "typed") turn.tracker.shouldMirrorPrompt = false;
-				if (activityTransition?.beginBusyPresence && pump) {
-					pump.busy = true;
-					void beatBusy(true);
+				let nextSubject: WorkSubject | null = null;
+				if (incomingCommand?.turnId && incomingCommand.commandMessageId) {
+					nextSubject = workSubjectForCommand(incomingCommand.commandMessageId);
+				} else if (turn.requestKind === "automation" || turn.tracker.userKind === "automation") {
+					nextSubject = pendingWorkSubjects.take(text) ?? workSubjectFromWakeText("automation", text);
+				} else if (turn.tracker.userKind === "check_job") {
+					nextSubject = pendingWorkSubjects.take(text) ?? workSubjectFromWakeText("check_job", text);
+				} else if (turn.requestKind === "typed") {
+					nextSubject = terminalWorkSubject();
+				}
+				if (nextSubject) turn.workSubject = nextSubject;
+				if (pump) {
+					const subjectChanged = Boolean(nextSubject && !workSubjectEquals(pump.workSubject, nextSubject));
+					if (nextSubject) setPumpWorkSubject(pump, nextSubject);
+					if (activityTransition?.beginBusyPresence || subjectChanged) {
+						pump.busy = true;
+						void beatBusy(true);
+					}
 				}
 				// Busy never starts a room command on DevSpec; saying which one we
 				// started does (item 7b693c1b). Once per command segment.
@@ -5436,12 +5899,31 @@ export default function (pi: ExtensionAPI) {
 					const commandMessageId = incomingCommand.commandMessageId;
 					void reportCommandPickup(incomingCommand.turnId, commandMessageId,
 						() => turn === segment && segment.commandMessageId === commandMessageId);
+				} else if (nextSubject && isNonCommandWorkSubject(nextSubject) && pump) {
+					// Attached terminal turns keep exact prepareLocalActivity (local_activity_version: 1);
+					// notices, check jobs, automations, and sessionless terminal turns open a
+					// source-less working attempt via report_pickup({ connection_id, work_subject }).
+					if (nextSubject.kind !== "terminal" || !pump.bond.sessionId) {
+						startWorkSubjectPickup(turn, nextSubject);
+					}
 				}
 			} else {
 				if (harness && backgroundTaskNotificationId(text, msg?.details)) void pi_refreshBackgroundWork();
 				turn.tracker.userMessage(text, { customType });
 				if (!turn.requestKind && segmentKind) turn.requestKind = segmentKind;
-				if (harness) adoptParkedCommandIdentity(turn, turn.tracker.userKind);
+				if (harness) {
+					adoptParkedCommandIdentity(turn, turn.tracker.userKind);
+					if (customType !== SYSTEM_NOTICE_CUSTOM_TYPE && !turn.commandTurnId && !turn.interaction && parkedWorkSubject) {
+						turn.workSubject = parkedWorkSubject;
+						turn.workSubjectPickupSent = true;
+						turn.workSubjectAttemptId = parkedWorkSubjectAttemptId;
+						turn.workSubjectPickupReady = parkedWorkSubjectPickupReady;
+						if (parkedWorkSubject.kind === "server_notice" || parkedWorkSubject.kind === "system_notice") {
+							turn.completionNeutral = true;
+						}
+						if (pump) setPumpWorkSubject(pump, parkedWorkSubject);
+					}
+				}
 			}
 			// Idle triggerTurn custom messages bypass before_agent_start in Pi. The
 			// awaited message_start event is the earliest common point before the
@@ -5700,8 +6182,13 @@ export default function (pi: ExtensionAPI) {
 		turn = null;
 		systemNoticeTurnPending = false;
 		systemNoticeRunActive = false;
+		pendingSystemNoticeWorkSubject = null;
+		nextRunWorkSubject = null;
+		parkedWorkSubject = null;
 		const active = pump;
 		if (!active) return;
+		active.workSubject = null;
+		active.workSubjectNeedsClear = false;
 		if (active.interactionRetryTimer) clearTimeout(active.interactionRetryTimer);
 		active.interactionRetryTimer = undefined;
 		if (active.controlResultRetryTimer) clearTimeout(active.controlResultRetryTimer);
@@ -5737,6 +6224,7 @@ export default function (pi: ExtensionAPI) {
 		dropRequestChain();
 		pump = null;
 		commandTurnBindings.clear();
+		pendingWorkSubjects.clear();
 		clearDealtRefs();
 		activeCommandStyles.clear();
 		pendingBackgroundTaskIds.clear();

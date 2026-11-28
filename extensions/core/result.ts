@@ -95,6 +95,6 @@ export function projectedToolResult(toolName: string, result: UnwrappedResult, a
  * than throwing: the model reads it and can act (e.g. tell the user to log
  * in), which is what a remote-control/host context needs.
  */
-export function toolErrorResult(message: string) {
-	return { content: [{ type: "text" as const, text: `Error: ${message}` }], details: { error: message } };
+export function toolErrorResult(message: string, details?: Record<string, unknown>) {
+	return { content: [{ type: "text" as const, text: `Error: ${message}` }], details: details ? { error: message, ...details } : { error: message } };
 }

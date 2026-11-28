@@ -109,7 +109,7 @@ test("the wiring: tools note the mark by tool call id, and a finished tool call 
 	const end = source.slice(source.indexOf('\tpi.on("tool_execution_end"'), source.indexOf('\tpi.on("session_shutdown"'));
 	assert.match(end, /const tellPerson = takeTellPerson\(event\.toolCallId\);\n\t+if \(tellPerson && turn\) turn\.tellPerson = true;/);
 	// A new request in the same run starts without the previous one's mark.
-	assert.match(source, /turn\.localActivityReady = undefined;\n\t+turn\.tellPerson = undefined;/);
+	assert.match(source, /turn\.localActivityReady = undefined;[\s\S]{0,200}turn\.tellPerson = undefined;/);
 	// A notice batch is captured split by DevSpec's label.
 	assert.match(source, /const \{ needsPerson, forTheRecord \} = noticeIdsFromDelivery\(details\);/);
 });

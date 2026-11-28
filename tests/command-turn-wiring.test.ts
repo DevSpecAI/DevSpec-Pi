@@ -11,7 +11,7 @@ test("Pi carries immutable turn + command identity through every activity output
 	assert.match(source, /command_turn_id: opts\.commandTurnId/);
 	assert.match(source, /command_message_id: opts\.commandMessageId/);
 	assert.match(source, /command_turn_unbound: true/);
-	assert.match(source, /commandTurnId: postingTurn\.commandTurnId, commandMessageId: postingTurn\.commandMessageId/);
+	assert.match(source, /commandTurnId: postingTurn\.commandTurnId,[\s\S]*commandMessageId: postingTurn\.commandMessageId/);
 	assert.match(source, /completeTurnActivity\(settlingTurn, "turn_end"\)/);
 	assert.match(source, /completeTurnActivity\(openTurn, "process_exit"\)/);
 	assert.match(source, /reportComplete\(reason, commandTurnId, commandMessageId, false, interaction, false, current\)/);
@@ -30,7 +30,7 @@ test("async subagents reconcile the fleet, and settle closes Working honestly (7
 	// outstanding and clears when the last task resolves. Speech/turn-closing
 	// never consult it (the 759f2818 fix), so this park cannot hold speech
 	// hostage the way the deleted shouldPauseSettle did.
-	assert.match(settled, /const keepWorking = !completionNeutral && pendingBackgroundTaskIds\.size > 0/);
+	assert.match(settled, /const keepWorking = pendingBackgroundTaskIds\.size > 0/);
 	assert.match(settled, /pump\.busy = keepWorking/);
 	assert.match(settled, /beatBusy\(keepWorking, agentStats\)/);
 	assert.doesNotMatch(settled, /shouldPauseSettle/);
@@ -62,7 +62,7 @@ test("local turns are marked local_turn and bindings die with their command (6f4
 	assert.match(source, /\.\.\.\(opts\.localTurn \? \{ local_turn: true \} : \{\}\)/);
 	assert.match(source, /localTurn: isCommandTurnUnbound\(t\) && !t\.interaction/);
 	assert.match(source, /localTurn: isCommandTurnUnbound\(postingTurn\) && !postingTurn\.interaction/);
-	assert.match(source, /postToSession\(plan\.prompt, \{ turnKind: "local_prompt", localTurn: true, isCurrent: t\.canPost \}\)/);
+	assert.match(source, /postToSession\(plan\.prompt, \{\s*turnKind: "local_prompt", localTurn: true, isCurrent: t\.canPost\b/);
 	assert.match(source, /commandTurnBindings\.forgetByCommand\(commandTurnId, commandMessageId\)/);
 });
 
@@ -75,7 +75,7 @@ test("completion wakes adopt the parked command identity; drops are reported wit
 	assert.match(source, /function adoptParkedCommandIdentity/);
 	assert.match(source, /if \(incomingCommand\?\.turnId && incomingCommand\?\.commandMessageId\)[^]*activeCommandTurnIdentity = \{ turnId: incomingCommand\.turnId/);
 	const messageStart = source.slice(source.indexOf('pi.on("message_start"'), source.indexOf('pi.on("message_update"'));
-	assert.match(messageStart, /if \(harness\) adoptParkedCommandIdentity\(turn, turn\.tracker\.userKind\)/);
+	assert.match(messageStart, /if \(harness\) \{[\s\S]*adoptParkedCommandIdentity\(turn, turn\.tracker\.userKind\)/);
 	const beforeStart = source.slice(source.indexOf('pi.on("before_agent_start"'), source.indexOf('pi.on("message_start"'));
 	assert.match(beforeStart, /adoptParkedCommandIdentity\(turn, turn\.tracker\.userKind\)/);
 	// Posting rides the open turn's newest command; who asked travels in request_ref (7a4d04fd).

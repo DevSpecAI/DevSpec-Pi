@@ -59,6 +59,8 @@ export interface NoticeHandoverResult {
 	done: boolean;
 	/** What the agent is told. */
 	text: string;
+	/** Structured server refusal payload when DevSpec refused with structured details (requirement 4e32d1a5). */
+	refusal?: Record<string, unknown>;
 }
 
 const SAY_NOTHING_MORE = "Say nothing about these notices in your own messages.";
@@ -73,7 +75,14 @@ export function noticeHandoverResult(outcome: NoticeReplyOutcome): NoticeHandove
 		case "for_the_record":
 			return { ok: true, done: true, text: `DevSpec posted nothing: these notices are for the record. ${SAY_NOTHING_MORE}` };
 		case "refused":
-			return { ok: false, done: true, text: `DevSpec did not post the reply (${outcome.reason}). ${outcome.detail}` };
+			return {
+				ok: false,
+				done: true,
+				text: outcome.refusal
+					? `DevSpec did not post the reply (${outcome.reason}). ${outcome.detail} Details: ${JSON.stringify(outcome.refusal)}`
+					: `DevSpec did not post the reply (${outcome.reason}). ${outcome.detail}`,
+				...(outcome.refusal ? { refusal: outcome.refusal } : {}),
+			};
 		case "not_attached":
 			return { ok: false, done: false, text: "Pi is not attached to a DevSpec room, so the reply was not posted. Tell the person at this terminal." };
 		case "connection_changed":
@@ -88,7 +97,7 @@ export function noticeHandoverResult(outcome: NoticeReplyOutcome): NoticeHandove
 /** Nothing steered into this turn is waiting for a reply. */
 export const NO_NOTICE_WAITING = "No DevSpec notice delivered into this turn is waiting for a reply, so nothing was posted.";
 
-export type NoticeHandover = (message: string) => Promise<{ ok: boolean; text: string }>;
+export type NoticeHandover = (message: string) => Promise<{ ok: boolean; text: string; refusal?: Record<string, unknown> }>;
 
 // The tool lives in the tools extension and the turn in the remote one. Pi loads
 // each extension file with its own module graph, so the hand-over between them is
@@ -107,7 +116,7 @@ export function installNoticeHandover(handover: NoticeHandover | null): void {
 }
 
 /** The tool's whole behaviour: hand the words over, and tell the agent what DevSpec did. */
-export async function handOverNoticeReply(message: unknown): Promise<{ ok: boolean; text: string }> {
+export async function handOverNoticeReply(message: unknown): Promise<{ ok: boolean; text: string; refusal?: Record<string, unknown> }> {
 	const words = typeof message === "string" ? message.trim() : "";
 	if (!words) return { ok: false, text: "Pass message: what you want your person to hear about the notices." };
 	const handover = store().handover;

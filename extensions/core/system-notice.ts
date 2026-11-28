@@ -91,7 +91,13 @@ export function hasSystemNoticeBatchCapacity(
 		current.queue.length + batchSize <= SYSTEM_NOTICE_QUEUE_LIMIT;
 }
 
-/** Notice-triggered model runs are local harness work, never remote activity. */
+/**
+ * Working presence and source-less attempt completion are decoupled from chat
+ * transcript speech (item 2145bd84, decision 6459a009): notice-triggered runs
+ * report live Working state (with their mechanical work_subject) and close
+ * cleanly, while chat transcript speech and trail posts remain suppressed
+ * (`reportTranscript: false`, decision 0c496777).
+ */
 export interface RemoteRunActivityPolicy {
 	reportPresence: boolean;
 	reportCompletion: boolean;
@@ -99,8 +105,11 @@ export interface RemoteRunActivityPolicy {
 }
 
 export function remoteRunActivityPolicy(completionNeutral: boolean): RemoteRunActivityPolicy {
-	const enabled = !completionNeutral;
-	return { reportPresence: enabled, reportCompletion: enabled, reportTranscript: enabled };
+	return {
+		reportPresence: true,
+		reportCompletion: true,
+		reportTranscript: !completionNeutral,
+	};
 }
 
 export interface RealUserActivityTransition {

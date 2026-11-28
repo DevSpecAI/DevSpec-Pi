@@ -272,7 +272,7 @@ import { takeTellPerson } from "./core/tell-person.ts";
 import { UsageRefusalReport, type ModelCallEnd } from "./core/usage-refusal.ts";
 import {
 	PendingWorkSubjects,
-	WORK_SUBJECT_PICKUP_TIMEOUT_MS,
+	TURN_LIFECYCLE_REQUEST_TIMEOUT_MS,
 	isNonCommandWorkSubject,
 	terminalWorkSubject,
 	workSubjectEquals,
@@ -1011,7 +1011,7 @@ function prepareLocalActivity(t: TurnState): Promise<string | null> {
 			previousAttemptId: localActivityPredecessor?.scope === key ? localActivityPredecessor.attemptId : null,
 			current, request: async args => {
 				const raw = await callDevspec(resolved.token, "report_pickup", args, {
-					lane: "pump", retry: "never", timeoutMs: 10_000, connectionCapability,
+					lane: "pump", retry: "never", timeoutMs: TURN_LIFECYCLE_REQUEST_TIMEOUT_MS, connectionCapability,
 					beforeSend: () => { if (!current()) throw new DevspecToolError("Local activity changed before admission."); },
 				});
 				const result = unwrapMcpResult(raw);
@@ -1073,7 +1073,7 @@ function prepareAssistantSpeech(t: TurnState): Promise<void> {
 				const resolved = await resolveToken();
 				if (!resolved || !current()) return null;
 				const raw = await callDevspec(resolved.token, "report_pickup", { ...args, speech_scope: true }, {
-					lane: "pump", retry: "never", connectionCapability: capability,
+					lane: "pump", retry: "never", timeoutMs: TURN_LIFECYCLE_REQUEST_TIMEOUT_MS, connectionCapability: capability,
 					beforeSend: () => { if (!current()) throw new DevspecToolError("Speech scope changed."); },
 				});
 				const result = unwrapMcpResult(raw);
@@ -1464,7 +1464,7 @@ async function reportCommandPickup(commandTurnId: string, commandMessageId: stri
 			connection_id: authority.connectionId,
 			command_turn_id: commandTurnId,
 			command_message_id: commandMessageId,
-		}, { timeoutMs: 10_000, lane: "pump", retry: "never",
+		}, { timeoutMs: TURN_LIFECYCLE_REQUEST_TIMEOUT_MS, lane: "pump", retry: "never",
 			beforeSend: () => { if (!stillCurrent()) throw new DevspecToolError("Command segment changed before pickup."); },
 		});
 	} catch {
@@ -1492,7 +1492,7 @@ async function reportWorkSubjectPickup(workSubject: NonCommandWorkSubject, still
 		const raw = await callDevspec(resolved.token, "report_pickup", {
 			connection_id: authority.connectionId,
 			work_subject: workSubject,
-		}, { timeoutMs: WORK_SUBJECT_PICKUP_TIMEOUT_MS, lane: "pump", retry: "never",
+		}, { timeoutMs: TURN_LIFECYCLE_REQUEST_TIMEOUT_MS, lane: "pump", retry: "never",
 			beforeSend: () => { if (!stillCurrent()) throw new DevspecToolError("Work segment changed before pickup."); },
 		});
 		const receipt = unwrapMcpResult(raw);
@@ -1553,7 +1553,7 @@ async function reportComplete(reason: string, commandTurnId?: string, commandMes
 			...(localAttemptId ? { attempt_id: localAttemptId } : {}),
 			...(interaction ? exactInteractionContinuationArgs(interaction) : {}),
 			...(prePersistenceFailure ? { interaction_pre_persistence_failure: true } : {}),
-		}, { timeoutMs: 10_000, lane: "pump", ...(interaction && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}),
+		}, { timeoutMs: TURN_LIFECYCLE_REQUEST_TIMEOUT_MS, lane: "pump", ...(interaction && active.bond.connectionCapability ? { connectionCapability: active.bond.connectionCapability } : {}),
 			beforeSend: () => { if (!stillCurrent()) throw new DevspecToolError("Completion observation changed before send."); },
 		});
 		const receipt = unwrapMcpResult(raw);
@@ -1675,7 +1675,7 @@ async function startInteractionContinuation(
 	const raw = await callDevspec(resolved.token, "report_pickup", {
 		connection_id: authority.connectionId,
 		...interactionContinuationStartArgs(event),
-	}, { timeoutMs: 10_000, lane: "pump", connectionCapability: active.bond.connectionCapability });
+	}, { timeoutMs: TURN_LIFECYCLE_REQUEST_TIMEOUT_MS, lane: "pump", connectionCapability: active.bond.connectionCapability });
 	const { details, isError, text } = unwrapMcpResult(raw);
 	if (isError) throw new Error(text || "exact interaction report_pickup failed");
 	return parseInteractionContinuationStartResult(details);
@@ -1693,7 +1693,7 @@ async function keepInteractionContinuationAlive(run: ExactInteractionRun): Promi
 		await callDevspec(resolved.token, "report_keepalive", {
 			connection_id: run.authority.connectionId,
 			...exactInteractionContinuationArgs(run.identity),
-		}, { timeoutMs: 10_000, lane: "pump", connectionCapability: run.authority.connectionCapability });
+		}, { timeoutMs: TURN_LIFECYCLE_REQUEST_TIMEOUT_MS, lane: "pump", connectionCapability: run.authority.connectionCapability });
 		return interactionRunIsLive(run) && interactionAuthorityCurrent(run.authority);
 	} catch {
 		return false;
@@ -1714,7 +1714,7 @@ async function releaseInteractionBeforePersistence(run: ExactInteractionRun, rea
 			...exactInteractionContinuationArgs(run.identity),
 			interaction_pre_persistence_failure: true,
 		}, {
-			timeoutMs: 10_000,
+			timeoutMs: TURN_LIFECYCLE_REQUEST_TIMEOUT_MS,
 			lane: "pump",
 			connectionCapability: run.authority.connectionCapability,
 		});

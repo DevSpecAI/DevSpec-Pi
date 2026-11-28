@@ -21,13 +21,13 @@ export const ACTIVITY_PROGRESS_STALENESS_HOURS = 24 as const;
 export const ACTIVITY_PROGRESS_STALENESS_MS = ACTIVITY_PROGRESS_STALENESS_HOURS * 60 * 60 * 1000;
 
 /**
- * Shared pump-lane HTTP request timeout for `report_pickup` calls (decision
- * 91d7b47c / requirement 3c5147a7).
- * Logical justification: 10 seconds matches Pi's existing `reportCommandPickup`
- * pump-lane request budget in `extensions/devspec-remote.ts`, tolerating brief
- * network jitter while staying well inside the poll cadence.
+ * Shared pump-lane HTTP request timeout for mechanical working-state lifecycle
+ * calls (`report_pickup`, `report_keepalive`, `report_complete`) (decision
+ * 91d7b47c / requirement 3c5147a7, item 2145bd84).
+ * Logical justification: 10 seconds tolerates brief network jitter on lifecycle
+ * state updates while staying well inside the poll interval and hook timeout budgets.
  */
-export const WORK_SUBJECT_PICKUP_TIMEOUT_MS = 10_000 as const;
+export const TURN_LIFECYCLE_REQUEST_TIMEOUT_MS = 10_000 as const;
 
 export const WORK_SUBJECT_KINDS = [
 	"server_notice",

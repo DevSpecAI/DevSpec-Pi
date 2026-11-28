@@ -18,7 +18,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { resetClientCache, setLaneClientFactoryForTests, type LaneClient } from "../extensions/core/client.ts";
 import { getBond, setBond } from "../extensions/core/bond-state.ts";
 import { saveLogin } from "../extensions/core/auth-store.ts";
-import { parsePostSessionReceipt } from "../extensions/core/post-session-receipt.ts";
+import { parsePostSessionReceipt, TrailDeliveryState } from "../extensions/core/post-session-receipt.ts";
 import { projectTrailArgs, projectTrailResult } from "../extensions/core/trail-projection.ts";
 import { resetSystemNoticeStateForTests } from "../extensions/core/system-notice.ts";
 import {
@@ -102,6 +102,14 @@ test("work_subject shapes match DevSpecV2 strict wire schema and 24-hour stalene
 	assert.deepEqual(pending.peek("wake-a"), { kind: "check_job", id: CHECK_JOB_ID });
 	assert.deepEqual(pending.take("wake-a"), { kind: "check_job", id: CHECK_JOB_ID });
 	assert.equal(pending.take("wake-a"), undefined);
+
+	// No arbitrary 128-entry silent oldest-eviction (requirements 3c5147a7 & 91d7b47c).
+	for (let i = 0; i < 150; i += 1) {
+		pending.remember(`wake-${i}`, { kind: "check_job", id: CHECK_JOB_ID });
+	}
+	assert.deepEqual(pending.take("wake-0"), { kind: "check_job", id: CHECK_JOB_ID }, "oldest entry must not be silently evicted");
+	assert.deepEqual(pending.take("wake-149"), { kind: "check_job", id: CHECK_JOB_ID });
+	pending.clear();
 });
 
 test("parsePostSessionReceipt accepts non-command diagnostics_only trail receipts without top-level message_id", () => {
@@ -135,6 +143,36 @@ test("parsePostSessionReceipt accepts non-command diagnostics_only trail receipt
 		parsePostSessionReceipt(wrongAttempt, { connectionId: CONNECTION, sessionId: ROOM_SESSION, phase: "trail" }),
 		{ status: "malformed" },
 	);
+
+	// Structured refusal details are preserved and TrailDeliveryState retains refusal + stops retrying (4e32d1a5).
+	const refused = textResult({
+		outcome: "already_finalized",
+		terminal: true,
+		retryable: false,
+		awaiting_input: false,
+		delivery: { status: "rejected", outcome: "already_finalized", terminal: true, retryable: false },
+		error: "Turn already finalized",
+	});
+	const parsedRefusal = parsePostSessionReceipt(refused, { connectionId: CONNECTION, sessionId: ROOM_SESSION, phase: "trail" });
+	assert.deepEqual(parsedRefusal, {
+		status: "rejected",
+		refusal: {
+			outcome: "already_finalized",
+			terminal: true,
+			retryable: false,
+			awaitingInput: false,
+			deliveryStatus: "rejected",
+			error: "Turn already finalized",
+		},
+	});
+	const delivery = new TrailDeliveryState();
+	delivery.markDirty();
+	const snap = delivery.begin();
+	assert.notEqual(snap, null);
+	delivery.finish(snap!, false, parsedRefusal.status === "rejected" ? parsedRefusal.refusal : undefined);
+	assert.equal(delivery.blocked, true);
+	assert.equal(delivery.begin(), null);
+	assert.deepEqual(delivery.refusal, parsedRefusal.status === "rejected" ? parsedRefusal.refusal : undefined);
 });
 
 test("trail projections keep background commands, gh commands, and newer DevSpec verbs granular and privacy-safe", () => {
@@ -158,6 +196,7 @@ class ScriptedDevspec {
 	mcpUrl = "";
 	readonly calls: Call[] = [];
 	attachedSessionId: string | null = ROOM_SESSION;
+	failNonCommandPickup = false;
 	private pollQueue: Array<Record<string, unknown>> = [];
 	private dispatchesById = new Map<string, unknown>();
 
@@ -256,6 +295,9 @@ class ScriptedDevspec {
 					});
 				}
 				if (name === "report_pickup") {
+					if (this.failNonCommandPickup && args?.work_subject) {
+						return { isError: true, content: [{ type: "text", text: JSON.stringify({ error: "temporary pickup failure", retryable: true }) }] };
+					}
 					attemptSeq += 1;
 					const attemptId = `00000000-0000-4000-8000-${String(attemptSeq).padStart(12, "0")}`;
 					if (args?.local_activity_version === 1) {
@@ -538,7 +580,7 @@ test("server_notice wake reports live working state, exact work_subject, diagnos
 	assert.deepEqual(pi.stripProject(srv.callsOf("report_complete")[0]!.args), {
 		connection_id: CONNECTION,
 		reason: "turn_end",
-		command_turn_unbound: true,
+		attempt_id: "00000000-0000-4000-8000-000000000001",
 	});
 
 	// Idle heartbeat clears work_subject: null; subsequent unchanged idle poll omits work_subject.
@@ -599,7 +641,7 @@ test("system_notice (unlinked_commit_item_review) reports exact system_notice wo
 	assert.deepEqual(pi.stripProject(srv.callsOf("report_complete")[0]!.args), {
 		connection_id: CONNECTION,
 		reason: "turn_end",
-		command_turn_unbound: true,
+		attempt_id: "00000000-0000-4000-8000-000000000001",
 	});
 });
 
@@ -659,7 +701,7 @@ test("check_job wake reports check_job work_subject, streams granular trail with
 	assert.deepEqual(pi.stripProject(srv.callsOf("report_complete")[0]!.args), {
 		connection_id: CONNECTION,
 		reason: "turn_end",
-		command_turn_unbound: true,
+		attempt_id: "00000000-0000-4000-8000-000000000001",
 	});
 
 	const posts = srv.callsOf("post_session_message");
@@ -723,7 +765,7 @@ test("automation_run wake reports automation_run work_subject, streams trail, an
 	assert.deepEqual(pi.stripProject(srv.callsOf("report_complete")[0]!.args), {
 		connection_id: CONNECTION,
 		reason: "turn_end",
-		command_turn_unbound: true,
+		attempt_id: "00000000-0000-4000-8000-000000000001",
 	});
 	const trailPosts = srv.callsOf("post_session_message").filter((c) => c.args?.phase === "trail");
 	assert.equal(trailPosts.length, 1);
@@ -753,7 +795,7 @@ test("terminal prompt (attached vs sessionless), room command, and offline heart
 	assert.deepEqual(sessionlessPi.stripProject(srv.callsOf("report_complete")[0]!.args), {
 		connection_id: CONNECTION,
 		reason: "turn_end",
-		command_turn_unbound: true,
+		attempt_id: "00000000-0000-4000-8000-000000000001",
 	});
 	await sessionlessPi.shutdown();
 	const offlineBeat = srv.callsOf("heartbeat_connection").find((c) => c.args?.status === "offline");
@@ -908,18 +950,19 @@ test("owned background command and async subagents keep working state, work_subj
 	assert.equal(poll1.args?.busy, true);
 	assert.deepEqual(poll1.args?.work_subject, { kind: "server_notice", id: SERVER_NOTICE_ID });
 
-	// Another safety poll while bg-1 is actively running advances progress_marker!
+	// Another safety poll while bg-1 is UNCHANGED ("running") keeps working + work_subject
+	// alive WITHOUT artificially advancing progress_marker (so a wedged process respects the 24h cutoff).
 	const pollsSecond = srv.callsOf("poll_connection").length;
 	srv.wake();
 	await until(
-		() => srv.callsOf("poll_connection").slice(pollsSecond).some((c) => c.args?.busy === true && c.args?.progress_marker !== poll1.args?.progress_marker),
+		() => srv.callsOf("poll_connection").slice(pollsSecond).some((c) => c.args?.busy === true && (c.args?.work_subject as { id?: string } | undefined)?.id === SERVER_NOTICE_ID),
 		2_000,
-		"second poll advancing progress_marker while bg task runs",
+		"second poll while bg task unchanged",
 	);
-	const poll2 = srv.callsOf("poll_connection").slice(pollsSecond).find((c) => c.args?.busy === true)!;
-	assert.notEqual(poll2.args?.progress_marker, poll1.args?.progress_marker, "live background observation advances progress_marker");
+	const poll2 = srv.callsOf("poll_connection").slice(pollsSecond).find((c) => c.args?.busy === true && (c.args?.work_subject as { id?: string } | undefined)?.id === SERVER_NOTICE_ID)!;
+	assert.equal(poll2.args?.progress_marker, poll1.args?.progress_marker, "unchanged running background observation must NOT advance progress_marker");
 
-	// Complete bg-1 -> completeObservedIdle closes the source-less attempt and clears work_subject!
+	// Complete bg-1 -> completeObservedIdle closes the exact source-less attempt_id and clears work_subject!
 	bgStatus = "completed";
 	pi.emitBus("pi-background-tasks:terminal:v1", {
 		schema_version: "pi-background-tasks.extension-terminal.v1",
@@ -929,7 +972,7 @@ test("owned background command and async subagents keep working state, work_subj
 	assert.deepEqual(pi.stripProject(srv.callsOf("report_complete")[0]!.args), {
 		connection_id: CONNECTION,
 		reason: "turn_end",
-		command_turn_unbound: true,
+		attempt_id: "00000000-0000-4000-8000-000000000001",
 	});
 	await until(() => srv.callsOf("heartbeat_connection").some((c) => c.args?.busy === false && c.args?.work_subject === null), 2_000, "idle clear after bg task ends");
 
@@ -997,7 +1040,52 @@ test("owned background command and async subagents keep working state, work_subj
 	assert.deepEqual(pi.stripProject(srv.callsOf("report_complete")[0]!.args), {
 		connection_id: CONNECTION,
 		reason: "turn_end",
-		command_turn_unbound: true,
+		attempt_id: "00000000-0000-4000-8000-000000000002",
 	});
 	await until(() => srv.callsOf("heartbeat_connection").some((c) => c.args?.busy === false && c.args?.work_subject === null), 2_000, "idle clear after subagent finishes");
+});
+
+test("non-command phase:'trail' is fenced on confirmed report_pickup attempt_id and never posts when pickup fails", async () => {
+	srv.failNonCommandPickup = true;
+	const pi = await loadRemote();
+	await pi.start();
+	const checkEnvelope = {
+		id: CHECK_JOB_ID,
+		kind: "check_job",
+		check_job_id: CHECK_JOB_ID,
+		check_kind: "conflict_decisions",
+		record: { type: "task", id: "9b2d6c1e-1111-4222-8333-444455556666", title: "Pickup failure fence" },
+		entries: 1,
+		yours: false,
+		offered_at: "2026-11-28T02:00:00.000Z",
+		delivery_connection_id: CONNECTION,
+	};
+	srv.rememberDispatch(CHECK_JOB_ID, checkEnvelope);
+	srv.enqueuePoll({
+		connection_id: CONNECTION,
+		session_id: ROOM_SESSION,
+		attached_at: "2026-11-28T00:00:00.000Z",
+		speech_attachment_id: "att-1",
+		changed: false,
+		dispatches: [checkEnvelope],
+		dispatch_cursor: "disp-fail-1",
+		cursor_v2: null,
+		system_notice_version: 3,
+		system_notice_cursor: null,
+		system_notices: [],
+	});
+	await until(() => pi.sentUserMessages.length === 1, 2_000, "check job delivered");
+	const wakeMsg = pi.sentUserMessages[0]!;
+	pi.setIdle(false);
+	await pi.run("before_agent_start", { prompt: wakeMsg });
+	await pi.run("agent_start", {});
+	await pi.run("message_start", { message: { role: "user", content: wakeMsg } });
+	await pi.run("tool_execution_start", { toolCallId: "f1", toolName: "read", args: { path: "docs/spec.md" } });
+	await pi.run("tool_execution_end", { toolCallId: "f1", toolName: "read", result: { content: [] }, isError: false });
+	await until(() => srv.callsOf("report_pickup").length === 1, 2_000, "failed pickup attempted");
+	pi.setIdle(true);
+	await pi.run("agent_settled", {});
+	await new Promise((r) => setTimeout(r, 80));
+	assert.equal(srv.callsOf("post_session_message").length, 0, "failed non-command pickup must NEVER post phase:trail (could fall back to an unrelated room command)");
+	assert.equal(srv.callsOf("report_complete").length, 0, "failed non-command pickup must NEVER emit generic report_complete");
 });

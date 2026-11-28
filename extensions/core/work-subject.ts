@@ -183,7 +183,6 @@ export class PendingWorkSubjects {
 	remember(message: string, subject: WorkSubject | null): void {
 		if (!subject) return;
 		this.pending.push({ message, subject });
-		if (this.pending.length > 128) this.pending.shift();
 	}
 
 	peek(message: string): WorkSubject | undefined {

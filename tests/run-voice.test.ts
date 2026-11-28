@@ -191,7 +191,7 @@ async function say(h: ReturnType<typeof harness>, t: Record<string, unknown>, te
 }
 
 test("a check-job run posts no chat speech, answer or error bubble, while streaming diagnostics trail without command turn identity (2145bd84)", async () => {
-	const t = liveSegment(checkJobWake, { terminalError: "402 Insufficient balance" });
+	const t = liveSegment(checkJobWake, { terminalError: "402 Insufficient balance", workSubjectPickupSent: true, workSubjectAttemptId: "attempt-check-1" });
 	const h = harness(t);
 	assert.equal(h.api.segmentWake(t), "check_job");
 	await say(h, t, "I'll take the check and rule its entries.", "toolUse", true);
@@ -212,7 +212,7 @@ test("a check-job run posts no chat speech, answer or error bubble, while stream
 });
 
 test("a check-job run whose write changed someone else's record speaks from the mark on, like any run", async () => {
-	const t = liveSegment(checkJobWake);
+	const t = liveSegment(checkJobWake, { workSubjectPickupSent: true, workSubjectAttemptId: "attempt-check-2" });
 	const h = harness(t);
 	await say(h, t, "I'll fold the duplicate.", "toolUse", true);
 	t.tellPerson = true; // tool_execution_end took DevSpec's mark for the write

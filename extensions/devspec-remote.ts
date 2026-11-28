@@ -1249,7 +1249,7 @@ function capturePostAuthority(): () => boolean {
 		(!active.stop || active.closing));
 }
 
-async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; localTurn?: boolean; allowSessionlessTrail?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; isCurrent?: () => boolean; agentStats?: AgentStatsReport; onReceipt?: (status: "stored" | "idempotently_stored" | "skipped" | "rejected" | "malformed", refusal?: PostSessionRefusal) => void } = {}): Promise<boolean> {
+async function postToSession(message: string, opts: { phase?: string; completeTurn?: boolean; turnKind?: string; commandTurnId?: string; commandMessageId?: string; commandTurnUnbound?: boolean; localTurn?: boolean; interaction?: ExactInteractionContinuationIdentity; workTrail?: string; trailEvents?: unknown; isCurrent?: () => boolean; agentStats?: AgentStatsReport; onReceipt?: (status: "stored" | "idempotently_stored" | "skipped" | "rejected" | "malformed", refusal?: PostSessionRefusal) => void } = {}): Promise<boolean> {
 	const active = pump;
 	const bond = getBond();
 	const ctx = lastCtx;
@@ -1267,7 +1267,7 @@ async function postToSession(message: string, opts: { phase?: string; completeTu
 	const sessionlessAutomationTrail =
 		!bond?.sessionId &&
 		opts.phase === "trail" &&
-		(opts.allowSessionlessTrail === true || turn?.requestKind === "automation" || segmentInputKind === "automation" || turn?.workSubject?.kind === "automation_run");
+		(turn?.requestKind === "automation" || segmentInputKind === "automation");
 	// A post needs a connection to go through: a sessionless automation trail may
 	// post without a room, never without a bond (a54ff6ba).
 	if (!active || !bond || (!bond.sessionId && !sessionlessAutomationTrail)) return failure("skipped");
@@ -1371,28 +1371,13 @@ function segmentWake(t: TurnState): RunWake {
 	return t.tracker.userKind === "check_job" ? "check_job" : "person";
 }
 
-/** Quiet by what woke it: no speech, answer or error notice in the room. */
+/** Quiet by what woke it: no speech, answer, trail or error notice in the room. */
 function segmentIsQuiet(t: TurnState): boolean {
 	return wakeIsQuiet(segmentWake(t));
 }
 
-/**
- * Non-chat wake segments (notices, check jobs, automations) stream live
- * `phase: "trail"` diagnostics onto their source-less working attempt without
- * naming a command turn or opening a chat bubble (item 2145bd84).
- */
-function isNonChatTrailSegment(t: TurnState): boolean {
-	if (t.commandTurnId || t.commandMessageId || t.interaction) return false;
-	const kind = t.workSubject?.kind;
-	if (kind === "server_notice" || kind === "system_notice" || kind === "check_job" || kind === "automation_run") return true;
-	return t.completionNeutral || t.tracker?.userKind === "check_job" || t.tracker?.userKind === "automation" || t.requestKind === "automation";
-}
-
-function canPostTrail(t: TurnState): boolean {
-	const bond = getBond();
-	if (!bond?.connectionId) return false;
-	if (bond.sessionId) return true;
-	return t.requestKind === "automation" || t.tracker?.userKind === "automation" || t.workSubject?.kind === "automation_run";
+function isAutomationSegment(t: TurnState): boolean {
+	return t.workSubject?.kind === "automation_run" || t.requestKind === "automation" || t.tracker?.userKind === "automation";
 }
 
 function isCommandTurnUnbound(t: TurnState): boolean {
@@ -1413,16 +1398,12 @@ function resetDirectedQuestionReceiptBatch(): void {
 }
 
 function trailTick(): void {
-	const policy = turn ? remoteRunActivityPolicy(turn.completionNeutral) : null;
-	if (!turn || !(policy?.reportTrail ?? policy?.reportTranscript)) return;
-	if (!canPostTrail(turn)) return;
+	if (!turn || !remoteRunActivityPolicy(turn.completionNeutral).reportTranscript) return;
+	// Quiet segments (check jobs) and automations post no phase:"trail" updates
+	// (Technical details is retired for connected agents, decision 0c496777).
+	if (segmentIsQuiet(turn) || isAutomationSegment(turn)) return;
+	if (!getBond()?.sessionId) return;
 	if (turn.receiptBatch.deferTrail(turn.revision)) return;
-	const nonChatTrail = isNonChatTrailSegment(turn);
-	// Fence non-command diagnostic trail posts until report_pickup({ work_subject })
-	// confirms a source-less attempt_id. Without an active source-less working attempt,
-	// DevSpecV2's post_session_message falls back to any current delivered room command
-	// and would project quiet notice/check work into that room command's chat thread.
-	if (nonChatTrail && (!turn.workSubjectPickupSent || !turn.workSubjectAttemptId)) return;
 	const now = Date.now();
 	if (turn.interaction && now - (turn.lastInteractionKeepaliveAt ?? 0) >= 60_000) {
 		turn.lastInteractionKeepaliveAt = now;
@@ -1441,32 +1422,19 @@ function trailTick(): void {
 	const snapshot = postingTurn.trailDelivery.begin();
 	if (snapshot === null) return;
 	let capturedRefusal: PostSessionRefusal | undefined;
-	const trailOpts = nonChatTrail
-		? {
-			phase: "trail",
-			isCurrent: postingTurn.canPost,
-			workTrail: rendered,
-			trailEvents: activityEvents,
-			onReceipt: (_status: "stored" | "idempotently_stored" | "skipped" | "rejected" | "malformed", refusal?: PostSessionRefusal) => {
-				if (refusal) capturedRefusal = refusal;
-			},
-			...(postingTurn.requestKind === "automation" || postingTurn.tracker?.userKind === "automation" || postingTurn.workSubject?.kind === "automation_run" ? { allowSessionlessTrail: true } : {}),
-		}
-		: {
-			phase: "trail",
-			isCurrent: postingTurn.canPost,
-			commandTurnId: postingTurn.commandTurnId,
-			commandMessageId: postingTurn.commandMessageId,
-			commandTurnUnbound: isCommandTurnUnbound(postingTurn),
-			localTurn: isCommandTurnUnbound(postingTurn) && !postingTurn.interaction,
-			interaction: interactionIdentity(postingTurn.interaction),
-			workTrail: rendered,
-			trailEvents: activityEvents,
-			onReceipt: (_status: "stored" | "idempotently_stored" | "skipped" | "rejected" | "malformed", refusal?: PostSessionRefusal) => {
-				if (refusal) capturedRefusal = refusal;
-			},
-		};
-	postingTurn.trailPostFence.track(postToSession(rendered, trailOpts).then(stored => postingTurn.trailDelivery.finish(snapshot, stored, capturedRefusal)));
+	postingTurn.trailPostFence.track(postToSession(rendered, {
+		phase: "trail",
+		isCurrent: postingTurn.canPost,
+		commandTurnId: postingTurn.commandTurnId,
+		commandMessageId: postingTurn.commandMessageId,
+		commandTurnUnbound: isCommandTurnUnbound(postingTurn),
+		localTurn: isCommandTurnUnbound(postingTurn) && !postingTurn.interaction,
+		interaction: interactionIdentity(postingTurn.interaction),
+		trailEvents: activityEvents,
+		onReceipt: (_status: "stored" | "idempotently_stored" | "skipped" | "rejected" | "malformed", refusal?: PostSessionRefusal) => {
+			if (refusal) capturedRefusal = refusal;
+		},
+	}).then(stored => postingTurn.trailDelivery.finish(snapshot, stored, capturedRefusal)));
 }
 
 /**
@@ -1565,7 +1533,6 @@ function startWorkSubjectPickup(t: TurnState, workSubject: NonCommandWorkSubject
 	).then((attemptId) => {
 		if (attemptId && t.revision === revision) {
 			t.workSubjectAttemptId = attemptId;
-			if (turn === t && t.trailDelivery.dirty && !t.trailDelivery.blocked) trailTick();
 		}
 		return attemptId;
 	});
@@ -1784,49 +1751,16 @@ async function releaseInteractionBeforePersistence(run: ExactInteractionRun, rea
  * mid-run close (f0df6c3e) passes false: the bubble is finished, work is not.
  */
 async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | null, why: string, completeTurn = true): Promise<boolean> {
-	const flushDiagnosticsTrail = async (): Promise<void> => {
-		const bond = getBond();
-		if (!bond?.connectionId) return;
-		const isAutomation = t.requestKind === "automation" || t.tracker?.userKind === "automation" || t.workSubject?.kind === "automation_run";
-		if (!bond.sessionId && !isAutomation) return;
-		// Fence non-command diagnostic trail posts on a confirmed source-less attempt_id
-		// from report_pickup({ work_subject }) so a failed or skipped pickup can never fall
-		// back onto an unrelated delivered room command's chat projection.
-		if (!t.workSubjectPickupSent) return;
-		const attemptId = t.workSubjectAttemptId ?? (t.workSubjectPickupReady ? await t.workSubjectPickupReady : null);
-		if (!attemptId || !t.canPost()) return;
-		if (!t.trailDelivery.dirty || t.trailDelivery.blocked || t.receiptBatch.suppressEmptyFallback(t.revision)) return;
-		const finalEvents = t.trail.events();
-		if (finalEvents.length === 0) return;
-		const finalTrail = t.trail.render(FINAL_TRAIL_CHARS, false);
-		if (!finalTrail) return;
-		const snapshot = t.trailDelivery.begin();
-		if (snapshot === null) return;
-		let capturedRefusal: PostSessionRefusal | undefined;
-		const stored = await postToSession(finalTrail, {
-			phase: "trail",
-			isCurrent: t.canPost,
-			workTrail: finalTrail,
-			trailEvents: finalEvents,
-			onReceipt: (_status, refusal) => { if (refusal) capturedRefusal = refusal; },
-			...(isAutomation ? { allowSessionlessTrail: true } : {}),
-		});
-		t.trailDelivery.finish(snapshot, stored, capturedRefusal);
-	};
 	// A notice-woken segment answers its notices, never a command. Its final
-	// message goes to the room as their reply (6aad2b46) and never posts a chat
-	// answer bubble; it may flush diagnostics trail onto its source-less attempt (2145bd84).
+	// message goes to the room as their reply and it posts no transcript or trail (6aad2b46).
 	if (t.completionNeutral) {
-		await flushDiagnosticsTrail();
 		if (t.noticeReply) await deliverNoticeReply(t.noticeReply, agentStats, t.tellPerson === true);
 		return false;
 	}
 	if (!remoteRunActivityPolicy(t.completionNeutral).reportTranscript) return false;
-	// A quiet segment (a check job) posts no chat answer bubble, while still
-	// flushing diagnostics trail onto its source-less working attempt (2145bd84).
-	// If a write of its own was marked tell_person, its messages already went out as speech (a868f41f).
+	// A quiet segment (a check job) posts no answer and no trail. If a write of its
+	// own was marked tell_person, its messages already went out as speech (a868f41f).
 	if (segmentIsQuiet(t)) {
-		await flushDiagnosticsTrail();
 		// A notice delivered between the steps of a check-job run has no other voice:
 		// the run's final message is its reply, as for a notice run (da5cfae5). Once
 		// tell_person made the run speak, that message already reached the room.
@@ -1859,15 +1793,23 @@ async function postSegmentAnswer(t: TurnState, agentStats: AgentStatsReport | nu
 		return promptStored && answerStored;
 	}
 	if (t.trailDelivery.dirty && !t.trailDelivery.blocked && activityTrail && !t.receiptBatch.suppressEmptyFallback(t.revision)) {
-		if (t.workSubject?.kind === "automation_run" || t.requestKind === "automation" || t.tracker?.userKind === "automation") {
-			await flushDiagnosticsTrail();
-			return false;
-		}
+		if (isAutomationSegment(t)) return false;
 		if (!getBond()?.sessionId) return false;
 		const snapshot = t.trailDelivery.begin();
 		if (snapshot === null) return false;
-		const stored = await postToSession(activityTrail, { phase: "trail", isCurrent: t.canPost, commandTurnId: t.commandTurnId, commandMessageId: t.commandMessageId, commandTurnUnbound: isCommandTurnUnbound(t), localTurn: isCommandTurnUnbound(t) && !t.interaction, interaction: interactionIdentity(t.interaction), workTrail: activityTrail, trailEvents: finalEvents });
-		t.trailDelivery.finish(snapshot, stored);
+		let capturedRefusal: PostSessionRefusal | undefined;
+		const stored = await postToSession(activityTrail, {
+			phase: "trail",
+			isCurrent: t.canPost,
+			commandTurnId: t.commandTurnId,
+			commandMessageId: t.commandMessageId,
+			commandTurnUnbound: isCommandTurnUnbound(t),
+			localTurn: isCommandTurnUnbound(t) && !t.interaction,
+			interaction: interactionIdentity(t.interaction),
+			trailEvents: finalEvents,
+			onReceipt: (_status, refusal) => { if (refusal) capturedRefusal = refusal; },
+		});
+		t.trailDelivery.finish(snapshot, stored, capturedRefusal);
 	}
 	return false;
 }

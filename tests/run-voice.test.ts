@@ -190,8 +190,8 @@ async function say(h: ReturnType<typeof harness>, t: Record<string, unknown>, te
 	await h.hooks.message_end({ message: assistant(text, stopReason, tools) }, {});
 }
 
-test("a check-job run posts no chat speech, answer or error bubble, while streaming diagnostics trail without command turn identity (2145bd84)", async () => {
-	const t = liveSegment(checkJobWake, { terminalError: "402 Insufficient balance", workSubjectPickupSent: true, workSubjectAttemptId: "attempt-check-1" });
+test("a check-job run posts nothing to the room: no speech, no trail, no answer, no error notice", async () => {
+	const t = liveSegment(checkJobWake, { terminalError: "402 Insufficient balance" });
 	const h = harness(t);
 	assert.equal(h.api.segmentWake(t), "check_job");
 	await say(h, t, "I'll take the check and rule its entries.", "toolUse", true);
@@ -200,19 +200,14 @@ test("a check-job run posts no chat speech, answer or error bubble, while stream
 	await h.drain();
 	assert.equal(await h.api.postSegmentAnswer(t, null, "run_end", true), false, "it completes no turn by an answer");
 	await h.api.reportTerminalError(t, null);
-	assert.deepEqual(h.requests, [], "no chat speech post");
-	assert.equal(h.room.length, 1, "one diagnostics trail post, no answer or error bubble");
-	assert.equal(h.room[0]!.opts.phase, "trail");
-	assert.equal(h.room[0]!.opts.commandTurnId, undefined, "omits command_turn_id so server routes to nonCommandDiagnosticsOnly");
-	assert.equal(h.room[0]!.opts.commandTurnUnbound, undefined, "omits command_turn_unbound");
-	assert.equal(h.room[0]!.opts.localTurn, undefined, "omits local_turn");
-	assert.ok(Array.isArray(h.room[0]!.opts.trailEvents) && h.room[0]!.opts.trailEvents.length > 0);
+	assert.deepEqual(h.requests, [], "no speech post");
+	assert.deepEqual(h.room, [], "no trail, answer or error post");
 	assert.deepEqual(h.warnings, []);
 	assert.ok(!h.journal.includes("devspec-assistant-speech"), "nothing journalled as posted speech");
 });
 
 test("a check-job run whose write changed someone else's record speaks from the mark on, like any run", async () => {
-	const t = liveSegment(checkJobWake, { workSubjectPickupSent: true, workSubjectAttemptId: "attempt-check-2" });
+	const t = liveSegment(checkJobWake);
 	const h = harness(t);
 	await say(h, t, "I'll fold the duplicate.", "toolUse", true);
 	t.tellPerson = true; // tool_execution_end took DevSpec's mark for the write
@@ -222,13 +217,10 @@ test("a check-job run whose write changed someone else's record speaks from the 
 		["post_session_message", "I closed Sam's task as a duplicate of yours.", 2],
 	]);
 	assert.equal(h.requests[0]!.args.system_notice_ids, undefined);
-	// Diagnostics trail still streams without command identity; no chat answer post.
+	// Still no trail: a finished trail-only row would be drawn in the conversation.
 	h.api.trailTick();
 	assert.equal(await h.api.postSegmentAnswer(t, null, "run_end", true), false);
-	assert.equal(h.room.length, 1);
-	assert.equal(h.room[0]!.opts.phase, "trail");
-	assert.equal(h.room[0]!.opts.commandTurnId, undefined);
-	assert.equal(h.room[0]!.opts.commandTurnUnbound, undefined);
+	assert.deepEqual(h.room, []);
 });
 
 test("a person's command speaks exactly as before: speech, trail and answer writers all run", async () => {
@@ -305,18 +297,18 @@ test("a notice steered into a check-job run is answered by the run's final messa
 	assert.deepEqual(h.requests.map((request) => [request.name, request.args.message, request.args.system_notice_ids]), [
 		["post_session_message", "Your task clashes with Sam's decision; want me to revise it?", [NEEDS]],
 	]);
-	assert.ok(h.room.every((post) => post.opts.phase === "trail" && post.opts.commandTurnId === undefined && post.opts.commandTurnUnbound === undefined), "only diagnostics trail, no answer post");
+	assert.deepEqual(h.room, [], "no trail and no answer post");
 	assert.deepEqual(h.warnings, []);
 });
 
-test("a check-job run steered only for-the-record notices, or ending on a tool call, still posts no chat speech or answer", async () => {
+test("a check-job run steered only for-the-record notices, or ending on a tool call, still posts nothing", async () => {
 	const record = liveSegment(checkJobWake, { noticeReply: { connectionId: CONNECTION, noticeIds: [], forTheRecordIds: [RECORD], roomPromised: true, finalText: null } });
 	const quiet = harness(record);
 	await say(quiet, record, "Ruled all four entries and folded my duplicate.");
 	await quiet.drain();
 	assert.equal(await quiet.api.postSegmentAnswer(record, null, "run_end", true), false);
 	assert.deepEqual(quiet.requests, []);
-	assert.ok(quiet.room.every((post) => post.opts.phase === "trail" && post.opts.commandTurnId === undefined && post.opts.commandTurnUnbound === undefined));
+	assert.deepEqual(quiet.room, []);
 	const open = liveSegment(checkJobWake, { noticeReply: { connectionId: CONNECTION, noticeIds: [NEEDS], forTheRecordIds: [], roomPromised: true, finalText: null } });
 	const unfinished = harness(open);
 	await say(unfinished, open, "Still ruling.", "toolUse", true);

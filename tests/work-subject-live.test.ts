@@ -112,8 +112,38 @@ test("work_subject shapes match DevSpecV2 strict wire schema and 24-hour stalene
 	pending.clear();
 });
 
-test("parsePostSessionReceipt accepts non-command diagnostics_only trail receipts without top-level message_id", () => {
+test("parsePostSessionReceipt accepts attempt-backed phase:'trail' receipts for BOTH ordinary room commands (diagnostics_only:false) and diagnostics_only:true without freezing TrailDeliveryState", () => {
 	const attemptId = "99999999-9999-4999-8999-999999999999";
+	// Bold Zebra's staging regression: ordinary room-command phase:'trail' receipt returns
+	// diagnostics_only: false + attempt_id + delivery:{status:'stored', message_id:attempt_id}
+	// with NO top-level message_id. Must succeed across consecutive updates without blocking!
+	const roomCommandTrail = textResult({
+		delivery: { status: "stored", message_id: attemptId },
+		session_id: ROOM_SESSION,
+		connection_id: CONNECTION,
+		attempt_id: attemptId,
+		phase: "trail",
+		diagnostics_only: false,
+		work_trail_chars: 42,
+	});
+	const delivery = new TrailDeliveryState();
+	delivery.markDirty();
+	const snap1 = delivery.begin();
+	assert.notEqual(snap1, null);
+	const receipt1 = parsePostSessionReceipt(roomCommandTrail, { connectionId: CONNECTION, sessionId: ROOM_SESSION, phase: "trail" });
+	assert.deepEqual(receipt1, { status: "stored", messageId: attemptId, diagnosticsOnly: true });
+	delivery.finish(snap1!, receipt1.status === "stored");
+	assert.equal(delivery.blocked, false, "first ordinary room-command trail receipt must NOT freeze TrailDeliveryState");
+
+	// Second consecutive update stays unblocked and succeeds too.
+	delivery.markDirty();
+	const snap2 = delivery.begin();
+	assert.notEqual(snap2, null, "second update must be allowed after first attempt-backed receipt");
+	const receipt2 = parsePostSessionReceipt(roomCommandTrail, { connectionId: CONNECTION, sessionId: ROOM_SESSION, phase: "trail" });
+	assert.deepEqual(receipt2, { status: "stored", messageId: attemptId, diagnosticsOnly: true });
+	delivery.finish(snap2!, receipt2.status === "stored");
+	assert.equal(delivery.blocked, false);
+
 	const raw = textResult({
 		delivery: { status: "stored", message_id: attemptId },
 		session_id: ROOM_SESSION,
@@ -174,14 +204,14 @@ test("parsePostSessionReceipt accepts non-command diagnostics_only trail receipt
 			error: "Turn already finalized",
 		},
 	});
-	const delivery = new TrailDeliveryState();
-	delivery.markDirty();
-	const snap = delivery.begin();
+	const refusedDelivery = new TrailDeliveryState();
+	refusedDelivery.markDirty();
+	const snap = refusedDelivery.begin();
 	assert.notEqual(snap, null);
-	delivery.finish(snap!, false, parsedRefusal.status === "rejected" ? parsedRefusal.refusal : undefined);
-	assert.equal(delivery.blocked, true);
-	assert.equal(delivery.begin(), null);
-	assert.deepEqual(delivery.refusal, parsedRefusal.status === "rejected" ? parsedRefusal.refusal : undefined);
+	refusedDelivery.finish(snap!, false, parsedRefusal.status === "rejected" ? parsedRefusal.refusal : undefined);
+	assert.equal(refusedDelivery.blocked, true);
+	assert.equal(refusedDelivery.begin(), null);
+	assert.deepEqual(refusedDelivery.refusal, parsedRefusal.status === "rejected" ? parsedRefusal.refusal : undefined);
 });
 
 test("trail projections keep background commands, gh commands, and newer DevSpec verbs granular and privacy-safe", () => {
@@ -575,16 +605,9 @@ test("server_notice wake reports live working state, exact work_subject, diagnos
 	await pi.run("agent_settled", {});
 	await until(() => srv.callsOf("report_complete").length === 1, 2_000, "source-less report_complete");
 
-	// Verify diagnostics trail streamed without command_turn_id / command_turn_unbound / local_turn, and ZERO chat answers.
+	// Verify ZERO post_session_message calls (for-the-record notice stays quiet with no Technical details trail).
 	const posts = srv.callsOf("post_session_message");
-	assert.equal(posts.length, 1, "exactly one diagnostics trail post and zero chat bubbles");
-	assert.equal(posts[0]!.args?.phase, "trail");
-	assert.equal(posts[0]!.args?.command_turn_id, undefined);
-	assert.equal(posts[0]!.args?.command_turn_unbound, undefined);
-	assert.equal(posts[0]!.args?.local_turn, undefined);
-	assert.ok(typeof posts[0]!.args?.message === "string" && posts[0]!.args.message.length > 0);
-	assert.ok(typeof posts[0]!.args?.work_trail === "string" && posts[0]!.args.work_trail.length > 0);
-	assert.equal((posts[0]!.args?.trail_events as unknown[]).length, 2);
+	assert.equal(posts.length, 0, "for-the-record server_notice posts zero chat bubbles and zero Technical details trails");
 
 	assert.deepEqual(pi.stripProject(srv.callsOf("report_complete")[0]!.args), {
 		connection_id: CONNECTION,
@@ -714,13 +737,7 @@ test("check_job wake reports check_job work_subject, streams granular trail with
 	});
 
 	const posts = srv.callsOf("post_session_message");
-	assert.equal(posts.length, 1, "one diagnostics trail post and zero chat bubbles for check_job");
-	assert.equal(posts[0]!.args?.phase, "trail");
-	assert.equal(posts[0]!.args?.command_turn_id, undefined);
-	assert.equal(posts[0]!.args?.command_turn_unbound, undefined);
-	assert.equal(posts[0]!.args?.local_turn, undefined);
-	const events = posts[0]!.args?.trail_events as Array<{ name: string }>;
-	assert.deepEqual(events.map((e) => e.name), ["read"], "check-job work tools appear while claim/record plumbing stays out of trail");
+	assert.equal(posts.length, 0, "check_job posts zero chat bubbles and zero Technical details trails");
 	assert.deepEqual(pi.warnings, []);
 });
 
@@ -776,10 +793,8 @@ test("automation_run wake reports automation_run work_subject, streams trail, an
 		reason: "turn_end",
 		attempt_id: "00000000-0000-4000-8000-000000000001",
 	});
-	const trailPosts = srv.callsOf("post_session_message").filter((c) => c.args?.phase === "trail");
-	assert.equal(trailPosts.length, 1);
-	assert.equal(trailPosts[0]!.args?.command_turn_id, undefined);
-	assert.equal(trailPosts[0]!.args?.command_turn_unbound, undefined);
+	const trailPosts = srv.callsOf("post_session_message");
+	assert.equal(trailPosts.length, 0, "automation_run posts zero phase:trail Technical details");
 });
 
 test("terminal prompt (attached vs sessionless), room command, and offline heartbeat follow exact work_subject rules", async () => {

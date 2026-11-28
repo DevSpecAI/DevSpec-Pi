@@ -254,18 +254,16 @@ test("preserved 1.3 is accepted only when notice negotiation was omitted; mismat
 	assert.equal(parsePollPayload(spoofed, TEST_CONNECTION, { systemNoticeNegotiated: false }).canonicalState, "invalid");
 });
 
-test("notice runs report live presence, source-less completion, and diagnostics trail while suppressing chat transcript speech (2145bd84)", () => {
+test("notice runs report live presence and source-less completion while suppressing chat transcript and trail posts (2145bd84)", () => {
 	assert.deepEqual(remoteRunActivityPolicy(true), {
 		reportPresence: true,
 		reportCompletion: true,
 		reportTranscript: false,
-		reportTrail: true,
 	});
 	assert.deepEqual(remoteRunActivityPolicy(false), {
 		reportPresence: true,
 		reportCompletion: true,
 		reportTranscript: true,
-		reportTrail: true,
 	});
 });
 
@@ -277,7 +275,7 @@ test("same-run notice boundary closes the notice attempt cleanly and activates o
 		noticeTracker.assistantFinal("notice-only analysis", true);
 		assert.equal(isDeliveryBoundary(noticeTracker), true);
 		const noticePolicy = remoteRunActivityPolicy(true);
-		assert.deepEqual(noticePolicy, { reportPresence: true, reportCompletion: true, reportTranscript: false, reportTrail: true });
+		assert.deepEqual(noticePolicy, { reportPresence: true, reportCompletion: true, reportTranscript: false });
 		if (noticePolicy.reportPresence) events.push("notice:busy");
 		if (noticePolicy.reportTranscript) events.push("notice:transcript");
 

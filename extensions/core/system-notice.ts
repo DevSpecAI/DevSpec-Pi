@@ -92,18 +92,16 @@ export function hasSystemNoticeBatchCapacity(
 }
 
 /**
- * Working presence, source-less attempt completion, and live trail diagnostics
- * are decoupled from chat transcript speech (item 2145bd84, decision 6459a009):
- * notice-triggered runs report live Working state (with their mechanical
- * work_subject) and stream diagnostics trails onto their source-less attempt,
- * while chat transcript speech / answer posts remain suppressed
- * (`reportTranscript: false`).
+ * Working presence and source-less attempt completion are decoupled from chat
+ * transcript speech (item 2145bd84, decision 6459a009): notice-triggered runs
+ * report live Working state (with their mechanical work_subject) and close
+ * cleanly, while chat transcript speech and trail posts remain suppressed
+ * (`reportTranscript: false`, decision 0c496777).
  */
 export interface RemoteRunActivityPolicy {
 	reportPresence: boolean;
 	reportCompletion: boolean;
 	reportTranscript: boolean;
-	reportTrail: boolean;
 }
 
 export function remoteRunActivityPolicy(completionNeutral: boolean): RemoteRunActivityPolicy {
@@ -111,7 +109,6 @@ export function remoteRunActivityPolicy(completionNeutral: boolean): RemoteRunAc
 		reportPresence: true,
 		reportCompletion: true,
 		reportTranscript: !completionNeutral,
-		reportTrail: true,
 	};
 }
 

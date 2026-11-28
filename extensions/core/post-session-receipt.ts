@@ -113,11 +113,13 @@ export function parsePostSessionReceipt(raw: unknown, expected: ExpectedPostRece
 	if ((data.session_id ?? null) !== expectedSessionId || data.phase !== expected.phase ||
 		data.connection_id !== expected.connectionId ||
 		(expected.turnKind !== undefined && data.turn_kind !== expected.turnKind)) return { status: "malformed" };
-	// Non-command diagnostics trail posts (item 5f082b61 / 2145bd84) attach directly
-	// to the active source-less working attempt (`diagnostics_only: true`) without
-	// creating a room chat row; their delivery receipt names `attempt_id`.
-	if (data.diagnostics_only === true && expected.phase === "trail") {
-		if (typeof data.attempt_id !== "string" || !data.attempt_id.trim()) return { status: "malformed" };
+	// Attempt-backed trail posts (DevSpecV2 PR #1708 / item 01932667) attach directly
+	// to `agent_connection_activity` for BOTH ordinary room commands (`diagnostics_only: false`)
+	// and non-command runs (`diagnostics_only: true`) with `attempt_id` and no top-level
+	// `message_id`. Accept both so ordinary room activity never freezes after its first
+	// stored update, and mark `diagnosticsOnly: true` so `noteOwnRoomMessage` never treats
+	// an `attempt_id` as a chat row.
+	if (expected.phase === "trail" && typeof data.attempt_id === "string" && data.attempt_id.trim()) {
 		if (!receipt || (receipt.status !== "stored" && receipt.status !== "idempotently_stored") ||
 			receipt.message_id !== data.attempt_id) return { status: "malformed" };
 		return { status: receipt.status, messageId: data.attempt_id, diagnosticsOnly: true };

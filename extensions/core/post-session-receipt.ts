@@ -103,7 +103,7 @@ function redactRefusalCredentials(value: unknown): unknown {
 /** Format a structured `post_session_message` refusal for runtime surfacing without subsetting fields or slicing values (requirement 4e32d1a5). */
 export function formatPostSessionRefusal(
 	refusal: PostSessionRefusal,
-	label: "trail" | "answer" | "local prompt" | "error" | "message" = "trail",
+	label: "trail" | "answer" | "local prompt" | "error" | "message" | "keepalive" = "trail",
 	status: "skipped" | "rejected" | "malformed" | "refused" = "refused",
 ): string {
 	return `DevSpec remote: ${label} delivery ${status} — ${JSON.stringify(redactRefusalCredentials(refusal))}`;
@@ -120,7 +120,7 @@ export class TrailDeliveryState {
 
 	static formatRefusal(
 		refusal: PostSessionRefusal,
-		label: "trail" | "answer" | "local prompt" | "error" | "message" = "trail",
+		label: "trail" | "answer" | "local prompt" | "error" | "message" | "keepalive" = "trail",
 		status: "skipped" | "rejected" | "malformed" | "refused" = "refused",
 	): string {
 		return formatPostSessionRefusal(refusal, label, status);

@@ -1730,12 +1730,40 @@ async function keepInteractionContinuationAlive(run: ExactInteractionRun): Promi
 	const resolved = await resolveToken();
 	if (!resolved || !interactionRunIsLive(run) || !interactionAuthorityCurrent(run.authority)) return false;
 	try {
-		await callDevspec(resolved.token, "report_keepalive", {
+		const raw = await callDevspec(resolved.token, "report_keepalive", {
 			connection_id: run.authority.connectionId,
 			...exactInteractionContinuationArgs(run.identity),
 		}, { timeoutMs: TURN_LIFECYCLE_REQUEST_TIMEOUT_MS, lane: "pump", connectionCapability: run.authority.connectionCapability });
+		const { details, isError } = unwrapMcpResult(raw);
+		const record = details && typeof details === "object" && !Array.isArray(details)
+			? (details as Record<string, unknown>)
+			: null;
+		if (isError || record?.renewed === false) {
+			debug("interaction keepalive failed", {
+				isError,
+				renewed: record?.renewed === true,
+				errorPresent: true,
+			});
+			if (record && lastCtx) {
+				notify(
+					lastCtx,
+					TrailDeliveryState.formatRefusal(record, "keepalive", isError ? "rejected" : "refused"),
+					"warning",
+				);
+			}
+			return false;
+		}
 		return interactionRunIsLive(run) && interactionAuthorityCurrent(run.authority);
-	} catch {
+	} catch (error) {
+		const refusal = extractPostSessionRefusal(error instanceof DevspecToolError ? error.raw : null);
+		debug("interaction keepalive failed", { isError: true, renewed: false, errorPresent: true });
+		if (refusal && lastCtx) {
+			notify(
+				lastCtx,
+				TrailDeliveryState.formatRefusal(refusal, "keepalive", "refused"),
+				"warning",
+			);
+		}
 		return false;
 	}
 }
@@ -1979,7 +2007,7 @@ async function postCapturedNoticeReply(capture: NoticeReplyCapture, agentStats: 
 				return { raw: await callDevspec(resolved.token, "post_session_message", args, { lane: "pump",
 					beforeSend: () => { if (current()?.connectionId !== capture.connectionId) throw new Error("this Pi's DevSpec connection changed before sending"); } }) };
 			} catch (error) {
-				if (error instanceof DevspecToolError) return { refusal: error.message };
+				if (error instanceof DevspecToolError) return { refusal: error.message, raw: error.raw };
 				throw error;
 			}
 		},
@@ -1995,7 +2023,7 @@ async function postCapturedNoticeReply(capture: NoticeReplyCapture, agentStats: 
  * the room shows a reply with its card, a quiet housekeeping entry or nothing.
  * The post binds to no command, turn or attempt, so the command is untouched.
  */
-async function answerSteeredNotices(message: string): Promise<{ ok: boolean; text: string }> {
+async function answerSteeredNotices(message: string): Promise<{ ok: boolean; text: string; refusal?: Record<string, unknown> }> {
 	const capture = turn?.steeredNotices;
 	if (!capture || capture.noticeIds.length === 0) return { ok: false, text: NO_NOTICE_WAITING };
 	const noticeIds = [...capture.noticeIds];
@@ -2011,7 +2039,7 @@ async function answerSteeredNotices(message: string): Promise<{ ok: boolean; tex
 		capture.noticeIds = capture.noticeIds.filter((id) => !noticeIds.includes(id));
 		capture.finalText = null;
 	}
-	return { ok: result.ok, text: result.text };
+	return { ok: result.ok, text: result.text, ...(result.refusal ? { refusal: result.refusal } : {}) };
 }
 
 /**
@@ -5046,7 +5074,20 @@ export default function (pi: ExtensionAPI) {
 			await candidate.ready;
 			if (!current()) return;
 			const completed = await completeTurnActivity(settled, "turn_end", current);
-			if (completed && current()) {
+			// If a non-command pickup (`workSubjectPickupSent`) or local activity admission
+			// never returned a server `attempt_id`, there is no server attempt to close —
+			// never send generic `report_complete`, and still clear local busy and wake
+			// subject truthfully once all owned background work has finished (task 4284a43c).
+			let noServerAttemptOpened = false;
+			if (!completed && !settled.interaction && !settled.commandTurnId) {
+				if (settled.workSubjectPickupSent) {
+					const attemptId = settled.workSubjectAttemptId ?? (settled.workSubjectPickupReady ? await settled.workSubjectPickupReady : null);
+					noServerAttemptOpened = !attemptId;
+				} else if (settled.localActivityReady) {
+					noServerAttemptOpened = !(await settled.localActivityReady);
+				}
+			}
+			if ((completed || noServerAttemptOpened) && current()) {
 				parkedBackground = null;
 				parkedWorkSubject = null;
 				active.busy = false;

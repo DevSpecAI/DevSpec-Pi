@@ -8,12 +8,14 @@
  * `extensions/devspec-remote.ts` against a scripted DevSpec server.
  */
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
 import { afterEach, beforeEach, test } from "node:test";
 import { createServer, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { DevspecToolError, resetClientCache, setLaneClientFactoryForTests, type LaneClient } from "../extensions/core/client.ts";
 import { getBond, setBond } from "../extensions/core/bond-state.ts";
@@ -23,7 +25,9 @@ import { projectTrailArgs, projectTrailResult } from "../extensions/core/trail-p
 import { resetSystemNoticeStateForTests } from "../extensions/core/system-notice.ts";
 import {
 	ACTIVITY_PROGRESS_STALENESS_HOURS,
+	ACTIVITY_PROGRESS_STALENESS_MS,
 	PendingWorkSubjects,
+	WORK_SUBJECT_KINDS,
 	isNonChatWorkSubject,
 	isNonCommandWorkSubject,
 	terminalWorkSubject,
@@ -110,6 +114,37 @@ test("work_subject shapes match DevSpecV2 strict wire schema and 24-hour stalene
 	assert.deepEqual(pending.take("wake-0"), { kind: "check_job", id: CHECK_JOB_ID }, "oldest entry must not be silently evicted");
 	assert.deepEqual(pending.take("wake-149"), { kind: "check_job", id: CHECK_JOB_ID });
 	pending.clear();
+});
+
+test("ACTIVITY_PROGRESS_STALENESS_HOURS and WORK_SUBJECT_KINDS match DevSpecV2 server TS and SQL migration (requirement 3c5147a7)", async (t) => {
+	const serverWorkSubject = "packages/core/src/connections/work-subject.ts";
+	const serverMigration = "supabase/migrations/1772_agent_work_subject_and_24h_staleness_bound.sql";
+	const here = fileURLToPath(new URL(".", import.meta.url));
+	const explicit = process.env.DEVSPEC_V2_ROOT?.trim();
+	const serverRoot = explicit
+		? resolve(explicit)
+		: [resolve(here, "../../devspecv2"), resolve(here, "../../../devspecv2")].find(
+				(r) => existsSync(resolve(r, serverWorkSubject)) && existsSync(resolve(r, serverMigration)),
+			);
+	if (!serverRoot || !existsSync(resolve(serverRoot, serverWorkSubject)) || !existsSync(resolve(serverRoot, serverMigration))) {
+		if (explicit) assert.fail(`DEVSPEC_V2_ROOT (${serverRoot}) does not contain ${serverWorkSubject} and ${serverMigration}`);
+		t.skip("paired devspecv2 checkout with work-subject staleness contract unavailable; set DEVSPEC_V2_ROOT");
+		return;
+	}
+	const serverContract = (await import(pathToFileURL(resolve(serverRoot, serverWorkSubject)).href)) as {
+		ACTIVITY_PROGRESS_STALENESS_HOURS: number;
+		ACTIVITY_PROGRESS_STALENESS_MS: number;
+		WORK_SUBJECT_KINDS: readonly string[];
+	};
+	const migrationSql = readFileSync(resolve(serverRoot, serverMigration), "utf8");
+	const sqlMatch = migrationSql.match(
+		/v_stale_before\s+timestamptz\s*:=\s*coalesce\(p_now,\s*now\(\)\)\s*-\s*interval\s*'(\d+)\s+hours'/i,
+	);
+	assert.ok(sqlMatch, "server migration must define v_stale_before interval in hours");
+	assert.equal(ACTIVITY_PROGRESS_STALENESS_HOURS, serverContract.ACTIVITY_PROGRESS_STALENESS_HOURS);
+	assert.equal(ACTIVITY_PROGRESS_STALENESS_MS, serverContract.ACTIVITY_PROGRESS_STALENESS_MS);
+	assert.equal(ACTIVITY_PROGRESS_STALENESS_HOURS, Number(sqlMatch[1]));
+	assert.deepEqual([...WORK_SUBJECT_KINDS], [...serverContract.WORK_SUBJECT_KINDS]);
 });
 
 test("parsePostSessionReceipt accepts attempt-backed phase:'trail' receipts for BOTH ordinary room commands (diagnostics_only:false) and diagnostics_only:true without freezing TrailDeliveryState", () => {
@@ -1098,4 +1133,100 @@ test("non-command phase:'trail' is fenced on confirmed report_pickup attempt_id 
 	await new Promise((r) => setTimeout(r, 80));
 	assert.equal(srv.callsOf("post_session_message").length, 0, "failed non-command pickup must NEVER post phase:trail (could fall back to an unrelated room command)");
 	assert.equal(srv.callsOf("report_complete").length, 0, "failed non-command pickup must NEVER emit generic report_complete");
+});
+
+test("failed non-command pickup with owned background job still clears busy and work_subject when last background job ends without a wake (task 4284a43c)", async () => {
+	srv.failNonCommandPickup = true;
+	const pi = await loadRemote();
+	await pi.start();
+
+	let bgStatus: "running" | "completed" = "running";
+	pi.onBus("pi-background-tasks:request:v1", (raw) => {
+		const req = raw as { request_id: string; operation: string };
+		if (req.operation === "capabilities") {
+			pi.emitBus("pi-background-tasks:response:v1", {
+				schema_version: "pi-background-tasks.extension-response.v1",
+				request_id: req.request_id,
+				operation: "capabilities",
+				ok: true,
+				result: { api_version: 1, status: true },
+			});
+		} else if (req.operation === "status") {
+			pi.emitBus("pi-background-tasks:response:v1", {
+				schema_version: "pi-background-tasks.extension-response.v1",
+				request_id: req.request_id,
+				operation: "status",
+				ok: true,
+				result: { tasks: [{ id: "bg-orphan-1", startTime: 1_000, status: bgStatus }] },
+			});
+		}
+	});
+
+	const checkEnvelope = {
+		id: CHECK_JOB_ID,
+		kind: "check_job",
+		check_job_id: CHECK_JOB_ID,
+		check_kind: "conflict_decisions",
+		record: { type: "task", id: "9b2d6c1e-1111-4222-8333-444455556667", title: "Failed pickup owned bg" },
+		entries: 1,
+		yours: false,
+		offered_at: "2026-11-28T02:00:00.000Z",
+		delivery_connection_id: CONNECTION,
+	};
+	srv.rememberDispatch(CHECK_JOB_ID, checkEnvelope);
+	srv.enqueuePoll({
+		connection_id: CONNECTION,
+		session_id: ROOM_SESSION,
+		attached_at: "2026-11-28T00:00:00.000Z",
+		speech_attachment_id: "att-1",
+		changed: false,
+		dispatches: [checkEnvelope],
+		dispatch_cursor: "disp-fail-bg-1",
+		cursor_v2: null,
+		system_notice_version: 3,
+		system_notice_cursor: null,
+		system_notices: [],
+	});
+	await until(() => pi.sentUserMessages.length === 1, 2_000, "check job delivered");
+	const wakeMsg = pi.sentUserMessages[0]!;
+	pi.setIdle(false);
+	await pi.run("before_agent_start", { prompt: wakeMsg });
+	await pi.run("agent_start", {});
+	await pi.run("message_start", { message: { role: "user", content: wakeMsg } });
+	await pi.run("tool_execution_start", { toolCallId: "bg-1", toolName: "bg_run", args: { command: "npm test" } });
+	await pi.run("tool_execution_end", {
+		toolCallId: "bg-1",
+		toolName: "bg_run",
+		result: { details: { task: { id: "bg-orphan-1", startTime: 1_000, status: "running", notifyOnCompletion: true, triggerOnCompletion: true } }, content: [] },
+		isError: false,
+	});
+	await until(() => srv.callsOf("report_pickup").length === 1, 2_000, "failed non-command pickup attempted");
+	pi.setIdle(true);
+	await pi.run("agent_settled", {});
+
+	// While background job runs, Pi keeps reporting busy + check_job subject.
+	const busyPollIdx = srv.callsOf("poll_connection").length;
+	srv.wake();
+	await until(
+		() => {
+			if (srv.callsOf("poll_connection").slice(busyPollIdx).some((c) => c.args?.busy === true && (c.args?.work_subject as { id?: string } | undefined)?.id === CHECK_JOB_ID)) return true;
+			srv.wake();
+			return false;
+		},
+		2_000,
+		"busy poll while owned bg runs",
+	);
+
+	// Background job ends WITHOUT a completion wake -> completeObservedIdle must clear busy + work_subject truthfully without emitting generic report_complete!
+	bgStatus = "completed";
+	pi.emitBus("pi-background-tasks:terminal:v1", {
+		schema_version: "pi-background-tasks.extension-terminal.v1",
+		task: { id: "bg-orphan-1", startTime: 1_000, status: "completed" },
+	});
+	await until(
+		() => srv.callsOf("heartbeat_connection").some((c) => c.args?.busy === false && c.args?.work_subject === null),
+		3_000,
+		"idle clear heartbeat after owned bg finishes without wake",
+	);
+	assert.equal(srv.callsOf("report_complete").length, 0, "must never emit unscoped report_complete when pickup opened no server attempt");
 });

@@ -489,7 +489,10 @@ function registerNoticeReplyTool(pi: ExtensionAPI): void {
 		parameters: jsonSchemaToTypebox(NOTICE_REPLY_TOOL_SCHEMA as unknown as Record<string, unknown>),
 		async execute(_toolCallId, params) {
 			const handed = await handOverNoticeReply((params as { message?: unknown }).message);
-			return measuredToolResult(NOTICE_REPLY_TOOL, handed.ok ? toolTextResult(handed.text) : toolErrorResult(handed.text));
+			return measuredToolResult(
+				NOTICE_REPLY_TOOL,
+				handed.ok ? toolTextResult(handed.text) : toolErrorResult(handed.text, handed.refusal ? { refusal: handed.refusal } : undefined),
+			);
 		},
 	});
 }

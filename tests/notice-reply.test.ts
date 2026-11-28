@@ -86,6 +86,21 @@ test("a refusal reaches the terminal with DevSpec's own reason, including a conn
 	// A refusal before anything was read is plain text; it is still shown verbatim.
 	const plain = await postNoticeReply({ capture: capture({ noticeIds: [IDS.notice, OTHER] }), current: attached, call: scripted([{ refusal: "system_notice_ids requires connection_id." }]).call });
 	assert.equal(noticeReplyTerminalMessage(plain, capture({ noticeIds: [IDS.notice, OTHER] })), "DevSpec: The reply to 2 DevSpec notices was not posted to the room (refused). system_notice_ids requires connection_id.");
+	// Structured refusal carrying per-notice reasons (e.g. `refused: [{ notice_id, reason, why }]`) is preserved whole as data and surfaced in terminal output (requirement 4e32d1a5).
+	const structuredPayload = {
+		delivery: { status: "rejected", reason: "notice_refused", retryable: false },
+		error: words,
+		refused: [{ notice_id: IDS.notice, reason: "not_delivered", why: "DevSpec did not deliver this notice to this connection in this project." }],
+	};
+	const structuredRefusal = await postNoticeReply({
+		capture: capture(),
+		current: attached,
+		call: scripted([{ refusal: words, raw: { ...envelope(structuredPayload), isError: true } }]).call,
+	});
+	assert.deepEqual(structuredRefusal, { kind: "refused", reason: "notice_refused", detail: words, refusal: structuredPayload });
+	const structuredText = noticeReplyTerminalMessage(structuredRefusal, capture())!;
+	assert.ok(structuredText.includes(`"notice_id":"${IDS.notice}"`));
+	assert.ok(structuredText.includes(`"reason":"not_delivered"`));
 });
 
 test("a room change mid-post is sent once more, because DevSpec stores the same notices and text once", async () => {
